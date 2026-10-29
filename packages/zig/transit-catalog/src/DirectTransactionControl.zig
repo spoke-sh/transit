@@ -40,6 +40,7 @@ pub const State = struct {
 };
 
 pub const Status = struct {
+    revision: c.protocol.DataLifecycle.Position,
     begin: x.Begin,
     acquired: bool,
     last_statement: u64,

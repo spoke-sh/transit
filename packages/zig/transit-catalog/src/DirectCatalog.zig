@@ -820,6 +820,9 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
 }
 
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
+    return self.clientTokenSelected(request, policy, false);
+}
+fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
     const key = request.key();
@@ -857,7 +860,7 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
         .transaction => |value| {
             if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
                 return error.TransactionCatalogChanged;
-            try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options);
+            try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options, server_selection);
             try check(current);
             try c.OperationBinding.claimTransaction(self.allocator, self.store.objects, value, try key.digest());
         },
@@ -1103,7 +1106,147 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     return acquired;
 }
 
+const TransactionPolicy = struct {
+    original: Policy,
+    epoch: ?P.Guard.Fence = null,
+    fn policy(self: *@This()) Policy {
+        return .{ .context = self, .subject = self.original.subject, .make_guard = make, .registered = registered, .native_resource = self.original.native_resource };
+    }
+    fn make(raw: *anyopaque, allocator: std.mem.Allocator, request: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        const fence = try allocator.create(CutFence);
+        fence.* = .{ .underlying = try self.original.make_guard(self.original.context, allocator, request, prerequisite), .epoch = &self.epoch };
+        return fence.guard();
+    }
+    fn registered(raw: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        return self.original.registered(self.original.context, kind, id);
+    }
+};
+
+/// Server-owned discovery freezes either exact selected IDs or the complete
+/// currently SELECT-authorized catalog Table set. The host excludes all database
+/// publication until admission completes; current-policy epochs must agree.
+pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, policy: Policy) !c.DirectClientToken.Receipt {
+    try request.validate();
+    if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
+        if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
+        return receipt;
+    }
+    try c.DirectTransaction.requireLimits(request.limits, self.options.transaction_limits);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(request.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.beginTransactionBounded(request, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begin, original_policy: Policy) !c.DirectClientToken.Receipt {
+    var checked: TransactionPolicy = .{ .original = original_policy };
+    const policy = checked.policy();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    try check(try self.guard(scratch.allocator(), policy, try self.schema(request.namespace), null, .schema));
+    const identity: p.Transaction.Identity = .{ .begin = request.operation, .branch = request.key.connection.branch };
+    var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, identity, .participants, request.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer selected.deinit();
+    switch (request.selection) {
+        .explicit_tables => |ids| for (ids) |id| {
+            _ = scratch.reset(.retain_capacity);
+            const target = try self.entry(id) orelse return error.CatalogDenied;
+            if (target.resource != null) return error.UnsupportedTransactionParticipant;
+            if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
+        },
+        .authorized_catalog_tables => {
+            var cursor: ?pages.Key = null;
+            while (true) {
+                const page = try self.store.tree().scan(self.store.root.objects, cursor);
+                for (page.entries) |slot| if (slot) |item| {
+                    _ = scratch.reset(.retain_capacity);
+                    const target = try r.fromValue(r.Entry, self.allocator, item.value);
+                    try target.validate(self.config());
+                    if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+                    if (target.resource != null) continue;
+                    _ = try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), true);
+                };
+                cursor = page.next orelse break;
+            }
+        },
+    }
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_tables) .explicit_tables else .authorized_catalog_tables, .tables = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
+    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin } } };
+    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
+}
+
+fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
+    if (target.seed == null) return false;
+    var view = try self.openTransaction(self.allocator, target, false, true);
+    defer view.deinit();
+    if (view.table.root.next_lsn == 0 or view.table.root.retired) return false;
+    const namespace = try self.authorizationSchema(view.properties.namespace);
+    const current = try self.guard(scratch, policy, namespace, view.properties.target(target.object), .read);
+    check(current) catch |err| {
+        if (filter and (err == error.CatalogDenied or err == error.Forbidden)) return false;
+        return err;
+    };
+    if (view.table.root.transaction != null) return error.TransactionPrepared;
+    try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = transactionTableGuard(view.table.root) } } });
+    return true;
+}
+
 const TransactionWorkspace = c.DirectTransactionWorkspace;
+
+/// Stage exact native DML for a private statement. Staging creates no admission,
+/// consumes no sequence and grants no permission to publish Table data.
+pub fn stageTransactionStatement(self: *Self, key: c.DirectClientToken.Key, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !c.DirectTransactionWorkspace.Request {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    if (head.acquired.cut.begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (work == .ddl or sequence == 0 or sequence > head.acquired.cut.begin.limits.statements) return error.InvalidTransactionWork;
+    if (head.pending != null) return error.TransactionStatementPending;
+    if (sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(head.acquired.cut.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.stageTransactionStatementBounded(progress, head, sequence, work, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn stageTransactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progress, head: TransactionWorkspace.Head, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !TransactionWorkspace.Request {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const native = switch (work) {
+        .ddl => unreachable,
+        inline .rows, .statement => |value| try value.native(scratch.allocator()),
+    };
+    try progress.receipt.binding.key.connection.binding(native.binding);
+    if (native.ingestion != .bulk) return error.InvalidTransactionWorkspace;
+    const state = try self.transactionTableStateBounded(progress, native.binding.target, policy);
+    if (!std.meta.eql(native.interpretation, state.root.declared())) return error.TableDefinitionChanged;
+    var declaration = try s.TableDeclaration.load(scratch.allocator(), self.data_objects, state.root.declared());
+    defer declaration.deinit();
+    const properties = try Properties.decode(scratch.allocator(), declaration.definition.properties);
+    const current = try self.operationGuard(scratch.allocator(), native.binding, properties.namespace, policy);
+    try check(current);
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = head.acquired.cut.begin.limits.workspace_bytes };
+    const result: TransactionWorkspace.Request = .{ .statement = .{ .transaction = head.acquired.cut.begin.identity, .sequence = sequence, .intent = native.binding.intent }, .binding = native.binding, .intent = try s.TableDmlIntent.stage(scratch.allocator(), staging.objects(), native) };
+    try result.validate();
+    try check(current);
+    return result;
+}
 
 /// The embedding host excludes all database publication for the entire call.
 /// This freezes the original statement before private evaluation. A returned
@@ -1279,13 +1422,26 @@ fn transactionTableStateBounded(self: *Self, progress: c.DirectClientToken.Progr
 
 const TransactionControl = c.DirectTransactionControl;
 
+/// Resume accepted work only. An idle active transaction stays active; no new
+/// statement, commit attempt or abort is chosen by maintenance.
+pub fn resumeTransaction(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
+    const observed = try self.inspectTransaction(key, policy);
+    if (observed.attempt) |attempt| return self.settleTransaction(key, attempt.operation, .commit, steps, policy);
+    if (!observed.pending_statement) return observed;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    _ = try self.executeTransactionStatement(key, head.pending orelse return error.InvalidTransactionWorkspace, policy);
+    return self.inspectTransaction(key, policy);
+}
+
 /// Inspect original transaction knowledge without acquiring a cut or deciding.
 /// The host serializes database publication while this method observes owners.
 pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !TransactionControl.Status {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     const begin = progress.receipt.binding.intent.transaction.begin;
-    var result: TransactionControl.Status = .{ .begin = begin, .acquired = false, .last_statement = 0, .pending_statement = false, .attempt = null, .observation = .not_observed, .cleanup_complete = false };
+    var result: TransactionControl.Status = .{ .revision = progress.revision, .begin = begin, .acquired = false, .last_statement = 0, .pending_statement = false, .attempt = null, .observation = .not_observed, .cleanup_complete = false };
     const reference = progress.record orelse return result;
     if (reference.format != TransactionControl.format) {
         const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
@@ -1321,9 +1477,12 @@ pub fn settleTransaction(self: *Self, key: c.DirectClientToken.Key, operation: d
     if (steps == 0) return error.InvalidTransactionWork;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
     self.allocator = memory.allocator();
     defer {
         self.allocator = parent;
+        self.options.table_owner = retained;
         std.debug.assert(memory.used == 0);
     }
     self.settleTransactionBounded(progress, operation, command, steps, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
@@ -1629,6 +1788,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     options.control = .{ .log = self.store.log, .objects = self.store.objects };
     options.transaction_control = transaction_control;
     var table = try P.init(if (resident != null) self.allocator else allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
+
     errdefer table.deinit();
     if (prior != null and prior.?.root.partition == target.partition and
         std.meta.eql(prior.?.root.interpretation.object, seed.definition.object))

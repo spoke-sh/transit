@@ -3601,3 +3601,102 @@ test "transaction coordinator refuses unavailable prepared data and abort can re
     defer reopened.deinit();
     try t.expectEqualDeep(terminal, try reopened.inspectTransaction(binding.key, access.policy()));
 }
+
+test "transaction server selection freezes authorized catalog and preserves original token" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    _ = try selectedTransaction(&catalog, &access, 12);
+    const template = try transactionToken(&catalog, 9500, 2, 0);
+    var request: c.DirectTransactionRequest.Begin = .{
+        .key = template.key,
+        .fingerprint = template.fingerprint,
+        .operation = template.intent.transaction.begin.identity.begin,
+        .namespace = 1,
+        .mode = .read_only,
+        .selection = .authorized_catalog_tables,
+        .limits = c.DirectTransaction.default_limits,
+        .budget = template.budget,
+    };
+    access.denied_metadata = 111;
+    const receipt = try catalog.beginTransaction(request, access.policy());
+    try t.expectEqual(@as(u64, 11), receipt.binding.intent.transaction.begin.tables.count);
+    try t.expectEqual(.authorized_catalog_tables, receipt.binding.intent.transaction.begin.selection);
+    const cut = try catalog.acquireTransaction(request.key, access.policy());
+    try t.expectEqual(@as(u64, 11), cut.cut.sources.count);
+    // Later catalog growth and a racing proposed identity cannot change the
+    // already accepted original begin or select an additional participant.
+    const create = try creation(70, 9800, "later");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    request.operation.operation += 1;
+    try t.expectEqualDeep(receipt, try catalog.beginTransaction(request, access.policy()));
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9600 };
+    const status = try catalog.settleTransaction(request.key, operation, .commit, 32, access.policy());
+    try t.expect(status.cleanup_complete);
+    try t.expect(status.observation.decided.outcome == .committed);
+    try c.DirectTransactionRequest.validateResult(.{ .settle = .{ .key = request.key, .operation = operation, .command = .commit, .steps = 32 } }, .{ .status = status });
+    request.fingerprint[0] ^= 1;
+    try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(request, access.policy()));
+    request.key.token = @splat(3);
+    request.selection = .{ .explicit_tables = &.{11} };
+    try t.expectError(error.CatalogDenied, catalog.beginTransaction(request, access.policy()));
+    access.denied_metadata = null;
+    access.epoch_change_at = access.calls + 4;
+    try t.expectError(error.TransactionAuthorityChanged, catalog.beginTransaction(request, access.policy()));
+}
+
+test "transaction native staging binds private work without accepting or exposing rows" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    var view = (try resolve(&catalog, &access, "selected_0")).?;
+    defer view.deinit();
+    const w = c.DirectTableProtocol;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const schema = view.table.declaration.schema.schema;
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 500 };
+    const row: c.fuze.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(identity, 0), .cells = &.{.{ .value = .{ .atom = .{ .signed = 7 } } }} };
+    var buffer: [65536]u8 = undefined;
+    var work: w.Rows = .{
+        .binding = .{ .definition = p.Growth.current_definition, .identity = identity, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(1) },
+        .interpretation = view.table.root.declared(),
+        .schema = try w.Binary.encode(allocator, try schema.encode(&buffer)),
+        .changes = &.{.{ .insert = try w.Binary.encode(allocator, try row.encode(schema, &buffer)) }},
+        .ingestion = .bulk,
+    };
+    work.binding.intent = try work.digest(allocator);
+    const before = try catalog.inspectTransaction(binding.key, access.policy());
+    const request = try catalog.stageTransactionStatement(binding.key, 1, .{ .rows = work }, access.policy());
+    try t.expectEqualDeep(before, try catalog.inspectTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(request, try catalog.stageTransactionStatement(binding.key, 1, .{ .rows = work }, access.policy()));
+    try c.DirectTransactionRequest.validateResult(.{ .stage = .{ .key = binding.key, .sequence = 1, .work = .{ .rows = work } } }, .{ .staged = request });
+    try t.expect(try catalog.admitTransactionStatement(binding.key, request, access.policy()) == null);
+    const resumed = try catalog.resumeTransaction(binding.key, 1, access.policy());
+    try t.expect(!resumed.pending_statement and resumed.attempt == null);
+    try t.expectEqualDeep(resumed, try catalog.resumeTransaction(binding.key, 1, access.policy()));
+    const outcome = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+    try t.expectEqual(@as(u64, 1), outcome.provisional.affected);
+    try t.expectEqualDeep(outcome, try catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    try t.expectError(error.TransactionStatementConflict, catalog.stageTransactionStatement(binding.key, 1, .{ .rows = work }, access.policy()));
+    var visible = (try resolve(&catalog, &access, "selected_0")).?;
+    defer visible.deinit();
+    try t.expectEqual(@as(u64, 0), visible.table.root.live_rows);
+    const terminal = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 501 }, .abort, 2, access.policy());
+    try t.expect(terminal.cleanup_complete);
+    try t.expectEqualDeep(terminal, try catalog.resumeTransaction(binding.key, 1, access.policy()));
+}

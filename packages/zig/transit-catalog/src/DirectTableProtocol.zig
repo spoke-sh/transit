@@ -311,6 +311,7 @@ pub const FilterScan = struct {
 };
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
+    transaction: c.DirectTransactionRequest.Request,
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
     record: c.DirectRecord.Request,
@@ -392,6 +393,7 @@ pub const Request = struct {
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
+            .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
             .client_token => |value| value == .bind,
             .client_progress => |value| value == .update,
@@ -403,7 +405,7 @@ pub const Request = struct {
             .resource_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -434,6 +436,10 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .transaction => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
+            },
             .record => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.scope().connection, connection)) return error.CatalogIdentityConflict;
@@ -761,6 +767,7 @@ pub const Point = struct {
     row: ?Binary,
 };
 pub const Result = union(enum) {
+    transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
     client_token: ?c.DirectClientToken.Receipt,
     client_progress: c.DirectClientToken.ProgressResult,

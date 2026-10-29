@@ -97,11 +97,11 @@ pub fn requireLimits(requested: p.Transaction.Limits, maximum: p.Transaction.Lim
 
 /// Validate all immutable selection entries before reserving a partition. This
 /// is a descriptor check, not proof of a consistent cut or read authorization.
-pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, reference: Reference, options: c.DirectCatalog.Options) !void {
+pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, reference: Reference, options: c.DirectCatalog.Options, server_selection: bool) !void {
     try reference.validate();
     // A caller-built subset cannot establish the complete authorized catalog
     // selection. That mode requires server-owned discovery under the cut fence.
-    if (reference.begin.selection != .explicit_tables) return error.InvalidTransactionBegin;
+    if (!server_selection and reference.begin.selection != .explicit_tables) return error.InvalidTransactionBegin;
     try requireLimits(reference.begin.limits, options.transaction_limits);
     var directory = try c.storage.TransactionDirectory.init(allocator, objects, reference.begin.identity, .participants, reference.begin.limits.participants, options.resident_pages, options.index_work_bytes);
     defer directory.deinit();

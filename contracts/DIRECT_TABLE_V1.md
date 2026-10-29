@@ -196,8 +196,8 @@ ordinary Table operations. Lost replies require original request recovery;
 resource/storage failures can leave admitted statements pending. Current SELECT
 and original DML permissions gate execution and repeated outcome disclosure.
 The embedding host serializes all database publication throughout these component
-calls. No signed workspace action or SQL transaction syntax is exposed by these
-formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
+calls. The signed `transaction` action exposes these controls; SQL session
+syntax is a separate integration. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
 defines resident and cumulative staging charges and the remaining host boundaries.
 
 The component coordinator stores reserved canonical `DirectRecord` format
@@ -1214,3 +1214,31 @@ request's work; durable Table/catalog cardinality has no corresponding limit.
 Python signing vectors. The catalog package tests consume those same vectors;
 the [proof ledger](../docs/history/qualification/README.md) distinguishes codec and node composition
 checks from installed service qualification.
+
+
+### Signed transaction action
+
+`Action.transaction` carries `DirectTransactionRequest.Request`. `begin` requires
+`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, `selection`,
+`limits` and token `budget`. Explicit selection IDs are strictly increasing;
+`authorized_catalog_tables` is discovered and frozen by the owner. The original
+account/token binding wins a race; matching fingerprints recover that accepted
+begin without reselecting the catalog. A different fingerprint conflicts.
+
+`acquire` and `inspect` carry the original key. `stage` carries `key`, `sequence`
+and native `work` (bulk rows or statement, never DDL), and returns a frozen private
+statement request. `statement` carries `key`, that exact `request` and `execute`;
+false admits, true evaluates or recovers the original result. A nullable outcome
+means admitted/pending, never rejected. `settle` carries `key`, original commit
+`operation`, `command` (`commit`/`abort`) and `steps` in 1–256. `advance` carries `key` and `steps`; it advances only an
+accepted pending statement or existing attempt, leaving idle active work unchanged.
+The first accepted attempt remains binding; an abort cannot replace an already committed decision.
+
+Results are `begun`, `acquired`, `staged`, `statement` or `status`, matching the
+request. Status requires catalog `revision`, `begin`, `acquired`, `last_statement`,
+`pending_statement`, nullable `attempt`, `observation` and `cleanup_complete`.
+Only actual journal evidence establishes a final decision. Cleanup completion
+separately establishes publication/barrier and original-pin release. Inspection
+and settlement use reserved control capacity; other calls use data capacity.
+All transaction actions exclude database publication. Current scoped checks share
+one writer/policy epoch, checked again before disclosing a buffered response.

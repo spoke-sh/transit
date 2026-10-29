@@ -126,6 +126,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
+        .transaction => .transaction,
         .record => .record,
         .client_token => .client_token,
         .client_progress => .client_progress,
@@ -175,6 +176,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .record => |value| {
             try value.reference.validate();
             const input = request.action.record;

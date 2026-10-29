@@ -468,8 +468,10 @@ Table DDL/DML, namespace, conditional name, external-owner and transaction begin
 references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
 Its explicit Table selection is paged and its ceilings come from
-`Options.transaction_limits`. Admission rejects `authorized_catalog_tables`:
-the neutral variant requires server-owned discovery before it can execute.
+`Options.transaction_limits`. Caller-built token bindings accept explicit selections only.
+The signed `transaction.begin` operation also supports `authorized_catalog_tables`: it
+walks the catalog and freezes every currently SELECT-authorized direct Table under
+one publication and policy fence.
 Generic progress updates reject these entries; only their transaction owner can
 replace recovery records or request settlement.
 
@@ -497,8 +499,9 @@ owner and decoding work share the admitted resident-byte limit. Transaction
 operations neither borrow nor retain the ordinary Table-owner cache: their
 Table allocations are released before the temporary budget ends. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Deployment-wide
-capacity and cleanup still require transaction-host integration. This component
-operation has no signed request or SQL adapter and does not decide a commit.
+capacity uses the node request budgets and per-account reservations. The signed
+`transaction.acquire` operation takes the host database lock for the complete
+acquisition; it does not decide a commit. SQL session controls are separate.
 See the token contract for exact fields, permissions and execution boundaries.
 
 `admitTransactionStatement` freezes one original bulk DML request before private
@@ -698,3 +701,33 @@ selection. Missing interpretation evidence, current denial and transport errors
 leave the original cleanup decision unresolved.
 These methods supply retention and source traversal; maintained-query scheduling
 and publication remain separate owners.
+
+
+## Signed transaction controls
+
+`DirectTransactionClient` uses the shared signed `/table/v1` connection. `begin`
+freezes either sorted explicit Table IDs or the complete authorized catalog Table
+selection. Persist its account/token and request fingerprint before sending it;
+a retry returns the original accepted begin even when the proposed operation or
+current catalog has changed. `acquire` records the original common cut.
+
+`stage` validates and stores bulk INSERT/UPDATE/DELETE work for the next sequence;
+its returned `DirectTransactionWorkspace.Request` must be retained before
+`admit` or `execute`. Staging is not statement acceptance. `execute` recovers an
+admitted request or its original provisional outcome. Repeating a completed
+request does not consume another sequence or modify public Table data.
+
+`inspect` reports the current catalog revision, begin, acquired-cut state,
+statement frontier, pending statement, original commit attempt, decision knowledge
+and cleanup completion. `settle` preserves the original commit operation and
+advances at most its `steps` preparation/cleanup participants (1–256). `advance`
+executes only the accepted pending statement or existing commit attempt; it leaves
+an idle active transaction unchanged. A committed
+decision is distinct from completed publication and pin cleanup. An absent reply
+or interrupted wait cannot establish rejection or rollback.
+
+The node excludes database publication for each transaction-control call. Paged
+checks retain a common writer/policy epoch instead of growing a native Guard
+array; the response is withheld if that epoch changes after buffering. These
+calls use current original-caller authorization. They grant neither delegated
+read authority nor permission to execute external effects.

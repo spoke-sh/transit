@@ -17,6 +17,8 @@ pub const Config = struct {
     statement_scan_rows: u64 = 1_000_000,
     statement_scan_bytes: u64 = 64 * 1024 * 1024,
     client_token_quota: u64 = 1_000_000,
+    transaction_limits: c.protocol.Transaction.Limits = c.DirectTransaction.default_limits,
+    transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
 };
 
 configuration: c.DirectCatalog.Configuration,
@@ -47,6 +49,10 @@ pub fn deinit(self: *Self) void {
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
+    try config.transaction_limits.validate();
+    inline for (@typeInfo(c.DirectClientToken.TransactionReservations).@"struct".field_names) |name| {
+        if (@field(config.transaction_account_limits, name) == 0) return error.InvalidTableConfiguration;
+    }
     if (config.statement_scan_rows == 0 or config.statement_scan_bytes == 0 or config.client_token_quota == 0) return error.InvalidTableConfiguration;
     if (config.catalog.scope.realm != engine.genesis.realm or config.registrar.principal > c.protocol.max_counter) return error.InvalidTableConfiguration;
     if (config.registrar.role) |role| try c.protocol.Authorization.roleId(role);
@@ -54,7 +60,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     const owner = engine.journal.backend;
     var control: backend.DataStore = .{ .backend = owner, .control = true };
     var data: backend.DataStore = .{ .backend = owner };
-    const options: c.DirectCatalog.Options = .{ .client_token_quota = config.client_token_quota, .table = .{ .statement_scan_rows = config.statement_scan_rows, .statement_scan_bytes = config.statement_scan_bytes } };
+    const options: c.DirectCatalog.Options = .{ .client_token_quota = config.client_token_quota, .transaction_limits = config.transaction_limits, .transaction_account_limits = config.transaction_account_limits, .table = .{ .statement_scan_rows = config.statement_scan_rows, .statement_scan_bytes = config.statement_scan_bytes } };
     var catalog = try c.DirectCatalog.init(allocator, config.catalog, control.log(), control.objects(), data.log(), data.objects(), options);
     defer catalog.deinit();
     // Validate retained configuration/history before listener readiness. This
@@ -64,6 +70,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
+        .transaction => true,
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
         .initialize, .admit_ddl, .check_set, .name_assertion, .name_preview => true,

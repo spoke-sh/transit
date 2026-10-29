@@ -1638,3 +1638,112 @@ fn namedResourceDispatch(engine: *Engine, config: D.Configuration, owner_role: u
     _ = try runner.runResource(&catalog, root_binding, policy.policy(), .cancel, 1, null);
     _ = try command(engine, .{ .retire_resource = actual.resulting.?.resource });
 }
+
+fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const scope = service.configuration.scope;
+    // More Tables than a single native authorization Guard can hold. Each
+    // scoped check is current, while the final disclosure checks their epoch.
+    for (0..12) |i| {
+        const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+        const schema: c.fuze.TableSchema.Schema = .{ .object = 100000 + i, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+        var name: [40]u8 = undefined;
+        const intent: D.Intent = .{ .namespace = 1, .name = try .init(try std.fmt.bufPrint(&name, "tx_selected_{d}", .{i})), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+        const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 100000 + i }, .target = .{ .scope = scope, .branch = 1, .object = 100000 + i }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) };
+        var encoded: [65536]u8 = undefined;
+        const admitted = try dispatch(service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = intent.name.slice(), .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(allocator, try schema.encode(&encoded)) } } } });
+        admitted.deinit();
+        const done = try dispatch(service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 4 } });
+        defer done.deinit();
+        try t.expect(done.value.result.ddl == .committed);
+        _ = arena.reset(.retain_capacity);
+    }
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(81) };
+    const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = .{} };
+    const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
+    defer begun.deinit();
+    try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.tables.count >= 12);
+    const acquired = try dispatch(service, .{ .transaction = .{ .acquire = token } });
+    defer acquired.deinit();
+    try t.expect(acquired.value.result.transaction.acquired.cut.sources.count >= 12);
+    var authorization = try service.engine.authorization();
+    var revoked = (try authorization.bound(service.configuration.authority.table_domain, try c.TableAuthority.binding(scope, .table, 100011))).?.reference.id;
+    const Revoke = struct {
+        fn run(raw: *anyopaque, engine: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(raw));
+            _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    service.before_reply = .{ .context = &revoked, .run = Revoke.run };
+    defer service.before_reply = null;
+    // The immutable acquired cut was already buffered. A changed native policy
+    // epoch prevents its disclosure, even though CONNECT remains permitted.
+    try t.expectError(error.AuthorizationChanged, dispatch(service, .{ .transaction = .{ .acquire = token } }));
+    service.before_reply = null;
+    _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(revoked), .owner = owner_role } });
+    const resumed = try dispatch(service, .{ .transaction = .{ .acquire = token } });
+    defer resumed.deinit();
+    try t.expectEqualDeep(acquired.value.result, resumed.value.result);
+    for (0..2) |i| {
+        var name: [40]u8 = undefined;
+        const table_name = try std.fmt.bufPrint(&name, "tx_selected_{d}", .{i});
+        const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = table_name } });
+        defer metadata.deinit();
+        const definition = metadata.value.result.lookup.?;
+        try t.expectEqual(@as(u64, 0), definition.row_count);
+        const schema_bytes = try definition.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
+        var schema = try c.fuze.TableSchema.decode(allocator, schema_bytes);
+        defer schema.deinit();
+        const sql = try std.fmt.allocPrint(allocator, "INSERT INTO {s} VALUES (7)", .{table_name});
+        var plan = try c.fuze.TableDml.compile(allocator, sql, table_name, schema.schema, null);
+        defer plan.deinit();
+        var intent = try c.DirectTableIntent.fromDml(allocator, connection, definition, 120000 + i, plan.plan, .bulk);
+        defer intent.deinit();
+        const staged = try dispatch(service, .{ .transaction = .{ .stage = .{ .key = token, .sequence = i + 1, .work = intent.parsed.value.work } } });
+        defer staged.deinit();
+        const original = staged.value.result.transaction.staged;
+        const executed = try dispatch(service, .{ .transaction = .{ .statement = .{ .key = token, .request = original, .execute = true } } });
+        defer executed.deinit();
+        try t.expectEqual(@as(u64, 1), executed.value.result.transaction.statement.?.provisional.affected);
+        const repeated = try dispatch(service, .{ .transaction = .{ .statement = .{ .key = token, .request = original, .execute = true } } });
+        defer repeated.deinit();
+        try t.expectEqualDeep(executed.value.result, repeated.value.result);
+        const public = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = table_name } });
+        defer public.deinit();
+        try t.expectEqual(@as(u64, 0), public.value.result.lookup.?.row_count);
+    }
+    const settled = try dispatch(service, .{ .transaction = .{ .settle = .{ .key = token, .operation = .{ .scope = scope, .principal = 101, .operation = 110001 }, .command = .commit, .steps = 256 } } });
+    defer settled.deinit();
+    try t.expect(settled.value.result.transaction.status.cleanup_complete);
+    try t.expect(settled.value.result.transaction.status.observation.decided.outcome == .committed);
+}
+
+test "signed transaction controls preserve paged policy and private atomic work" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 });
+    const pid = try command(&engine, .{ .spawn = .{} });
+    const resource = try command(&engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
+    const role = (try change(&engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
+    _ = try change(&engine, .{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
+    const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
+    const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+    const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
+    const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
+    const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    const initialized = try dispatch(&service, .initialize);
+    initialized.deinit();
+    try transactionDispatch(&service, role);
+}

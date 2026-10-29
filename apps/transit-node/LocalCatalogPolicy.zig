@@ -13,6 +13,9 @@ configuration: c.DirectCatalog.Configuration,
 proof: p.Authorization.Proof,
 executor: ?p.Authorization.Proof,
 observed: ?p.Authorization.Guard = null,
+/// Paged transaction checks retain one epoch rather than an unbounded union.
+paged: bool = false,
+checked_epoch: ?c.storage.TablePartition.Guard.Fence = null,
 
 pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8, executor: ?p.Authorization.Proof) !Self {
     try configuration.validate();
@@ -143,6 +146,11 @@ const ObservedGuard = struct {
         const guard = self.authority.guard();
         const fence = try guard.acquire(guard.context);
         errdefer guard.release(guard.context);
+        if (self.policy.paged) {
+            if (self.policy.checked_epoch) |previous| if (!std.meta.eql(previous, fence)) return error.AuthorizationChanged;
+            self.policy.checked_epoch = fence;
+            return fence;
+        }
         self.policy.observed = if (self.policy.observed) |previous| try previous.merge(self.authority.request) else self.authority.request;
         return fence;
     }
@@ -164,6 +172,7 @@ pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorizatio
     const guard = value.guard();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
+    if (self.paged) if (self.checked_epoch) |previous| if (!std.meta.eql(previous, fence)) return error.AuthorizationChanged;
     return .{ .revision = fence.policy_epoch - 1, .subject = value.verified.? };
 }
 
