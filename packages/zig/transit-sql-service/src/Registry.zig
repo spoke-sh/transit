@@ -392,7 +392,11 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             } else return error.SqlPreparedCapacity;
             var id: api.Id = undefined;
             try self.io.randomSecure(&id);
-            entry.* = .{ .id = id, .prepared = try host.prepare(value.sql) };
+            // Do not engage the optional slot until preparation succeeds. Zig's
+            // result-location initialization can otherwise leave its tag set
+            // around an undefined pointer when preparation returns an error.
+            const prepared = try host.prepare(value.sql);
+            entry.* = .{ .id = id, .prepared = prepared };
             errdefer {
                 host.destroy(entry.*.?.prepared);
                 entry.* = null;

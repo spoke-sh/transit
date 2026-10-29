@@ -6831,7 +6831,7 @@
       "open_error_set_uses": 7,
       "propagation": {
         "try": 28,
-        "catch": 10
+        "catch": 11
       },
       "imports": [
         "Application.zig",
