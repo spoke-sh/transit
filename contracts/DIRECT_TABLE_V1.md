@@ -134,7 +134,17 @@ readable. Execution must independently acquire and authorize its complete cut.
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements
 and 1,024 savepoints. These admission ceilings do not preallocate those resources;
-the operation's token budget separately charges account capacity. A capacity or
+the operation's token budget separately charges account capacity.
+`transaction_account_limits` additionally caps aggregate pending transaction
+reservations across login roles for a principal/account: count 128, resident
+allowances 64 MiB, workspace allowances 4 GiB, participant and statement slots
+400,000 each, and savepoint slots 4,096 by default. The account usage record
+requires explicit `transactions` counters for all six dimensions. Begin
+admission and those reservations share one catalog acceptance; failed admission
+consumes neither. Exact token recovery does not repeat the charge or apply new
+admission ceilings to old work. Pending transactions retain their reservation;
+only future transaction-owned settlement/cleanup can release it, never generic
+caller progress or quota pressure. Earlier usage records missing counters reject. A capacity or
 stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
 Generic progress updates reject transaction entries with

@@ -116,8 +116,8 @@ this header and the roadmap index together.
 | Package | Outcome | Status |
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation, finite models and a production common-cut counterexample/control; remaining runtime correspondence stays open |
-| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits, signed caller fixture and component private-statement admission; host integration, aggregate quotas and transaction settlement remain open |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged common-cut acquisition, original-pin recovery, catalog-owned private statement/root recovery and cumulative staging charges; host/caller integration and aggregate quotas remain open |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits, signed caller fixture and component private-statement admission; aggregate account reservations; host integration and transaction settlement remain open |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged common-cut acquisition, original-pin recovery, catalog-owned private statement/root recovery and cumulative staging charges; aggregate account reservations; host/caller integration and deployment-wide scheduling remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | In progress: private statement/root recovery and retained-graph coverage; commit/abort recovery and cleanup remain open |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |
@@ -144,7 +144,7 @@ an installed transaction service. Its
 records the executed recovery, authorization, retention-graph and memory checks
 and their limits. Catalog-owned private statement admission and outcome publication now preserve
 original identities, private roots and their retained data across lost replies.
-Host integration, durable savepoints, aggregate capacity, Table predecessor
+Host integration, durable savepoints, deployment-wide capacity, Table predecessor
 barriers, common-decision visibility, decision retention and public callers remain
 required before an installed transaction profile is claimed.
 

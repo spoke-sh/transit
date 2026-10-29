@@ -1515,6 +1515,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
         const edge = try walk.next(t.allocator, &index);
         try t.expect(index.loads - before <= c.DirectCatalogWalk.max_depth + 1);
         switch (edge orelse break) {
+            .value => return error.UnexpectedDirectoryValue,
             .page => page_count += 1,
             .declaration => |seed| {
                 var declaration = try s.TableDeclaration.load(t.allocator, objects.objectStore(), seed);
@@ -3211,4 +3212,68 @@ test "transaction durable workspace quota refusal preserves pending work and ori
     try t.expect(head.charged_bytes <= binding.intent.transaction.begin.limits.workspace_bytes);
     access.denied_metadata = 110;
     try t.expectError(error.CatalogDenied, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+}
+
+test "transaction account reservations survive reopen and cannot be bypassed by a different role" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var first: c.DirectClientToken.Binding = undefined;
+    var second: c.DirectClientToken.Binding = undefined;
+    for (0..2) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        catalog.options.transaction_account_limits.count = 1;
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            first = try transactionToken(&catalog, 55, 1, 0);
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.clientToken(.{ .bind = first }, access.policy()));
+        } else {
+            const before = catalog.store.root;
+            _ = try catalog.clientToken(.{ .bind = first }, access.policy());
+            try t.expectEqualDeep(before, catalog.store.root);
+            const usage = (try catalog.store.clientUsage(before, first.key)).?;
+            try t.expectEqual(@as(u64, 1), usage.transactions.count);
+            try t.expectEqual(first.intent.transaction.begin.limits.workspace_bytes, usage.transactions.workspace_bytes);
+            second = try transactionToken(&catalog, 56, 2, 0);
+            second.key.connection.role = 7;
+            second.intent.transaction.connection.role = 7;
+            try t.expectError(error.TransactionAccountCapacity, catalog.clientToken(.{ .bind = second }, access.policy()));
+            try t.expectEqualDeep(before, catalog.store.root);
+            // Lowering admission ceilings must not hide the original accepted
+            // receipt or release its reservation after an uncertain response.
+            catalog.options.transaction_account_limits.resident_bytes = 0;
+            _ = try catalog.clientToken(.{ .bind = first }, access.policy());
+            try t.expectEqualDeep(usage, (try catalog.store.clientUsage(before, first.key)).?);
+        }
+    }
+}
+
+test "transaction account capacity sums every configured dimension before reserving a partition" {
+    inline for (@typeInfo(c.DirectClientToken.TransactionReservations).@"struct".field_names) |name| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const first = try transactionToken(&catalog, 55, 1, 0);
+        const limit = if (comptime std.mem.eql(u8, name, "count")) 1 else @field(first.intent.transaction.begin.limits, name);
+        @field(catalog.options.transaction_account_limits, name) = limit;
+        _ = try catalog.clientToken(.{ .bind = first }, access.policy());
+        const second = try transactionToken(&catalog, 56, 2, 0);
+        const before = catalog.store.root;
+        try t.expectError(error.TransactionAccountCapacity, catalog.clientToken(.{ .bind = second }, access.policy()));
+        try t.expectEqualDeep(before, catalog.store.root);
+    }
+    // Persisted records without explicit reservation counters must reject.
+    const old = "{\"limits\":{\"operations\":100,\"bytes\":65536,\"pending\":10},\"operations\":1,\"bytes\":4608,\"pending\":1}";
+    try t.expectError(error.MissingField, std.json.parseFromSlice(c.DirectClientToken.Usage, t.allocator, old, .{}));
 }

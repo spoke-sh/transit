@@ -29,6 +29,7 @@ pub const Options = struct {
     /// Exhaustion refuses new bindings; it never forgets accepted identities.
     client_token_quota: u64 = 1_000_000,
     transaction_limits: p.Transaction.Limits = c.DirectTransaction.default_limits,
+    transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
     table: P.Options = .{},
     /// Optional same-storage-owner hint, serialized by the embedding host.
     /// No request allocations, permission or retained read are cached here.
@@ -830,11 +831,12 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
     const current = try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
-    const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage{ .limits = binding.budget.limits };
+    const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage.initial(binding.budget.limits);
     const coordination: ?u64 = if (reference == .transaction) self.store.root.next_partition else null;
     const receipt: c.DirectClientToken.Receipt = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = try std.math.add(u64, self.store.root.next_lsn, 1) }, .coordination = coordination };
     try receipt.validate();
-    _ = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
+    const reserved = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
+    if (reference == .transaction) try reserved.transactions.requireWithin(self.options.transaction_account_limits);
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {

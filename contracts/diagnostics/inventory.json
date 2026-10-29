@@ -3615,7 +3615,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 874,
+        "try": 875,
         "catch": 11
       },
       "imports": [
@@ -4112,7 +4112,8 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 12,
-        "InvalidTableResponse": 2
+        "InvalidTableResponse": 2,
+        "TransactionAccountCapacity": 1
       },
       "outcomes": {
         "ProgressRequest": [
@@ -4144,6 +4145,8 @@
         "ProgressRequest.validate()": "<inferred>",
         "Receipt.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
+        "TransactionReservations.requireWithin()": "<inferred>",
+        "TransactionReservations.transition()": "<inferred>",
         "Update.validate()": "<inferred>",
         "Usage.transition()": "<inferred>",
         "accountKey()": "<inferred>",
@@ -4158,7 +4161,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 43,
         "catch": 0
       },
       "imports": [
@@ -13955,7 +13958,7 @@
           "deadline"
         ],
         "Definition": [
-          "d90afcbeedc1b0e10af843565045bbffad8067809da44ced09266a887bf2e248"
+          "@\"53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b\""
         ],
         "Effect.phase": [
           "pending",
