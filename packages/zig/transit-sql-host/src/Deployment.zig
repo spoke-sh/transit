@@ -7,7 +7,7 @@ const p = g.wire.protocol;
 const tls = @import("transit_tls_server");
 const Discovery = @import("transit_sql_client").Discovery;
 const Placement = @import("Placement.zig");
-const maximum = 65536;
+const maximum = g.wire.max_body + 1024; // Full standalone configuration plus lifecycle envelope.
 pub const Config = struct { socket: []const u8, crypto_capacity: usize = 0 };
 pub const Action = union(enum) {
     start: struct { expected: ?[32]u8, configuration: g.Configuration },
@@ -22,10 +22,14 @@ pub fn socketPath(allocator: std.mem.Allocator, io: std.Io, runtime: ?[]const u8
     defer allocator.free(location.directory);
     defer allocator.free(location.socket);
     defer allocator.free(location.rendezvous);
-    return std.fmt.allocPrint(allocator, "{s}.host", .{location.socket});
+    // Match the validated console socket's length even near sockaddr_un's
+    // limit; the lifecycle channel has a distinct same-length suffix.
+    const socket = try allocator.dupe(u8, location.socket);
+    @memcpy(socket[socket.len - 5 ..], ".host");
+    return socket;
 }
 pub fn fingerprint(allocator: std.mem.Allocator, configuration: g.Configuration) ![32]u8 {
-    const bytes = try p.Json.valueAllocBounded(allocator, configuration, maximum);
+    const bytes = try p.Json.valueAllocBounded(allocator, configuration, g.wire.max_body);
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -163,7 +167,7 @@ fn apply(init: std.process.Init, config: Config, endpoint: host.LocalEndpoint, d
                 if (start.expected == null or !std.mem.eql(u8, &start.expected.?, &value.fingerprint)) return error.SqlDeploymentChanged;
             } else if (start.expected != null) return error.SqlDeploymentChanged;
             // Validate and own the full replacement before withdrawing admission.
-            const encoded = try p.Json.valueAllocBounded(init.gpa, start.configuration, maximum);
+            const encoded = try p.Json.valueAllocBounded(init.gpa, start.configuration, g.wire.max_body);
             defer init.gpa.free(encoded);
             const parsed = try p.Json.parseFromSliceOwned(g.Configuration, init.gpa, encoded);
             errdefer parsed.deinit();

@@ -250,10 +250,12 @@ pub const Client = struct {
                     return err;
                 };
                 try validateValue(T, value, signed);
+                self.last_status = .ok;
                 return .{ .arena = arena, .value = value };
             }
             const value = try endpoint.call(self, self.http.allocator, T, path, signed);
             try validateValue(T, value, signed);
+            self.last_status = .ok;
             return value;
         };
         self.beginExchange();

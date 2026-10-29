@@ -513,6 +513,7 @@ pub fn Host(comptime Provider: type) type {
                 server.engine = &lane.engine;
                 server.position = &self.position;
                 server.snapshots = &self.snapshots;
+                defer server.finishWork();
                 // Each call borrows one authority lane and owner locks only for
                 // that operation, never across a SQL scan or socket drain.
                 if (std.mem.eql(u8, invocation.path, "/table/v1")) {
