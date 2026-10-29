@@ -116,10 +116,10 @@ this header and the roadmap index together.
 | Package | Outcome | Status |
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation, finite models and a production common-cut counterexample/control; remaining runtime correspondence stays open |
-| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits and signed caller fixture; execution admission and settlement remain open |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged catalog common-cut acquisition with original-pin recovery and private Table evaluator; host/caller integration, durable workspace ownership and aggregate quotas remain open |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits, signed caller fixture and component private-statement admission; aggregate account reservations; host integration and transaction settlement remain open |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged common-cut acquisition, original-pin recovery, catalog-owned private statement/root recovery and cumulative staging charges; aggregate account reservations; host/caller integration and deployment-wide scheduling remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
-| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
+| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | In progress: private statement/root recovery and retained-graph coverage; commit/abort recovery and cleanup remain open |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |
 | P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
 | P7 | Savepoints, cursor invalidation and resource/failure schedules | Planned |
@@ -142,9 +142,15 @@ source directory; its original-pin and policy-epoch checks do not yet establish
 an installed transaction service. Its
 [component qualification](../history/qualification/verification.md#catalog-owned-common-cuts-and-mutation-buffers--2026-10-28)
 records the executed recovery, authorization, retention-graph and memory checks
-and their limits. Host integration, private workspace/savepoint execution,
-Table predecessor barriers, common-decision visibility, retained-graph integration
-and public callers must land before an installed transaction profile is claimed.
+and their limits. Catalog-owned private statement admission and outcome
+publication now preserve original identities, private roots and their retained
+data across lost replies. The
+[workspace qualification](../history/qualification/verification.md#durable-private-statements-and-account-reservations--2026-10-28)
+records disk reopen, durable rejection, account reservations, paged reachability
+and an omitted-operation-claim control against the actual implementation.
+Host integration, durable savepoints, deployment-wide capacity, Table predecessor
+barriers, common-decision visibility, decision retention and public callers remain
+required before an installed transaction profile is claimed.
 
 ### Incoming handoffs and start gates
 

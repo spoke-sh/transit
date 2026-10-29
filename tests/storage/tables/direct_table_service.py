@@ -65,7 +65,7 @@ def run(node, caller, mode="tables", *artifacts):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_record_refused": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
         resource_faults = set()
@@ -102,9 +102,13 @@ def run(node, caller, mode="tables", *artifacts):
                             pressure_scan.append((body, len(data), metrics["peak_bytes"]))
                         fault["requests"] += 1
                         record = envelope["action"].get("record", {}).get("stage")
-                        if record and record["format"] == 0x54584331:
+                        if record and record["format"] in (0x54584331, 0x54585731, 0x54585431, 0x54584f31):
                             assert response.status == 400 and json.loads(data) == {"err": "InvalidRequest"}, data
-                            fault["transaction_record_refused"] = True
+                            fault["transaction_records_refused"].add(record["format"])
+                        token = envelope["action"].get("client_token", {}).get("bind", {})
+                        if "transaction" in token.get("intent", {}):
+                            assert response.status == 503 and json.loads(data) == {"err": "StorageQuota"}, data
+                            fault["transaction_quota_refused"] = True
                         operation = envelope["action"].get("operation")
                         if mode == "tables" and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
                             result = json.loads(data)["result"]
@@ -449,7 +453,8 @@ def run(node, caller, mode="tables", *artifacts):
                 print(f"Direct dependencies: {fault['requests']} typed calls, exact registration/removal receipts after corrupt replies and abrupt node replacement, unchanged saved caller bindings, current metadata revocation, redacted RESTRICT blockers, reverse inspection, stale retry rejection and DROP/name replacement passed.")
                 return
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
-            assert fault["transaction_record_refused"]
+            assert fault["transaction_records_refused"] == {0x54584331, 0x54585731, 0x54585431, 0x54584f31}
+            assert fault["transaction_quota_refused"]
             assert fault["changed"]
             assert fault["pin_changed"]
             assert fault["assertion_changed"]

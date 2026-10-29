@@ -3411,7 +3411,7 @@
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 7,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 2,
+        "ClientOperationMissing": 4,
         "ClientOperationPending": 6,
         "ClientTokenCapacity": 1,
         "ConflictingRetry": 1,
@@ -3436,16 +3436,18 @@
         "InvalidTableBasis": 2,
         "InvalidTableKey": 1,
         "InvalidTransactionBegin": 1,
-        "InvalidTransactionCut": 2,
+        "InvalidTransactionCut": 3,
         "InvalidTransactionDirectory": 1,
+        "InvalidTransactionWorkspace": 1,
         "MissingRequiredField": 1,
         "NamedResourceAllocationUnreconciled": 1,
         "NamedResourceNativeUnavailable": 4,
         "NamedResourceNotAdmitted": 1,
         "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
-        "OutOfMemory": 1,
+        "OutOfMemory": 3,
         "Overflow": 1,
+        "ReadOnlyTransaction": 1,
         "StaleClientLease": 2,
         "TableDataChanged": 3,
         "TableDefinitionChanged": 9,
@@ -3457,8 +3459,14 @@
         "TransactionAuthorityChanged": 1,
         "TransactionCatalogChanged": 1,
         "TransactionConflict": 3,
-        "TransactionMemoryLimit": 1,
-        "TransactionOperationRequired": 3,
+        "TransactionIdentityConflict": 1,
+        "TransactionMemoryLimit": 3,
+        "TransactionObjectNotSelected": 2,
+        "TransactionOperationRequired": 5,
+        "TransactionStatementConflict": 2,
+        "TransactionStatementLimit": 1,
+        "TransactionStatementPending": 1,
+        "TransactionWorkspaceLimit": 2,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2
       },
@@ -3502,6 +3510,7 @@
         "admissionReason()": "<inferred>",
         "admit()": "<inferred>",
         "admitRows()": "<inferred>",
+        "admitTransactionStatement()": "<inferred>",
         "applyRows()": "<inferred>",
         "assertName()": "<inferred>",
         "assertionCondition()": "<inferred>",
@@ -3531,6 +3540,7 @@
         "dependentRequirements()": "<inferred>",
         "directRecord()": "<inferred>",
         "entry()": "<inferred>",
+        "executeTransactionStatement()": "<inferred>",
         "flushStorage()": "<inferred>",
         "guard()": "<inferred>",
         "hasDependents()": "<inferred>",
@@ -3573,6 +3583,7 @@
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
         "previewRows()": "<inferred>",
+        "publishTransactionWorkspace()": "<inferred>",
         "rangeRows()": "<inferred>",
         "readAccess()": "<inferred>",
         "readAuthority()": "<inferred>",
@@ -3617,13 +3628,17 @@
         "storageState()": "<inferred>",
         "storedSchema()": "<inferred>",
         "terminal()": "<inferred>",
+        "transactionStatementBounded()": "<inferred>",
+        "transactionStatementWork()": "<inferred>",
+        "transactionTableState()": "<inferred>",
+        "transactionTableStateBounded()": "<inferred>",
         "validateEntry()": "<inferred>",
         "verifiedObject()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 819,
-        "catch": 9
+        "try": 875,
+        "catch": 11
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -4085,11 +4100,13 @@
       "outcomes": {
         "Edge": [
           "page",
-          "declaration"
+          "declaration",
+          "value"
         ],
         "Kind": [
           "pages_only",
-          "objects"
+          "objects",
+          "values"
         ]
       },
       "error_sets": {},
@@ -4117,7 +4134,8 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 12,
-        "InvalidTableResponse": 2
+        "InvalidTableResponse": 2,
+        "TransactionAccountCapacity": 1
       },
       "outcomes": {
         "ProgressRequest": [
@@ -4149,6 +4167,8 @@
         "ProgressRequest.validate()": "<inferred>",
         "Receipt.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
+        "TransactionReservations.requireWithin()": "<inferred>",
+        "TransactionReservations.transition()": "<inferred>",
         "Update.validate()": "<inferred>",
         "Usage.transition()": "<inferred>",
         "accountKey()": "<inferred>",
@@ -4163,7 +4183,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 43,
         "catch": 0
       },
       "imports": [
@@ -4568,10 +4588,10 @@
       "errors": {
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
-        "InvalidTableStorageGraph": 10,
+        "InvalidTableStorageGraph": 17,
         "MissingDataIndexObject": 1,
         "StorageMaintenanceBudget": 1,
-        "TableHistoryMissing": 2,
+        "TableHistoryMissing": 3,
         "TableSegmentMissing": 1
       },
       "outcomes": {
@@ -4579,10 +4599,14 @@
           "current",
           "recovery",
           "history",
-          "snapshot"
+          "snapshot",
+          "workspace"
         ],
         "Work": [
           "catalog_history",
+          "transaction",
+          "transaction_walk",
+          "transaction_intent",
           "catalog_root",
           "catalog_walk",
           "catalog_intent",
@@ -4608,7 +4632,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 98,
+        "try": 122,
         "catch": 1
       },
       "imports": [
@@ -5366,7 +5390,44 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTransactionWorkspace.zig": {
+      "errors": {
+        "InvalidTransactionWorkspace": 10,
+        "TransactionCutNotAcquired": 1,
+        "TransactionIdentityConflict": 1,
+        "TransactionWorkspaceLimit": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Completed.validate()": "<inferred>",
+        "Head.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "Staging.delete()": "<inferred>",
+        "Staging.getRange()": "<inferred>",
+        "Staging.head()": "<inferred>",
+        "Staging.putConditional()": "<inferred>",
+        "Staging.putImmutable()": "<inferred>",
+        "get()": "<inferred>",
+        "idKey()": "<inferred>",
+        "load()": "<inferred>",
+        "put()": "<inferred>",
+        "recover()": "<inferred>",
+        "referenceOf()": "<inferred>",
+        "referenceValue()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -5469,6 +5530,7 @@
       },
       "outcomes": {
         "Stored": [
+          "transaction_statement",
           "transaction",
           "external",
           "data",
@@ -5491,6 +5553,7 @@
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
         "claimTransaction()": "<inferred>",
+        "claimTransactionStatement()": "<inferred>",
         "key()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupAssertion()": "<inferred>",
@@ -5811,6 +5874,7 @@
         "DirectTableTyped.zig",
         "DirectTableValues.zig",
         "DirectTransaction.zig",
+        "DirectTransactionWorkspace.zig",
         "Inspection.zig",
         "Model.zig",
         "NameAssertion.zig",
@@ -13918,7 +13982,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d\""
+          "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
         ],
         "Effect.phase": [
           "pending",
@@ -28218,7 +28282,7 @@
       "grantStatement": "GRANT privilegeList ON authorizationObject TO grantee grantOption ? | GRANT identifier TO authorizationRole ( WITH membershipOption ( COMMA membershipOption ) * ) ?",
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",
-      "showStatement": "SHOW ( catalogKind | settingKey | STORAGE ( FOR identifier ) ? )",
+      "showStatement": "SHOW ( catalogKind | settingKey | STORAGE FOR identifier )",
       "settingKey": "identifier ( DOT identifier ) *",
       "sessionSettingStatement": "SET settingKey ( EQ | TO ) ( STRING | INTEGER | DEFAULT ) | RESET settingKey",
       "configurationSelect": "SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN | SELECT projection FROM ( TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS ) LPAREN RPAREN whereClause ? ( ORDER BY identifier ( ASC | DESC ) ? ) ? limitClause ?",

@@ -7,12 +7,16 @@ const d = c.protocol.DataLifecycle;
 const r = @import("DirectCatalogRecords.zig");
 const CatalogStore = @import("DirectCatalogStore.zig");
 const Intent = @import("DirectCatalogIntent.zig");
-const Role = enum { current, recovery, history, snapshot };
+const Role = enum { current, recovery, history, snapshot, workspace };
 const Walk = s.TableStorageWalk;
 const Context = Walk.Context;
+const W = c.DirectTransactionWorkspace;
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
+    transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
+    transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
+    transaction_intent: W.Request,
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
@@ -82,23 +86,84 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction) {
-                const begin = record.action.client_token.receipt.binding.intent.transaction.begin;
+                try workspace.enqueue(.{ .transaction = .{ .root = record.root, .progress = record.action.client_token } });
+            }
+            return false;
+        },
+        .transaction => |*value| {
+            const progress = value.progress;
+            const begin = progress.receipt.binding.intent.transaction.begin;
+            if (value.slot == 0) {
                 var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
                 defer selected.deinit();
                 try selected.restore(begin.tables);
                 try markContent(workspace, try s.TransactionDirectory.objectKey(begin.tables.content, &key_buffer), begin.tables.content);
-                if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(record.root, .{ .reference = reference, .kind = .pages_only }) });
-                const state = record.action.client_token;
-                if (state.record != null) {
-                    const acquired = try c.DirectTransaction.Acquired.load(allocator, index.store, state);
-                    var sources = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .sources, begin.limits.participants, 0, 1);
-                    defer sources.deinit();
-                    try sources.restore(acquired.cut.sources);
-                    try markContent(workspace, try s.TransactionDirectory.objectKey(acquired.cut.sources.content, &key_buffer), acquired.cut.sources.content);
-                    if (sources.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(record.root, .{ .reference = reference, .kind = .pages_only }) });
+                if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
+            } else {
+                if (progress.record == null) return true;
+                const head = try W.recover(allocator, index.store, progress);
+                switch (value.slot) {
+                    1 => {
+                        var sources = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .sources, begin.limits.participants, 0, 1);
+                        defer sources.deinit();
+                        try sources.restore(head.acquired.cut.sources);
+                        try markContent(workspace, try s.TransactionDirectory.objectKey(head.acquired.cut.sources.content, &key_buffer), head.acquired.cut.sources.content);
+                        if (sources.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
+                    },
+                    2, 3 => if (if (value.slot == 2) head.tables else head.statements) |reference| {
+                        try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = head, .scope = progress.receipt.binding.key.scope(), .tables = value.slot == 2 } });
+                    },
+                    4 => if (head.pending) |request| {
+                        try workspace.enqueue(.{ .transaction_intent = request });
+                    },
+                    5 => return true,
+                    else => return error.InvalidTableStorageGraph,
                 }
             }
+            value.slot += 1;
             return false;
+        },
+        .transaction_walk => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse return true;
+            switch (edge) {
+                .page => |page| try markPage(index, workspace, page.reference),
+                .declaration => return error.InvalidTableStorageGraph,
+                .value => |entry| {
+                    const format = if (value.tables) W.table_format else W.statement_format;
+                    const reference = try W.referenceOf(entry.value, value.scope, format);
+                    if (value.tables) {
+                        const state = try W.load(s.TableWorkspace.State, allocator, index.store, reference, value.scope, format);
+                        try state.validate();
+                        if (!std.meta.eql(state.begin, value.head.acquired.cut.begin) or state.last_statement > value.head.last_statement or
+                            !std.meta.eql(entry.key, try W.idKey(state.root.interpretation.object.object))) return error.InvalidTableStorageGraph;
+                        // Private positions are not public WAL positions. Use the
+                        // real latest accepted owner's archive for old WAL locators.
+                        const tail = try log.tail(state.root.partition);
+                        if (tail == 0) return error.InvalidTableStorageGraph;
+                        var batch = try log.read(allocator, state.root.partition, tail - 1, 1);
+                        defer batch.deinit();
+                        if (batch.frames.len != 1) return error.TableHistoryMissing;
+                        const accepted = (try s.TablePartitionRecord.decodeFrame(allocator, batch.frames[0], state.root.partition, tail - 1)).record.root;
+                        if (!std.meta.eql(accepted.interpretation.object, state.root.interpretation.object)) return error.InvalidTableStorageGraph;
+                        try workspace.enqueue(.{ .table_root = .{ .root = state.root, .archive = accepted.archive, .role = .workspace } });
+                    } else {
+                        const completed = try W.load(W.Completed, allocator, index.store, reference, value.scope, format);
+                        try completed.validate();
+                        if (!std.meta.eql(completed.request.statement.transaction, value.head.acquired.cut.begin.identity) or
+                            completed.request.statement.sequence > value.head.last_statement or !std.meta.eql(entry.key, try W.idKey(completed.request.statement.sequence))) return error.InvalidTableStorageGraph;
+                        try workspace.enqueue(.{ .transaction_intent = completed.request });
+                    }
+                },
+            }
+            return false;
+        },
+        .transaction_intent => |request| {
+            try request.validate();
+            var intent = try s.TableDmlIntent.load(allocator, index.store, request.intent);
+            defer intent.deinit();
+            try request.binding.requireSame(intent.request.binding);
+            try markContent(workspace, try s.TableDmlIntent.key(request.intent, &key_buffer), request.intent);
+            try workspace.enqueue(.{ .declaration = intent.request.interpretation });
         },
         .catalog_root => |*value| {
             const root = value.root;
@@ -113,6 +178,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .catalog_walk => |*walk| {
             const edge = try walk.next(allocator, index) orelse return true;
             switch (edge) {
+                .value => return error.InvalidTableStorageGraph,
                 .page => |root| {
                     try markPage(index, workspace, root.reference);
                     if (try workspace.visited(try scope(.{ .catalog = walk.configuration, .next_lsn = walk.next_lsn, .next_partition = walk.next_partition, .root = root }))) try walk.skip();
@@ -152,7 +218,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .table_root => |*value| {
             const root = value.root;
-            const controls = value.role == .current or value.role == .recovery;
+            const controls = value.role == .current or value.role == .recovery or value.role == .workspace;
             const directories = [_]?s.TreeStore.pages.Reference{ root.rows, root.scan_rows, root.identities, root.ordered_rows, root.physical_schemas, root.column_origins, if (controls) root.receipts else null, if (controls) root.operations else null, if (controls) root.pending else null, if (controls) root.pins else null, if (controls) root.history_pins else null, if (value.role == .current) root.archive.directory else null };
             const kinds = [_]Walk.Kind{ .rows, .scan_rows, .pages_only, .ordered_rows, .physical_schemas, .column_origins, .receipts, .operations, .pages_only, .pins, .pages_only, .pages_only };
             if (value.slot > directories.len + 1) return error.InvalidTableStorageGraph;
