@@ -500,6 +500,16 @@ pub fn main(init: std.process.Init) !void {
             return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "maintenance-foreground")) {
             return Maintenance.foreground(init, client, profile.maintenance.?, &output.interface);
+        } else if (std.mem.eql(u8, args[2], "maintenance-plan-writes")) {
+            try Maintenance.planWrites(init, client, &profile.maintenance.?);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "maintenance-write")) {
+            return Maintenance.runWrites(init, client, profile.maintenance.?, false, &output.interface);
+        } else if (std.mem.eql(u8, args[2], "maintenance-recover-writes")) {
+            return Maintenance.runWrites(init, client, profile.maintenance.?, true, &output.interface);
+        } else if (std.mem.eql(u8, args[2], "maintenance-verify-writes")) {
+            try Maintenance.verifyWritten(init, client, &profile.maintenance.?);
+            try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "maintenance-wal")) {
             try Maintenance.verify(init, client, &profile.maintenance.?, false);
         } else if (std.mem.eql(u8, args[2], "maintenance-flushed")) {

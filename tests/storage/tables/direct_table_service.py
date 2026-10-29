@@ -110,7 +110,7 @@ def run(node, caller, mode="tables", *artifacts):
                             assert response.status == 503 and json.loads(data) == {"err": "StorageQuota"}, data
                             fault["transaction_quota_refused"] = True
                         operation = envelope["action"].get("operation")
-                        if mode == "tables" and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
+                        if mode in ("tables", "maintenance") and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
                             result = json.loads(data)["result"]
                             if "committed" in next(iter(result.values())):
                                 accepted_inspections.append((body, result))
@@ -241,7 +241,7 @@ def run(node, caller, mode="tables", *artifacts):
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
             if mode == "maintenance":
-                def restart(flush, physical=False):
+                def restart(flush, physical=False, pressure=False, foreground=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
@@ -250,10 +250,16 @@ def run(node, caller, mode="tables", *artifacts):
                     settings["storage"] = {"maintenance": {"flush": {"enabled": flush},
                                                            "archive": {"enabled": physical},
                                                            "compact": physical}}
+                    if foreground:
+                        settings["storage"]["maintenance"]["flush"]["rows"] = 1
+                    settings["request_timeout_ms"] = 5000 if pressure else 60000
+                    if pressure:
+                        settings["storage"]["requests"] = {"request_bytes": 1048576, "data_bytes": 1048576}
                     config.write_text(json.dumps(settings))
                     authority = start()
                 direct_table_maintenance.exercise(caller, endpoint, profile, root, restart,
-                                                  lambda: authority, node, request_memory)
+                                                  lambda: authority, node, request_memory,
+                                                  port, accepted_inspections)
                 return
             if mode == "growth":
                 subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)

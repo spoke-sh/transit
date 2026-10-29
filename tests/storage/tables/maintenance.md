@@ -58,13 +58,40 @@ part of the node counters. These sixteen samples do not establish a tail-latency
 guarantee or a matched implementation speedup.
 
 Native/direct collection retains its default eligibility in both arms; these
-observations do not isolate its contribution. The measurements do not yet cover
-concurrent foreground writes, large Table cardinality, isolated collection cost,
-archive/compaction contention, aggregate admission limits or allocations through
-every storage/provider owner. Keep the existing
+observations do not isolate its contribution. The measurements do not cover
+large Table cardinality, isolated collection cost or allocations through every
+storage/provider owner. Keep the existing
 [owner benchmarks](../../performance/storage/storage_benchmark.md), allocator
 checks and collection/failure schedules separate; this schedule does not replace
 them or establish a zero-allocation read path.
+
+## Concurrent writes and admission pressure
+
+After the packed-segment checks, the same installation saves a finite plan of
+48 original point inserts, sixteen per Table, before dispatch. One writer runs
+beside sixteen complete reads of the original retained cuts. A one-row flush
+eligibility threshold makes the new rows eligible without changing the 32-row
+work bound, private memory budget or maintenance deadline. The fixture requires
+both a completed retained read and accepted segment relocation before the writer
+finishes. It records complete admission/execution durations and the same node
+and request-allocation counters used above. This phase has no matched disabled
+write arm and establishes no implementation speedup.
+
+The node then restarts with automatic flush/archive/compaction enabled, a 1 MiB
+ordinary request budget and the existing 64 MiB Table-control reserve. Two partial
+HTTP bodies exhaust ordinary allocation. An unchanged signed inspection resolves
+an original committed insert while maintenance completes another bounded step.
+Disconnect and the five-second request deadline must release all ordinary bytes.
+The maintenance counter includes idle scans; it is not a count of relocated rows
+or completed collection passes. The pressure phase does not claim a bound on the
+whole process from the direct request budget.
+
+After restoring ordinary settings, every original receipt must equal its
+pre-restart result. Independent readers verify all 306 current rows and the 258
+original rows, then repeat the same retained cuts after another owner restart.
+Failed installations retain the saved write plan, completed receipt prefix,
+signed inspection and process logs privately. The fixture never retries an
+uncertain insert with a new identity.
 
 ## Private maintenance allocation boundary
 

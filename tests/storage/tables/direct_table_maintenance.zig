@@ -3,12 +3,17 @@ const std = @import("std");
 const c = @import("transit_query").catalog;
 const support = @import("fixture_direct_captured_query");
 const t = std.testing;
+const w = c.DirectTableProtocol;
 const counts = [_]usize{ 256, 1, 1 };
 const ids = [_]u64{ 7, 71, 8 }; // Two identities collide in the bounded age cache.
+const write_count = 48;
+const rows_per_write = 1;
 pub const State = struct {
     sources: [3]c.DirectTableReader.Basis,
     current: [3]?c.DirectTableReader.Basis = @splat(null),
     maintained: [3]?c.DirectTableReader.Basis = @splat(null),
+    writes: ?[write_count]w.Rows = null,
+    written: [3]?c.DirectTableReader.Basis = @splat(null),
 };
 
 pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64) !State {
@@ -71,6 +76,76 @@ pub fn foreground(init: std.process.Init, client: c.DirectTableClient, state: St
         try std.json.Stringify.value(.{ .sample = sample, .rows = 258, .elapsed_ns = elapsed }, .{}, output);
         try output.writeByte('\n');
         try output.flush();
+    }
+}
+
+/// Save the complete finite write plan before sending any mutation. Physical
+/// maintenance may advance accepted positions; these inserts constrain the
+/// exact definition and independent new keys, not a disposable physical root.
+pub fn planWrites(init: std.process.Init, client: c.DirectTableClient, state: *State) !void {
+    try t.expect(state.writes == null);
+    const alloc = init.arena.allocator();
+    var writes: [write_count]w.Rows = undefined;
+    for (&writes, 0..) |*write, index| {
+        const table = index % ids.len;
+        const source = state.sources[table];
+        const schema: c.fuze.TableSchema.Schema = .{ .object = ids[table], .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+        var schema_bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        const identity: c.protocol.DataLifecycle.Operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 70000 + index };
+        const changes = try alloc.alloc(w.RowChange, rows_per_write);
+        for (changes, 0..) |*change, row_index| {
+            var row_bytes: [c.fuze.TableRow.max_bytes]u8 = undefined;
+            const row: c.fuze.TableRow.Row = .{
+                .identity = try w.Rows.insertIdentity(identity, @intCast(row_index)),
+                .cells = &.{.{ .value = .{ .atom = .{ .signed = @intCast(counts[table] + index / ids.len * rows_per_write + row_index) } } }},
+            };
+            change.* = .{ .insert = try .encode(alloc, try row.encode(schema, &row_bytes)) };
+        }
+        write.* = .{
+            .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = identity, .target = source.snapshot.object, .action = .insert, .expected_definition = source.interpretation.interpretation, .expected_data = null, .intent = @splat(0) },
+            .interpretation = source.interpretation,
+            .schema = try .encode(alloc, try schema.encode(&schema_bytes)),
+            .changes = changes,
+            .ingestion = .point,
+        };
+        write.binding.intent = try write.digest(alloc);
+    }
+    state.writes = writes;
+}
+
+pub fn runWrites(init: std.process.Init, client: c.DirectTableClient, state: State, recover: bool, output: *std.Io.Writer) !void {
+    for (state.writes.?, 0..) |write, index| {
+        const begin = std.Io.Clock.awake.now(init.io);
+        if (!recover) (try client.call(.{ .admit_rows = write })).deinit();
+        const response = try client.call(.{ .operation = .{ .binding = write.binding, .command = if (recover) .inspect else .execute, .steps = 32 } });
+        defer response.deinit();
+        try t.expect(response.value.result.rows == .committed);
+        try t.expectEqual(@as(u64, counts[index % ids.len] + (index / ids.len + 1) * rows_per_write), response.value.result.rows.committed.outcome.live_rows);
+        try std.json.Stringify.value(.{ .sample = index, .rows = rows_per_write, .elapsed_ns = begin.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds(), .receipt = response.value.result }, .{}, output);
+        try output.writeByte('\n');
+        try output.flush();
+        if (!recover) {
+            const inspected = try client.call(.{ .operation = .{ .binding = write.binding, .command = .inspect, .steps = 1 } });
+            defer inspected.deinit();
+            try t.expectEqualDeep(response.value.result, inspected.value.result);
+        }
+    }
+}
+
+pub fn verifyWritten(init: std.process.Init, client: c.DirectTableClient, state: *State) !void {
+    for (state.sources, counts, 0..) |source, count, index| {
+        // The original cuts must still exclude every later insertion.
+        try rows(init, client, source, count);
+        if (state.written[index] == null) {
+            const observed = try client.call(.{ .storage = .{ .object = source.snapshot.object, .pending_limit = 1024 } });
+            defer observed.deinit();
+            const response = try client.call(.{ .pin = .{ .object = source.snapshot.object, .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 72000 + index }, .expected = observed.value.result.storage.position } });
+            defer response.deinit();
+            var reader = try c.DirectTableReader.open(init.gpa, client, .{ .object = source.snapshot.object, .handle = response.value.result.pin });
+            defer reader.deinit();
+            state.written[index] = reader.basis;
+        }
+        try rows(init, client, state.written[index].?, count + write_count / ids.len * rows_per_write);
     }
 }
 
