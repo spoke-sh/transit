@@ -58,6 +58,11 @@ SDK and installer matrix must complete before closing their acceptance items.
   workbook scenarios. Runtime and frontend assets come from the release archive;
   source-built Board checks remain separate. The added jobs still require
   successful hosted execution before this onboarding item is qualified.
+- Installed native downloads also run the existing controlling-terminal and
+  editor interaction scenarios. A supervisor-death schedule joins its children,
+  restarts against retained disk data and checks accepted rows and activation
+  fencing. Successful execution of these additional platform gates remains
+  required; registering them does not qualify a release.
 
 ## Remaining dependencies
 

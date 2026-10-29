@@ -107,3 +107,8 @@ exact-definition previews, complete/empty results, write refusal and revocation.
 Chromium checks Catalog, column profiles and temporary Workbook cells and rejects
 external asset requests. This job installs browser tooling but does not build the
 frontend or runtime; ordinary source-built Board checks remain separate.
+The installed runtime gate also runs the real controlling-terminal transcript
+and external-editor schedule with no executable discovery through `PATH`. After
+a clean retained restart, it accepts another row, kills the supervisor, joins
+all owned children and checks the retained rows and replacement generation.
+The same schedule applies to native x86_64 and ARM64 downloads.

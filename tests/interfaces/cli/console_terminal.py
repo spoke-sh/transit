@@ -107,9 +107,10 @@ class Terminal(Shell):
             if self.history_home is not None: self.history_home.cleanup()
 
 
-def local_transcript(binary, cwd):
+def local_transcript(binary, cwd, *, env=None):
     """An actual shared terminal retains submitted SQL above its human table."""
-    terminal = Terminal(binary, format='table', shared_output=True, cwd=cwd, env={'XDG_RUNTIME_DIR': None})
+    terminal = Terminal(binary, format='table', shared_output=True, cwd=cwd,
+                        env={'XDG_RUNTIME_DIR': None} | (env or {}))
     try:
         terminal.send('.show\r')
         terminal.expect('       connection: (automatic)\r\nconnection_source: local installation\r\n')

@@ -236,13 +236,13 @@ def check(binary):
 
 
 
-def local_edit(binary, cwd):
+def local_edit(binary, cwd, *, env=None):
     """A saved edit reaches the actual server's SQL owner and returns real rows."""
     with tempfile.TemporaryDirectory(prefix='transit-edit-local-') as temporary:
         home = Path(temporary)
         command, record = editor_command(home, 'local-count')
         terminal = Terminal(binary, format='table', shared_output=True, cwd=cwd, home=home,
-                            env={'EDITOR': command, 'TMPDIR': str(home), 'XDG_RUNTIME_DIR': None})
+                            env={'EDITOR': command, 'TMPDIR': str(home), 'XDG_RUNTIME_DIR': None} | (env or {}))
         try:
             terminal.send('SELECT typo FROM items;\r')
             terminal.expect('error:')
