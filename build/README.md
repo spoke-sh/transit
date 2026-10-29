@@ -86,3 +86,11 @@ another checkout. Pass its effective version through `-Drelease-version` for Zig
 or `releaseVersion` for the Nix runtime derivation. Package builders transform
 owned pins and loader version literals in temporary staging trees; source
 manifests and third-party dependency versions remain unchanged.
+
+The release workflow retains each qualified native runtime archive before
+starting container export, SDK packaging and downloaded-installer checks.
+Those jobs report independent results; publication still requires every runtime,
+container, SDK, documentation and Homebrew gate plus ordinary CI. Container
+conversion failures retain public image configuration diagnostics separately
+from installation state. Retrying an image job reuses the original runtime
+archive and source identity rather than rebuilding the runtime.
