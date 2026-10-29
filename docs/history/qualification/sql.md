@@ -9,6 +9,85 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Typed local SQL dispatch and installed co-hosting — 2026-10-29
+
+This selected [M8](../../roadmap/08-gateway-architecture-and-protocol-ingress.md)
+delivery places installed SQL sessions and database runtimes inside the node.
+Typed calls share its Catalog, Table and native admission/authorization owners;
+standalone SQL uses the same listener host with remote clients. Current semantics
+belong to the [SQL reference](../../handbook/reference/sql.md),
+[node guide](../../../apps/transit-node/README.md) and
+[host package](../../../packages/zig/transit-sql-host/README.md). Configuration
+settings/reload retain their separate owner. This is partial qualification,
+not a complete milestone or CI-lane pass.
+
+The execution profile is Linux x86_64, local disk, ReleaseSafe and pinned Zig
+`0.17.0-dev.2267+48abf1a34`. Production and SQL proof binaries build successfully
+at original source `90fa96fede760777eb22e4d58290fda51a85671a`. The subsequent
+requested rebase onto main `ff284f15a` produces `d4576fad5`; its difference from
+that frozen source is documentation only. Binary provenance retains the original
+build revision. All 47 fast checks pass at pre-rebase `7c6bd06a8`; after the
+rebase, package versions, documentation links and diff whitespace also pass.
+
+The clean experience attempt at `10bd996d7` passes its first 13 tasks: Board
+contracts, documentation, Node SDK and observability; installed logging and
+single-executable deployment; direct Tables and lost-reply faults; SQL lifetimes,
+configured TLS/password accounts and private local sessions; and Board API/query
+controls. Logging exercises four stopped/restarted SQL activations with new
+fingerprints, unchanged node/application PIDs and no false owner-failure charge.
+The SQL schedule resolves original accepted work after listener credentials are
+removed. Board preserves lost-submit/fetch recovery, current grants and cuts.
+
+That attempt then fails the initial Station audit-total wait. Its node exhausts
+the unchanged three-reopen budget after repeated two-second write cancellations.
+The installation has no `sql_control` configuration. An earlier focused Station
+run at `0c553ba8f` passes, including 294 refused reads, courier replacement and
+retained state; this does not turn the later attempt into a pass. The earlier
+focused Board workbench also passes 145 rows, empty and metadata results,
+capacity, read-only admission and revocation. The final experience task is not
+reached in the clean attempt.
+
+At `90fa96fed`, the clean interfaces attempt passes TLS 1.2/1.3, fragmented
+input, trust/plaintext/deadline refusal and fixed OpenSSL reserves across 100
+connections per protocol. Result-allocation checks pass Unix/HTTP/HTTPS, each
+with 1,453 requests and 305 queries, retry/cancellation/turnover controls and
+zero warmed memory events; the negative control detects an allocation. This
+component evidence does not establish zero allocations throughout the co-hosted
+node.
+
+The subsequent native SQL schedule times out after 300 seconds on its original
+accepted 67-row INSERT. Earlier lost admission/commit recovery, fencing, exact
+counts, four-page history, foreground capacity and uncertain binding/settlement
+controls pass, but result framing and idle checks are not reached. Repeated
+`commit_saved` attempts encounter the unchanged ten-second node deadline.
+No terminal result is established for that operation by this attempt.
+
+Both failed installations and their original logs remain private. Other disk
+checks were active, and the native node was sampled waiting on the filesystem
+journal; contention is plausible but its causal contribution is unproved.
+No deadline or reopen budget is increased, and no uncertain SQL is resubmitted
+under a new token. At this progress cut, original-operation recovery and the
+remaining runtime qualification have not run after waiting for those checks.
+No new matched performance measurements or 10–100× claim accompany this slice.
+
+Earlier iterations exposed and corrected a shutdown use-after-free, native
+versus Table refusal classification, missing nullable transaction fields in
+signed fixtures, exact-read connection refusal during owner reopen, and false
+failure-budget charges after a joined SQL stop. Their original failed attempts
+remain under `.cache/m8-cohosting/` with source-specific reports. Later checks
+do not retroactively qualify them. The latest clean attempt logs there are:
+
+| Log | SHA-256 | Outcome |
+| --- | --- | --- |
+| `clean6-experience.log` | `f3d7bb8a3b3f3f66173be142afdcf055b6219907d8687c6b6e57d0929a5bcdeb` | 13 tasks pass; Station fails; workbench not reached |
+| `clean7-interfaces.log` | `6748533380385f48cc8dc2d8f5076f05124fca453a38cb48beffebd169a3705f` | TLS and allocations pass; native SQL recovery fails; later tasks not reached |
+
+Reproduction uses the registered `experience` and `interfaces` lanes and owning
+package checks in the pinned shell. Full milestone qualification, matched
+installed-console/TLS measurements, configuration handoff, coarse remote RPC,
+CPU-sized pools, sans-I/O extraction and Document/Flight/Serving handoffs remain
+open. No power-loss or complete-suite guarantee follows from these local runs.
+
 ## Event-driven SQL recovery — 2026-10-29
 
 Runtime source `0785666ff488234003986ab1729a3a8c9feb31e5` adds foreground pending

@@ -150,6 +150,9 @@ Protocol purity, worker sizing/deadlines, coarse remote placement and full
 milestone qualification remain separate work. See the current
 [SQL placement](../handbook/reference/sql.md) and
 [host ownership account](../handbook/internals/service-interfaces.md#placement-sessions-and-adapters).
+The [partial placement qualification](../history/qualification/sql.md#typed-local-sql-dispatch-and-installed-co-hosting--2026-10-29)
+records completed installation/TLS checks and the unresolved recovery timeouts.
+Matched performance measurements and full qualification remain open.
 
 ### Performance objectives and experiment design
 
