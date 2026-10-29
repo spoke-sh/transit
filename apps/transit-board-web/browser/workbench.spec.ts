@@ -15,6 +15,10 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
+      .violations,
+  ).toEqual([]);
   await page.getByRole("link", { name: "metrics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();
   await page.reload();
