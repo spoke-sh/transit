@@ -411,6 +411,8 @@ command tag or OK packet does not establish transaction commitment. COMMIT and
 ROLLBACK report only the owning durable decision; a serialization conflict returns
 SQLSTATE 40001 after confirmed abort, while missing decision evidence remains
 uncertain and retains original recovery material.
+ROLLBACK that discovers an already committed decision reports SQLSTATE 25000;
+it cannot reverse that decision or establish a serialization abort.
 
 PostgreSQL ReadyForQuery reports I, T or E for idle, active or failed attachment.
 BEGIN, COMMIT, ROLLBACK, SAVEPOINT and RELEASE use their corresponding command

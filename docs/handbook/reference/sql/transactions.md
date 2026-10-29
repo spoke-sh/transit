@@ -82,6 +82,9 @@ Explicit ROLLBACK addresses the original attempt, and cannot reverse a recorded
 commit. Inspect the original account/token or known operation before deciding
 what to do after an uncertain reply. Never submit the SQL as new work to resolve
 that uncertainty.
+PostgreSQL/MySQL report SQLSTATE `25000` when ROLLBACK discovers an already
+committed decision. A refused COMMIT reports SQLSTATE `40001` only after a known
+abort; missing decision evidence remains uncertain.
 
 Native command evidence includes a versioned transaction handle. After replacing
 a SQL session, `Client.attachTransaction(handle)` explicitly attaches that same

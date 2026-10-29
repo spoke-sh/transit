@@ -14,6 +14,25 @@ pub const State = struct {
         return self.handle != null or self.pending != null;
     }
 };
+/// A rejected settlement still carries the original durable decision. Never
+/// label an already committed transaction as a serialization abort: a caller
+/// could otherwise retry the transaction and duplicate its committed work.
+pub fn decisionDiagnostic(outcome: @FieldType(x.Decision, "outcome")) struct { [5]u8, []const u8 } {
+    return switch (outcome) {
+        .committed => .{ "25000".*, "The transaction already committed; ROLLBACK cannot reverse its original decision" },
+        .aborted => .{ "40001".*, "The transaction aborted; inspect its original decision" },
+    };
+}
+
+test "rejected rollback preserves a committed decision without an abort SQLSTATE" {
+    const committed = decisionDiagnostic(.committed);
+    try std.testing.expectEqualStrings("25000", &committed[0]);
+    try std.testing.expect(std.mem.indexOf(u8, committed[1], "already committed") != null);
+    const aborted = decisionDiagnostic(.aborted);
+    try std.testing.expectEqualStrings("40001", &aborted[0]);
+    try std.testing.expect(std.mem.indexOf(u8, aborted[1], "aborted") != null);
+}
+
 pub fn native(host: *g.Session) Native {
     return .{ .catalog = host.table };
 }

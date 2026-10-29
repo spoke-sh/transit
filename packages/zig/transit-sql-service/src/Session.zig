@@ -692,7 +692,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SqlTransactionRejected => blk: {
             const completion = self.transaction_completion orelse break :blk .{ "XX000".*, "Missing transaction outcome" };
             const evidence = completion.transaction.?.evidence;
-            if (evidence == .decided) break :blk .{ "40001".*, "The transaction decision differs from the requested outcome; inspect its original decision" };
+            if (evidence == .decided) break :blk g.SessionTransaction.decisionDiagnostic(evidence.decided.decision.outcome);
             if (evidence == .statement) break :blk switch (evidence.statement.refusal.?) {
                 .duplicate_key => .{ "23505".*, "Primary key already exists in the transaction workspace" },
                 .missing_row => .{ "02000".*, "Required row is absent from the transaction workspace" },
