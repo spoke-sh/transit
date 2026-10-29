@@ -154,6 +154,7 @@ def run(root, port, postgres, mysql_options, restart, faults, authority):
         assert cursor.fetchall() == [(8,)]
         cursor.close()
     extended(root, port, faults, authority)
+    lifetimes(root, port, restart)
     print(json.dumps(dict(profile='installed_table_transactions', source=provenance(ROOT),
                           common_cut=True, private_reads=True, private_join=True,
                           savepoint_original_retry=True, write_skew_prevented=True,
@@ -208,10 +209,23 @@ def extended(root, port, faults, authority):
     batch = first.execute('SELECT amount FROM tx_left')['batch']
     authority(False)
     try:
-        first.call(dict(fetch=dict(cursor=batch['cursor'], batch=0)), error='AuthorityUnavailable')
+        first.call(dict(fetch=dict(cursor=batch['cursor'], batch=0)), error='AccessDenied')
     finally:
         authority(True)
     command(first, 'ROLLBACK')
+
+    command(first, 'BEGIN')
+    command(first, 'UPDATE tx_left SET amount=71 WHERE id=1', 'provisional')
+    authority(False)
+    try:
+        first.call(dict(execute=dict(sql='COMMIT', token=list(os.urandom(16)))), error='AccessDenied')
+    finally:
+        authority(True)
+    # Denied observation is not an abort. The authorized caller still settles
+    # the original lifetime, and the private value never becomes public.
+    assert first.call('context')['context']['transaction'] is not None
+    command(first, 'ROLLBACK')
+    assert rows(second, 'SELECT amount FROM tx_left')[0] == [[8]]
 
     # A second authorized attachment can advance the same workspace. A retained
     # final batch from the old revision must still reject repeated disclosure.
@@ -273,3 +287,61 @@ def extended(root, port, faults, authority):
                           buffered_revocation=True, checkpoint_state_outbox=True,
                           lost_commit_reply=True, aborted_intent_excluded=True,
                           application_dispatch_policy=True, unknown_remote_outcome=True)), flush=True)
+
+
+def lifetimes(root, port, restart):
+    first, second = Client(root, port).open(), Client(root, port).open()
+    command(first, 'CREATE TABLE tx_many (id INT64 PRIMARY KEY, amount INT64)')
+    command(first, 'INSERT INTO tx_many (id,amount) VALUES ' + ','.join(f'({i},{i})' for i in range(40)))
+    command(first, 'BEGIN')
+    command(first, 'UPDATE tx_many SET amount=100 WHERE id=0', 'provisional')
+    batch = first.execute('SELECT id,amount FROM tx_many')['batch']
+    assert not batch['complete'] and len(batch['rows']) == 32
+    basis, observed = batch['observation'], list(batch['rows'])
+    command(second, 'UPDATE tx_many SET amount=200 WHERE id=1')
+    time.sleep(.25)  # a delayed consumer cannot acquire a newer cut
+    batch = first.call(dict(fetch=dict(cursor=batch['cursor'], batch=1)))['batch']
+    observed.extend(batch['rows'])
+    assert batch['complete'] and batch['completion']['rows'] == 40
+    assert batch['observation'] == basis
+    decoded = sorted(tuple(int.from_bytes(bytes.fromhex(cell)[1:], 'little', signed=True) for cell in row) for row in observed)
+    assert decoded == [(i, 100 if i == 0 else i) for i in range(40)]
+    first.call(dict(close_result=batch['cursor']))
+    command(first, 'ROLLBACK')
+    first.close()
+    second.close()
+
+    # The session lease owns only attachment. Its expiry cannot discard the
+    # accepted workspace or synthesize an abort decision.
+    restart(session_lease_ms=2000)
+    leased = Client(root, port).open()
+    begun, _ = command(leased, 'BEGIN')
+    command(leased, 'UPDATE tx_left SET amount=72 WHERE id=1', 'provisional')
+    time.sleep(2.2)
+    leased.call('context', error='SqlSessionExpired')
+    leased.session = None
+    leased.close()
+    renewed = Client(root, port).open()
+    renewed.call(dict(attach_transaction=begun['transaction']['handle']))
+    assert rows(renewed, 'SELECT amount FROM tx_left')[0] == [[72]]
+    command(renewed, 'ROLLBACK')
+    renewed.close()
+
+    # Fixed transaction ceilings refuse before admitting another SQL command;
+    # retained accepted work can still be explicitly rolled back.
+    restart(transaction_limits=dict(resident_bytes=16*1024*1024, workspace_bytes=256*1024*1024,
+                                    participants=100, statements=1, savepoints=1))
+    limited = Client(root, port).open()
+    command(limited, 'BEGIN')
+    command(limited, 'UPDATE tx_left SET amount=73 WHERE id=1', 'provisional')
+    limited.call(dict(execute=dict(sql='UPDATE tx_left SET amount=74 WHERE id=1', token=list(os.urandom(16)))), error='SqlTransactionLimit')
+    command(limited, 'ROLLBACK')
+    assert rows(limited, 'SELECT amount FROM tx_left')[0] == [[8]]
+    command(limited, 'BEGIN')
+    command(limited, 'SAVEPOINT first')
+    limited.call(dict(execute=dict(sql='SAVEPOINT second', token=list(os.urandom(16)))), error='SqlTransactionLimit')
+    command(limited, 'ROLLBACK')
+    limited.close()
+    print(json.dumps(dict(profile='installed_transaction_lifetimes', private_batches=2, private_rows=40,
+                          delayed_reader_cut=True, session_expiry_attachment=True,
+                          statement_limit=True, savepoint_limit=True, explicit_cleanup=True)), flush=True)

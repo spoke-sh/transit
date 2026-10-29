@@ -201,12 +201,16 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
                     if name is not None and name not in source_processes:
                         source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
-                def restart_sessions(peer=False, wire=True, session_lease_ms=None):
+                def restart_sessions(peer=False, wire=True, session_lease_ms=None, transaction_limits=None):
                     nonlocal server
                     server.kill()
                     server.wait(timeout=10)
                     call(ledger, 'fence')
                     configure()
+                    if transaction_limits is not None:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        configuration['accounts'][0]['execution']['transaction_limits'] = transaction_limits
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
                     if session_lease_ms is not None:
                         configuration = json.loads((root/'sql-gateway.json').read_text())
                         configuration['limits']['session_lease_ms'] = session_lease_ms

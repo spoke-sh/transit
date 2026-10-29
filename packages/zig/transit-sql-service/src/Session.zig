@@ -684,6 +684,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SqlTransactionRequired => .{ "25P01".*, "No transaction is attached to this session" },
         error.SqlTransactionFailed => .{ "25P02".*, "Transaction requires ROLLBACK or ROLLBACK TO SAVEPOINT" },
         error.SqlTransactionPending => .{ "55000".*, "The original transaction command is unresolved; inspect or resume its original token" },
+        error.SqlTransactionLimit => .{ "54000".*, "Transaction statement or savepoint limit reached; settle the transaction" },
         error.SqlTransactionClosed => .{ "25000".*, "Transaction is closing or already decided; inspect its original operation" },
         error.TransactionReadChanged => .{ "55000".*, "Transaction workspace changed; discard the old result cursor" },
         error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation => .{ "0A000".*, "Operation is outside the selected serializable Table transaction profile" },

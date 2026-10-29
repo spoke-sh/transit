@@ -2929,11 +2929,13 @@ fn insertSelectedTable(catalog: *D, access: *Access, name: []const u8, operation
     return (try catalog.applyRows(.{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point }, access.policy())).committed;
 }
 
-test "transaction common cut preserves WAL rows across physical flush and rejects new logical changes during resume" {
+test "transaction common cut preserves WAL rows across disk recovery flush and compaction" {
     for ([_]bool{ false, true }) |change| {
-        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
         defer wal.deinit();
-        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
         defer objects.deinit();
         var catalog = try owner(&wal, &objects);
         defer catalog.deinit();
@@ -2945,6 +2947,18 @@ test "transaction common cut preserves WAL rows across physical flush and reject
         try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
         catalog.lose_table_reply = false;
         _ = try catalog.flushStorage(.{ .object = inserted.binding.target, .through = inserted.outcome.position }, access.policy());
+        {
+            var view = (try resolve(&catalog, &access, "selected_0")).?;
+            defer view.deinit();
+            var guards = std.heap.ArenaAllocator.init(t.allocator);
+            defer guards.deinit();
+            const guard = try access.dataGuard(guards.allocator(), view.properties, 10);
+            const changed = view.table.root.changed_lsn;
+            try t.expect((try view.table.compact(view.table.root.next_segment, .{}, guard)).complete);
+            try t.expectEqual(changed, view.table.root.changed_lsn);
+        }
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
         if (change) {
             _ = try insertSelected(&catalog, &access, 501);
             // A's original pin contains only 500. B acquires 502 strictly
@@ -3261,6 +3275,15 @@ test "transaction durable workspace quota refusal preserves pending work and ori
     try t.expect(head.charged_bytes <= binding.intent.transaction.begin.limits.workspace_bytes);
     access.denied_metadata = 110;
     try t.expectError(error.CatalogDenied, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    access.denied_metadata = null;
+    const closed = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .abort, 8, access.policy());
+    try t.expect(closed.cleanup_complete);
+    try t.expect(closed.observation.decided.outcome == .aborted);
+    try t.expectEqual(@as(u64, 1), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+    // Only the deliberately unacquired first transaction retains a reservation.
+    var public = (try resolve(&catalog, &access, "selected_0")).?;
+    defer public.deinit();
+    try t.expectEqual(@as(u64, 0), public.table.root.live_rows);
 }
 
 test "transaction account reservations survive reopen and cannot be bypassed by a different role" {

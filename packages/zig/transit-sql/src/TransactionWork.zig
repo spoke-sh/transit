@@ -81,10 +81,13 @@ pub fn build(allocator: std.mem.Allocator, io: std.Io, config: g.DatabaseAccount
                 if (current.attempt != null or !current.acquired) return error.SqlTransactionClosed;
                 if (current.pending_statement or current.pending_control) return error.SqlTransactionPending;
                 if (comptime tag == .savepoint) {
+                    if (current.last_control >= current.begin.limits.statements or
+                        (value.action == .create and current.savepoints >= current.begin.limits.savepoints)) return error.SqlTransactionLimit;
                     result.work = .{ .savepoint = .{ .key = owner, .request = .{ .transaction = value.handle.identity, .operation = operation, .sequence = try std.math.add(u64, current.last_control, 1), .basis = current.revision, .action = value.action } } };
                 } else {
                     if (value.statement.plan != .dml) return error.UnsupportedTransactionStatement;
                     if (current.begin.mode == .read_only) return error.ReadOnlyTransaction;
+                    if (current.last_statement >= current.begin.limits.statements) return error.SqlTransactionLimit;
                     var private = caller;
                     private.transaction = .{ .key = owner, .revision = current.revision };
                     var write = try value.statement.bindWrite(allocator, &private, value.values, operation.operation);
