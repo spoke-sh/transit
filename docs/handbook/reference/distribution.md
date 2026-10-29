@@ -98,6 +98,48 @@ remain available; no server starts and no installation data changes. Switching a
 symlink back does not make an incompatible retained installation readable.
 Use the [local guide](../guides/quickstart.md) after installation.
 
+### Nightly channel
+
+Nightlies package one captured `main` revision and use the same CI, installed
+runtime, SDK, handbook and Homebrew gates as tagged releases. The daily workflow
+runs at 07:17 UTC; GitHub may delay scheduled execution. An unchanged revision
+already selected by the channel is skipped. Manual candidate builds do not
+publish.
+
+Select the last verified nightly explicitly:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/spoke-sh/transit/main/install.sh \
+  | sh -s -- --channel nightly --prefix "$HOME/.local"
+```
+
+`--channel stable` is the default when no version is supplied. `--version` pins
+an exact stable or nightly software version and is mutually exclusive with
+`--channel`. Offline installation requires that exact version. Nightly version
+names and package-native mappings follow the [release policy](versioning.md#software-releases).
+
+A nightly has an immutable Git tag, GitHub prerelease, versioned images and a
+prerelease Helm chart. It does not become the latest stable GitHub Release.
+The `nightly.json` record on the repository's `release-channels` branch selects
+an immutable version and the checksum-list digest. The installer reads that
+record once, verifies the digest and installs the corresponding versioned archive.
+Use the record's exact version with Helm. OCI `:nightly` aliases point to verified
+nightly images; pin the immutable version or digest for repeatable deployments.
+
+Publication and channel selection are separate. Anonymous archive/image/chart
+checks complete before promotion; failures keep the previous channel record.
+Promotion checks source ancestry and updates the branch without forcing it, so
+an older job cannot replace a newer source. OCI aliases update before the channel
+record; updates across independent registries and Git are not atomic. An
+interrupted promotion may leave aliases on different verified versions. Retrying
+promotion completes selection without replacing immutable artifacts.
+
+Published artifacts and tags are retained. Intermediate Actions artifacts are
+retained for 14 days. Retry failed jobs using those original artifacts: rebuilding
+an existing version with different bytes is refused. Installation selects binary
+files only; it neither starts a server nor migrates retained data.
+
 ### Homebrew on Linux
 
 Each release includes `transit.rb`, generated from that release's executable
@@ -163,10 +205,11 @@ not supply these, install Substrate, or authorize bootstrap or replacement.
 ## Publication and retries
 
 Tag pushes run full ordinary CI plus the distribution build, installed startup,
-SQL/restart, container and Helm checks. Only successful tag builds can publish.
+SQL/restart, container and Helm checks. Only successful stable-tag or scheduled/manual nightly publication runs can publish.
 Downloaded artifacts also pass the real installer and embedded Board/SQL/restart
 checks on a fresh runner before publication, without a Nix installation.
-Pull requests and manual dispatch build artifacts without publishing. Tag names
+Pull requests and manual release-candidate dispatches build artifacts without publishing.
+The separate nightly workflow can publish from `main`. Stable tag names
 must match `VERSION` at a clean commit. Builds retain artifacts in GitHub Actions;
 publication uses those artifacts without rebuilding them.
 

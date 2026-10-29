@@ -12,7 +12,7 @@ from release_brew import formula
 def assemble(runtime, sdks, arm64=None, handbook=None):
     manifest = json.loads((runtime / 'release-manifest.json').read_text())
     sdk = json.loads((sdks / 'sdk-manifest.json').read_text())
-    for field in ('release', 'source_revision', 'definition'):
+    for field in ('release', 'source_revision', 'definition', 'identity'):
         if sdk[field] != manifest[field]:
             raise ValueError(f'SDK/runtime {field} mismatch')
     if set(sdk['packages']) != {'python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam', 'go'}:
@@ -29,7 +29,7 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     arm_asset = None
     if arm64 is not None:
         arm = json.loads((arm64 / 'release-manifest.json').read_text())
-        for field in ('release', 'source_revision', 'definition', 'flake_lock_sha256'):
+        for field in ('release', 'source_revision', 'definition', 'identity', 'flake_lock_sha256'):
             if arm[field] != manifest[field]:
                 raise ValueError(f'ARM64/runtime {field} mismatch')
         if arm['target'] != 'aarch64-linux-musl' or manifest['target'] != 'x86_64-linux-musl':
@@ -45,7 +45,7 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     handbook_files = set()
     if handbook is not None:
         docs = json.loads((handbook / 'handbook-manifest.json').read_text())
-        for field in ('release', 'source_revision', 'definition'):
+        for field in ('release', 'source_revision', 'definition', 'identity'):
             if docs[field] != manifest[field]:
                 raise ValueError(f'handbook/runtime {field} mismatch')
         handbook_files = set(docs['assets']) | {'handbook-manifest.json'}

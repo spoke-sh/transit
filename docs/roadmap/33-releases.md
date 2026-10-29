@@ -44,6 +44,12 @@ These are executable publication gates, not a record that every new job has
 passed or that a public release exists. First publication and the new platform,
 SDK and installer matrix must complete before closing their acceptance items.
 
+- Nightly distribution uses a source-bound prerelease identity, per-language
+  package version mappings, the shared publication matrix, and an explicit
+  installer channel. The channel advances only after anonymous checks pass;
+  immutable tags and assets are retained. Executed hosted publication remains
+  a separate acceptance requirement.
+
 ## Remaining dependencies
 
 - Qualify and publish the first tagged release, including anonymous registry

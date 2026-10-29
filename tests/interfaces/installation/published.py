@@ -27,10 +27,11 @@ def checksums(directory):
 
 
 def run(version, revision, artifacts=None):
-    if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version):
+    if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-nightly\.[0-9]{8}\.g[0-9a-f]{12})?', version):
         raise ValueError('invalid release version')
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('a clean expected source revision is required')
+    tag = ('nightly-' + '-'.join(version.rsplit('.', 2)[1:])) if '-nightly.' in version else 'v' + version
     with tempfile.TemporaryDirectory(prefix='transit-published-') as temporary:
         root = Path(temporary)
         directory = artifacts.resolve() if artifacts else root / 'downloads'
@@ -40,7 +41,7 @@ def run(version, revision, artifacts=None):
                 subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location',
                                 '--proto', '=https', '--proto-redir', '=https', '--tlsv1.2',
                                 '--output', str(directory / name),
-                                f'https://github.com/spoke-sh/transit/releases/download/v{version}/{name}'], check=True)
+                                f'https://github.com/spoke-sh/transit/releases/download/{tag}/{name}'], check=True)
         checksums(directory)
         manifest = json.loads((directory / 'release-manifest.json').read_text())
         if manifest['release'] != version or manifest['source_revision'] != revision:

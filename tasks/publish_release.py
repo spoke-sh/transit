@@ -9,6 +9,7 @@ import tempfile
 
 from package_release import BINARIES, ROOT, sha256
 from version import check
+from release_identity import current
 
 
 def run(args, **kwargs):
@@ -31,8 +32,11 @@ def publish(directory, repository):
     version, revision = manifest['release'], manifest['source_revision']
     if len(revision) != 40:
         raise ValueError('publishing requires a clean source commit')
-    tag = f'v{version}'
-    check(ROOT, tag)
+    identity = current(clean=True)
+    if manifest['identity'] != identity:
+        raise ValueError('artifact release identity does not match this checkout')
+    tag = identity['tag']
+    check(ROOT, tag if identity['channel'] == 'stable' else None)
     if run(['git', 'rev-parse', 'HEAD'], cwd=ROOT) != revision:
         raise ValueError('artifact revision does not identify the tagged source')
     registry = f'ghcr.io/{repository.lower()}'
@@ -45,6 +49,15 @@ def publish(directory, repository):
             raise ValueError('incomplete image set')
         if {path.stem for path in (directory / 'images').glob('*.tar')} != set(BINARIES):
             raise ValueError('incomplete image archives')
+        if identity['channel'] == 'nightly':
+            refs = json.loads(run(['gh', 'api', f'repos/{repository}/git/matching-refs/tags/{tag}']))
+            matching = [ref for ref in refs if ref['ref'] == 'refs/tags/' + tag]
+            if matching:
+                if len(matching) != 1 or matching[0]['object']['sha'] != revision:
+                    raise ValueError('refusing to move an existing nightly tag')
+            else:
+                run(['gh', 'api', f'repos/{repository}/git/refs', '--method', 'POST',
+                     '-f', 'ref=refs/tags/' + tag, '-f', 'sha=' + revision])
         for path in sorted((directory / 'images').glob('*.tar')):
             name = path.stem
             reference = registry if name == 'transit' else f'{registry}-{name.removeprefix("transit-")}'
@@ -83,8 +96,11 @@ def publish(directory, repository):
                              'See the tagged repository distribution guide for configuration, retained-data '
                              'compatibility and the published component set.\n')
             run(['gh', 'release', 'create', tag, '--repo', repository, '--verify-tag', '--draft',
-                 '--title', f'Transit {version}', '--notes-file', str(notes)])
+                 '--title', f'Transit {version}', '--notes-file', str(notes),
+                 *(['--prerelease', '--latest=false'] if identity['channel'] == 'nightly' else [])])
             existing = {'assets': [], 'draft': True}
+        elif existing['prerelease'] != (identity['channel'] == 'nightly'):
+            raise ValueError('existing release channel mismatch')
         assets = {asset['name'] for asset in existing['assets']}
         for path in sorted(directory.iterdir()):
             if not path.is_file():

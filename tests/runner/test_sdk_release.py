@@ -21,7 +21,7 @@ class SdkRelease(unittest.TestCase):
                 runtime, sdk = (Path(temporary) / name for name in ('runtime', 'sdk'))
                 runtime.mkdir()
                 sdk.mkdir()
-                identity = dict(release='0.0.1', source_revision='a' * 40, definition=[1] * 32)
+                identity = dict(release='0.0.1', source_revision='a' * 40, definition=[1] * 32, identity={'channel': 'stable'})
                 before = json.dumps(identity)
                 (runtime / 'release-manifest.json').write_text(before)
                 (sdk / 'sdk-manifest.json').write_text(json.dumps(identity | {field: 'foreign'}))
@@ -35,7 +35,7 @@ class SdkRelease(unittest.TestCase):
             runtime, sdk = (Path(temporary) / name for name in ('runtime', 'sdk'))
             runtime.mkdir()
             sdk.mkdir()
-            identity = dict(release='0.0.1', source_revision='a' * 40, definition=[1] * 32)
+            identity = dict(release='0.0.1', source_revision='a' * 40, definition=[1] * 32, identity={'channel': 'stable'})
             (runtime / 'release-manifest.json').write_text(json.dumps(identity))
             (sdk / 'sdk-manifest.json').write_text(json.dumps(identity | {
                 'packages': dict.fromkeys(('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam', 'go')),

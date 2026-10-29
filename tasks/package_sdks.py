@@ -48,6 +48,12 @@ def package(packages, output, notices):
             destination = stage / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
+            if name == 'VERSION':
+                destination.write_text(version + '\n')
+            elif destination.name == 'build.zig.zon' and not name.startswith('third_party/'):
+                text = destination.read_text()
+                text = text.replace('.version = "' + identity['base_version'] + '"', '.version = "' + version + '"')
+                destination.write_text(text)
         shutil.copytree(notices, stage / 'notices')
         shutil.copy2(packages / 'sdk-manifest.json', stage / 'sdk-manifest.json')
         name = f'transit-sdk-zig-{version}-source'

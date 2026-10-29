@@ -59,6 +59,8 @@ pub fn main(init: std.process.Init) !void {
     run(['git', 'worktree', 'add', '--detach', str(worktree), first], root)
     assert build(worktree) == f'{version} {first}'
     assert build(root, '-Dsource-revision=' + 'b' * 40) == f'{version} ' + 'b' * 40
+    nightly = version + '-nightly.20261029.gbbbbbbbbbbbb'
+    assert build(root, '-Dsource-revision=' + 'b' * 40, '-Drelease-version=' + nightly) == nightly + ' ' + 'b' * 40
     invalid = subprocess.run(['zig', 'build', '-Dsource-revision=not-a-sha'], cwd=root, capture_output=True)
     assert invalid.returncode and b'invalid -Dsource-revision' in invalid.stderr
     nested = root / 'archive'

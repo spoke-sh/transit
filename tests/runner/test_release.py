@@ -1,5 +1,6 @@
 """Installer rejection and deterministic archive controls without network or services."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import runpy
@@ -111,6 +112,32 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         self.checksum()
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_nightly_channel_installs_the_pinned_version(self):
+        version = '0.0.1-nightly.20261029.gaaaaaaaaaaaa'
+        binary = self.source / 'bin/transit'
+        binary.write_text(binary.read_text().replace('Transit 0.0.1 ', 'Transit ' + version + ' '))
+        self.asset = self.downloads / f'transit-{version}-linux-x86_64.tar.gz'
+        archive(self.source, self.asset, f'transit-{version}-linux-x86_64', 123)
+        self.checksum()
+        descriptor = dict(identity=dict(release=version), checksums_sha256=hashlib.sha256(
+            (self.downloads / 'SHA256SUMS').read_bytes()).hexdigest())
+        (self.downloads / 'nightly.json').write_text(json.dumps(descriptor, indent=2))
+        args = ['sh', str(ROOT / 'install.sh'), '--channel', 'nightly', '--prefix', str(self.prefix)]
+        result = subprocess.run(args, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(version, str((self.prefix / 'bin/transit').resolve()))
+        before = (self.prefix / 'bin/transit').read_bytes()
+        (self.downloads / 'SHA256SUMS').write_text('changed')
+        result = subprocess.run(args, env=self.env, capture_output=True, text=True)
+        self.assertIn('nightly channel checksum mismatch', result.stderr)
+        self.assertEqual((self.prefix / 'bin/transit').read_bytes(), before)
+
+    def test_channel_and_version_are_explicit_alternatives(self):
+        result = subprocess.run(['sh', str(ROOT / 'install.sh'), '--channel', 'nightly',
+                                 '--version', '0.0.1'], env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('mutually exclusive', result.stderr)
 
     def test_archive_reproducibility_ignores_checkout_mtimes(self):
         original = self.asset.read_bytes()
