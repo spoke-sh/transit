@@ -40,7 +40,7 @@ def transient_read_failure(stderr):
     return (record.get("schema_version") == 1 and record.get("service_name") == "transit-admin"
             and isinstance(event, dict) and event.get("name") == "service.failed"
             and event.get("level") == "err" and event.get("outcome") == "failed"
-            and event.get("error_type") in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing"))
+            and event.get("error_type") in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused"))
 
 
 def read_json(response, limit=256 * 1024):
@@ -376,8 +376,9 @@ backend = "inline"
                                     env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "error"})
             if result.returncode == 0:
                 return json.loads(result.stdout)
-            # Concurrent workers can occupy the authority's finite read slots.
-            # Retry only a read with a classified transient transport result.
+            # Concurrent workers can occupy finite read slots; a physical WAL
+            # reopen can briefly close the listener. Retry this exact read only
+            # for a classified transport failure, within the original deadline.
             transient = transient_read_failure(result.stderr)
             if not transient or time.monotonic() >= deadline:
                 print(result.stderr, file=sys.stderr, end="")
