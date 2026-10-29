@@ -27,6 +27,13 @@ remain explicit; this interface does not supply automatic recovery or a shared
 SQL session. Existing foreign-language Catalog APIs retain their current
 Station package entry points.
 
+The Zig SDK also exports `transit_query_direct` for finite retained-Table queries,
+relational sessions and history readers, and `transit_fuze.QueryValues` for pure
+neutral value/plan conversion. These modules do not depend on Station. Callers
+retain the exact source pins and own explicit release; closing a reader only
+releases its local work. The [direct query package](../../../packages/zig/transit-query-direct/README.md)
+defines borrowed dependencies, page ownership and disclosure checks.
+
 Protocol counters use their validated safe-integer ranges; application u64 and
 correlations retain full 64-bit values. Follow each neutral contract's decimal
 string/byte representation at JSON boundaries. Do not coerce wide values into

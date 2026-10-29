@@ -47,6 +47,7 @@ lifetimes stay explicit in the owning APIs.
 | `transit_station_http` | [Recorded HTTP callers](../../packages/zig/transit-station-http/README.md) |
 | `transit_station_grpc` | [Recorded RPC callers](../../packages/zig/transit-station-grpc/README.md) |
 | `transit_query` | [Query preparation, admission and reads](../../packages/zig/transit-query/README.md) |
+| `transit_query_direct` | [Finite direct Table queries, relational sessions and retained history readers](../../packages/zig/transit-query-direct/README.md) |
 | `transit_sql_client` | [SQL statement submission, bounded results and transaction attachment](../../packages/zig/transit-sql-client/README.md) |
 | `transit_data_client` | [Shared catalog caller with explicit allocator/I/O and owned operation results](../../packages/zig/transit-data-client/README.md) |
 | `transit_catalog` | [Catalog declarations and callers](../../packages/zig/transit-catalog/README.md) |

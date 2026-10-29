@@ -520,7 +520,7 @@ reassignment or distributed authority.
 
 Interactive response recovery asks a narrower question: did this same host
 already produce the requested page? The
-[caller session](../../../packages/zig/transit-query/src/RelationalBridge.zig) retains
+[caller session](../../../packages/zig/transit-query-direct/src/RelationalBridge.zig) retains
 one native row before allocating a foreign response. An explicit ordinal can
 repeat that row or advance by one; it cannot skip or replay an arbitrarily old
 prefix. Resident response state therefore does not grow with result length.

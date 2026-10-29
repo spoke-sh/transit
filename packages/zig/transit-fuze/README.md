@@ -8,6 +8,18 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`QueryValues` supplies neutral columns, scalar/cell projections, predicates and
+plans over the same `Types`, `LogicalJson` and `LogicalQuery` model. It requires
+no Station, transport or source acquisition. Exact integer strings, float bits,
+five-state cells, collations, validation errors and canonical plan identities
+retain their owning contracts. Composite conversions use a caller-owned operation
+arena, including cleanup after failure. `columns` allocates a field array but
+borrows the supplied names and descriptors; `Plan.native` detaches its schema,
+output names and literals. Foreign projections detach their returned values.
+Typed JSON parsing keeps the input alive until the parsed result is released.
+`NeutralEncoding` owns the shared decimal/hex helpers, including their existing
+error names; Query and Station Document adapters re-export that implementation.
+
 Finite logical plans bind a separate `QueryCollations` value to every input
 column. Binary, ASCII case folding and CP037 order apply consistently in scalar
 predicates, vector batches and resumable pages. Plan fingerprints and canonical
