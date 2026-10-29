@@ -158,7 +158,9 @@ test "local payload creation sync uncertainty resolves by verification without r
             if (failure == 0) {
                 try store.createPayloadOnce(value, "payload");
                 schedules = Fault.calls;
-                try t.expectEqual(@as(usize, 8), schedules);
+                // Marker file + directory, payload + checksums + their shared
+                // directory, then descriptor file + directory.
+                try t.expectEqual(@as(usize, 7), schedules);
             } else try t.expectError(error.InputOutput, store.createPayloadOnce(value, "payload"));
         }
         var reopened: Fixture = .{};

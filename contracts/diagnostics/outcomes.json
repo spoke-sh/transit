@@ -9740,6 +9740,27 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "UnsupportedTransactionRead": {
+          "code": "catalog.unsupported_transaction_read",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidTransactionRead": {
+          "code": "catalog.invalid_transaction_read",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TransactionReadChanged": {
+          "code": "catalog.transaction_read_changed",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"

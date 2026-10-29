@@ -167,7 +167,7 @@ begin
   end
   reply.response = Transit::AccessDenied.new('Denied', status: 4)
   check(rejects(Transit::AccessDenied) { client.execute(reference) }.equal?(reply.response))
-  outcome = {'rows'=>{'committed'=>{'binding'=>bound, 'resulting'=>stored,
+  outcome = {'rows'=>{'committed'=>{'binding'=>bound, 'resulting'=>stored, 'transaction'=>nil,
     'outcome'=>{'position'=>{'partition'=>'18446744073709551615','next_lsn'=>'18446744073709551615'},'matched'=>'9','affected'=>'9','live_rows'=>'9'}}}}
   reply.response = {'observation'=>clone_json(outcome)}
   observed = client.inspect(reference)

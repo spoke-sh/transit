@@ -1761,7 +1761,10 @@ impl Observation {
             return Ok(out);
         }
         if tag == "committed" {
-            object(raw, &["binding", "resulting", "outcome"])?;
+            object(raw, &["binding", "resulting", "outcome", "transaction"])?;
+            if !raw["transaction"].is_null() {
+                return Err(malformed());
+            }
             let stored = StoredDefinition::parse(&raw["resulting"])?;
             let outcome = &raw["outcome"];
             object(outcome, &["position", "matched", "affected", "live_rows"])?;
@@ -2656,7 +2659,7 @@ mod tests {
         json!({"table":{"definition":abi::ABI_DEFINITION,"connection":connection().wire(17),"namespace":1,"binding":binding(),"content":{"bytes":"200","sha256":"22".repeat(32)}}})
     }
     fn observed() -> Value {
-        json!({"rows":{"committed":{"binding":binding(),"resulting":stored(),"outcome":{"position":position(),"matched":"9","affected":"9","live_rows":"9"}}}})
+        json!({"rows":{"committed":{"binding":binding(),"resulting":stored(),"transaction":null,"outcome":{"position":position(),"matched":"9","affected":"9","live_rows":"9"}}}})
     }
     fn table_page() -> Value {
         json!({"position":position(),"entries":[{"interpretation":interpretation(),"namespace":1,"name":"items","position":position(),"changed_lsn":"3"},null,null,null,null,null,null,null],"next":{"definition":abi::ABI_DEFINITION,"connection":connection().wire(17),"selection":{"tables":1},"position":position(),"after":u64::MAX.to_string()},"consistency":"independent"})
@@ -2752,11 +2755,18 @@ mod tests {
         })
         .unwrap();
         assert_eq!(operation.commit.unwrap().position.next_lsn, u64::MAX);
-        for fault in 0..3 {
+        for fault in 0..5 {
             let mut bad = observed();
             match fault {
                 0 => bad["rows"]["committed"]["binding"]["identity"]["operation"] = json!("11"),
                 1 => bad["rows"]["committed"]["outcome"]["affected"] = json!("10"),
+                2 => {
+                    bad["rows"]["committed"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("transaction");
+                }
+                3 => bad["rows"]["committed"]["transaction"] = json!({}),
                 _ => {
                     bad["rows"]["committed"]["resulting"]["content"]["sha256"] =
                         json!("00".repeat(32))

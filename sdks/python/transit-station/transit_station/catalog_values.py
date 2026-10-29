@@ -811,7 +811,9 @@ def _observation(value: object, original: Reference) -> Observation:
         if (state == 'rejected') != (reason != 'none'): raise ValueError('Inconsistent name outcome')
         return Observation(original.kind, state, original, reason=reason, position=_position(record['position']))
     if state == 'committed':
-        record = _object(record, 'binding resulting outcome'); outcome = _object(record['outcome'], 'position matched affected live_rows')
+        record = _object(record, 'binding resulting outcome transaction')
+        if record['transaction'] is not None: raise ValueError('Unexpected transaction commit evidence')
+        outcome = _object(record['outcome'], 'position matched affected live_rows')
         commit = Commit(_stored(record['resulting']), _position(outcome['position']), _decimal(outcome['matched'], 0),
                         _decimal(outcome['affected'], 0), _decimal(outcome['live_rows'], 0))
         if commit.affected > commit.matched or commit.definition.interpretation.object != _object_identity(expected['target']): raise ValueError('Changed commit evidence')

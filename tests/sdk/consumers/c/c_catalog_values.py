@@ -104,7 +104,7 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
     entry = dict(interpretation=interpretation, namespace=1, name='items', position=position, changed_lsn='3')
     cursor = dict(definition=definition, connection=connection, selection=dict(tables=1), position=position, after='8')
     page = dict(position=position, entries=[entry]+[None]*7, next=dict(cursor, after=maximum), consistency='independent')
-    observed = dict(rows=dict(committed=dict(binding=binding, resulting=stored, outcome=dict(position=position, matched='9', affected='9', live_rows='9'))))
+    observed = dict(rows=dict(committed=dict(binding=binding, resulting=stored, transaction=None, outcome=dict(position=position, matched='9', affected='9', live_rows='9'))))
     owner = dict(definition=definition, connection=connection, object=obj, operation=maximum)
     acquisition = dict(owner=owner, expected=position)
     snapshot = dict(owner=owner, content=dict(bytes='500', sha256='44'*32))

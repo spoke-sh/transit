@@ -45,7 +45,7 @@ internal static class CatalogValues
     static JsonObject Saved() => Obj(("table",Obj(("definition",C.ContractDefinition),("namespace",1),("bytes","aabb"))));
     static JsonObject Reference() => Obj(("table",Obj(("definition",C.ContractDefinition),("connection",ConnectionWire()),("namespace",1),("binding",Binding()),("content",Obj(("bytes","200"),("sha256",new string('2',64)))))));
     static JsonObject Summary() => Obj(("id",Obj(("definition",C.ContractDefinition),("digest",new string('1',64)))),("namespace",1),("binding",Obj(("table",Binding()))));
-    static JsonObject Observation() => Obj(("rows",Obj(("committed",Obj(("binding",Binding()),("resulting",Stored()),("outcome",Obj(("position",Position()),("matched","9"),("affected","9"),("live_rows","9"))))))));
+    static JsonObject Observation() => Obj(("rows",Obj(("committed",Obj(("binding",Binding()),("resulting",Stored()),("transaction",null),("outcome",Obj(("position",Position()),("matched","9"),("affected","9"),("live_rows","9"))))))));
     static C.Schema Schema() => new(ulong.MaxValue,1,2,[new C.Column(1,"id",new L.Scalar(L.ScalarKind.Int128))]);
     static JsonObject Page() {
         JsonArray entries = new(Obj(("interpretation",Interpretation()),("namespace",1),("name","items"),("position",Position()),("changed_lsn","3")));
