@@ -103,10 +103,53 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                        for row in metadata["phases"])
 
 
+def release_workflow():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())
+    jobs = workflow['jobs']
+
+    def ancestors(name):
+        needs = jobs[name].get('needs', [])
+        if isinstance(needs, str):
+            needs = [needs]
+        return set(needs).union(*(ancestors(parent) for parent in needs))
+
+    # Packaging failures must not hide independent installed-consumer evidence.
+    for job in ('sdk-build', 'sdk-consumers', 'sdk-zig', 'installed'):
+        assert 'build' in ancestors(job) and 'images' not in ancestors(job)
+        assert any(step.get('with', {}).get('name') == 'runtime-${{ matrix.artifact }}'
+                   for step in jobs[job]['steps'])
+    assert 'sdk-build' not in ancestors('installed')
+    # Independence during diagnosis must never weaken the publication gate.
+    required = {'qualification', 'build', 'images', 'installed', 'sdk-build',
+                'sdk-consumers', 'sdk-zig', 'sdk-loaders', 'handbook', 'assemble', 'homebrew'}
+    assert required <= ancestors('publish')
+    assert 'images' in ancestors('assemble')
+    assert {'publish', 'published'} <= ancestors('promote-nightly')
+    for job in required | {'publish', 'published', 'promote-nightly'}:
+        assert 'always()' not in jobs[job].get('if', '')
+        assert not jobs[job].get('continue-on-error', False)
+        assert not any(step.get('continue-on-error', False) for step in jobs[job].get('steps', []))
+    assert "needs.prepare.outputs.publish == 'true'" in jobs['publish']['if']
+    prepare = next(step for step in jobs['prepare']['steps'] if step.get('id') == 'identity')
+    assert "github.event_name == 'pull_request' && 'nightly'" in prepare['env']['CHANNEL']
+    assert "github.ref == 'refs/heads/main'" in prepare['env']['PUBLISH']
+    assert "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" in prepare['env']['PUBLISH']
+    for job in ('build', 'images', 'sdk-build', 'sdk-zig'):
+        platforms = jobs[job]['strategy']['matrix']['include']
+        assert {(row['architecture'], row['runner']) for row in platforms} == {
+            ('x86_64', 'ubuntu-24.04'), ('aarch64', 'ubuntu-24.04-arm')}
+        assert jobs[job]['strategy']['fail-fast'] is False
+    evidence = next(step for step in jobs['images']['steps']
+                    if step.get('name') == 'Preserve image conversion diagnostics')
+    assert evidence['if'] == 'failure()'
+    assert evidence['with']['path'] == '.cache/release-images/'
+
+
 def main():
     # Fixture runners must not inherit the hosted job's source-bound selection.
     os.environ.pop("TRANSIT_CI_SELECTION_PATH", None)
     clean_runner()
+    release_workflow()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     strategy = workflow["jobs"]["checks"]["strategy"]
     assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"

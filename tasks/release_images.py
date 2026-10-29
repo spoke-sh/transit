@@ -1,17 +1,21 @@
 """Build scratch images from the verified static release bundle; never push."""
+import argparse
 import json
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import time
 
 from package_release import BINARIES, sha256
-from release_oci import exported, checksums, copy_image
+from release_oci import blob, exported, checksums, copy_image
 
-directory = Path(sys.argv[1]).resolve()
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('directory', type=Path)
+parser.add_argument('--diagnostics', type=Path, help='retain public image configurations for failed export diagnosis')
+args = parser.parse_args()
+directory = args.directory.resolve()
 manifest = json.loads((directory / 'release-manifest.json').read_text())
 version = manifest['release']
 architecture = manifest['target'].split('-')[0]
@@ -68,6 +72,18 @@ with tempfile.TemporaryDirectory(prefix='transit-images-') as temporary:
         layout = directory / 'images' / name
         copy_image('docker-daemon:' + image, f'oci:{layout}:{version}', '--format', 'oci')
         original = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image]))[0]
+        if args.diagnostics:
+            args.diagnostics.mkdir(parents=True, exist_ok=True)
+            descriptor, = json.loads((layout / 'index.json').read_text())['manifests']
+            converted = json.loads(blob(layout, descriptor))
+            # These images contain only release executables, notices and literal
+            # Dockerfile settings. Do not retain container/installation state.
+            (args.diagnostics / (name + '.json')).write_text(json.dumps({
+                'release': version, 'source_revision': manifest['source_revision'],
+                'architecture': architecture, 'docker': {
+                    key: original[key] for key in ('Id', 'Config', 'RootFS')},
+                'oci': json.loads(blob(layout, converted['config'])),
+            }, indent=2) + '\n')
         manifest.setdefault('images', {})[name] = exported(layout, architecture, original)
 (directory / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 (directory / 'SHA256SUMS').write_text(''.join(f'{sha256(path)}  {path.name}\n'

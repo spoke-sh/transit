@@ -395,6 +395,16 @@ fn largestFields(comptime T: type) T {
         return protocol.Storage.Path.init(&bytes) catch unreachable;
     }
     if (T == protocol.Value) return protocol.Value.init(&(@as([protocol.Value.max_bytes]u8, @splat(255)))) catch unreachable;
+    if (T == protocol.Storage.Path) {
+        // Absolute, non-NUL UTF-8 at the owned path limit. Each remaining byte
+        // needs a six-byte JSON escape, unlike the invalid reflected u16 length
+        // and 0xff bytes that a generic integer/array maximum would produce.
+        var value: T = .{ .len = 0 };
+        @memset(&value.bytes, 1);
+        value.bytes[0] = '/';
+        value.len = @intCast(value.bytes.len);
+        return value;
+    }
     return switch (@typeInfo(T)) {
         .int => |info| if (info.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
         .bool => false,
@@ -447,7 +457,8 @@ test "contention classification preserves fences and exact retry conflicts" {
 test "a full metadata view fits the bounded HTTP response" {
     // All optional metadata is present, all slots filled, every enum uses its
     // longest tag and integers use their widest decimal form (even wider than
-    // legal protocol counters). Leave slack for shorter optional scalars/nulls.
+    // legal protocol counters). Owned path text uses its largest valid escaped
+    // representation. Leave slack for shorter optional scalars/nulls.
     const value = largestFields(protocol.Growth.Response);
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, value, .{});
     defer std.testing.allocator.free(bytes);
