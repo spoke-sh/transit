@@ -56,6 +56,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     binaries = dict(node=node, catalog=catalog, ledger=ledger, host=host, gateway=gateway,
                     configuration_host=configuration_host, console=str(Path(console).resolve()))
+    if slice == 'transactions':
+        print(json.dumps(dict(profile='installed_transaction_configuration', source=provenance(ROOT),
+                              binaries={role: identity(Path(path)) for role, path in binaries.items()},
+                              limits='Local disk, finite sequential histories, process replacement; no power-loss or throughput claim.')), flush=True)
     if slice == 'console-statements':
         import hashlib
         import platform
