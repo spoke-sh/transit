@@ -109,6 +109,29 @@ allocation claim or measure process-wide memory. The diagnostic log
 Durable publication, token/accounting coordination and refreshed read cuts
 remain optimization work; the 10–100× targets are not achieved by these runs.
 
+Clean-source qualification at `75e8ec6056fc` passes all 47 fast checks, the
+documentation type checks, nine documentation tests and the complete site
+build. The clean interfaces lane passes TLS in 21.40 seconds and shared-client
+allocation checks in 183.85 seconds, including the deliberate allocation-failure
+control. Native SQL recovery then fails after 626.06 seconds including its build:
+the 67-row INSERT repeatedly reaches the ten-second node deadline and the
+helper exceeds its unchanged 300-second budget. Later interface tasks do not
+run. The private fixture is `/var/tmp/transit-sql-database-o9dto4yj`; the clean
+source and runner records remain at `/var/tmp/transit-ci-hohkp2sd`. The log
+`.cache/sql-qualification/clean-interfaces.log` has SHA-256
+`a2b7658fec1f82dd7ae6d5be63f9e50e2a26c37e2f5b4dcafd5633932eb65464`.
+
+A final standalone default-installation attempt after these checks uses the
+same frozen binaries and unchanged settings. It also fails during native
+association bootstrap, exhausts the restart budget and produces no timed SQL
+samples. Its driver source is `75e8ec6056fc`, initial one-minute load is 5.92,
+and private installation is `/var/tmp/transit-server-proof-a9qerxx1`. These
+observations do not establish the cause of the storage delays. Raw identity is
+in `.cache/sql-qualification/console-unproxied-repeat.jsonl` (SHA-256
+`db60cd022090a5479b165dee796c92b42f2e1fa609d0dd15ff0a8fa5c719f247`),
+with failure evidence in `console-unproxied-repeat.stderr` (SHA-256
+`989567b3d3c790f3cad212f199d48077e3a4cd1dd57e842a555aba959a85d014`).
+
 ### Resident owners, foreground completion and snapshot acquisition
 
 This follow-up to [#211](https://github.com/spoke-sh/transit/issues/211) measures
