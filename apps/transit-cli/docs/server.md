@@ -198,6 +198,13 @@ Installed SQL listeners and execution belong to the selected node artifact.
 `executables.sql_gateway` remains part of the installation artifact identity for
 standalone SQL placement and separately invoked operator controls; the server
 uses the shared host inside the node for its SQL listeners.
+When the physical storage owner reopens, it joins the old SQL task before
+replacing the local endpoint. The supervisor reactivates a confirmed stopped
+host with a new persisted account generation and recovers accepted operations.
+A joined stop does not consume the SQL task's three-failure budget; a failed
+activation or mismatched live owner still does. Existing sessions can disconnect
+during this transition; reconnecting does not establish an uncertain write's
+outcome.
 
 Board uses the built-in role unless `executables.board` selects a standalone
 binary. Optional `board` settings default to

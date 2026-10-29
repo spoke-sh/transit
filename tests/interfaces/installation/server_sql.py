@@ -18,6 +18,10 @@ from interfaces.installation.server import Fixture
 from harness.local_installation import freeze_executables as freeze
 from interfaces.installation.server_direct_boundary import Boundary
 
+TRANSIENT_OBSERVATIONS = ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity',
+                          'ControlCapacity', 'HttpConnectionClosing',
+                          'ConnectionResetByPeer', 'ConnectionRefused')
+
 
 class SQLFixture(Fixture):
     def stop(self, kill=False):
@@ -31,7 +35,7 @@ def call(argv, *, env=None, timeout=300, retry_observation=False):
         result = subprocess.run(list(map(str, argv)), env=env, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
         if result.returncode == 0:
             return result.stdout.strip()
-        transient = any(cause in result.stderr for cause in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity', 'HttpConnectionClosing', 'ConnectionResetByPeer'))
+        transient = any(cause in result.stderr for cause in TRANSIENT_OBSERVATIONS)
         if not retry_observation or not transient or time.monotonic() >= deadline:
             raise AssertionError((argv[:3], result.stdout, result.stderr))
         # Only an explicitly selected observation or saved-operation recovery
@@ -82,7 +86,7 @@ def apply(fixture, input_path, name, mode='prepare'):
         # one supervisor tick. Nothing was sent or saved: wait for its refreshed
         # revision. Once saved, only apply that exact operation below.
         refreshed = mode in ('prepare', 'prepare-set') and 'StaleAuthorizationRevision' in prepared.stderr
-        unavailable = any(cause in prepared.stderr for cause in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity', 'HttpConnectionClosing', 'ConnectionResetByPeer'))
+        unavailable = any(cause in prepared.stderr for cause in TRANSIENT_OBSERVATIONS)
         assert (refreshed or unavailable) and not saved.exists() and time.monotonic() < deadline, prepared.stderr
         time.sleep(.3)
     for _ in range(16):

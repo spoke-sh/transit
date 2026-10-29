@@ -328,7 +328,16 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     if (self.service_fingerprint) |fingerprint| {
         const observed = try self.hostCall(allocator, .status, self.installation.config.sql.request_timeout_ms);
         defer observed.deinit();
-        if (observed.value.state == .stopped) self.service_fingerprint = null;
+        if (observed.value.state == .stopped) {
+            // A physical owner reopen joins the old SQL task before replacing
+            // its endpoint. Confirmed absence is not a failed SQL activation:
+            // reactivate with a newly persisted account generation, preserving
+            // accepted operation recovery and the failed-task retry budget.
+            self.service_fingerprint = null;
+            self.service_count = 0;
+            try self.startService(allocator);
+            return;
+        }
         if (observed.value.state != .running or observed.value.fingerprint == null or !std.mem.eql(u8, &fingerprint, &observed.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {

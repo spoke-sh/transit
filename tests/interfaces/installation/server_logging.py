@@ -165,21 +165,28 @@ def run(cli, node, host, board, gateway):
         assert result.returncode == 0 and result.stdout.splitlines() == ['json', 'info'], result
         busy_observation(fixture, json_path)
         from harness.sql_placement import call as placement
-        hosted = placement(fixture)
         before_stop = children(fixture.process.pid)
-        assert placement(fixture, dict(stop=hosted['fingerprint']))['state'] == 'stopped'
-        deadline = time.monotonic() + 60
-        while not any(json.loads(line).get('event', {}).get('error_type') == 'GatewayOwnerUnavailable' for line in json_path.read_text().splitlines()):
-            assert fixture.process.poll() is None and time.monotonic() < deadline, json_path.read_text()
-            time.sleep(.1)
-        wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        assert children(fixture.process.pid) == before_stop, 'SQL replacement restarted a database or application owner'
+        # A joined stop (including physical-owner reopening) is distinct from
+        # a failed SQL task. More than three stops must not exhaust that task's
+        # failure budget; each replacement needs a new fenced activation.
+        for _ in range(4):
+            hosted = placement(fixture)
+            assert placement(fixture, dict(stop=hosted['fingerprint']))['state'] == 'stopped'
+            deadline = time.monotonic() + 60
+            while True:
+                replacement = placement(fixture)
+                if replacement['state'] == 'running' and replacement['fingerprint'] != hosted['fingerprint']:
+                    break
+                assert fixture.process.poll() is None and time.monotonic() < deadline, json_path.read_text()
+                time.sleep(.1)
+            wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
+            assert children(fixture.process.pid) == before_stop, 'SQL replacement restarted a database or application owner'
         fixture.stop()
         records = [json.loads(line) for line in json_path.read_text().splitlines()]
         assert records and all(r['schema_version'] == 1 and r['service_name'] == 'transit' for r in records)
         assert {r['event']['name'] for r in records} >= {'server.startup', 'server.ready', 'server.stopped', 'sql.status', 'sql.connect.postgres'}
         failures = [r['event'] for r in records if r['event'].get('error_type') == 'GatewayOwnerUnavailable']
-        assert failures and all(e['level'] == 'err' and e['outcome'] == 'failed' for e in failures), failures
+        assert not failures, ('Joined SQL stop was counted as an owner failure', failures)
         for launch in fixture.installation.glob('*.launch.json'):
             environment = {v['name']: v['value'] for v in json.loads(launch.read_text())['environment']}
             assert environment['LOG_FORMAT'] == 'json' and environment['LOG_LEVEL'] == 'info', launch
