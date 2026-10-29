@@ -73,7 +73,9 @@ unresolved obligations use bounded retry delays. Denial or a failed scan cannot
 certify an empty backlog. A crash loses the volatile signals, so replacement
 always rediscovers the durable pending index and original read-pin slots.
 Successful foreground DML does not require another recovery execution.
-
+Foreground activation failures withdraw readiness and notify the same recovery
+owner. A settled account's health observation is not a cached permission grant;
+foreground execution and buffered disclosure still require current authority.
 
 There is no intermediate Table admission record on this path. Catalog token
 acceptance and pending-index settlement are separate durable decisions; this

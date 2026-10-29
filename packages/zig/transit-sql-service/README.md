@@ -22,9 +22,10 @@ Readiness and activation fencing still gate execution.
 
 Native SQL and the database wire adapters attempt accepted INSERT, UPDATE and
 DELETE in the submitting request. Successful responses carry the owner's verified
-terminal outcome and matched/changed counts. The foreground also settles pending accounting; a failed settlement or interrupted
-command wakes recovery with the original token and frozen intent. Status remains observation-only; ordinary retries never recompile
-accepted SQL against later data.
+terminal outcome and matched/changed counts. The foreground also settles pending
+accounting; a failed settlement or interrupted command wakes recovery with the
+original token and frozen intent. Status remains observation-only; ordinary
+retries never recompile accepted SQL against later data.
 
 `SessionTransaction` attaches temporary sessions to Catalog-owned Table
 transactions. `TransactionSql` parses common BEGIN/COMMIT/ROLLBACK and savepoint

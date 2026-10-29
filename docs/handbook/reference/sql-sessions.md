@@ -79,6 +79,9 @@ Protected session operations check current credentials and database access befor
 account readiness. Revocation returns an access denial even when it also stops
 the account's recovery work. An authorized caller still requires a ready account
 and its current activation fence before execution or result disclosure.
+An idle, settled account does not poll for policy changes. A failed foreground
+activation check withdraws readiness and wakes recovery; current authorization
+still applies to every protected request.
 
 ## Durable work and recovery
 
@@ -102,7 +105,6 @@ Temporary unavailability or denial preserves the recovery obligation. A terminal
 result can be known while failed bookkeeping or transaction cleanup remains
 pending. Native session expiry follows its lease deadline and does not cancel
 accepted work or decide an open transaction.
-
 
 Captured queries require a service-owned source binding and publish their exact
 compiled intent through the durable query owner. After reconnection or restart,
