@@ -29,14 +29,15 @@ Start from the [data model](../handbook/reference/data-model.md),
 
 An architectural review of [`STATION_DOCUMENT_V1.md`](../../contracts/STATION_DOCUMENT_V1.md)
 and [`transit-station-document`](../../packages/zig/transit-station-document/README.md)
-after the [Milestone 6 database decoupling](06-streams-queues-and-durable-runtime.md)
+alongside the [Milestone 6 SQL database cutover](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28)
 identifies three structural mismatches between the existing `Document`
 implementation and Transit's storage and query architecture:
 
 1. **`Document` remained coupled to `Station` actor turns and `STATE_V1` 256-byte KV limits:**
-   While [Milestone 6](06-streams-queues-and-durable-runtime.md) severed
-   `transit-sql`, `TablePartition`, `StreamPartition` and `QueuePartition` from
-   `Station` actors, `Document` remained a `Station` service
+   The direct Table path and `transit-sql` are independent of `Station` actors.
+   `StreamPartition`, `QueuePartition` and the transactional Station replacement
+   remain planned in [Milestone 6](06-streams-queues-and-durable-runtime.md).
+   `Document` remains a `Station` service
    (`transit-station-document`) layered over [`STATION_PUBLICATION_V1.md`](../../contracts/STATION_PUBLICATION_V1.md),
    4 KiB 8-ary `SIX1` B-tree nodes ([`STATION_INDEX_V1.md`](../../contracts/STATION_INDEX_V1.md))
    and [`STATE_V1.md`](../../contracts/STATE_V1.md) actor turns (capped at four
@@ -191,6 +192,342 @@ gateway exchange capture over it.
      read-only Document inspector together, and update
      [`documents.md`](../handbook/reference/documents.md) and
      [`state-model.md`](../handbook/internals/state-model.md).
+
+## Implementation plan for initial Document decoupling
+
+**Plan basis:** `origin/main` at `1116604e90f79f1d9c879b4262f62993da4990f1`,
+2026-10-28. **Delivery status:** Planned; the packages and checks below are work
+to implement, not new runtime evidence.
+
+The first outcome is a declared Document whose initialization, accepted edits,
+revision reads and recovery belong to the database. A caller can create it,
+apply a causal change, resolve a lost reply using the original operation, and
+read the accepted revision after restart without a Document worker, Station
+call, courier or native KV turn. This starts delivery step 1, with the minimum
+logical/storage contracts from steps 2–3 and the consumer cutover from step 6.
+It does not complete this milestone's analytical or transaction outcomes.
+
+### Source audit and prerequisites
+
+| Boundary at the plan basis | Existing owner and consequence |
+| --- | --- |
+| Logical changes and reads | [`Model.zig`](../../packages/zig/transit-station-document/src/Model.zig) obtains bounded names/scalars from `Station.ImmutableIndex`; [`Document.zig`](../../packages/zig/transit-station-document/src/Document.zig) performs merge and traversal over that index. Moving the package alone would preserve the storage coupling and old limits. |
+| Durable acceptance | [`Service.zig`](../../packages/zig/transit-station-document/src/Service.zig), `Checkpoint`, `Remote` and `Caller` use Station Publication, private turns, one active job and recorded reply routes. Candidate construction is separate from final accepted head publication. |
+| Catalog lifecycle | [`DirectResource`](../../packages/zig/transit-catalog/src/DirectResource.zig) requires a writer PID and native allocation. [`NamedResource`](../../packages/zig/transit-station-app/src/NamedResource.zig) reserves the interpretation, creates the Document service and verifies its empty head across three commits. Catalog's absence of Station imports does not eliminate this runtime dependency. |
+| Public reads and consumers | [`Client`](../../packages/zig/transit-station-document/src/Client.zig) opens native resource cuts; Query, Board and [`DocumentCodec`](../../packages/zig/transit-station-bindings/src/DocumentCodec.zig) depend on that implementation. The ABI codec also repeats the 96-byte binary limit. |
+| Reusable database owners | `DirectCatalog`, `DirectClientToken`, `DirectIntent`, `DatabaseRuntime`, `ReadCache`, `TablePartition`, `TreeStore`, `TransitLog` and `TransitObjectStore` exist. The [SQL cutover](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28) qualifies their specific Table path, not a generic Document path. |
+| Transactions and runtime composition | The [M5 delivery profile](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions) excludes native Document participation. Storage transaction directories, decisions and private Table workspaces do not establish an installed Document transaction. Stream/Queue participants and transactional Station turns remain M6 work. |
+
+P0–P3 below can begin against the existing local WAL/object and catalog owners;
+they do not require Streams, Queues, the complete M5 coordinator, M8 clients or
+M15 format profiles. Coordinate shared definition, token and retention changes
+with M5. P5's public replacement has a separate atomicity gate: an existing
+Station operation that commits Document state with input progress and outputs
+must acquire a qualified common transaction before its old implementation is
+removed. Two recoverable commits do not preserve that guarantee. Until that gate
+is met, land only independently useful internal components and tests, or retain
+the dependent switch on the implementation branch; do not expose two public
+Document engines or a compatibility mode.
+
+### First delivery profile
+
+- Use one existing catalog, branch one, one fenced local owner and one logical
+  Document per catalog object/partition. Reuse scoped `DataLifecycle.Object`
+  and immutable definition identities. Names, Document revisions, causal dots,
+  client tokens, operation IDs, WAL positions and writer/policy epochs remain
+  distinct. A Document definition does not require an application PID or a
+  per-Document native resource allocation; catalog authority can retain its
+  existing native lifetime binding.
+- Implement the existing map/list/text **causal CRDT semantics** first:
+  observed-remove conflicts, immutable object identities, detached descendants,
+  descending-dot sibling order, deleted anchors, replica frontiers and exact
+  duplicate acceptance. Convergence applies to the same accepted change set.
+  The neutral model separates logical types, collations and physical encodings;
+  unsupported profiles receive a typed refusal. Versioned/immutable-lineage
+  merges, container graphs and new format parsers remain later work.
+- Replace fixed inline payloads with length-delimited values and bounded staged
+  references. Publish explicit request bytes, operation/node counts, depth,
+  conflicts, staging, active work and response budgets; do not inherit the
+  96-byte/64-byte/eight-operation wire ceilings or substitute larger arrays.
+  Preserve Unicode-scalar text semantics initially. Span-block text storage,
+  grapheme behavior and normalization are separate contracts.
+- Establish a bounded `.tseg` residual-tree representation before public
+  replacement. Keep causal evidence and revision/operation directories paged;
+  `TreeStore` may index those directories but must not become a renamed `SIX1`
+  payload engine. Adaptive shredding, collation-aware path pruning and optimized
+  succinct navigation remain later M7 outcomes. Select the initial topology in
+  P0/P2 using the [candidate evidence](#candidate-structures-and-selection-evidence);
+  rank/select alone does not prove all advertised navigation operations are
+  constant time.
+- Deliver shared typed lifecycle/edit/read operations and SQL lowering for the
+  selected Document CREATE/ALTER/RENAME/DROP subset. Existing SQL declaration
+  compilation is offline; executable forms and supported ALTER properties must
+  be specified and tested before advertising them. Preserve existing accepted
+  Query projections through the shared reader. New relational collection scans,
+  path-predicate pushdown and multi-object composition remain later steps.
+
+### Ownership and dependency direction
+
+Proposed ownership follows the existing database boundary:
+
+```mermaid
+flowchart TD
+  Users[SQL and typed callers] --> Catalog[DirectCatalog and direct Document operations]
+  Station[Station transaction adapter] --> Catalog
+  Catalog --> Partition[transit-storage DocumentPartition]
+  Partition --> Semantics[transit-document logical model and merge evaluator]
+  Semantics --> Protocol[transit-protocol neutral identities and contracts]
+  Partition --> Storage[TransitLog and TransitObjectStore]
+  Readers[Query and Board readers] --> Catalog
+```
+
+`transit-document` owns deterministic validation, merge evaluation and bounded
+logical traversal against explicit reader/builder interfaces. It imports no
+Station, provider, catalog or storage implementation. `transit-storage` owns
+physical trees, staging, WAL acceptance, retained roots and recovery, and uses
+that evaluator. Catalog owns names, policy checks, operation routing and
+inspection. Client/SQL packages call the same operations. Station composes above
+them; it cannot supply a second acceptance or permission authority. Board uses
+only authorized public metadata/read operations and does not decode application
+values or inspect raw objects.
+
+### Work packages and exit gates
+
+| Package | Deliverable | Depends on | Exit gate |
+| --- | --- | --- | --- |
+| P0 | Neutral Document, lifecycle, authority and cutover contracts | Existing M1/M2 contracts; M6 database boundary | Reviewable operation/state transitions, identities, byte layouts, quotas and consumer inventory |
+| P1 | Station-free `transit-document` evaluator and fixtures | P0 | Independent semantic equivalence and dependency checks |
+| P2 | `DocumentPartition`, residual `.tseg` trees and recovery | P0–P1 | Atomic acceptance and disk reopen under bounded memory |
+| P3 | Direct catalog lifecycle, policy, token binding and reads | P0–P2 | Real signed callers create/edit/read/recover without actors |
+| P4 | SQL/query/client and inspection integration | P3 | Shared outcomes, exact revision coverage and current-policy disclosure |
+| P5 | Consumer migration, current-v1 replacement and qualification | P1–P4; qualified transaction participants where atomic turns require them | One supported Document implementation and complete affected caller/recovery evidence |
+
+#### P0 — Fix contracts and the migration inventory
+
+Create the proposed `contracts/DOCUMENT_V1.md` and neutral public types in
+`transit-protocol`. Define canonical changes, accepted references, revision
+lineage, merge profile, definition identity and raw-span commitments when present;
+do not manufacture raw-frame provenance for values constructed by an application.
+Specify full-width identity handling and exact errors for dependency missing,
+identity conflict, stale epoch, unsupported profile, quota, denial, unavailable
+history and corruption. A missing dependency does not create a pending queue.
+
+Extend the owning [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
+[direct operations](../../contracts/DIRECT_TABLE_V1.md),
+[storage](../../contracts/TRANSIT_STORAGE_V1.md) and
+[authorization](../../contracts/AUTHORIZATION_V1.md) contracts. Specify:
+
+1. Stable Document/object and partition allocation, immutable definitions,
+   initial empty revision acceptance, exact dependency edges, rename, logical
+   DROP, retirement and retention. Keep namespace removal, data unavailability,
+   history-floor advancement and physical deletion distinct.
+2. Authenticated direct edit authority, including the principal/role allowed to
+   use a replica and the retained authority of delegated work. A payload replica
+   or former writer PID is not permission. Define current checks at admission,
+   commit, retry inspection and every read disclosure.
+3. Frozen Document intents as a typed `DirectIntent` variant and bindings in
+   the existing account/client-token owner. Specify token fingerprint conflicts
+   separately from duplicate causal changes, which return the original revision
+   even when presented under a different operation. Catalog token settlement
+   must reference the partition's receipt rather than invent another commit.
+4. One conditional partition acceptance for a single-Document update, binding
+   root, logical revision, causal/deduplication indexes and original outcome.
+   Object staging and catalog admission may precede it. One data-WAL append is
+   not a claim that a complete statement needs one HTTP request or one total I/O.
+5. Exact retained read cuts, cursor ownership, progress-only pages, terminal
+   coverage, current policy, history availability and deterministic close.
+   Lease/pin allocation is bounded and recovery-owned; a reference is not a pin.
+6. Category-1 transaction preparation/guards and common-decision visibility for
+   the later M5 integration. Define the required atomicity for every existing
+   public turn action before choosing its replacement. No new coordinator or
+   independent Document-specific transaction protocol.
+
+Audit all imports, public exports, stored records, generated schemas, ABI/host
+actions, SDK methods, examples, deployment templates and proof tasks. Record an
+explicit replacement for each under P5. This includes unnamed Documents,
+writer-side jobs, checkpoints, accepted-tail reads, resynchronization, remote
+call recovery and Board's value-free register metadata. Existing `SDS1` fallback
+reading and `SDW1` saved waits are part of the removal inventory alongside the
+formats already listed in delivery step 6. Keep old-format negative fixtures
+for rejection, not successful decoding.
+
+**First review:** settle this contract and atomicity inventory before changing
+durable formats or wiring a new endpoint. The current public reference continues
+to describe the implemented Station service until the cutover lands.
+
+#### P1 — Extract deterministic Document semantics
+
+Add a real `packages/zig/transit-document` package with its own manifest, public
+module, README and checks. Move the semantic responsibilities of `Model`,
+`codec`, `Document` and checkpoint evaluation behind neutral bounded interfaces;
+leave clocks, authorization I/O, publication jobs and durable outcomes with their
+owners. Use explicit `scratch` and `output` lifetimes for variable-sized values,
+with reusable arenas/buffers and owned output across page advancement.
+
+Port the existing 24-permutation merge scenarios and independent fixtures to
+the neutral contract. Check conflict resolution, missing versus null, type
+errors, Unicode/full-width values, same-dot/different-content rejection,
+missing predecessors, nested deletion/edit races and deleted sequence anchors.
+Add cases exceeding the old payload/operation limits within declared budgets,
+and atomic refusal immediately above each budget. No rejected candidate may
+advance a replica frontier or expose a prefix. Reuse one merge implementation
+across storage and language bindings; SDKs do not implement the algorithm.
+
+Add transitive Station-import rejection for the new package and storage, and
+preserve the existing gates in Catalog, direct Query and SQL. A mechanical
+extraction may be reviewed separately, but passing this gate alone does not
+establish runtime decoupling.
+
+#### P2 — Implement the direct durable owner
+
+Add `DocumentPartition` in `transit-storage`, reusing `TransitLog`, object-store
+interfaces, epoch fencing and bounded immutable indexes. Share generic storage
+primitives through package interfaces; do not wrap Document edits as Table DML
+or import Station's Publication/ImmutableIndex. Extend the shared `.tseg`
+format/reader owner for residual tree pages rather than writing a second segment
+codec. Bind pages to the exact logical definition, document and revision basis.
+
+Build candidates privately, streaming payload/tree pages and retaining causal
+records, frontiers, tombstones and change digests. The final fenced WAL record
+publishes the whole accepted root and receipt. Small changes may reside in WAL;
+large values use verified durable object references. Bound resident dirty state,
+staging bytes and active candidates independently of total history. A serialized
+local partition is sufficient; removing the actor must not imply concurrent
+writers or unlimited active work.
+
+Implement replay, duplicate/outcome lookup, bounded accepted revision reads,
+flush/checkpoint progress and retained-root enumeration together. Register
+Document roots, staged work and pins with the existing storage graph/collector
+before enabling collection. Unknown or incomplete reachability refuses deletion.
+Unlimited retention remains the default; finite merge windows require a complete
+checkpoint, epoch/floor advancement and retained replica/deletion evidence.
+Physical maintenance never changes a logical revision or supplies a new grant.
+
+Use real `LocalWal`/`LocalSegmentStore` directories for crash/reopen tests, with
+one-page/disabled caches and data larger than the resident budget. Inject failure
+before object durability, before/after the conditional append, after acceptance
+but before reply, and during checkpoint publication. Reopen must recover the
+same root/outcome or refuse corrupt/incompatible evidence, never an empty reset.
+
+#### P3 — Replace Document catalog initialization and direct access
+
+Replace only the Document arm of `DirectResource`/`DirectCatalog` and the
+Document initialization checks in `NamedResource`/node policy. Named native KV
+keeps its existing lifecycle. Reserve an object and partition in the catalog,
+accept its empty Document definition in the partition, then settle the original
+catalog operation from that evidence. Recover interruption between each phase;
+never expose a name whose exact initialized definition cannot be verified.
+No supplied resource or PID may silently adopt an unrelated Document.
+
+Expose signed direct lifecycle, mutation, inspect, path/sequence, accepted-tail,
+checkpoint and resynchronization operations through the owning public client.
+Resolve names once into saved identities. Rename preserves object identity;
+DROP/recreate cannot retarget an old edit, read or token. Enforce exact dependency
+registration and DROP RESTRICT without granting data access. Define supported
+ALTER fields and reject changes that would reinterpret accepted causal history.
+
+Extend token pending discovery, quotas and recovery to Document intents; reuse
+`DatabaseRuntime` where SQL submits them. Preserve unknown outcomes and original
+acceptance after cancellation races or reply loss. Read operations bind exact
+Document revisions and recheck current authority after buffering, including
+empty/progress/terminal pages and metadata. Reuse the read-cache mechanism only
+after its pin/lease contract can represent Document cuts; do not treat a Table
+pin or an independent source vector as a common snapshot.
+
+#### P4 — Wire SQL, Query and observable outcomes
+
+Lower the selected SQL declaration subset through the same typed operations and
+existing statement-result machinery. Update the grammar/capability inventory
+with executable, offline and unsupported forms separately. SQL text heuristics
+must not classify outcomes. Shared typed edits and revision reads are sufficient
+for the initial mutation surface; broader SQL Document DML syntax needs its own
+contract and is not invented by this plan.
+
+Replace Query's Document source adapter with the new authorized reader, keeping
+accepted-only projections, five-state values and exact source attribution.
+Keep the direct packages Station-free even where captured Query composition
+still lives above them. Board receives definition, accepted revision, pending
+operation, merge floor/epoch and bounded value-free metadata through public
+operations. A live worker, staged tree or partially read sequence is not a
+completed Document outcome. Update the browser schema/validators with the API.
+
+#### P5 — Migrate consumers and perform one public cutover
+
+Move all existing Document consumers with the replacement: shared Zig/ABI/host
+bindings; the public Zig SDK and ten non-Zig targets; named-resource and Query
+adapters; `examples/station-document`; Board API/browser; local, Compose and
+reference deployment wiring; build/package/task inventories. Replace the
+Document worker's storage role with database composition. Retain Station
+application behavior only as a caller above the database.
+
+For writer-side APIs and remote operations whose state/input/reply previously
+shared a turn, require the qualified M5 Document participant and M6 settlement/
+outbox composition before switching them. Preserve original accepted identities
+and recorded destinations. A direct client response can report its retained
+receipt; it cannot substitute for an atomic durable Station reply. This gate
+does not delay the P0–P4 component work or complete M5/M6 by implication.
+
+Replace the shared current-v1 definition and regenerate wire/schema, signing,
+ABI/host and Board artifacts together. Remove the superseded Document package,
+worker, successful old-format decoders, public routes/actions and configuration.
+Remove Document's use of `SIX1` and Station Publication; their unrelated Station
+consumers remain with M6 until separately replaced. Do not delete shared storage
+mechanisms solely because Documents no longer use them.
+
+Reject old Document roots, references, changes, waits, saved intents and
+installations before execution or disclosure. Preserve original histories and
+uncertain work for resolution with the matching build; supply no implicit
+conversion, defaulted definition, fallback decoder or reset. Keep package
+versions/internal pins aligned with `VERSION` and run `python3 -B tasks/version.py`
+after manifest changes.
+
+Promote implemented semantics and numeric bounds to the Document/state/caller
+references, affected package guides and contracts; update the data model,
+glossary and component directory. Revise state/storage/query Internals with
+source-attributed mechanisms and evidence. Keep this plan and remaining milestone
+work in the roadmap. Mark the milestone `In Progress` when implementation lands;
+do not mark it complete after decoupling alone.
+
+### Verification and closure of the initial slice
+
+These are required new checks or extensions to existing suites, not passing
+results. Use [test ownership](../../tests/README.md) and the scoped instructions
+when implementing them.
+
+| Gate | Required observation |
+| --- | --- |
+| Dependency and runtime independence | Transitive build checks plus a real signed caller/SQL schedule with Document worker and courier absent; zero Station sends/turns or native Document allocations during create/edit/read/recovery |
+| Lifecycle and identity | Lost replies at reserve/initial acceptance/settlement, same-token races, conflicting fingerprints, duplicate causal changes under distinct tokens, rename/DROP/name reuse, exact dependency refusal and new empty-object initialization |
+| Authorization and fencing | Denied create/edit/read/inspect, forged replica binding, replaced writer/policy epochs, revocation during staging and after read buffering, restored permission revealing the original receipt, retained reads after logical DROP under their declared lifetime |
+| Merge and limits | Independent accepted-set oracle across all 24 permutations, detached descendants, explicit conflicts, stale replicas, checkpoint floors and recycled counters; values/changes beyond old limits and typed refusal without partial acceptance |
+| Durable publication and recovery | Disk process death and I/O faults around staging, acceptance, receipt delivery and checkpoints; exact root/receipt recovery, corrupt/missing dependency refusal and incompatible-definition rejection |
+| Read completeness and ownership | Empty results, progress-only pages, deleted spans, multiple pages, early close, cancelled/failed prefixes, scratch reuse and cache eviction; no cross-revision splicing or accidental EOF |
+| Growth and retention | Histories, objects and pending operations larger than caches; bounded replay/page work and admitted memory; warmed allocation counters for selected hot loops; no quota-driven expiry or collection from incomplete graphs |
+| Existing atomic consumers | Document mutation, input settlement and reply/outbox share the common decision through crash/conflict/lost reply; unavailable participants block that consumer's cutover |
+| Performance accounting | One acceptance append for a single-partition edit; report control/token/staging requests separately, plus end-to-end latency, allocations/RSS, bytes written and restart work against the source baseline |
+
+Start with owning package checks and independent contract fixtures. Extend the
+existing `just test::direct-named-resources`, `just test::document`,
+`just test::document-remote`, `just test::document-local` and
+`just test::unified-query` scenarios to the replacement, preserving their
+authority/recovery assertions. Migrate `bindings::document-*`, Board's
+`document-test`/`document-browser`, and `examples::document-compose`/
+`examples::document-reference` with their actual consumers. Reorganize Document
+test ownership from runtime to storage/catalog where appropriate; update tasks
+and the suite inventory rather than leaving an old worker-based proof as the
+only evidence for a direct database path.
+
+Run affected clean CI lanes from committed implementation HEAD, including
+contracts/core, growth, interfaces, bindings, Board/browser and launchers where
+the cutover changes them; run explicit Compose/reference placement proofs
+separately. Select actual lane names from the suite inventory. Record commands,
+source definition, backend, budgets, failures and omissions in the owning proof
+ledger with raw evidence. Documentation checks establish no runtime guarantee.
+
+After this slice, M7 still owes versioned/three-way merges, span-block text,
+qualified succinct navigation, adaptive shredded subcolumns and pruning, broader
+Document SQL/relational execution and the full Table/Document/Stream/Queue
+transaction proof. Preserve those completion criteria and M5/M6 dependencies.
 
 ## Candidate structures and selection evidence
 
