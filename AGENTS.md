@@ -270,7 +270,7 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
   `TablePartition`, and the transaction log so single-partition writes commit in
   one round-trip to `TransitLog` (`TWAL1`) and `SELECT` reads hot lease-cached
   partition state.
-- **First-class declarative `STREAM` and `QUEUE` primitives with dedicated grammar and shared `TablePartition` / `StreamPartition` / `QueuePartition` storage:**
+- **First-class declarative `STREAM`, `QUEUE` and logical `DOCUMENT` primitives with dedicated grammar and shared `TablePartition` / `StreamPartition` / `QueuePartition` / `DocumentPartition` storage:**
   Elevate `STREAM` and `QUEUE` to catalog-declared data primitives alongside
   `TABLE`, `KV`, and `DOCUMENT`, using explicit workload verbs decoupled from
   relational table `INSERT`/`SELECT` syntax and sharing the `.tseg` + Roaring-
@@ -291,6 +291,27 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
     `key_fifo` entity-key affinity table, and a Hashed Hierarchical Timing Wheel
     for `visible_at` delays and retry backoff without B-tree page rewrite
     amplification.
+  - **Logical Documents (`DocumentPartition` in [Milestone 7](docs/roadmap/07-document-storage-and-station-decoupling.md)) and the Document Type Library + Gateway Exchange Lifecycle ([Milestone 15](docs/roadmap/15-document-profiles-and-gateway-exchange-lifecycle.md)):**
+    Decouple `DOCUMENT` from `Station` actor turns (`STATION_DOCUMENT_V1`/`SIX1`
+    and the 96-byte scalar string ceiling) into `DocumentPartition` over
+    `TransitLog` (`TWAL1`) and `.tseg` segments. Represent documents logically
+    ($\tau \perp \kappa \perp \epsilon$) as rooted, ordered, attributed trees +
+    envelopes (and multi-part container graphs `Container -> Parts -> Trees/Tables/Spans`)
+    with $2N$-bit Balanced Parentheses (`BP`) succinct tree bitvectors,
+    Dremel/ClickHouse-style adaptive columnar path shredding into 16-byte
+    Umbra/German collated subcolumns, five-state cell provenance (`value`,
+    `null`, `missing`, `type_error`, `conflict` with exact `(part_id, byte_start, byte_end)`
+    raw-frame offsets), and pluggable revision/merge profiles (`versioned` and
+    `causal_crdt`). Express `JSON`, `XML`, `EDI` (`EDI_X12`, `EDIFACT`, `HL7`),
+    application protocols (`HTTP`/`MIME`, `FTP`, `SMTP`/`IMAP`/`POP3`,
+    `LDAP`/`LDIF`, `SIP`/`SDP`, `AMQP`, `MQTT`, `NTP`) and compound
+    office/publishing formats (`PDF`, `DOCX`, `XLSX`, `ODF`) as parameterized
+    **Document Profiles** sharing zero-allocation SIMD structural/TLV scanners,
+    container unpackers and `comptime`/segment-sealed perfect hash vocabularies,
+    and cut outbound connector capture (`STATION_EXCHANGE_V1`) and inbound
+    gateway admissions over to linked `DOCUMENT` revisions in `DocumentPartition`
+    while keeping transport/effect authority (`Gateway / Connector`) and
+    document storage strictly decoupled.
 - **Unify the transaction commit envelope so a `Station` turn is simply a database transaction:**
   Include three native participant primitives in [Milestone 5's](docs/roadmap/05-transactions-and-atomic-composition.md)
   transaction commit envelope from the start: `(1) TABLE/KV/DOCUMENT state

@@ -1,4 +1,4 @@
-# 30. Qualification and complete benchmarks
+# 32. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,7 +10,7 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
-- Execute the [formal semantics and correspondence suite](17-formal-semantics-and-correspondence.md)
+- Execute the [formal semantics and correspondence suite](19-formal-semantics-and-correspondence.md)
   with its selected provider, replication, recovery, placement, policy and review
   extensions at the common committed revision. Retain finite bounds, theorem
   premises/axioms, fairness and storage assumptions, implementation projections,
@@ -20,16 +20,16 @@ remains a gate for every preceding milestone.
   The local milestone and later owners deliver their focused checks earlier;
   this exercise establishes their combined revision and workload correspondence.
 
-- Compose [index lifecycle](09-indexing-and-access-paths.md) evidence across
+- Compose [index lifecycle](10-indexing-and-access-paths.md) evidence across
   transactions, retained history, branches, providers, failover, backup/PITR and
   moving placements. Include partial/covering reads, unique-key conflicts,
   index-backed `FOREIGN KEY` and `CHECK` enforcement, fine-grained key-range/predicate
   Serializable Snapshot Isolation (SSI), online phased table rewrites,
   segment-backed BM25 full-text and vector/hybrid search, interrupted builds,
   branch-aware compaction and retirement under current authorization.
-- Repeat the [data structures, query and runtime scorecard](11-data-structures-and-performance.md),
-  [first-class strings, perfect hashing and vectorized search scorecard](12-vectorized-strings-and-search.md)
-  and [data-centric compilation and specialization scorecard](13-data-centric-compilation-and-specialization.md)
+- Repeat the [data structures, query and runtime scorecard](12-data-structures-and-performance.md),
+  [first-class strings, perfect hashing and vectorized search scorecard](13-vectorized-strings-and-search.md)
+  and [data-centric compilation and specialization scorecard](14-data-centric-compilation-and-specialization.md)
   at the common revision with installed callers, concurrent maintenance and
   durable runtime workloads. Include zero-steady-state-allocation hot-path
   verification, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra-style
@@ -70,12 +70,12 @@ remains a gate for every preceding milestone.
   branch publication, complete dataflow commits and backup/PITR cuts. Earlier
   transaction correctness gates remain required; this is combined qualification.
 - Compose the [result-set](04-statement-results-and-consumption.md),
-  [replication](19-replication-and-failover.md) and
-  [operations](20-operations-and-recovery.md) evidence at the same revision:
+  [replication](21-replication-and-failover.md) and
+  [operations](22-operations-and-recovery.md) evidence at the same revision:
   complete/incomplete result delivery, failover, verified backups, restore
   activation and upgrades during real caller workloads and placement changes.
   Their focused acceptance gates remain required before this combined exercise.
-- Qualify [direct-client, Station and mixed applications](29-programming-model.md)
+- Qualify [direct-client, Station and mixed applications](31-programming-model.md)
   through real installed language packages, including cross-language typed service
   calls, original-operation recovery, explicit commit scopes and bounded host
   scheduling. Compare the same data/outcomes across modes; shared native code
@@ -90,7 +90,7 @@ remains a gate for every preceding milestone.
   offboarding, side-channel `type_error` non-leakage on RLS-filtered rows, agent
   attempts to approve their own work, destination movement and lost acceptance
   replies.
-- Compose the installed [Board workbench](25-board-reimplementation.md) with
+- Compose the installed [Board workbench](27-board-reimplementation.md) with
   those shared callers at the same revision. Compare catalog/preview/workbook,
   lineage and change-review evidence with independent public-operation results;
   include current authorization, uncertain transaction/publication recovery,
@@ -197,4 +197,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](31-releases.md).
+and immutable release links remain part of [release distribution](33-releases.md).
