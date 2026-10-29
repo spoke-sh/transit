@@ -79,14 +79,32 @@ def run(node, caller, mode="tables", *artifacts):
         pressure_scan = []
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
+        growth_attempts = root / "growth-attempts" if mode == "growth" else None
+        if growth_attempts is not None:
+            growth_attempts.mkdir(mode=0o700)
+        growth_sequence = 0
+        growth_lock = threading.Lock()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
+                nonlocal growth_sequence
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
+                attempt = None
+                if (growth_attempts is not None and self.path == "/table/v1"
+                        and isinstance(envelope["action"], dict)
+                        and set(envelope["action"]) & {"admit_ddl", "admit_rows", "operation", "pin"}):
+                    # Save before forwarding: setup can time out after acceptance,
+                    # before growth-write returns the final retained profile.
+                    # Private artifacts preserve the original signed request and
+                    # any reply; neither an absent reply nor timeout is rejection.
+                    with growth_lock:
+                        growth_sequence += 1
+                        attempt = growth_attempts / f"{growth_sequence:04d}"
+                        attempt.with_suffix(".request.json").write_bytes(body)
                 headers = {"Content-Type": "application/json"}
                 for name in ("x-transit-control", "x-transit-wait"):
                     if name in self.headers:
@@ -96,6 +114,9 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    if attempt is not None:
+                        attempt.with_suffix(".response.json").write_text(json.dumps({
+                            "status": response.status, "body": data.decode("utf-8")}))
                     if self.path == "/table/v1":
                         if request_memory is not None:
                             request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))

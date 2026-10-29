@@ -111,6 +111,14 @@ This exercises discovery beyond resident caches, not 139 concurrent writers or
 139 nonempty Tables. Pair it with the three-Table write/pressure schedule above;
 neither profile establishes that untested cross-product or a whole-process quota.
 
+The proxy saves each original setup mutation and pin request before forwarding
+it, then saves any returned status/body beside it in the private installation's
+`growth-attempts/` directory. A setup timeout can follow acceptance before the
+final profile is written. These records preserve the original binding for
+investigation; they do not authorize resubmitting setup under new identities or
+count the unfinished schedule as passed. Signed requests stay private and are
+removed with the installation only after success.
+
 ## Private maintenance allocation boundary
 
 Run `just test local-catalog` to exercise the composed local maintenance owner
