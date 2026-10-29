@@ -21614,7 +21614,7 @@
         "InvalidAuthentication": 1,
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
-        "InvalidSqlOperationReference": 2,
+        "InvalidSqlOperationReference": 1,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
         "QueryDenied": 3,
@@ -21622,7 +21622,7 @@
         "SqlAdmissionTokenRequired": 4,
         "SqlInstanceChanged": 1,
         "SqlMessageTooLarge": 1,
-        "SqlOperationBindingChanged": 2,
+        "SqlOperationBindingChanged": 1,
         "SqlParameterTypeMismatch": 3,
         "SqlPreparedCapacity": 1,
         "SqlResultActive": 3,
@@ -21632,6 +21632,7 @@
         "SqlSourceIdentityMismatch": 1,
         "SqlStatementExpired": 1,
         "SqlTokenConflict": 1,
+        "Timeout": 1,
         "WireParameterCountMismatch": 1
       },
       "outcomes": {},
@@ -21658,11 +21659,12 @@
         "request()": "<inferred>",
         "reserveFailures()": "<inferred>",
         "response()": "<inferred>",
-        "selectOperation()": "<inferred>"
+        "selectOperation()": "<inferred>",
+        "waitExpiry()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 126,
+        "try": 120,
         "catch": 9
       },
       "imports": [
@@ -21844,6 +21846,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-service/src/SessionRecovery.zig": {
+      "errors": {
+        "InvalidGatewayConfiguration": 1,
+        "SqlOperationBindingChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "advanceOperation()": "<inferred>",
+        "init()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-service/src/SessionSettings.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -21979,6 +22003,7 @@
         "ReadSources.zig",
         "Registry.zig",
         "Session.zig",
+        "SessionRecovery.zig",
         "SessionSettings.zig",
         "SessionTransaction.zig",
         "SourceSession.zig",
@@ -22083,15 +22108,16 @@
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayDeadline": 1,
+        "GatewayIdentityConflict": 1,
         "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayTerminal": 1,
         "InvalidSqlReadRecovery": 1,
         "MissingGatewayOperation": 1,
-        "MissingGatewayTerminal": 1,
+        "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 4,
-        "Timeout": 2
+        "Timeout": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -22105,6 +22131,7 @@
         "attachReadCache()": "<inferred>",
         "available()": "<inferred>",
         "cancel()": "<inferred>",
+        "checkFence()": "<inferred>",
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
         "fence()": "<inferred>",
@@ -22112,8 +22139,10 @@
         "init()": "<inferred>",
         "lookup()": "<inferred>",
         "project()": "<inferred>",
+        "recoverOne()": "<inferred>",
         "requireRoute()": "<inferred>",
         "resumeOperation()": "<inferred>",
+        "resumeTransactionClaimed()": "<inferred>",
         "resumeTransactionSubmission()": "<inferred>",
         "status()": "<inferred>",
         "submit()": "<inferred>",
@@ -22124,8 +22153,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 99,
-        "catch": 9
+        "try": 108,
+        "catch": 11
       },
       "imports": [
         "root.zig",
@@ -22286,6 +22315,24 @@
       },
       "imports": [
         "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/RecoveryWork.zig": {
+      "errors": {
+        "Timeout": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "wait()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 1
+      },
+      "imports": [
         "std"
       ]
     },
@@ -22590,6 +22637,7 @@
         "Probe.zig",
         "ReadBatch.zig",
         "ReadCache.zig",
+        "RecoveryWork.zig",
         "SessionOperations.zig",
         "Statement.zig",
         "Terminal.zig",
