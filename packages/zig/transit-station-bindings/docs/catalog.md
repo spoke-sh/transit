@@ -126,3 +126,8 @@ requests can exceed an actor frame without changing native turn limits.
 `shutdown` joins and destroys the catalog owner before acknowledging closure.
 The native port retains machine-readable stdout; diagnostics do not disclose
 signing seeds or application payloads.
+
+The native catalog handle delegates transport, local intent ownership and attempt
+evidence to [the shared data client](../../transit-data-client/README.md). The ABI
+retains its current declarations, owned buffers and host scheduling rules; the
+package extraction changes neither saved work nor wire definitions.

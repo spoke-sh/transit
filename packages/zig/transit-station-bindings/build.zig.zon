@@ -3,6 +3,6 @@
     .fingerprint = 0xc8fb9fa41257c995,
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
-    .dependencies = .{ .transit_catalog = .{ .path = "../transit-catalog" }, .transit_query = .{ .path = "../transit-query" }, .transit_station_document = .{ .path = "../transit-station-document" }, .transit_station = .{ .path = "../transit-station" }, .transit_client = .{ .path = "../transit-client" }, .transit_station_http = .{ .path = "../transit-station-http" }, .transit_station_grpc = .{ .path = "../transit-station-grpc" } },
+    .dependencies = .{ .transit_data_client = .{ .path = "../transit-data-client" }, .transit_catalog = .{ .path = "../transit-catalog" }, .transit_query = .{ .path = "../transit-query" }, .transit_station_document = .{ .path = "../transit-station-document" }, .transit_station = .{ .path = "../transit-station" }, .transit_client = .{ .path = "../transit-client" }, .transit_station_http = .{ .path = "../transit-station-http" }, .transit_station_grpc = .{ .path = "../transit-station-grpc" } },
     .paths = .{ "build.zig", "build.zig.zon", "src", "include", "abi-v1.json", "generate.py" },
 }

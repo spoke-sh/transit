@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
     const abi = b.addModule("station_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "client_abi", .module = client.module("client_abi") }, .{ .name = "transit_station_http", .module = http.module("transit_station_http") }, .{ .name = "transit_station_grpc", .module = grpc.module("transit_station_grpc") } } });
     const tests = b.addTest(.{ .root_module = abi });
     abi.addImport("transit_query", query.module("transit_query"));
+    abi.addImport("transit_data_client", b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client"));
     abi.addImport("transit_catalog", catalog.module("transit_catalog"));
     b.step("test", "Prove native Station handle and schema ownership").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile the standalone native binding package").dependOn(&tests.step);

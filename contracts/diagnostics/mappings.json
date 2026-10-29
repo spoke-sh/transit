@@ -4398,7 +4398,8 @@
         "packages/zig/transit-catalog/src/DirectTableTyped.zig",
         "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig",
         "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",
-        "packages/zig/transit-catalog/src/DirectCatalogRetention.zig"
+        "packages/zig/transit-catalog/src/DirectCatalogRetention.zig",
+        "packages/zig/transit-data-client/src/Catalog.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
@@ -4773,7 +4774,32 @@
           "category": "conflict"
         }
       },
-      "exceptions": [],
+      "exceptions": [
+        {
+          "source": "packages/zig/transit-data-client/src/Catalog.zig",
+          "cause": "InvalidArgument",
+          "disposition": "control_flow",
+          "reason": "Local constructor configuration refusal is returned directly to the embedding Zig owner; the existing ABI maps it to invalid_argument. No caller or operation has been created and no request is dispatched. Domain call failures still use DirectTableDiagnostic.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-data-client/src/catalog_test.zig",
+              "name": "catalog construction rejects invalid configuration without dispatch"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-data-client/src/Catalog.zig",
+          "cause": "Busy",
+          "disposition": "control_flow",
+          "reason": "An overlapping call is refused before touching transports or local saved work. This local handle-ownership error cannot classify the active call or its durable outcome; the existing ABI preserves its busy status.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-data-client/src/catalog_test.zig",
+              "name": "catalog concurrent call refuses and later calls do not inherit attempt diagnostics"
+            }
+          ]
+        }
+      ],
       "tests": [
         {
           "source": "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",

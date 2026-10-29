@@ -385,6 +385,7 @@ packages:
     cd packages/zig/transit-query-direct && zig build test
     cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-catalog && zig build test
+    cd packages/zig/transit-data-client && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-fuze && zig build test

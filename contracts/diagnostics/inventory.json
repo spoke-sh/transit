@@ -7165,6 +7165,51 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-data-client/src/Catalog.zig": {
+      "errors": {
+        "Busy": 1,
+        "InvalidArgument": 1
+      },
+      "outcomes": {
+        "Outcome.value": [
+          "result",
+          "failure"
+        ]
+      },
+      "error_sets": {
+        "call().<error>": [
+          "Busy"
+        ]
+      },
+      "error_returns": {
+        "call()": "error { Busy }",
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 4,
+        "catch": 3
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Catalog.zig",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-document/src/Bytes.zig": {
       "errors": {
         "IndexValueTooLarge": 1,
@@ -23799,12 +23844,13 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 14
+        "catch": 10
       },
       "imports": [
         "Abi.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_data_client"
       ]
     },
     "packages/zig/transit-station-bindings/src/DocumentBridge.zig": {

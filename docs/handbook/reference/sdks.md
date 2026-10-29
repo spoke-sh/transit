@@ -9,6 +9,12 @@ Choose a language below for installation and its client/framework guides.
 The handbook SDK section has its own sidebar and shares search with the other
 interfaces. Source ownership is described in the [SDK directory](../../../sdks/README.md).
 
+The [Zig SDK](../../../sdks/zig/README.md) also exposes
+[`transit_data_client`](../../../packages/zig/transit-data-client/README.md),
+an independent direct Catalog caller with explicit allocator/I/O and outcome
+ownership. It shares the implementation used by existing Catalog bindings;
+ordinary automatic settlement and a unified data/SQL context remain unimplemented.
+
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../../examples/station-sdk/README.md).
 Packages are not distributed through public registries.

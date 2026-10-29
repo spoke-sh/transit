@@ -18,4 +18,7 @@ test "consumer composes shared client, framework and query types" {
     try std.testing.expect(protocol == sql.results.protocol);
     _ = sql.Client.attachTransaction;
     _ = @import("transit_catalog").DirectTransactionClient;
+    const data = @import("transit_data_client");
+    try std.testing.expect(data.catalog == @import("transit_catalog"));
+    _ = data.Catalog;
 }

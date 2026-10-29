@@ -114,7 +114,7 @@ an activation or a transaction.
    to exact identities/definitions and current grants, not redirect accepted work
    after a rename or replacement.
 2. **Extend the delivered package/client foundation to mixed capabilities.**
-   Require milestone 7's extraction of reusable Table storage, publication and
+   Require milestone 9's extraction of reusable Table storage, publication and
    immutable-index primitives from `packages/zig/transit-station` into shared
    implementation packages; verify that subscriptions, effects and service calls
    preserve that dependency boundary. Keep turn/behavior adapters with Station;
@@ -127,7 +127,7 @@ an activation or a transaction.
    qualified KV/Document, SQL/result, changefeed subscription, standalone recorded
    effect and service-invocation clients usable from `transit-client` without a
    Station runner, activation, caller PID or Station native artifact. Unify the
-   native host/ABI bridge from milestone 7 so one client context can compose catalog,
+   native host/ABI bridge from milestone 9 so one client context can compose catalog,
    query, data, subscription, effect and RPC facets over bounded shared resources
    instead of requiring mutually exclusive OS host modes. Define principal
    sequence coordination, handle ownership, fair scheduling, cancellation and
@@ -138,7 +138,7 @@ an activation or a transaction.
    `transit-client` for applications authoring stateful actor behaviors. Define
    concrete package manifests and dependency direction before moving code.
 3. **Compose ordinary and advanced recovery across the new capabilities.**
-   Reuse milestone 7's submission, bounded settlement and result consumption over
+   Reuse milestone 9's submission, bounded settlement and result consumption over
    the owning service/client contracts, including `transit-sql-client`. Applications should
    not each implement upload/sequence/poll loops to execute a normal statement.
    Keep prepare/save/dispatch and application-owned recovery stores available for

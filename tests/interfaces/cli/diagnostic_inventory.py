@@ -19,7 +19,7 @@ import tempfile
 
 MANIFEST = ROOT / 'contracts/diagnostics/inventory.json'
 PACKAGES = (
-    'transit-memory', 'transit-io',
+    'transit-memory', 'transit-io', 'transit-data-client',
     'transit-fuze', 'transit-query', 'transit-query-direct', 'transit-catalog', 'transit-station-app',
     'transit-serving', 'transit-serving-http', 'transit-flight', 'transit-board-api',
     'transit-document', 'transit-station-bindings', 'transit-station-document', 'transit-station',
