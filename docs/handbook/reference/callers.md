@@ -18,6 +18,15 @@ then read the running authority's capabilities under current permission. A
 local library feature does not imply the server supports it. Realm-qualified
 process/resource references keep identity separate from grants.
 
+Zig applications can use the shared
+[direct Catalog caller](../../../packages/zig/transit-data-client/README.md)
+through the public SDK without a Station runner. It accepts caller-owned
+allocator/I/O, owns local saved work and returns arena-owned outcomes with
+per-call mutation evidence. Preparation, staging, admission and settlement
+remain explicit; this interface does not supply automatic recovery or a shared
+SQL session. Existing foreign-language Catalog APIs retain their current
+Station package entry points.
+
 Protocol counters use their validated safe-integer ranges; application u64 and
 correlations retain full 64-bit values. Follow each neutral contract's decimal
 string/byte representation at JSON boundaries. Do not coerce wide values into
