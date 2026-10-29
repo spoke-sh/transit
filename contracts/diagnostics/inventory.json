@@ -41,6 +41,26 @@
         "transit_query"
       ]
     },
+    "apps/transit-board/Workbench.zig": {
+      "errors": {
+        "QueryDisabled": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "catalog()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_query",
+        "transit_sql_client"
+      ]
+    },
     "apps/transit-board/main.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -52,7 +72,11 @@
         "ApplicationOperatorDenied": 1,
         "ApplicationPublicationChanged": 1,
         "ApplicationScopeChanged": 1,
+        "AuthenticationFailed": 1,
         "Cancelled": 1,
+        "CatalogDefinitionChanged": 1,
+        "CatalogNameNotFound": 1,
+        "CatalogObservationChanged": 1,
         "Conflict": 2,
         "DocumentHistoryGap": 1,
         "DocumentNotFound": 1,
@@ -67,6 +91,8 @@
         "HttpDeadline": 1,
         "HttpInspectionCapacity": 1,
         "HttpReplayGap": 1,
+        "IncompatibleDefinition": 1,
+        "IncompatibleSqlDefinition": 1,
         "IncompleteResult": 1,
         "InvalidApplicationConfiguration": 2,
         "InvalidApplicationOperation": 1,
@@ -77,6 +103,7 @@
         "InvalidApplicationProposal": 1,
         "InvalidApplicationScope": 1,
         "InvalidApplicationSelection": 1,
+        "InvalidCatalogCursor": 1,
         "InvalidConfig": 1,
         "InvalidDocumentCursor": 1,
         "InvalidExchangeCoverage": 1,
@@ -84,9 +111,12 @@
         "InvalidLocalhostAlias": 2,
         "InvalidOrigin": 2,
         "InvalidQuery": 57,
-        "InvalidQueryConfiguration": 6,
+        "InvalidQueryConfiguration": 8,
         "InvalidQueryOrdinal": 1,
         "InvalidReactiveConfiguration": 4,
+        "InvalidReadIdentity": 1,
+        "InvalidReadPosition": 1,
+        "InvalidReadStatement": 1,
         "InvalidSequence": 1,
         "QueryAccessDenied": 1,
         "QueryBusy": 1,
@@ -95,9 +125,16 @@
         "QueryReadConflict": 1,
         "QueryRequestTooLarge": 1,
         "QuerySourceUnavailable": 1,
+        "ReadIdentityConflict": 1,
+        "ReadOnlyStatementRequired": 1,
+        "ReadSourceChanged": 1,
+        "ReadWorkspaceCapacity": 1,
+        "ReadWorkspaceExpired": 1,
         "Rejected": 1,
         "RemoteOriginRequiresTLS": 1,
         "ResourceUnavailable": 1,
+        "SqlObservationDenied": 1,
+        "SqlReadRejected": 1,
         "UnsafePrincipal": 1,
         "WrongExchangeProtocol": 1
       },
@@ -122,6 +159,7 @@
         "Server.relationalRequest()": "<inferred>",
         "Server.respond()": "<inferred>",
         "Server.unifiedQueryRequest()": "<inferred>",
+        "Server.workbenchRequest()": "<inferred>",
         "Shared.handle()": "anyerror",
         "header()": "<inferred>",
         "localhostOrigin()": "<inferred>",
@@ -139,11 +177,12 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 56,
-        "catch": 46
+        "try": 59,
+        "catch": 52
       },
       "imports": [
         "Growing.zig",
+        "Workbench.zig",
         "assets",
         "std",
         "telemetry",
@@ -152,6 +191,7 @@
         "transit_http_server",
         "transit_query",
         "transit_serving_http",
+        "transit_sql_client",
         "transit_station_app"
       ]
     },
@@ -1260,7 +1300,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 16
       },
       "imports": [
@@ -3097,7 +3137,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
+        "try": 81,
         "catch": 0
       },
       "imports": [
@@ -3142,7 +3182,10 @@
           "QueryRequestTooLarge",
           "IncompleteResult",
           "InvalidQueryOrdinal",
-          "QueryConflict"
+          "QueryConflict",
+          "ReadOnlyStatementRequired",
+          "ReadWorkspaceExpired",
+          "ReadWorkspaceCapacity"
         ],
         "Reference.kind": [
           "input",
@@ -3185,6 +3228,7 @@
         "std",
         "transit_protocol",
         "transit_query",
+        "transit_sql_client",
         "transit_station"
       ]
     },
@@ -3773,6 +3817,42 @@
       },
       "imports": [
         "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogRead.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "CatalogNameNotFound": 1,
+        "IncompatibleDefinition": 1
+      },
+      "outcomes": {
+        "Request.action": [
+          "describe",
+          "namespaces",
+          "tables",
+          "resources",
+          "table",
+          "dependencies"
+        ],
+        "Response": [
+          "catalog",
+          "resources",
+          "table",
+          "dependencies"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -5741,6 +5821,7 @@
         "DirectCatalogAdministration.zig",
         "DirectCatalogDependencies.zig",
         "DirectCatalogInspection.zig",
+        "DirectCatalogRead.zig",
         "DirectCatalogResources.zig",
         "DirectCatalogRetention.zig",
         "DirectCatalogRoots.zig",
@@ -19664,8 +19745,9 @@
         "IncompatibleSqlDefinition": 1,
         "InvalidResultBudget": 1,
         "InvalidResultOperation": 1,
-        "InvalidSqlResponse": 2,
+        "InvalidSqlResponse": 4,
         "ParameterCountMismatch": 1,
+        "ReadOnlyStatementRequired": 2,
         "ResultCancelled": 2,
         "SqlInstanceChanged": 1,
         "SqlObservationDenied": 2,
@@ -19705,13 +19787,15 @@
         "failure()": "<inferred>",
         "openCaptured()": "<inferred>",
         "poll()": "<inferred>",
+        "read()": "<inferred>",
         "renew()": "<inferred>",
+        "requireRead()": "<inferred>",
         "settle()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 32,
-        "catch": 4
+        "try": 38,
+        "catch": 5
       },
       "imports": [
         "NativeResult.zig",
@@ -19734,14 +19818,16 @@
         "InvalidResultChunk": 2,
         "InvalidResultSchema": 1,
         "InvalidResultTransition": 1,
-        "InvalidSqlResponse": 2,
+        "InvalidSqlResponse": 3,
         "ReadFailed": 2,
         "ResultCancelled": 2,
-        "ResultClosed": 1,
-        "ResultIdentityChanged": 1,
-        "SqlObservationDenied": 1,
+        "ResultClosed": 2,
+        "ResultIdentityChanged": 4,
+        "SqlObservationDenied": 3,
         "SqlRequestTimeout": 2,
+        "SqlResponseCapacity": 1,
         "SqlResultIncomplete": 1,
+        "SqlResultUnavailable": 1,
         "WriteFailed": 1
       },
       "outcomes": {
@@ -19755,7 +19841,8 @@
           "incomplete",
           "disconnect",
           "cancelled",
-          "duplicate"
+          "duplicate",
+          "denied"
         ]
       },
       "error_sets": {},
@@ -19772,11 +19859,12 @@
         "next()": "<inferred>",
         "open()": "<inferred>",
         "openTransport()": "<inferred>",
-        "requireStream()": "<inferred>"
+        "requireStream()": "<inferred>",
+        "validateDisclosure()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 42,
+        "try": 43,
         "catch": 2
       },
       "imports": [
@@ -19815,6 +19903,84 @@
       },
       "imports": [
         "Client.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-client/src/ReadView.zig": {
+      "errors": {
+        "ExpectedRowResult": 1,
+        "ResultExhausted": 1
+      },
+      "outcomes": {
+        "View.observation_kind": [
+          "data",
+          "metadata"
+        ],
+        "View.stopped": [
+          "complete",
+          "row_limit",
+          "metadata_window"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "append()": "<inferred>",
+        "init()": "<inferred>",
+        "inspect()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-client/src/ReadWorkspace.zig": {
+      "errors": {
+        "IncompatibleSqlDefinition": 1,
+        "InvalidReadIdentity": 2,
+        "InvalidReadPosition": 2,
+        "InvalidReadStatement": 1,
+        "ReadIdentityConflict": 1,
+        "ReadSourceChanged": 2,
+        "ReadWorkspaceCapacity": 1,
+        "ReadWorkspaceExpired": 1,
+        "ReadWorkspaceIncomplete": 1,
+        "SqlObservationDenied": 1,
+        "SqlReadRejected": 1
+      },
+      "outcomes": {
+        "Request.action": [
+          "describe",
+          "run",
+          "observe",
+          "next",
+          "close"
+        ],
+        "Response": [
+          "description",
+          "result",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reader.create()": "<inferred>",
+        "apply()": "<inferred>",
+        "find()": "<inferred>",
+        "validId()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 1
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -19875,6 +20041,23 @@
         "transit_memory"
       ]
     },
+    "packages/zig/transit-sql-client/src/read_schema.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_sql_client"
+      ]
+    },
     "packages/zig/transit-sql-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -19890,6 +20073,8 @@
         "Discovery.zig",
         "Executor.zig",
         "Pending.zig",
+        "ReadView.zig",
+        "ReadWorkspace.zig",
         "Response.zig",
         "transit_sql_protocol",
         "transit_sql_results"
@@ -20336,25 +20521,29 @@
         "InvalidResultSchema": 1,
         "InvalidResultTransition": 1,
         "ResultCancelled": 1,
-        "ResultClosed": 1,
-        "ResultIncomplete": 1
+        "ResultClosed": 3,
+        "ResultIncomplete": 1,
+        "ResultValidationUnavailable": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Source.close()": "anyerror",
         "Source.next()": "anyerror",
+        "Source.validate_disclosure()": "anyerror",
         "close()": "<inferred>",
         "ensureAvailable()": "<inferred>",
+        "holdDisclosure()": "<inferred>",
         "init()": "<inferred>",
         "nextBatch()": "<inferred>",
         "nextRow()": "<inferred>",
         "peekRow()": "<inferred>",
-        "receive()": "<inferred>"
+        "receive()": "<inferred>",
+        "validateDisclosure()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 3
       },
       "imports": [
