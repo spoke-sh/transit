@@ -61,7 +61,8 @@ def run(post, sign_query, query, command, pid, seed, public, url, remote_command
             peer.sendall((f'POST /v1/query HTTP/1.1\r\nHost: {endpoint.netloc}\r\n'
                           f'Content-Length: {len(body)}\r\nX-Transit-Wait: {current}:1000\r\n\r\n').encode() + body)
             try:
-                assert peer.recv(4096) == b'', 'deadline unexpectedly returned a response'
+                response = peer.recv(4096)
+                assert response == b'', ('deadline unexpectedly returned a response', response)
             except ConnectionResetError:
                 pass
     with ThreadPoolExecutor(max_workers=4) as pool:
