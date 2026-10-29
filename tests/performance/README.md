@@ -92,6 +92,12 @@ existing matching TLS SQL fixture without a proxy. This separate component
 control keeps that fixture's 30-second native request budget and records its
 binary/driver identities. It does not replace the default installation check
 or establish that a failed installed-server sample passed.
+`just test::console-latency-tls 5 --instrument` selects a separate diagnostic run
+with the same bounded upstream probe, per-statement traces and Station-dispatch
+checks as the installed workload. It interposes only the SQL gateway's native
+connection after fixture provisioning. Keep its proxy timings separate from
+the unproxied TLS control; overlapping/background attempts are not additive
+statement phases.
 
 Add `--instrument` in a separate run to count the SQL gateway's upstream native
 and Table operations, including Catalog token/record work and direct commits.

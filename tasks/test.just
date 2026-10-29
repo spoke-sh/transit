@@ -677,8 +677,9 @@ console-latency *args:
     python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Matching TLS component control for the persistent console statement workload.
-console-latency-tls repeat="5":
-    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- console-statements {{repeat}}
+[positional-arguments]
+console-latency-tls repeat="5" *args:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- console-statements "$@"
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
