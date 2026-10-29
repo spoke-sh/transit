@@ -11,10 +11,10 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
-### Merged-path recovery checks — 2026-10-29
+### Merged runtime recovery checks — 2026-10-29
 
 The follow-up to [PR #222](https://github.com/spoke-sh/transit/pull/222)
-separates a faulty lost-reply schedule from unresolved publication latency.
+corrects the lost-reply schedule and records unresolved publication latency.
 Source `22316f4738bc` runs on main `3cb07950e`, including PR #225's valid
 maximum-path metadata fixture. Linux x86_64, pinned Zig
 `0.17.0-dev.2267+48abf1a34`, ReleaseSafe binaries and local disk remain the
@@ -35,7 +35,8 @@ capacity-retry case. Restricting the gate to the crash schedules removed that
 fixture interference. The next run at `7767d856a` passed those earlier assertions
 and capacity retry, then failed on the 67-row INSERT: repeated `commit_saved`
 attempts reached the unchanged ten-second node deadline during
-`data.object_put`. The complete schedule did not pass. Its private installation
+`data.object_put`. The complete schedule did not pass, and those timeouts do not
+establish rejection or a terminal outcome for the original operation. Its private installation
 is `/var/tmp/transit-sql-database-xuk7djsw`; the raw log
 `.cache/sql-qualification/gateway-final.log` has SHA-256
 `d571deadda1beed278e88fb47327c27cceab559c8ca84820487570527210177d`.
@@ -61,6 +62,52 @@ or qualify installed bootstrap. The log
 `889706ba0ae61943f5121e898ad6c2a9f42800c1d7391733f9d3305b7d9ca241`.
 All 47 clean fast checks also pass at that source; they do not establish native
 runtime or latency qualification.
+
+The separate unproxied TLS console control completes all 47 statements with
+verified values, counts and final typed readback. Runtime binaries were built
+at `22316f4738bc`; the driver records `065ba33ba`, whose additional change is
+the preceding evidence account. The existing component fixture uses eight
+native resident pages and a 30-second native request budget. It is not the
+default installed-server profile. Six warm reads and five samples of each
+mutation/refreshed-read case yield these empirical p50s; the small samples do
+not establish p95/p99 or a speedup against another build.
+
+| Actual console timer | Unproxied TLS p50 |
+| --- | ---: |
+| Warm SELECT | 81 ms |
+| INSERT | 1,676 ms |
+| SELECT after INSERT | 1,882 ms |
+| Changed UPDATE | 3,165 ms |
+| Unchanged UPDATE | 1,494 ms |
+| SELECT after UPDATE | 2,899 ms |
+| DELETE | 2,026 ms |
+| SELECT after DELETE | 2,885 ms |
+
+The five INSERTs report zero milliseconds for wait and rendering, with their
+entire measured duration in submit. Submit includes server preparation and
+execution; it is not an exclusive storage timer. The unproxied log
+`.cache/sql-qualification/console-tls.log` has SHA-256
+`3e3f22ad473f5e9a7925497740cfef4e0030590aca1e77d19361d7580bba3eba`.
+
+Driver `b83d4bc6f` adds `just test::console-latency-tls 5 --instrument` through
+the existing bounded native probe. The executed diagnostic run supplies the
+same seven frozen executable hashes as the unproxied run to the shared SQL-wire
+driver through `tests/runner/launch.py`, with `console-statements 5 --instrument`.
+All 47 statements and their traces complete, with no omitted trace events,
+Station sends/turns or new pins during warm-read windows. The first INSERT takes
+1,573 ms and observes 58 upstream POSTs. Its intent staging takes 105 ms, token
+binding 551 ms and direct commit 833 ms. The corresponding provider elapsed
+counters are 99, 543 and 814 ms. Background pending-list/inspection requests
+overlap these operations; neither their durations nor nested provider/owner
+counters are additive exclusive phases.
+
+That commit's measured owner counters report 69 allocation attempts, 39 growing
+resizes and a 5,030,723-byte peak. These scoped counters do not support a zero
+allocation claim or measure process-wide memory. The diagnostic log
+`.cache/sql-qualification/console-tls-instrumented.log` has SHA-256
+`b8381980bac2f38c5731252fb3cde689b5bca61ecb0df5509ff839ca2778029b`.
+Durable publication, token/accounting coordination and refreshed read cuts
+remain optimization work; the 10–100× targets are not achieved by these runs.
 
 ### Resident owners, foreground completion and snapshot acquisition
 
