@@ -78,11 +78,45 @@ pub fn write(init: std.process.Init, client: c.DirectTableClient, role: u64) !St
 }
 
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, state: State) !void {
+    try read(init, client, state);
+    (try client.call(.{ .release = state.basis.snapshot })).deinit();
+}
+
+pub fn read(init: std.process.Init, client: c.DirectTableClient, state: State) !void {
     try listing(client);
     try rows(init.gpa, client, state);
     const status = try client.call(.{ .pin_status = .{ .object = state.basis.snapshot.object, .owner = state.basis.snapshot.handle.owner } });
     defer status.deinit();
     try t.expectEqualDeep(state.basis.snapshot.handle, status.value.result.pin_state.handle.?);
     try t.expect(!status.value.result.pin_state.released);
-    (try client.call(.{ .release = state.basis.snapshot })).deinit();
+}
+
+/// A bounded public observation per Table, without retaining the catalog in RAM.
+pub fn maintenance(client: c.DirectTableClient, state: State, output: *std.Io.Writer) !void {
+    var pending_rows: u64 = 0;
+    var busy_tables: usize = 0;
+    var segments: u64 = 0;
+    for (0..count) |index| {
+        var object = state.basis.snapshot.object;
+        object.object = first_object + index;
+        const response = try client.call(.{ .storage = .{ .object = object, .pending_limit = 1024 } });
+        defer response.deinit();
+        const observed = response.value.result.storage;
+        try t.expectEqual(@as(u64, if (index == 0) count else 0), observed.live_rows);
+        try t.expectEqual(0, observed.history_floor);
+        try t.expect(observed.pending.complete);
+        pending_rows += observed.pending.rows;
+        segments += observed.next_segment - 1;
+        const work = observed.maintenance;
+        const busy = observed.pending.rows != 0 or work.archive_target != null or work.compaction_target != null or
+            work.archive_source_lsn != work.archived_source_lsn or
+            work.compaction_source_lsn != work.compacted_source_lsn;
+        if (busy) {
+            busy_tables += 1;
+        } else if (work.archive_source_lsn != 0) {
+            try t.expect(observed.archive_through > 0);
+            try t.expect((observed.recovery_through orelse return error.MissingGrowthRecovery) >= observed.archive_through);
+        }
+    }
+    try std.json.Stringify.value(.{ .tables = count, .rows = count, .pending_rows = pending_rows, .busy_tables = busy_tables, .segments = segments }, .{}, output);
 }

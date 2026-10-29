@@ -93,6 +93,24 @@ Failed installations retain the saved write plan, completed receipt prefix,
 signed inspection and process logs privately. The fixture never retries an
 uncertain insert with a new identity.
 
+## Discovery beyond resident coordination caches
+
+`just test::catalog-growth` uses the existing 139-Table catalog fixture. The
+first Table owns 139 point-written rows and an original retained pin; the other
+138 Tables are empty. After SIGKILL and restart, automatic flush, archive and
+compaction run with one resident native page, 64 host lock/recovery stripes and
+bounded persisted catalog cursors. Public inspection visits every Table without
+accumulating its definitions or rows. It checks unlimited history, fixed row
+counts, completed physical targets and recovery coverage where archival is
+eligible. Complete catalog listings and reads of the original pin overlap the
+remaining work; the pin is released explicitly only after convergence.
+
+The maintenance phase has a shared 600-second completion budget. It records raw
+progress samples, exact binaries/source, and whole-node CPU/RSS/I/O counters.
+This exercises discovery beyond resident caches, not 139 concurrent writers or
+139 nonempty Tables. Pair it with the three-Table write/pressure schedule above;
+neither profile establishes that untested cross-product or a whole-process quota.
+
 ## Private maintenance allocation boundary
 
 Run `just test local-catalog` to exercise the composed local maintenance owner

@@ -2,13 +2,17 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 
 from harness.services import free_port, wait_ready
+from runner.capture import identity, provenance
+from runner.paths import ROOT
 from storage.tables import direct_table_maintenance
 
 
@@ -267,11 +271,43 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = None
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                settings["storage"] = {"maintenance": {"flush": {"enabled": True, "rows": 1},
+                                                       "archive": {"enabled": True}, "compact": True}}
+                config.write_text(json.dumps(settings))
                 authority = start()
+                before = direct_table_maintenance.process_usage(authority)
+                began = time.monotonic()
+                deadline = began + 600
+                samples = []
+                overlap = False
+                while True:
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, samples
+                    result = subprocess.run([caller, endpoint, "growth-maintenance", str(profile)],
+                                            check=True, timeout=min(180, remaining), capture_output=True, text=True)
+                    progress = json.loads(result.stdout)
+                    samples.append(dict(seconds=time.monotonic() - began, **progress))
+                    with (root / 'growth-maintenance-observations.jsonl').open('a') as output:
+                        output.write(json.dumps(samples[-1]) + '\n')
+                    if progress["busy_tables"] == 0:
+                        break
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, samples
+                    subprocess.run([caller, endpoint, "growth-read", str(profile)], check=True, timeout=min(180, remaining))
+                    overlap = True
+                    assert time.monotonic() - began < 600, samples
+                assert overlap and samples[-1]["segments"] > 0, samples
+                after = direct_table_maintenance.process_usage(authority)
+                print(json.dumps(dict(profile="catalog_growth_maintenance", tables=139, rows=139,
+                                      source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
+                                      clock_ticks_per_second=os.sysconf('SC_CLK_TCK'),
+                                      node_before=before, node_after=after, samples=samples,
+                                      storage=settings["storage"], resident_pages=settings["resident_pages"])), flush=True)
                 subprocess.run([caller, endpoint, "growth-recover", str(profile)], check=True, timeout=180)
                 assert profile.read_bytes() == saved, "Recovery replaced the original retained basis"
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
-                print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
+                print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, automatic maintenance convergence beyond host cache/lock stripes, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
                 return
             if mode == "dependency-growth":
                 subprocess.run([caller, endpoint, "dependency-growth-write", str(profile)], check=True, timeout=600)

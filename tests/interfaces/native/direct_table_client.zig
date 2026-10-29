@@ -492,6 +492,11 @@ pub fn main(init: std.process.Init) !void {
             try Dependencies.uncertain(client, profile.dependencies.?.host_removal);
         } else if (std.mem.eql(u8, args[2], "dependency-final")) {
             try Dependencies.finish(client, profile.dependencies.?);
+        } else if (std.mem.eql(u8, args[2], "growth-read")) {
+            try Growth.read(init, client, profile.growth.?);
+        } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
+            try Growth.maintenance(client, profile.growth.?, &output.interface);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "maintenance-prepare")) {
             profile.maintenance = try Maintenance.prepare(init, client, profile.role);
             try save(init, args[3], profile);
