@@ -305,6 +305,7 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
     errdefer directory.close(io);
     self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.wire.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
     errdefer self.wire.deinit();
+    self.wire.local = runtime.background.local;
     // Database names borrow immutable configuration, never a startup frame.
     for (account.databases) |selected| if (std.mem.eql(u8, selected.name, database)) {
         self.database = selected.name;
@@ -316,6 +317,13 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
     try self.current();
     if (config.settings) |configured| {
         self.settings_wire = g.wire.Client.init(allocator, io, configured.url);
+        // Configuration has its own publication owner. Its signed native
+        // authority reads use the same local database authority when co-hosted.
+        if (runtime.background.local) |endpoint| {
+            var authority = endpoint;
+            authority.routes = &.{"/v1/query"};
+            self.settings_wire.?.local = authority;
+        }
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
         errdefer self.settings_wire.?.deinit();
         if (options.capture_settings) {

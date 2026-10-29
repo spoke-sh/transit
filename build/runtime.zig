@@ -82,6 +82,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const sql_client = b.dependency("transit_sql_client", .{ .target = target, .optimize = optimize });
+    const sql_host = b.dependency("transit_sql_host", .{ .target = target, .optimize = optimize });
     const sql_gateway = b.dependency("transit_sql_service", .{ .target = target, .optimize = optimize });
     const tls_server = b.dependency("transit_tls_server", .{ .target = target, .optimize = optimize });
     const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
@@ -160,6 +161,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
         if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
@@ -247,6 +249,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);
     transit_cli.root_module.addImport("transit_board_role", board.root_module);
     transit_cli.root_module.addImport("transit_sql_gateway_role", sql_gateway_app.root_module);
+    transit_cli.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});

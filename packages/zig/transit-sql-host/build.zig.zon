@@ -1,0 +1,17 @@
+.{
+    .name = .transit_sql_host,
+    .fingerprint = 0xc523218d3ea712e1,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_memory = .{ .path = "../transit-memory" },
+        .transit_io = .{ .path = "../transit-io" },
+        .transit_sql_client = .{ .path = "../transit-sql-client" },
+        .transit_sql_service = .{ .path = "../transit-sql-service" },
+        .transit_postgres = .{ .path = "../transit-postgres" },
+        .transit_mysql = .{ .path = "../transit-mysql" },
+        .transit_tls_server = .{ .path = "../transit-tls-server" },
+        .transit_http_server = .{ .path = "../transit-http-server" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

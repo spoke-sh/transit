@@ -187,6 +187,7 @@ sql-wire-contracts:
     cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-sql-service && zig build test
+    cd packages/zig/transit-sql-host && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
 
@@ -377,6 +378,7 @@ packages:
     cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
     cd packages/zig/transit-sql-service && zig build test
+    cd packages/zig/transit-sql-host && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
     cd packages/zig/transit-station-bindings && zig build test
