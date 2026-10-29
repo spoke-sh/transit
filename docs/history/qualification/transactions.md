@@ -201,3 +201,21 @@ The corrected diagnostic test output SHA-256 is
 `446eb1bfba0e7c579d72b42e3e686a5cba2419e4e81d2388c1cd17d7d003b665`.
 These hashes attribute the ignored raw outputs; no credentials or generated
 per-run archive is added to Git.
+
+The corrected closeout at `6984451fe4da1378a9aab54ed708d54663bfed4e` passed all
+47 fast checks in a clean checkout, including 7,965 documentation links across
+671 files. Its report is
+`.cache/ci/clean/6984451fe4da-transit-ci-vrtzdpcm/` and stdout is
+`.cache/m5-closeout-clean-fast.log`. The handbook check passed formatting,
+strict types, all nine content tests and the production build. All five Chromium
+histories passed against that output at `/transit/`, covering navigation, search,
+mobile accessibility, diagrams and exact downloads. Their raw outputs are
+`.cache/m5-closeout-docs.log` and `.cache/m5-closeout-docs-browser.log`. These
+checks qualify documentation and source consistency, not another installed
+transaction execution or root-path/remote-hosting test.
+
+`m5-closeout-clean-fast.log` SHA-256: `12c675da0660e90a5c6955262e0d3f43869a1feef1a7261ed0049c50db2f21eb`.
+
+`m5-closeout-docs.log` SHA-256: `140408463883c073dea1fdf91a3ac8f4b7fc0e57ac003ba64d6002ab03ecc482`.
+
+`m5-closeout-docs-browser.log` SHA-256: `b993fdbd3baf1011d26edf664bb056de6a432f2f946cbf8329f00b7388bb3e11`.
