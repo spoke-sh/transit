@@ -14,7 +14,7 @@ pub const head_format: u32 = 0x54585731;
 pub const table_format: u32 = 0x54585431;
 pub const statement_format: u32 = 0x54584f31;
 pub fn reserved(format: u32) bool {
-    return format == head_format or format == table_format or format == statement_format;
+    return format == head_format or format == table_format or format == statement_format or format == c.DirectTransactionControl.format;
 }
 
 pub const Request = struct {
@@ -109,6 +109,7 @@ pub fn load(comptime T: type, allocator: std.mem.Allocator, objects: s.TransitOb
 
 pub fn recover(allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, progress: c.DirectClientToken.Progress) !Head {
     const reference = progress.record orelse return error.TransactionCutNotAcquired;
+    if (reference.format == c.DirectTransactionControl.format) return error.TransactionFrozen;
     if (reference.format == c.DirectTransaction.Acquired.format)
         return Head.initial(try c.DirectTransaction.Acquired.load(allocator, objects, progress));
     const head = try load(Head, allocator, objects, reference, progress.receipt.binding.key.scope(), head_format);

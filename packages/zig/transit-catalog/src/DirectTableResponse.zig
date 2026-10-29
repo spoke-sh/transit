@@ -57,6 +57,12 @@ fn storage(connection: w.Connection, object: d.Object, limit: u16, value: c.Dire
 }
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
+    if (value.transaction) |decision| {
+        try decision.validate();
+        if (decision.outcome != .committed or binding.action != .update or
+            !std.meta.eql(decision.attempt.operation, binding.identity) or
+            !std.mem.eql(u8, &decision.attempt.workspace.sha256, &binding.intent)) return error.InvalidTableResponse;
+    }
     try value.resulting.validate();
     try value.outcome.position.validate();
     if (!std.meta.eql(value.resulting.interpretation.object, binding.target) or
@@ -693,7 +699,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     entry.point.position.partition != query.from.partition or entry.point.position.next_lsn <= previous or entry.point.position.next_lsn > value.next.next_lsn or
                     !std.meta.eql(entry.receipt.outcome.position, entry.point.position) or entry.receipt.outcome.live_rows != entry.row_count) return error.InvalidTableResponse;
                 try entry.receipt.binding.validate();
-                try evidence(entry.receipt.binding, .{ .binding = entry.receipt.binding, .resulting = entry.interpretation, .outcome = entry.receipt.outcome });
+                try evidence(entry.receipt.binding, .{ .binding = entry.receipt.binding, .resulting = entry.interpretation, .outcome = entry.receipt.outcome, .transaction = entry.receipt.transaction });
                 if (request.delegation) |grant| grant.requireHistory(entry.interpretation.interpretation, entry.point.position) catch return error.InvalidTableResponse;
                 previous = entry.point.position.next_lsn;
             }

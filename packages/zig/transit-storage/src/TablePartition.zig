@@ -18,6 +18,7 @@ const Archive = @import("TableArchive.zig");
 const Recovery = @import("TableRecovery.zig");
 const StoredEvidence = @import("TableEvidence.zig");
 const Dml = @import("TableDmlIntent.zig");
+const Transaction = @import("TableTransaction.zig");
 const Self = @This();
 pub const Root = r.Root;
 pub const Outcome = r.Outcome;
@@ -27,6 +28,7 @@ pub const Evidence = struct {
     binding: d.Binding,
     resulting: Declaration.Stored,
     outcome: Outcome,
+    transaction: ?p.Transaction.Decision,
 };
 const Changes = @import("TableChanges.zig");
 pub const max_changes = Changes.max_changes;
@@ -44,6 +46,8 @@ pub const Guard = struct {
     pub const Fence = struct { writer_epoch: u64, policy_epoch: u64 };
 };
 pub const Options = struct {
+    /// Only transaction recovery/control owners may open an unresolved barrier.
+    transaction_control: bool = false,
     resident_pages: usize = 16,
     index_work_bytes: usize = 64 * 1024 * 1024,
     /// Simultaneous private allocations for mutations, rewrites and flushes.
@@ -330,7 +334,7 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty, .transaction = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
@@ -515,6 +519,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
         if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
             (checkpoint_boundary and work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
+        try self.requireTransactionTransition(next, record);
         try self.requireMaintenanceProgress(next, record);
         try self.requireReceiptTransition(next, record);
         try self.requireHistoryRetentionTransition(next, record);
@@ -536,6 +541,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
     self.chain = chain;
     self.recovery_work = work;
     self.recovery_required = false;
+    if (!self.options.transaction_control and self.root.transaction != null) return error.TransactionPrepared;
 }
 
 fn readHistoryFrame(self: *Self, lsn: u64) !Log.Log.OwnedBatch {
@@ -554,6 +560,7 @@ const decodeFrame = r.decodeFrame;
 
 fn ready(self: *Self) !void {
     if (self.recovery_required) return error.TableRecoveryRequired;
+    if (self.root.transaction != null) return error.TransactionPrepared;
 }
 
 fn scope(self: *Self, operation: d.Operation) !void {
@@ -629,7 +636,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .release => {},
+            .operation, .transaction_prepare, .transaction_abort, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -763,7 +770,7 @@ pub fn operationState(self: *Self, binding: d.Binding, guard: Guard) !OperationS
     try self.ready();
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    if (try self.observed(binding)) |accepted| return .{ .committed = .{ .binding = binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome } };
+    if (try self.observed(binding)) |accepted| return .{ .committed = .{ .binding = binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome, .transaction = accepted.receipt.transaction } };
     return stateOf(try self.operationAt(self.root, binding) orelse return .not_observed);
 }
 
@@ -886,7 +893,7 @@ fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationSt
         };
         return self.writeOperation(rejected, guard);
     };
-    return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome } };
+    return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome, .transaction = null } };
 }
 
 fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, guard: Guard) !Outcome {
@@ -936,7 +943,7 @@ pub fn observeEvidence(self: *Self, binding: d.Binding, guard: Guard) !?Evidence
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     const accepted = try self.observed(binding) orelse return null;
-    return .{ .binding = accepted.receipt.binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome };
+    return .{ .binding = accepted.receipt.binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome, .transaction = accepted.receipt.transaction };
 }
 
 /// Read-only expectation check under the current caller's authority fence.
@@ -1180,6 +1187,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     if (affected != 0 or binding.action == .create) next.changed_lsn = next.next_lsn;
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = matched, .affected = affected, .live_rows = next.live_rows };
     var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{
+        .transaction = null,
         .binding = binding,
         .changes = changes_digest,
         .outcome = outcome,
@@ -1317,7 +1325,7 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
     next.pending = try self.tree().remove(next.pending, key);
     if (affected != 0) next.changed_lsn = next.next_lsn;
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = matched, .affected = affected, .live_rows = next.live_rows };
-    var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = operation.binding, .changes = operation.intent.sha256, .outcome = outcome, .ingestion = .bulk } } };
+    var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .transaction = null, .binding = operation.binding, .changes = operation.intent.sha256, .outcome = outcome, .ingestion = .bulk } } };
     try self.stageReceipt(&record);
     try self.publish(record, &.{}, guard);
     try self.reply();
@@ -1564,6 +1572,7 @@ fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard)
     record.root.maintenance = try @import("TableMaintenanceState.zig").transition(self.root, record.root, record.action);
     try record.validate(self.root.next_lsn);
     try requireTransition(self.root, record, try self.operationTransition(self.root, record));
+    try self.requireTransactionTransition(self.root, record);
     try self.requireMaintenanceProgress(self.root, record);
     try self.requireReceiptTransition(self.root, record);
     try self.requireHistoryRetentionTransition(self.root, record);
@@ -1599,6 +1608,128 @@ fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard)
 
 fn reply(self: *Self) !void {
     if (self.lose_reply) return error.LostAcknowledgement;
+}
+
+fn transactionSuccessor(before: Root, prepared: Transaction.Record) !Root {
+    var next = before;
+    next.next_lsn = try std.math.add(u64, before.next_lsn, 1);
+    next.transaction = null;
+    if (prepared.workspace.changed) {
+        const private = prepared.workspace.root;
+        inline for (.{ "rows", "scan_rows", "identities", "ordered_rows", "physical_schemas", "column_origins", "live_rows" }) |field|
+            @field(next, field) = @field(private, field);
+        next.next_segment = @max(before.next_segment, private.next_segment);
+        next.changed_lsn = next.next_lsn;
+    }
+    return next;
+}
+
+fn requireTransactionTransition(self: *Self, before: Root, record: r.Record) !void {
+    const after = record.root;
+    const reference = if (record.action == .transaction_prepare) after.transaction else before.transaction;
+    if (reference) |ref| {
+        const preparation = try Transaction.load(self.allocator, self.objects, ref);
+        const expected_position = (try preparation.prepared(ref)).position;
+        var expected = before;
+        expected.next_lsn = try std.math.add(u64, before.next_lsn, 1);
+        switch (record.action) {
+            .transaction_prepare => {
+                if (before.transaction != null or !std.meta.eql(before, preparation.predecessor) or
+                    after.next_lsn != expected_position.next_lsn) return error.InvalidTransactionPreparation;
+                var journal = try @import("TransactionDecisionLog.zig").init(self.allocator, self.log, self.objects, preparation.coordination, preparation.binding);
+                try journal.recover();
+                if (journal.next_lsn == 0) return error.TransactionNotFrozen;
+                expected.transaction = ref;
+            },
+            .transaction_abort => |value| {
+                if (!std.meta.eql(ref, value.prepared)) return error.InvalidTransactionPreparation;
+                const decision = try Transaction.decision(self.allocator, self.log, self.objects, preparation, ref) orelse return error.TransactionPrepared;
+                if (decision.outcome != .aborted or !std.meta.eql(decision, value.decision)) return error.InvalidTransactionDecision;
+                expected.transaction = null;
+            },
+            .mutation => |value| {
+                const transaction = value.transaction orelse return error.TransactionPrepared;
+                if (!std.meta.eql(ref, transaction.prepared)) return error.InvalidTransactionPreparation;
+                const decision = try Transaction.decision(self.allocator, self.log, self.objects, preparation, ref) orelse return error.TransactionPrepared;
+                if (decision.outcome != .committed or !std.meta.eql(decision, transaction.decision) or
+                    !std.meta.eql(value.binding, preparation.commitBinding()) or !std.mem.eql(u8, &value.changes, &ref.content.sha256) or
+                    value.ingestion != .bulk or value.outcome.matched != preparation.workspace.matched or value.outcome.affected != preparation.workspace.affected)
+                    return error.InvalidTransactionDecision;
+                expected = try transactionSuccessor(before, preparation);
+                // The ordinary receipt validator proves this one exact insert.
+                expected.receipts = after.receipts;
+            },
+            else => return error.TransactionPrepared,
+        }
+        expected.maintenance = try @import("TableMaintenanceState.zig").transition(before, expected, record.action);
+        if (!std.meta.eql(expected, after)) return error.InvalidTransactionPreparation;
+    } else {
+        if (record.action == .transaction_prepare or record.action == .transaction_abort or after.transaction != null or
+            (record.action == .mutation and record.action.mutation.transaction != null)) return error.InvalidTransactionPreparation;
+    }
+}
+
+/// The caller retains the frozen workspace and excludes database publication.
+/// The accepted reference fences every ordinary operation until resolution.
+pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.zig").Binding, coordination: u64, basis: p.Transaction.TableGuard, workspace: @import("TableWorkspace.zig").State, guard: Guard) !p.Transaction.Prepared {
+    if (self.workspace) return error.PrivateTableWorkspace;
+    if (self.recovery_required) return error.TableRecoveryRequired;
+    _ = try guard.acquire(guard.context);
+    guard.release(guard.context);
+    if (self.root.transaction) |reference| {
+        const original = try Transaction.load(self.allocator, self.objects, reference);
+        if (!std.meta.eql(original.binding, binding) or original.coordination != coordination or
+            !std.meta.eql(original.guard, basis) or !std.meta.eql(original.workspace, workspace)) return error.TransactionPrepared;
+        return original.prepared(reference);
+    }
+    try basis.requireUnchanged(Transaction.tableGuard(self.root));
+    var original_pin = try self.inspectSnapshot(self.allocator, workspace.source, guard);
+    defer original_pin.deinit();
+    if (!std.meta.eql(original_pin.root.declared(), workspace.root.declared())) return error.InvalidTransactionPreparation;
+    var journal = try @import("TransactionDecisionLog.zig").init(self.allocator, self.log, self.objects, coordination, binding);
+    try journal.recover();
+    if (journal.next_lsn != 1) return error.TransactionNotFrozen;
+    var selected = try @import("TransactionDirectory.zig").init(self.allocator, self.objects, binding.begin.identity, .participants, binding.begin.limits.participants, 1, self.options.index_work_bytes);
+    defer selected.deinit();
+    try selected.restore(binding.attempt.participants);
+    const participant = (try selected.get(self.root.interpretation.object.object) orelse return error.TransactionObjectNotSelected).participant;
+    if (participant != .state or participant.state.access != .write or !std.meta.eql(participant.state.guard, basis)) return error.InvalidTransactionPreparation;
+    const preparation: Transaction.Record = .{ .definition = p.Growth.current_definition, .coordination = coordination, .binding = binding, .guard = basis, .predecessor = self.root, .workspace = workspace };
+    const reference = try Transaction.stage(self.objects, preparation);
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    next.transaction = reference;
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .transaction_prepare }, &.{}, guard);
+    try self.reply();
+    return preparation.prepared(reference);
+}
+
+/// Materialize only the actual durable decision. An absent decision preserves
+/// the barrier. Caller cancellation and a supplied descriptor cannot resolve it.
+pub fn resolveTransaction(self: *Self, guard: Guard) !?p.Transaction.Decision {
+    if (self.workspace) return error.PrivateTableWorkspace;
+    if (self.recovery_required) return error.TableRecoveryRequired;
+    _ = try guard.acquire(guard.context);
+    guard.release(guard.context);
+    const reference = self.root.transaction orelse return null;
+    const preparation = try Transaction.load(self.allocator, self.objects, reference);
+    const decision = try Transaction.decision(self.allocator, self.log, self.objects, preparation, reference) orelse return error.TransactionPrepared;
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    next.transaction = null;
+    if (decision.outcome == .aborted) {
+        try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .transaction_abort = .{ .prepared = reference, .decision = decision } } }, &.{}, guard);
+    } else {
+        next = try transactionSuccessor(self.root, preparation);
+        const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = preparation.workspace.matched, .affected = preparation.workspace.affected, .live_rows = next.live_rows };
+        var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = preparation.commitBinding(), .changes = reference.content.sha256, .outcome = outcome, .ingestion = .bulk, .transaction = .{ .prepared = reference, .decision = decision } } } };
+        try self.index.begin(self.options.index_work_bytes);
+        defer self.index.end();
+        try self.stageReceipt(&record);
+        try self.publish(record, &.{}, guard);
+    }
+    try self.reply();
+    return decision;
 }
 
 pub fn get(self: *Self, allocator: std.mem.Allocator, key: []const u8, guard: Guard) !?OwnedRow {

@@ -134,6 +134,20 @@ fn decode(bytes: []const u8) !Record {
     return parsed;
 }
 
+/// Read the original frozen binding from its actual acceptance log. Callers
+/// subsequently recover the journal to validate its complete retained chain.
+pub fn frozenBinding(allocator: std.mem.Allocator, log: Log.Log, partition: u64) !Binding {
+    var batch = try log.read(allocator, partition, 0, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1) return error.TransactionHistoryMissing;
+    const frame = batch.frames[0];
+    if (frame.header.partition_id != partition or frame.header.lsn != 0 or frame.header.kind != .policy_control) return error.InvalidTransactionHistory;
+    const value = try decode(frame.payload);
+    if (value.event != .freeze or !std.mem.allEqual(u8, &value.previous, 0)) return error.InvalidTransactionHistory;
+    try value.event.freeze.validate();
+    return value.event.freeze;
+}
+
 /// A new physical owner checks every retained frame and immutable directory.
 /// No participant is replayed and recovery stages no objects or log records.
 pub fn recover(self: *Self) !void {

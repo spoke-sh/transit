@@ -539,13 +539,38 @@ Reopen and lost replies retain the reservation. Exact accepted-token recovery
 still succeeds after admission ceilings are lowered; new over-capacity begins
 refuse before allocating a coordination partition. Pending work retains its full
 reservation regardless of its current physical use. Generic progress operations
-cannot release transaction reservations; transaction settlement/cleanup remains
-an owner obligation before such release can be exposed. Deployment-wide capacity,
+cannot release transaction reservations. The transaction coordinator releases
+these reservations only after its recorded decision and participant cleanup. Deployment-wide capacity,
 provider disk quotas and transaction host scheduling remain separate controls.
 
+`settleTransaction` durably freezes one original commit operation, acquired cut,
+workspace commitment and paged participant list before participant preparation.
+Statements cannot change a frozen workspace. Each selected Table is a conservative
+read dependency; Tables with private states are write participants. Serializable
+commit validates original logical/definition guards, every current SELECT and
+original DML permission, and actual prepared object availability. Read-only
+completion keeps its original acquired cut without requiring unchanged data.
+All checks and the decision append share one writer/policy epoch under the host's
+exclusive publication fence. No guard array grows with participant cardinality.
+
+The `steps` allowance limits participant preparation and cleanup units per call.
+Commit verification walks the selected directories and immutable data with bounded
+resident buffers. One coordination-log append decides commit or abort. A lost
+reply does not change that decision; `inspectTransaction` observes the original
+attempt and journal under current database access. It distinguishes the decision
+from completed cleanup. Explicit abort also handles a pending private statement
+or interrupted cut acquisition; session loss does not request abort. Once abort
+is durably requested, subsequent retries preserve that request until settlement.
+
+Cleanup resolves owned Table barriers and releases original begin pins. It can
+resume after any lost reply. An unrelated transaction's barrier defers pin cleanup;
+it is never cleared on this transaction's behalf. Original outcomes and claims
+remain retained after reservations are released. The storage graph retains active
+private data and decision dependencies, while completed abort cleanup makes
+superseded private data eligible for physical collection.
+
 These are embedding component operations. Signed caller requests, SQL sessions,
-durable savepoint controls, participant preparation, common-decision visibility,
-abort settlement and automatic cleanup are not supplied by workspace publication.
+durable savepoint controls and automatic scheduling require host integration.
 
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate

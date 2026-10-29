@@ -78,4 +78,5 @@ pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
 pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig");
+pub const DirectTransactionControl = @import("DirectTransactionControl.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");

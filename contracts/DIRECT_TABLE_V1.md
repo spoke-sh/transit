@@ -143,7 +143,7 @@ requires explicit `transactions` counters for all six dimensions. Begin
 admission and those reservations share one catalog acceptance; failed admission
 consumes neither. Exact token recovery does not repeat the charge or apply new
 admission ceilings to old work. Pending transactions retain their reservation;
-only future transaction-owned settlement/cleanup can release it, never generic
+only transaction-owned settlement/cleanup can release it, never generic
 caller progress or quota pressure. Earlier usage records missing counters reject.
 A capacity or stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
@@ -199,6 +199,20 @@ The embedding host serializes all database publication throughout these componen
 calls. No signed workspace action or SQL transaction syntax is exposed by these
 formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
 defines resident and cumulative staging charges and the remaining host boundaries.
+
+The component coordinator stores reserved canonical `DirectRecord` format
+`0x54585031`, at most 32 KiB. Mandatory fields are `definition`, catalog `revision`,
+original decision-log `binding`, `abort_requested`, nullable original `workspace`,
+nullable `preparations`, `prepared_after`, `preparation_complete`, nullable
+`decision`, `cleanup_after` and `cleanup_complete`. Workspace absence permits
+abort of incomplete acquisition, never commit. A frozen workspace cannot accept
+another statement. Preparation/cleanup cursors refer to stable selected object IDs.
+The original commit operation has a permanent transaction-attempt identity claim.
+Journal acceptance and catalog progress remain distinct; recovery reads the actual
+journal if its decision preceded a lost progress reply. Only complete participant
+cleanup makes token progress terminal and releases the account reservation.
+These component controls preserve the original operation through commit/abort
+races; they do not expose a signed coordinator endpoint by themselves.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;

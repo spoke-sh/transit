@@ -1783,3 +1783,52 @@ records executed evidence. These checks can falsify the stated finite claims,
 but do not establish arbitrary-size correctness, filesystem power-loss behavior,
 quota consistency or latency improvements. Retaining current barriers costs
 writes and syncs; replacing them requires evidence for the new recovery boundary.
+
+
+## Atomic Table preparation and recovery
+
+The component question is how several Table owners can accept private changes
+without exposing a successful partial observation after a coordinator crash.
+The implemented local mechanism assumes a host that serializes database
+publication during common-cut acquisition and coordinator calls, atomic fenced
+`TransitLog` append, and immutable object storage. It does not assume that a SQL
+session or operation timeout determines the transaction outcome.
+
+The catalog freezes a paged participant directory and original attempt. Each
+written Table then accepts a preparation reference while preserving its public
+data root. This barrier prevents competing writes and ordinary reads. Commit
+checks all serializable read/write logical guards, current permissions under one
+unchanged policy epoch, actual Table preparation acceptance and immutable data
+availability. A single coordination-log append decides the attempt. Read-only
+transactions retain their common cut without requiring current data versions.
+
+Table resolution reopens the actual journal and checks prepared-directory
+membership before accepting private data roots. Abort clears the barrier without
+publishing those roots. A crash between participant finalizations leaves a
+resolved Table readable and unresolved Tables blocked. Thus a successful read
+cannot pair one newly published participant with another participant's old data.
+This is an availability cost of the blocking design; successful ordinary reads
+do not resolve barriers implicitly. Whole-Table validation also admits false
+conflicts between disjoint logical writes. Physical flush, archive and pin
+bookkeeping do not change the logical conflict frontier.
+
+Cleanup releases original pins and account reservations only after a terminal
+decision. The retained graph follows latest accepted transaction progress for
+private data, and coordination history for original decision/preparation evidence.
+Historical catalog roots still retain their structural replay dependencies;
+they do not independently grant historical access to discarded private data.
+Aborted data can therefore become collectible without making original-outcome
+inspection or Table replay depend on it.
+
+Primary implementation evidence is the [catalog coordinator](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
+[Table acceptance owner](../../../packages/zig/transit-storage/src/TablePartition.zig),
+[preparation graph checks](../../../packages/zig/transit-storage/src/TableTransaction.zig)
+and [retained graph](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig).
+The package-local `transaction coordinator` tests exercise disk reopen at lost
+freeze, prepare, decision and publication reply boundaries; independent row
+values, logical/policy conflicts and missing successor data are their oracles.
+The separate storage `transaction preparation barrier` test includes a public
+flush between evaluation and preparation. These methods distinguish disk reopen
+and injected lost replies from process death or power loss. Installed SQL,
+automatic scheduling and cross-provider atomicity require separate integration
+and evidence; this component account does not establish them.

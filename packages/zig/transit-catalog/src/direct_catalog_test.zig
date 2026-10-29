@@ -3373,3 +3373,231 @@ test "transaction durable workspace preserves rejected statement outcome and con
         }
     }
 }
+
+test "transaction coordinator recovers original multi Table decision through every lost reply boundary" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var request: c.DirectTransactionWorkspace.Request = undefined;
+    const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+    var original: ?p.Transaction.Decision = null;
+    for (0..6) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        switch (restart) {
+            0 => {
+                try catalog.initialize(access.policy());
+                binding = try selectedTransaction(&catalog, &access, 2);
+                _ = try catalog.acquireTransaction(binding.key, access.policy());
+                request = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+                _ = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 11, 2, 501), access.policy());
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+            },
+            1 => {
+                const status = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+                try t.expect(status.observation == .preparing);
+                try t.expect(!status.cleanup_complete);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_0"));
+                var untouched = (try resolve(&catalog, &access, "selected_1")).?;
+                defer untouched.deinit();
+                try t.expectEqual(@as(u64, 0), untouched.table.root.live_rows);
+                try t.expectError(error.TransactionFrozen, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+                var other = commit;
+                other.operation += 1;
+                try t.expectError(error.TransactionIdentityConflict, catalog.settleTransaction(binding.key, other, .commit, 1, access.policy()));
+            },
+            2 => {
+                catalog.lose_table_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+                try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            3 => {
+                catalog.lose_transaction_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 3, access.policy()));
+                original = (try catalog.inspectTransaction(binding.key, access.policy())).observation.decided;
+                try t.expect(original.?.outcome == .committed);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_0"));
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            4 => {
+                catalog.lose_table_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .abort, 2, access.policy()));
+                var published = (try resolve(&catalog, &access, "selected_0")).?;
+                defer published.deinit();
+                try t.expectEqual(@as(u64, 1), published.table.root.live_rows);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            5 => {
+                const status = try catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy());
+                try t.expect(status.cleanup_complete);
+                try t.expectEqualDeep(original.?, status.observation.decided);
+                try t.expectEqualDeep(status, try catalog.settleTransaction(binding.key, commit, .abort, 1, access.policy()));
+                try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+                for ([_][]const u8{ "selected_0", "selected_1" }, 0..) |name, i| {
+                    var view = (try resolve(&catalog, &access, name)).?;
+                    defer view.deinit();
+                    var guards = std.heap.ArenaAllocator.init(t.allocator);
+                    defer guards.deinit();
+                    const current = try access.dataGuard(guards.allocator(), view.properties, 10 + i);
+                    const pinned = try view.table.pinState(binding.intent.transaction.begin.identity.begin, current);
+                    try t.expect(pinned.released);
+                    var key_buffer: [4096]u8 = undefined;
+                    const row_key = try c.fuze.Collation.encodePrimaryKeySortKey(view.table.declaration.schema.schema, &.{.{ .value = .{ .atom = .{ .signed = @intCast(500 + i) } } }}, false, &key_buffer);
+                    var row = (try view.table.get(t.allocator, row_key, current)).?;
+                    defer row.deinit();
+                    try t.expectEqual(@as(i128, @intCast(500 + i)), row.row().cells[0].value.atom.signed);
+                    try t.expectEqual(@as(u64, 1), view.table.root.live_rows);
+                }
+            },
+            else => unreachable,
+        }
+    }
+}
+
+test "transaction coordinator abort clears prepared prefix and incomplete acquisition without new work" {
+    for ([_]bool{ false, true }) |prepared| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 2);
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        if (prepared) {
+            _ = try catalog.acquireTransaction(binding.key, access.policy());
+            _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+            _ = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+        } else {
+            catalog.lose_table_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+            catalog.lose_table_reply = false;
+        }
+        const status = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+        try t.expect(status.cleanup_complete);
+        try t.expect(status.observation.decided.outcome == .aborted);
+        try t.expectEqualDeep(status, try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+        try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+        for ([_][]const u8{ "selected_0", "selected_1" }, 0..) |name, i| {
+            var view = (try resolve(&catalog, &access, name)).?;
+            defer view.deinit();
+            try t.expectEqual(@as(u64, 0), view.table.root.live_rows);
+            var guards = std.heap.ArenaAllocator.init(t.allocator);
+            defer guards.deinit();
+            const state = try view.table.pinState(binding.intent.transaction.begin.identity.begin, try access.dataGuard(guards.allocator(), view.properties, 10 + i));
+            try t.expect(state.handle == null or state.released);
+        }
+    }
+}
+
+test "transaction coordinator validates read dependencies and current policy before the decision" {
+    for ([_]enum { conflict, denied, epoch }{ .conflict, .denied, .epoch }) |failure| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 2);
+        _ = try catalog.acquireTransaction(binding.key, access.policy());
+        _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        _ = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+        switch (failure) {
+            .conflict => {
+                _ = try insertSelectedTable(&catalog, &access, "selected_1", 800);
+                try t.expectError(error.TransactionConflict, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+            },
+            .denied => {
+                access.denied_metadata = 110;
+                try t.expectError(error.CatalogDenied, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+                access.denied_metadata = null;
+            },
+            .epoch => {
+                access.epoch_change_at = access.calls + 5;
+                try t.expectError(error.TransactionAuthorityChanged, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+                access.epoch_change_at = std.math.maxInt(usize);
+            },
+        }
+        try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+        const terminal = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+        try t.expect(terminal.cleanup_complete);
+        try t.expect(terminal.observation.decided.outcome == .aborted);
+        var first = (try resolve(&catalog, &access, "selected_0")).?;
+        defer first.deinit();
+        try t.expectEqual(@as(u64, 0), first.table.root.live_rows);
+    }
+}
+
+test "transaction coordinator refuses unavailable prepared data and abort can reclaim its private graph" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 2);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+    var name: [96]u8 = undefined;
+    var lost: ?[]u8 = null;
+    defer if (lost) |value| t.allocator.free(value);
+    for (objects.objects.items) |stored| {
+        if (std.mem.startsWith(u8, stored.key, "table-segments/")) {
+            lost = try t.allocator.dupe(u8, stored.key);
+            break;
+        }
+    }
+    try objects.objectStore().delete(lost.?);
+    try t.expectError(error.TableSegmentMissing, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+    try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+    const terminal = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+    try t.expect(terminal.cleanup_complete);
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    for ([_][]const u8{ "selected_0", "selected_1" }) |table_name| {
+        var view = (try resolve(&catalog, &access, table_name)).?;
+        defer view.deinit();
+        const cut = try view.table.recoveryState();
+        try graph.enqueue(.{ .table_history = try .init(.{ .root = cut.root, .chain = cut.chain }) });
+    }
+    var at: usize = 0;
+    while (at < graph.jobs.items.len) : (at += 1) {
+        var work = graph.jobs.items[at];
+        while (true) {
+            const before = graph.jobs.items.len;
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph);
+            try t.expect(graph.jobs.items.len - before <= 3);
+            if (done) break;
+        }
+    }
+    try t.expect(!graph.marks.contains(lost.?));
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    const control = try c.DirectTransactionControl.load(t.allocator, catalog.data_objects, progress);
+    var preparations = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, control.binding.begin.identity, .preparations, 10, 1, 1024 * 1024);
+    defer preparations.deinit();
+    try preparations.restore(control.preparations.?);
+    const prepared = (try preparations.get(10)).?.prepared;
+    try t.expect(graph.marks.contains(try s.TableTransaction.key(.{ .content = prepared.successor }, &name)));
+    // The persisted decision can still be reopened after the unreachable
+    // private candidate disappeared. Replay must not dereference aborted data.
+    var reopened = try owner(&wal, &objects);
+    defer reopened.deinit();
+    try t.expectEqualDeep(terminal, try reopened.inspectTransaction(binding.key, access.policy()));
+}

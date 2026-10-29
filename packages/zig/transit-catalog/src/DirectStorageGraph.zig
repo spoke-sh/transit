@@ -17,6 +17,9 @@ pub const Work = union(enum) {
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
+    table_preparation: struct { reference: s.TableTransaction.Reference, archive: ?s.TableArchive.Coverage = null },
+    transaction_journal: u64,
+    transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?u64 = null, started: bool = false },
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
@@ -35,7 +38,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -46,6 +49,7 @@ pub fn fromFrame(allocator: std.mem.Allocator, frame: s.TransitLog.Frame) !Work 
         const record = try CatalogStore.decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn);
         return .{ .catalog_history = try .init(.{ .root = record.root, .chain = r.hash(frame.payload) }) };
     }
+    if (std.mem.startsWith(u8, frame.payload, "TXDEC1\x00\x00")) return .{ .transaction_journal = frame.header.partition_id };
     const decoded = try s.TablePartitionRecord.decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn);
     return .{ .table_history = try .init(.{ .root = decoded.record.root, .chain = r.hash(frame.payload) }) };
 }
@@ -86,7 +90,14 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction) {
-                try workspace.enqueue(.{ .transaction = .{ .root = record.root, .progress = record.action.client_token } });
+                // Replay retains historical catalog directories. Private workspace
+                // data belongs only to the latest accepted token at this cut.
+                const key = try s.TreeStore.pages.Key.init(&try record.action.client_token.receipt.binding.key.digest());
+                var tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
+                const latest = try tree.get(walk.cut.root.client_tokens, key) orelse return error.InvalidClientToken;
+                if (latest.len != 8) return error.InvalidClientToken;
+                if (std.mem.readInt(u64, latest.data[0..8], .little) + 1 == record.action.client_token.revision.next_lsn)
+                    try workspace.enqueue(.{ .transaction = .{ .root = walk.cut.root, .progress = record.action.client_token } });
             }
             return false;
         },
@@ -101,22 +112,36 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
             } else {
                 if (progress.record == null) return true;
-                const head = try W.recover(allocator, index.store, progress);
+                const control = if (progress.record.?.format == c.DirectTransactionControl.format) try c.DirectTransactionControl.load(allocator, index.store, progress) else null;
+                if (value.slot == 5) {
+                    if (control) |state| {
+                        try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = state.binding.attempt.participants, .kind = .participants } });
+                        if (state.preparations) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .preparations } });
+                        // A decision may have reached WAL before catalog progress.
+                        if (try log.tail(progress.receipt.coordination.?) != 0) try workspace.enqueue(.{ .transaction_journal = progress.receipt.coordination.? });
+                    }
+                    return true;
+                }
+                const head = if (control) |state| state.workspace else try W.recover(allocator, index.store, progress);
+                if (head == null) {
+                    value.slot += 1;
+                    return false;
+                }
+                const retained = head.?;
                 switch (value.slot) {
                     1 => {
                         var sources = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .sources, begin.limits.participants, 0, 1);
                         defer sources.deinit();
-                        try sources.restore(head.acquired.cut.sources);
-                        try markContent(workspace, try s.TransactionDirectory.objectKey(head.acquired.cut.sources.content, &key_buffer), head.acquired.cut.sources.content);
+                        try sources.restore(retained.acquired.cut.sources);
+                        try markContent(workspace, try s.TransactionDirectory.objectKey(retained.acquired.cut.sources.content, &key_buffer), retained.acquired.cut.sources.content);
                         if (sources.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
                     },
-                    2, 3 => if (if (value.slot == 2) head.tables else head.statements) |reference| {
-                        try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = head, .scope = progress.receipt.binding.key.scope(), .tables = value.slot == 2 } });
+                    2, 3 => if (if (value.slot == 2 and (control == null or !control.?.cleanup_complete)) retained.tables else if (value.slot == 3) retained.statements else null) |reference| {
+                        try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope(), .tables = value.slot == 2 } });
                     },
-                    4 => if (head.pending) |request| {
+                    4 => if (retained.pending) |request| {
                         try workspace.enqueue(.{ .transaction_intent = request });
                     },
-                    5 => return true,
                     else => return error.InvalidTableStorageGraph,
                 }
             }
@@ -164,6 +189,39 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try request.binding.requireSame(intent.request.binding);
             try markContent(workspace, try s.TableDmlIntent.key(request.intent, &key_buffer), request.intent);
             try workspace.enqueue(.{ .declaration = intent.request.interpretation });
+        },
+        .transaction_journal => |partition| {
+            const binding = try s.TransactionDecisionLog.frozenBinding(allocator, log, partition);
+            var journal = try s.TransactionDecisionLog.init(allocator, log, index.store, partition, binding);
+            try journal.recover();
+            var batch = try log.read(allocator, binding.begin.catalog.partition, binding.begin.catalog.next_lsn - 1, 1);
+            defer batch.deinit();
+            if (batch.frames.len != 1) return error.CatalogHistoryMissing;
+            const catalog = (try CatalogStore.decodeFrame(allocator, batch.frames[0], binding.begin.catalog.partition, binding.begin.catalog.next_lsn - 1)).root;
+            try workspace.enqueue(.{ .transaction_directory = .{ .catalog = catalog, .identity = binding.begin.identity, .directory = binding.attempt.participants, .kind = .participants } });
+            if (journal.decision) |decision| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = catalog, .identity = binding.begin.identity, .directory = decision.prepared, .kind = .preparations } });
+        },
+        .transaction_directory => |*value| {
+            var directory = try s.TransactionDirectory.init(allocator, index.store, value.identity, value.kind, @max(1, value.directory.count), 0, 1);
+            defer directory.deinit();
+            try directory.restore(value.directory);
+            if (!value.started) {
+                try markContent(workspace, try s.TransactionDirectory.objectKey(value.directory.content, &key_buffer), value.directory.content);
+                if (directory.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.catalog, .{ .reference = reference, .kind = .pages_only }) });
+                value.started = true;
+                return false;
+            }
+            if (value.kind != .preparations) return true;
+            const page = try directory.page(value.after);
+            const entry = page.entries[0] orelse return true;
+            try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
+            value.after = entry.object().object;
+            return false;
+        },
+        .table_preparation => |value| {
+            const preparation = try s.TableTransaction.load(allocator, index.store, value.reference);
+            try markContent(workspace, try s.TableTransaction.key(value.reference, &key_buffer), value.reference.content);
+            if (value.archive) |archive| try workspace.enqueue(.{ .table_root = .{ .root = preparation.workspace.root, .archive = archive, .role = .workspace } });
         },
         .catalog_root => |*value| {
             const root = value.root;
@@ -227,6 +285,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             value.slot += 1;
             if (slot == 0) {
                 try workspace.enqueue(.{ .declaration = root.declared() });
+                if (root.transaction) |reference| try workspace.enqueue(.{ .table_preparation = .{ .reference = reference, .archive = if (value.role == .current) value.archive else null } });
             } else if (directories[slot - 1]) |reference| {
                 try workspace.enqueue(.{ .table_walk = .{ .walk = try Walk.init(try Context.fromRoot(root), .{ .reference = reference, .kind = kinds[slot - 1] }), .archive = value.archive, .live_pins = value.role == .current } });
             }

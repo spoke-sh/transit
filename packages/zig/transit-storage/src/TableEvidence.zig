@@ -38,6 +38,12 @@ pub const Record = struct {
             .receipt => |value| {
                 try value.resulting.validate();
                 const outcome = value.receipt.outcome;
+                if (value.receipt.transaction) |decision| {
+                    try decision.validate();
+                    if (decision.outcome != .committed or owner.action != .update or value.ingestion != .bulk or
+                        !std.meta.eql(decision.attempt.operation, owner.identity) or
+                        !std.mem.eql(u8, &decision.attempt.workspace.sha256, &owner.intent)) return error.InvalidTableEvidence;
+                }
                 if (!std.meta.eql(self.position, outcome.position) or outcome.affected > outcome.matched or
                     !std.meta.eql(owner.target, value.resulting.interpretation.object) or
                     value.resulting.retired != (owner.action == .drop)) return error.InvalidTableEvidence;
