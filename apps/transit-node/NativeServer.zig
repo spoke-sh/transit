@@ -270,8 +270,8 @@ pub fn Host(comptime Provider: type) type {
                         self.work_failure = @errorName(err);
                         if (err == error.Canceled) return err;
                         const cause = if (err == error.OutOfMemory and budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
-                        const code = @import("ServiceFailure.zig").table(cause);
-                        return self.json(request, @import("ServiceFailure.zig").status(code), wire.protocol.ErrorResponse{ .err = code });
+                        const refusal = @import("ServiceFailure.zig").table(cause);
+                        return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
                     };
                     defer budget.allocator().free(response);
                     // Typed results distinguish admission, commitment and reads;
@@ -318,9 +318,8 @@ pub fn Host(comptime Provider: type) type {
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
                 self.work_failure = @errorName(err);
-                const code = @import("ServiceFailure.zig").native(err);
-                const status = @import("ServiceFailure.zig").status(code);
-                return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });
+                const refusal = @import("ServiceFailure.zig").native(err);
+                return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
             }
             /// Reobserve only the same signed read after a moving authority cut. The
             /// engine validates its signature, scope, source and current rights on every
@@ -336,12 +335,12 @@ pub fn Host(comptime Provider: type) type {
             }
             fn queryWithHint(self: *Server, signed: g.SignedQuery, hint: ?wire.WaitHint) !g.Response {
                 if (hint) |wait| {
-                    wait.validate() catch return error.InvalidRequest;
-                    if (!wire.WaitHint.allows(signed.query)) return error.InvalidRequest;
+                    wait.validate() catch return error.InvalidWaitHint;
+                    if (!wire.WaitHint.allows(signed.query)) return error.InvalidWaitHint;
                 }
                 var response = try self.readQuery(signed, null);
                 if (hint) |wait| {
-                    if (wait.after > response.position) return error.InvalidRequest;
+                    if (wait.after > response.position) return error.InvalidWaitHint;
                     if (wait.after == response.position) {
                         self.finishWork();
                         {
@@ -455,7 +454,7 @@ pub fn Host(comptime Provider: type) type {
                     self.observation.position = acquired.response.position;
                     return self.json(request, .ok, acquired.*);
                 }
-                const response = self.queryWithHint(parsed.value, hint) catch |err| return self.failure(request, err);
+                const response = self.queryWithHint(parsed.value, hint) catch |err| return if (err == error.InvalidWaitHint) self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }) else self.failure(request, err);
                 self.observation.protocol_outcome = .read;
                 self.observation.realm = response.realm;
                 self.observation.operation = @tagName(parsed.value.query.kind);
@@ -489,13 +488,15 @@ pub fn Host(comptime Provider: type) type {
                 self.localWork(invocation) catch |err| {
                     if (err == error.Canceled or err == error.Cancelled or err == error.OutOfMemory) return err;
                     const failure = @import("ServiceFailure.zig");
-                    const code = if (std.mem.eql(u8, invocation.path, "/table/v1")) failure.table(err) else failure.native(err);
-                    return invocation.client.reject(failure.status(code), code);
+                    if (err == error.InvalidLocalRequest or err == error.InvalidWaitHint) return invocation.client.reject(.bad_request, .InvalidRequest);
+                    if (err == error.LocalRouteMissing) return invocation.client.reject(.not_found, .NotFound);
+                    const refusal = if (std.mem.eql(u8, invocation.path, "/table/v1")) failure.table(err) else failure.native(err);
+                    return invocation.client.reject(refusal.status, refusal.code);
                 };
             }
             fn localWork(self: *Context, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const io = invocation.client.http.io;
-                if (invocation.client.wait_hint != null and !std.mem.eql(u8, invocation.path, "/v1/query")) return error.InvalidRequest;
+                if (invocation.client.wait_hint != null and !std.mem.eql(u8, invocation.path, "/v1/query")) return error.InvalidLocalRequest;
                 const control = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.request(Provider.TableHost.Protocol.Request)).transport().control != null else if (std.mem.eql(u8, invocation.path, "/v1/command")) true else if (std.mem.eql(u8, invocation.path, "/v1/query")) switch ((try invocation.request(g.SignedQuery)).query.kind) {
                     .close_snapshot => true,
                     .snapshot_read => |read| read.finish,
@@ -518,13 +519,13 @@ pub fn Host(comptime Provider: type) type {
                 // that operation, never across a SQL scan or socket drain.
                 if (std.mem.eql(u8, invocation.path, "/table/v1")) {
                     if (comptime @hasDecl(Provider, "TableHost")) {
-                        const owner = lane.table orelse return error.NotFound;
+                        const owner = lane.table orelse return error.LocalRouteMissing;
                         const request = try invocation.request(Provider.TableHost.Protocol.Request);
                         var budget = self.table_memory.request(self.server.allocator, control);
                         defer std.debug.assert(budget.used == 0);
                         var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
                         defer scratch.deinit();
-                        request.validate(scratch.allocator()) catch |err| return if (err == error.OutOfMemory) err else error.InvalidRequest;
+                        request.validate(scratch.allocator()) catch |err| return if (err == error.OutOfMemory) err else error.InvalidLocalRequest;
                         const before = lane.engine.head.position;
                         defer if (lane.engine.head.position != before) {
                             self.mutex.lockUncancelable(io);
@@ -539,17 +540,17 @@ pub fn Host(comptime Provider: type) type {
                         };
                         return invocation.respond(result);
                     }
-                    return error.NotFound;
+                    return error.LocalRouteMissing;
                 }
                 if (std.mem.eql(u8, invocation.path, "/v1/query")) {
                     const request = try invocation.request(g.SignedQuery);
-                    g.validateQuery(request.query) catch return error.InvalidRequest;
+                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
                     return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
                 }
                 if (std.mem.eql(u8, invocation.path, "/v1/command")) {
                     const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.request(g.CommandEnvelope) else null;
                     const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
-                    g.validate(request.request) catch return error.InvalidRequest;
+                    g.validate(request.request) catch return error.InvalidLocalRequest;
                     const position = try server.submitCommand(request, if (envelope) |*value| if (value.blocks) |*blocks| blocks else null else null);
                     self.mutex.lockUncancelable(io);
                     defer self.mutex.unlock(io);
@@ -560,7 +561,7 @@ pub fn Host(comptime Provider: type) type {
                 }
                 if (std.mem.eql(u8, invocation.path, "/v1/blocks")) {
                     const request = try invocation.request(g.SignedQuery);
-                    g.validateQuery(request.query) catch return error.InvalidRequest;
+                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
                     const result = try invocation.allocator.create(g.BlockRead.Response);
                     defer invocation.allocator.destroy(result);
                     result.response = try server.readQuery(request, &result.blocks);
@@ -569,14 +570,14 @@ pub fn Host(comptime Provider: type) type {
                 if (std.mem.eql(u8, invocation.path, "/v1/payload")) {
                     if (comptime @hasDecl(Provider, "payload")) {
                         const request = try invocation.request(wire.protocol.NativePayload.Request);
-                        request.validate() catch return error.InvalidRequest;
+                        request.validate() catch return error.InvalidLocalRequest;
                         const result = try invocation.allocator.create(wire.protocol.NativePayload.Response);
                         defer invocation.allocator.destroy(result);
                         try Provider.payload(&lane.engine, &request, result);
                         return invocation.respond(result.*);
                     }
                 }
-                return error.InvalidRequest;
+                return error.LocalRouteMissing;
             }
 
             fn touchShared(self: *Context) u64 {

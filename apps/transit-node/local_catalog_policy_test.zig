@@ -1827,3 +1827,17 @@ fn transactionSchedule() !void {
     initialized.deinit();
     try transactionDispatch(&service, role);
 }
+
+test "shared refusals distinguish current denial from storage and missing-owner failures" {
+    const failure = @import("ServiceFailure.zig");
+    // A provider AccessDenied is not itself a native authorization decision.
+    try t.expectEqual(std.http.Status.unprocessable_entity, failure.native(error.AccessDenied).status);
+    try t.expectEqual(std.http.Status.forbidden, failure.native(error.Forbidden).status);
+    try t.expectEqual(std.http.Status.forbidden, failure.table(error.CatalogDenied).status);
+    // Missing data inside an admitted operation remains a rejection. A missing
+    // ingress route has its separate 404 path before operation execution.
+    try t.expectEqual(std.http.Status.unprocessable_entity, failure.table(error.NotFound).status);
+    const unavailable = failure.table(error.InjectedStorageUnavailable);
+    try t.expectEqual(std.http.Status.service_unavailable, unavailable.status);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, unavailable.code);
+}
