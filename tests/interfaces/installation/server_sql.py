@@ -225,7 +225,16 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                 # position without accepting this observation. Never splice a
                 # new snapshot into a result or repeat a mutation here.
                 refused_read = any(message in result.stderr for message in ('Database capacity exhausted', 'Current state changed'))
-                assert not result.stdout and refused_read and time.monotonic() < deadline, (result.stdout, result.stderr)
+                if result.stdout or not refused_read or time.monotonic() >= deadline:
+                    # Preserve typed service causes without publishing the
+                    # private installation, SQL payloads or credential files.
+                    diagnostics = []
+                    for log in fixture.logs[-1:]:
+                        with Path(log.name).open() as stream:
+                            for line in stream:
+                                if 'sql.request.failed' in line:
+                                    diagnostics = (diagnostics + re.findall(r'error_type="([A-Za-z0-9_]+)"', line))[-8:]
+                    raise AssertionError((result.stdout, result.stderr, {'sql_errors': diagnostics}))
                 refused += 1
                 time.sleep(.2)
 
