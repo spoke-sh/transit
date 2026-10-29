@@ -28,6 +28,10 @@ on:
       - 'tests/interfaces/installation/release.py'
       - 'tests/interfaces/installation/published.py'
       - 'tests/interfaces/installation/server_applications.py'
+      - 'tests/interfaces/installation/board_workbench.py'
+      - 'tests/interfaces/cli/console_terminal.py'
+      - 'tests/interfaces/cli/console_edit.py'
+      - 'apps/transit-board-web/browser/workbench.spec.ts'
       - 'tests/sdk/**'
   workflow_dispatch:
     inputs:
@@ -50,7 +54,9 @@ env:
   TRANSIT_RELEASE_IDENTITY: ${{ github.workspace }}/.cache/release-identity.json
 concurrency:
   group: release-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # PR candidates cannot publish. Qualify the latest commit promptly, while
+  # immutable tag/nightly publication must finish or fail without interruption.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   prepare:
     runs-on: ubuntu-24.04
