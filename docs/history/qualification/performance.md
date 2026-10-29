@@ -182,6 +182,28 @@ lane after 2,479.44 s. The fixture remains at
 Later growth tasks are not reached. This failure is neither attributed solely
 to shared-host load nor replaced by the earlier component maintenance pass.
 
+Clean `core` at `342c75151` passes the full foundation check (including native
+components and console lifecycle), properties/simulation, package builds (39/39),
+Zig SDK, packaged runtime boundary, SQL wire contracts and C ABI. It then fails
+the Station invalid-input check: after a briefly quiet mailbox, the next worker
+turn succeeds where the test expected failure. The assertion does not establish
+which accepted input that turn consumed. The lane fails after 3,743.14 s;
+later tasks are not reached. The checkout is `/var/tmp/transit-ci-gpydibfg`;
+`clean-core.log` has SHA-256
+`a62521dc1ad05d6d05417435923fb95da1096e45e6e2db561772df47bee210c6`.
+
+A focused rerun with an exact-input oracle stops earlier, during captured-query
+progress, with `ConnectionRefusedError`. Node logs show `page.stage` cancellation,
+`WalRecoveryRequired` and owner reopen immediately beforehand. This run does not
+validate the oracle repair or establish the connection failure's root cause.
+`station-exact-input.log` has SHA-256
+`b82d4798a7549d391ff6615bdb8de3c790f87f4be4f7ccbefdfc3d5cac3b60cc`. The deadlines are unchanged.
+
+Integration of main `78ac1df3c` includes storage observations/settings, smaller
+Table staging buffers and transaction workspaces, including a current-definition
+cutover. The frozen console measurements and preceding passes above describe
+their recorded revisions; they do not qualify this newer integrated runtime.
+
 Clean fast checks at `9ac5ad55d` pass all 45 checks, including 7,569 local links
 across 664 files; the isolated checkout is `/var/tmp/transit-ci-0qm1r7fa`.
 The pinned documentation site check also passes types, tests and the production
