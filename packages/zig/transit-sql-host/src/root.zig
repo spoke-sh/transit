@@ -605,7 +605,15 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
     }
     var registry = try g.Registry.init(init.gpa, init.io, config, runtimes.items, if (config.native) |native| native.instance else config.accounts[0].execution.account[0..16].*);
     defer registry.deinit();
-    var native_context: ?tls.Context = if (config.native) |native| if (native.tls) |selected| try tls.Context.init(try init.arena.allocator().dupeSentinel(u8, selected.certificate_file, 0), try init.arena.allocator().dupeSentinel(u8, selected.key_file, 0)) else null else null;
+    var native_context: ?tls.Context = if (config.native) |native| if (native.tls) |selected| blk: {
+        // OpenSSL loads these files during initialization. A replacement host
+        // must not retain path copies in the embedding process's startup arena.
+        const certificate = try init.gpa.dupeSentinel(u8, selected.certificate_file, 0);
+        defer init.gpa.free(certificate);
+        const certificate_key = try init.gpa.dupeSentinel(u8, selected.key_file, 0);
+        defer init.gpa.free(certificate_key);
+        break :blk try tls.Context.init(certificate, certificate_key);
+    } else null else null;
     defer if (native_context) |*selected| selected.deinit();
     var native_listener: ?std.Io.net.Server = if (config.native) |native| if (native.port) |port| try (try std.Io.net.IpAddress.parseIp4(native.address, port)).listen(init.io, .{ .reuse_address = true }) else null else null;
     defer if (native_listener) |*listener| listener.deinit(init.io);
