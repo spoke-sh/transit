@@ -1,4 +1,4 @@
-# 19. Formal semantics and implementation correspondence
+# 20. Formal semantics and implementation correspondence
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -11,22 +11,22 @@ checks, clearer ownership and simpler recovery or transformation logic.
 
 ## Prerequisites and timing
 
-Close phase II after [service and SDK coverage](18-service-and-sdk-coverage.md),
-before [provider and concurrent-writer qualification](20-storage-providers-and-concurrency.md).
+Close phase II after [service and SDK coverage](19-service-and-sdk-coverage.md),
+before [provider and concurrent-writer qualification](21-storage-providers-and-concurrency.md).
 Consume the delivered [storage](02-storage-and-query-performance.md),
 [live cutover](03-live-storage-and-sql-cutover.md),
 [statement results](04-statement-results-and-consumption.md),
 [transactions](05-transactions-and-atomic-composition.md),
 [streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md),
 [logical Document storage](07-document-storage-and-station-decoupling.md),
-[shared clients](08-client-foundation-and-language-apis.md),
-[historical interpretation](09-standards-and-catalogs.md),
-[indexes](10-indexing-and-access-paths.md),
-[managed computations](11-sql-and-dataflows.md),
-[selected structures and optimizations](12-data-structures-and-performance.md),
-[Document profiles and exchange lifecycle](15-document-profiles-and-gateway-exchange-lifecycle.md),
-[foreign relations](16-multi-model-and-foreign-relations.md) and
-[branches](17-branches-merges-and-restore.md).
+[shared clients](09-client-foundation-and-language-apis.md),
+[historical interpretation](10-standards-and-catalogs.md),
+[indexes](11-indexing-and-access-paths.md),
+[managed computations](12-sql-and-dataflows.md),
+[selected structures and optimizations](13-data-structures-and-performance.md),
+[Document profiles and exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md),
+[foreign relations](17-multi-model-and-foreign-relations.md) and
+[branches](18-branches-merges-and-restore.md).
 
 Entry requires settled owning contracts, executable operations and focused
 failure evidence for each selected family. In particular, let statement-result
@@ -172,8 +172,8 @@ transaction support or a proof for arbitrary histories.
 
 Candidate: the discussion's `TransactionSSI.tla`, renamed for the chosen protocol.
 The initial planned local profile in [Milestone 5](05-transactions-and-atomic-composition.md)
-selects whole-object optimistic validation, while [Milestone 10](10-indexing-and-access-paths.md)
-and [Milestone 20](20-storage-providers-and-concurrency.md) escalate read-write
+selects whole-object optimistic validation, while [Milestone 11](11-indexing-and-access-paths.md)
+and [Milestone 21](21-storage-providers-and-concurrency.md) escalate read-write
 concurrency to fine-grained key-range and predicate-level Serializable Snapshot
 Isolation (SSI / index-range `rw-antidependency` tracking). Model begin/read/private write,
 absent-key, index-range or predicate dependencies, cross-table `FOREIGN KEY` and
@@ -228,7 +228,7 @@ movement, withdrawal, reviewer revocation and duplicate execution. Approval must
 match the exact candidate and target expectation and satisfy the chosen current
 policy at publication. It is not a reservation. Human-only approval and delegated
 actor checks wait for the enterprise identity contract. Keep that extension with
-[reviewed collaboration](26-reviewed-data-collaboration.md); local branch-model
+[reviewed collaboration](27-reviewed-data-collaboration.md); local branch-model
 completion does not depend on that later experience.
 
 ### T7. Provider fencing, replication and failover
@@ -415,15 +415,15 @@ inherit a proof whose assumptions the new profile violates.
 
 | Owner | Candidate extension and boundary |
 | --- | --- |
-| [Providers and concurrent writers](20-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
-| [Replication and failover](21-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion and stale-writer fencing under selected failures |
-| [Operations and recovery](22-operations-and-recovery.md) | T1/T4/T7: retained backup/PITR roots, consistent decisions and authority-safe restore/upgrade boundaries |
-| [Clustered execution](23-clustered-execution.md) | T3/T5/T7 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
-| [Enterprise identity](24-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
-| [Reviewed publication](26-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
-| [Reactive activation](29-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
-| [Recorded integrations](30-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [Complete qualification](32-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [Providers and concurrent writers](21-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
+| [Replication and failover](22-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion and stale-writer fencing under selected failures |
+| [Operations and recovery](23-operations-and-recovery.md) | T1/T4/T7: retained backup/PITR roots, consistent decisions and authority-safe restore/upgrade boundaries |
+| [Clustered execution](24-clustered-execution.md) | T3/T5/T7 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
+| [Enterprise identity](25-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
+| [Reviewed publication](27-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
+| [Reactive activation](30-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
+| [Recorded integrations](31-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
+| [Complete qualification](33-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -439,7 +439,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](32-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](33-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

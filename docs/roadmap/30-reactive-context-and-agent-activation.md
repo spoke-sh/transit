@@ -1,4 +1,4 @@
-# 29. Reactive context, subscriptions and agent activation
+# 30. Reactive context, subscriptions and agent activation
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,13 +9,13 @@ the same versioned event without an open MCP connection owning the application.
 
 ## Prerequisites and scope
 
-Extend [managed computation scheduling](11-sql-and-dataflows.md),
-[first-class strings and search](13-vectorized-strings-and-search.md),
-[native multi-model lexical/structural, vector and hybrid retrieval](16-multi-model-and-foreign-relations.md),
-[enterprise RLS, masking and WLM governance](24-control-and-policy-plane.md),
-[published resources](25-published-resources-and-investigations.md),
-[proposal lifecycle](26-reviewed-data-collaboration.md) and the
-[MCP service](28-mcp-service-and-apps.md). Durable source/change semantics stay
+Extend [managed computation scheduling](12-sql-and-dataflows.md),
+[first-class strings and search](14-vectorized-strings-and-search.md),
+[native multi-model lexical/structural, vector and hybrid retrieval](17-multi-model-and-foreign-relations.md),
+[enterprise RLS, masking and WLM governance](25-control-and-policy-plane.md),
+[published resources](26-published-resources-and-investigations.md),
+[proposal lifecycle](27-reviewed-data-collaboration.md) and the
+[MCP service](29-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
 governed hybrid context assembly (combining relational/bitemporal filters,
 declarative lexical, proximity (`NEAR`) and structural search—starting with
@@ -25,7 +25,7 @@ context delivery and protocol projections within the caller's WLM resource
 group. Reasoning loops remain applications, while speculative research into
 declarative sequence/span maps, context-conditioned continuation and
 branch-verified agency is tracked in
-[Milestone 34](34-declarative-language-context-and-synthesis.md).
+[Milestone 35](35-declarative-language-context-and-synthesis.md).
 
 ## Delivery sequence
 
@@ -59,7 +59,7 @@ branch-verified agency is tracked in
 
 ## Formal model follow-through
 
-Extend the [T5 handoff and checkpoint candidate](19-formal-semantics-and-correspondence.md#t5-snapshot-to-history-handoff-and-consumer-checkpoints)
+Extend the [T5 handoff and checkpoint candidate](20-formal-semantics-and-correspondence.md#t5-snapshot-to-history-handoff-and-consumer-checkpoints)
 when the durable-interest and activation contracts settle. Preserve the declared
 meaning of every-change capture, net changes or latest-result notification;
 check resume, duplicate application, explicit gaps and current disclosure.
@@ -84,7 +84,7 @@ Extend that journey through an authorized action and a later business observatio
 Bind the initial assessment, original action identity and subsequent observation
 without replacing the original prediction. Exercise delayed, missing and
 contradictory feedback as well as known success and failure. Use the
-[observation measures](32-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[observation measures](33-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 to qualify both sides of the loop; a notification or completed tool call alone
 does not establish the application's business consequence.
 

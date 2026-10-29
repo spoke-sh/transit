@@ -1,4 +1,4 @@
-# 14. Data-centric pipeline fusion, AOT query compilation and adaptive specialization
+# 15. Data-centric pipeline fusion, AOT query compilation and adaptive specialization
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
 
@@ -12,7 +12,7 @@ compilation latency.
 
 ## Prerequisites and scope
 
-The proposed [issue #194 implementation plan](12-data-structures-and-performance.md#implementation-plan-for-issue-194)
+The proposed [issue #194 implementation plan](13-data-structures-and-performance.md#implementation-plan-for-issue-194)
 defines the shared allocation contract and sequences this milestone's fusion,
 specialization and compilation gates in phase I. This milestone retains
 ownership of those capabilities and their prerequisites; the plan does not
@@ -22,11 +22,11 @@ Consume the qualified [local engine](02-storage-and-query-performance.md),
 [installed cutover](03-live-storage-and-sql-cutover.md),
 [results](04-statement-results-and-consumption.md),
 [transactions](05-transactions-and-atomic-composition.md),
-[collations and historical catalogs](09-standards-and-catalogs.md),
-[indexing](10-indexing-and-access-paths.md),
-[analytical SQL and dataflows](11-sql-and-dataflows.md),
-[data structures and resource metering](12-data-structures-and-performance.md)
-and [first-class strings and perfect hashing](13-vectorized-strings-and-search.md).
+[collations and historical catalogs](10-standards-and-catalogs.md),
+[indexing](11-indexing-and-access-paths.md),
+[analytical SQL and dataflows](12-sql-and-dataflows.md),
+[data structures and resource metering](13-data-structures-and-performance.md)
+and [first-class strings and perfect hashing](14-vectorized-strings-and-search.md).
 Start from [query mechanisms](../handbook/internals/query-engine.md),
 [storage mechanisms](../handbook/internals/storage-runtime.md),
 [declarative applications](../handbook/reference/applications.md),
@@ -91,7 +91,7 @@ accounting as the reference interpreter.
      `DictEqBitsetFilter`.
    - **Adaptive Mid-Query Morsel Tier-Up & Copy-and-Patch stencils (evaluated candidate):**
      Use the per-morsel CPU cycle and row counters from
-     [Milestone 12](12-data-structures-and-performance.md) to monitor query
+     [Milestone 13](13-data-structures-and-performance.md) to monitor query
      runtime cost; only when a query exceeds a morsel/tick threshold ($> K$
      morsels), tier up cleanly at the next `Batch` morsel boundary to a fully
      fused pipeline stitched from pre-compiled Zig object-code stencils
@@ -107,10 +107,10 @@ accounting as the reference interpreter.
      operators to the exact `TableSchema`, column types ($\tau$), physical codecs
      ($\epsilon$) and collations ($\kappa$) at build time, eliminating all runtime
      type/column switches.
-   - Inline deterministic Zig UDFs ([Milestone 11](11-sql-and-dataflows.md))
+   - Inline deterministic Zig UDFs ([Milestone 12](12-sql-and-dataflows.md))
      directly into the fused morsel register loop with zero per-row call or
      serialization overhead.
-   - Bake `comptime` perfect hash tables ([Milestone 13](13-vectorized-strings-and-search.md))
+   - Bake `comptime` perfect hash tables ([Milestone 14](14-vectorized-strings-and-search.md))
      for constant `IN (...)` sets and static lookup tables directly into `.rodata`.
    - Verify the compiled module's schema/definition digest against the active
      catalog cut at pin acquisition; reject or fall back cleanly if the runtime
@@ -171,4 +171,4 @@ implementations.
 - Ad-hoc plan binding/specialization completes within a bounded memory slab with
   zero steady-state heap allocations during morsel execution and respects the
   per-morsel CPU cycle, memory and IOPS budgets established in
-  [Milestone 12](12-data-structures-and-performance.md).
+  [Milestone 13](13-data-structures-and-performance.md).

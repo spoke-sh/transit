@@ -1,4 +1,4 @@
-# 34. Declarative language, structural context and corpus-native synthesis research
+# 35. Declarative language, structural context and corpus-native synthesis research
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -9,14 +9,14 @@ underlying physical data structures, index layouts, ranking heuristics and
 predictors completely swappable.
 
 This is a **speculative research milestone**. Nothing here is required for the
-[1.0 qualification and release gates](33-releases.md), and no candidate physical
+[1.0 qualification and release gates](34-releases.md), and no candidate physical
 algorithm named below (whether Block-Max BM25, trigram bitmaps, succinct
 FM-indexes/Wavelet Trees, grammar compression, distributional sketches or branch
 tree search) is assumed to be the winning implementation ahead of empirical
 measurement. The architectural goal is to define **declarative contracts**
 ($\tau \perp \kappa \perp \epsilon$) so candidate mechanisms can be plugged in,
 verified against deterministic scalar reference oracles, and evaluated on the
-[qualification scorecard](32-qualification-and-benchmarks.md).
+[qualification scorecard](33-qualification-and-benchmarks.md).
 
 ## Prerequisites and scope
 
@@ -25,17 +25,17 @@ Build on the delivered and planned foundations across
 [transactions](05-transactions-and-atomic-composition.md),
 [streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md),
 [logical Document storage](07-document-storage-and-station-decoupling.md),
-[collations and historical catalogs](09-standards-and-catalogs.md),
-[indexing](10-indexing-and-access-paths.md),
-[analytical SQL and dataflows](11-sql-and-dataflows.md),
-[data structures and per-morsel resource metering](12-data-structures-and-performance.md),
-[first-class strings and vectorized search](13-vectorized-strings-and-search.md),
-[data-centric compilation](14-data-centric-compilation-and-specialization.md),
-[Document profiles and exchange lifecycle](15-document-profiles-and-gateway-exchange-lifecycle.md),
-[multi-model and graph projections](16-multi-model-and-foreign-relations.md),
-[branches and merges](17-branches-merges-and-restore.md),
-[reviewed collaboration](26-reviewed-data-collaboration.md) and
-[reactive context and agent activation](29-reactive-context-and-agent-activation.md).
+[collations and historical catalogs](10-standards-and-catalogs.md),
+[indexing](11-indexing-and-access-paths.md),
+[analytical SQL and dataflows](12-sql-and-dataflows.md),
+[data structures and per-morsel resource metering](13-data-structures-and-performance.md),
+[first-class strings and vectorized search](14-vectorized-strings-and-search.md),
+[data-centric compilation](15-data-centric-compilation-and-specialization.md),
+[Document profiles and exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md),
+[multi-model and graph projections](17-multi-model-and-foreign-relations.md),
+[branches and merges](18-branches-merges-and-restore.md),
+[reviewed collaboration](27-reviewed-data-collaboration.md) and
+[reactive context and agent activation](30-reactive-context-and-agent-activation.md).
 
 Start from the [data model](../handbook/reference/data-model.md) and the
 [observation and feedback loop](../handbook/reference/collaborative-decisions.md#the-observation-and-feedback-loop).
@@ -87,7 +87,7 @@ storage or search:
   snapshot with zero index dependencies.
 - **Swappable physical candidates ($\epsilon$):**
   - 1-level `.dictionary` and `.fsst` symbol tables from
-    [Milestone 13](13-vectorized-strings-and-search.md).
+    [Milestone 14](14-vectorized-strings-and-search.md).
   - Deterministic subword tokenizers (BPE / Unigram tables) stored as immutable
     catalog artifacts.
   - Structural/incremental syntax segmenters (`Tree-sitter` / PEG / region
@@ -116,7 +116,7 @@ reference graph.
 - **Swappable physical candidates ($\epsilon$):**
   - **Bag-of-words and block-pruned lexical indexes:** 256-document Block-Max
     BM25 posting blocks (`MAXSCORE` / Block-Max WAND) qualified in
-    [Milestone 13](13-vectorized-strings-and-search.md).
+    [Milestone 14](14-vectorized-strings-and-search.md).
   - **Sub-linear substring, multi-pattern and fuzzy automata:** `.tseg`
     positional trigram bitmaps, minimal acyclic Finite-State Transducers
     (`FST`), SIMD multi-literal shuffle prefilters (`Teddy` / Glushkov NFA) and
@@ -130,7 +130,7 @@ reference graph.
     reference edges (call graphs, def-use chains, foreign keys, citations) and
     corpus-derived distributional co-occurrence graphs (Pointwise Mutual
     Information `PPMI`, `MinHash` / `SimHash` sketches, or ANN embeddings) via
-    [Milestone 12's](12-data-structures-and-performance.md) Worst-Case Optimal
+    [Milestone 13's](13-data-structures-and-performance.md) Worst-Case Optimal
     Joins (WCOJ) and SIMD bitmask intersections.
 
 ### 3. Declarative context-conditioned continuation and synthesis
@@ -144,8 +144,8 @@ computed:
 - **Declarative contract:** A continuation or synthesis operation binds three
   explicit inputs:
   1. **`CONTEXT` Basis:** Any valid Transit query, view or multi-model
-     retrieval plan ([Milestone 16](16-multi-model-and-foreign-relations.md),
-     [Milestone 29](29-reactive-context-and-agent-activation.md)) pinned to a
+     retrieval plan ([Milestone 17](17-multi-model-and-foreign-relations.md),
+     [Milestone 30](30-reactive-context-and-agent-activation.md)) pinned to a
      `SnapshotId`, branch and security-barrier `policy_epoch` that defines the
      admissible universe of evidence.
   2. **`PREFIX` / Seed State:** The trailing span sequence, cursor neighbourhood
@@ -177,7 +177,7 @@ computed:
   - **Hybrid corpus + parametric predictors:** Combining non-parametric corpus
     continuation (for zero-hallucination domain facts, identifiers and SQL/code
     idioms) with local quantized models or governed external connectors
-    ([Milestone 30](30-recorded-mcp-integrations.md)) behind the same declarative
+    ([Milestone 31](31-recorded-mcp-integrations.md)) behind the same declarative
     `CONTEXT`, `CONSTRAINT` and provenance boundary.
 
 ### 4. Declarative agency: branch-isolated exploration, verification gates and outcome ledgers
@@ -191,20 +191,20 @@ stream primitives:
 - **Declarative contract:**
   1. **Activation (`WHEN`):** Declarative change, anomaly or queue conditions
      ([Milestone 6](06-streams-queues-and-durable-runtime.md),
-     [Milestone 29](29-reactive-context-and-agent-activation.md)) that wake a
+     [Milestone 30](30-reactive-context-and-agent-activation.md)) that wake a
      computation with an exact recorded input basis.
   2. **Sandboxed Exploration (`ON BRANCH` + `WITH BUDGET`):** Candidate queries,
      schema/data edits or workflow steps execute inside lightweight zero-copy
-     branches ([Milestone 17](17-branches-merges-and-restore.md)) under strict
+     branches ([Milestone 18](18-branches-merges-and-restore.md)) under strict
      per-morsel CPU, memory and IOPS budgets
-     ([Milestone 12](12-data-structures-and-performance.md)) so speculative
+     ([Milestone 13](13-data-structures-and-performance.md)) so speculative
      search never mutates authoritative state or starves production tenants.
   3. **Deterministic Verification Gate (`VERIFY`):** Declarative invariants—SQL
      `CHECK` and `FOREIGN KEY` constraints
-     ([Milestone 9](09-standards-and-catalogs.md)), `Plan.bind()` type/schema
+     ([Milestone 10](10-standards-and-catalogs.md)), `Plan.bind()` type/schema
      validation, test assertions and policy rules—that a candidate branch must
      satisfy before it can be surfaced as a reviewed proposal
-     ([Milestone 26](26-reviewed-data-collaboration.md)) or committed.
+     ([Milestone 27](27-reviewed-data-collaboration.md)) or committed.
   4. **Closed-Loop Outcome Attribution (`TWAL1` $\to$ `.tseg`):** Every
      explored trajectory—`(Context Basis, Proposed Continuation/Action,
      Verification Outcome, Subsequent Business Consequence)`—is recorded in
@@ -226,4 +226,4 @@ stream primitives:
 | Declarative Spans & Segmenters | Deterministic scalar segmenter oracle, byte-offset and five-state fidelity across UTF-8/EBCDIC/binary inputs, and measured compression vs. random-access cost of flat `.fsst`/`.dictionary` vs. hierarchical/grammar encodings |
 | Multi-Scale Proximity (`NEAR`) | Exact agreement with the finite linear/interval/graph reference oracle; measured latency, index size, build/compaction amplification and selective pruning across Block-Max BM25, trigram/automaton, succinct tree (`BP`) and WCOJ graph profiles |
 | Context-Conditioned Continuation | Provenance completeness (zero leakage from unauthorized or `.tdel`-deleted rows), grammar/catalog constraint soundness, and comparative quality/latency/memory scorecards (exact scan vs. bounded $n$-gram vs. succinct `r-index`/Wavelet Tree vs. hybrid predictors) on SQL/code completion and enterprise synthesis workloads |
-| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](32-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |
+| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](33-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |

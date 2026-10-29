@@ -1,4 +1,4 @@
-# 15. Document type library, protocol grammars and gateway exchange lifecycle
+# 16. Document type library, protocol grammars and gateway exchange lifecycle
 
 [Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
 
@@ -21,12 +21,13 @@ authority and document storage strictly decoupled.
 Consume [transactions](05-transactions-and-atomic-composition.md),
 [declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md),
 [logical document storage and Station decoupling](07-document-storage-and-station-decoupling.md),
-[standards, collations and historical catalogs](09-standards-and-catalogs.md),
-[indexing](10-indexing-and-access-paths.md),
-[analytical SQL and dataflows](11-sql-and-dataflows.md),
-[zero-allocation slabs and buffer management](12-data-structures-and-performance.md),
-[first-class strings, perfect hashing and vectorized search](13-vectorized-strings-and-search.md)
-and [data-centric compilation and AOT specialization](14-data-centric-compilation-and-specialization.md).
+[gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md),
+[standards, collations and historical catalogs](10-standards-and-catalogs.md),
+[indexing](11-indexing-and-access-paths.md),
+[analytical SQL and dataflows](12-sql-and-dataflows.md),
+[zero-allocation slabs and buffer management](13-data-structures-and-performance.md),
+[first-class strings, perfect hashing and vectorized search](14-vectorized-strings-and-search.md)
+and [data-centric compilation and AOT specialization](15-data-centric-compilation-and-specialization.md).
 Start from [Documents](../handbook/reference/documents.md),
 [serving](../handbook/reference/serving.md),
 [connectors](../handbook/reference/connectors.md),
@@ -151,7 +152,7 @@ flowchart LR
      `DOCX`/`XLSX`/`ODF`, or a `PDF` with embedded files) to reference child
      parts as typed nodes (`part_ref`) within the same `DocumentPartition`
      snapshot, enforcing strict decompression-ratio, part-count and byte budgets
-     via [Milestone 12's](12-data-structures-and-performance.md)
+     via [Milestone 13's](13-data-structures-and-performance.md)
      `MeteredAllocator` to prevent zip-bomb or decompression-bomb amplification.
    - **Non-aborting five-state schema, grammar and formula validation:** Attach
      optional declarative schemas (`JSON_SCHEMA`, `XSD`, EDI implementation guide,
@@ -218,9 +219,9 @@ flowchart LR
 
 4. **Build the shared suite of zero-allocation SIMD structural scanners and `transit-app` AOT grammar specialization.**
    Apply the execution rules from
-   [Milestone 12](12-data-structures-and-performance.md),
-   [Milestone 13](13-vectorized-strings-and-search.md) and
-   [Milestone 14](14-data-centric-compilation-and-specialization.md):
+   [Milestone 13](13-data-structures-and-performance.md),
+   [Milestone 14](14-vectorized-strings-and-search.md) and
+   [Milestone 15](15-data-centric-compilation-and-specialization.md):
    - **Vectorized structural bitmask and TLV scanners:** Scan raw frames in
      64-byte cache-line blocks using `@Vector` SIMD instructions for quote/escape
      masks, XML `<`/`>`/`&` boundaries, HTTP/SMTP/SIP `CRLF` headers, EDI
@@ -228,14 +229,14 @@ flowchart LR
      swizzled LeanStore/Umbra buffer slabs with zero steady-state heap
      allocations after warmup.
    - **`comptime` and segment-sealed perfect hash vocabularies:** Use
-     [Milestone 13's](13-vectorized-strings-and-search.md) greedy association-table
+     [Milestone 14's](14-vectorized-strings-and-search.md) greedy association-table
      perfect hashing with 16-byte SIMD comparisons for closed protocol and
      document vocabularies (`HTTP`/`SMTP`/`SIP` headers, `XML`/`DOCX`/`XLSX`
      schema tags, `EDI` X12/EDIFACT segment IDs, `LDAP` OIDs, `PDF` dictionary
      `/Name` keys) at `comptime`, and seal per-segment perfect hash directories
      for custom document keys at `.tseg` flush time.
    - **Ahead-of-Time (`transit-app`) grammar & shredder compilation:** Extend
-     [Milestone 14's](14-data-centric-compilation-and-specialization.md) AOT Zig
+     [Milestone 15's](15-data-centric-compilation-and-specialization.md) AOT Zig
      compiler so declared XML/OOXML schemas, EDI transaction-set guides, LDAP
      schemas or protocol contracts compile ahead of time into branchless Zig
      state machines and `.tseg` subcolumn shredders.
@@ -282,14 +283,14 @@ flowchart LR
 
 6. **Expose unified SQL, structural/spatial search, spreadsheet relational views and Board inspection.**
    Make every Document Profile, compound office document and captured exchange a
-   first-class citizen of `Fuze` SQL, search and [Board](27-board-reimplementation.md):
+   first-class citizen of `Fuze` SQL, search and [Board](28-board-reimplementation.md):
    - Query shredded paths, `LDAP` DN subtrees, `MQTT` topic wildcards, `NTP`
      clock-offset/uncertainty bounds, `XLSX`/`ODS` spreadsheet tables and `PDF`
      spatial/page spans through standard `Fuze` SQL (`SELECT`, `WHERE`,
-     `GROUP BY`, [Milestone 11](11-sql-and-dataflows.md) `AS OF JOIN`), five-state
+     `GROUP BY`, [Milestone 12](12-sql-and-dataflows.md) `AS OF JOIN`), five-state
      predicates (`IS MISSING`, `IS TYPE_ERROR`, `IS CONFLICT`) and byte/bbox
      provenance functions.
-   - Compose [Milestone 13's](13-vectorized-strings-and-search.md) vectorized
+   - Compose [Milestone 14's](14-vectorized-strings-and-search.md) vectorized
      256-document Block-Max BM25 and structural/spatial `NEAR` / `WITHIN`
      operators across `XML`, `DOCX`, `ODF`, `PDF`, `HTTP`, `SMTP`/`MIME` and
      `EDI` documents under a single pinned `SnapshotId` and `policy_epoch`.
@@ -350,19 +351,19 @@ connectors in the [proof ledger](../history/qualification/README.md):
 
 ## Later owners and execution gates
 
-- [Multi-model and multi-format foreign relations](16-multi-model-and-foreign-relations.md)
+- [Multi-model and multi-format foreign relations](17-multi-model-and-foreign-relations.md)
   composes these Document Profiles with property-graph (`SQL/PGQ`) projections,
   Worst-Case Optimal Joins (`WCOJ`), vector/hybrid ANN search, external
   `FOREIGN TABLE` / `COPY` datasets (`PARQUET`, `ARROW_IPC`, `CSV`, mainframe
   `FB`/`VB` copybooks) and streaming CDC ingress.
-- [Branches, merges and restore](17-branches-merges-and-restore.md) extends
+- [Branches, merges and restore](18-branches-merges-and-restore.md) extends
   zero-copy manifest branching and three-way structural/causal merging across
   all Document Profiles while keeping external effects disabled on branches by
   default.
-- [Board reimplementation](27-board-reimplementation.md) presents structured
+- [Board reimplementation](28-board-reimplementation.md) presents structured
   Document trees, container part graphs, spreadsheet/PDF previews, raw-frame
   byte provenance, five-state validation errors and exchange lineage graphs
   through read-only public queries.
-- [Recorded outbound MCP](30-recorded-mcp-integrations.md) reuses this
+- [Recorded outbound MCP](31-recorded-mcp-integrations.md) reuses this
   `DOCUMENT`-backed exchange capture and lineage model for governed agent tool
   and MCP interactions.
