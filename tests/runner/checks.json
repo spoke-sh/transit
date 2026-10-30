@@ -284,6 +284,16 @@
         ]
       },
       {
+        "id": "historical_catalog",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/historical_catalog.py"
+        ]
+      },
+      {
         "id": "sdk_layout",
         "phase": "static",
         "command": [

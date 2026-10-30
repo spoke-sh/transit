@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "contract_id": "transit.catalog.historical-manifest.v1",
+  "check_five_state_truth_table": [
+    {
+      "cell_state": "value",
+      "predicate_outcome": true,
+      "admitted": true,
+      "reason": null
+    },
+    {
+      "cell_state": "null",
+      "predicate_outcome": null,
+      "admitted": true,
+      "reason": null
+    },
+    {
+      "cell_state": "value",
+      "predicate_outcome": false,
+      "admitted": false,
+      "reason": "predicate_false"
+    },
+    {
+      "cell_state": "missing",
+      "predicate_outcome": null,
+      "admitted": false,
+      "reason": "missing_cell"
+    },
+    {
+      "cell_state": "type_error",
+      "predicate_outcome": null,
+      "admitted": false,
+      "reason": "type_error_cell"
+    },
+    {
+      "cell_state": "conflict",
+      "predicate_outcome": null,
+      "admitted": false,
+      "reason": "conflict_cell"
+    }
+  ],
+  "ebcdic_order_vectors": [
+    {
+      "inputs": [
+        "99  ",
+        "A1  ",
+        "a1  "
+      ],
+      "utf8_binary_order": [
+        "99  ",
+        "A1  ",
+        "a1  "
+      ],
+      "ebcdic_037_pad_order": [
+        "a1  ",
+        "A1  ",
+        "99  "
+      ],
+      "pad_equivalence": {
+        "left": "A1",
+        "right": "A1  ",
+        "ebcdic_037_pad_equal": true,
+        "utf8_binary_equal": false
+      }
+    }
+  ],
+  "historical_lineage": {
+    "manifests": [
+      {
+        "manifest_version": 1,
+        "commit_lsn": 10,
+        "branch": "main",
+        "tzdb_version": "tzdb_2026a",
+        "tzdb_digest_hex": "601bfef9992d30f3ddd10f3b2f8306e4c051bada70a504e57ceb7f71f5882661",
+        "tables": [
+          {
+            "namespace": 1,
+            "name": "orders",
+            "object": 10,
+            "revision": 1,
+            "columns": [
+              {
+                "id": 1,
+                "name": "id",
+                "type": "int64",
+                "collation": "none"
+              },
+              {
+                "id": 2,
+                "name": "legacy_code",
+                "type": "utf8",
+                "collation": "ebcdic_037_pad"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "manifest_version": 2,
+        "commit_lsn": 20,
+        "branch": "main",
+        "tzdb_version": "tzdb_2026a",
+        "tzdb_digest_hex": "601bfef9992d30f3ddd10f3b2f8306e4c051bada70a504e57ceb7f71f5882661",
+        "tables": [
+          {
+            "namespace": 1,
+            "name": "orders",
+            "object": 10,
+            "revision": 2,
+            "columns": [
+              {
+                "id": 1,
+                "name": "id",
+                "type": "int64",
+                "collation": "none"
+              },
+              {
+                "id": 2,
+                "name": "code",
+                "type": "utf8",
+                "collation": "ebcdic_037_pad"
+              },
+              {
+                "id": 3,
+                "name": "region",
+                "type": "utf8",
+                "collation": "none",
+                "origin_default": "EU-WEST"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "manifest_version": 3,
+        "commit_lsn": 30,
+        "branch": "main",
+        "tzdb_version": "tzdb_2026b",
+        "tzdb_digest_hex": "f4809233e6a5a5626e6dfe31315600fff60293a20b1e044b16a53040120ad916",
+        "tables": [
+          {
+            "namespace": 1,
+            "name": "orders_archive",
+            "object": 10,
+            "revision": 3,
+            "columns": [
+              {
+                "id": 1,
+                "name": "id",
+                "type": "int64",
+                "collation": "none"
+              },
+              {
+                "id": 3,
+                "name": "region",
+                "type": "utf8",
+                "collation": "none",
+                "origin_default": "EU-WEST"
+              }
+            ]
+          },
+          {
+            "namespace": 1,
+            "name": "orders",
+            "object": 20,
+            "revision": 1,
+            "columns": [
+              {
+                "id": 1,
+                "name": "id",
+                "type": "int64",
+                "collation": "none"
+              },
+              {
+                "id": 2,
+                "name": "code",
+                "type": "int64",
+                "collation": "none"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "S1_as_of_manifest_v1_native_schema",
+        "query_table": "orders",
+        "as_of_manifest": 1,
+        "project_to_manifest": null,
+        "resolved_object": 10,
+        "historical_revision": 1,
+        "output_revision": 1,
+        "output_columns": [
+          "id",
+          "legacy_code"
+        ]
+      },
+      {
+        "id": "S2_as_of_manifest_v1_projecting_to_v3",
+        "query_table": "orders",
+        "as_of_manifest": 1,
+        "project_to_manifest": 3,
+        "resolved_object": 10,
+        "historical_revision": 1,
+        "output_revision": 3,
+        "output_columns": [
+          "id",
+          "region"
+        ],
+        "synthesized_default_columns": 1,
+        "omitted_dropped_columns": 1
+      },
+      {
+        "id": "S3_recreated_table_lineage_isolation",
+        "query_table": "orders",
+        "as_of_manifest": 3,
+        "project_to_manifest": 1,
+        "resolved_object": 20,
+        "expected_error": "IncompatibleHistoricalObjectLineage"
+      },
+      {
+        "id": "S4_current_policy_epoch_metadata_vs_select",
+        "policy_epoch": 10,
+        "metadata_only_describe_as_of": "admitted",
+        "metadata_only_select_as_of": "error.RowSelectPermissionDenied"
+      },
+      {
+        "id": "S5_mid_stream_batch_revocation",
+        "batch_1_policy_epoch": 11,
+        "batch_1_outcome": "disclosed",
+        "batch_2_policy_epoch": 12,
+        "batch_2_outcome": "error.AuthorizationRevokedMidStream"
+      },
+      {
+        "id": "S6_retention_watermark_expiry",
+        "min_retained_manifest_version": 2,
+        "query_as_of_manifest": 1,
+        "expected_error": "error.HistoricalSnapshotExpired"
+      }
+    ],
+    "cross_milestone_handoffs": {
+      "M11_foreign_key_runtime_index_enforcer": "error.ForeignKeyIndexEnforcementUnavailable",
+      "M11_online_phased_table_rewrite": "error.OnlinePhasedRewriteRequired",
+      "M18_sql_pgq_graph_table_execution": "error.SqlPgqExecutionDeferredToM18",
+      "M18_sql_med_foreign_table_scan": "error.SqlMedScanDeferredToM18",
+      "M19_multi_commit_branch_divergence": "error.MultiCommitBranchingDeferredToM19"
+    }
+  }
+}
