@@ -565,19 +565,20 @@ pub fn Host(comptime Provider: type) type {
                     }
                     return error.LocalRouteMissing;
                 }
-                if (std.mem.eql(u8, invocation.path, "/v1/query")) {
-                    const request = try invocation.request(g.SignedQuery);
-                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
-                    return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
-                }
+                if (std.mem.eql(u8, invocation.path, "/v1/query")) return localQuery(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/command")) return self.localCommand(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/blocks")) return localBlocks(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/payload")) return localPayload(&server, invocation);
                 return error.LocalRouteMissing;
             }
-            // Bulk envelopes/results need large bounded frames. Keep their
-            // stack probes off ordinary Table and metadata calls, while retaining
+            // Native envelopes/results need large bounded frames. Keep their
+            // stack probes off Table calls, while retaining
             // the enclosing lane, deadline and joined cleanup for every route.
+            noinline fn localQuery(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const request = try invocation.request(g.SignedQuery);
+                g.validateQuery(request.query) catch return error.InvalidLocalRequest;
+                return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
+            }
             noinline fn localCommand(self: *Context, server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const io = server.io;
                 const lane = server.lane;
