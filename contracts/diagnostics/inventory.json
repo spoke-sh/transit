@@ -5216,13 +5216,13 @@
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 34,
+        "InvalidQueueDestination": 2,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
-        "TableSegmentMissing": 1,
-        "UnsupportedQueueDeadLetterCollection": 1
+        "TableSegmentMissing": 1
       },
       "outcomes": {
         "DocumentIndexKind": [
@@ -5272,6 +5272,7 @@
           "catalog_intent",
           "log_operation",
           "log_declaration",
+          "queue_destination",
           "log_partitions",
           "log_initialization",
           "log_history",
@@ -5322,7 +5323,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 378,
+        "try": 383,
         "catch": 1
       },
       "imports": [
@@ -31515,11 +31516,11 @@
     "packages/zig/transit-storage/src/LogDeclaration.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogDeclaration": 10,
+        "InvalidLogDeclaration": 13,
         "InvalidLogKeyColumn": 1,
         "InvalidQueueDestination": 1,
         "InvalidStreamTimestampColumn": 1,
-        "LogDeclarationMissing": 1,
+        "LogDeclarationMissing": 2,
         "LogDeclarationTooLarge": 2,
         "UnsupportedLogPrimaryKey": 1
       },
@@ -31533,12 +31534,14 @@
         "Stored.validate()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
+        "loadContent()": "<inferred>",
         "prepare()": "<inferred>",
+        "resolve()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 53,
         "catch": 0
       },
       "imports": [

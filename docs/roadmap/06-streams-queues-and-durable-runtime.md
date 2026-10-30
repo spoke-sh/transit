@@ -438,7 +438,9 @@ The current progress slice delivers:
   original outcomes and the combined Table/Stream maintenance regression.
   A bounded exact-lease heap now caches the earliest active deadline prefix and
   invalidates on changed durable lease state; its capacity does not limit the
-  active population. Hierarchical timing-wheel and far-future run integration,
+  active population. Retained graph traversal now follows exact historical DLQ
+  definitions from declarations and blocked items, refusing missing or invalid
+  destinations. Hierarchical timing-wheel and far-future run integration,
   affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement

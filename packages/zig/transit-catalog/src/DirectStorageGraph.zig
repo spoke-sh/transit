@@ -91,6 +91,7 @@ pub const Work = union(enum) {
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
     log_operation: struct { configuration: r.Configuration, operation: c.DirectLog.Operation },
     log_declaration: s.LogDeclaration.Stored,
+    queue_destination: d.Definition,
     log_partitions: struct { definition: c.DirectLog.Definition, initialized: u32, next: u32 = 0 },
     log_initialization: s.LogInitialization.Request,
     log_history: s.LogStorageRoots,
@@ -201,9 +202,13 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             if (!std.meta.eql(entry.key, try s.LogPartitionRecord.integerKey(item.offset)) or item.batch_next > context.next_offset or
                 (item.next_key != null and item.next_key.? >= context.next_offset)) return error.InvalidLogStorageGraph;
             if (item.lease) |lease| try context.requireTarget(lease.target);
-            // A recorded blocked destination needs catalog dependency closure
-            // before any collector may remove its exact definition.
-            if (item.blocked == .dead_letter) return error.UnsupportedQueueDeadLetterCollection;
+            if (item.blocked == .dead_letter) {
+                const destination = item.blocked.dead_letter;
+                if (!std.meta.eql(destination.object.scope, context.interpretation.object.scope) or
+                    destination.object.branch != context.interpretation.object.branch or
+                    std.meta.eql(destination.object, context.interpretation.object)) return error.InvalidQueueDestination;
+                try workspace.enqueue(.{ .queue_destination = destination });
+            }
         },
         .queue_sidecars => {
             const manifest = try s.Tack.decode(entry.value.data[0..entry.value.len]);
@@ -333,7 +338,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -562,6 +567,15 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             var declaration = try s.LogDeclaration.load(allocator, index.store, stored);
             defer declaration.deinit();
             try markContent(workspace, try s.LogDeclaration.key(stored.content, &key_buffer), stored.content);
+            if (stored.declaration.configuration.policy == .queue) {
+                if (stored.declaration.configuration.policy.queue.dead_letter) |destination| try workspace.enqueue(.{ .queue_destination = destination });
+            }
+        },
+        .queue_destination => |interpretation| {
+            var declaration = try s.LogDeclaration.resolve(allocator, index.store, interpretation);
+            defer declaration.deinit();
+            if (declaration.definition.configuration.policy != .queue or declaration.definition.retired) return error.InvalidQueueDestination;
+            try workspace.enqueue(.{ .log_declaration = try declaration.stored() });
         },
         .log_partitions => |*value| {
             try value.definition.validate();

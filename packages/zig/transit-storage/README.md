@@ -103,8 +103,11 @@ candidate and compares its root without writing objects; collected intermediate
 pages are not replay dependencies. Sealing, archive/checkpoint and WAL trimming
 preserve original payloads and outcomes. The direct retained graph marks Queue
 metadata, nested full-key directories and all sidecar bitmap containers before
-reclamation. Recorded DLQ destinations conservatively stop collection until
-their historical dependency closure is implemented.
+reclamation. Queue declarations and blocked items retain each exact recorded DLQ
+definition and its declaration dependencies. Resolution verifies immutable bytes
+against the complete object/revision/digest identity, independently of current
+names. Missing, incompatible or invalid destinations stop the mark pass; they
+cannot establish permission to reclaim the source or transfer its payload.
 
 `QueuePartition.claim` freezes a bounded original selection from eligible FIFO
 heads, capped by declared and deployment limits and remaining active-lease

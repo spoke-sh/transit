@@ -9,6 +9,32 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Historical Queue destination closure — 2026-10-30
+
+The exact-definition resolver and retained graph extension pass focused storage
+and catalog checks on dirty parent `140be1469`. The graph fixture exhausts
+leases through NACK and expiry, then traverses the item directory in isolation.
+It retains the original DLQ definition and that definition's own destination,
+without a source declaration or catalog root masking either edge. A separately
+staged later retirement is not substituted. Full traversal, actual removal of
+unmarked objects and owner reopen preserve original claims, blocked destinations
+and payloads. The fixture uses the memory object provider; the declaration
+resolver separately runs across disk reopen.
+
+Negative cases reject missing bytes, changed object/revision attribution, a
+retired target, a Stream target, foreign contract bytes and truncated bounds.
+Each graph step emits at most three children. Logs are
+`/var/tmp/transit-queue-destination-storage-final.log` and
+`/var/tmp/transit-queue-destination-graph-final.log`. All 48 fast checks pass in
+`/var/tmp/transit-queue-destination-fast.log`. The ReleaseSafe native direct-data
+collection regression also passes in
+`/var/tmp/transit-queue-destination-native-collection.log`; that existing disk
+schedule verifies the collector integration, not a DLQ payload transfer.
+
+These are workspace checks with existing caches. They establish historical
+definition retention and refusal, not current destination append authority,
+terminal source reclamation, atomic transfer or clean-lane qualification.
+
 ## Bounded active-lease cache — 2026-10-30
 
 `140be1469` adds the exact-lease heap and binds each cached prefix to its durable

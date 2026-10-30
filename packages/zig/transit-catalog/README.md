@@ -31,8 +31,9 @@ Pages retain the original schema and payload while reporting current lease state
 separately. `DirectQueueResponse` validates that attribution, observation basis,
 row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
-Saved work preserves the exact original mutation and payload commitment. SQL,
-automatic expiry scheduling, DLQ transfer and mixed transactions remain unavailable.
+Saved work preserves the exact original mutation and payload commitment. The
+local node performs bounded automatic lease expiry through catalog maintenance.
+SQL, DLQ transfer and mixed transactions remain unavailable.
 
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
@@ -79,7 +80,11 @@ even after a later Table definition becomes current.
 resumable collector. It joins these catalog roots with Table history/recovery,
 live snapshots, original receipts and intents. Durable work/marks and physical
 deletion stay in the backend; this graph grants no read or deletion authority
-on its own. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+on its own. Queue declarations and blocked items retain exact historical DLQ
+definitions, including their own destination dependencies. A separate bounded
+work item resolves each immutable definition; current names or later revisions
+cannot substitute for the recorded identity. Missing or invalid destinations
+refuse closure. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, bounded work and permanently retained namespaces.
 
 `DirectResourceClient` uses the same directory for named native KV and Document

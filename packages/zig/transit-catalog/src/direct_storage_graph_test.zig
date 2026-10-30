@@ -47,7 +47,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     var context: u8 = 0;
     const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
     const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
-    var declaration = try s.LogDeclaration.prepare(t.allocator, .{
+    var definition: s.LogDeclaration.Definition = .{
         .object = .{ .scope = scope_id, .branch = 1, .object = 8 },
         .revision = 1,
         .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .ascii_ci }} },
@@ -58,7 +58,36 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         },
         .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
         .properties = "queue-graph",
-    });
+    };
+    var target_definition = definition;
+    target_definition.object.object = 10;
+    target_definition.schema.object = 10;
+    var terminal_destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer terminal_destination.deinit();
+    const terminal_stored = try s.LogDeclaration.stage(objects.objectStore(), &terminal_destination);
+    target_definition.object.object = 9;
+    target_definition.schema.object = 9;
+    target_definition.configuration.policy.queue.dead_letter = terminal_stored.declaration.interpretation;
+    var destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer destination.deinit();
+    const destination_stored = try s.LogDeclaration.stage(objects.objectStore(), &destination);
+    target_definition.revision = 2;
+    target_definition.retired = true;
+    target_definition.configuration.policy.queue.dead_letter = null;
+    var replacement = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer replacement.deinit();
+    const replacement_stored = try s.LogDeclaration.stage(objects.objectStore(), &replacement);
+    target_definition.object.object = 11;
+    target_definition.schema.object = 11;
+    target_definition.revision = 1;
+    target_definition.retired = false;
+    target_definition.configuration.policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } };
+    var stream_destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer stream_destination.deinit();
+    const stream_stored = try s.LogDeclaration.stage(objects.objectStore(), &stream_destination);
+    definition.configuration.policy.queue.maximum_attempts = 1;
+    definition.configuration.policy.queue.dead_letter = destination_stored.declaration.interpretation;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
     defer declaration.deinit();
     const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
     const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
@@ -101,6 +130,42 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     _ = try owner.trimArchived(guard);
     const root = owner.owner.root;
     try t.expect(!std.meta.eql(frozen_batches, root.batches.?));
+    // Isolate the accepted item directory: neither source declaration nor
+    // catalog/history traversal may mask a missing blocked-destination edge.
+    {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        try isolated.enqueue(.{ .log_index = .{
+            .context = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = root.archive },
+            .reference = root.queue.?.items.?,
+            .kind = .queue_items,
+        } });
+        var job: usize = 0;
+        var steps: usize = 0;
+        while (job < isolated.jobs.items.len) : (job += 1) {
+            var work = isolated.jobs.items[job];
+            while (true) {
+                const queued = isolated.jobs.items.len;
+                const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated);
+                try t.expect(isolated.jobs.items.len - queued <= 3);
+                steps += 1;
+                if (steps > 1000) return error.FixtureBudget;
+                if (complete) break;
+            }
+        }
+        var name: [96]u8 = undefined;
+        for ([_]s.LogDeclaration.Stored{ destination_stored, terminal_stored }) |stored| try t.expect(isolated.marks.contains(try s.LogDeclaration.key(stored.content, &name)));
+        try t.expect(!isolated.marks.contains(try s.LogDeclaration.key(replacement_stored.content, &name)));
+        var invalid: Graph.Work = .{ .queue_destination = replacement_stored.declaration.interpretation };
+        try t.expectError(error.InvalidQueueDestination, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid = .{ .queue_destination = stream_stored.declaration.interpretation };
+        try t.expectError(error.InvalidQueueDestination, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid = .{ .queue_destination = destination_stored.declaration.interpretation };
+        invalid.queue_destination.revision += 1;
+        try t.expectError(error.InvalidLogDeclaration, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid.queue_destination.digest = @splat(99);
+        try t.expectError(error.LogDeclarationMissing, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+    }
     var latest = try wal.log().read(t.allocator, 92, root.next_lsn - 1, 1);
     defer latest.deinit();
     var workspace: Workspace = .{};
@@ -122,6 +187,8 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     var name: [96]u8 = undefined;
     try t.expect(workspace.marks.contains(try s.TreeStore.key(frozen_batches.location, &name)));
     try t.expect(workspace.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
+    for ([_]s.LogDeclaration.Stored{ destination_stored, terminal_stored }) |stored| try t.expect(workspace.marks.contains(try s.LogDeclaration.key(stored.content, &name)));
+    try t.expect(!workspace.marks.contains(try s.LogDeclaration.key(replacement_stored.content, &name)));
     for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys, root.queue.?.eligible }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
     var removed: usize = 0;
     var at: usize = 0;
@@ -149,6 +216,8 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     try t.expect(payload_page.cursor.complete() and payload_page.rows().len == 16);
     try t.expectEqual(c.protocol.QueueRead.State.acked, payload_page.rows()[0].lease.state);
     try t.expectEqual(c.protocol.QueueRead.Liveness.fenced, payload_page.rows()[1].lease.liveness);
+    try t.expectEqualDeep(c.protocol.QueueRead.Blocked{ .dead_letter = destination_stored.declaration.interpretation }, payload_page.rows()[1].lease.blocked);
+    try t.expectEqualDeep(c.protocol.QueueRead.Blocked{ .dead_letter = destination_stored.declaration.interpretation }, payload_page.rows()[2].lease.blocked);
     try t.expectEqual(c.protocol.QueueRead.Liveness.expired, payload_page.rows()[3].lease.liveness);
     var decoded_payload = try c.fuze.TableRow.decode(t.allocator, declaration.definition.schema, payload_page.rows()[0].encoded);
     defer decoded_payload.deinit();
