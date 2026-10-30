@@ -9,6 +9,48 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Signed Stream payload and consumer operations — 2026-10-30
+
+The work committed as `3a596ba31` composes `DirectStream` with the local signed
+catalog endpoint and shared `Catalog.callStream`. The owning
+[payload contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+defines current behavior, budgets and grants.
+
+The pinned-shell `zig build test-direct-table-service -Doptimize=ReleaseSafe -- tables`
+passed **2,052 typed HTTP calls** on local disk. The Stream caller saves original
+append/read work before sending it, recovers deliberately corrupted append,
+consume, offset and release responses, reads bounded pages, and settles a group
+only with complete authenticated coverage. After node replacement, the original
+append returns the same range and a saved read cursor returns its original
+schema and offsets despite later RENAME and ALTER. The existing Table pressure,
+reserved-control, CRUD/DDL, retained-history, projection, collation, restart and
+authorization-lifetime schedules also pass.
+
+| Executable | SHA-256 |
+| --- | --- |
+| `transit-node` | `2420ed443b598d3a83f31dbe2509c639f306f52f9e43d414d135153a51d1eca9` |
+| `transit-direct-table-proof` | `b051f2b34a91656e84b022ce4c704410314ae84c53b8c126b1907a6a10616596` |
+
+The HTTP binaries were built from the uncommitted implementation before the
+final enum-order/schema cleanup and explicit fresh-read `LogRangeExpired`
+classification. The final source separately passes the native catalog selection
+`log privileges`, `log lifecycle publication`, `shared refusals`; the storage
+`stream partition expiry` tests; the shared data-client tests; and all 18
+`check-contracts` checks. Independent signing fixtures and catalog composition
+tests cover required definitions, full-width identities, exact intent hashes,
+buffer ownership and original work after declaration edits. The native
+composition test revokes permission after response serialization and suppresses
+the buffered page.
+
+Logs are `/var/tmp/transit-stream-native-service.log`,
+`/var/tmp/transit-stream-service-final.log`,
+`/var/tmp/transit-stream-range-expiry-test.log` and
+`/var/tmp/transit-stream-contract-check.log`. Documentation link and site checks
+also pass. These are local executions, not committed-source clean CI or a full
+nightly result. They do not qualify blocking waits, automatic Stream maintenance,
+uncertain deployed-clock intervals, Queue execution, mixed-kind transactions,
+SQL Stream verbs or provider power loss.
+
 ## Direct dispatcher stack isolation — 2026-10-30
 
 Hosted PR #256 qualification found an installed Board query provisioning crash.
