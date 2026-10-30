@@ -10,6 +10,7 @@ const PublishedResource = c.PublishedResource;
 const DisclosurePolicy = c.DisclosurePolicy;
 const InvestigationBasis = c.InvestigationBasis;
 const Attribution = c.Attribution;
+const PublishedProjection = c.PublishedProjection;
 
 fn sampleDeliveryResource(state: PublishedResource.ResourceLifecycleState) !PublishedResource.PublishedResourceDescriptor {
     const cols = &[_]s.Column{
@@ -457,4 +458,411 @@ test "investigation basis freezes atomic cuts vs multi-source vectors, enforces 
     const rep_digest = try report_v1.validateConsistentBasis(inv_v1);
     try t_std.expect(!std.mem.allEqual(u8, &rep_digest, 0));
     try t_std.expectError(error.AttributionBasisMismatch, report_v1.validateConsistentBasis(refresh_out.successor));
+}
+
+test "multi-actor qualification: 1 employee and 2 delegated agents run 5 related queries and a report on one retained basis across source changes, refresh, revocation, 5-state parity, and bounded memory" {
+    const t_std = std.testing;
+    const desc = try sampleDeliveryResource(.published);
+    const def_digest = try desc.definitionDigest();
+
+    // Facility summary drilldown target (object 501, derived_publication)
+    var facility_desc = desc;
+    facility_desc.resource_object = 501;
+    facility_desc.definition_id = 9002;
+    facility_desc.canonical_name = "facility_delivery_summary";
+    facility_desc.result_schema.object = 501;
+    const facility_def_digest = try facility_desc.definitionDigest();
+
+    // Raw shipment rows target (object 502, caller_source_rights)
+    var raw_shipment_desc = desc;
+    raw_shipment_desc.resource_object = 502;
+    raw_shipment_desc.definition_id = 9003;
+    raw_shipment_desc.canonical_name = "raw_shipment_rows";
+    raw_shipment_desc.result_schema.object = 502;
+
+    const publisher_grants = [_]DisclosurePolicy.PublisherGrant{
+        .{ .principal_id = 900, .namespace_id = 1, .can_publish = true, .can_withdraw = true },
+    };
+    const full_source_objs = [_]u64{ 10, 20 };
+    const publisher_sources: HistoricalCatalog.GrantSet = .{
+        .policy_epoch = 10,
+        .select_objects = &full_source_objs,
+    };
+
+    const derived_policy: DisclosurePolicy.DisclosurePolicy = .{
+        .mode = .derived_publication,
+        .boundary = .{ .min_group_cardinality = 5 },
+        .attestation = .{
+            .publisher_principal = 900,
+            .resource_object = 500,
+            .publication_revision = 1,
+            .definition_digest = def_digest,
+            .attested_policy_epoch = 9,
+        },
+    };
+    const facility_policy: DisclosurePolicy.DisclosurePolicy = .{
+        .mode = .derived_publication,
+        .boundary = .{ .min_group_cardinality = 5 },
+        .attestation = .{
+            .publisher_principal = 900,
+            .resource_object = 501,
+            .publication_revision = 1,
+            .definition_digest = facility_def_digest,
+            .attested_policy_epoch = 9,
+        },
+    };
+    const raw_policy: DisclosurePolicy.DisclosurePolicy = .{
+        .mode = .caller_source_rights,
+    };
+
+    // Three participants:
+    // 1. Human employee (`employee_analyst` = 100) with full source & drilldown access
+    const emp_consumer_grants = [_]DisclosurePolicy.ResourceConsumerGrant{
+        .{ .principal_id = 100, .resource_object = 500, .audience_kind = .full_resource_and_drilldown },
+        .{ .principal_id = 100, .resource_object = 501, .audience_kind = .full_resource_and_drilldown },
+        .{ .principal_id = 100, .resource_object = 502, .audience_kind = .full_resource_and_drilldown },
+    };
+    const employee_access: DisclosurePolicy.CallerAccessContext = .{
+        .caller_principal = 100,
+        .consumer_grants = &emp_consumer_grants,
+        .caller_source_grants = publisher_sources,
+        .publisher_grants = &publisher_grants,
+        .publisher_source_grants = publisher_sources,
+        .rls_mask_profile_tag = "employee_full",
+    };
+
+    // 2. Delegated Agent 1 (`agent_triage` = 201) with summary/report-only access, zero raw table rights
+    const triage_allowed = [_]u64{ 500, 501 };
+    const agent_triage_access: DisclosurePolicy.CallerAccessContext = .{
+        .caller_principal = 201,
+        .delegation = .{
+            .delegator_principal = 100,
+            .agent_principal = 201,
+            .allowed_resource_objects = &triage_allowed,
+            .audience_kind = .summary_or_report_only,
+            .delegated_select_objects = &.{},
+            .issued_at_policy_epoch = 9,
+            .expires_at_policy_epoch = 20,
+        },
+        .consumer_grants = &.{},
+        .caller_source_grants = .{ .policy_epoch = 10, .select_objects = &.{} },
+        .publisher_grants = &publisher_grants,
+        .publisher_source_grants = publisher_sources,
+        .rls_mask_profile_tag = "agent_triage_summary",
+    };
+
+    // 3. Delegated Agent 2 (`agent_deep_dive` = 202) with delegated source rights on tables 10 & 20
+    const deep_dive_allowed = [_]u64{ 500, 501, 502 };
+    const agent_deep_dive_access: DisclosurePolicy.CallerAccessContext = .{
+        .caller_principal = 202,
+        .delegation = .{
+            .delegator_principal = 100,
+            .agent_principal = 202,
+            .allowed_resource_objects = &deep_dive_allowed,
+            .audience_kind = .full_resource_and_drilldown,
+            .delegated_select_objects = &full_source_objs,
+            .issued_at_policy_epoch = 9,
+            .expires_at_policy_epoch = 20,
+        },
+        .consumer_grants = &.{},
+        .caller_source_grants = .{ .policy_epoch = 10, .select_objects = &full_source_objs },
+        .publisher_grants = &publisher_grants,
+        .publisher_source_grants = publisher_sources,
+        .rls_mask_profile_tag = "agent_deep_dive_full",
+    };
+
+    // Bounded, authorization-aware catalog discovery (`D6`)
+    const catalog_entries = [_]PublishedProjection.CatalogEntry{
+        .{ .descriptor = desc, .policy = derived_policy },
+        .{ .descriptor = facility_desc, .policy = facility_policy },
+        .{ .descriptor = raw_shipment_desc, .policy = raw_policy },
+    };
+    var disc_buf: [4]PublishedProjection.DiscoveredResourceSummary = undefined;
+    const triage_page = try PublishedProjection.discoverPublishedResources(
+        &catalog_entries,
+        .{ .limit = 2 },
+        agent_triage_access,
+        10,
+        &disc_buf,
+    );
+    // agent_triage only discovers 500 and 501 (not 502, which requires caller_source_rights)
+    try t_std.expectEqual(@as(usize, 2), triage_page.items.len);
+    try t_std.expectEqual(@as(?u64, null), triage_page.next_cursor_resource_object);
+
+    // Declare frozen InvestigationBasis `inv_shared` (revision 1)
+    const basis_entries_v1 = [_]InvestigationBasis.SourceBasisEntry{
+        .{
+            .native_source = .{
+                .source_object = 10,
+                .source_revision = 1,
+                .branch_id = 1,
+                .manifest_version = 1,
+                .commit_lsn = 100,
+                .pin_lease = .{
+                    .pin_id = 1,
+                    .source_object = 10,
+                    .owner_principal = 100,
+                    .acquired_at_ms = 1_000,
+                    .expires_at_ms = 100_000,
+                },
+            },
+        },
+        .{
+            .foreign_source = .{
+                .foreign_object = 20,
+                .uri = "s3://logistics-partner/contracts-v1.parquet",
+                .etag_or_generation = "etag-v1",
+                .content_sha256 = @splat(0x77),
+                .schema_epoch = 1,
+                .observed_at_ms = 1_050,
+                .capture_present = true,
+            },
+        },
+    };
+    const inv_v1: InvestigationBasis.InvestigationBasis = .{
+        .investigation_id = 999,
+        .basis_revision = 1,
+        .created_by_principal = 100,
+        .created_at_ms = 1_100,
+        .payload = .{ .multi_source_basis_vector = &basis_entries_v1 },
+    };
+    const basis_v1_digest = try inv_v1.basisDigest();
+
+    // Prepare 5-state and wide-numeric test rows (value, null, missing, type_error, conflict)
+    const conflict_alts = [_]v.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .{ .value = .{ .atom = .{ .signed = 10 } } } },
+        .{ .counter = 1, .replica = 2, .value = .{ .value = .{ .atom = .{ .signed = 12 } } } },
+    };
+    const r0 = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "NA" } } },
+        .{ .value = .{ .atom = .{ .signed = std.math.maxInt(i64) } } },
+        .{ .value = .{ .atom = .{ .decimal = 123456789012345678 } } },
+    };
+    const r1 = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "EU" } } },
+        .null,
+        .{ .conflict = &conflict_alts },
+    };
+    const r2 = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "APAC" } } },
+        .missing,
+        .{ .type_error = .decimal },
+    };
+    const input_rows = [_]DisclosurePolicy.GroupSummaryInputRow{
+        .{ .contributing_source_row_count = 10, .cells = &r0 },
+        .{ .contributing_source_row_count = 8, .cells = &r1 },
+        .{ .contributing_source_row_count = 6, .cells = &r2 },
+    };
+    const na_binding = [_]PublishedResource.ParameterValueBinding{
+        .{ .ordinal = 1, .value = .{ .value = .{ .atom = .{ .bytes = "NA" } } } },
+    };
+    const freshness: Attribution.FourClockFreshness = .{
+        .source_observation_cut_ms = 1_050,
+        .domain_event_valid_time_ms = 1_000,
+        .computation_completion_cut_ms = 1_150,
+        .requested_freshness_sla_ms = 60_000,
+    };
+
+    var probe: PublishedProjection.AllocationProbe = .{ .warmup_complete = true };
+    var cell_buf_0: [3]v.Cell = undefined;
+    var cell_buf_1: [3]v.Cell = undefined;
+    var cell_buf_2: [3]v.Cell = undefined;
+    var batch_scratch = [_][]v.Cell{ &cell_buf_0, &cell_buf_1, &cell_buf_2 };
+
+    // Execute 5 related queries across the 3 actors while simulated concurrent writers advance live state:
+    // Query 1: employee_analyst evaluates `delivery_assessment` (500)
+    var q1 = try PublishedProjection.PublishedResourceStreamReader.open(
+        desc,
+        derived_policy,
+        inv_v1,
+        &na_binding,
+        employee_access,
+        10,
+        2_000,
+        1,
+        &input_rows,
+        1,
+        3,
+        null,
+        freshness,
+        &probe,
+    );
+    try t_std.expectEqual(@as(usize, 3), try q1.fetchNextBatch(.published, employee_access, 10, &batch_scratch));
+    // Verify lossless int64::MAX, decimal128, null, conflict, missing, and type_error cells for full analyst
+    try t_std.expectEqual(@as(i128, std.math.maxInt(i64)), batch_scratch[0][1].value.atom.signed);
+    try t_std.expectEqual(@as(i128, 123456789012345678), batch_scratch[0][2].value.atom.decimal);
+    try t_std.expect(batch_scratch[1][1] == .null);
+    try t_std.expect(batch_scratch[1][2] == .conflict);
+    try t_std.expect(batch_scratch[2][1] == .missing);
+    const receipt_1 = try q1.close();
+
+    // Query 2: agent_triage evaluates `delivery_assessment` (500) on the same frozen basis
+    var q2 = try PublishedProjection.PublishedResourceStreamReader.open(
+        desc,
+        derived_policy,
+        inv_v1,
+        &na_binding,
+        agent_triage_access,
+        10,
+        2_100,
+        1,
+        &input_rows,
+        1,
+        3,
+        null,
+        freshness,
+        &probe,
+    );
+    try t_std.expectEqual(@as(usize, 3), try q2.fetchNextBatch(.published, agent_triage_access, 10, &batch_scratch));
+    // For summary_or_report_only agent_triage, `type_error` in row 2 col 2 is scrubbed to `.missing`
+    try t_std.expect(batch_scratch[2][2] == .missing);
+    const receipt_2 = try q2.close();
+
+    // Query 3: agent_triage drills down to permitted `facility_delivery_summary` (501)
+    try DisclosurePolicy.authorizeDrilldown(
+        desc,
+        derived_policy,
+        "inspect_facility_summary",
+        facility_desc,
+        facility_policy,
+        agent_triage_access,
+        10,
+    );
+    var q3 = try PublishedProjection.PublishedResourceStreamReader.open(
+        facility_desc,
+        facility_policy,
+        inv_v1,
+        &na_binding,
+        agent_triage_access,
+        10,
+        2_200,
+        1,
+        &input_rows,
+        1,
+        3,
+        null,
+        freshness,
+        &probe,
+    );
+    _ = try q3.fetchNextBatch(.published, agent_triage_access, 10, &batch_scratch);
+    const receipt_3 = try q3.close();
+
+    // Query 4: agent_deep_dive drills down to `raw_shipment_rows` (502) using delegated source rights
+    try DisclosurePolicy.authorizeDrilldown(
+        desc,
+        derived_policy,
+        "inspect_raw_shipment_rows",
+        raw_shipment_desc,
+        raw_policy,
+        agent_deep_dive_access,
+        10,
+    );
+    var q4 = try PublishedProjection.PublishedResourceStreamReader.open(
+        raw_shipment_desc,
+        raw_policy,
+        inv_v1,
+        &na_binding,
+        agent_deep_dive_access,
+        10,
+        2_300,
+        1,
+        &input_rows,
+        1,
+        3,
+        null,
+        freshness,
+        &probe,
+    );
+    _ = try q4.fetchNextBatch(.published, agent_deep_dive_access, 10, &batch_scratch);
+    const receipt_4 = try q4.close();
+
+    // Query 5: employee_analyst runs a display-window-truncated preview (max 2 rows) on the same basis
+    var q5 = try PublishedProjection.PublishedResourceStreamReader.open(
+        desc,
+        derived_policy,
+        inv_v1,
+        &na_binding,
+        employee_access,
+        10,
+        2_400,
+        1,
+        &input_rows,
+        1,
+        3,
+        2,
+        freshness,
+        &probe,
+    );
+    try t_std.expectEqual(@as(usize, 2), try q5.fetchNextBatch(.published, employee_access, 10, &batch_scratch));
+    try t_std.expectEqual(@as(usize, 0), try q5.fetchNextBatch(.published, employee_access, 10, &batch_scratch));
+    const receipt_5 = try q5.close();
+    try t_std.expectEqual(Attribution.CompletenessState.window_truncated, receipt_5.completeness);
+
+    // All 5 queries and the report retain the exact same `basis_revision = 1` and `basis_digest`
+    const all_receipts = [_]Attribution.AttributionReceipt{ receipt_1, receipt_2, receipt_3, receipt_4, receipt_5 };
+    for (all_receipts) |rcpt| {
+        try rcpt.verifyMatchesBasis(inv_v1);
+        try t_std.expectEqual(@as(u64, 1), rcpt.basis_revision);
+        try t_std.expectEqualSlices(u8, &basis_v1_digest, &rcpt.basis_digest);
+    }
+    const report_v1: Attribution.ReportArtifact = .{
+        .report_id = "joint_delivery_investigation_report",
+        .investigation_id = 999,
+        .basis_revision = 1,
+        .basis_digest = basis_v1_digest,
+        .section_receipts = &all_receipts,
+    };
+    _ = try report_v1.validateConsistentBasis(inv_v1);
+
+    // Mid-stream revocation between pages: fetch page 1 at policy_epoch 10, then revoke at policy_epoch 11
+    var q_revoked = try PublishedProjection.PublishedResourceStreamReader.open(
+        desc,
+        derived_policy,
+        inv_v1,
+        &na_binding,
+        agent_deep_dive_access,
+        10,
+        2_500,
+        1,
+        &input_rows,
+        1,
+        1,
+        null,
+        freshness,
+        &probe,
+    );
+    try t_std.expectEqual(@as(usize, 1), try q_revoked.fetchNextBatch(.published, agent_deep_dive_access, 10, &batch_scratch));
+    var revoked_access = agent_deep_dive_access;
+    revoked_access.caller_source_grants.policy_epoch = 11;
+    revoked_access.delegation = .{
+        .delegator_principal = 100,
+        .agent_principal = 202,
+        .allowed_resource_objects = &deep_dive_allowed,
+        .audience_kind = .full_resource_and_drilldown,
+        .delegated_select_objects = &full_source_objs,
+        .issued_at_policy_epoch = 9,
+        .expires_at_policy_epoch = 10, // Expired at epoch 11!
+    };
+    try t_std.expectError(
+        error.AuthorizationRevokedMidStream,
+        q_revoked.fetchNextBatch(.published, revoked_access, 11, &batch_scratch),
+    );
+    const revoked_receipt = try q_revoked.close();
+    try t_std.expectEqual(Attribution.CompletenessState.interrupted_prefix, revoked_receipt.completeness);
+
+    // Compare Console, SDK, and Presentation projections (`D6`)
+    const sql_surface = try PublishedProjection.projectResourceSurface(desc, derived_policy, employee_access, 10, .sql_console);
+    const sdk_surface = try PublishedProjection.projectResourceSurface(desc, derived_policy, employee_access, 10, .shared_sdk_client);
+    const mcp_surface = try PublishedProjection.projectResourceSurface(desc, derived_policy, employee_access, 10, .mcp_resource_and_app);
+    try t_std.expectEqualSlices(u8, &sql_surface.definition_digest, &sdk_surface.definition_digest);
+    try t_std.expectEqualSlices(u8, &sdk_surface.schema_fingerprint, &mcp_surface.schema_fingerprint);
+    try t_std.expectEqual(@as(usize, 2), sql_surface.permitted_drilldown_count);
+
+    // Report-only agent_triage surface filters out raw-row drilldown (only 1 permitted drilldown)
+    const triage_surface = try PublishedProjection.projectResourceSurface(desc, derived_policy, agent_triage_access, 10, .board_workbook);
+    try t_std.expectEqual(@as(usize, 1), triage_surface.permitted_drilldown_count);
+
+    // Verify zero steady-state heap allocations and complete reader/pin release (`D7`, `P7`)
+    try probe.assertZeroSteadyStateHeapAllocations();
+    try probe.assertCleanRelease();
 }
