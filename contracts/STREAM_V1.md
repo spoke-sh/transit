@@ -33,7 +33,11 @@ and shared `Catalog.callStream` compose append, finite reads, original-operation
 inspection, assignment, offset settlement and release under current native
 grants. Bounded waits select a finite read only after the requested offset
 frontier is available; timeout accepts no read. Existing accepted reads always
-retain their original cut. Automatic stream maintenance is not exposed. See the
+retain their original cut. The local native maintenance executor composes bounded
+sealing, archive/checkpoint, WAL trim, key compaction and opted-in expiry under
+current authority. Accepted work targets survive restart; expiry separately
+requires trusted time and consumer protection. Sparse physical payload rewriting
+remains unfinished. See the
 [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append

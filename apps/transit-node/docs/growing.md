@@ -169,9 +169,10 @@ fixed owner metadata and provider I/O buffers.
 
 Request limits exclude those workspaces, independently owned engine/provider
 caches, native requests, connection buffers, worker stacks and the kernel page
-cache. Table maintenance
+cache. Table and Stream maintenance
 has its separate `storage.maintenance.resident_bytes` budget and one executor;
-it does not consume the request control reserve. The limits bound this allocation
+it includes Stream workspaces retained between bounded recovery turns and does
+not consume the request control reserve. The limits bound this allocation
 boundary, not total node RSS or storage I/O latency.
 
 Direct requests use the listener's ordinary request lanes. `X-Transit-Control: table` uses

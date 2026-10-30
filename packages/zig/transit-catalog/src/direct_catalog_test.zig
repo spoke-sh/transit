@@ -705,6 +705,60 @@ test "maintenance discovery bounds a growing catalog pass and rechecks current a
     cursor = .{ .after = 10 };
     try t.expectError(error.InvalidMaintenanceCursor, catalog.maintenanceNext(&cursor, physical.guard()));
     try t.expect(!physical.held);
+
+    // Stream traversal visits every logical partition, skips the existing
+    // Tables plus Queue/private declarations, and freezes the same pass bound.
+    const queue = try logCreation(.queue, 2000, 2000, "queue", 1);
+    _ = try catalog.admitLog(queue, access.policy());
+    _ = try catalog.logOperation(queue.binding, .execute, access.policy());
+    const private = try logCreation(.stream, 2001, 2001, "private", 2);
+    _ = try catalog.admitLog(private, access.policy());
+    _ = try catalog.logOperation(private.binding, .execute, access.policy());
+    for (2002..2011) |object| {
+        var name: [32]u8 = undefined;
+        const request = try logCreation(.stream, object, object, try std.fmt.bufPrint(&name, "stream_{d}", .{object}), 2);
+        _ = try catalog.admitLog(request, access.policy());
+        while ((try catalog.logOperation(request.binding, .execute, access.policy())).operation.phase != .complete) {}
+    }
+    var streams: D.StreamMaintenanceCursor = .{};
+    var count: usize = 0;
+    var examined: usize = 0;
+    while (true) : (examined += 1) {
+        try t.expect(examined < 128);
+        const before = catalog.store.root;
+        const puts = objects.puts;
+        const found = try catalog.streamMaintenanceNext(&streams, physical.guard());
+        if (found.target) |target| {
+            try t.expectEqual(2002 + count / 2, target.object);
+            try t.expectEqual(count % 2, target.ordinal);
+            const definition = (try catalog.streamMaintenanceDefinition(target, physical.guard())).?;
+            try t.expectEqual(target.object, definition.stored.declaration.interpretation.object.object);
+            try t.expectEqualDeep(before, catalog.store.root);
+            try t.expectEqual(puts, objects.puts);
+            count += 1;
+            if (count == 1) {
+                const later = try logCreation(.stream, 3000, 3000, "later", 1);
+                _ = try catalog.admitLog(later, access.policy());
+                _ = try catalog.logOperation(later.binding, .execute, access.policy());
+            }
+        }
+        if (found.pass_complete) break;
+    }
+    try t.expectEqual(@as(usize, 18), count);
+    try t.expectEqualDeep(D.StreamMaintenanceCursor{}, streams);
+    try t.expect(try catalog.streamMaintenanceDefinition(.{ .object = 2000, .ordinal = 0 }, physical.guard()) == null);
+    try t.expect(try catalog.streamMaintenanceDefinition(.{ .object = 2001, .ordinal = 0 }, physical.guard()) == null);
+    for ([_]usize{ 1, 2 }) |offset| {
+        physical.deny_at = physical.calls + offset;
+        try t.expectError(error.Forbidden, catalog.streamMaintenanceNext(&streams, physical.guard()));
+        try t.expectEqualDeep(D.StreamMaintenanceCursor{}, streams);
+    }
+    physical.deny_at = physical.calls + 2;
+    try t.expectError(error.Forbidden, catalog.streamMaintenanceDefinition(.{ .object = 2002, .ordinal = 0 }, physical.guard()));
+    physical.deny_at = null;
+    streams = .{ .pending = .{ .object = 2002, .ordinal = 1 } };
+    try t.expectError(error.InvalidMaintenanceCursor, catalog.streamMaintenanceNext(&streams, physical.guard()));
+    try t.expect(!physical.held);
 }
 
 // This seeded schedule uses volatile log/object adapters. It exercises the real

@@ -1653,7 +1653,23 @@ cut, payload and receipt. Initialization after trim verifies the checkpoint's
 publication and original request before returning its original frontier one.
 Physical trimming grants no logical expiry or object-deletion authority. Native
 `DataStore.trimUnit` verifies these bounds against the latest accepted record.
-Installed Stream payload maintenance still needs service composition.
+The local node composes these units under its current native maintenance guard
+and directory/object locks. It traverses complete declarations one partition at
+a time through a catalog pass with a fixed highest object ID. Up to five bounded
+recovery workspaces and 64 disposable prefix hints share the configured
+maintenance allocation budget with Table work. Each workspace replays at most
+16 frames per turn and retains no request proof or clock capability between
+turns. Physical settings enable sealing, archival
+and compaction; declaration opt-in and trusted time separately gate expiry.
+
+`StreamPartition.RecoveryState` is same-process evidence from a fully
+validated immutable prefix. `recoverStepSince` first selects any newer accepted
+checkpoint, then verifies a reused hint's exact root and payload commitment at
+its WAL boundary before replaying successors. It rechecks current authority and
+required index roots before readiness. Hints are neither persisted baselines nor
+caller-supplied recovery input, and physical-owner replacement discards them.
+A mismatched boundary or shortened history rejects. A collided hint is discarded
+before invocation, requiring ordinary bounded recovery.
 
 `LogStorageRoots` enumerates the current root, selected immutable baseline and
 hash-linked successors. Its final root and commitment must exactly equal the

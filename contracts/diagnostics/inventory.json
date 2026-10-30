@@ -3667,7 +3667,7 @@
         "InvalidDirectCatalogTransition": 1,
         "InvalidLogCatalogDefinition": 2,
         "InvalidLogCatalogOperation": 5,
-        "InvalidMaintenanceCursor": 1,
+        "InvalidMaintenanceCursor": 4,
         "InvalidPartitionLease": 2,
         "InvalidQueueDestination": 1,
         "InvalidStorageBudget": 1,
@@ -3921,6 +3921,8 @@
         "storageState()": "<inferred>",
         "storedSchema()": "<inferred>",
         "streamAuthorization()": "<inferred>",
+        "streamMaintenanceDefinition()": "<inferred>",
+        "streamMaintenanceNext()": "<inferred>",
         "terminal()": "<inferred>",
         "transactionCall()": "anyerror",
         "transactionCallOutcome()": "anyerror",
@@ -3940,7 +3942,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1298,
+        "try": 1314,
         "catch": 20
       },
       "imports": [
@@ -31893,7 +31895,7 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 10,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 28,
+        "InvalidLogHistory": 30,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 3,
@@ -31912,7 +31914,7 @@
         "LogCompactionConsumerProtected": 1,
         "LogGroupFenced": 3,
         "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 13,
+        "LogHistoryUnavailable": 14,
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
@@ -31999,6 +32001,8 @@
         "readCursor()": "<inferred>",
         "readPage()": "<inferred>",
         "recoverStep()": "<inferred>",
+        "recoverStepSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
         "releaseRead()": "<inferred>",
         "requireCompactionPublication()": "<inferred>",
         "requireGroup()": "<inferred>",
@@ -32019,7 +32023,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 456,
+        "try": 462,
         "catch": 13
       },
       "imports": [

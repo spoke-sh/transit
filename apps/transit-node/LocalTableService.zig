@@ -140,12 +140,8 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
 
 fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {
     const self: *Self = @ptrCast(@alignCast(raw));
-    const clock = self.engine.clock orelse return null;
-    const sample = try clock.sample();
-    const allowed = self.engine.genesis.max_clock_error_ms orelse return error.LogTimeUnavailable;
-    if (sample.error_ms > allowed or sample.upper() > c.protocol.max_counter) return error.LogTimeUnavailable;
-    if (sample.unix_ms < self.engine.head.time_floor_ms) return error.LogTimeRegression;
-    return .{ .earliest_ms = sample.lower(), .latest_ms = sample.upper() };
+    const source = @import("LocalLogClock.zig").source(self.engine);
+    return source.read(source.context);
 }
 
 fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {

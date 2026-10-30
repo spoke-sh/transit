@@ -1153,6 +1153,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
     defer host.deinit();
     var work: Work = .{ .host = &host, .allocator = t.allocator };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
@@ -1230,6 +1231,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
     var restarted: Work = .{ .host = &host, .allocator = t.allocator };
+    defer restarted.deinit();
     const after = current.table.root;
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
@@ -1280,6 +1282,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{
         .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
         .archive = .{ .enabled = true, .work_frames = 2 },
@@ -1297,6 +1300,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         if (units == 4096) return error.FixtureBudget;
         if (units == 17) {
             // Lose scheduling/recovery hints once while accepted targets remain.
+            work.deinit();
             work = .{ .host = &host, .allocator = allocations.allocator() };
             host.table_recovery = @splat(null);
             idle = 0;
@@ -1918,7 +1922,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("registered_stream"), .action = .{ .create = .{
         .owner = role,
         .schema = .{ .object = 300, .revision = 1, .next_column = 2, .columns = &cols, .primary_key = &.{} },
-        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = 1, .timestamp_column = null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
     const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 300 }, .target = .{ .scope = config.scope, .branch = 1, .object = 300 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
@@ -1959,6 +1963,18 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
     try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
+    const maintenance_context: [32]u8 = @splat(19);
+    var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
+    try @import("local_stream_maintenance_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, maintenance_policy.policy());
+    var retention = intent.action.create.configuration;
+    retention.retention.max_age_ms = 100;
+    const expiry_intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = intent.name, .action = .{ .alter = .{ .configuration = retention, .limits = intent.action.create.limits } } };
+    const expiry_binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 }, .target = binding.target, .action = .alter, .expected_definition = found.value.result.log_lookup.?.declaration.stored.declaration.interpretation, .expected_data = null, .intent = try expiry_intent.digest(t.allocator) };
+    const expiry_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = expiry_binding, .intent = expiry_intent });
+    (try dispatch(&service, .{ .log_admit = expiry_ddl })).deinit();
+    const expiry = try dispatch(&service, .{ .log_operation = .{ .binding = expiry_binding, .command = .execute, .steps = 32 } });
+    defer expiry.deinit();
+    try @import("local_stream_maintenance_test.zig").expire(&service, expiry.value.result.log_operation.operation.resulting.?);
     const disclosures = [_]c.DirectTableProtocol.Action{
         .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },

@@ -53,6 +53,10 @@ retries reject. `LogEvidence` stores bounded immutable outcomes, while
 accepted record. Uncertain append invalidates resident readiness and requires
 recovery under the original identity. `recoverStep` checks at most 256 records;
 it must complete before the owner serves payloads or accepts more work.
+Trusted same-process adapters can retain `RecoveryState` from a fully recovered
+owner and pass it to `recoverStepSince`. Reuse verifies its exact accepted
+boundary, yields to newer checkpoints and preserves current-policy checks.
+These disposable hints are not persisted recovery authority.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut
@@ -95,8 +99,9 @@ through physical WAL trim; missing checkpoints or required archive bytes block
 recovery or reads. `LogStorageRoots` enumerates the selected checkpoint and
 hash-linked replay in bounded steps. The native adapter admits only qualified
 trim floors; the catalog retained graph keeps live pins, original receipts and
-required archive frames through physical collection. Service payload maintenance
-still requires its authorization and scheduling composition.
+required archive frames through physical collection. The local node composes
+these units through bounded catalog traversal and current native maintenance
+authority, sharing its allocation budget with Table work.
 
 `archiveMaintenanceUnit` persists a fixed archive/checkpoint target and advances
 it by at most one publication per call. `compactionMaintenanceUnit` resumes a

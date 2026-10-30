@@ -6,7 +6,7 @@ the definition through the Table's acceptance log. The local node exposes this
 owner through its optional `table` setting and signed `/table/v1` route. The
 default launcher and shared SQL runtime use this direct owner. Captured and
 maintained query owners retain its sources through original-caller grants.
-This owner has no automatic execution scheduler.
+Execution of admitted declarations remains explicit.
 
 Stream/Queue declarations use the same names, stable object IDs, original
 operation bindings and dependency graph. Their typed `DirectLogClient`
@@ -16,7 +16,9 @@ intents, declaration revisions and initialized partitions remain reachable
 through `DirectStorageGraph`, including cancelled prefixes and retired names.
 See the [Stream/Queue lifecycle contract](../../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 for ALTER limits, pending discovery, DLQ dependencies and current privileges.
-These declarations do not yet expose payload execution or Stream/Queue SQL.
+Signed Stream payload operations and finite notification waits use
+`DirectStream` and the same global operation namespace. Queue payload execution
+and Stream/Queue SQL remain unavailable.
 
 The internal `maintenanceNext` traversal inspects one current object entry per
 step under a host-supplied native maintenance guard. A pass fixes the largest
@@ -28,6 +30,14 @@ The host holds shared directory access, acquires the selected Table's usual lock
 then calls `maintenanceOpen` to revalidate the entry and recover its accepted
 owner. These internal methods recheck current authority before returning; they
 are not an application metadata or maintenance request endpoint.
+
+`streamMaintenanceNext` uses the same fixed object boundary plus a logical
+partition ordinal to visit one complete Stream partition per step. Queue and
+unfinished declarations consume a bounded discovery step without opening a
+Stream owner. `streamMaintenanceDefinition` revalidates the current definition
+under the host's directory/object locks. Retired definitions remain discoverable
+for archive and closure. The local node composes these internal operations with
+storage units under its native maintenance authority.
 
 Public `storage` and `flush` actions use the same signed direct client and
 catalog permission checks. Inspection reports bounded current WAL backlog and
@@ -654,6 +664,12 @@ not continuously scrub already-validated historical bytes or authorize trimming.
 The [node guide](../../../../apps/transit-node/README.md) states aggregate and
 per-workspace memory limits and the separate request/response accounting.
 
+Stream maintenance uses at most five active recovery workspaces and 64
+same-process root/commitment hints within its shared allocation budget. Each
+replay turn examines at most 16 records. Hints validate their accepted boundary
+before reuse and yield to newer checkpoints; physical-owner replacement discards
+them. They retain no caller proof, clock, read pin or permission.
+
 `admitRows`, `performRows`, `rowStatus` and `cancelRows` use the Table's durable
 operation records under current native rights. `applyRows` composes admission
 and execution for callers that want both. The request includes the original
@@ -662,7 +678,7 @@ Row admission blocks while DDL is pending; DDL admission rejects while the Table
 has pending row work. Neither row admission nor its outcome changes the catalog
 directory root. Terminal row controls use the configured control quota handles.
 
-Automatic service scheduling is not exposed. Named resource and relational
+Automatic execution of admitted application work is not exposed. Named resource and relational
 publication use explicit dependency registration and separate native publication;
 see [named resources](../../transit-station-app/docs/named-resources.md) and
 [named relational definitions](../../transit-station-app/docs/named-relational.md).

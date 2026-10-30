@@ -80,7 +80,7 @@ pending commands through their own bounded scheduling policy.
 
 With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
-runs lifecycle scans, accepted-floor trimming and configured automatic Table
+runs lifecycle scans, accepted-floor trimming and configured automatic Table and Stream
 flushing, archiving/checkpointing and compaction inside the node's exclusive owner;
 a separate `--maintain` process rejects. Native/direct immutable-object collection
 resumes accepted progress under current maintenance privilege and trusted epoch/time
@@ -142,6 +142,27 @@ root/chain hints. Replacement joins all borrowers, destroys their caches and
 repeats full recovery. See the
 [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
 for the immutable-history assumption and failure boundaries.
+
+Stream maintenance visits one partition of a complete declaration at a time,
+including retired declarations for archival and closure. Each catalog pass
+freezes its highest object ID. Table and Stream work alternate within the same
+`storage.maintenance.resident_bytes` budget. At most five Stream workspaces
+retain incomplete recovery between turns, each replaying at most 16 records.
+Up to 64 disposable root/commitment hints avoid repeating validated history
+when work switches partitions; their allocation shares the same budget. Reuse
+verifies the accepted boundary, and newer checkpoints supersede old hints.
+All are released on executor shutdown. A finite quiescent history can therefore
+finish recovery without a resident limit on the partition population.
+
+The existing flush, archive and compact settings enable corresponding Stream
+work. Stream flushing seals one whole accepted batch, bounded by append limits,
+instead of Table's partial-row or age thresholds. Archive units honor
+`archive.work_frames`; key compaction uses at most 64 rows or the smaller
+`compaction_rows` setting. Accepted fixed targets survive restart and become
+idle after finite work. With native maintenance enabled, only a declaration's
+positive retention age enables Stream expiry. Each expiry unit handles at most
+one sealed batch under trusted clock bounds and consumer protection. Current
+read pins and original receipts remain retained. Quota pressure grants no expiry.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

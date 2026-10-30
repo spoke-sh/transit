@@ -80,7 +80,8 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
                     if (try Provider.collect(engine, config, key, &request, &progress.collection)) return .storage;
                 },
                 .extension => if (extension) |extra| {
-                    // Physical Table work needs no trusted expiry clock.
+                    // Physical data work can proceed without a clock. The
+                    // extension checks trusted time separately for expiry.
                     if (try extra.step(extra.context, engine, config, try g.sign(request, key))) return .storage;
                 },
             }

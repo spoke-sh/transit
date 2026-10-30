@@ -74,9 +74,18 @@ remain subject to current rights after ALTER or DROP.
 
 The service rechecks authorization after buffering every response. Bounded
 recovery can return incomplete progress before executing new work. Typed
-positional and group reads remain finite after a wait. Automatic stream
-maintenance is not exposed by this service. See the
+positional and group reads remain finite after a wait. See the
 [payload contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress).
+
+The local node's maintenance executor seals accepted batches, archives and
+checkpoints history, trims covered WAL files and compacts declared keys when
+those physical operations are enabled. Compaction preserves logical offsets and
+tombstones; existing finite reads retain their earlier visibility. Sparse segment
+payload rewriting remains unfinished. Unlimited retention is the default.
+A positive declared retention age permits bounded expiry only after trusted time
+and consumer progress allow it; read pins still retain their original data.
+Maintenance resumes accepted targets after restart and rechecks current native
+authority. See the [node's bounds and settings](../../../apps/transit-node/README.md).
 
 ## Mailbox delivery
 
