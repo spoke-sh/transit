@@ -434,7 +434,9 @@ fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: G
     // accepted append into rejection; reads can load its verified WAL payload.
     if (evidence.outcome == .append) self.cache.admit(.{ .position = evidence.accepted(), .content = evidence.outcome.append.append.payload }, payload) catch {};
 }
-fn publishRecord(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
+fn publishRecord(self: *Self, input: r.Record, payload: []const u8, guard: Guard) !void {
+    var record = input;
+    record.root.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, record.root, record.action);
     const next = record.root;
     if (next.next_lsn != (try self.nextPosition()).next_lsn or !std.mem.eql(u8, &record.previous, &self.commitment)) return error.InvalidLogHistory;
     const bytes = try r.encode(record, payload, self.encoded);
@@ -771,6 +773,65 @@ pub fn archive(self: *Self, cut: d.Position, limits: History.Limits, guard: Guar
     try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .archive = .{ .cut = cut, .from_lsn = self.root.archive.through } } }, &.{}, guard);
     return .{ .through = .{ .partition = cut.partition, .next_lsn = next.archive.through }, .frames = staged.frames, .encoded_bytes = staged.bytes, .complete = staged.complete };
 }
+
+fn publishMaintenance(self: *Self, action: @import("StreamMaintenanceState.zig").Action, guard: Guard) !void {
+    const ordinary = self.enterControl(true);
+    defer self.leaveControl(ordinary);
+    var next = self.root;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .maintenance = action } }, &.{}, guard);
+}
+
+/// Advance a retained archive/checkpoint target with at most one publication.
+/// Recovering the root resolves a lost reply. Bookkeeping alone cannot select
+/// another target after the finite workload has settled.
+pub fn archiveMaintenanceUnit(self: *Self, limits: History.Limits, guard: Guard) !bool {
+    try limits.validate();
+    try authorize(guard);
+    try self.requireReady();
+    const target = self.root.maintenance.archive_target orelse {
+        if (self.root.maintenance.archive_source_lsn <= self.root.maintenance.archived_source_lsn) return false;
+        try self.publishMaintenance(.begin_archive, guard);
+        return true;
+    };
+    const partition = self.root.initialization.partition;
+    if (self.root.archive.through < target.through_lsn) {
+        _ = try self.archive(.{ .partition = partition, .next_lsn = target.through_lsn }, limits, guard);
+        return true;
+    }
+    const checkpoint_lsn = target.checkpoint_lsn orelse return error.InvalidStreamMaintenance;
+    if (self.root.recovery == null or self.root.recovery.?.next_lsn < checkpoint_lsn) {
+        _ = try self.checkpoint(.{ .partition = partition, .next_lsn = checkpoint_lsn }, guard);
+        return true;
+    }
+    try self.publishMaintenance(.complete_archive, guard);
+    return true;
+}
+
+/// Resume the accepted compaction cut, or select one after new logical input or
+/// sealing progress. Retiring a declaration cancels only unpublished candidates.
+pub fn compactionMaintenanceUnit(self: *Self, declared: Declaration.Stored, maximum: u16, guard: Guard) !bool {
+    try authorize(guard);
+    try self.requireReady();
+    try self.root.requireControlDeclaration(declared);
+    if (maximum == 0 or maximum > Compaction.max_rows) return error.InvalidStreamCompactionBudget;
+    if (declared.retired) {
+        if (self.root.compaction) |work| {
+            try self.cancelCompaction(work.source.cut.accepted, guard);
+            return true;
+        }
+        return false;
+    }
+    if (declared.declaration.configuration.policy.stream.compact_key_column == null) return false;
+    const cut = if (self.root.compaction) |work| work.source.cut.accepted else selected: {
+        if (self.root.maintenance.compaction_source_lsn <= self.root.maintenance.compacted_through_lsn) return false;
+        break :selected self.root.position();
+    };
+    const before = self.root.next_lsn;
+    _ = try self.compactStep(declared, cut, maximum, guard);
+    return self.root.next_lsn != before;
+}
+
 pub fn checkpoint(self: *Self, cut: d.Position, guard: Guard) !Checkpoint.Reference {
     try cut.validate();
     try authorize(guard);
@@ -874,8 +935,10 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
     if (record.action != .operation) {
         var expected = self.root;
         expected.next_lsn = next.next_lsn;
+        expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
         switch (record.action) {
             .operation => unreachable,
+            .maintenance => {},
             .archive => |value| {
                 if (value.from_lsn != self.root.archive.through) return error.InvalidLogArchive;
                 try History.verifyExtension(self.allocator, &self.store, self.root.archive, next.archive, next.initialization.partition, self.root.next_lsn);
@@ -950,6 +1013,7 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
     var expected = self.root;
     expected.declared = next.declared;
     expected.next_lsn = next.next_lsn;
+    expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
     expected.receipts = next.receipts;
     switch (evidence.outcome) {
         .append => |receipt| {

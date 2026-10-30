@@ -1250,6 +1250,130 @@ test "stream partition compaction protects consumer checkpoints and cancels unpu
     try t.expect(owner.root.compaction == null and owner.root.hidden.cardinality == 2);
 }
 
+test "stream partition maintenance settles fixed targets through lost replies disk restart and later input" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.policy.stream.compact_key_column = 1;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    try t.expect(!try owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+    try t.expect(!try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard()));
+    const first = try compactAppend(&owner, &declaration, &policy, 2, &.{ .{ .cells = &cells }, .{ .cells = &cells } });
+    _ = try owner.flush(owner.root.position(), policy.guard());
+    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    const original_cut = owner.root.position();
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(original_cut.next_lsn, owner.root.maintenance.archive_target.?.through_lsn);
+    try t.expect(try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard()));
+    const compact_cut = owner.root.compaction.?.source.cut.accepted;
+    const later = try compactAppend(&owner, &declaration, &policy, 4, &.{.{ .cells = &cells }});
+    try t.expectEqual(original_cut.next_lsn, owner.root.maintenance.archive_target.?.through_lsn);
+    try t.expectEqualDeep(compact_cut, owner.root.compaction.?.source.cut.accepted);
+
+    // Reopen disk providers with both targets in flight, after a missing archive
+    // reply. Neither a restart nor later foreground input changes their cuts.
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(original_cut.next_lsn, owner.root.maintenance.archive_target.?.through_lsn);
+    try t.expectEqualDeep(compact_cut, owner.root.compaction.?.source.cut.accepted);
+    _ = try owner.flush(owner.root.position(), policy.guard());
+    var steps: usize = 0;
+    while (true) : (steps += 1) {
+        try t.expect(steps < 128);
+        const before = owner.root.next_lsn;
+        const compacted = try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard());
+        try t.expectEqual(before + @intFromBool(compacted), owner.root.next_lsn);
+        const archived = try owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard());
+        try t.expectEqual(before + @intFromBool(compacted) + @intFromBool(archived), owner.root.next_lsn);
+        if (!compacted and !archived) break;
+    }
+    try t.expectEqual(@as(u64, 2), owner.root.hidden.cardinality);
+    try t.expect(owner.root.compacted.?.next_lsn > compact_cut.next_lsn);
+    try t.expect(owner.root.maintenance.archive_target == null);
+    const stable = owner.root;
+    for (0..4) |_| {
+        try t.expect(!try owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+        try t.expect(!try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard()));
+    }
+    try t.expectEqualDeep(stable, owner.root);
+    _ = try owner.trimArchived(policy.guard());
+    try owner.deinit();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(stable, owner.root);
+    try t.expect(!try owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+    try t.expect(!try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard()));
+    try t.expectEqualDeep(first, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    try t.expectEqualDeep(later, (try owner.operation(operation(4), policy.guard())).?.outcome.append);
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    var old = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer old.deinit();
+    try t.expect(old.count == 2 and old.cursor.coverage.complete);
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.archiveMaintenanceUnit(.{ .frames = 1 }, policy.guard()));
+}
+
+test "stream partition maintenance rejects invented completion and closes retired candidates" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.policy.stream.compact_key_column = 1;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    _ = try compactAppend(&owner, &declaration, &policy, 2, &.{ .{ .cells = &cells }, .{ .cells = &cells } });
+    _ = try owner.flush(owner.root.position(), policy.guard());
+    try t.expect(try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard()));
+    var retired = initial.declared;
+    retired.retired = true;
+    retired.declaration.interpretation.revision += 1;
+    try t.expect(try owner.compactionMaintenanceUnit(retired, 1, policy.guard()));
+    try t.expect(owner.root.compaction == null and owner.root.hidden.cardinality == 0);
+    try t.expect(!try owner.compactionMaintenanceUnit(retired, 1, policy.guard()));
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expect(owner.root.compaction == null and owner.root.hidden.cardinality == 0);
+
+    // This root is locally well formed, but no archive/checkpoint target has
+    // completed. Replay must reject its invented scheduling progress.
+    var forged = owner.root;
+    forged.next_lsn += 1;
+    forged.maintenance.archived_source_lsn = forged.maintenance.archive_source_lsn;
+    var bytes: [s.LogPartitionRecord.max_metadata_bytes + s.LogPartitionRecord.header_bytes]u8 = undefined;
+    const encoded = try s.LogPartitionRecord.encode(.{ .definition = p.Growth.current_definition, .previous = owner.commitment, .root = forged, .action = .{ .maintenance = .complete_archive } }, &.{}, &bytes);
+    _ = try wal.log().append(91, owner.root.next_lsn, policy.epoch, policy.epoch, .manifest_checkpoint, encoded);
+    try t.expectError(error.InvalidStreamMaintenance, owner.recoverStep(policy.guard(), 1));
+    try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
+}
+
 test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

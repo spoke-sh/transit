@@ -69,8 +69,9 @@ key rotation, pin closure and restart. Missing read/evidence objects block repla
 The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
-buffering. This component is not yet composed into payload service APIs.
-Notification waits remain unfinished.
+buffering. The catalog and native service compose the owner into signed payload
+operations and bounded notification waits; see the
+[Streams reference](../../../docs/handbook/reference/streams.md).
 `flush` seals one accepted batch per call through a fixed physical cut, preserving
 its original receipt and offsets. Shared `.tseg` columns and a separate immutable
 delivery-metadata sidecar must reproduce the original payload digest before their
@@ -96,6 +97,14 @@ hash-linked replay in bounded steps. The native adapter admits only qualified
 trim floors; the catalog retained graph keeps live pins, original receipts and
 required archive frames through physical collection. Service payload maintenance
 still requires its authorization and scheduling composition.
+
+`archiveMaintenanceUnit` persists a fixed archive/checkpoint target and advances
+it by at most one publication per call. `compactionMaintenanceUnit` resumes a
+frozen key-compaction cut in at most 64-row steps. Accepted source and completion
+frontiers let both become idle after finite input; their own bookkeeping does
+not create another pass. Lost replies and restart recover those same targets.
+Later appends and consumer progress can select further work. Retirement closes
+unpublished compaction without discarding accepted payloads or read pins.
 
 An optional control store must address the same physical namespace and current
 authority with the deployment's reserved capacity. Offset settlement, read

@@ -1360,9 +1360,10 @@ Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
 frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/group-offset/pin
-directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
+directories, exclusive sealed offset, accepted archive coverage, nullable recovery reference and
+mandatory maintenance progress. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
-offset, expiry, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
+offset, expiry, flush, archival, checkpoint and maintenance records use `manifest_checkpoint` and contain no row
 payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
@@ -1399,7 +1400,7 @@ field can supply this capability.
 
 `Options.control`, when supplied, is a trusted adapter capability for the same
 physical namespace and authorization owner using reserved deployment capacity.
-Offset commits, read release, existing-group reassignment, expiry, archive and checkpoint
+Offset commits, read release, existing-group reassignment, expiry, archive, checkpoint and archive-target bookkeeping
 stage and publish through it. Fresh append, initial group assignment and read-pin
 admission use ordinary capacity. Every operation retains its current-policy
 checks and normal uncertainty semantics. Restoring ordinary I/O after each
@@ -1525,6 +1526,13 @@ candidate mask and closes work. It rechecks current consumer protection; a newly
 assigned lagging group blocks publication until progress or explicit cancellation.
 Lost replies resume from accepted work rather than selecting a different cut.
 
+`compactionMaintenanceUnit` resumes that accepted cut with the same row budget.
+When idle it selects a new cut only after an append, assignment, offset settlement,
+flush or expiry advances the mandatory `compaction_source_lsn`. Publication sets
+`compacted_through_lsn` to the exact completed cut; compaction's own output and
+archive/checkpoint bookkeeping do not schedule another pass. Retiring a
+declaration cancels unpublished work without changing previously visible rows.
+
 Every finite read basis captures its own mandatory `hidden` root. Previously
 accepted reads preserve their visibility; new reads advance scanned coverage
 over verified masked offsets without emitting those rows. Empty intermediate
@@ -1609,6 +1617,17 @@ Archiving stages at most eight frames under byte and index-work budgets, then
 publishes the extended coverage in one control record. Its fixed requested cut
 is distinct from that record's newer frontier. Retrying after a lost reply
 observes accepted progress and never extends the requested obligation.
+
+`archiveMaintenanceUnit` accepts or advances one durable fixed target with at
+most one WAL publication per call. Mandatory maintenance fields record the
+latest non-archive source LSN, completed source LSN and nullable archive target.
+The target records its fixed exclusive frontier, source LSN and the first
+archive publication covering it. Completion requires a recovery checkpoint at
+or after that publication. Foreground changes during a pass can select a later
+pass, while archive/checkpoint bookkeeping alone cannot schedule itself forever.
+Publication and replay derive these fields from the exact accepted action;
+locally well-formed but invented completion progress rejects. These scheduling
+fields grant neither expiry nor physical collection authority.
 
 `LogRecovery` stages `log-checkpoints/{sha256}.data`: `LCHECK01`, the shared
 definition and canonical JSON for the complete prior root and its accepted

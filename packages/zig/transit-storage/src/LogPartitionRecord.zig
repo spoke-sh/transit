@@ -10,6 +10,7 @@ const Evidence = @import("LogEvidence.zig");
 const Log = @import("TransitLog.zig");
 const pages = @import("TreeStore.zig").pages;
 const Compaction = @import("StreamCompaction.zig");
+const Maintenance = @import("StreamMaintenanceState.zig");
 pub const header_bytes = 44;
 pub const max_metadata_bytes = 32 * 1024;
 pub const max_batch_bytes = Log.max_payload_bytes - header_bytes - max_metadata_bytes;
@@ -35,15 +36,17 @@ pub const Root = struct {
     pins: ?pages.Reference,
     archive: @import("LogHistory.zig").Coverage,
     recovery: ?@import("LogRecovery.zig").Reference,
+    maintenance: Maintenance,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null, .maintenance = .empty };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireControlDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
+        try self.maintenance.validate(self);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
         try self.hidden.validate();
         if (self.hidden.cardinality > self.next_offset) return error.InvalidStreamCompaction;
@@ -108,6 +111,7 @@ pub const Record = struct {
         compaction_publish: d.Position,
         compaction_cancel: d.Position,
         checkpoint,
+        maintenance: Maintenance.Action,
     },
 
     pub fn frameKind(self: Record) Log.FrameKind {
@@ -134,6 +138,7 @@ pub const Record = struct {
                 const reference = self.root.recovery orelse return error.InvalidLogRecovery;
                 if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
             },
+            .maintenance => {},
             .flush => |value| {
                 try value.cut.validate();
                 try value.receipt.validate();

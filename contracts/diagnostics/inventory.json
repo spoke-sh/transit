@@ -31438,7 +31438,8 @@
           "compaction_step",
           "compaction_publish",
           "compaction_cancel",
-          "checkpoint"
+          "checkpoint",
+          "maintenance"
         ]
       },
       "error_sets": {},
@@ -31460,7 +31461,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 33,
         "catch": 0
       },
       "imports": [
@@ -31473,6 +31474,7 @@
         "LogRecovery.zig",
         "LogSegment.zig",
         "StreamCompaction.zig",
+        "StreamMaintenanceState.zig",
         "TableArchive.zig",
         "TransitLog.zig",
         "TreeStore.zig",
@@ -31864,6 +31866,28 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/StreamMaintenanceState.zig": {
+      "errors": {
+        "InvalidStreamMaintenance": 10
+      },
+      "outcomes": {
+        "Action": [
+          "begin_archive",
+          "complete_archive"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "transition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
     "packages/zig/transit-storage/src/StreamPartition.zig": {
       "errors": {
         "InvalidLogArchive": 3,
@@ -31875,7 +31899,8 @@
         "InvalidLogSegment": 3,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
-        "InvalidStreamCompactionBudget": 2,
+        "InvalidStreamCompactionBudget": 3,
+        "InvalidStreamMaintenance": 1,
         "InvalidStreamReadBudget": 2,
         "InvalidStreamTimestampColumn": 1,
         "InvalidWalEpoch": 1,
@@ -31927,6 +31952,7 @@
         "advanceGroup()": "<inferred>",
         "append()": "<inferred>",
         "archive()": "<inferred>",
+        "archiveMaintenanceUnit()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "assign()": "<inferred>",
         "authorize()": "<inferred>",
@@ -31937,6 +31963,7 @@
         "checkpoint()": "<inferred>",
         "commitOffset()": "<inferred>",
         "compactStep()": "<inferred>",
+        "compactionMaintenanceUnit()": "<inferred>",
         "compactionProgress()": "<inferred>",
         "compactionRows()": "<inferred>",
         "compactionSource()": "<inferred>",
@@ -31964,6 +31991,7 @@
         "progress()": "<inferred>",
         "protectedOffset()": "<inferred>",
         "publish()": "<inferred>",
+        "publishMaintenance()": "<inferred>",
         "publishRecord()": "<inferred>",
         "putGroup()": "<inferred>",
         "readBasis()": "<inferred>",
@@ -31991,7 +32019,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 439,
+        "try": 456,
         "catch": 13
       },
       "imports": [
@@ -32010,6 +32038,7 @@
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
         "StreamCompaction.zig",
+        "StreamMaintenanceState.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
