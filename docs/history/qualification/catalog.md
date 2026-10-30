@@ -11,6 +11,45 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Automatic local Stream maintenance — 2026-10-30
 
+The sparse-rewrite extension committed as `91575f785` passes the same native
+disk schedule, now including sparse placements in both partitions and cold reads
+of their original row ordinals. It completes **205 units** with **20,271,578 peak
+private allocated bytes** inside the unchanged 32 MiB budget. All accepted
+rewrite, compaction and archive targets settle. Its executable SHA-256 is
+`61b98ca8c201c484e6b88d1ccb51584d6c188cdabd55d3f7067303e93ff5d3d3`;
+the log is `/var/tmp/transit-stream-sparse-native-maintenance.log`.
+
+The focused storage suite also passes sparse and empty placement reconstruction,
+complete/sparse cache coexistence, original identity conflicts, omission checks
+against exact visibility, lost start/rewrite replies, disk reopen, fixed upper
+bounds despite later input, old read pins and repeated compaction across empty
+placements. Retirement cancels unpublished rewrite progress. A replay negative
+control stages a valid sparse segment with an altered surviving value; recovery
+rejects it and keeps the owner unready. Work-budget refusal leaves the accepted
+root unchanged. Logs are `/var/tmp/transit-stream-sparse-storage-final.log` and
+`/var/tmp/transit-stream-sparse-restart.log`. All 48 fast checks and all 18 contract
+checks pass after regenerating the reviewed diagnostic inventory. This evidence
+does not establish installed-loop, clean-lane or Queue execution qualification.
+
+The first extended ReleaseSafe collection run passed two of its three disk
+schedules but failed the new rewrite/retention schedule. It exposed a missing
+edge: read pins retained old segment objects without retaining the segment
+directory pages needed to locate them after placement changed. `087160eeb`
+adds a bounded directory walk, and the focused Debug disk schedule passes with
+an explicit old-directory assertion. Its five collection passes take
+75/672/673/722/1,106 steps and reclaim 3/295/233/271/510 allocations. Old complete
+placements remain while a read pin or recovery baseline requires them; release
+plus a later checkpoint permits reclamation, after which a cold read of the
+current sparse placement and original append receipt still succeeds. The test
+uses an explicit trusted fixture guard; signed policy is qualified separately.
+The successful executable SHA-256 is
+`2ec8c23662fa87f112e1cb3d9cbce272e86b003f93bf54744f07e42f0f042f9b`.
+Logs are `/var/tmp/transit-stream-sparse-native-collection.log` (failed) and
+`/var/tmp/transit-stream-sparse-collection-directory.log` (passed). The focused
+ReleaseSafe rerun also passes with the same five collection counts; its log is
+`/var/tmp/transit-stream-sparse-collection-directory-safe.log` and its executable
+SHA-256 is `26f9a27ff043ab999a3c0ff863c3c04866b48a02bc0893a052c5dd073ad2fe4c`.
+
 The working implementation subsequently committed as `1a9c87274`, including
 the recovery-prefix change `f87b54771`, passes the native `log privileges`
 schedule on local disk. It drives the real catalog and shared maintenance
@@ -70,6 +109,18 @@ Logs are `/var/tmp/transit-stream-maintenance-storage.log`,
 `/var/tmp/transit-stream-maintenance-fast.log`. These results qualify storage
 transitions and fixture reconciliation; they do not yet qualify the automatic
 native scheduler or sparse physical payload rewriting.
+
+A second clean-core attempt at `938a54a06` passed fast checks but failed five
+independent fixture generators and their embedded consumers: named relational
+records, reactive signatures, worker handoff, application signatures and unified
+query commitments still contained hashes derived from the previous shared
+definition. `65f9eba22` regenerates those seven fixture files with their existing
+owners. The complete workspace `test-fixtures` target then passes, including 143
+shared native/port codec cases. The known-failed clean run's remaining native
+tests were stopped; it is failed and incomplete, not a clean pass. Evidence is
+`/var/tmp/transit-stream-clean-core-final.log`,
+`/var/tmp/transit-stream-cutover-all-fixtures.log` and the retained checkout
+`/var/tmp/transit-ci-6lf9kpq1/src`.
 
 ## Bounded Stream consume waits and main integration — 2026-10-30
 

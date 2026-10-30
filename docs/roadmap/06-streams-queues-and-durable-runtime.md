@@ -398,7 +398,12 @@ The current progress slice delivers:
   completion, retained reads, clock refusal and opted-in expiry under quota.
   Table and Stream work share a measured allocation budget; disposable validated
   prefix hints avoid repeated historical replay between units. Sparse payload
-  rewriting and installed qualification remain open.
+  rewriting now preserves original ordinals and old placement pins through
+  bounded accepted passes, disk restart and empty placements. The updated native
+  scheduler completes both partitions within the same memory budget. Native
+  collection retains old placement directories and payloads until both read pins
+  and replay release them, then preserves current reads after reclamation. Installed
+  qualification and full clean-lane evidence remain open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
@@ -411,7 +416,7 @@ their declarations or neutral data types.
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
-| R3 | Partial: signed payload/read/group operations, bounded waits and local maintenance; sparse rewriting and full qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
+| R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; installed and full qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
