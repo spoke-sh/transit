@@ -1,0 +1,365 @@
+//! Serialized direct Stream owner. The adapter binds current catalog metadata,
+//! global operation identity and authorization; it must serialize declaration
+//! edits with this owner. Staging indexes confers no acceptance or authority.
+const std = @import("std");
+const p = @import("transit_protocol");
+const d = p.DataLifecycle;
+const q = p.StreamQueue;
+const Log = @import("TransitLog.zig");
+const Objects = @import("TransitObjectStore.zig");
+const Declaration = @import("LogDeclaration.zig");
+const Initialization = @import("LogInitialization.zig");
+const Evidence = @import("LogEvidence.zig");
+const Batch = @import("LogBatch.zig");
+const Tail = @import("LogTail.zig");
+const TreeStore = @import("TreeStore.zig");
+const Guard = @import("PublicationGuard.zig");
+const r = @import("LogPartitionRecord.zig");
+const pages = TreeStore.pages;
+const Self = @This();
+pub const Root = r.Root;
+pub const Options = struct {
+    resident_pages: usize = 16,
+    index_work_bytes: usize = 8 * 1024 * 1024,
+    batch_bytes: u32 = 1024 * 1024,
+    key_bytes: u32 = 64 * 1024,
+    tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
+};
+
+allocator: std.mem.Allocator,
+log: Log.Log,
+objects: Objects.ObjectStore,
+store: TreeStore,
+cache: Tail,
+scratch: std.heap.ArenaAllocator,
+encoded: []u8,
+key_buffer: []u8,
+options: Options,
+root: Root,
+commitment: [32]u8,
+ready: bool = false,
+
+/// Opens the original initialization only. Recovery is explicit bounded work;
+/// a caller cannot serve reads or accept writes until recoverStep completes.
+pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
+    if (request.declared.declaration.configuration.policy != .stream) return error.LogPartitionConflict;
+    if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes) return error.InvalidStreamBudget;
+    const initial = try Initialization.observe(allocator, log, objects, request, guard);
+    var store = try TreeStore.init(allocator, objects, options.resident_pages);
+    errdefer store.deinit();
+    var cache = try Tail.init(allocator, options.tail);
+    errdefer cache.deinit() catch unreachable;
+    const encoded = try allocator.alloc(u8, @as(usize, options.batch_bytes) + r.header_bytes + r.max_metadata_bytes);
+    errdefer allocator.free(encoded);
+    const key_buffer = try allocator.alloc(u8, options.key_bytes);
+    return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256 };
+}
+pub fn deinit(self: *Self) !void {
+    try self.cache.deinit();
+    self.store.deinit();
+    self.scratch.deinit();
+    self.allocator.free(self.encoded);
+    self.allocator.free(self.key_buffer);
+    self.* = undefined;
+}
+fn tree(self: *Self) pages.Tree(TreeStore) {
+    return .{ .store = &self.store };
+}
+fn loadEvidence(self: *Self, value: pages.Value) !Evidence.Record {
+    defer _ = self.scratch.reset(.retain_capacity);
+    return Evidence.load(self.scratch.allocator(), self.objects, value);
+}
+fn decodeValue(self: *Self, comptime T: type, value: pages.Value) !T {
+    defer _ = self.scratch.reset(.retain_capacity);
+    return r.valueDecode(T, self.scratch.allocator(), value);
+}
+fn decodeFrame(self: *Self, frame: Log.Frame, partition: u64, lsn: u64) !r.Decoded {
+    defer _ = self.scratch.reset(.retain_capacity);
+    return r.decode(self.scratch.allocator(), frame, partition, lsn);
+}
+fn authorize(guard: Guard) !void {
+    _ = try guard.acquire(guard.context);
+    guard.release(guard.context);
+}
+fn requireReady(self: *Self) !void {
+    if (!self.ready) return error.LogRecoveryRequired;
+    if (try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) {
+        self.ready = false;
+        return error.LogRecoveryRequired;
+    }
+}
+fn requireTarget(self: *Self, target: q.Partition) !void {
+    try target.validate();
+    if (target.partition != self.root.initialization.ordinal or !std.meta.eql(target.interpretation.object, self.root.initialization.declared.declaration.interpretation.object)) return error.LogPartitionConflict;
+}
+fn original(self: *Self, identity: d.Operation) !?Evidence.Record {
+    try identity.validate();
+    if (!std.meta.eql(identity.scope, self.root.initialization.operation.scope)) return error.LogPartitionConflict;
+    const value = try self.tree().get(self.root.receipts, try Evidence.operationKey(identity)) orelse return null;
+    const record = try self.loadEvidence(value);
+    if (!std.meta.eql(record.operation(), identity) or record.accepted().partition != self.root.initialization.partition or record.accepted().next_lsn > self.root.next_lsn) return error.InvalidLogHistory;
+    try self.requireTarget(record.target());
+    return record;
+}
+
+/// Exact operation inspection, including receipts from older declarations or
+/// producer epochs. The current guard still applies after buffering the result.
+pub fn operation(self: *Self, identity: d.Operation, guard: Guard) !?Evidence.Record {
+    try authorize(guard);
+    try self.requireReady();
+    const result = try self.original(identity);
+    try authorize(guard);
+    return result;
+}
+pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !q.Cut {
+    try authorize(guard);
+    try self.requireReady();
+    const result = try self.root.cut(declared);
+    try authorize(guard);
+    return result;
+}
+fn producerState(self: *Self, request: q.Append) !?q.ProducerState {
+    const value = try self.tree().get(self.root.producers, try r.producerKey(request, false)) orelse return null;
+    const state = try self.decodeValue(q.ProducerState, value);
+    try self.requireTarget(state.target);
+    return state;
+}
+fn nextProducer(self: *Self, request: q.Append) !?q.ProducerState {
+    const producer = request.producer orelse return null;
+    if (try self.producerState(request)) |previous| {
+        const disposition = try previous.check(request);
+        if (disposition == .retry) return error.LogProducerConflict;
+        return .{ .target = request.target, .principal = request.operation.principal, .producer = producer, .discarded_through = if (disposition == .advance_epoch) 0 else previous.discarded_through };
+    }
+    return try q.ProducerState.initial(request);
+}
+fn progress(self: *Self, id: u64) !?q.GroupProgress {
+    if (id == 0) return error.InvalidLogGroup;
+    const value = try self.tree().get(self.root.groups, try r.integerKey(id)) orelse return null;
+    const result = try self.decodeValue(q.GroupProgress, value);
+    try self.requireTarget(result.target);
+    if (result.group.id != id or result.next > self.root.next_offset) return error.InvalidLogHistory;
+    return result;
+}
+pub fn group(self: *Self, id: u64, guard: Guard) !?q.GroupProgress {
+    try authorize(guard);
+    try self.requireReady();
+    const result = try self.progress(id);
+    try authorize(guard);
+    return result;
+}
+
+pub fn append(self: *Self, declared: Declaration.Stored, request: q.Append, payload: []const u8, guard: Guard) !q.AppendReceipt {
+    try request.validate();
+    try self.requireTarget(request.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.original(request.operation)) |record| {
+        if (record.outcome != .append) return error.LogOperationConflict;
+        try record.outcome.append.requireAppend(request);
+        if (!std.meta.eql(Batch.content(payload), request.payload)) return error.LogPayloadConflict;
+        try authorize(guard);
+        return record.outcome.append;
+    }
+    try self.root.requireDeclaration(declared);
+    try request.target.requireSame((try self.root.cut(declared)).target);
+    if (request.kind != .stream) return error.LogPartitionConflict;
+    if (payload.len > self.options.batch_bytes) return error.LogAppendLimitExceeded;
+    _ = try self.nextProducer(request);
+    var declaration = try Declaration.load(self.allocator, self.objects, declared);
+    defer declaration.deinit();
+    try Batch.validate(payload, &declaration, request, &self.scratch, self.key_buffer);
+    const receipt: q.AppendReceipt = .{ .append = request, .first = self.root.next_offset, .next = std.math.add(u64, self.root.next_offset, request.rows) catch return error.LogOffsetExhausted, .accepted = try self.nextPosition() };
+    try self.publish(.{ .declared = declared, .outcome = .{ .append = receipt } }, payload, guard);
+    return receipt;
+}
+pub fn assign(self: *Self, declared: Declaration.Stored, assignment: q.GroupAssignment, guard: Guard) !q.GroupAssignmentReceipt {
+    try assignment.validate();
+    try self.requireTarget(assignment.cut.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.original(assignment.operation)) |record| {
+        if (record.outcome != .assignment) return error.LogOperationConflict;
+        try record.outcome.assignment.requireAssignment(assignment);
+        try authorize(guard);
+        return record.outcome.assignment;
+    }
+    try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(declared));
+    const receipt: q.GroupAssignmentReceipt = .{ .assignment = assignment, .accepted = try self.nextPosition() };
+    try self.publish(.{ .declared = declared, .outcome = .{ .assignment = receipt } }, &.{}, guard);
+    return receipt;
+}
+fn nextPosition(self: *Self) !d.Position {
+    return .{ .partition = self.root.initialization.partition, .next_lsn = std.math.add(u64, self.root.next_lsn, 1) catch return error.LogPositionExhausted };
+}
+fn candidate(self: *Self, evidence: Evidence.Record) !Root {
+    try evidence.validate();
+    try self.root.requireDeclaration(evidence.declared);
+    try self.requireTarget(evidence.target());
+    if (!std.meta.eql(evidence.accepted(), try self.nextPosition()) or try self.original(evidence.operation()) != null) return error.InvalidLogHistory;
+    const reference = try Evidence.stage(self.objects, evidence);
+    var result = self.root;
+    result.declared = evidence.declared;
+    result.next_lsn = evidence.accepted().next_lsn;
+    result.receipts = try self.tree().put(result.receipts, try Evidence.operationKey(evidence.operation()), reference);
+    switch (evidence.outcome) {
+        .append => |receipt| {
+            if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
+            result.next_offset = receipt.next;
+            result.batches = try self.tree().put(result.batches, try r.integerKey(receipt.next), reference);
+            if (try self.nextProducer(receipt.append)) |producer| {
+                result.producers = try self.tree().put(result.producers, try r.producerKey(receipt.append, false), try r.valueEncode(producer));
+                result.producer_receipts = try self.tree().put(result.producer_receipts, try r.producerKey(receipt.append, true), reference);
+            }
+        },
+        .assignment => |receipt| {
+            const assignment = receipt.assignment;
+            try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(evidence.declared));
+            result.groups = try self.tree().put(result.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
+        },
+        // Offset acceptance additionally needs owner-issued read coverage. It
+        // cannot be enabled by presenting a caller-constructed descriptor.
+        .offset => return error.LogCoverageRequired,
+    }
+    try result.validate();
+    return result;
+}
+fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    const next = try self.candidate(evidence);
+    const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .evidence = evidence };
+    const bytes = try r.encode(record, payload, self.encoded);
+    const fence = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidWalEpoch;
+    const receipt = self.log.append(next.initialization.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, if (evidence.outcome == .append) .row_delta else .manifest_checkpoint, bytes) catch |err| {
+        self.ready = false;
+        return switch (err) {
+            error.StaleWriterEpoch, error.StalePolicyEpoch => err,
+            else => error.LogAppendUncertain,
+        };
+    };
+    if (receipt.partition_id != next.initialization.partition or receipt.lsn != self.root.next_lsn or receipt.next_lsn != next.next_lsn or receipt.writer_epoch != fence.writer_epoch or receipt.policy_epoch != fence.policy_epoch) {
+        self.ready = false;
+        return error.LogAppendUncertain;
+    }
+    self.root = next;
+    self.commitment = Evidence.hash(bytes);
+    // Cache admission is optional after acceptance. Pressure cannot turn an
+    // accepted append into rejection; reads can load its verified WAL payload.
+    if (evidence.outcome == .append) self.cache.admit(.{ .position = evidence.accepted(), .content = evidence.outcome.append.append.payload }, payload) catch {};
+}
+
+pub const Recovery = struct { examined: u16, position: d.Position, complete: bool };
+pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !Recovery {
+    if (budget == 0 or budget > 256) return error.InvalidLogRecoveryBudget;
+    try authorize(guard);
+    self.ready = false;
+    const through = try self.log.tail(self.root.initialization.partition);
+    if (through < self.root.next_lsn) return error.InvalidLogHistory;
+    var examined: u16 = 0;
+    while (examined < budget and self.root.next_lsn < through) : (examined += 1) {
+        var batch = try self.log.read(self.allocator, self.root.initialization.partition, self.root.next_lsn, 1);
+        defer batch.deinit();
+        if (batch.frames.len != 1) return error.LogHistoryUnavailable;
+        const frame = batch.frames[0];
+        const decoded = try self.decodeFrame(frame, self.root.initialization.partition, self.root.next_lsn);
+        if (!std.mem.eql(u8, &decoded.record.previous, &self.commitment)) return error.InvalidLogHistory;
+        try self.verifyTransition(decoded.record);
+        const next_commitment = Evidence.hash(frame.payload);
+        try authorize(guard);
+        self.root = decoded.record.root;
+        self.commitment = next_commitment;
+    }
+    try authorize(guard);
+    self.ready = self.root.next_lsn == try self.log.tail(self.root.initialization.partition);
+    return .{ .examined = examined, .position = self.root.position(), .complete = self.ready };
+}
+fn verifyValue(self: *Self, root: ?pages.Reference, key: pages.Key, value: pages.Value) !void {
+    const found = try self.tree().get(root, key) orelse return error.InvalidLogHistory;
+    if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
+}
+fn verifyTransition(self: *Self, record: r.Record) !void {
+    const evidence = record.evidence;
+    const next = record.root;
+    try self.root.requireDeclaration(evidence.declared);
+    try self.root.initialization.requireSame(next.initialization);
+    if (next.retained_from != self.root.retained_from or try self.original(evidence.operation()) != null) return error.InvalidLogHistory;
+    const reference = try Evidence.expectedReference(evidence);
+    try self.verifyValue(next.receipts, try Evidence.operationKey(evidence.operation()), reference);
+    if (!std.meta.eql(evidence, try self.loadEvidence(reference))) return error.InvalidLogHistory;
+    var declared = try Declaration.load(self.allocator, self.objects, evidence.declared);
+    defer declared.deinit();
+    var expected = self.root;
+    expected.declared = next.declared;
+    expected.next_lsn = next.next_lsn;
+    expected.receipts = next.receipts;
+    switch (evidence.outcome) {
+        .append => |receipt| {
+            if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
+            expected.next_offset = receipt.next;
+            expected.batches = next.batches;
+            try self.verifyValue(next.batches, try r.integerKey(receipt.next), reference);
+            if (try self.nextProducer(receipt.append)) |producer| {
+                expected.producers = next.producers;
+                expected.producer_receipts = next.producer_receipts;
+                try self.verifyValue(next.producers, try r.producerKey(receipt.append, false), try r.valueEncode(producer));
+                try self.verifyValue(next.producer_receipts, try r.producerKey(receipt.append, true), reference);
+            }
+        },
+        .assignment => |receipt| {
+            const assignment = receipt.assignment;
+            try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(evidence.declared));
+            expected.groups = next.groups;
+            try self.verifyValue(next.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
+        },
+        .offset => return error.LogCoverageRequired,
+    }
+    if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
+}
+
+pub const BorrowedBatch = struct {
+    cut: q.Cut,
+    receipt: q.AppendReceipt,
+    payload: Tail.Borrow,
+    pub fn deinit(self: *BorrowedBatch) void {
+        self.payload.release() catch unreachable;
+        self.* = undefined;
+    }
+};
+/// One current batch, borrowed from a bounded verified tail slab. The receipt
+/// supplies its actual offset range; the current cut is not a retention pin or
+/// proof of a completed multi-batch traversal. Callers enforce row/byte budgets.
+pub fn readBatch(self: *Self, declared: Declaration.Stored, offset: u64, guard: Guard) !?BorrowedBatch {
+    try authorize(guard);
+    try self.requireReady();
+    const cut = try self.root.cut(declared);
+    try cut.requireOffset(offset);
+    if (offset == cut.next) {
+        try authorize(guard);
+        return null;
+    }
+    const selected = try self.tree().scanFrom(self.root.batches, try r.integerKey(offset + 1));
+    const entry = selected.entries[0] orelse return error.LogHistoryUnavailable;
+    const evidence = try self.loadEvidence(entry.value);
+    if (evidence.outcome != .append) return error.InvalidLogHistory;
+    const receipt = evidence.outcome.append;
+    try self.requireTarget(receipt.append.target);
+    if (receipt.first > offset or receipt.next <= offset or receipt.next > cut.next or receipt.accepted.partition != cut.accepted.partition or receipt.accepted.next_lsn > cut.accepted.next_lsn or !std.meta.eql(entry.key, try r.integerKey(receipt.next))) return error.InvalidLogHistory;
+    const binding: Tail.Binding = .{ .position = receipt.accepted, .content = receipt.append.payload };
+    var borrowed = try self.cache.borrow(binding);
+    if (borrowed == null) {
+        var frames = try self.log.read(self.allocator, receipt.accepted.partition, receipt.accepted.next_lsn - 1, 1);
+        defer frames.deinit();
+        if (frames.frames.len != 1) return error.LogHistoryUnavailable;
+        const decoded = try self.decodeFrame(frames.frames[0], receipt.accepted.partition, receipt.accepted.next_lsn - 1);
+        if (!std.meta.eql(decoded.record.evidence, evidence)) return error.InvalidLogHistory;
+        try self.cache.admit(binding, decoded.payload);
+        borrowed = try self.cache.borrow(binding);
+    }
+    const result = borrowed orelse return error.LogHistoryUnavailable;
+    errdefer result.release() catch unreachable;
+    try authorize(guard);
+    return .{ .cut = cut, .receipt = receipt, .payload = result };
+}

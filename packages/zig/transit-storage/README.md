@@ -44,6 +44,25 @@ output uses a separate allocator. Its iterator borrows encoded bytes until the
 caller decodes them, and rejects trailing or truncated data before claiming
 completion. Batch validation provides no append acceptance or read authority.
 
+`StreamPartition` accepts one schema-bound batch per WAL record with its logical
+offset range, producer sequence/epoch and original receipt. Paged indexes keep
+backlog cardinality independent of resident page and tail caches. Original
+receipts survive later producer epochs and declaration changes; conflicting
+retries reject. `LogEvidence` stores bounded immutable outcomes, while
+`LogPartitionRecord` binds their published indexes and payload to the previous
+accepted record. Uncertain append invalidates resident readiness and requires
+recovery under the original identity. `recoverStep` checks at most 256 records;
+it must complete before the owner serves payloads or accepts more work.
+
+The storage owner also persists explicit group assignments and generations.
+Current batch reads return borrowed verified slabs and an observed cut; that cut
+does not pin history or prove completed consumption. The caller releases borrows
+before destroying the owner and rechecks its authorization before disclosure.
+The adapter must serialize catalog changes, enforce current grants, and bind
+global operation identity across objects. This component is not yet composed
+into payload service APIs. Group offset commits, finite pinned traversal,
+segment maintenance and payload retention still require their execution owners.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

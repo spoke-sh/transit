@@ -43,7 +43,8 @@ pub fn encode(request: Request, output: *[max_bytes]u8) ![]const u8 {
     output[0..8].* = "LINIT001".*;
     output[8..40].* = p.Growth.definition_bytes;
     var writer: std.Io.Writer = .fixed(output[header_bytes..]);
-    try std.json.Stringify.value(request, .{}, &writer);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(request, &encoder);
     return output[0 .. header_bytes + writer.buffered().len];
 }
 

@@ -51,7 +51,8 @@ pub const Definition = struct {
         try self.validate();
         if (output.len < header_bytes) return error.LogDeclarationTooLarge;
         var policy_writer: std.Io.Writer = .fixed(output[header_bytes..][0..@min(max_policy_bytes, output.len - header_bytes)]);
-        try std.json.Stringify.value(Policy{ .configuration = self.configuration, .limits = self.limits }, .{}, &policy_writer);
+        var policy_encoder: std.json.Stringify = .{ .writer = &policy_writer };
+        try p.Json.write(Policy{ .configuration = self.configuration, .limits = self.limits }, &policy_encoder);
         const policy_bytes = policy_writer.buffered().len;
         const at = header_bytes + policy_bytes;
         if (self.properties.len > output.len - at) return error.LogDeclarationTooLarge;
@@ -158,7 +159,8 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, stored: 
     defer policy.deinit();
     var canonical: [max_policy_bytes]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&canonical);
-    try std.json.Stringify.value(policy.value, .{}, &writer);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(policy.value, &encoder);
     if (!std.mem.eql(u8, bytes[header_bytes..][0..policy_length], writer.buffered())) return error.InvalidLogDeclaration;
     var schema = try f.TableSchema.decode(allocator, bytes[bytes.len - schema_length ..]);
     errdefer schema.deinit();

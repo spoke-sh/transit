@@ -52,3 +52,27 @@ test "log declarations reject undefined nullable keys relational uniqueness and 
     definition.configuration.policy.queue.dead_letter = .{ .object = definition.object, .revision = 1, .digest = @splat(1) };
     try t.expectError(error.InvalidQueueDestination, definition.validate());
 }
+
+test "log declarations preserve fixed byte arrays for textual DLQ digests" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var definition = support.definition(.queue);
+    var destination = definition.object;
+    destination.object = 5;
+    definition.configuration.policy.queue.dead_letter = .{ .object = destination, .revision = 1, .digest = @splat('a') };
+    var owned = try D.prepare(t.allocator, definition);
+    defer owned.deinit();
+    const stored = try D.stage(objects.objectStore(), &owned);
+    var loaded = try D.load(t.allocator, objects.objectStore(), stored);
+    defer loaded.deinit();
+    try t.expectEqualDeep(definition.configuration, loaded.definition.configuration);
+    var buffer: [s.LogInitialization.max_bytes]u8 = undefined;
+    const request: s.LogInitialization.Request = .{ .definition = @import("transit_protocol").Growth.current_definition, .declared = stored, .operation = .{ .scope = definition.object.scope, .principal = 0, .operation = 1 }, .ordinal = 0, .partition = 91 };
+    const encoded = try s.LogInitialization.encode(request, &buffer);
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    _ = try wal.log().append(91, 0, 1, 1, .genesis, encoded);
+    var frames = try wal.log().read(t.allocator, 91, 0, 1);
+    defer frames.deinit();
+    try t.expectEqualDeep(request, (try s.LogInitialization.decode(t.allocator, frames.frames[0])).request);
+}

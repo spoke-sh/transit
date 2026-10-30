@@ -1282,6 +1282,10 @@ have a 4096-byte limit; schema retains its 65536-byte bound. SHA-256 of the enti
 artifact binds the immutable definition and object-store content reference;
 the descriptor separately commits the schema bytes and policies.
 
+Canonical JSON uses the shared codec: fixed byte arrays remain numeric arrays,
+including digests or producer IDs whose bytes happen to be valid UTF-8. Reading
+does not reinterpret strings as those arrays.
+
 Log schemas have no relational primary key: offsets establish append identity.
 Declared routing, FIFO and compaction keys must resolve to existing nonnullable
 columns with supported key types and collations. The schema owner validates
@@ -1340,3 +1344,56 @@ must preserve the batch borrow until decode finishes. Exhaustion verifies the
 declared count and exact byte end; truncated rows, extra bytes, foreign schema
 layouts and different original row identities reject. These codec checks do not
 establish durable append acceptance or complete Stream read coverage.
+
+## Stream partition acceptance
+
+`StreamPartition` is a serialized storage owner over an exact `LogInitialization`.
+Its adapter owns current catalog interpretation, current authorization and the
+global operation-identity directory. A validated descriptor or an acquired cache
+borrow cannot supply those authorities. Fresh appends require the current live
+declaration and preserve the seed's schema, partition routing and compaction key.
+
+Each `LOGPART1` payload contains its eight-byte magic, shared definition, metadata
+length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` bytes.
+Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
+the complete new paged root and original outcome. The root records the original
+initialization, declaration, physical WAL frontier, independent logical offset
+frontier, retained boundary, and batch/receipt/producer/producer-receipt/group
+directories. Missing fields reject. Append records use `row_delta`; assignment
+records use `manifest_checkpoint` and contain no row payload. Both advance the
+WAL frontier, while only append allocates logical offsets.
+
+Original outcomes are immutable `log-evidence/{sha256}.data` objects: `LOGEVID1`,
+the shared definition and canonical JSON for the exact declaration and receipt.
+The entire object is bounded to 16 KiB. Directory values encode its byte length
+as big-endian `u64` followed by its SHA-256. Operation keys are the original
+principal and operation as big-endian `u64` values, scoped by the partition's
+catalog. Batch keys are exclusive logical end offsets, so a bounded ordered
+lookup finds the batch containing any retained offset. Producer keys include
+the original principal and 16-byte producer ID; sequence receipts additionally
+include epoch and sequence. No directory is materialized in its entirety.
+
+Append validates the complete payload, schema, collation-aware routing, limits
+and producer transition before staging private indexes. It rechecks and holds
+the publication guard while appending with the exact expected WAL frontier and
+writer/policy epochs. One WAL acceptance publishes payload, offset range,
+producer progress and original receipt together. Exact retries inspect original
+outcomes before fresh producer/declaration checks, while still requiring current
+permission. Conflict and uncertainty never allocate a replacement identity.
+
+An unknown or malformed append result marks the resident owner unready. Recovery
+reads at most the requested 1–256 records, verifies the hash chain, declaration
+and index/outcome agreement, and advances only through validated history. Reads
+and appends refuse until recovery reaches the current physical frontier. Missing
+dependencies reject; recovery neither stages replacement indexes nor resets the
+partition. The genesis and required WAL payloads remain retained in this profile.
+
+Current batch reads return an original append receipt, an observed cut and a
+pinned `LogTail` borrow. Cache hits reuse verified bytes. A miss verifies the
+accepted WAL record before admitting its payload; pinned cache pressure is an
+explicit refusal. Read authorization is checked again after buffering, including
+empty terminal observations. A borrow survives other appends and prevents owner
+destruction, but does not pin durable history or prove finite traversal coverage.
+Explicit assignment preserves group progress across generation changes. Offset
+settlement requires owner-issued coverage and remains disabled in this storage
+profile; callers cannot commit a constructed coverage descriptor.

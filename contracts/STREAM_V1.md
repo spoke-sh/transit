@@ -21,6 +21,13 @@ bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. These
 foundations do not enable payload operations or SQL verbs. Their stored
 formats use the current shared definition under the coordinated cutover policy.
 
+The storage-only `StreamPartition` additionally accepts schema-bound batches,
+publishes paged producer and original-result indexes atomically with each
+payload, and persists explicit group assignment generations. Its bounded recovery
+and borrowed current-batch reads are exercised on disk. Service payload APIs,
+pinned finite reads, offset settlement and segment maintenance are not enabled
+by that component. See the [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
+
 ## Identity and append
 
 `StreamQueueDeclaration.Declaration` binds the current definition, immutable
