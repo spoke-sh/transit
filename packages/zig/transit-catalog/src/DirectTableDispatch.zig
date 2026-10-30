@@ -23,6 +23,7 @@ pub const Execution = struct {
     resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
     log: ?*const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!c.DirectLog.Observation = null,
     stream: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectStream.Request) anyerror!c.DirectStream.Result = null,
+    queue: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectQueue.Request) anyerror!c.DirectQueue.Result = null,
 };
 
 fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
@@ -82,6 +83,10 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
+        .queue => {
+            const run = execution.queue orelse return error.QueueServiceUnavailable;
+            return .{ .queue = try run(execution.context, allocator, catalog, policy, action.queue) };
+        },
         .stream => {
             const run = execution.stream orelse return error.StreamServiceUnavailable;
             return .{ .stream = try run(execution.context, allocator, catalog, policy, action.stream) };

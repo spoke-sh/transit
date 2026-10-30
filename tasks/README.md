@@ -66,7 +66,8 @@ attempt's diagnostics separately from test results; compilation and tests are
 never retried by this command.
 
 `just test::catalog` qualifies direct dependencies and named native resources;
-`just test::direct-table-service` qualifies direct Table operations. Their local durable
+`just test::direct-table-service` qualifies direct Table operations and the Queue
+FIFO/original-recovery schedule; pass `queues` to run only that schedule. Their local durable
 owners retain history on disk with bounded metadata/data caches. Growth schedules
 retain more objects and rows than those caches without discarding accepted work.
 `just test::table-count-ranges` checks finite primary-key count intervals against

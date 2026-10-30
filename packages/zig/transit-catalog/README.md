@@ -29,8 +29,10 @@ partition, intent or data kind. Claim receipt inspection and pages require
 current read and acquire privileges; settlements require settle privileges.
 Pages retain the original schema and payload while reporting current lease state
 separately. `DirectQueueResponse` validates that attribution, observation basis,
-row identities, byte budgets and exact cursor advance. This internal composition
-is not yet exposed by the native service or SQL.
+row identities, byte budgets and exact cursor advance. The signed `queue` action
+and `DirectQueueClient` expose standalone operations through the native service.
+Saved work preserves the exact original mutation and payload commitment. SQL,
+automatic expiry scheduling, DLQ transfer and mixed transactions remain unavailable.
 
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the

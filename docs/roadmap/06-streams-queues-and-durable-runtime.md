@@ -425,8 +425,13 @@ The current progress slice delivers:
   restart, and keep exhausted FIFO heads nonterminal. Bounded original-claim pages
   now own payload bytes across scratch/tail reuse and report observed current
   lease status under separate authority/time checks, including after collection
-  and retirement. Installed execution, timer-wheel and affinity scheduling, and
-  atomic DLQ transfer remain outstanding.
+  and retirement. Catalog composition now preserves Queue work in the shared
+  operation namespace and checks current native grants across policy edits and
+  disk reopen. Signed native dispatch, typed caller recovery, independent signing
+  fixtures and installed HTTP now pass focused checks, including FIFO head
+  selection, three uncertain replies and original payloads after DROP and
+  SIGKILL/restart. Timer-wheel and affinity scheduling, automatic deadline
+  execution, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

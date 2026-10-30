@@ -148,9 +148,9 @@ Observation does not authorize later execution or settlement. The neutral
 The Queue wrapper exposes enqueue, claim, original claim pages, settlement,
 bounded expiry, observation, original outcome recovery and physical maintenance.
 It has no Stream consumption, group or age-expiry API.
-The service must still compose this storage boundary with the shared catalog
-operation namespace and current grants; installed Queue execution and automatic
-deadline scheduling remain open.
+`DirectQueue` composes this storage boundary with the shared catalog operation
+namespace and current grants. The signed native Queue action exposes standalone
+operations through that adapter; automatic deadline scheduling remains open.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

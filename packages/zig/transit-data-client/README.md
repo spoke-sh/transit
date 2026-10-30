@@ -65,6 +65,18 @@ page from completion. Releasing a read or closing the client does not settle
 consumer progress. See the [Stream contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
 for current service budgets and grants.
 
+`Catalog.callQueue(output, action)` exposes `DirectQueueClient.Action` for enqueue,
+claim, original-operation inspection, bounded original-claim pages and explicit
+ACK/NACK/extension settlement. `DirectQueueClient.save` preserves exact mutation
+bytes before dispatch; `load` verifies the mandatory definition, connection and
+payload commitment. `QueueOutcome` preserves the original mutation identity and
+unknown-outcome evidence. Decoded rows retain their original leases and payloads;
+the separately observed status is not authority to execute or settle them.
+Pages use selection ordinals and explicit completion, including empty terminal
+pages. Closing the client or output arena performs no ACK, NACK or renewal.
+The [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+owns current limits, grants and unavailable scheduling/transaction capabilities.
+
 Pass a separate output arena. Successful results and their strings/collections
 belong to that arena and remain valid across subsequent calls and client close.
 Reset it only after all associated borrows end. Retained local intents use the

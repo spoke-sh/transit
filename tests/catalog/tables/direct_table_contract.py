@@ -212,6 +212,15 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(wait_input)).digest())}
     wait_request = {**wait_input, "proof": {"claim": wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(wait_claim)).digest())}}
     wait_fixture = {"request": wait_request, "public_key": public_key, "intent_digest": list(stream_digest)}
+    queue_work = {"claim": {
+        "target": stream_work["consume"]["target"], "operation": log_binding["identity"],
+        "maximum": 16, "lease_ms": 1000,
+    }}
+    queue_input = {**request_input, "action": {"queue": {"mutate": {"work": queue_work, "payload": None}}}}
+    queue_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_input)).digest())}
+    queue_request = {**queue_input, "proof": {"claim": queue_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_claim)).digest())}}
+    queue_digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_work)).digest()
+    queue_fixture = {"request": queue_request, "public_key": public_key, "intent_digest": list(queue_digest)}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -237,6 +246,11 @@ validator.validate(dependency_request)
 validator.validate(resource_request)
 validator.validate(log_request)
 validator.validate(stream_request)
+validator.validate(queue_request)
+for field in ("target", "operation", "maximum", "lease_ms"):
+    invalid = copy.deepcopy(queue_request)
+    del invalid["action"]["queue"]["mutate"]["work"]["claim"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("target", "operation", "group", "from", "until", "timestamp"):
     invalid = copy.deepcopy(stream_request)
     del invalid["action"]["stream"]["mutate"]["work"]["consume"][field]
@@ -287,6 +301,8 @@ def persist(path, content):
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",
+        (json.dumps(queue_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-wait-v1.json",
         (json.dumps(wait_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",

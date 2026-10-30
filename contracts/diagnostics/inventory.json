@@ -4887,6 +4887,45 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectQueueClient.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueIntent": 1,
+        "InvalidQueueResponse": 1,
+        "LogPayloadConflict": 1
+      },
+      "outcomes": {
+        "Action": [
+          "observe",
+          "mutate",
+          "operation",
+          "page"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Action.encode()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "load()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectQueueMutation.zig": {
       "errors": {
         "CatalogKindMismatch": 1,
@@ -5626,6 +5665,7 @@
         "InvalidCatalogCursor": 5,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
+        "QueueServiceUnavailable": 1,
         "StreamServiceUnavailable": 1,
         "TableDelegationDenied": 1,
         "UnsupportedTableAction": 2
@@ -5636,6 +5676,7 @@
         "Execution.ddl()": "anyerror",
         "Execution.log()": "anyerror",
         "Execution.namespace()": "anyerror",
+        "Execution.queue()": "anyerror",
         "Execution.resource()": "anyerror",
         "Execution.stream()": "anyerror",
         "apply()": "anyerror",
@@ -5645,9 +5686,9 @@
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
-      "open_error_set_uses": 7,
+      "open_error_set_uses": 8,
       "propagation": {
-        "try": 179,
+        "try": 180,
         "catch": 0
       },
       "imports": [
@@ -5866,7 +5907,8 @@
           "filter_scan",
           "key_range",
           "release",
-          "stream"
+          "stream",
+          "queue"
         ],
         "Action.operation.command": [
           "inspect",
@@ -5958,7 +6000,8 @@
           "filtered_page",
           "key_range",
           "released",
-          "stream"
+          "stream",
+          "queue"
         ],
         "Result.list.consistency": [
           "independent"
@@ -6091,7 +6134,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 198,
+        "try": 199,
         "catch": 10
       },
       "imports": [
@@ -7546,6 +7589,7 @@
         "DirectLogProtocol.zig",
         "DirectNamespace.zig",
         "DirectQueue.zig",
+        "DirectQueueClient.zig",
         "DirectQueueMutation.zig",
         "DirectQueueResponse.zig",
         "DirectReadAuthority.zig",
@@ -8516,7 +8560,7 @@
     },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 3,
+        "Busy": 4,
         "InvalidArgument": 1
       },
       "outcomes": {
@@ -8525,6 +8569,10 @@
           "failure"
         ],
         "Outcome.value": [
+          "result",
+          "failure"
+        ],
+        "QueueOutcome.value": [
           "result",
           "failure"
         ],
@@ -8540,6 +8588,9 @@
         "callLog().<error>": [
           "Busy"
         ],
+        "callQueue().<error>": [
+          "Busy"
+        ],
         "callStream().<error>": [
           "Busy"
         ]
@@ -8547,13 +8598,14 @@
       "error_returns": {
         "call()": "error { Busy }",
         "callLog()": "error { Busy }",
+        "callQueue()": "error { Busy }",
         "callStream()": "error { Busy }",
         "init()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 7
+        "catch": 9
       },
       "imports": [
         "std",

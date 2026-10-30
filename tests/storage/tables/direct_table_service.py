@@ -17,7 +17,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "queues", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -38,7 +38,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode == "tables":
             settings["request_metrics"] = True
-        if mode in ("resources", "resource-growth"):
+        if mode in ("resources", "resource-growth", "queues"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -73,6 +73,7 @@ def run(node, caller, mode="tables", *artifacts):
 
         dependency_faults = set()
         stream_faults = set()
+        queue_faults = set()
         stream_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
@@ -183,6 +184,16 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
                         log_admit = envelope["action"].get("log_admit")
+                        queue = envelope["action"].get("queue", {}).get("mutate")
+                        if mode == "queues" and queue and response.status == 200:
+                            kind, work = next(iter(queue["work"].items()))
+                            selected = work["operation"]["operation"]
+                            if selected in (633001, 633002, 633004) and selected not in queue_faults:
+                                parsed = json.loads(data)
+                                assert kind in parsed["result"]["queue"]["operation"], parsed
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                queue_faults.add(selected)
                         stream = envelope["action"].get("stream", {}).get("mutate")
                         if mode == "tables" and stream and response.status == 200:
                             kind, work = next(iter(stream["work"].items()))
@@ -311,6 +322,23 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "queues":
+                subprocess.run([caller, endpoint, "queue-prepare", str(profile)], check=True, timeout=180)
+                saved = Path(str(profile) + ".queue").read_bytes()
+                assert queue_faults == {633001, 633002, 633004}
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue").read_bytes() == saved
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)],
+                                      requests=fault["requests"], lost_replies=sorted(queue_faults),
+                                      passed=True)), flush=True)
+                print("Direct Queue HTTP: FIFO heads, original empty claims, three lost replies, ACK and original payloads after DROP and node SIGKILL/restart passed.", flush=True)
+                return
             if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):
                     nonlocal authority
@@ -689,3 +717,7 @@ def run(node, caller, mode="tables", *artifacts):
 
 if __name__ == "__main__":
     run(*sys.argv[1:])
+    # The ordinary direct-service gate includes the Queue schedule with a
+    # separate physical directory and clock policy. Focused modes stay focused.
+    if len(sys.argv) == 3 or sys.argv[3] == "tables":
+        run(sys.argv[1], sys.argv[2], "queues")

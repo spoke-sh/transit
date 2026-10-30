@@ -109,6 +109,7 @@ fn exclusive(action: w.Action) bool {
 fn target(action: w.Action) ?u64 {
     return switch (action) {
         .stream => |value| value.target().interpretation.object.object,
+        .queue => |value| value.target().interpretation.object.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
         inline .observe, .read_current => |value| value.interpretation.object.object,
         inline .storage, .flush => |value| value.object.object,
@@ -263,4 +264,13 @@ test "log lifecycle publication serializes the shared catalog directory" {
     const admission: w.Action = .{ .log_admit = .{ .binding = binding, .kind = .stream, .namespace = 1, .name = "events", .action = .drop } };
     try std.testing.expect(exclusive(admission));
     try std.testing.expectEqual(@as(?u64, 97), target(admission));
+    const queue: w.Action = .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{
+        .target = .{ .definition = c.protocol.Growth.current_definition, .interpretation = .{ .object = binding.target, .revision = 1, .digest = @splat(1) }, .partition = 3 },
+        .operation = binding.identity,
+        .maximum = 1,
+        .lease_ms = 100,
+    } }, .payload = null } } };
+    try std.testing.expect(!exclusive(queue));
+    try std.testing.expectEqual(target(admission), target(queue));
+    try std.testing.expectEqual(stripe(admission), stripe(queue));
 }

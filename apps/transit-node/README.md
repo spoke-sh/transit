@@ -115,7 +115,8 @@ owns language coverage.
 
 `LocalTableHost` validates the complete catalog history before readiness. It
 retains up to ten ordinary and two reserved control workspaces, each containing
-one Catalog, at most one Table owner and one Stream partition owner. The owners retain verified immutable
+one Catalog, at most one Table owner, one Stream partition owner and one Queue
+partition owner. The owners retain verified immutable
 index pages and owned declarations. Every acquisition checks the current log
 frontier; a changed frontier validates the saved boundary and every newer
 record before serving the request. A different Table replaces only the volatile
@@ -125,6 +126,15 @@ They use the [Stream payload contract](../../contracts/DIRECT_TABLE_V1.md#stream
 including finite reads and explicit group settlement. Cursor authentication uses
 a private key derived from the registrar seed; replacing that seed invalidates
 old cursor authentication but preserves accepted work.
+
+Queue payload actions use the same object lock, current native grants and
+trusted UTC interval source. They expose enqueue, original claims, bounded
+payload/status pages and explicit fenced settlements through the
+[Queue action contract](../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements).
+Claim pages need current read and acquire rights even after acceptance. Queue
+owners share the resident budgets below; they retain neither request proofs nor
+time callbacks. Automatic Queue expiry/cleanup and DLQ/common transaction
+publication remain unfinished.
 
 Retained owners and their private work share a 256 MiB ordinary allowance and a
 separate 64 MiB control allowance, with per-owner limits of 128 MiB and 64 MiB,

@@ -32,10 +32,42 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
-Queue payload leasing, SQL verbs and Station composition are unavailable through
-these operations. The existing mailbox delivery profile below remains separate.
+Payload operations use the separate typed calls below. SQL Stream/Queue verbs
+and Station composition remain unavailable. The existing mailbox delivery
+profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+
+## Queue payloads and leased work
+
+`Catalog.callQueue` enqueues typed batches, claims a bounded original selection,
+reads its payloads and explicitly settles each exact lease with ACK, NACK or an
+extension. Save mutations with `DirectQueueClient.save` before dispatch. A lost
+response requires inspection of that original work; retrying an accepted claim
+never selects different messages. An accepted empty claim remains empty even
+after more messages become eligible.
+
+Enqueue requires current append rights. Claims, original claim inspection and
+payload pages require read plus acquire; settlement requires settle. The service
+checks grants after buffering, including empty and terminal pages. Returned rows
+belong to the caller's output arena and preserve original payload/schema identity.
+Their separately observed lease status can be live, expired, unavailable or
+fenced. That observation does not authorize later execution: settlement checks
+the exact current lease and trusted time again at publication.
+
+Enqueue is bounded to 1 MiB per batch; claims select at most 256 rows and obey
+smaller declaration and active-capacity limits. Read pages apply row and byte
+budgets with a cursor over the original selection. The final data page can be
+complete; reading a complete cursor returns an empty terminal page. Closing a
+page or client performs no ACK or renewal. Original outcomes and payloads remain
+recoverable after compatible policy edits, DROP or clock loss.
+
+Automatic Queue expiry scheduling, terminal cleanup, DLQ transfer and mixed
+state/message transactions remain unfinished. An expired lease can still appear
+acquired until bounded expiry work runs; an expired receipt cannot settle it.
+See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
+for required composition guarantees.
 
 ## Stream payloads and consumer progress
 

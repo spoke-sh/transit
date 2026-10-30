@@ -5,9 +5,10 @@
 [`transit-protocol.StreamQueue`](../packages/zig/transit-protocol/src/StreamQueue.zig)
 defines neutral Queue append, lease, settlement and original-receipt bindings.
 Its pure validators do not create a Queue, claim a message, authenticate a receipt
-or commit state. No installed `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK`
-or `EXTEND LEASE` operation is enabled by these types. Queue transaction
-participants continue to reject before acceptance.
+or commit state. The signed [Queue action](DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+composes standalone enqueue, claim, original payload reads and settlements.
+SQL `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain
+unavailable. Queue transaction participants continue to reject before acceptance.
 
 The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 publishes Queue declarations separately from payload execution. It verifies
@@ -25,14 +26,14 @@ requires a new operation. Capacity exhaustion refuses instead of publishing a
 false empty result. ACK, NACK, renewal and bounded expiry also publish complete
 successor roots with current authorization and conservative deadline checks.
 Bounded original-claim reads return owned payload rows and separately observed
-lease status. The internal catalog adapter `DirectQueue.apply` binds those
+lease status. The catalog adapter `DirectQueue.apply` binds those
 operations to current native Queue grants and the shared operation namespace.
 Claim receipt inspection and payload pages require read and acquire privileges;
 settlement requires settle privileges. It rechecks authority after buffering,
 preserves original outcomes through compatible ALTER/DROP, and reports bounded
-incomplete recovery before accepting fresh work. This is a composition boundary: the installed service does
-not yet admit Queue payload operations, and automatic deadline scheduling
-remains unimplemented.
+incomplete recovery before accepting fresh work. The native signed service and
+typed client expose this standalone composition. Automatic deadline scheduling,
+DLQ transfer and mixed transaction publication remain unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and

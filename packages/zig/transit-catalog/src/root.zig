@@ -50,6 +50,7 @@ pub const DirectStreamClient = @import("DirectStreamClient.zig");
 pub const DirectQueueMutation = @import("DirectQueueMutation.zig");
 pub const DirectQueue = @import("DirectQueue.zig");
 pub const DirectQueueResponse = @import("DirectQueueResponse.zig");
+pub const DirectQueueClient = @import("DirectQueueClient.zig");
 pub const LogAuthority = @import("LogAuthority.zig");
 pub const DocumentAuthority = @import("DocumentAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");

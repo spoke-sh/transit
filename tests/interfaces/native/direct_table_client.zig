@@ -803,6 +803,10 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
             try Growth.maintenance(client, profile.growth.?, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "queue-prepare")) {
+            try @import("fixture_direct_queue").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-recover")) {
+            try @import("fixture_direct_queue").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "stream-maintenance-prepare")) {
             try streamMaintenancePrepare(init, client, &profile, args[3]);
         } else if (std.mem.eql(u8, args[2], "stream-maintenance-check")) {

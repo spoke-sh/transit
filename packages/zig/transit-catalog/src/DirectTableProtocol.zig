@@ -372,6 +372,7 @@ pub const Action = union(enum) {
     key_range: struct { snapshot: Snapshot, interval: KeyInterval, after: ?KeyCursor, limits: P.ReadLimits },
     release: Snapshot,
     stream: c.DirectStream.Request,
+    queue: c.DirectQueue.Request,
 };
 pub const Request = struct {
     definition: p.Growth.Definition,
@@ -402,6 +403,7 @@ pub const Request = struct {
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8, wait: ?c.client.WaitHint } {
         const mutation = switch (self.action) {
             .stream => |value| value.mutation(),
+            .queue => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
             .client_token => |value| value == .bind,
@@ -416,7 +418,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .stream and self.action.stream.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -452,7 +454,7 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
-            .stream => |value| {
+            inline .stream, .queue => |value| {
                 try connection.object(value.target().interpretation.object);
                 try value.validate(connection.principal, connection.scope);
             },
@@ -843,6 +845,7 @@ pub const Result = union(enum) {
     key_range: KeyRangePage,
     released,
     stream: c.DirectStream.Result,
+    queue: c.DirectQueue.Result,
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 

@@ -33,6 +33,7 @@ pub const Resident = struct {
     catalog: D,
     table: ?D.CachedTable = null,
     stream: ?c.DirectStream.Cached = null,
+    queue: ?c.DirectQueue.Cached = null,
 
     pub fn create(allocator: std.mem.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
         const self = try allocator.create(Resident);
@@ -47,6 +48,7 @@ pub const Resident = struct {
         return self;
     }
     pub fn destroy(self: *Resident) void {
+        if (self.queue) |*cached| cached.deinit();
         if (self.stream) |*cached| cached.deinit();
         if (self.table) |*cached| cached.table.deinit();
         self.catalog.deinit();
@@ -118,7 +120,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .stream = executeStream };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .stream = executeStream, .queue = executeQueue };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -167,6 +169,17 @@ fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy
     const self: *Self = @ptrCast(@alignCast(raw));
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return (try runner.run(catalog, binding, policy, steps)).observation;
+}
+fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var temporary: ?c.DirectQueue.Cached = null;
+    defer if (temporary) |*cached| cached.deinit();
+    const slot = if (self.resident) |resident| &resident.queue else &temporary;
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+    }, request, policy);
 }
 fn executeNamespace(raw: *anyopaque, catalog: *D, binding: c.DirectNamespace.Binding, policy: D.Policy, steps: u16) !c.DirectNamespace.Observation {
     const self: *Self = @ptrCast(@alignCast(raw));

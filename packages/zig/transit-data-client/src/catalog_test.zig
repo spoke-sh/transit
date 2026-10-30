@@ -115,6 +115,13 @@ test "catalog concurrent call refuses and later calls do not inherit attempt dia
     const saved = try c.DirectTableValues.NameAssertion.foreign(output.allocator(), binding(1));
     caller.busy.store(true, .release);
     try t.expectError(error.Busy, caller.call(&output, .{ .load = .{ .name_assertion = saved } }));
+    const queue: c.DirectQueueMutation.Request = .{ .claim = .{
+        .target = .{ .definition = c.protocol.Growth.current_definition, .interpretation = .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 0 },
+        .operation = .{ .scope = connection.scope, .principal = connection.principal, .operation = 11 },
+        .maximum = 1,
+        .lease_ms = 100,
+    } };
+    try t.expectError(error.Busy, caller.callQueue(&output, .{ .mutate = .{ .work = queue } }));
     caller.busy.store(false, .release);
     const unavailable = try caller.call(&output, .{ .admit = .{ .name_assertion = saved } });
     try t.expect(unavailable.value == .failure);
@@ -123,4 +130,7 @@ test "catalog concurrent call refuses and later calls do not inherit attempt dia
     const loaded = try caller.call(&output, .{ .load = .{ .name_assertion = saved } });
     try t.expect(loaded.value == .result);
     try t.expect(!loaded.mutationAttempted());
+    const queue_unavailable = try caller.callQueue(&output, .{ .mutate = .{ .work = queue } });
+    try t.expect(queue_unavailable.value == .failure);
+    try t.expect(!queue_unavailable.mutationAttempted());
 }

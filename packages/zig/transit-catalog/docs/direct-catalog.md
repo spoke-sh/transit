@@ -17,8 +17,11 @@ through `DirectStorageGraph`, including cancelled prefixes and retired names.
 See the [Stream/Queue lifecycle contract](../../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 for ALTER limits, pending discovery, DLQ dependencies and current privileges.
 Signed Stream payload operations and finite notification waits use
-`DirectStream` and the same global operation namespace. Queue payload execution
-and Stream/Queue SQL remain unavailable.
+`DirectStream` and the same global operation namespace. `DirectQueue` uses that
+namespace for standalone enqueue, claim, original payload pages and fenced
+settlements. Both share current native policy and declaration serialization.
+Automatic Queue expiry scheduling, DLQ transfer, mixed transactions and
+Stream/Queue SQL remain unavailable.
 
 The internal `maintenanceNext` traversal inspects one current object entry per
 step under a host-supplied native maintenance guard. A pass fixes the largest

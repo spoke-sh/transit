@@ -1855,6 +1855,11 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.LogRetentionWindowElapsed).code);
     try t.expectEqual(p.ErrorCode.HistoryReclaimed, failure.table(error.LogRangeExpired).code);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.LogHistoryUnavailable).code);
+    try t.expectEqual(p.ErrorCode.ClockUnavailable, failure.table(error.QueueTimeUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseFenced).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseExpired).code);
+    try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.QueueLeaseCapacityExceeded).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.QueueReadBudgetExceeded).code);
 }
 
 test "log privileges enforce separate native domains and current disclosure rights" {
@@ -1962,6 +1967,26 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         }
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
+    var queue_intent = intent;
+    queue_intent.kind = .queue;
+    queue_intent.name = try .init("registered_queue");
+    queue_intent.action.create.schema.object = 301;
+    queue_intent.action.create.configuration.policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } };
+    var queue_binding = binding;
+    queue_binding.identity.operation = 500;
+    queue_binding.target.object = 301;
+    queue_binding.intent = try queue_intent.digest(t.allocator);
+    const queue_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = queue_binding, .intent = queue_intent });
+    (try dispatch(&service, .{ .log_admit = queue_ddl })).deinit();
+    const queue_created = try dispatch(&service, .{ .log_operation = .{ .binding = queue_binding, .command = .execute, .steps = 32 } });
+    defer queue_created.deinit();
+    const queue_declared = queue_created.value.result.log_operation.operation.resulting.?;
+    const queue_terminal = try @import("local_queue_test.zig").exercise(&service, queue_declared, queue_intent.action.create.schema, try key(29));
+    var queue_native_id = queue_declared.properties.authorization;
+    service.before_reply = .{ .context = &queue_native_id, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .queue = queue_terminal }));
+    service.before_reply = null;
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(queue_native_id), .owner = role } });
     try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
     const maintenance_context: [32]u8 = @splat(19);
     var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
@@ -1987,7 +2012,9 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         service.before_reply = null;
         const filtered = try dispatch(&service, .{ .log_list = .{ .namespace = 1, .after = null } });
         defer filtered.deinit();
-        try t.expect(filtered.value.result.log_list.entries[0] == null);
+        for (filtered.value.result.log_list.entries) |entry| if (entry) |visible| {
+            try t.expect(visible.properties.authorization != native_id);
+        };
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_id), .owner = role } });
     }
 }
