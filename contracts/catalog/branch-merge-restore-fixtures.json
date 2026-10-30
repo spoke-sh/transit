@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "contract_id": "transit.catalog.branch-merge-restore.v1",
+  "a4_segment_skipping_matrix": [
+    {
+      "case": "shared_identical_segment_and_tdel",
+      "base_segment_sha256": "e0f0abcc068104788a6eda77ab1e29be93c35ee275bba5b6c53e04ae32076b9a",
+      "source_segment_sha256": "e0f0abcc068104788a6eda77ab1e29be93c35ee275bba5b6c53e04ae32076b9a",
+      "target_segment_sha256": "e0f0abcc068104788a6eda77ab1e29be93c35ee275bba5b6c53e04ae32076b9a",
+      "tdel_identical": true,
+      "action": "skip_o1_identical",
+      "logical_delta_rows": 0
+    },
+    {
+      "case": "physical_compaction_rewrite_equivalent_multiset",
+      "base_segments": [
+        "47d0efcababb67ded654ad3675e0cc193136db09d6ee170e0f52c4395abf7aef",
+        "8170134fcbf3ab9fd3c53385497b57775be5dd59d15fd69479a21d70bc16c4c4"
+      ],
+      "source_segments": [
+        "47d0efcababb67ded654ad3675e0cc193136db09d6ee170e0f52c4395abf7aef",
+        "8170134fcbf3ab9fd3c53385497b57775be5dd59d15fd69479a21d70bc16c4c4"
+      ],
+      "target_compacted_segment": "583cb3e1e2499f955cf5ce4eadc73ec809b76f552bde9f5301aa75f5061a35dc",
+      "logical_row_multiset_hash": "6ab12438c37c21caa2bc6e2fee18f4d64bd2fcdacc033889f3a492db0943bf53",
+      "action": "skip_o1_compaction_equivalent",
+      "logical_delta_rows": 0
+    },
+    {
+      "case": "out_of_viewport_2d_3d_spatial_segment",
+      "viewport_bbox2d": [
+        0.0,
+        0.0,
+        20.0,
+        20.0
+      ],
+      "segment_bbox2d": [
+        500.0,
+        500.0,
+        600.0,
+        600.0
+      ],
+      "action": "skip_o1_spatial_viewport",
+      "logical_delta_rows": 0
+    }
+  ],
+  "three_way_diff_and_conflict_vectors": [
+    {
+      "scenario": "clean_source_only_cell_modification",
+      "base_cell": 200,
+      "source_cell": 250,
+      "target_cell": 200,
+      "diff_op": "modified",
+      "is_conflict": false,
+      "merged_value": 250
+    },
+    {
+      "scenario": "convergent_identical_modification_on_both_branches",
+      "base_cell": 100,
+      "source_cell": 150,
+      "target_cell": 150,
+      "diff_op": "modified",
+      "is_conflict": false,
+      "merged_value": 150
+    },
+    {
+      "scenario": "divergent_incompatible_cell_modification",
+      "base_cell": 100,
+      "source_cell": 150,
+      "target_cell": 180,
+      "diff_op": "conflict",
+      "is_conflict": true,
+      "cell_state": "conflict",
+      "check_constraint_outcome": "error.CheckConstraintViolation"
+    },
+    {
+      "scenario": "delete_on_source_vs_modify_on_target",
+      "base_cell": 300,
+      "source_cell": null,
+      "target_cell": 350,
+      "diff_op": "conflict",
+      "is_conflict": true,
+      "delete_modify_conflict": true,
+      "merge_fail_on_conflict_error": "error.UnresolvedDeleteModifyConflict"
+    }
+  ],
+  "branch_compaction_and_gc_scenarios": [
+    {
+      "id": "C1_branch_local_segment_eager_compaction",
+      "branch_ref_count": 1,
+      "dead_row_ratio": 0.25,
+      "shared_tdel_intersection_ratio": 0.0,
+      "expected_action": "compact_branch_local"
+    },
+    {
+      "id": "C2_shared_segment_amplification_guard",
+      "branch_ref_count": 3,
+      "dead_row_ratio": 0.25,
+      "shared_tdel_intersection_ratio": 0.0,
+      "expected_action": "defer_shared_amplification_guard"
+    },
+    {
+      "id": "C3_shared_segment_amortized_compaction",
+      "branch_ref_count": 3,
+      "dead_row_ratio": 0.65,
+      "shared_tdel_intersection_ratio": 0.1,
+      "expected_action": "compact_shared_amortized"
+    }
+  ],
+  "merge_and_restore_gates": [
+    {
+      "id": "M1_pinned_unflushed_twal1_tail_included_in_branch_cut",
+      "unflushed_wal_rows_captured": true,
+      "matches_independent_copy_oracle": true,
+      "copied_dataflow_state": "published_inactive",
+      "inherited_outbox_disposition": "fenced_historical"
+    },
+    {
+      "id": "M2_secondary_unique_key_collision_across_disjoint_branches",
+      "source_insert": {
+        "id": 3,
+        "email": "dup@spoke.sh"
+      },
+      "target_insert": {
+        "id": 4,
+        "email": "dup@spoke.sh"
+      },
+      "expected_error": "error.SecondaryUniqueKeyMergeCollision"
+    },
+    {
+      "id": "M3_cross_table_foreign_key_delete_insert_write_skew",
+      "source_action": "DELETE FROM accounts WHERE account_id = 2",
+      "target_action": "INSERT INTO orders (order_id, account_id) VALUES (101, 2)",
+      "expected_error": "error.ForeignKeyMergeIntegrityViolation"
+    },
+    {
+      "id": "M4_stale_target_head_occ_rejection_and_client_token_recovery",
+      "stale_head_error": "error.StaleTargetBranchHead",
+      "lost_reply_token_recovery": "returns_original_MergeOperationReceipt"
+    },
+    {
+      "id": "M5_forward_restore_monotonic_successor_under_current_policy_epoch",
+      "head_before_restore": 2,
+      "restored_from_manifest_version": 1,
+      "published_manifest_version": 3,
+      "revoked_caller_error": "error.SourceTableSelectDenied",
+      "outbox_disposition_after_restore": "fenced_historical"
+    },
+    {
+      "id": "M6_remote_incremental_fetch_lazy_hydration_and_replay_fence",
+      "common_ancestor_version": 1,
+      "remote_head_version": 2,
+      "skipped_ancestor_segments": 1,
+      "transferred_delta_segments": 1,
+      "live_network_connector_error": "error.LiveConnectorEffectForbiddenOnRemoteMirrorBranch",
+      "corrupted_lazy_segment_error": "error.HydratedSegmentDigestMismatch"
+    }
+  ]
+}

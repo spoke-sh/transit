@@ -314,6 +314,16 @@
         ]
       },
       {
+        "id": "branch_merge_restore",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/branch_merge_restore.py"
+        ]
+      },
+      {
         "id": "sdk_layout",
         "phase": "static",
         "command": [
