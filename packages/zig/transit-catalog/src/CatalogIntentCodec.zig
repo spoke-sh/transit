@@ -32,6 +32,27 @@ pub fn Codec(comptime Request: type, comptime directory: []const u8, comptime ma
             return content;
         }
 
+        pub fn stageInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, configuration: r.Configuration, request: Request) !p.DataLifecycle.Content {
+            try request.validate(allocator, configuration);
+            const bytes = try allocator.alloc(u8, r.max_intent_bytes);
+            defer allocator.free(bytes);
+            bytes[0..8].* = magic.*;
+            bytes[8..40].* = p.Growth.definition_bytes;
+            var writer: std.Io.Writer = .fixed(bytes[header_bytes..]);
+            try std.json.Stringify.value(request, .{}, &writer);
+            const encoded = bytes[0 .. header_bytes + writer.end];
+            const content: p.DataLifecycle.Content = .{ .bytes = encoded.len, .sha256 = r.hash(encoded) };
+            var name: [96]u8 = undefined;
+            if (encoded.len <= c.storage.TreeStore.max_batch_object_bytes) {
+                const stored = try index.stageObject(try key(content, &name), encoded, content.sha256);
+                if (stored.size != content.bytes or !std.mem.eql(u8, &stored.sha256, &content.sha256)) return error.InvalidDirectCatalogIntent;
+            } else {
+                const stored = try index.store.putImmutable(try key(content, &name), encoded, content.sha256);
+                if (stored.size != content.bytes or !std.mem.eql(u8, &stored.sha256, &content.sha256)) return error.InvalidDirectCatalogIntent;
+            }
+            return content;
+        }
+
         pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, configuration: r.Configuration, content: p.DataLifecycle.Content) !Owned {
             if (content.bytes < header_bytes or content.bytes > r.max_intent_bytes) return error.InvalidDirectCatalogIntent;
             var name: [96]u8 = undefined;

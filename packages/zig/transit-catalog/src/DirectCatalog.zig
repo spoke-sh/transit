@@ -1378,6 +1378,9 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     try receipt.validate();
     const reserved = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
     if (reference == .transaction) try reserved.transactions.requireWithin(self.options.transaction_account_limits);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
+    defer self.store.index.end();
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {
@@ -1386,7 +1389,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
                 return error.TransactionCatalogChanged;
             try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options, server_selection);
             try check(current);
-            try c.OperationBinding.claimTransaction(self.allocator, self.store.objects, value, try key.digest());
+            try c.OperationBinding.claimTransactionInTree(self.allocator, &self.store.index, value, try key.digest());
         },
         .transaction_call => |value| {
             if (value.work == .statement) {
@@ -1395,28 +1398,28 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
                 defer intent.deinit();
                 try request_value.binding.requireSame(intent.request.binding);
             }
-            try c.OperationBinding.claimTransactionCall(self.allocator, self.store.objects, value);
+            try c.OperationBinding.claimTransactionCallInTree(self.allocator, &self.store.index, value);
         },
         .external => |value| {
             const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
             defer self.allocator.free(bytes);
             try check(current);
-            try c.OperationBinding.claimExternal(self.allocator, self.store.objects, value);
+            try c.OperationBinding.claimExternalInTree(self.allocator, &self.store.index, value);
         },
         .table => |table| {
             var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, table);
             defer intent.deinit();
             if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
             try check(current);
-            const objects = if (intent.parsed.value.work == .ddl) self.store.objects else self.data_objects;
-            try c.OperationBinding.claim(self.allocator, objects, table.binding);
+            if (intent.parsed.value.work == .ddl) {
+                try c.OperationBinding.claimInTree(self.allocator, &self.store.index, table.binding);
+            } else {
+                try c.OperationBinding.claim(self.allocator, self.data_objects, table.binding);
+            }
         },
-        .name_assertion => |value| try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, value),
-        .namespace_change => |value| try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, value.binding),
+        .name_assertion => |value| try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, value),
+        .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),
     }
-    var index_batch: s.TreeStore.Batch = .{};
-    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
-    defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
@@ -2815,10 +2818,10 @@ pub fn namespaceOperation(self: *Self, binding: N.Binding, command: N.Command, p
         return if (previous) |value| .{ .operation = value } else .not_observed;
     }
     if (command == .execute and previous == null) return .not_observed;
-    try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, binding);
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
+    try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, binding);
     var next = self.store.root;
     var operation: N.Operation = previous orelse .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = .admitted, .reason = .none, .after = null, .resulting = null };
     if (command == .cancel) {
@@ -2980,10 +2983,10 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
     const matches = command == .accept and (try self.assertionCondition(arena.allocator(), binding, &required, policy)).matches;
     const current_guard = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current_guard);
-    try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, binding);
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
+    try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, binding);
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     const outcome: c.NameAssertion.Outcome = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn }, .state = if (command == .cancel) .cancelled else if (matches) .unchanged else .rejected, .reason = if (command == .accept and !matches) .condition_changed else .none };
@@ -3153,19 +3156,20 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     };
     const current = try self.requestGuard(arena.allocator(), policy, request, if (existing) |*value| value else null, true);
     try check(current);
-    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
     if (try self.store.operation(request.binding)) |observed| {
+        try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
         try check(current);
         return observed;
     }
-    const content = try IntentStore.stage(self.allocator, self.store.objects, self.config(), request);
-    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none };
     const object = request.binding.target.object;
     const reason = try self.admissionReason(request, known != null, if (existing) |*view| view else null, current);
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
+    try c.OperationBinding.claimInTree(self.allocator, &self.store.index, request.binding);
+    const content = try IntentStore.stageInTree(self.allocator, &self.store.index, self.config(), request);
+    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none };
     var next = self.store.root;
     if (reason != .none) {
         operation.phase = .rejected;
@@ -3505,7 +3509,6 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     }
     const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
     try check(current);
-    try c.OperationBinding.claimDependency(self.allocator, self.store.objects, binding);
     var outcome: Dependency.Outcome = .{
         .binding = binding,
         .position = .{ .partition = self.config().partition, .next_lsn = try std.math.add(u64, self.store.root.next_lsn, 1) },
@@ -3526,6 +3529,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
+    try c.OperationBinding.claimDependencyInTree(self.allocator, &self.store.index, binding);
     var next = self.store.root;
     if (outcome.phase == .applied) {
         outcome.changed = (binding.action == .register) == (previous == null);
