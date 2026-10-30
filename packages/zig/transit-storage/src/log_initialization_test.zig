@@ -86,7 +86,7 @@ test "log initialization refuses missing dependencies stale writers and post-buf
     try t.expectEqual(@as(u64, 0), try wal.log().tail(99));
     policy.deny_at = std.math.maxInt(usize);
     try wal.log().fence(99, 4, 4);
-    try t.expectError(error.WalEpochRegression, I.initialize(t.allocator, wal.log(), objects.objectStore(), original, policy.guard()));
+    try t.expectError(error.StaleWriterEpoch, I.initialize(t.allocator, wal.log(), objects.objectStore(), original, policy.guard()));
     try t.expectEqual(@as(u64, 0), try wal.log().tail(99));
     policy.epoch = 4;
     _ = try I.initialize(t.allocator, wal.log(), objects.objectStore(), original, policy.guard());

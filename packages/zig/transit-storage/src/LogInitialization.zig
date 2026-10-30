@@ -107,7 +107,9 @@ pub fn initialize(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.O
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidWalEpoch;
     if (try log.tail(request.partition) != 0) return read(allocator, log, request);
-    try log.fence(request.partition, fence.writer_epoch, fence.policy_epoch);
+    // The publication guard owns fencing. Native data adapters reject direct
+    // fence installation because only native authority may advance those epochs.
+    // Append checks the guarded epochs and the exact empty-partition expectation.
     const receipt = log.append(request.partition, 0, fence.writer_epoch, fence.policy_epoch, .genesis, bytes) catch |err| switch (err) {
         error.StaleWriterEpoch, error.StalePolicyEpoch => return err,
         error.WalLsnConflict => return read(allocator, log, request),
