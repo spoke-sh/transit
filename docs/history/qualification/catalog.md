@@ -9,6 +9,34 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original Queue claim pages and observed leases — 2026-10-30
+
+`0ff275765` passes the Queue and Stream storage regression, the protocol package
+suite, the retained Queue graph schedule, all 48 fast checks and all 18 contract
+checks. Claim pages retain caller-owned original rows across scratch reuse,
+later appends and multiple payload batches with one tail slot. Row and byte
+budgets preserve exact selection ordinals and distinguish a final data page
+from an empty terminal page. Too-small byte budgets advance no cursor.
+
+Current observations distinguish live, expired, unavailable and fenced original
+leases without substituting another holder's claim. Tests expire and reassign
+work, observe with no clock, reject forged receipts, and revoke authorization
+after buffering and on terminal or originally empty reads. Disk reopening after
+retirement preserves ACKed original payloads. The collector schedule deletes
+unmarked candidates, checkpoints and trims the WAL, then reads the original
+ACKed payload through its frozen selection and archive coverage.
+
+Executed logs are `/var/tmp/transit-queue-claim-pages-final.log`,
+`/var/tmp/transit-queue-claim-pages-collection.log`,
+`/var/tmp/transit-queue-read-contract-final.log`,
+`/var/tmp/transit-queue-read-storage-regression-confirmed.log`,
+`/var/tmp/transit-queue-read-fast.log` and
+`/var/tmp/transit-queue-read-contracts.log`. The first protocol invocation used
+an unsupported test-filter option; the full package invocation passed. These
+checks qualify storage reads and neutral observation shapes, not installed Queue
+admission, automatic scheduling, DLQ transfer or common transactions. A page's
+observed lease status does not authorize a later settlement.
+
 ## Clean core qualification of the Stream maintenance slice — 2026-10-30
 
 Committed source `f5c7cc0861d5b45b13d37d1c0d6e01438b8d40d7` passes
