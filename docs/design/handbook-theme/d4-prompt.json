@@ -1,0 +1,21 @@
+{
+  "tool": "Built-in image_gen",
+  "use_case": "stylized-concept",
+  "reference_images": [
+    {
+      "path": "images/d3-lateral-basin.jpg",
+      "role": "Style and continuity reference; selected Activity artwork remains unchanged"
+    }
+  ],
+  "prompt": "Use case: stylized-concept.\nAsset type: transparent foreground illustration for the Context chapter of Transit's scrolling handbook; landscape 3:2 composition, all forms isolated on genuine transparency.\nInput image 1 is a style and continuity reference only: the accepted graphite and vermilion R1 Activity scene. Preserve its extremely fine imperfect graphite linework, delicate translucent ink, restrained vermilion thread and tactile editorial character. Do not redraw its landscape.\nPrimary request: create the next visual state below that scene: a result with its context, expressed through floating open wavefronts and retained traces. The terrain has opened up into airy suspended line bundles in space. A continuous slender vermilion thread enters from the upper right, descends gently toward the center, follows a broad lateral wave gesture, and finishes in a crisp, distinctive open curve toward the lower right. The thread stays visibly connected through the form.\nGeometry: three or four separated, shallow bowed wavefronts made of many hairline graphite strands, with generous transparent space between them. They are open asymmetric arcs, flowing horizontally and gently downward, with slight oblique perspective and delicate overlaps. They should resemble a waveform unfolding into an inspectable trace or an afterimage held in space. Thin vellum-like translucent ink between a few strands is welcome, but most of the image is empty space. Keep the current foreground trace crisp and the trailing graphite contours softer. This single layer will be reused behind itself as pale grayscale historical echoes by the webpage.\nComposition: fill the central 75 percent of a wide 3:2 canvas, leave safe clear margins for parallax. The red thread may enter near the upper-right margin, but keep all other contours clear of the canvas edges. A small handful of quiet graphite marks may recall the original score, integrated into the trailing strands.\nConstraints: genuinely transparent background with alpha, no ivory rectangle or paper backdrop, no checkerboard baked in. No mountains, hills, topographic ground, stacked terrain, closed concentric basin rings, ground plane or horizon. No scientific axes, nodes-and-edges diagram, boxes, arrows, labels, typography, icons, screens, literal musical notes or instruments. No glow, gloss, rainbow, black opaque fills, heavy shading or 3D solid surfaces. All colors graphite/silver-gray plus one restrained vermilion-red trace. It must feel richly drawn and spatial, never a simple schematic.",
+  "transparent_background": true,
+  "asset": "images/d4-context-wavefront.webp",
+  "generated_original": "exec-6cd2bac5-5fae-4dba-9671-de6042cddb92.png",
+  "encoding": {
+    "format": "WebP",
+    "lossless": true,
+    "alpha_preserved": true,
+    "composition_changed_during_encoding": false
+  },
+  "rendering": "The webpage reuses this transparent image for the foreground and two grayscale historical echoes. CSS positions the layers; no historical data is implied."
+}
