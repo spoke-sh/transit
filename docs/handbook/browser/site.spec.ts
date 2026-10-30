@@ -12,7 +12,10 @@ test("static publication exposes canonical routes, search and crawl metadata", a
 }) => {
   const origin = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
   const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
+  const socialImagePath = "img/refraction-social.jpg";
+  const socialImageUrl = new URL(`${base}${socialImagePath}`, origin).href;
   for (const route of [
+    "",
     "reference/data-model",
     "reference/interfaces",
     "reference/sql-sessions",
@@ -24,7 +27,29 @@ test("static publication exposes canonical routes, search and crawl metadata", a
       "href",
       new URL(`${base}${route}`, origin).href,
     );
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      socialImageUrl,
+    );
+    await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute(
+      "content",
+      socialImageUrl,
+    );
+    await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute(
+      "content",
+      "1200",
+    );
+    await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute(
+      "content",
+      "630",
+    );
   }
+  const socialImage = await request.get(new URL(socialImagePath, baseURL).href);
+  expect(socialImage.ok()).toBe(true);
+  expect(socialImage.headers()["content-type"]).toContain("image/jpeg");
+  expect(await socialImage.body()).toEqual(
+    readFileSync(path.resolve(__dirname, "../static/img/refraction-social.jpg")),
+  );
   const sitemap = await request.get(new URL("sitemap.xml", baseURL).href);
   expect(sitemap.ok()).toBe(true);
   const sitemapText = await sitemap.text();

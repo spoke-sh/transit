@@ -134,7 +134,10 @@ breadcrumbs, table of contents, search and source routes.
 [`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage and
 imports the selected [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
 from its existing owner. Docusaurus fingerprints the image with the page's assets;
-its URL follows the configured publication base path. The root README continues
+its URL follows the configured publication base path.
+[`static/img/refraction-social.jpg`](static/img/refraction-social.jpg) scales the
+same artwork to a 1200×630 social card with paper padding for `og:image` and
+`twitter:image` previews. The root README continues
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
