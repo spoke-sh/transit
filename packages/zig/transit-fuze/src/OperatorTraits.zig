@@ -74,7 +74,8 @@ pub const ChangeMode = enum(u8) {
     recomputed_delta = 5,
 };
 
-/// Explicit work and resource bound classification.
+/// Execution data-work bounds, excluding metadata loading, compilation and
+/// result framing. Zero data work does not mean zero CPU or allocation.
 pub const WorkBound = struct {
     max_source_pins: u8,
     max_output_rows: ?u64,

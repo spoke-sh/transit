@@ -452,7 +452,8 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     for sql in ('SELECT id FROM native_sessions',
                 'SELECT id FROM native_sessions WHERE id = -1',
                 'DESCRIBE native_sessions', 'SHOW TABLES',
-                'EXPLAIN SELECT id FROM native_sessions'):
+                'EXPLAIN SELECT id FROM native_sessions',
+                'EXPLAIN SELECT a.id FROM native_sessions AS a JOIN native_sessions AS b ON a.id = b.id'):
         protected = first.execute(sql)['batch']
         with faults.readiness_outage(first) if faults is not None else nullcontext():
             authorize(False)
