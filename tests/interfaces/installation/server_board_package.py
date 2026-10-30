@@ -146,6 +146,14 @@ def run(package):
         assert b'<script' in fixture.request('/')
         assert len([entry for entry in fixture.atlas()['resources']['entries'] if entry]) == 2
         record = fixture.record()
+        # Cold provisioning can consume an automatic restart. Begin the three
+        # deliberate role failures in a fresh manager with the same installation
+        # so they exercise its bounded recovery budget independently of setup.
+        fixture.stop()
+        fixture.start()
+        fixture.ready()
+        assert fixture.record()['installation'] == record['installation']
+        assert fixture.record()['board_receipts'] == record['board_receipts']
         for role in ('/board.json', '__transit_role_v1 node ', '"unified_requester":'):
             fixture.kill_role(role)
             fixture.ready()
