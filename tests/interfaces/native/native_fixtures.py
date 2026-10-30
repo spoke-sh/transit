@@ -197,6 +197,16 @@ def generated():
             settlement=dict(settlement=dict(
                 operation=dict(scope=log_scope, principal=17, operation=2**64-2),
                 lease=lease, action=dict(ack={})), accepted=dict(partition=91, next_lsn=13)))
+        stream_queue['group_progress'] = dict(target=log_target,
+                                              group=stream_queue['offset_commit']['group'],
+                                              next=stream_queue['offset_commit']['expected_next'])
+        stream_queue['group_assignment'] = dict(
+            assignment=dict(operation=dict(scope=log_scope, principal=0, operation=2**64-8),
+                            cut=coverage['cut'], expected=stream_queue['group_progress'],
+                            group=dict(id=42, generation=8, principal=19),
+                            next=stream_queue['group_progress']['next']),
+            accepted=dict(partition=91, next_lsn=13))
+        stream_queue['offset_receipt'] = dict(commit=stream_queue['offset_commit'], accepted=dict(partition=91, next_lsn=13))
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
         results[lifecycle_path] = lifecycle

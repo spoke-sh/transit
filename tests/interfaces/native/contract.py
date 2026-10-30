@@ -20,6 +20,9 @@ if sys.argv[1:] == ["--data-lifecycle"]:
                  ("stream_queue", "append", "append", "target"),
                  ("stream_queue", "declaration"),
                  ("stream_queue", "producer", "target"),
+                 ("stream_queue", "group_progress", "target"),
+                 ("stream_queue", "group_assignment", "assignment", "cut", "target"),
+                 ("stream_queue", "offset_receipt", "commit", "coverage", "cut", "target"),
                  ("stream_queue", "claim", "claim", "target"),
                  ("stream_queue", "offset_commit", "coverage", "cut", "target"),
                  ("stream_queue", "settlement", "settlement", "lease", "target")):

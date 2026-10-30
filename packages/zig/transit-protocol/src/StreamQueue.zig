@@ -189,6 +189,89 @@ pub const Group = struct {
     }
 };
 
+/// Durable assignment and exclusive checkpoint for one object/partition/group.
+/// Its definition attributes the last accepted transition, not an implicit grant.
+pub const GroupProgress = struct {
+    target: Partition,
+    group: Group,
+    next: u64,
+
+    pub fn validate(self: GroupProgress) !void {
+        try self.target.validate();
+        try self.group.validate();
+    }
+
+    /// The owner must additionally verify its own issued coverage and current
+    /// authority. A definition edit preserves the logical group identity.
+    pub fn advance(self: GroupProgress, commit: OffsetCommit) !GroupProgress {
+        try self.validate();
+        try commit.requireCurrent(self.group, self.next);
+        const target = commit.coverage.cut.target;
+        if (target.partition != self.target.partition or !std.meta.eql(target.interpretation.object, self.target.interpretation.object)) return error.LogPartitionConflict;
+        return .{ .target = target, .group = self.group, .next = commit.next };
+    }
+};
+
+/// Explicit local assignment: an object administrator selects one principal for
+/// one group/partition. There is no inferred membership or automatic rebalance.
+pub const GroupAssignment = struct {
+    operation: d.Operation,
+    cut: Cut,
+    expected: ?GroupProgress,
+    group: Group,
+    next: u64,
+
+    pub fn validate(self: GroupAssignment) !void {
+        try self.cut.target.requireOperation(self.operation);
+        try self.cut.requireOffset(self.next);
+        try self.group.validate();
+        if (self.cut.accepted.next_lsn == 0) return error.InvalidLogGroupAssignment;
+        if (self.expected) |previous| {
+            try previous.validate();
+            if (previous.target.partition != self.cut.target.partition or
+                !std.meta.eql(previous.target.interpretation.object, self.cut.target.interpretation.object)) return error.LogPartitionConflict;
+            const generation = std.math.add(u64, previous.group.generation, 1) catch return error.LogGroupGenerationExhausted;
+            if (self.group.id != previous.group.id or self.group.generation != generation or self.next != previous.next) return error.InvalidLogGroupAssignment;
+        } else if (self.group.generation != 1) return error.InvalidLogGroupAssignment;
+    }
+
+    /// Original receipt lookup precedes this fresh-publication check. The owner
+    /// supplies its current assignment and verified current cut under one guard.
+    /// Appends may extend the observed cut; reclamation may not skip its checkpoint.
+    pub fn requireCurrent(self: GroupAssignment, current: ?GroupProgress, cut: Cut) !void {
+        try self.validate();
+        try self.cut.target.requireSame(cut.target);
+        try cut.requireOffset(self.next);
+        if (cut.accepted.partition != self.cut.accepted.partition or cut.accepted.next_lsn < self.cut.accepted.next_lsn or cut.next < self.cut.next) return error.LogPartitionConflict;
+        if (current) |value| try value.validate();
+        if (!std.meta.eql(self.expected, current)) return error.LogGroupAssignmentConflict;
+    }
+
+    pub fn resulting(self: GroupAssignment) !GroupProgress {
+        try self.validate();
+        return .{ .target = self.cut.target, .group = self.group, .next = self.next };
+    }
+    pub fn requireSame(self: GroupAssignment, other: GroupAssignment) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.LogGroupAssignmentConflict;
+    }
+};
+
+pub const GroupAssignmentReceipt = struct {
+    assignment: GroupAssignment,
+    accepted: d.Position,
+    pub fn validate(self: GroupAssignmentReceipt) !void {
+        try self.assignment.validate();
+        try self.accepted.validate();
+        if (self.accepted.partition != self.assignment.cut.accepted.partition or self.accepted.next_lsn <= self.assignment.cut.accepted.next_lsn) return error.InvalidLogGroupAssignment;
+    }
+    pub fn requireAssignment(self: GroupAssignmentReceipt, assignment: GroupAssignment) !void {
+        try self.validate();
+        try self.assignment.requireSame(assignment);
+    }
+};
+
 pub const OffsetCommit = struct {
     operation: d.Operation,
     group: Group,
@@ -213,6 +296,22 @@ pub const OffsetCommit = struct {
         try group.validate();
         if (!std.meta.eql(self.group, group)) return error.LogGroupFenced;
         if (self.expected_next != next) return error.LogOffsetConflict;
+    }
+};
+
+/// The original result remains recoverable after further progress/reassignment.
+pub const OffsetReceipt = struct {
+    commit: OffsetCommit,
+    accepted: d.Position,
+    pub fn validate(self: OffsetReceipt) !void {
+        try self.commit.validate();
+        try self.accepted.validate();
+        if (self.accepted.partition != self.commit.coverage.cut.accepted.partition or self.accepted.next_lsn <= self.commit.coverage.cut.accepted.next_lsn) return error.InvalidOffsetReceipt;
+    }
+    pub fn requireCommit(self: OffsetReceipt, commit: OffsetCommit) !void {
+        try self.validate();
+        try commit.validate();
+        if (!std.meta.eql(self.commit, commit)) return error.LogOffsetConflict;
     }
 };
 
@@ -350,6 +449,9 @@ pub const SchemaTypes = struct {
     append: AppendReceipt,
     producer: ProducerState,
     offset_commit: OffsetCommit,
+    group_progress: GroupProgress,
+    group_assignment: GroupAssignmentReceipt,
+    offset_receipt: OffsetReceipt,
     claim: ClaimReceipt,
     clock: QueueClock,
     settlement: SettlementReceipt,

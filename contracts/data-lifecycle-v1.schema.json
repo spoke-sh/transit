@@ -1497,6 +1497,9 @@
         "append",
         "producer",
         "offset_commit",
+        "group_progress",
+        "group_assignment",
+        "offset_receipt",
         "claim",
         "clock",
         "settlement"
@@ -1514,14 +1517,23 @@
         "offset_commit": {
           "$ref": "#/$defs/T85"
         },
-        "claim": {
+        "group_progress": {
           "$ref": "#/$defs/T90"
         },
+        "group_assignment": {
+          "$ref": "#/$defs/T91"
+        },
+        "offset_receipt": {
+          "$ref": "#/$defs/T94"
+        },
+        "claim": {
+          "$ref": "#/$defs/T95"
+        },
         "clock": {
-          "$ref": "#/$defs/T92"
+          "$ref": "#/$defs/T97"
         },
         "settlement": {
-          "$ref": "#/$defs/T93"
+          "$ref": "#/$defs/T98"
         }
       },
       "required": [
@@ -1529,6 +1541,9 @@
         "append",
         "producer",
         "offset_commit",
+        "group_progress",
+        "group_assignment",
+        "offset_receipt",
         "claim",
         "clock",
         "settlement"
@@ -2147,6 +2162,120 @@
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
+        "target",
+        "group",
+        "next"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/T79"
+        },
+        "group": {
+          "$ref": "#/$defs/T86"
+        },
+        "next": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "target",
+        "group",
+        "next"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T91": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "assignment",
+        "accepted"
+      ],
+      "properties": {
+        "assignment": {
+          "$ref": "#/$defs/T92"
+        },
+        "accepted": {
+          "$ref": "#/$defs/T15"
+        }
+      },
+      "required": [
+        "assignment",
+        "accepted"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T92": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "operation",
+        "cut",
+        "expected",
+        "group",
+        "next"
+      ],
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/T11"
+        },
+        "cut": {
+          "$ref": "#/$defs/T88"
+        },
+        "expected": {
+          "$ref": "#/$defs/T93"
+        },
+        "group": {
+          "$ref": "#/$defs/T86"
+        },
+        "next": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "operation",
+        "cut",
+        "expected",
+        "group",
+        "next"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T93": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T90"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "T94": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "commit",
+        "accepted"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/T85"
+        },
+        "accepted": {
+          "$ref": "#/$defs/T15"
+        }
+      },
+      "required": [
+        "commit",
+        "accepted"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T95": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
         "claim",
         "accepted",
         "observed_ms",
@@ -2156,7 +2285,7 @@
       ],
       "properties": {
         "claim": {
-          "$ref": "#/$defs/T91"
+          "$ref": "#/$defs/T96"
         },
         "accepted": {
           "$ref": "#/$defs/T15"
@@ -2184,7 +2313,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T91": {
+    "T96": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2215,7 +2344,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T92": {
+    "T97": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2231,7 +2360,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T93": {
+    "T98": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2240,7 +2369,7 @@
       ],
       "properties": {
         "settlement": {
-          "$ref": "#/$defs/T94"
+          "$ref": "#/$defs/T99"
         },
         "accepted": {
           "$ref": "#/$defs/T15"
@@ -2252,7 +2381,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T94": {
+    "T99": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2265,10 +2394,10 @@
           "$ref": "#/$defs/T11"
         },
         "lease": {
-          "$ref": "#/$defs/T95"
+          "$ref": "#/$defs/T100"
         },
         "action": {
-          "$ref": "#/$defs/T96"
+          "$ref": "#/$defs/T101"
         }
       },
       "required": [
@@ -2278,7 +2407,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T95": {
+    "T100": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2319,7 +2448,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T96": {
+    "T101": {
       "oneOf": [
         {
           "type": "object",
@@ -2341,7 +2470,7 @@
           ],
           "properties": {
             "nack": {
-              "$ref": "#/$defs/T97"
+              "$ref": "#/$defs/T102"
             }
           }
         },
@@ -2353,13 +2482,13 @@
           ],
           "properties": {
             "extend": {
-              "$ref": "#/$defs/T98"
+              "$ref": "#/$defs/T103"
             }
           }
         }
       ]
     },
-    "T97": {
+    "T102": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [
@@ -2375,7 +2504,7 @@
       ],
       "x-transit-defaults": {}
     },
-    "T98": {
+    "T103": {
       "type": "object",
       "additionalProperties": false,
       "x-transit-field-order": [

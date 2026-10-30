@@ -595,5 +595,291 @@
       "partition": 91,
       "next_lsn": 13
     }
+  },
+  "group_progress": {
+    "target": {
+      "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 43
+        },
+        "revision": 2,
+        "digest": [
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29
+        ]
+      },
+      "partition": 0
+    },
+    "group": {
+      "id": 42,
+      "generation": 7,
+      "principal": 17
+    },
+    "next": 18446744073709551611
+  },
+  "group_assignment": {
+    "assignment": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 18446744073709551608
+      },
+      "cut": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "accepted": {
+          "partition": 91,
+          "next_lsn": 12
+        },
+        "retained_from": 18446744073709551607,
+        "next": 18446744073709551615
+      },
+      "expected": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17
+        },
+        "next": 18446744073709551611
+      },
+      "group": {
+        "id": 42,
+        "generation": 8,
+        "principal": 19
+      },
+      "next": 18446744073709551611
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
+  },
+  "offset_receipt": {
+    "commit": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 102
+      },
+      "group": {
+        "id": 42,
+        "generation": 7,
+        "principal": 17
+      },
+      "coverage": {
+        "cut": {
+          "target": {
+            "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": 18446744073709551615
+                },
+                "branch": 1,
+                "object": 43
+              },
+              "revision": 2,
+              "digest": [
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29
+              ]
+            },
+            "partition": 0
+          },
+          "accepted": {
+            "partition": 91,
+            "next_lsn": 12
+          },
+          "retained_from": 18446744073709551607,
+          "next": 18446744073709551615
+        },
+        "from": 18446744073709551611,
+        "until": 18446744073709551615,
+        "through": 18446744073709551615,
+        "rows": 2,
+        "complete": true
+      },
+      "expected_next": 18446744073709551611,
+      "next": 18446744073709551615
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
   }
 }

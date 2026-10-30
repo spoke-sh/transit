@@ -119,6 +119,26 @@ including empty results, repeated batches and terminal metadata. The owning
 
 ## Consumer settlement
 
+The initial local assignment protocol is explicit administrative work. An object
+owner assigns one principal to one group/partition; no connection establishes
+membership and no background rebalance infers it. `GroupAssignment` freezes its
+original operation, verified observed cut, nullable expected `GroupProgress`,
+new group identity/generation/principal and exclusive next offset. Initial
+assignment uses generation one and an explicitly chosen checkpoint within that
+cut, including either boundary. Reassignment requires the exact earlier progress,
+increments generation by one and preserves the checkpoint. Generation overflow,
+concurrent progress and checkpoints outside retained history refuse publication.
+Reassignment cannot silently skip expired data. Retiring or resetting a group
+requires a separate closure contract and is not an implied assignment action.
+
+`GroupProgress` retains target, group and committed next offset. Definition
+changes preserve the stable object/partition/group identity; a subsequent operation
+explicitly binds the new definition while retaining its expected progress.
+`GroupAssignmentReceipt` retains the complete original assignment and its later
+acceptance frontier in the same partition. Original receipt lookup precedes
+fresh validation. The assigned principal separately needs current read/acquire
+rights to consume and settlement rights to commit; assignment grants none.
+
 `Group` binds a nonzero object-scoped group identity, assignment generation and
 claimant principal. `OffsetCommit` freezes an original operation, that group,
 complete consumed coverage, the expected checkpoint and its successor. The
@@ -134,6 +154,13 @@ its own issued coverage. Reading never implicitly commits this checkpoint.
 Lost-response recovery first looks up the original accepted operation; it must
 not run fresh-publication validation against a later checkpoint and relabel
 the accepted result as rejected.
+
+`GroupProgress.advance` verifies stable target identity, group fencing and the
+expected checkpoint. `OffsetReceipt` binds the full original commit and a later
+acceptance frontier in that physical partition. Receipt recovery compares the
+original request independently of later group progress or reassignment, under
+current disclosure rights. These pure types still require the runtime owner to
+verify issued coverage and durably publish progress and its receipt together.
 
 ## Storage and transaction obligations
 

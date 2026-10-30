@@ -16,6 +16,9 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     try v.producer.validate();
     try v.claim.validate();
     try v.offset_commit.validate();
+    try v.group_progress.validate();
+    try v.group_assignment.validate();
+    try v.offset_receipt.validate();
     try v.settlement.validate();
     try t.expectEqual(std.math.maxInt(u64), v.append.next);
     try t.expectEqual(@as(u32, 0), v.append.append.target.partition);
@@ -139,6 +142,80 @@ test "queue expired unassigned lease fails without relying on a successor epoch"
     var foreign = lease;
     foreign.target.partition += 1;
     try t.expectError(error.QueueLeaseFenced, settlement.requireLive(foreign, 999));
+}
+
+test "stream group assignment is explicit preserves checkpoints and fences concurrent progress" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.group_assignment;
+    const assignment = receipt.assignment;
+    const previous = assignment.expected.?;
+    try assignment.requireCurrent(previous, assignment.cut);
+    const reassigned = try assignment.resulting();
+    try t.expectEqual(previous.next, reassigned.next);
+    try t.expectEqual(previous.group.generation + 1, reassigned.group.generation);
+    try t.expectEqual(@as(u64, 19), reassigned.group.principal);
+    var advanced = previous;
+    advanced.next += 1;
+    try t.expectError(error.LogGroupAssignmentConflict, assignment.requireCurrent(advanced, assignment.cut));
+    try t.expectError(error.LogGroupAssignmentConflict, assignment.requireCurrent(null, assignment.cut));
+    try t.expectError(error.LogGroupFenced, reassigned.advance(parsed.value.offset_commit));
+    // Later progress or reassignment cannot rewrite the original accepted result.
+    try receipt.requireAssignment(assignment);
+    var changed = assignment;
+    changed.group.principal += 1;
+    try t.expectError(error.LogGroupAssignmentConflict, receipt.requireAssignment(changed));
+    changed = assignment;
+    changed.next += 1;
+    try t.expectError(error.InvalidLogGroupAssignment, changed.validate());
+    changed = assignment;
+    changed.group.generation += 1;
+    try t.expectError(error.InvalidLogGroupAssignment, changed.validate());
+    changed = assignment;
+    changed.expected.?.group.generation = std.math.maxInt(u64);
+    try t.expectError(error.LogGroupGenerationExhausted, changed.validate());
+    var cut = assignment.cut;
+    cut.retained_from = assignment.next + 1;
+    try t.expectError(error.LogHistoryUnavailable, assignment.requireCurrent(previous, cut));
+    cut = assignment.cut;
+    cut.target.interpretation.revision += 1;
+    try t.expectError(error.LogPartitionConflict, assignment.requireCurrent(previous, cut));
+    // A later declaration may explicitly retain the old group checkpoint.
+    changed = assignment;
+    changed.cut = cut;
+    try changed.requireCurrent(previous, cut);
+    var initial = assignment;
+    initial.expected = null;
+    initial.group.generation = 1;
+    initial.next = initial.cut.retained_from;
+    try initial.requireCurrent(null, initial.cut);
+    try t.expectError(error.LogGroupAssignmentConflict, initial.requireCurrent(previous, initial.cut));
+    initial.next = initial.cut.next;
+    try initial.validate();
+    initial.next = initial.cut.retained_from - 1;
+    try t.expectError(error.LogHistoryUnavailable, initial.validate());
+}
+
+test "stream offset receipt retains original settlement independently of later assignments" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.offset_receipt;
+    const progress = try parsed.value.group_progress.advance(receipt.commit);
+    try t.expectEqual(receipt.commit.next, progress.next);
+    try t.expectError(error.LogOffsetConflict, progress.advance(receipt.commit));
+    try receipt.requireCommit(receipt.commit);
+    var changed = receipt.commit;
+    changed.operation.operation -= 1;
+    try t.expectError(error.LogOffsetConflict, receipt.requireCommit(changed));
+    var invalid = receipt;
+    invalid.accepted = receipt.commit.coverage.cut.accepted;
+    try t.expectError(error.InvalidOffsetReceipt, invalid.validate());
+    invalid = receipt;
+    invalid.accepted.partition += 1;
+    try t.expectError(error.InvalidOffsetReceipt, invalid.validate());
+    changed = receipt.commit;
+    changed.coverage.cut.target.partition += 1;
+    try t.expectError(error.LogPartitionConflict, parsed.value.group_progress.advance(changed));
 }
 
 test "queue accepted original settlement survives later expiry without renewing execution authority" {
