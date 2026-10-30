@@ -9,6 +9,41 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Atomic Queue enqueue and retained scheduling state — 2026-10-30
+
+`b72cec81e` passes the pinned-shell Queue partition suite and the catalog's
+focused Queue graph test. Twelve accepted batches span thirty-six offsets with
+one resident index page and one tail slot. The disk schedule loses an append
+reply, recovers its exact producer outcome, reopens every handle and replays one
+record per step without object writes. FIFO links and availability bits survive
+sealing, archive/checkpoint, WAL trimming and a second disk reopen. Original
+producer retries remain exact and current authorization still applies.
+
+Candidate-object quota pressure and authorization revoked before publication
+leave the WAL frontier and accepted root unchanged. A validly encoded record
+with a false scheduling count rejects during full candidate reconstruction,
+without writing objects or establishing readiness. The retained-graph test uses
+twenty-four distinct 300-byte collation-aware keys, limits each graph step to at
+most three child jobs, deletes unmarked candidate objects and then recovers the
+same accepted root without writes. All live FIFO heads and bitmap states remain
+readable after collection.
+
+Logs are `/var/tmp/transit-queue-partition-enqueue-complete.log`,
+`/var/tmp/transit-queue-partition-collection.log` and
+`/var/tmp/transit-queue-owner-fast.log` (48 checks passed). The first enqueue-test
+compile exposed a shadowed helper name; the corrected test is included in the
+successful source. The Stream partition regression also passes with the new
+mandatory Queue root field. Earlier `5e35943dc` separately passes four private
+candidate-overlay tests, including zero allocations after initialization, full
+key collision resolution, exact rederivation and retry after a lost object reply
+(`/var/tmp/transit-queue-candidate-objects-final.log`).
+
+These checks qualify storage enqueue and its reachability edges. They do not
+establish durable claim/settlement publication, installed Queue admission,
+timing-wheel/affinity scheduling, DLQ transfer or mixed transactions. The graph
+conservatively refuses collection of a recorded DLQ block until historical
+destination dependency closure is implemented.
+
 ## Queue index and original-selection candidates — 2026-10-30
 
 `fcb583b66` and `aefa35c4c` pass the pinned-shell Queue item, index and selection
