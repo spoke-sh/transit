@@ -414,9 +414,12 @@ The current progress slice delivers:
   and initial scheduling state in one WAL record; bounded replay reconstructs
   the complete root without object writes. Disk restart, lost replies,
   archive/checkpoint/trim, candidate pressure, revocation and retained-graph
-  reclamation pass focused tests. Durable claim/settlement publication, installed
-  execution, timer-wheel and affinity scheduling, and atomic DLQ transfer remain
-  outstanding.
+  reclamation pass focused tests. Bounded durable claims now preserve exact
+  selections and empty outcomes across expiry and disk recovery, retain original
+  payload directories through collection, and refuse capacity or time uncertainty
+  before publication. Current lease inspection, durable settlement publication,
+  installed execution, timer-wheel and affinity scheduling, and atomic DLQ
+  transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

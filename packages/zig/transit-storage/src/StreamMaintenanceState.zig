@@ -114,7 +114,7 @@ pub fn transition(before: anytype, after: anytype, action: anytype) !Self {
                     .append, .assignment, .offset => if (after.declared.declaration.configuration.policy == .stream) {
                         next.compaction_source_lsn = after.next_lsn;
                     },
-                    .read, .release => {},
+                    .read, .release, .claim => {},
                 },
                 .flush, .expire => if (after.declared.declaration.configuration.policy == .stream) {
                     next.compaction_source_lsn = after.next_lsn;

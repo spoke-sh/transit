@@ -30,6 +30,23 @@ const Policy = struct {
         self.held = false;
     }
 };
+const Clock = struct {
+    value: ?s.LogTime.Sample = .exact(100),
+    after: ?s.LogTime.Sample = null,
+    change: bool = false,
+    fn source(self: *Clock) s.LogTime.Source {
+        return .{ .context = self, .read = sample };
+    }
+    fn sample(raw: *anyopaque) !?s.LogTime.Sample {
+        const self: *Clock = @ptrCast(@alignCast(raw));
+        const result = self.value;
+        if (self.change) {
+            self.value = self.after;
+            self.change = false;
+        }
+        return result;
+    }
+};
 const Fault = struct {
     underlying: s.TransitLog.Log,
     lose_reply: bool = false,
@@ -248,4 +265,181 @@ test "queue partition replay rejects a valid envelope with altered scheduling st
     try t.expectEqual(puts, objects.puts);
     try t.expectEqual(@as(u64, 0), recovered.owner.root.next_offset);
     try t.expectError(error.LogRecoveryRequired, recovered.observe(initial.declared, policy.guard()));
+}
+
+test "queue partition original claim selections and empty outcomes survive expiry and disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log() };
+    var configured = options;
+    configured.clock = clock.source();
+    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectError(error.LogRecoveryRequired, owner.claim(initial.declared, claim, policy.guard()));
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    const original = try owner.claim(initial.declared, claim, policy.guard());
+    try t.expectEqual(@as(u32, 1), original.rows);
+    var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
+    var view = try s.QueueSelection.load(t.allocator, objects.objectStore(), original.leases.?, &selection_buffer);
+    try view.requireReceipt(original);
+    try t.expectEqual(@as(u64, 1), (try view.lease(0)).offset);
+    try t.expectEqual(@as(u64, 200), (try view.lease(0)).expires_ms);
+    var empty_request = claim;
+    empty_request.operation = operation(4);
+    const empty = try owner.claim(initial.declared, empty_request, policy.guard());
+    try t.expect(empty.rows == 0 and empty.leases == null);
+    clock.value = .exact(1000);
+    try t.expectEqualDeep(empty, try owner.claim(initial.declared, empty_request, policy.guard()));
+    try t.expectEqualDeep(original, try owner.claim(initial.declared, claim, policy.guard()));
+    var fresh = claim;
+    fresh.operation = operation(5);
+    const alpha = try owner.claim(initial.declared, fresh, policy.guard());
+    try t.expectEqual(@as(u32, 1), alpha.rows);
+    view = try s.QueueSelection.load(t.allocator, objects.objectStore(), alpha.leases.?, &selection_buffer);
+    try t.expectEqual(@as(u64, 0), (try view.lease(0)).offset);
+    const root = owner.owner.root;
+    try t.expectEqual(@as(u64, 2), root.queue.?.active);
+    try t.expectEqual(@as(u64, 0), root.queue.?.scheduled);
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    policy.epoch = 2;
+    clock.value = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(root, owner.owner.root);
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    try t.expectEqualDeep(original, try owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(empty, try owner.claim(initial.declared, empty_request, policy.guard()));
+    var bitmap: s.BitmapDirectory = undefined;
+    const queue = index(&owner, &bitmap);
+    try t.expectEqual(@as(u64, 1), (try queue.firstExpired(root.queue.?, 1000)).?.offset);
+    try t.expectEqual(s.Tack.State.available, try queue.state(root.queue.?, try queue.item(root.queue.?, 2)));
+    fresh.operation = operation(6);
+    try t.expectError(error.QueueTimeUnavailable, owner.claim(initial.declared, fresh, policy.guard()));
+    var changed = claim;
+    changed.maximum = 1;
+    try t.expectError(error.QueueClaimConflict, owner.claim(initial.declared, changed, policy.guard()));
+}
+
+test "queue partition claim time and capacity refusals cannot publish empty success" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var limited = base.definition;
+    limited.limits.active_leases = 1;
+    limited.limits.claim_rows = 1;
+    var declared = try s.LogDeclaration.prepare(t.allocator, limited);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const before = owner.owner.root;
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 };
+    clock.change = true;
+    try t.expectError(error.QueueTimeUnavailable, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    clock.value = .exact(100);
+    clock.after = .{ .earliest_ms = 199, .latest_ms = 200 };
+    clock.change = true;
+    try t.expectError(error.QueueTimeUnavailable, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    clock.value = .exact(100);
+    clock.after = .exact(200);
+    clock.change = true;
+    try t.expectError(error.QueueLeaseExpired, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    clock.value = .exact(100);
+    var competing = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer competing.deinit() catch unreachable;
+    _ = try competing.recoverStep(policy.guard(), 1);
+    _ = try owner.claim(initial.declared, claim, policy.guard());
+    clock.value = .exact(1000);
+    claim.operation = operation(4);
+    try t.expectError(error.LogRecoveryRequired, competing.claim(initial.declared, claim, policy.guard()));
+    try t.expect((try competing.recoverStep(policy.guard(), 1)).complete);
+    const acquired = owner.owner.root;
+    try t.expectEqualDeep(acquired, competing.owner.root);
+    try t.expectError(error.QueueLeaseCapacityExceeded, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(acquired, owner.owner.root);
+    try t.expect(try owner.operation(claim.operation, policy.guard()) == null);
+    clock.value = .exact(99);
+    try t.expectError(error.LogTimeRegression, owner.claim(initial.declared, claim, policy.guard()));
+}
+
+test "queue partition replay refuses a canonical claim selecting an ineligible FIFO successor" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    const receipt = try owner.claim(initial.declared, claim, policy.guard());
+    var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
+    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), receipt.leases.?, &selection_buffer);
+    var lease = try selection.lease(0);
+    lease.offset = 2;
+    const false_selection = try s.QueueSelection.stage(objects.objectStore(), selection.metadata, &.{lease}, &selection_buffer);
+    var frames = try wal.log().read(t.allocator, 91, 1, 2);
+    defer frames.deinit();
+    var record = (try s.LogPartitionRecord.decode(t.allocator, frames.frames[1], 91, 2)).record;
+    record.action.operation.outcome.claim.receipt.leases = false_selection;
+    var buffer: [65536]u8 = undefined;
+    const encoded = try s.LogPartitionRecord.encode(record, &.{}, &buffer);
+    var other = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer other.deinit();
+    _ = try initialize(other.log(), objects.objectStore(), &policy, &declared);
+    _ = try other.log().append(91, 1, 1, 1, .row_delta, frames.frames[0].payload);
+    _ = try other.log().append(91, 2, 1, 1, .manifest_checkpoint, encoded);
+    var recovered = try Queue.open(t.allocator, other.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer recovered.deinit() catch unreachable;
+    const puts = objects.puts;
+    try t.expect(!(try recovered.recoverStep(policy.guard(), 1)).complete);
+    try t.expectError(error.InvalidLogHistory, recovered.recoverStep(policy.guard(), 1));
+    try t.expectEqual(@as(u64, 0), recovered.owner.root.queue.?.active);
+    try t.expectEqual(puts, objects.puts);
 }

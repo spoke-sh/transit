@@ -98,6 +98,7 @@ pub const Work = union(enum) {
     log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, prefix_bytes: u16 = 0, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     log_compaction: struct { context: LogContext, state: s.StreamCompaction.State, slot: u8 = 0 },
     queue_sidecar: struct { context: LogContext, manifest: s.Tack, slot: u8 = 0 },
+    queue_selection: struct { context: LogContext, receipt: c.protocol.StreamQueue.ClaimReceipt, slot: u8 = 0 },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
@@ -124,7 +125,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -241,6 +242,7 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             var name: [96]u8 = undefined;
             try markContent(workspace, try s.LogEvidence.key(content, &name), content);
             try workspace.enqueue(.{ .log_declaration = evidence.declared });
+            if (evidence.outcome == .claim and evidence.outcome.claim.receipt.leases != null) try workspace.enqueue(.{ .queue_selection = .{ .context = context, .receipt = evidence.outcome.claim.receipt } });
         },
         .producers => {
             const producer = try s.LogPartitionRecord.valueDecode(c.protocol.StreamQueue.ProducerState, allocator, entry.value);
@@ -615,6 +617,37 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 if (root.compaction) |state| try workspace.enqueue(.{ .log_compaction = .{ .context = context, .state = state } });
             } else if (directories[value.slot - 1]) |reference| {
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            }
+            value.slot += 1;
+            return false;
+        },
+        .queue_selection => |*value| {
+            try value.receipt.validate();
+            const content = value.receipt.leases orelse return error.InvalidLogStorageGraph;
+            if (value.slot > 3 or content.bytes > s.QueueSelection.max_bytes) return error.InvalidLogStorageGraph;
+            if (value.slot == 3) return true;
+            const buffer = try allocator.alloc(u8, @intCast(content.bytes));
+            defer allocator.free(buffer);
+            const selection = try s.QueueSelection.load(allocator, index.store, content, buffer);
+            try selection.requireReceipt(value.receipt);
+            const source = selection.metadata.source;
+            try value.context.requireTarget(value.receipt.claim.target);
+            if (value.receipt.accepted.partition != value.context.partition or value.receipt.accepted.next_lsn > value.context.next_lsn or source.next_offset > value.context.next_offset) return error.InvalidLogStorageGraph;
+            if (value.slot == 0) {
+                var name: [96]u8 = undefined;
+                try markContent(workspace, try s.QueueSelection.objectKey(content, &name), content);
+                try workspace.enqueue(.{ .log_declaration = selection.metadata.declared });
+            } else {
+                const roots = [_]?s.TreeStore.pages.Reference{ source.batches, source.segments };
+                if (roots[value.slot - 1]) |reference| {
+                    var context = value.context;
+                    context.interpretation = value.receipt.claim.target.interpretation;
+                    context.next_lsn = source.accepted.next_lsn;
+                    context.next_offset = source.next_offset;
+                    context.segments = source.segments;
+                    context.hidden = .empty;
+                    try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = if (value.slot == 1) .batches else .pages_only } });
+                }
             }
             value.slot += 1;
             return false;

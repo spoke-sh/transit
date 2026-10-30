@@ -279,8 +279,14 @@ pub fn enqueue(self: Self, before: Root, declaration: *const Declaration.Owned, 
 /// prevents its successors from entering this directory, without hiding other
 /// keys. No durable backlog is loaded into a resident array.
 pub fn firstEligible(self: Self, root: Root, earliest_ms: u64) !?Item {
+    return self.eligibleAfter(root, null, earliest_ms);
+}
+
+/// One bounded directory step for an original claim selection. The exclusive
+/// cursor belongs to the frozen root; it does not mutate or skip a FIFO head.
+pub fn eligibleAfter(self: Self, root: Root, after: ?pages.Key, earliest_ms: u64) !?Item {
     try root.validate();
-    const page = try self.tree().scan(root.eligible, null);
+    const page = try self.tree().scan(root.eligible, after);
     const entry = page.entries[0] orelse return null;
     if (entry.key.len != 16 or entry.value.len != 0) return error.InvalidQueueSchedule;
     const at = std.mem.readInt(u64, entry.key.data[0..8], .big);

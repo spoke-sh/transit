@@ -45,6 +45,9 @@ pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue
 pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard) !?@import("LogEvidence.zig").Record {
     return self.owner.operation(identity, guard);
 }
+pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
+    return self.owner.claim(declared, request, guard);
+}
 pub fn flush(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !FlushProgress {
     return self.owner.flush(cut, guard);
 }

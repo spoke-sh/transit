@@ -18,9 +18,13 @@ The internal `transit-storage.QueuePartition` accepts enqueue payloads and their
 initial FIFO/eligibility/`.tack` state in the same WAL record as producer
 deduplication and the original receipt. It shares physical sealing, archives,
 checkpoints and bounded recovery with the Stream owner. Replay reconstructs the
-complete Queue candidate without object writes. This is a storage composition
-boundary: the installed service does not yet admit Queue payload operations, and
-claim/settlement publication remains unimplemented.
+complete Queue candidate without object writes. Bounded claims now publish their
+original selection, acquired bits, epochs, attempts and deadlines together.
+Original empty and nonempty outcomes survive restart and expiry; new selection
+requires a new operation. Capacity exhaustion refuses instead of publishing a
+false empty result. This is a storage composition boundary: the installed
+service does not yet admit Queue payload operations, and current lease
+inspection and settlement publication remain unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
@@ -132,8 +136,9 @@ cut. Metadata is bounded to 16 KiB and a selection to 4,096 rows, additionally
 restricted by the declaration and eventual owner budgets. Missing or foreign
 definitions, noncanonical metadata, duplicate offsets, trailing bytes and
 truncation reject. An empty claim has no selection artifact; its receipt remains
-the original empty result. These storage candidates do not enable claims or
-replace the owner's publication, retention or current-authority checks.
+the original empty result. The storage owner verifies the exact selection during
+claim publication and replay. The artifact alone supplies no publication,
+retention or current-authority guarantee.
 
 ## Settlement and original outcomes
 

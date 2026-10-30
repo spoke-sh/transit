@@ -149,8 +149,9 @@ fn authorize(guard: s.PublicationGuard) !void {
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
 }
-fn receipt(record: s.LogEvidence.Record) Receipt {
+fn receipt(record: s.LogEvidence.Record) !Receipt {
     return switch (record.outcome) {
+        .claim => error.LogOperationConflict,
         .append => |value| .{ .append = value },
         .assignment => |value| .{ .assign = value },
         .read => |value| .{ .consume = value },

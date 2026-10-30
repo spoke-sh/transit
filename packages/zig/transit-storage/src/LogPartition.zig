@@ -29,6 +29,8 @@ const r = @import("LogPartitionRecord.zig");
 const pages = TreeStore.pages;
 const CandidateObjects = @import("CandidateObjects.zig");
 const QueueIndex = @import("QueueIndex.zig");
+const QueueClaims = @import("QueueClaims.zig");
+const QueueSelection = @import("QueueSelection.zig");
 pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
     return struct {
         const Self = @This();
@@ -45,6 +47,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             segment_rows_per_group: u32 = 1024,
             queue_candidate_objects: u32 = 4096,
             queue_candidate_resident_bytes: usize = 16 * 1024 * 1024,
+            queue_claim_rows: u32 = 256,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
@@ -66,11 +69,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         ready: bool = false,
         candidate_objects: if (kind == .queue) CandidateObjects else void,
         queue_container: if (kind == .queue) Bitmap.Container else void,
+        queue_leases: if (kind == .queue) []q.Lease else void,
+        queue_selection: if (kind == .queue) []u8 else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
         pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
             if (std.meta.activeTag(request.declared.declaration.configuration.policy) != kind) return error.LogPartitionConflict;
+            if (kind == .queue and (options.queue_claim_rows == 0 or options.queue_claim_rows > QueueSelection.max_rows)) return error.InvalidQueueClaimBudget;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
             if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
@@ -87,13 +93,21 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try CandidateObjects.init(allocator, objects, .{ .bytes = options.index_work_bytes, .objects = options.queue_candidate_objects, .resident_bytes = options.queue_candidate_resident_bytes })
             else {};
             errdefer if (kind == .queue) candidates.deinit();
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {} };
+            const queue_leases = if (kind == .queue) try allocator.alloc(q.Lease, options.queue_claim_rows) else {};
+            errdefer if (kind == .queue) allocator.free(queue_leases);
+            const queue_selection = if (kind == .queue) try allocator.alloc(u8, QueueSelection.header_bytes + QueueSelection.max_metadata_bytes + QueueSelection.item_bytes * options.queue_claim_rows) else {};
+            errdefer if (kind == .queue) allocator.free(queue_selection);
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
             self.store.deinit();
             self.scratch.deinit();
-            if (kind == .queue) self.candidate_objects.deinit();
+            if (kind == .queue) {
+                self.candidate_objects.deinit();
+                self.allocator.free(self.queue_leases);
+                self.allocator.free(self.queue_selection);
+            }
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
             self.* = undefined;
@@ -234,6 +248,54 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.publish(.{ .declared = declared, .outcome = .{ .append = receipt } }, payload, guard);
             return receipt;
         }
+        fn queueIndex(self: *Self, bitmap: *Bitmap) QueueIndex {
+            bitmap.* = .{ .store = &self.store, .objects = self.objects };
+            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer };
+        }
+        fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
+            return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;
+        }
+        pub fn claim(self: *Self, declared: Declaration.Stored, request: q.Claim, guard: Guard) !q.ClaimReceipt {
+            try request.validate();
+            try self.requireTarget(request.target);
+            try authorize(guard);
+            try self.requireReady();
+            if (try self.original(request.operation)) |record| {
+                if (record.outcome != .claim) return error.LogOperationConflict;
+                try record.outcome.claim.receipt.requireClaim(request);
+                try authorize(guard);
+                return record.outcome.claim.receipt;
+            }
+            const now = try self.queueTime(self.root.clock_ms);
+            var bitmap: Bitmap = undefined;
+            const leases = try QueueClaims.select(self.queueIndex(&bitmap), self.root, declared, request, now, self.queue_leases);
+            const meta = try QueueClaims.metadata(self.root, declared, request, now, @intCast(leases.len));
+            const receipt = try QueueClaims.receipt(meta, leases, self.queue_selection);
+            if (receipt.leases) |content| {
+                const staged = try QueueSelection.stage(self.objects, meta, leases, self.queue_selection);
+                if (!std.meta.eql(content, staged)) return error.InvalidQueueSelection;
+            }
+            try self.publish(.{ .declared = declared, .outcome = .{ .claim = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
+            return receipt;
+        }
+        fn candidateClaim(self: *Self, evidence: Evidence.Record) !QueueIndex.Root {
+            const value = evidence.outcome.claim;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const leases = try QueueClaims.select(index, self.root, evidence.declared, value.receipt.claim, value.observed, self.queue_leases);
+            const meta = try QueueClaims.metadata(self.root, evidence.declared, value.receipt.claim, value.observed, @intCast(leases.len));
+            if (!std.meta.eql(try QueueClaims.receipt(meta, leases, self.queue_selection), value.receipt)) return error.InvalidLogHistory;
+            if (value.receipt.leases) |content| {
+                defer _ = self.scratch.reset(.retain_capacity);
+                const selection = try QueueSelection.load(self.scratch.allocator(), self.objects, content, self.queue_selection);
+                try selection.requireReceipt(value.receipt);
+                if (!std.meta.eql(selection.metadata, meta)) return error.InvalidLogHistory;
+            }
+            var next = self.root.queue.?;
+            for (leases) |lease| next = try index.acquire(next, lease.offset, value.receipt.claim, evidence.declared.declaration.configuration.policy.queue, value.observed, value.receipt.accepted);
+            return next;
+        }
+
         pub fn assign(self: *Self, declared: Declaration.Stored, assignment: q.GroupAssignment, guard: Guard) !q.GroupAssignmentReceipt {
             try assignment.validate();
             try self.requireTarget(assignment.cut.target);
@@ -403,6 +465,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             result.next_lsn = evidence.accepted().next_lsn;
             result.receipts = try self.tree().put(result.receipts, try Evidence.operationKey(evidence.operation()), reference);
             switch (evidence.outcome) {
+                .claim => |value| if (kind == .queue) {
+                    result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);
+                    result.queue = try self.candidateClaim(evidence);
+                } else return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
                     result.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);
@@ -447,7 +513,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const reserve = switch (evidence.outcome) {
                 .release, .offset => true,
                 .assignment => |value| value.assignment.expected != null,
-                .append, .read => false,
+                .append, .read, .claim => false,
             };
             const ordinary = self.enterControl(reserve);
             defer self.leaveControl(ordinary);
@@ -487,6 +553,15 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (record.action == .expire) {
                 const now = (try Time.bounds(self.options.clock, record.root.clock_ms, true)).?;
                 if (now.earliest_ms < record.action.expire.observed_ms) return error.LogTimeRegression;
+            }
+            if (record.action == .operation and record.action.operation.outcome == .claim) {
+                const claim_value = record.action.operation.outcome.claim;
+                const now = try self.queueTime(claim_value.observed.latest_ms);
+                if (now.earliest_ms < claim_value.observed.earliest_ms) return error.LogTimeRegression;
+                if (claim_value.receipt.rows != 0) {
+                    if (now.earliest_ms >= claim_value.receipt.expires_ms) return error.QueueLeaseExpired;
+                    if (now.latest_ms >= claim_value.receipt.expires_ms) return error.QueueTimeUnavailable;
+                }
             }
             const receipt = self.log.append(next.initialization.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, record.frameKind(), bytes) catch |err| {
                 self.ready = false;
@@ -1217,6 +1292,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
+                .claim => return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
                     expected.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);

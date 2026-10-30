@@ -30,6 +30,7 @@ pub const StreamPartition = @import("StreamPartition.zig").Owner;
 pub const QueuePartition = @import("QueuePartition.zig");
 pub const QueueIndex = @import("QueueIndex.zig");
 pub const QueueItem = @import("QueueItem.zig");
+pub const QueueSelection = @import("QueueSelection.zig");
 pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");

@@ -35,6 +35,9 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
             return .{ .writer_epoch = 1, .policy_epoch = 1 };
         }
         fn release(_: *anyopaque) void {}
+        fn clock(_: *anyopaque) !?s.LogTime.Sample {
+            return .exact(100);
+        }
     };
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -59,7 +62,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
     const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
     _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
-    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 16384, .key_bytes = 1024, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 16384, .resident_bytes = 32768 } };
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 16384, .key_bytes = 1024, .clock = .{ .context = &context, .read = Fixture.clock }, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 16384, .resident_bytes = 32768 } };
     var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
     defer owner.deinit() catch unreachable;
     _ = try owner.recoverStep(guard, 1);
@@ -74,8 +77,24 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const payload = try encoder.finish();
     const request: c.protocol.StreamQueue.Append = .{ .target = initial.target(), .operation = operation, .kind = .queue, .producer = null, .rows = 24, .payload = s.LogBatch.content(payload) };
     const receipt = try owner.enqueue(declared, request, payload, guard);
+    const frozen_batches = owner.owner.root.batches.?;
+    const claim: c.protocol.StreamQueue.Claim = .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 16, .lease_ms = 100 };
+    const claimed = try owner.claim(declared, claim, guard);
+    try t.expectEqual(@as(u32, 16), claimed.rows);
+    const later: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 4 };
+    encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, later, .queue, 1, &bytes);
+    long_key[299] = 'z';
+    try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }} });
+    const added = try encoder.finish();
+    _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = later, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(added) }, added, guard);
+    const cut = owner.owner.root.position();
+    while (!(try owner.flush(cut, guard)).complete) {}
+    while (!(try owner.archive(cut, .{ .frames = 2 }, guard)).complete) {}
+    _ = try owner.checkpoint(cut, guard);
+    _ = try owner.trimArchived(guard);
     const root = owner.owner.root;
-    var latest = try wal.log().read(t.allocator, 92, 1, 1);
+    try t.expect(!std.meta.eql(frozen_batches, root.batches.?));
+    var latest = try wal.log().read(t.allocator, 92, root.next_lsn - 1, 1);
     defer latest.deinit();
     var workspace: Workspace = .{};
     defer workspace.deinit();
@@ -94,6 +113,8 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         }
     }
     var name: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try s.TreeStore.key(frozen_batches.location, &name)));
+    try t.expect(workspace.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
     for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys, root.queue.?.eligible }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
     var removed: usize = 0;
     var at: usize = 0;
@@ -112,6 +133,10 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     try t.expectEqual(puts, objects.puts);
     try t.expectEqualDeep(root, owner.owner.root);
     try t.expectEqualDeep(receipt, (try owner.operation(operation, guard)).?.outcome.append);
+    try t.expectEqualDeep(claimed, try owner.claim(declared, claim, guard));
+    var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
+    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &selection_buffer);
+    try selection.requireReceipt(claimed);
     var bitmap: s.BitmapDirectory = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
     const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer };
     var canonical: [1024]u8 = undefined;
@@ -119,7 +144,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         long_key[299] = @intCast('a' + i);
         const key = try c.fuze.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = &long_key } } }, .utf8, .ascii_ci, &canonical);
         try t.expectEqualDeep(s.QueueIndex.Head{ .first = i, .last = i }, (try queue.head(root.queue.?, key)).?);
-        try t.expectEqual(s.Tack.State.available, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
+        try t.expectEqual(if (i < 16) s.Tack.State.acquired else s.Tack.State.available, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
     }
 }
 

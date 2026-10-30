@@ -26,8 +26,9 @@ exhaustion retains an available but blocked source. Its DLQ reason retains the
 exact destination definition; it does not publish that destination or make the
 source terminal. Old roots remain independently readable.
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
-producer receipts to one fenced WAL record. Lease and settlement changes still
-remain private candidates; timing-wheel scheduling and DLQ transfer are not
+producer receipts to one fenced WAL record. Claims also publish acquired state,
+exact leases and deadlines together. Settlement changes still remain private
+candidates; timing-wheel scheduling and DLQ transfer are not
 enabled by these components.
 
 `QueueSelection` retains a nonempty claim's exact leases and payload placement
@@ -105,11 +106,22 @@ metadata, nested full-key directories and all sidecar bitmap containers before
 reclamation. Recorded DLQ destinations conservatively stop collection until
 their historical dependency closure is implemented.
 
-The Queue wrapper exposes enqueue, observation, original outcome recovery and
+`QueuePartition.claim` freezes a bounded original selection from eligible FIFO
+heads, capped by declared and deployment limits and remaining active-lease
+capacity. Exhausted capacity cannot become an accepted empty result. The claim
+persists exact epochs, attempts, trusted time bounds and its immutable selection
+before acknowledgement, and rechecks current authority and conservative liveness
+at publication. Original claims, including empty selections, remain exact on retry
+after expiry or loss of authoritative time; a fresh selection needs a new identity.
+The retained graph preserves each original selection's earlier batch and placement
+directories. This storage receipt does not establish current lease status or
+settle any message.
+
+The Queue wrapper exposes enqueue, claim, observation, original outcome recovery and
 physical maintenance. It has no Stream consumption, group or age-expiry API.
 The service must still compose this storage boundary with the shared catalog
-operation namespace and current grants; installed Queue execution and durable
-claim/settlement publication remain open.
+operation namespace and current grants; installed Queue execution, current lease
+inspection and durable settlement publication remain open.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

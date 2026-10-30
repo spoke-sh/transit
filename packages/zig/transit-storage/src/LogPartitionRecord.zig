@@ -137,6 +137,7 @@ pub const Record = struct {
                 if (!std.meta.eql(evidence.declared, self.root.declared) or !std.meta.eql(evidence.accepted(), self.root.position()) or
                     evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
                 if (evidence.outcome == .append and (evidence.outcome.append.next != self.root.next_offset or evidence.outcome.append.observed_ms != self.root.clock_ms)) return error.InvalidLogHistory;
+                if (evidence.outcome == .claim and evidence.outcome.claim.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
             },
             .archive => |value| {
                 try value.cut.validate();
