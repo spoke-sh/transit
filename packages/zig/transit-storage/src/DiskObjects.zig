@@ -170,6 +170,9 @@ fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []co
         else => return err,
     };
 }
+inline fn needsChecksFile(size: u64) bool {
+    return size > chunk_bytes;
+}
 fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     var chunks: [checks_bytes]u8 = undefined;
     const count = std.math.divCeil(usize, bytes.len, chunk_bytes) catch unreachable;
@@ -178,10 +181,16 @@ fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Re
         chunks[i * 32 ..][0..32].* = digest(bytes[start..@min(start + chunk_bytes, bytes.len)]);
     }
     const checks = chunks[0 .. count * 32];
-    const record: Record = .{ .kind = kind, .meta = .{ .size = bytes.len, .sha256 = digest(bytes) }, .checks = digest(checks) };
+    const record: Record = .{
+        .kind = kind,
+        .meta = .{ .size = bytes.len, .sha256 = if (count == 1) chunks[0..32].* else digest(bytes) },
+        .checks = digest(checks),
+    };
     var filename: [144]u8 = undefined;
     try self.content(self.objects_dir, contentName(key, record.meta.sha256, false, &filename), bytes);
-    try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
+    if (needsChecksFile(bytes.len)) {
+        try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
+    }
     return record;
 }
 fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
@@ -267,12 +276,17 @@ pub fn read(self: *Self, key: []const u8, offset: u64, length: u32, out: []u8) !
     if (offset > record.meta.size) return error.RangeOutOfBounds;
     const wanted: usize = @intCast(@min(length, record.meta.size - offset));
     var filename: [144]u8 = undefined;
-    const hashes = try self.objects_dir.openFile(self.io, contentName(key, record.meta.sha256, true, &filename), .{ .follow_symlinks = false });
-    defer hashes.close(self.io);
     var checks: [checks_bytes]u8 = undefined;
     const count: usize = @intCast(std.math.divCeil(u64, record.meta.size, chunk_bytes) catch unreachable);
     const checked = checks[0 .. count * 32];
-    if (try hashes.length(self.io) != checked.len or try hashes.readPositionalAll(self.io, checked, 0) != checked.len or !std.mem.eql(u8, &digest(checked), &record.checks)) return error.ObjectDigestMismatch;
+    if (needsChecksFile(record.meta.size)) {
+        const hashes = try self.objects_dir.openFile(self.io, contentName(key, record.meta.sha256, true, &filename), .{ .follow_symlinks = false });
+        defer hashes.close(self.io);
+        if (try hashes.length(self.io) != checked.len or try hashes.readPositionalAll(self.io, checked, 0) != checked.len or !std.mem.eql(u8, &digest(checked), &record.checks)) return error.ObjectDigestMismatch;
+    } else {
+        if (count == 1) checks[0..32].* = record.meta.sha256;
+        if (!std.mem.eql(u8, &digest(checked), &record.checks)) return error.ObjectDigestMismatch;
+    }
     const file = try self.objects_dir.openFile(self.io, contentName(key, record.meta.sha256, false, &filename), .{ .follow_symlinks = false });
     defer file.close(self.io);
     if (try file.length(self.io) != record.meta.size) return error.ObjectDigestMismatch;
@@ -347,11 +361,13 @@ pub fn confirmImmutable(self: *Self, key: []const u8, expected: object.ObjectMet
     }
     if (!std.mem.eql(u8, &hash.finalResult(), &expected.sha256)) return error.ObjectDigestMismatch;
     var name: [144]u8 = undefined;
-    // Both files must exist even for an empty object.
-    for ([_]bool{ false, true }) |checks| {
-        const file = try self.objects_dir.openFile(self.io, contentName(key, expected.sha256, checks, &name), .{ .follow_symlinks = false });
-        defer file.close(self.io);
-        try file.sync(self.io);
+    const data_file = try self.objects_dir.openFile(self.io, contentName(key, expected.sha256, false, &name), .{ .follow_symlinks = false });
+    defer data_file.close(self.io);
+    try data_file.sync(self.io);
+    if (needsChecksFile(expected.size)) {
+        const checks_file = try self.objects_dir.openFile(self.io, contentName(key, expected.sha256, true, &name), .{ .follow_symlinks = false });
+        defer checks_file.close(self.io);
+        try checks_file.sync(self.io);
     }
     try syncIterated(self.io, self.objects_dir);
     const descriptor = try self.keys_dir.openFile(self.io, &keyName(key), .{ .follow_symlinks = false });

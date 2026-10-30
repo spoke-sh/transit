@@ -2,9 +2,7 @@
 const std = @import("std");
 
 pub fn sync(io: std.Io, directory: std.Io.Dir) !void {
-    const opened = try directory.openDir(io, ".", .{ .iterate = true });
-    defer opened.close(io);
-    const file: std.Io.File = .{ .handle = opened.handle, .flags = .{ .nonblocking = false } };
+    const file: std.Io.File = .{ .handle = directory.handle, .flags = .{ .nonblocking = false } };
     try file.sync(io);
 }
 

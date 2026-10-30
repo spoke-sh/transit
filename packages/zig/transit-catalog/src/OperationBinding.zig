@@ -94,6 +94,16 @@ fn lookupStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, oper
 
 /// Exact retry is idempotent even if the prior immutable publication lost its
 /// reply. The full binding is compared on conflict, never just the target ID.
+pub fn encodeData(binding: d.Binding, output: *[max_bytes]u8) !struct { bytes: []const u8, sha256: [32]u8 } {
+    const stored: Stored = .{ .data = binding };
+    try stored.validate();
+    output[0..8].* = "TOPBIND1".*;
+    output[8..40].* = p.Growth.definition_bytes;
+    var writer: std.Io.Writer = .fixed(output[header_bytes..]);
+    try std.json.Stringify.value(stored, .{}, &writer);
+    const encoded = output[0 .. header_bytes + writer.end];
+    return .{ .bytes = encoded, .sha256 = hash(encoded) };
+}
 pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: d.Binding) !void {
     return claimStored(allocator, objects, .{ .data = binding });
 }

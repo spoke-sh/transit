@@ -162,15 +162,28 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     var selected = metadata;
     if (previous_record) |prior| {
         var to_release = prior;
-        if (cached == null and to_release.state != .closing) {
-            to_release.state = .closing;
-            state = try self.write(client, state, to_release);
+        if (cached != null) {
+            const released = try client.call(.{ .release = try to_release.snapshot() });
+            released.deinit();
+            if (std.meta.eql(to_release.table.interpretation.interpretation.object, table.interpretation.interpretation.object)) {
+                selected.position.next_lsn = try std.math.add(u64, selected.position.next_lsn, 1);
+            } else {
+                const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+                defer refreshed.deinit();
+                selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
+                try table.check(client.connection, selected);
+            }
+        } else {
+            if (to_release.state != .closing) {
+                to_release.state = .closing;
+                state = try self.write(client, state, to_release);
+            }
+            try release(client, to_release);
+            const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+            defer refreshed.deinit();
+            selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
+            try table.check(client.connection, selected);
         }
-        try release(client, to_release);
-        const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-        defer refreshed.deinit();
-        selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
-        try table.check(client.connection, selected);
     }
     for (0..4) |attempt| {
         var random: [8]u8 = undefined;
