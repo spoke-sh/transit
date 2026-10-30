@@ -174,12 +174,21 @@ and the catalog's retained dependency graph.
   Synchronous `Log.trim` drains those units. Cold partition recovery remains a
   separate cost. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
 - `TransitObjectStore.zig`: Pluggable immutable segment and conditional manifest
-  object store interface (`putImmutable`, `putConditional` with `if_none_match` / `if_match`,
+  object store interface (`putImmutable`, bounded `putImmutableBatch`, `putConditional` with `if_none_match` / `if_match`,
   `getRange`, `head`, `delete`).
 - `LocalSegmentStore.zig`: POSIX object owner with per-key process locks, atomic
   descriptor publication, immutable content, chunk-verified range reads and no
   whole-object disk cache. A separate memory fixture implements the same typed
   operations. See [object persistence](../../../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence).
+  An immutable batch borrows up to eight distinct keys and their bytes until
+  return. Success makes every item durable; failure may leave a visible subset
+  and writes no output metadata. Exact retry uses the same keys/content. This
+  supplies no atomic multi-object visibility or SQL acceptance. Disk batches
+  lock keys in canonical order, sync each content file, share one content-directory
+  barrier, sync/replace each descriptor, then share one descriptor-directory
+  barrier. Providers without grouped publication execute individual durable puts.
+  `TreeStore.stageMany` uses these batches with bounded stack scratch; no backing
+  allocation or cross-command queue is introduced.
 - `S3ObjectStore.zig`: S3-compatible `TransitObjectStore` adapter with AWS Signature
   Version 4 (`AWS4-HMAC-SHA256`), conditional CAS headers, and partial byte-range requests.
 - `NvmeCache.zig`: Tier 2 `64 KiB` chunked range cache with SHA-256 integrity checks

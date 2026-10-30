@@ -73,7 +73,7 @@ local-native-collection:
 
 # Disk owner error propagation with real partial writes and injected syscall failures.
 storage-io-faults:
-    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication" -Dtest-filter="immutable object batch" -Dtest-filter="overlapping immutable" --summary all
 
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:

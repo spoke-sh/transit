@@ -54,20 +54,21 @@ weekly discovery expands it and runs targeted mutations of the actual Zig guards
 
 Run `nix develop -c just test::object-publication-model` for
 [ObjectPublication.tla](ObjectPublication.tla). The question is whether payload
-and checksum names can share one directory barrier before descriptor publication.
-The domain is one key, one candidate and its exact retries under the existing
-per-key lock. Three files have absent/partial/complete bytes, with independent
+and checksum names, including a bounded group of objects, can share a directory
+barrier before descriptor publication. The runner exhausts one-key and two-key
+profiles, one candidate and exact retries under ordered per-key locks. Three
+files per key have absent/partial/complete bytes, with independent
 visible/durable bytes and names. The initial state has no candidate artifacts;
 an older conditional descriptor is abstracted as absence of the new descriptor.
-The transition sequence writes/syncs/links both content files, syncs their shared
-directory, then writes/syncs/replaces the descriptor, syncs its directory and
+The transition sequence writes/syncs/links all content files, syncs their shared
+directory, then writes/syncs/replaces each descriptor, syncs their directory and
 acknowledges. Independent writeback, process death, power loss, I/O errors and
 recovery can interleave. Exact retries repeat the required barriers; a visible
 name alone supplies no durability evidence.
 
 The invariants require durable content before new-descriptor visibility, a
 synced descriptor before replacement, and all dependencies durable on success.
-Five controls independently remove those synchronization obligations and must
+Five controls per profile independently remove those synchronization obligations and must
 produce their named invariant violation. The runner requires queue exhaustion
 for the safe model and complete known-action traces for controls; syntax errors,
 timeouts or missing evidence fail. Source hashes, tool banner, configurations,
@@ -78,7 +79,7 @@ per configuration.
 Successful sync and atomic descriptor replacement are assumptions. This is
 safety exploration without fairness or a liveness claim. It abstracts bytes and
 hash verification, excludes concurrent reclamation and does not establish
-inventory-before-creation, WAL acceptance, cross-object batching or gateway
+inventory-before-creation, WAL acceptance, arbitrary batch sizes or gateway
 recovery. The independent real-disk error/process schedules exercise production
 ordering; they do not automatically replay model traces, prove refinement or
 simulate power loss. The composition and delivery obligations remain in

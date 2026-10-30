@@ -75,9 +75,45 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     return result;
 }
 
-pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
+pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
     if (batch.len != output.len or batch.len > pages.mutation_batch) return error.InvalidPageBatch;
-    for (batch, output) |page, *reference| reference.* = try self.stage(try page.reference(), &page);
+    if (batch.len == 0) return;
+    var buffers: [pages.mutation_batch][header_bytes + pages.max_encoded_bytes]u8 = undefined;
+    var names: [pages.mutation_batch][96]u8 = undefined;
+    var references: [pages.mutation_batch]pages.Reference = undefined;
+    var puts: [pages.mutation_batch]objects.ImmutablePut = undefined;
+    var metas: [pages.mutation_batch]objects.ObjectMeta = undefined;
+    var lengths: [pages.mutation_batch]usize = undefined;
+    var count: usize = 0;
+    const candidate = if (self.candidate) |*value| value else return error.NoStorageCandidate;
+    for (batch, buffers[0..batch.len], names[0..batch.len], references[0..batch.len], lengths[0..batch.len]) |*page, *bytes, *name, *reference, *length| {
+        reference.* = try page.reference();
+        bytes[0..8].* = "TDIX\x01\x00\x00\x00".*;
+        bytes[8..header_bytes].* = p.Growth.definition_bytes;
+        const body = try page.encode(bytes[header_bytes..]);
+        const encoded = bytes[0 .. header_bytes + body.len];
+        length.* = encoded.len;
+        if (encoded.len > candidate.limit - candidate.staged) return error.StorageCandidateTooLarge;
+        candidate.staged += encoded.len;
+        std.crypto.hash.sha2.Sha256.hash(encoded, &reference.location, .{});
+        const duplicate = for (puts[0..count]) |put| {
+            if (std.mem.eql(u8, &put.sha256, &reference.location)) break true;
+        } else false;
+        if (!duplicate) {
+            puts[count] = .{ .key = try key(reference.location, name), .bytes = encoded, .sha256 = reference.location };
+            count += 1;
+        }
+    }
+    try self.store.putImmutableBatch(puts[0..count], metas[0..count]);
+    for (puts[0..count], metas[0..count]) |put, meta| {
+        if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
+    }
+    for (batch, references[0..batch.len], lengths[0..batch.len]) |*page, reference, length| {
+        self.staged_pages +|= 1;
+        self.staged_bytes +|= length;
+        self.remember(reference, page.*, false);
+    }
+    @memcpy(output, references[0..batch.len]);
 }
 
 pub fn load(self: *Self, reference: pages.Reference) !pages.Page {

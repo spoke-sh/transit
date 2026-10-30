@@ -45,7 +45,7 @@ def main():
                ROOT / "packages/zig/transit-storage/src/DiskObjects.zig"]
     evidence = {
         "version": 1, "status": "inconclusive", "safety_only": True,
-        "implementation_replay": False, "bounds": "one key, one candidate, exact retries; three files",
+        "implementation_replay": False, "bounds": "one and two keys, one candidate, exact retries; three files per key",
         "sources": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},
         "checks": [],
     }
@@ -55,44 +55,46 @@ def main():
             source = directory / "ObjectPublication.tla"
             shutil.copyfile(MODELS / source.name, source)
             template = (MODELS / "ObjectPublication.cfg").read_text()
-            for guard in (None, *CONTROLS):
-                name = guard or "safe"
-                config = template if guard is None else template.replace(f"{guard} = TRUE", f"{guard} = FALSE")
-                if guard:
-                    assert config != template, f"missing control: {guard}"
-                path = directory / f"{name}.cfg"
-                path.write_text(config)
-                (destination / path.name).write_text(config)
-                started = time.monotonic()
-                command = [tlc, "-workers", "1", "-seed", "1", "-fp", "0",
-                           "-metadir", str(directory / name), "-config", str(path), str(source)]
-                try:
-                    result = subprocess.run(command, cwd=directory,
-                        env=os.environ | {"JAVA_TOOL_OPTIONS": "-Xmx512m"},
-                        capture_output=True, text=True, timeout=args.seconds)
-                except subprocess.TimeoutExpired as error:
-                    (destination / f"{name}.log").write_bytes((error.stdout or b"") + (error.stderr or b""))
-                    raise RuntimeError(f"{name}: timeout is inconclusive") from error
-                output = result.stdout + result.stderr
-                (destination / f"{name}.log").write_text(output)
-                if guard is None:
-                    generated, distinct = complete(result.returncode, output)
-                    evidence.update(generated_states=generated, distinct_states=distinct)
-                    evidence["tool_banner"] = output.splitlines()[:4]
-                else:
-                    violation = re.search(r"Error: Invariant (\w+) is violated\.", output)
-                    assert result.returncode == 12 and violation and violation[1] == CONTROLS[guard], output[-4000:]
-                    events = re.findall(r'^/\\ last = "([^"]+)"$', output, re.M)
-                    states = re.findall(r"^State \d+: ", output, re.M)
-                    assert len(events) == len(states) and len(events) > 1 and events[0] == "Init", "incomplete trace"
-                    assert set(events) <= ACTIONS, f"unknown actions: {set(events) - ACTIONS}"
-                    (destination / f"{name}.json").write_text(json.dumps({
-                        "violation": violation[1], "actions": events, "implementation_replay": False,
-                    }, indent=2) + "\n")
-                evidence["checks"].append({"guard": name, "status": "passed" if guard is None else "detected",
-                    "seconds": round(time.monotonic() - started, 3)})
+            for count in (1, 2):
+                for guard in (None, *CONTROLS):
+                    name = f"objects-{count}-" + (guard or "safe")
+                    config = template.replace("ObjectCount = 1", f"ObjectCount = {count}")
+                    if guard:
+                        assert f"{guard} = TRUE" in config, f"missing control: {guard}"
+                        config = config.replace(f"{guard} = TRUE", f"{guard} = FALSE")
+                    path = directory / f"{name}.cfg"
+                    path.write_text(config)
+                    (destination / path.name).write_text(config)
+                    started = time.monotonic()
+                    command = [tlc, "-workers", "1", "-seed", "1", "-fp", "0",
+                               "-metadir", str(directory / name), "-config", str(path), str(source)]
+                    try:
+                        result = subprocess.run(command, cwd=directory,
+                            env=os.environ | {"JAVA_TOOL_OPTIONS": "-Xmx512m"},
+                            capture_output=True, text=True, timeout=args.seconds)
+                    except subprocess.TimeoutExpired as error:
+                        (destination / f"{name}.log").write_bytes((error.stdout or b"") + (error.stderr or b""))
+                        raise RuntimeError(f"{name}: timeout is inconclusive") from error
+                    output = result.stdout + result.stderr
+                    (destination / f"{name}.log").write_text(output)
+                    if guard is None:
+                        generated, distinct = complete(result.returncode, output)
+                        evidence.setdefault("profiles", []).append(dict(objects=count, generated_states=generated, distinct_states=distinct))
+                        evidence["tool_banner"] = output.splitlines()[:4]
+                    else:
+                        violation = re.search(r"Error: Invariant (\w+) is violated\.", output)
+                        assert result.returncode == 12 and violation and violation[1] == CONTROLS[guard], output[-4000:]
+                        events = re.findall(r'^/\\ last = "([^"]+)"$', output, re.M)
+                        states = re.findall(r"^State \d+: ", output, re.M)
+                        assert len(events) == len(states) and len(events) > 1 and events[0] == "Init", "incomplete trace"
+                        assert set(events) <= ACTIONS, f"unknown actions: {set(events) - ACTIONS}"
+                        (destination / f"{name}.json").write_text(json.dumps({
+                            "violation": violation[1], "actions": events, "implementation_replay": False,
+                        }, indent=2) + "\n")
+                    evidence["checks"].append({"guard": name, "objects": count, "status": "passed" if guard is None else "detected",
+                        "seconds": round(time.monotonic() - started, 3)})
         evidence["status"] = "passed"
-        print(f"Object publication TLC: {evidence['distinct_states']} states exhausted; five sync controls detected. "
+        print(f"Object publication TLC: {evidence['profiles']}; five sync controls detected per profile. "
               "Independent disk tests, not implementation refinement or physical power loss.")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

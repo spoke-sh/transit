@@ -2617,7 +2617,7 @@
         "packages/zig/transit-storage/src/DiskObjects.zig",
         "packages/zig/transit-storage/src/disk_objects_test.zig"
       ],
-      "profile": "One key, one candidate and exact retries; payload/checksum/descriptor bytes absent, partial or complete; independent visible and durable names",
+      "profile": "One-key and two-key batch profiles, one candidate and exact retries; payload/checksum/descriptor bytes absent, partial or complete; independent visible and durable names",
       "tasks": [
         "test::object-publication-model",
         "test::storage-io-faults",
@@ -2625,7 +2625,7 @@
       ],
       "scenarios": [
         "Exhaustive safety exploration with independent writeback, process death, power loss, uncertain I/O and exact retry",
-        "Five removed synchronization obligations must violate the named content, descriptor or acknowledgement invariant",
+        "Five removed synchronization obligations per profile must violate the named content, descriptor or acknowledgement invariant",
         "Real disk fault schedules and bounded sync-order probes independently check the implementation"
       ],
       "limits": "Assumes per-key exclusion, atomic descriptor replacement, truthful successful sync and no concurrent reclamation. Excludes inventory, accepted SQL/WAL composition, payload integrity, CAS competition, arbitrary batching and liveness. No implementation refinement, automatic counterexample replay or physical power-loss claim.",

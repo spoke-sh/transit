@@ -98,3 +98,27 @@ test "second-chance cache retains loaded root pages across staging churn" {
     }
     try t.expectEqual(misses_before, store.misses);
 }
+
+test "immutable page batches preserve duplicate pages and bounded failure output" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 0);
+    defer store.deinit();
+    var page: pages.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = try key(11), .value = try pages.Value.init("retained") };
+    var refs: [2]pages.Reference = undefined;
+    try store.begin(1024 * 1024);
+    try store.stageMany(&.{ page, page }, &refs);
+    store.end();
+    try t.expectEqualDeep(refs[0], refs[1]);
+    try t.expectEqual(@as(u64, 1), objects.puts);
+    try t.expectEqualDeep(page, try store.load(refs[0]));
+    const original = refs;
+    try store.begin(1);
+    defer store.end();
+    try t.expectError(error.StorageCandidateTooLarge, store.stageMany(&.{ page, page }, &refs));
+    try t.expectEqualDeep(original, refs);
+    try t.expectEqualDeep(page, try store.load(original[0]));
+}

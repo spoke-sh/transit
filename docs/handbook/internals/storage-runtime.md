@@ -83,11 +83,30 @@ power-loss behavior or complete implementation refinement. The
 [storage evidence account](../../history/qualification/storage.md) records
 executed commands and their scope.
 
-Coalescing across multiple objects would additionally require bounded batch
-ownership, inventory ordering, exact partial-failure semantics and proof that
-every descriptor's dependencies are durable. Deferring indexes would require
+The same ordering now applies to bounded groups of up to eight immutable
+objects. The caller owns the input bytes until return; ordered per-key locks
+exclude competing publication until the final barrier. All payload/checksum
+files and their names become durable before any descriptor is replaced. Each
+descriptor file is synced separately, and one final directory barrier covers
+their names. For `n` new objects this requires `3n + 2` sync calls instead of
+`5n`; eight objects use 26 instead of 40. These counts exclude allocation
+inventory and accepted WAL publication. The single-object ordering is unchanged.
+
+Native and direct index owners use already available page groups rather than
+waiting for another command. They record every allocation before creating any
+group content and hold their shared reclamation fence until completion. A failed
+group can leave a visible subset of complete private objects; it returns no page
+references and installs no new publication confirmations. Exact retries repeat
+the required barriers, and quota reservations remain charged after uncertainty.
+This grouping changes neither stored bytes nor the accepting owner or decision.
+Bounded stack buffers hold encoded pages, without a resident backlog or new
+heap allocation. The finite model checks one- and two-object groups; disk tests
+cover the eight-object bound, overlapping groups, partial failures and restart.
+These checks do not prove arbitrary batch sizes or physical power-loss behavior.
+
+Deferring indexes would require
 reconstruction from accepted WAL records. Those alternatives can remove more
-foreground work but are not established by this fixed-pair optimization. End-to-end
+foreground work but are not established by directory-barrier sharing. End-to-end
 console latency also includes gateway admission, recovery polling and execution
 RPCs; reducing one storage barrier does not establish a proportional statement
 speedup or global optimality.

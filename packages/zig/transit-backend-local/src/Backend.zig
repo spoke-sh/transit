@@ -172,9 +172,42 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
     if (bytes.len > storage.TransitObjectStore.max_object_bytes) return error.ObjectTooLarge;
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    const meta: storage.TransitObjectStore.ObjectMeta = .{ .size = bytes.len, .sha256 = digest };
     try self.data_creators.lockShared(self.io);
     defer self.data_creators.unlockShared(self.io);
+    const allocation = (try self.prepareDataPut(.{ .key = key, .bytes = bytes, .sha256 = digest }, control, source)) orelse return;
+    _ = try self.objects.objectStore().putImmutable(key, bytes, digest);
+    try self.confirmDataPuts(&.{allocation});
+}
+
+pub fn putBatch(self: *Self, batch: []const storage.TransitObjectStore.ImmutablePut, output: []storage.TransitObjectStore.ObjectMeta, control: bool, source: bool) !void {
+    const Objects = storage.TransitObjectStore;
+    try Objects.validateBatch(batch, output);
+    for (batch) |item| try dataKey(item.key);
+    try self.data_creators.lockShared(self.io);
+    defer self.data_creators.unlockShared(self.io);
+    var pending: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
+    var allocations: [Objects.max_put_batch]DataAllocations.Allocation = undefined;
+    var count: usize = 0;
+    for (batch) |item| if (try self.prepareDataPut(item, control, source)) |allocation| {
+        pending[count] = item;
+        allocations[count] = allocation;
+        count += 1;
+    };
+    var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+    if (count != 0) try self.objects.objectStore().putImmutableBatch(pending[0..count], completed[0..count]);
+    // Partial batch failure remembers no new durable publication. Exact retry
+    // must re-establish the inventory and object barriers for every such item.
+    if (count != 0) try self.confirmDataPuts(allocations[0..count]);
+    for (batch, output) |item, *meta| meta.* = .{ .size = item.bytes.len, .sha256 = item.sha256 };
+}
+
+/// Caller holds the shared creation fence through physical publication.
+fn prepareDataPut(self: *Self, item: storage.TransitObjectStore.ImmutablePut, control: bool, source: bool) !?DataAllocations.Allocation {
+    const key = item.key;
+    const bytes = item.bytes;
+    try dataKey(key);
+    if (bytes.len > storage.TransitObjectStore.max_object_bytes) return error.ObjectTooLarge;
+    const meta: storage.TransitObjectStore.ObjectMeta = .{ .size = bytes.len, .sha256 = item.sha256 };
     const store = self.objects.objectStore();
     const existing = try store.head(key);
     if (existing) |known| if (!std.meta.eql(known, meta)) return error.ImmutableObjectConflict;
@@ -185,7 +218,7 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
         if (existing != null) {
             const wanted = try DataAllocations.Allocation.init(epoch, key, meta);
             for (self.confirmed_data) |slot| if (slot) |known| {
-                if (std.meta.eql(known, wanted)) return;
+                if (std.meta.eql(known, wanted)) return null;
             };
         }
         // Payload, checksum chunks, descriptor and bounded publication overhead.
@@ -213,15 +246,18 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
         // cannot authorize deletion after this key is reused by newer work.
         _ = try self.data_allocations.recordTracked(allocation, source);
     }
-    // Private immutable publication is per-key. Disk syncs must not hold the
-    // quota/journal mutex or delay unrelated native reads and control work.
-    _ = try store.putImmutable(key, bytes, digest);
+    return allocation;
+}
+
+fn confirmDataPuts(self: *Self, allocations: []const DataAllocations.Allocation) !void {
     // Never remember a visible-but-uncertain descriptor. Only the successful
     // inventory and object barriers establish this disposable acknowledgement.
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
-    self.confirmed_data[self.confirmed_data_next] = allocation;
-    self.confirmed_data_next = (self.confirmed_data_next + 1) % self.confirmed_data.len;
+    for (allocations) |allocation| {
+        self.confirmed_data[self.confirmed_data_next] = allocation;
+        self.confirmed_data_next = (self.confirmed_data_next + 1) % self.confirmed_data.len;
+    }
 }
 
 pub fn dataKey(key: []const u8) !void {
@@ -241,6 +277,35 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
     const allocation: Allocations.Allocation = .{ .epoch = epoch, .kind = kind, .address = address, .meta = .{ .size = bytes.len, .sha256 = digest } };
     try self.native_creators.lockShared(self.io);
     defer self.native_creators.unlockShared(self.io);
+    try self.prepareNativePut(allocation, bytes.len, control, source);
+    var key: [96]u8 = undefined;
+    _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);
+}
+
+pub const NativePut = struct { address: [32]u8, bytes: []const u8 };
+
+pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control: bool, source: bool) !void {
+    const Objects = storage.TransitObjectStore;
+    if (batch.len == 0 or batch.len > Objects.max_put_batch) return error.InvalidObjectBatch;
+    var keys: [Objects.max_put_batch][96]u8 = undefined;
+    var items: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
+    var allocations: [Objects.max_put_batch]Allocations.Allocation = undefined;
+    for (batch, allocations[0..batch.len], items[0..batch.len], keys[0..batch.len]) |item, *allocation, *entry, *key| {
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(item.bytes, &digest, .{});
+        allocation.* = .{ .epoch = epoch, .kind = .page, .address = item.address, .meta = .{ .size = item.bytes.len, .sha256 = digest } };
+        entry.* = .{ .key = try allocation.key(key), .bytes = item.bytes, .sha256 = digest };
+    }
+    var output: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+    try Objects.validateBatch(items[0..batch.len], output[0..batch.len]);
+    try self.native_creators.lockShared(self.io);
+    defer self.native_creators.unlockShared(self.io);
+    for (allocations[0..batch.len]) |allocation| try self.prepareNativePut(allocation, @intCast(allocation.meta.size), control, source);
+    try self.objects.objectStore().putImmutableBatch(items[0..batch.len], output[0..batch.len]);
+}
+
+fn prepareNativePut(self: *Self, allocation: Allocations.Allocation, size: usize, control: bool, source: bool) !void {
+    const epoch = allocation.epoch;
     {
         try self.native_inventory.lock(self.io);
         defer self.native_inventory.unlock(self.io);
@@ -252,14 +317,12 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
             // A storage-fence candidate stages in the next epoch before acceptance.
             if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
             if (missing) {
-                const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
-                try self.reserve(bytes.len + checks * 32 + 1536 + Allocations.record_bytes, control);
+                const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
+                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
             }
         }
         _ = try self.allocations.recordTracked(allocation, source);
     }
-    var key: [96]u8 = undefined;
-    _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);
 }
 
 pub fn read(self: *Self, key: []const u8, output: []u8) ![]const u8 {

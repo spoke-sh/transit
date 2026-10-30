@@ -64,6 +64,7 @@ pub const LocalSegmentStore = struct {
             .context = self,
             .vtable = &.{
                 .putImmutable = putImmutableErased,
+                .putImmutableBatch = putImmutableBatchErased,
                 .putConditional = putConditionalErased,
                 .getRange = getRangeErased,
                 .head = headErased,
@@ -77,6 +78,26 @@ pub const LocalSegmentStore = struct {
             if (std.mem.eql(u8, obj.key, key)) return obj;
         }
         return null;
+    }
+
+    pub fn putImmutableBatch(self: *LocalSegmentStore, batch: []const TransitObjectStore.ImmutablePut, output: []TransitObjectStore.ObjectMeta) !void {
+        try TransitObjectStore.validateBatch(batch, output);
+        if (self.disk) |disk| {
+            try disk.putImmutableBatch(batch, output);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
+            self.puts += batch.len;
+            for (batch) |item| self.bytes_written += item.bytes.len;
+        } else {
+            var completed: [TransitObjectStore.max_put_batch]TransitObjectStore.ObjectMeta = undefined;
+            for (batch, completed[0..batch.len]) |item, *meta| meta.* = try self.putImmutableObject(item.key, item.bytes, item.sha256);
+            @memcpy(output, completed[0..batch.len]);
+        }
+    }
+
+    fn putImmutableBatchErased(context: *anyopaque, batch: []const TransitObjectStore.ImmutablePut, output: []TransitObjectStore.ObjectMeta) !void {
+        const self: *LocalSegmentStore = @ptrCast(@alignCast(context));
+        return self.putImmutableBatch(batch, output);
     }
 
     pub fn putImmutableObject(

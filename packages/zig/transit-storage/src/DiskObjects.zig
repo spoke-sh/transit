@@ -130,7 +130,7 @@ fn readRecord(self: *Self, key: []const u8) !?Record {
     if (result.meta.size > object.max_object_bytes) return error.ObjectTooLarge;
     return result;
 }
-fn saveRecord(self: *Self, key: []const u8, record: Record) !void {
+fn saveRecordName(self: *Self, key: []const u8, record: Record) !void {
     var bytes: [512]u8 = @splat(0);
     bytes[0..8].* = "TOBJ\x01\x00\x00\x00".*;
     bytes[8..40].* = definition();
@@ -141,7 +141,11 @@ fn saveRecord(self: *Self, key: []const u8, record: Record) !void {
     bytes[88..120].* = record.checks;
     @memcpy(bytes[120..][0..key.len], key);
     bytes[480..512].* = digest(bytes[0..480]);
-    try publish(self.io, self.keys_dir, &keyName(key), &bytes, true);
+    try publishName(self.io, self.keys_dir, &keyName(key), &bytes, true);
+}
+fn saveRecord(self: *Self, key: []const u8, record: Record) !void {
+    try self.saveRecordName(key, record);
+    try syncIterated(self.io, self.keys_dir);
 }
 fn verify(file: std.Io.File, io: std.Io, bytes: []const u8) !void {
     if (try file.length(io) != bytes.len) return error.ObjectDigestMismatch;
@@ -166,7 +170,7 @@ fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []co
         else => return err,
     };
 }
-fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
+fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     var chunks: [checks_bytes]u8 = undefined;
     const count = std.math.divCeil(usize, bytes.len, chunk_bytes) catch unreachable;
     for (0..count) |i| {
@@ -178,6 +182,10 @@ fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     var filename: [144]u8 = undefined;
     try self.content(self.objects_dir, contentName(key, record.meta.sha256, false, &filename), bytes);
     try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
+    return record;
+}
+fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
+    const record = try self.stageContent(key, bytes, kind);
     // Both files have durable bytes and final names in this same directory.
     // One directory barrier covers the pair, including observed names on exact
     // retry. No descriptor may become visible before this barrier succeeds.
@@ -196,6 +204,41 @@ pub fn putImmutable(self: *Self, key: []const u8, bytes: []const u8, expected: [
     const staged = try self.stage(key, bytes, .immutable);
     try self.saveRecord(key, staged);
     return staged.meta;
+}
+
+/// Hold all per-key locks in canonical lock-name order until the shared final
+/// barrier. Each descriptor depends on already durable content; partial failure
+/// may expose a subset but never a descriptor whose dependencies are unsynced.
+pub fn putImmutableBatch(self: *Self, batch: []const object.ImmutablePut, output: []object.ObjectMeta) !void {
+    try object.validateBatch(batch, output);
+    const Ordered = struct {
+        index: usize,
+        name: [64]u8,
+        fn less(_: void, a: @This(), b: @This()) bool {
+            return std.mem.order(u8, &a.name, &b.name) == .lt;
+        }
+    };
+    var order: [object.max_put_batch]Ordered = undefined;
+    for (batch, order[0..batch.len], 0..) |item, *entry, i| entry.* = .{ .index = i, .name = keyName(item.key) };
+    std.mem.sort(Ordered, order[0..batch.len], {}, Ordered.less);
+    for (1..batch.len) |i| if (std.mem.eql(u8, &order[i - 1].name, &order[i].name)) return error.ObjectKeyConflict;
+    var locks: [object.max_put_batch]std.Io.File = undefined;
+    var locked: usize = 0;
+    defer for (locks[0..locked]) |lock| lock.close(self.io);
+    for (order[0..batch.len]) |entry| {
+        locks[locked] = try self.lockKey(batch[entry.index].key);
+        locked += 1;
+    }
+    // Reject known conflicts before creating any of this group's content.
+    for (batch) |item| if (try self.readRecord(item.key)) |existing| {
+        if (existing.kind != .immutable or existing.meta.size != item.bytes.len or !std.mem.eql(u8, &existing.meta.sha256, &item.sha256)) return error.ImmutableObjectConflict;
+    };
+    var records: [object.max_put_batch]Record = undefined;
+    for (batch, records[0..batch.len]) |item, *record| record.* = try self.stageContent(item.key, item.bytes, .immutable);
+    try syncIterated(self.io, self.objects_dir);
+    for (batch, records[0..batch.len]) |item, record| try self.saveRecordName(item.key, record);
+    try syncIterated(self.io, self.keys_dir);
+    for (output, records[0..batch.len]) |*meta, record| meta.* = record.meta;
 }
 pub fn putConditional(self: *Self, key: []const u8, condition: object.Condition, bytes: []const u8) !bool {
     try object.validateKey(key);
