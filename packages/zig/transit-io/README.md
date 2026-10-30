@@ -41,3 +41,19 @@ Using an unrelated `std.Io` implementation does not inherit this runtime's memor
 profile. Record counters do not cover allocators used by application callbacks.
 
 Run `zig build test` or `zig build check` inside `nix develop`.
+
+`Notification` reserves a fixed directory of active wait tickets at initialization.
+Register before rechecking the owner's durable predicate, and wait only when that
+recheck still requires progress. Publication and recovery call non-failing
+`notify`; its generation prevents a notification between recheck and parking
+from being lost. All waiters wake together and must recheck current authorization
+and durable state before returning any data. Notifications carry no durable
+acceptance or completion evidence.
+
+Each ticket admits one cancellable wait with an absolute deadline; a relative
+timeout is converted once before parking. Capacity exhaustion refuses new waits.
+Tickets use non-repeating serials, and released tickets cannot address reused
+slots. Registration, wakeup, timeout and release allocate no backing memory.
+Close wakes existing waits and refuses registrations. Join all host tasks and
+release their tickets before `deinit`, which refuses outstanding tickets. The
+owner must remain at a stable address while tickets exist.

@@ -2,6 +2,10 @@
 //! it. Tasks reserve records from fixed storage and workers are created at admission.
 const std = @import("std");
 const memory = @import("transit_memory");
+pub const Notification = @import("Notification.zig");
+test {
+    _ = Notification;
+}
 pub const Threaded = struct {
     parent: std.mem.Allocator,
     records: memory.Slab,
