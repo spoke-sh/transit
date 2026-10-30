@@ -9,6 +9,26 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct dispatcher stack isolation — 2026-10-30
+
+Hosted PR #256 qualification found an installed Board query provisioning crash.
+The same failure reproduces locally: debug `DirectTableDispatch.apply` reserves
+3,895,600 bytes for all action branches, and its nested native authorization
+read exhausts the default worker stack. The crash occurs at `PageStore.load`'s
+stack probe; it is not a page checksum or authority rejection.
+
+The implementation committed as `7c4beeed0` specializes one action per function
+frame. The measured x86-64 debug dispatcher frame is 1,010,544 bytes and the
+largest specialized frame is 264,400 bytes. Worker stack capacity is unchanged.
+The pinned-shell `just transit-board::query-test` passes provisioning, unavailable
+submit/next replies, bounded capacity recovery and generated query-client checks.
+The catalog selection `zig build test -Dtest-filter='direct dispatch'
+-Dtest-filter='direct Table protocol' -Dtest-filter='direct catalog log'` also
+passes. Both commands ran before the implementation commit; final clean-CI
+qualification is separate. The installed log is
+`/var/tmp/transit-stream-board-stack-check.log`; these compiler-specific frame
+measurements do not establish a portable whole-server stack bound.
+
 ## Typed Stream and Queue catalog lifecycle — 2026-10-29
 
 Source `58197ac42` implements the typed declaration lifecycle on the local native

@@ -82,7 +82,8 @@ fn exclusive(action: w.Action) bool {
         .transaction => true,
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
-        .initialize, .admit_ddl, .check_set, .name_assertion, .name_preview => true,
+        .initialize, .admit_ddl, .log_admit, .check_set, .name_assertion, .name_preview => true,
+        .log_operation => |value| value.command != .inspect,
         .namespace_operation => |value| value.command != .inspect,
         .dependency_operation => |value| value.command != .inspect,
         .resource_operation => |value| value.command != .inspect,
@@ -108,6 +109,7 @@ fn target(action: w.Action) ?u64 {
         .preview => |value| value.binding.target.object,
         inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
+        inline .log_preview, .log_admit, .log_operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
         inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
@@ -190,4 +192,26 @@ test "projected and filtered Table reads share the retained object's host lock" 
     try std.testing.expectEqual(@as(?u64, 97), target(projected));
     try std.testing.expectEqual(@as(?u64, 97), target(filtered));
     try std.testing.expect(!exclusive(projected) and !exclusive(filtered));
+}
+
+test "log lifecycle publication serializes the shared catalog directory" {
+    const binding: c.protocol.DataLifecycle.Binding = .{
+        .definition = c.protocol.Growth.current_definition,
+        .identity = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .principal = 0, .operation = 1 },
+        .target = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 97 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = @splat(1),
+    };
+    for ([_]@FieldType(c.DirectLogProtocol.Operation, "command"){ .inspect, .execute, .cancel }) |command| {
+        const action: w.Action = .{ .log_operation = .{ .binding = binding, .command = command, .steps = 1 } };
+        try std.testing.expectEqual(command != .inspect, exclusive(action));
+        try std.testing.expectEqual(@as(?u64, 97), target(action));
+    }
+    // Admission changes the same names, operations and partition allocation
+    // roots as Table DDL, even before native registration and initialization.
+    const admission: w.Action = .{ .log_admit = .{ .binding = binding, .kind = .stream, .namespace = 1, .name = "events", .action = .drop } };
+    try std.testing.expect(exclusive(admission));
+    try std.testing.expectEqual(@as(?u64, 97), target(admission));
 }
