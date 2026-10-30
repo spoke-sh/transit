@@ -377,7 +377,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     components_step.dependOn(&local_catalog_tests.step);
-    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
         .target = target,
         .optimize = optimize,

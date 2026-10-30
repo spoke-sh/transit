@@ -5080,7 +5080,7 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 23,
+        "InvalidLogStorageGraph": 24,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
@@ -5179,7 +5179,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 353,
+        "try": 354,
         "catch": 1
       },
       "imports": [

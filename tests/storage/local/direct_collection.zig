@@ -319,6 +319,7 @@ test "direct Stream collection retains pending compaction and pinned visibility 
 
     const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &stream.store };
     const batch_key = try s.LogPartitionRecord.integerKey(3);
+    const old_directory = stream.root.segments.?;
     const old_segment = try s.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, batch_key)).?);
     while (try stream.rewriteMaintenanceUnit(initial.declared, fixture.guard())) {}
     const rewritten = try s.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, batch_key)).?);
@@ -327,6 +328,7 @@ test "direct Stream collection retains pending compaction and pinned visibility 
     _ = try stream.checkpoint(stream.root.position(), fixture.guard());
     _ = try fixture.collect();
     // The earlier compacted pin still owns the complete physical placement.
+    try t.expect(try fixture.data.objects().head(try s.TreeStore.key(old_directory.location, &name)) != null);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(old_segment.segment.?, &name)) != null);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(rewritten.segment.?, &name)) != null);
     for ([_]p.StreamRead.Receipt{ before, after }, 104..) |pin, id| {

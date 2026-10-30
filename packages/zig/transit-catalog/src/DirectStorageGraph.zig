@@ -97,7 +97,7 @@ pub const Work = union(enum) {
     log_root: struct { root: s.StreamPartition.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
     log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, prefix_bytes: u16 = 0, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     log_compaction: struct { context: LogContext, state: s.StreamCompaction.State, slot: u8 = 0 },
-    log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle },
+    log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
     log_archive_range: struct { context: LogContext, from: u64, until: u64 },
@@ -300,7 +300,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_read, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -629,22 +629,34 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             value.slot += 1;
             return false;
         },
-        .log_read => |value| {
+        .log_read => |*value| {
             const basis = try s.LogRead.load(allocator, index.store, value.handle);
             try value.context.requireTarget(basis.cut.target);
             if (basis.cut.accepted.partition != value.context.partition or basis.cut.accepted.next_lsn >= value.context.next_lsn or basis.cut.next > value.context.next_offset) return error.InvalidLogStorageGraph;
-            try markContent(workspace, try s.LogRead.key(value.handle.source, &key_buffer), value.handle.source);
-            try workspace.enqueue(.{ .log_declaration = basis.declared });
+            const directories = [_]?s.TreeStore.pages.Reference{ basis.batches, basis.segments, basis.hidden.containers };
+            const kinds = [_]LogIndexKind{ .batches, .pages_only, .bitmap };
+            if (value.slot > directories.len + 1) return error.InvalidLogStorageGraph;
+            if (value.slot == directories.len + 1) return true;
+            if (value.slot == 0) {
+                if (try workspace.visited(try scope(work.*))) return true;
+                try markContent(workspace, try s.LogRead.key(value.handle.source, &key_buffer), value.handle.source);
+                try workspace.enqueue(.{ .log_declaration = basis.declared });
+                value.slot += 1;
+                return false;
+            }
             var context = value.context;
             context.interpretation = basis.cut.target.interpretation;
             context.next_lsn = basis.cut.accepted.next_lsn;
             context.next_offset = basis.cut.next;
             context.segments = basis.segments;
             context.hidden = basis.hidden;
-            if (basis.hidden.containers) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .bitmap } });
-            if (basis.batches) |reference| {
-                try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .batches } });
+            // Looking up a descriptor through this directory does not mark its
+            // pages. Pins must retain both locator pages and pointed-to objects.
+            if (directories[value.slot - 1]) |reference| {
+                try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
             }
+            value.slot += 1;
+            return false;
         },
         .log_archive_range => |*value| {
             if (value.from > value.until or value.until >= value.context.next_lsn) return error.InvalidLogStorageGraph;
