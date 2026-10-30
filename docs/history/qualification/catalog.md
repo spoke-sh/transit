@@ -9,6 +9,40 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Durable original Queue claims — 2026-10-30
+
+`d1bc4cb83` adds accepted claims to the shared Queue WAL owner. The disk test
+loses a claim reply, reconstructs the exact selection without object writes,
+preserves empty-claim retries after more work becomes eligible, and reopens with
+authoritative time unavailable. Original leases, acquired state, deadlines and
+attempts remain unchanged. A delayed FIFO head excludes its successor while an
+unrelated key is claimed. Competing owners must recover the newer accepted root
+before selecting work.
+
+Publication refuses unavailable time, an interval spanning lease expiry and a
+definitely expired lease. Active-capacity pressure and backward time accept no
+empty outcome. A canonical selection artifact containing an ineligible FIFO
+successor is rejected during replay even though its format and WAL envelope
+validate. The first capacity fixture specified `claim_rows > active_leases`,
+which correctly failed declaration validation; the corrected fixture uses the
+existing declaration invariant and passes its time/capacity assertions.
+
+The Queue graph schedule now claims sixteen distinct 300-byte keys, appends
+later input, seals payloads, checkpoints and trims the WAL. After deleting
+unmarked objects it reopens the accepted state and original claim, with all
+sixteen acquired bits, remaining available bits and FIFO heads intact. The
+original selection's earlier batch directory remains marked independently of
+the current directory.
+
+Logs are `/var/tmp/transit-queue-partition-claims-final.log` (the invalid
+capacity-fixture attempt), `/var/tmp/transit-queue-claim-time-stream-regression.log`
+(corrected capacity test and full Stream partition regression),
+`/var/tmp/transit-queue-claim-refusals.log` (competing-owner and forged-selection
+checks), `/var/tmp/transit-queue-claim-collection.log` and
+`/var/tmp/transit-queue-claims-fast.log` (48 checks passed). These storage checks
+do not qualify installed Queue operations, current lease inspection, settlement,
+expiry scheduling, timing wheels, DLQ transfer or common transactions.
+
 ## Atomic Queue enqueue and retained scheduling state — 2026-10-30
 
 `b72cec81e` passes the pinned-shell Queue partition suite and the catalog's
