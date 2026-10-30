@@ -458,9 +458,12 @@ The current progress slice delivers:
   A bounded full-key FIFO affinity cache now binds entries to immutable key
   roots, pins generations during concurrent reads and retires exhausted slots.
   Collisions, long keys and saturation fall back to paged lookup. Focused cache,
-  owner and retained-graph checks pass; disk-cache and native/installed regression
-  qualification remain open. Terminal cleanup and atomic DLQ transfer remain
-  outstanding.
+  owner, disk warm-hit and retained-graph checks pass; native/installed regression
+  qualification remains open. Explicit original-claim payload-read closure now
+  records its own recoverable operation without settling or cancelling leases.
+  Retained traversal uses closure only from its own accepted cut; older replay
+  roots keep their payload dependencies. Focused disk, signed-contract and
+  catalog checks pass. Terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

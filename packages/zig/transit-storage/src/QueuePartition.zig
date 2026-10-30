@@ -54,6 +54,9 @@ pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.C
 pub fn readClaimPage(self: *Self, declared: Declaration.Stored, cursor: p.QueueRead.Cursor, limits: ClaimReadLimits, output: std.mem.Allocator, guard: Guard) !ClaimReadPage {
     return self.owner.readClaimPage(declared, cursor, limits, output, guard);
 }
+pub fn releaseClaimRead(self: *Self, declared: Declaration.Stored, request: p.QueueRead.Release, guard: Guard) !p.QueueRead.ReleaseReceipt {
+    return self.owner.releaseClaimRead(declared, request, guard);
+}
 pub fn settle(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Settlement, guard: Guard) !p.StreamQueue.SettlementReceipt {
     return self.owner.settle(declared, request, guard);
 }

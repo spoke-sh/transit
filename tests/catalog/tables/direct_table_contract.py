@@ -221,6 +221,17 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_request = {**queue_input, "proof": {"claim": queue_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_claim)).digest())}}
     queue_digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_work)).digest()
     queue_fixture = {"request": queue_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    queue_release_work = {"release": {
+        "operation": {**log_binding["identity"], "operation": 2**64-2},
+        "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
+                  "observed_ms": 100, "expires_ms": 1100, "rows": 2,
+                  "leases": {"bytes": 1024, "sha256": [49]*32}},
+    }}
+    queue_release_input = {**request_input, "action": {"queue": {"mutate": {"work": queue_release_work, "payload": None}}}}
+    queue_release_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_release_input)).digest())}
+    queue_release_request = {**queue_release_input, "proof": {"claim": queue_release_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_release_claim)).digest())}}
+    queue_fixture["release_request"] = queue_release_request
+    queue_fixture["release_intent_digest"] = list(hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_release_work)).digest())
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -247,6 +258,11 @@ validator.validate(resource_request)
 validator.validate(log_request)
 validator.validate(stream_request)
 validator.validate(queue_request)
+validator.validate(queue_release_request)
+for field in ("operation", "claim"):
+    invalid = copy.deepcopy(queue_release_request)
+    del invalid["action"]["queue"]["mutate"]["work"]["release"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("target", "operation", "maximum", "lease_ms"):
     invalid = copy.deepcopy(queue_request)
     del invalid["action"]["queue"]["mutate"]["work"]["claim"][field]

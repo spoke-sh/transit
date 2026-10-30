@@ -19,10 +19,11 @@ const LogContext = struct {
     next_offset: u64,
     segments: ?s.TreeStore.pages.Reference,
     hidden: s.BitmapDirectory.Root,
+    queue_read_releases: ?s.TreeStore.pages.Reference,
     archive: s.LogHistory.Coverage,
     fn fromRoot(root: s.StreamPartition.Root, archive: s.LogHistory.Coverage) !LogContext {
         try root.validate();
-        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = archive };
+        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = if (root.queue) |queue| queue.read_releases else null, .archive = archive };
     }
     fn requireTarget(self: LogContext, target: c.protocol.StreamQueue.Partition) !void {
         try target.validate();
@@ -36,7 +37,7 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_read_releases };
 const TimerContext = struct {
     log: LogContext,
     seed: c.protocol.StreamQueue.Partition,
@@ -199,6 +200,13 @@ fn timerChunk(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anyt
 fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: LogContext, kind: LogIndexKind, prefix_bytes: u16, entry: s.TreeStore.pages.Entry) !void {
     switch (kind) {
         .pages_only => {},
+        .queue_read_releases => {
+            const receipt = try s.QueueReadRelease.entry(allocator, index, entry.key, entry.value, .{ .partition = context.partition, .next_lsn = context.next_lsn });
+            try context.requireTarget(receipt.release.claim.claim.target);
+            const content = try s.LogEvidence.decodeReference(entry.value);
+            var name: [96]u8 = undefined;
+            try markContent(workspace, try s.LogEvidence.key(content, &name), content);
+        },
         .bitmap => {
             const prefix = try s.BitmapDirectory.prefixOf(entry.key);
             const reference = try s.BitmapDirectory.Reference.decode(entry.value);
@@ -637,8 +645,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .log_root => |*value| {
             const root = value.root;
             const queue = root.queue orelse s.QueueIndex.Root.empty;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
             if (value.slot > directories.len + 3) return error.InvalidLogStorageGraph;
             if (value.slot == directories.len + 3) return true;
             const context = try LogContext.fromRoot(root, value.archive);
@@ -770,6 +778,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 var name: [96]u8 = undefined;
                 try markContent(workspace, try s.QueueSelection.objectKey(content, &name), content);
                 try workspace.enqueue(.{ .log_declaration = selection.metadata.declared });
+                // Only closure accepted in this exact retained cut can remove
+                // the selection's payload dependency. Old replay roots retain
+                // their own closure directory and therefore their old payloads.
+                if (try s.QueueReadRelease.find(allocator, index, value.context.queue_read_releases, value.receipt, .{ .partition = value.context.partition, .next_lsn = value.context.next_lsn }) != null) return true;
             } else {
                 const roots = [_]?s.TreeStore.pages.Reference{ source.batches, source.segments };
                 if (roots[value.slot - 1]) |reference| {
@@ -779,6 +791,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                     context.next_offset = source.next_offset;
                     context.segments = source.segments;
                     context.hidden = .empty;
+                    context.queue_read_releases = null;
                     try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = if (value.slot == 1) .batches else .pages_only } });
                 }
             }

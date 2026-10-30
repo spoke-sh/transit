@@ -4710,6 +4710,31 @@ test "direct Queue composition preserves original claims current rights and sett
     try t.expectEqual(.acked, recovered.page.rows[1].lease.state);
     access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = c.LogAuthority.acquire };
     try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, .{ .operation = claim }, 256));
+    const release: c.DirectQueueMutation.Request = .{ .release = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 105 }, .claim = receipt } };
+    const release_request: c.DirectQueue.Request = .{ .mutate = .{ .work = release, .payload = null } };
+    for ([_]u64{ c.LogAuthority.read, c.LogAuthority.acquire }) |mask| {
+        access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = mask };
+        try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, release_request, 256));
+        try t.expect((try c.OperationBinding.lookupQueue(t.allocator, objects.objectStore(), release.identity())) == null);
+    }
+    access.denied_privileges = null;
+    const saved_release = try c.DirectQueueClient.save(t.allocator, connection, .{ .work = release });
+    defer t.allocator.free(saved_release);
+    const loaded_release = try c.DirectQueueClient.load(t.allocator, saved_release);
+    defer loaded_release.deinit();
+    try t.expectEqualDeep(release, loaded_release.value.work.work);
+    const released = try queueCall(&catalog, &access, &cached, &clock, release_request, 256);
+    try c.DirectQueueResponse.validate(t.allocator, connection, release_request, released);
+    try t.expectError(error.QueueReadReleased, queueCall(&catalog, &access, &cached, &clock, page_request, 256));
+    try t.expectEqualDeep(claimed, try queueCall(&catalog, &access, &cached, &clock, .{ .operation = claim }, 256));
+    changed = release_request;
+    changed.mutate.work.release.claim.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, queueCall(&catalog, &access, &cached, &clock, changed, 256));
+    cached.?.deinit();
+    cached = null;
+    try t.expectEqualDeep(released, try queueCall(&catalog, &access, &cached, &clock, release_request, 256));
+    access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = c.LogAuthority.acquire };
+    try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, .{ .operation = release }, 256));
 }
 
 fn streamCall(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, request: c.DirectStream.Request, steps: u16) !c.DirectStream.Result {

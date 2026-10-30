@@ -1860,6 +1860,9 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseExpired).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.QueueLeaseCapacityExceeded).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.QueueReadBudgetExceeded).code);
+    try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.QueueReadReleased).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueReadReleaseConflict).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidQueueReadRelease).code);
 }
 
 test "log privileges enforce separate native domains and current disclosure rights" {

@@ -23,6 +23,8 @@ pub const Root = struct {
     items: ?pages.Reference,
     sidecars: ?pages.Reference,
     keys: ?pages.Reference,
+    /// Original claim operation -> accepted payload-read release evidence.
+    read_releases: ?pages.Reference,
     eligible: Schedule.Root,
     deadlines: Schedule.Root,
     timer_next: Run.Kind,
@@ -31,7 +33,7 @@ pub const Root = struct {
     blocked: u64,
     terminal: u64,
 
-    pub const empty: Root = .{ .next_offset = 0, .items = null, .sidecars = null, .keys = null, .eligible = .empty, .deadlines = .empty, .timer_next = .visible, .scheduled = 0, .active = 0, .blocked = 0, .terminal = 0 };
+    pub const empty: Root = .{ .next_offset = 0, .items = null, .sidecars = null, .keys = null, .read_releases = null, .eligible = .empty, .deadlines = .empty, .timer_next = .visible, .scheduled = 0, .active = 0, .blocked = 0, .terminal = 0 };
     pub fn validate(self: Root) !void {
         try self.eligible.validate();
         try self.deadlines.validate();

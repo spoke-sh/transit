@@ -532,8 +532,9 @@ inspection; its error class cannot establish rejection.
 
 The signed `queue` action carries `DirectQueue.Request`: `observe`, `mutate`,
 `operation` or `page`. A mutation carries `DirectQueueMutation.Request`:
-`enqueue` with a binary `LogBatch`, `claim`, or `settle` with ACK, NACK or an
-extension. Stream partitions reject this action. Each operation reserves its
+`enqueue` with a binary `LogBatch`, `claim`, `settle` with ACK, NACK or an
+extension, or explicit original payload-read `release`. Stream partitions reject
+this action. Each operation reserves its
 full immutable intent in the same catalog namespace as Tables, Streams and
 declarations before Queue WAL acceptance. The reservation alone is not acceptance.
 Changing kind, partition, definition, payload, claim limits or lease intent under
@@ -541,7 +542,8 @@ that identity conflicts, including after a lost response.
 
 Every action requires current database CONNECT and schema USAGE. `observe`
 requires Queue inspect, enqueue requires append, claim and original claim-page
-disclosure require read plus acquire, and settlement requires settle. Original
+disclosure and payload-read release require read plus acquire; settlement
+requires settle. Original
 operation lookup applies the original work's privileges. Receipts and exact lease
 fields grant no authority. Current rights are checked after buffering data and
 again before response disclosure, including empty selections and terminal pages.
@@ -553,7 +555,7 @@ limits. A claim selects at most 256 rows in the current service, further bounded
 by the requested count, declaration limits and active lease capacity. Exhaustion
 refuses rather than recording a false empty result. An accepted empty claim stays
 empty on retry. Nonempty selections, per-message epochs, deadlines and attempts
-are accepted atomically; original inspection and payload recovery survive expiry,
+are accepted atomically; original inspection and open payload reads survive expiry,
 compatible declaration changes, DROP and unavailable time.
 
 `page` carries a `QueueRead.Cursor` containing the exact original claim receipt
@@ -567,6 +569,14 @@ row count, including a final data page; an already complete cursor returns an
 empty terminal page. A too-large first row refuses without advancement. A cursor
 selects original rows and is neither a consumption proof nor a live lease.
 
+`release` freezes its own operation and the entire original claim receipt. It
+closes that claim's retained payload reads without changing any lease. Later
+pages, including empty terminal pages, refuse with `QueryExpired`; original
+claim and release receipts remain inspectable under current rights. This explicit
+mutation is separate from local result-buffer cleanup and does not require a
+clock. See [claim-read closure](QUEUE_V1.md#explicit-original-payload-read-closure)
+for its retention boundary.
+
 `DirectQueueResponse` validates original receipt and schema attribution, row
 identity, increasing selected offsets, cursor advancement, encoded-byte totals
 and lease observations. `DirectQueueClient` and `Catalog.callQueue` return schema
@@ -574,8 +584,8 @@ and rows owned by the caller's output arena. Save the complete mutation with
 `DirectQueueClient.save` before dispatch and use `load` for recovery. No call
 automatically retries, collects pages, renews or settles a lease. Mutation-attempt
 evidence remains uncertain after a missing or unvalidated response. Original
-inspection uses reserved control admission; settlement uses it for both original
-inspection and mutation.
+inspection uses reserved control admission; settlement and payload-read release
+use it for both original inspection and mutation.
 
 Lease/identity conflicts and expiry return `Conflict`; unavailable or uncertain
 time returns `ClockUnavailable`, and regression returns `ClockRollback`. Active
@@ -584,9 +594,10 @@ claim limits, lease durations or page budgets return `InvalidRequest`. These
 classes describe a failed attempt, not rejection of earlier accepted work.
 
 This standalone operation profile does not enable SQL Queue verbs, common
-transactions or DLQ transfer. Automatic Queue deadline scheduling and terminal
-payload cleanup remain unfinished; an expired observation alone neither releases
-the acquired bit nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
+transactions or DLQ transfer. Native maintenance processes lease expiry and
+physical timer cleanup in bounded accepted steps. Terminal payload cleanup
+remains unfinished; an expired observation alone neither releases the acquired
+bit nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
 lease, retry, original-selection and remaining composition contracts.
 
 ### Namespace lifecycle

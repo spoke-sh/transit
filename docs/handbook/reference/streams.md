@@ -59,8 +59,16 @@ Enqueue is bounded to 1 MiB per batch; claims select at most 256 rows and obey
 smaller declaration and active-capacity limits. Read pages apply row and byte
 budgets with a cursor over the original selection. The final data page can be
 complete; reading a complete cursor returns an empty terminal page. Closing a
-page or client performs no ACK or renewal. Original outcomes and payloads remain
-recoverable after compatible policy edits, DROP or clock loss.
+page or client performs no ACK or renewal. Original outcomes and open payload
+reads remain recoverable after compatible policy edits, DROP or clock loss.
+
+The explicit Queue `release` mutation closes one original claim's retained
+payload reads. Save its new operation and exact claim receipt before dispatch;
+it requires current read and acquire rights, including after DROP. Subsequent
+payload pages return `QueryExpired`, while original claim and release outcomes
+remain recoverable. It changes no lease and does not authorize physical deletion.
+Use it only when that original selection no longer needs payload traversal;
+closing a client result buffer does not issue this mutation.
 
 With local native maintenance enabled, Queue payloads are sealed and archived
 and expired leases are processed one accepted deadline at a time. Trusted time

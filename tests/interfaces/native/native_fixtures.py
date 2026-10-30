@@ -225,6 +225,9 @@ def generated():
             release=dict(target=log_target, operation=dict(scope=log_scope, principal=17, operation=2**64-13),
                          read=read_handle), accepted=dict(partition=91, next_lsn=14))
         stream_queue['queue_cursor'] = dict(receipt=stream_queue['claim'], next=0)
+        stream_queue['queue_read_release'] = dict(
+            release=dict(operation=dict(scope=log_scope, principal=17, operation=2**64-14),
+                         claim=stream_queue['claim']), accepted=dict(partition=91, next_lsn=14))
         stream_queue['queue_observation_basis'] = dict(
             cut=dict(target=log_target, accepted=dict(partition=91, next_lsn=13),
                      retained_from=0, next=2**64-1),

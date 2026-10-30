@@ -20,6 +20,7 @@ pub const Record = struct {
         release: p.StreamRead.ReleaseReceipt,
         claim: struct { receipt: q.ClaimReceipt, observed: @import("LogTime.zig").Sample },
         settlement: struct { receipt: q.SettlementReceipt, observed: @import("LogTime.zig").Sample },
+        queue_release: p.QueueRead.ReleaseReceipt,
     },
 
     pub fn operation(self: Record) d.Operation {
@@ -31,6 +32,7 @@ pub const Record = struct {
             .release => |value| value.release.operation,
             .claim => |value| value.receipt.claim.operation,
             .settlement => |value| value.receipt.settlement.operation,
+            .queue_release => |value| value.release.operation,
         };
     }
     pub fn target(self: Record) q.Partition {
@@ -42,6 +44,7 @@ pub const Record = struct {
             .release => |value| value.release.target,
             .claim => |value| value.receipt.claim.target,
             .settlement => |value| value.receipt.settlement.lease.target,
+            .queue_release => |value| value.release.claim.claim.target,
         };
     }
     pub fn accepted(self: Record) d.Position {
@@ -71,7 +74,7 @@ pub const Record = struct {
             inline else => |value| try value.validate(),
         }
         const selected = self.target();
-        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement;
+        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement or self.outcome == .queue_release;
         if (selected.partition >= self.declared.declaration.configuration.partitioning.count) return error.InvalidLogEvidence;
         if (control) {
             if (!std.meta.eql(selected.interpretation.object, self.declared.declaration.interpretation.object) or
@@ -89,7 +92,7 @@ pub const Record = struct {
                     value.receipt.rows > self.declared.declaration.limits.active_leases or
                     value.receipt.expires_ms != try self.declared.declaration.configuration.policy.queue.deadline(value.observed.latest_ms, value.receipt.claim.lease_ms)) return error.InvalidLogEvidence;
             },
-            .settlement => if (kind != .queue) return error.InvalidLogEvidence,
+            .settlement, .queue_release => if (kind != .queue) return error.InvalidLogEvidence,
         }
     }
 };

@@ -4855,7 +4855,8 @@
         "Receipt": [
           "enqueue",
           "claim",
-          "settle"
+          "settle",
+          "release"
         ],
         "Request": [
           "observe",
@@ -4879,7 +4880,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 36,
         "catch": 1
       },
       "imports": [
@@ -4937,7 +4938,8 @@
         "Request": [
           "enqueue",
           "claim",
-          "settle"
+          "settle",
+          "release"
         ]
       },
       "error_sets": {},
@@ -4969,7 +4971,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 1
       },
       "imports": [
@@ -5246,7 +5248,8 @@
           "ordered_keys",
           "queue_items",
           "queue_sidecars",
-          "queue_keys"
+          "queue_keys",
+          "queue_read_releases"
         ],
         "Role": [
           "current",
@@ -5330,7 +5333,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 418,
+        "try": 424,
         "catch": 1
       },
       "imports": [
@@ -17984,8 +17987,10 @@
       "errors": {
         "InvalidQueueCursor": 1,
         "InvalidQueueObservation": 12,
+        "InvalidQueueReadRelease": 2,
         "LogTimeUnavailable": 1,
-        "QueueClaimConflict": 1
+        "QueueClaimConflict": 1,
+        "QueueReadReleaseConflict": 1
       },
       "outcomes": {
         "Blocked": [
@@ -18015,11 +18020,14 @@
         "Cursor.validate()": "<inferred>",
         "LeaseObservation.requireBasis()": "<inferred>",
         "LeaseObservation.validate()": "<inferred>",
+        "Release.validate()": "<inferred>",
+        "ReleaseReceipt.requireRelease()": "<inferred>",
+        "ReleaseReceipt.validate()": "<inferred>",
         "TimeBounds.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -31574,7 +31582,8 @@
           "read",
           "release",
           "claim",
-          "settlement"
+          "settlement",
+          "queue_release"
         ]
       },
       "error_sets": {},
@@ -31678,7 +31687,7 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 10,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 38,
+        "InvalidLogHistory": 39,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
@@ -31710,7 +31719,7 @@
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
-        "LogOperationConflict": 9,
+        "LogOperationConflict": 11,
         "LogPartitionConflict": 4,
         "LogPayloadConflict": 3,
         "LogPositionExhausted": 1,
@@ -31723,10 +31732,11 @@
         "LogSegmentBudgetExceeded": 5,
         "LogTimeRegression": 3,
         "LogTimeUnavailable": 1,
-        "QueueClaimMissing": 1,
+        "QueueClaimMissing": 2,
         "QueueItemMissing": 4,
         "QueueLeaseExpired": 1,
         "QueueReadBudgetExceeded": 1,
+        "QueueReadReleased": 3,
         "QueueTimeUnavailable": 5,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
@@ -31768,6 +31778,7 @@
         "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
+        "Owner().<return>.claimReadReleased()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
         "Owner().<return>.compactStep()": "<inferred>",
         "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
@@ -31815,9 +31826,11 @@
         "Owner().<return>.recoverStep()": "<inferred>",
         "Owner().<return>.recoverStepSince()": "<inferred>",
         "Owner().<return>.recoveryState()": "<inferred>",
+        "Owner().<return>.releaseClaimRead()": "<inferred>",
         "Owner().<return>.releaseRead()": "<inferred>",
         "Owner().<return>.requireCompactionPublication()": "<inferred>",
         "Owner().<return>.requireGroup()": "<inferred>",
+        "Owner().<return>.requireOriginalClaim()": "<inferred>",
         "Owner().<return>.requireReady()": "<inferred>",
         "Owner().<return>.requireTarget()": "<inferred>",
         "Owner().<return>.retainedRead()": "<inferred>",
@@ -31842,7 +31855,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 645,
+        "try": 665,
         "catch": 18
       },
       "imports": [
@@ -31867,6 +31880,7 @@
         "QueueIndex.zig",
         "QueueItem.zig",
         "QueueLeaseHeap.zig",
+        "QueueReadRelease.zig",
         "QueueSchedule.zig",
         "QueueSelection.zig",
         "QueueTimeRun.zig",
@@ -32536,6 +32550,7 @@
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "releaseClaimRead()": "<inferred>",
         "scheduleMaintenanceUnit()": "<inferred>",
         "settle()": "<inferred>",
         "trimArchived()": "<inferred>"
@@ -32555,6 +32570,29 @@
         "PublicationGuard.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueReadRelease.zig": {
+      "errors": {
+        "InvalidQueueReadRelease": 2,
+        "QueueClaimConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "entry()": "<inferred>",
+        "find()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "LogEvidence.zig",
+        "TreeStore.zig",
         "std",
         "transit_protocol"
       ]
@@ -34181,6 +34219,7 @@
         "QueueItem.zig",
         "QueueLeaseHeap.zig",
         "QueuePartition.zig",
+        "QueueReadRelease.zig",
         "QueueSchedule.zig",
         "QueueSelection.zig",
         "QueueTimeBuffer.zig",

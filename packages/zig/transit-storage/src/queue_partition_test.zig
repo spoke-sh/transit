@@ -928,6 +928,99 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     try t.expectEqual(@as(u64, 0), objects.puts);
 }
 
+test "queue partition payload read release preserves leases and recovers its original outcome" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log() };
+    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    const empty = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    try t.expectEqual(@as(u32, 0), empty.rows);
+    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    const before = owner.owner.root;
+    const release: p.QueueRead.Release = .{ .operation = operation(5), .claim = claimed };
+    var forged = release;
+    forged.claim.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.QueueClaimConflict, owner.releaseClaimRead(initial.declared, forged, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    // Closure is control work and does not need trusted lease time. Current
+    // authority is still checked at publication after private candidate staging.
+    clock.value = null;
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.releaseClaimRead(initial.declared, release, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    policy.deny_at = std.math.maxInt(usize);
+    var retired_definition = declared.definition;
+    retired_definition.revision = 2;
+    retired_definition.retired = true;
+    var retired = try s.LogDeclaration.prepare(t.allocator, retired_definition);
+    defer retired.deinit();
+    const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.releaseClaimRead(current, release, policy.guard()));
+    try t.expectError(error.LogRecoveryRequired, owner.operation(release.operation, policy.guard()));
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    const released = try owner.releaseClaimRead(current, release, policy.guard());
+    var unchanged = before.queue.?;
+    unchanged.read_releases = owner.owner.root.queue.?.read_releases;
+    try t.expectEqualDeep(unchanged, owner.owner.root.queue.?);
+    try t.expectEqualDeep(before.clock_ms, owner.owner.root.clock_ms);
+    try t.expectEqualDeep(claimed, try owner.claim(current, claimed.claim, policy.guard()));
+    try t.expectError(error.QueueReadReleased, owner.readClaimPage(current, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, policy.guard()));
+    try t.expectError(error.QueueReadReleased, owner.readClaimPage(current, .{ .receipt = claimed, .next = claimed.rows }, .{}, t.allocator, policy.guard()));
+    const empty_release: p.QueueRead.Release = .{ .operation = operation(6), .claim = empty };
+    const empty_released = try owner.releaseClaimRead(current, empty_release, policy.guard());
+    try t.expectError(error.QueueReadReleased, owner.readClaimPage(current, .{ .receipt = empty, .next = 0 }, .{}, t.allocator, policy.guard()));
+    forged = release;
+    forged.operation = operation(7);
+    try t.expectError(error.QueueReadReleased, owner.releaseClaimRead(current, forged, policy.guard()));
+    // Payload-read closure neither fences nor settles the still-live lease.
+    clock.value = .exact(1001);
+    _ = try owner.settle(current, .{ .operation = operation(7), .lease = lease, .action = .ack }, policy.guard());
+    try t.expectEqual(@as(u64, 1), owner.owner.root.queue.?.terminal);
+    const cut = owner.owner.root.position();
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    const archived = owner.owner.root.position();
+    while (!(try owner.archive(archived, .{ .frames = 2 }, policy.guard())).complete) {}
+    _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, initial.partition, 0, 1));
+    const accepted = owner.owner.root;
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    clock.value = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(accepted, owner.owner.root);
+    try t.expectEqualDeep(released, try owner.releaseClaimRead(current, release, policy.guard()));
+    try t.expectEqualDeep(empty_released, try owner.releaseClaimRead(current, empty_release, policy.guard()));
+    try t.expectEqualDeep(claimed, (try owner.operation(claimed.claim.operation, policy.guard())).?.outcome.claim.receipt);
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.releaseClaimRead(current, release, policy.guard()));
+}
+
 test "queue partition controls verify immutable declaration bytes before acceptance" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

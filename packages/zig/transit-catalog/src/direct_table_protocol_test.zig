@@ -224,7 +224,7 @@ test "direct Table request proof binds the complete typed action and current def
 }
 
 test "direct Queue signs frozen claims and requires saved definition" {
-    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8, release_request: w.Request, release_intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-queue-v1.json"));
     defer parsed.deinit();
     const request = parsed.value.request;
@@ -234,6 +234,14 @@ test "direct Queue signs frozen claims and requires saved definition" {
     try t.expectEqual(std.math.maxInt(u64), work.identity().operation);
     try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
     try t.expect(request.transport().mutation and request.transport().control == null);
+    const release_request = parsed.value.release_request;
+    try release_request.validate(t.allocator);
+    try release_request.proof.verify(parsed.value.public_key);
+    try t.expectEqualDeep(parsed.value.release_intent_digest, (try release_request.action.queue.mutate.work.binding(t.allocator)).intent);
+    try t.expect(release_request.transport().mutation and release_request.transport().control != null);
+    var changed_release = release_request;
+    changed_release.action.queue.mutate.work.release.claim.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed_release.validate(t.allocator));
     const bytes = try c.DirectQueueClient.save(t.allocator, request.connection, .{ .work = work });
     defer t.allocator.free(bytes);
     const saved = try c.DirectQueueClient.load(t.allocator, bytes);

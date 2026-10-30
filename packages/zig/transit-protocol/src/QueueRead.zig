@@ -44,6 +44,38 @@ pub const Cursor = struct {
     }
 };
 
+/// Explicit closure of an original claim's payload read dependency. This is
+/// separate from closing a transient result buffer, and never settles leases.
+/// The owner must resolve the exact accepted claim under current authority.
+pub const Release = struct {
+    operation: p.DataLifecycle.Operation,
+    claim: q.ClaimReceipt,
+
+    pub fn validate(self: Release) !void {
+        try self.claim.validate();
+        try self.claim.claim.target.requireOperation(self.operation);
+        if (self.operation.principal != self.claim.claim.operation.principal or
+            std.meta.eql(self.operation, self.claim.claim.operation)) return error.InvalidQueueReadRelease;
+    }
+};
+
+pub const ReleaseReceipt = struct {
+    release: Release,
+    accepted: p.DataLifecycle.Position,
+
+    pub fn validate(self: ReleaseReceipt) !void {
+        try self.release.validate();
+        try self.accepted.validate();
+        if (self.accepted.partition != self.release.claim.accepted.partition or
+            self.accepted.next_lsn <= self.release.claim.accepted.next_lsn) return error.InvalidQueueReadRelease;
+    }
+    pub fn requireRelease(self: ReleaseReceipt, release: Release) !void {
+        try self.validate();
+        try release.validate();
+        if (!std.meta.eql(self.release, release)) return error.QueueReadReleaseConflict;
+    }
+};
+
 /// Current metadata and trusted time are observations, separate from the
 /// original selection's immutable payload basis.
 pub const Basis = struct {

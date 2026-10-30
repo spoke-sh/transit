@@ -169,7 +169,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         const frozen = scheduling.work.?.merge;
         try t.expect(!std.meta.eql(frozen.basis.items, root.queue.?.items));
         try isolated.enqueue(.{ .queue_schedule = .{
-            .context = .{ .log = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = root.archive }, .seed = initial.target(), .kind = .visible, .serial = scheduling.serial },
+            .context = .{ .log = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = root.queue.?.read_releases, .archive = root.archive }, .seed = initial.target(), .kind = .visible, .serial = scheduling.serial },
             .root = scheduling,
         } });
         var at_job: usize = 0;
@@ -192,7 +192,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         var isolated: Workspace = .{};
         defer isolated.deinit();
         try isolated.enqueue(.{ .log_index = .{
-            .context = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = root.archive },
+            .context = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = root.queue.?.read_releases, .archive = root.archive },
             .reference = root.queue.?.items.?,
             .kind = .queue_items,
         } });
@@ -297,6 +297,37 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         if (maintenance_units > 512) return error.FixtureBudget;
     }
     try t.expect(maintenance_units > 20);
+    const before_release = owner.owner.root;
+    const released = try owner.releaseClaimRead(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 1000 }, .claim = claimed }, guard);
+    const after_release = owner.owner.root;
+    // Isolate the selection edge. The current Queue still retains its live
+    // payloads independently, and older recovery roots still retain their cuts.
+    for ([_]s.QueuePartition.Root{ before_release, after_release }) |basis| {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        try isolated.enqueue(.{ .queue_selection = .{
+            .context = .{ .interpretation = basis.declared.declaration.interpretation, .partition = basis.initialization.partition, .ordinal = basis.initialization.ordinal, .next_lsn = basis.next_lsn, .next_offset = basis.next_offset, .segments = basis.segments, .hidden = basis.hidden, .queue_read_releases = basis.queue.?.read_releases, .archive = basis.archive },
+            .receipt = claimed,
+        } });
+        var at_job: usize = 0;
+        var traversed: usize = 0;
+        while (at_job < isolated.jobs.items.len) : (at_job += 1) {
+            var work = isolated.jobs.items[at_job];
+            while (true) {
+                const done = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated);
+                traversed += 1;
+                if (traversed > 10000) return error.FixtureBudget;
+                if (done) break;
+            }
+        }
+        try t.expect(isolated.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
+        try t.expectEqual(basis.next_lsn < released.accepted.next_lsn, isolated.marks.contains(try s.TreeStore.key(frozen_batches.location, &name)));
+        if (basis.queue.?.read_releases != null) {
+            var impossible = isolated.jobs.items[0];
+            impossible.queue_selection.context.next_lsn = before_release.next_lsn;
+            try t.expectError(error.InvalidQueueReadRelease, Graph.step(t.allocator, &owner.owner.store, wal.log(), &impossible, &isolated));
+        }
+    }
 }
 
 test "direct graph retains physical and ADD interpretations without receipt or history roots" {

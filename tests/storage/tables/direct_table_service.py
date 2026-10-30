@@ -189,7 +189,7 @@ def run(node, caller, mode="tables", *artifacts):
                         if mode == "queues" and queue and response.status == 200:
                             kind, work = next(iter(queue["work"].items()))
                             selected = work["operation"]["operation"]
-                            if selected in (633001, 633002, 633004) and selected not in queue_faults:
+                            if selected in (633001, 633002, 633004, 633008) and selected not in queue_faults:
                                 parsed = json.loads(data)
                                 assert kind in parsed["result"]["queue"]["operation"], parsed
                                 parsed["context"][0] ^= 1
@@ -386,12 +386,20 @@ def run(node, caller, mode="tables", *artifacts):
                 assert queue_observation()["expired"]
                 subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
                 assert Path(str(profile) + ".queue").read_bytes() == saved
+                subprocess.run([caller, endpoint, "queue-release", str(profile)], check=True, timeout=180)
+                release_saved = Path(str(profile) + ".queue.release").read_bytes()
+                assert queue_faults == {633001, 633002, 633004, 633008}
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, "queue-release-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue.release").read_bytes() == release_saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
                                       requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
                                       passed=True)), flush=True)
-                print("Direct Queue HTTP: FIFO heads, original empty claims, three lost replies, ACK, automatic retired-lease expiry and original payloads through tiering and node SIGKILL/restarts passed.", flush=True)
+                print("Direct Queue HTTP: FIFO heads, original empty claims, four lost replies, ACK, automatic retired-lease expiry, retained payloads through tiering and explicit read closure across node SIGKILL/restarts passed.", flush=True)
                 return
             if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):

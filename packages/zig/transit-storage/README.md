@@ -57,6 +57,15 @@ tree; decoded metadata is owned while lease bytes borrow the caller's buffer.
 This artifact does not establish current lease status or publish a claim. Empty
 claims have no selection artifact.
 
+`QueuePartition.releaseClaimRead` records explicit closure of one original
+selection's payload reads without changing its leases. `QueueReadRelease` resolves
+the accepted evidence through a paged directory in that Queue cut. Retained
+traversal always preserves the original receipt and selection, but follows its
+payload-placement roots only while that cut has no accepted release. Older
+replay roots and other open claims preserve their independent dependencies.
+Local buffer disposal does not invoke this operation, and closure alone does
+not expire the Queue's current payloads.
+
 `CandidateObjects` derives one proposed transition's immutable pages and bitmap
 containers in bounded, reusable memory. It enforces separate byte, object-count
 and total resident budgets for that operation. Reads fall through to the existing

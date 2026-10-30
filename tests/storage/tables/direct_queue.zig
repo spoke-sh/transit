@@ -151,6 +151,44 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expect(refused.value == .failure and refused.value.failure.protocol_error == .Conflict);
 }
 
+/// Close one original payload read through a saved operation, then reconcile
+/// that exact operation after a transport fault and a separate node restart.
+pub fn releaseReads(init: std.process.Init, client: c.DirectTableClient, path: []const u8, recovering: bool) !void {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(1024 * 1024));
+    const state = (try p.Json.parseFromSlice(State, init.arena.allocator(), bytes)).value;
+    try t.expectEqual(p.Growth.current_definition, state.definition);
+    const release_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.release", .{path});
+    if (!recovering) {
+        var operation = state.claim.operation;
+        operation.operation = 633008;
+        const saved = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = .{ .release = .{ .operation = operation, .claim = state.claimed.? } } });
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = release_path, .data = saved });
+    }
+    const saved = try std.Io.Dir.cwd().readFileAlloc(init.io, release_path, init.arena.allocator(), .limited(1024 * 1024));
+    const loaded = try c.DirectQueueClient.load(init.gpa, saved);
+    defer loaded.deinit();
+    try t.expectEqualDeep(client.connection, loaded.value.connection);
+    const work = loaded.value.work.work;
+    try t.expect(work == .release);
+    try t.expectEqualDeep(state.claimed.?, work.release.claim);
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    if (!recovering) try unknown(&caller, &output, .{ .work = work });
+    const original = (try call(&caller, &output, .{ .operation = work })).operation.?.release;
+    try original.requireRelease(work.release);
+    try t.expectEqualDeep(original, (try call(&caller, &output, .{ .mutate = .{ .work = work } })).operation.?.release);
+    for ([_]u32{ 0, state.claimed.?.rows }) |at| {
+        const refused = try caller.callQueue(&output, .{ .page = .{ .cursor = .{ .receipt = state.claimed.?, .next = at }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } });
+        try t.expect(refused.value == .failure and refused.value.failure.protocol_error == .QueryExpired);
+    }
+    try t.expectEqualDeep(state.claimed.?, (try call(&caller, &output, .{ .operation = .{ .claim = state.claim } })).operation.?.claim);
+    const other = (try call(&caller, &output, .{ .page = .{ .cursor = .{ .receipt = state.successor.?, .next = 0 }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } })).page;
+    try t.expect(other.cursor.complete() and other.rows.len == 1);
+    try t.expectEqual(@as(u64, 1), other.rows[0].lease.original.offset);
+}
+
 /// Observe original selections only; polling never claims or settles new work.
 pub fn maintenance(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !bool {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(1024 * 1024));

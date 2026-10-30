@@ -9,6 +9,38 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Explicit Queue claim payload-read closure — 2026-10-30
+
+On dirty parent `63fdd3ed2`, `QueueRead.Release` binds a new saved operation to
+one exact original claim. The disk storage schedule passes current-authority
+refusal before publication, forged-selection rejection, lost-reply recovery,
+empty-claim closure, control progress after retirement without a clock, and
+replay without object writes. Closure changes neither leases nor scheduling;
+a live original lease still ACKs afterward. Checkpoint, actual WAL trim and disk
+reopen preserve the release and original claim receipts while refusing both
+initial and terminal payload pages. Raw output is
+`/var/tmp/transit-queue-read-release-storage-first.log`.
+
+The protocol suite and focused catalog tests pass in
+`/var/tmp/transit-queue-read-release-protocol.log` and
+`/var/tmp/transit-queue-read-release-catalog.log`. The signed independent fixture
+binds the release's complete claim; tampering invalidates its credential. Catalog
+checks cover current read/acquire rights, refusal before operation reservation,
+saved-work round trips, DROP, changed-work conflicts and original receipt
+recovery. The retained graph keeps selection metadata in both cuts, follows its
+payload roots before closure, and omits only that dependency after closure. A
+release directory from a later cut cannot authorize an earlier cut's traversal.
+This isolates the selection edge; it does not establish physical Queue payload
+reclamation. Terminal expiry and the other retained dependencies remain separate.
+
+The same storage run also passes the affinity cache's disk-reopen warm-hit check:
+100 canonical-key hits perform no parent-allocator calls or object range reads
+after the page cache is cleared. Native memory-budget and installed-node checks
+for the combined cache/closure changes remain pending. All 50 fast checks and
+18 contract checks pass in `/var/tmp/transit-queue-read-release-fast.log` and
+`/var/tmp/transit-queue-read-release-contracts.log`; the independent fixtures and
+reflected schemas were regenerated before those checks.
+
 ## Bounded FIFO affinity cache — 2026-10-30
 
 On dirty parent `d2d54bb67`, the Queue owner adds a disposable full-canonical-key

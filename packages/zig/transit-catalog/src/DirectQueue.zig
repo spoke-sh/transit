@@ -72,7 +72,7 @@ pub const Request = union(enum) {
         }
     }
 };
-pub const Receipt = union(enum) { enqueue: q.AppendReceipt, claim: q.ClaimReceipt, settle: q.SettlementReceipt };
+pub const Receipt = union(enum) { enqueue: q.AppendReceipt, claim: q.ClaimReceipt, settle: q.SettlementReceipt, release: read.ReleaseReceipt };
 pub const Row = struct {
     lease: read.LeaseObservation,
     operation: d.Operation,
@@ -119,6 +119,7 @@ fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receip
         .append => |value| .{ .enqueue = value },
         .claim => |value| .{ .claim = value.receipt },
         .settlement => |value| .{ .settle = value.receipt },
+        .queue_release => |value| .{ .release = value },
         else => return error.LogOperationConflict,
     };
     try c.DirectQueueResponse.requireReceipt(work, result);
@@ -190,6 +191,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
                 .enqueue => |work| .{ .enqueue = try owner.enqueue(current.definition.stored, work, payload, current.guard) },
                 .claim => |work| .{ .claim = try owner.claim(current.definition.stored, work, current.guard) },
                 .settle => |work| .{ .settle = try owner.settle(current.definition.stored, work, current.guard) },
+                .release => |work| .{ .release = try owner.releaseClaimRead(current.definition.stored, work, current.guard) },
             };
             break :blk .{ .operation = accepted };
         },

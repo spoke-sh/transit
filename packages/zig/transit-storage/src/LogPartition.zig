@@ -345,6 +345,33 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return next;
         }
 
+        fn requireOriginalClaim(self: *Self, claim_receipt: q.ClaimReceipt) !void {
+            const evidence = try self.original(claim_receipt.claim.operation) orelse return error.QueueClaimMissing;
+            if (evidence.outcome != .claim) return error.LogOperationConflict;
+            try (queue_read.Cursor{ .receipt = claim_receipt, .next = 0 }).requireReceipt(evidence.outcome.claim.receipt);
+        }
+        fn claimReadReleased(self: *Self, receipt: q.ClaimReceipt) !bool {
+            return (try @import("QueueReadRelease.zig").find(self.allocator, &self.store, self.root.queue.?.read_releases, receipt, self.root.position())) != null;
+        }
+        pub fn releaseClaimRead(self: *Self, declared: Declaration.Stored, request: queue_read.Release, guard: Guard) !queue_read.ReleaseReceipt {
+            try request.validate();
+            try self.requireTarget(request.claim.claim.target);
+            try authorize(guard);
+            try self.requireReady();
+            try self.root.requireControlDeclaration(declared);
+            if (try self.original(request.operation)) |record| {
+                if (record.outcome != .queue_release) return error.LogOperationConflict;
+                try record.outcome.queue_release.requireRelease(request);
+                try authorize(guard);
+                return record.outcome.queue_release;
+            }
+            try self.requireOriginalClaim(request.claim);
+            if (try self.claimReadReleased(request.claim)) return error.QueueReadReleased;
+            const receipt: queue_read.ReleaseReceipt = .{ .release = request, .accepted = try self.nextPosition() };
+            try self.publish(.{ .declared = declared, .outcome = .{ .queue_release = receipt } }, &.{}, guard);
+            return receipt;
+        }
+
         pub const ClaimReadLimits = struct { rows: u32 = 256, encoded_bytes: u32 = 1024 * 1024 };
         pub const ClaimReadRow = struct {
             lease: queue_read.LeaseObservation,
@@ -395,6 +422,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const evidence = try self.original(cursor.receipt.claim.operation) orelse return error.QueueClaimMissing;
             if (evidence.outcome != .claim) return error.LogOperationConflict;
             try cursor.requireReceipt(evidence.outcome.claim.receipt);
+            if (try self.claimReadReleased(cursor.receipt)) return error.QueueReadReleased;
             var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
             defer declaration.deinit();
             if (!std.meta.eql(declared, evidence.declared)) {
@@ -792,7 +820,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn candidate(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !Root {
             try evidence.validate();
-            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .queue_release)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -808,6 +836,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             result.next_lsn = evidence.accepted().next_lsn;
             result.receipts = try self.tree().put(result.receipts, try Evidence.operationKey(evidence.operation()), reference);
             switch (evidence.outcome) {
+                .queue_release => |receipt| if (kind == .queue) {
+                    try self.requireOriginalClaim(receipt.release.claim);
+                    if (try self.claimReadReleased(receipt.release.claim)) return error.QueueReadReleased;
+                    result.queue.?.read_releases = try self.tree().put(result.queue.?.read_releases, try Evidence.operationKey(receipt.release.claim.claim.operation), reference);
+                } else return error.InvalidLogHistory,
                 .claim => |value| if (kind == .queue) {
                     result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);
                     result.queue = try self.candidateClaim(evidence);
@@ -856,7 +889,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
             const reserve = switch (evidence.outcome) {
-                .release, .offset, .settlement => true,
+                .release, .offset, .settlement, .queue_release => true,
                 .assignment => |value| value.assignment.expected != null,
                 .append, .read, .claim => false,
             };
@@ -1530,7 +1563,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             };
             if (kind == .queue) {
                 const queue = self.root.queue.?;
-                for ([_]?pages.Reference{ queue.items, queue.sidecars, queue.keys }) |reference| if (reference) |value| {
+                for ([_]?pages.Reference{ queue.items, queue.sidecars, queue.keys, queue.read_releases }) |reference| if (reference) |value| {
                     _ = try self.store.load(value);
                 };
                 var bitmap: Bitmap = undefined;
@@ -1662,7 +1695,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
-                .claim, .settlement => return error.InvalidLogHistory,
+                .claim, .settlement, .queue_release => return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
                     expected.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);

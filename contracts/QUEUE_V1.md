@@ -196,6 +196,31 @@ the original empty result. The storage owner verifies the exact selection during
 claim publication and replay. The artifact alone supplies no publication,
 retention or current-authority guarantee.
 
+## Explicit original payload-read closure
+
+`QueueRead.Release` freezes a new operation by the original claimant and the
+entire accepted `ClaimReceipt`. The signed Queue `release` mutation resolves
+that exact original claim and requires current read and acquire privileges.
+Its `ReleaseReceipt` records acceptance in the same partition after the claim.
+Retrying the saved release recovers the same outcome; changing its claim under
+that operation conflicts. A different release operation for an already closed
+claim returns `QueueReadReleased`. Empty accepted claims can close too.
+
+Acceptance permanently closes payload-page traversal for that claim, including
+repeated terminal pages. It preserves the original claim receipt, selection and
+lease identities. It neither ACKs, NACKs, renews nor cancels a lease, and it needs
+no trusted clock. A still-live lease can subsequently settle through its usual
+authorized operation. Closure remains available after compatible ALTER or DROP.
+Closing a transient client result or disconnecting does not issue this mutation.
+
+The Queue WAL accepts closure evidence and its paged claim index together.
+Retained traversal may omit the selection's payload-placement roots only when
+that same retained cut contains the accepted release. Older replay roots retain
+their own dependencies; current Queue data and any other open selection retain
+theirs independently. Closure alone authorizes no payload expiry or deletion.
+Terminal cleanup additionally needs declared retention and the owning logical
+expiry and physical collection gates.
+
 ## Settlement and original outcomes
 
 `Settlement` freezes a distinct original operation by the claiming principal,

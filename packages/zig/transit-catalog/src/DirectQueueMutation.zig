@@ -10,6 +10,7 @@ pub const Request = union(enum) {
     enqueue: q.Append,
     claim: q.Claim,
     settle: q.Settlement,
+    release: p.QueueRead.Release,
 
     pub fn validate(self: Request) !void {
         switch (self) {
@@ -25,18 +26,19 @@ pub const Request = union(enum) {
     pub fn target(self: Request) q.Partition {
         return switch (self) {
             .settle => |value| value.lease.target,
+            .release => |value| value.claim.claim.target,
             inline else => |value| value.target,
         };
     }
     pub fn access(self: Request) c.LogAuthority.Access {
         return switch (self) {
             .enqueue => .append,
-            .claim => .acquire,
+            .claim, .release => .acquire,
             .settle => .settle,
         };
     }
     pub fn control(self: Request) bool {
-        return self == .settle;
+        return self == .settle or self == .release;
     }
     pub fn binding(self: Request, scratch: std.mem.Allocator) !Binding {
         try self.validate();

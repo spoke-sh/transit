@@ -39,6 +39,7 @@ pub const QueueTimeDirectory = @import("QueueTimeDirectory.zig");
 pub const QueueTimeMerge = @import("QueueTimeMerge.zig");
 pub const QueueSchedule = @import("QueueSchedule.zig");
 pub const QueueSelection = @import("QueueSelection.zig");
+pub const QueueReadRelease = @import("QueueReadRelease.zig");
 pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");

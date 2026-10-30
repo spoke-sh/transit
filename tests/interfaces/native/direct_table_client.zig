@@ -807,6 +807,8 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_queue").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-recover")) {
             try @import("fixture_direct_queue").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-release") or std.mem.eql(u8, args[2], "queue-release-recover")) {
+            try @import("fixture_direct_queue").releaseReads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}), std.mem.eql(u8, args[2], "queue-release-recover"));
         } else if (std.mem.eql(u8, args[2], "queue-maintenance")) {
             const expired = try @import("fixture_direct_queue").maintenance(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
             var encoder: std.json.Stringify = .{ .writer = &output.interface };

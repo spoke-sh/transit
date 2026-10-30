@@ -10,6 +10,7 @@ pub fn requireReceipt(work: c.DirectQueueMutation.Request, result: queue.Receipt
         .enqueue => |value| try value.requireAppend(work.enqueue),
         .claim => |value| try value.requireClaim(work.claim),
         .settle => |value| try value.requireSettlement(work.settle),
+        .release => |value| try value.requireRelease(work.release),
     }
 }
 pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, request: queue.Request, result: queue.Result) !void {
