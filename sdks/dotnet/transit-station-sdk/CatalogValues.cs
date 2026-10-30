@@ -27,8 +27,9 @@ public static partial class Catalog
         var v = Fields(value, "realm", "resource", "catalog"); return new(new ResourceRef(V.Number(v["realm"], 1), V.Number(v["resource"], 1)), Wide(v["catalog"]));
     }
     private static AuthorityProfile ParseAuthority(JsonNode? value) {
-        var v = Fields(value, "database_domain", "schema_domain", "table_domain", "database", "initial_schema", "initial_schema_authority");
+        var v = Fields(value, "database_domain", "schema_domain", "table_domain", "stream_domain", "queue_domain", "database", "initial_schema", "initial_schema_authority");
         return new(V.Number(v["database_domain"], 1), V.Number(v["schema_domain"], 1), V.Number(v["table_domain"], 1),
+            V.Number(v["stream_domain"], 1), V.Number(v["queue_domain"], 1),
             V.Number(v["database"], 1), V.Number(v["initial_schema"], 1), V.Number(v["initial_schema_authority"], 1));
     }
     private static Subject ParseSubject(JsonNode? value) {

@@ -15,6 +15,8 @@ defmodule Transit.Station.Sdk.Catalog.Authority do
     :database_domain,
     :schema_domain,
     :table_domain,
+    :stream_domain,
+    :queue_domain,
     :database,
     :initial_schema_authority,
     :initial_schema
@@ -24,6 +26,8 @@ defmodule Transit.Station.Sdk.Catalog.Authority do
     :database_domain,
     :schema_domain,
     :table_domain,
+    :stream_domain,
+    :queue_domain,
     :database,
     :initial_schema_authority,
     :initial_schema
@@ -373,6 +377,8 @@ defmodule Transit.Station.Sdk.Catalog do
          :database_domain,
          :schema_domain,
          :table_domain,
+         :stream_domain,
+         :queue_domain,
          :database,
          :initial_schema_authority,
          :initial_schema
