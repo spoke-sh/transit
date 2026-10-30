@@ -544,3 +544,12 @@ release capacity; failed growth leaves accounting unchanged. Callers own the
 budget's stable lifetime and map exhaustion at their domain boundary. The finite
 relational owner and Table compaction share this allocator; reader caches and
 provider buffers keep their separately declared bounds.
+
+`DecimalArithmetic` evaluates validated `DECIMAL(p,s)` coefficients with
+`p <= 38` and `s <= p`. Addition promotes to the larger input scale;
+multiplication, division and rescaling use an explicit output precision, scale
+and rounding rule (`reject`, `half_even`, or `toward_zero`). Fixed 512-bit
+intermediates cover every admitted input/scale combination without allocation.
+An unrepresentable output returns `DecimalOverflow`; discarded nonzero digits
+under `reject` return `InexactDecimalRounding`. These scalar helpers do not
+extend SQL arithmetic or stored schema descriptors.

@@ -169,3 +169,22 @@ test "EBCDIC_037_PAD and EBCDIC_1047_NOPAD collation comparisons and order-prese
         try Collation.compareBytesProfile("¬", "^", .ebcdic_1047_nopad),
     );
 }
+
+test "decimal extreme scale multiplication and division return typed overflow" {
+    const large: DecimalArithmetic.DecimalValue = .{
+        .coefficient = 10_000_000_000_000_000_000_000_000_000_000_000_000,
+        .precision = 38,
+        .scale = 0,
+    };
+    const small: DecimalArithmetic.DecimalValue = .{ .coefficient = large.coefficient, .precision = 38, .scale = 38 };
+    for ([_]DecimalArithmetic.RoundingMode{ .reject, .half_even, .toward_zero }) |mode| {
+        try testing.expectError(error.DecimalOverflow, DecimalArithmetic.mul(large, large, 38, 38, mode));
+        try testing.expectError(error.DecimalOverflow, DecimalArithmetic.div(large, small, 38, 38, mode));
+    }
+    const tenth = try DecimalArithmetic.div(small, large, 38, 38, .reject);
+    try testing.expectEqual(@as(i128, 1), tenth.coefficient);
+    const square = try DecimalArithmetic.mul(small, small, 38, 38, .reject);
+    try testing.expectEqual(@divExact(large.coefficient, 10), square.coefficient);
+    const negative: DecimalArithmetic.DecimalValue = .{ .coefficient = -small.coefficient, .precision = 38, .scale = 38 };
+    try testing.expectEqual(-square.coefficient, (try DecimalArithmetic.mul(small, negative, 38, 38, .reject)).coefficient);
+}
