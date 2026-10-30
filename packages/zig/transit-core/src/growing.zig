@@ -105,7 +105,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         head: Head,
         record_cache: catalog.RecordCache = .{},
         authorization_cache: catalog.RecordCache = .{},
-        authorization_scans: catalog.PolicyScanCache = .{},
+        authorization_scans: catalog.ControlScanCache = .{},
+        lifetime_scans: catalog.ControlScanCache = .{},
         authorization_proofs: auth_ops.ProofCache = .{},
         /// Pure principal projections at one exact immutable native head. This
         /// never caches an operation's requirements, resource lifetime or fence.
@@ -196,6 +197,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn state(self: *Self) !Catalog {
             var result = try Catalog.open(self.page_store, self.head.catalog);
             result.record_cache = &self.record_cache;
+            result.control_scan_cache = &self.lifetime_scans;
             return result;
         }
         pub fn principal(self: *Self, id: u64) !Principal {
@@ -216,7 +218,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn authorization(self: *Self) !core.authorization_store.Store(PageStore) {
             var store = try core.authorization_store.Store(PageStore).open(self.page_store, self.head.authorization);
             store.catalog.record_cache = &self.authorization_cache;
-            store.catalog.policy_scan_cache = &self.authorization_scans;
+            store.catalog.control_scan_cache = &self.authorization_scans;
             store.next_id = self.head.authorization_next_id;
             return store;
         }

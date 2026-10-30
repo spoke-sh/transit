@@ -57,6 +57,15 @@ reported provider counters describe the node's instrumented owner operations.
 Compare those runs separately from unproxied latency. Every selected executable
 is copied before startup so concurrent workspace rebuilds cannot replace it.
 
+`--instrument --local-trace` selects a separate co-hosted debug run. It exports
+bounded client and local-owner spans with route/operation tags, durations and
+owner admission wait, plus trace-loss counters. At most 8,192 selected records
+are exported; additional records are counted as omitted. The node's raw stderr
+stays in the private fixture and is removed only after successful verification.
+Statement start/end wall timestamps correlate these spans approximately; nested
+client/owner durations must not be added together. Debug logging adds work and
+can lose records, so use uninstrumented runs for latency comparisons.
+
 `--representations` adds a separate row/column payload experiment using the
 pinned PyArrow LZ4/Zstd codecs. It verifies every decompressed byte, reports
 encoded sizes and codec times, and counts schema/observation JSON separately.
@@ -81,7 +90,9 @@ SELECT, warm SELECTs, single-row INSERT, UPDATE and DELETE completions, unchange
 UPDATEs, zero-match UPDATE/DELETE and the complete contents after each changed
 write, then switches the same session to JSON for independent
 typed readback. Each sample retains the human output, total and phase timings;
-the summary uses empirical distributions without estimating tails from a small
+Linux node process CPU deltas include all node threads and concurrent recovery,
+with the kernel's clock-tick resolution; they are not per-statement CPU attribution.
+The summary uses empirical distributions without estimating tails from a small
 sample. The first external elapsed time includes connection startup; the console
 timer measures the statement. Later samples reuse the session. This is the real
 console script path and table renderer, without terminal editor/PTY timing.
@@ -94,6 +105,18 @@ The first follows readiness and can include startup discovery; the second follow
 verified readback and console closure. Neither label alone proves an empty
 recovery backlog. Use the observed requests and owning recovery evidence to
 interpret quiescence.
+
+Use `--statements --repeat 1 --cycles 50` for repeated zero/one-row measurements.
+Every cycle inserts, updates and deletes one row, verifies all counts and typed
+readbacks, and returns the same persistent session to an empty table. The
+`select_empty_warm` and `select_one_warm` distributions keep cardinality fixed;
+only the first cycle's first SELECT is `select_cold`. Later cycles include a
+separate `select_empty` observation. Records include the zero-based cycle ordinal.
+Use `--statements --repeat 1 --warm-reads 50` to qualify unchanged reads separately
+from the mutation workload: it takes 50 empty and 50 one-row warm samples, with
+one verified INSERT/UPDATE/DELETE cycle. That run cannot qualify write latency
+distributions. Both profiles are bounded, sequential workloads, not concurrent
+throughput experiments.
 
 Add `--resources` to sample the persistent console and the owned installation
 process tree after each timed statement. Linux `/proc` supplies actual thread

@@ -882,6 +882,15 @@ multi-writer or provider safety.
   fetched pages across lanes without copying unchanged 17 KiB page slots on every
   request.
 
+- **Immutable native control metadata:** each engine has separate 16-record
+  native and policy caches at their exact Catalog roots. Known owned record
+  types retain their decoded form, including domain lifetime bindings. Separate
+  eight-page caches retain policy and required-dependency scan pages, including
+  empty ranges, at the exact root/range/cursor. Evaluators still validate records,
+  check current rights and sample lifetime time; these caches store no allow or
+  usability decision. Private candidate records take precedence over cached
+  published records, and a root change invalidates reuse.
+
 ## Resource costs and failure (implemented baseline)
 
 | Mechanism | Benefit | Cost or obligation |

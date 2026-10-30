@@ -59,6 +59,13 @@ Set these in `transit.yaml` or override with `TRANSIT_LOGGING__FORMAT` and
 formats are `text` and `json`. `SHOW logging.format` and `SHOW logging.level`
 report active values. Reload validates changes and marks them pending restart.
 
+At debug level, co-hosted SQL attaches client spans to typed local owner calls.
+`transit.local.request` reports bounded route/operation tags, owner admission wait
+and elapsed owner work. Its parent client span includes dispatch and joined
+cleanup. These nested durations describe attempts, including failed attempts;
+they do not establish durable completion. Default info logging omits this local
+attribution. The existing bounded telemetry sink can drop or suppress records.
+
 Text records contain a UTC timestamp, severity, service, stable event name,
 optional message and named fields. JSON emits one schema-v1 envelope per line,
 including the service instance and trace context when present. Text includes

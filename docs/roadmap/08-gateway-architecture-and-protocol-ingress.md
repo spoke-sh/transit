@@ -1,6 +1,6 @@
 # 8. Gateway architecture, sans-I/O wire protocols and direct-plane ingress
 
-[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-28))
+[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress ([remaining implementation plan](#remaining-implementation-plan--2026-10-29))
 
 Let callers query declared data, submit mutations and compose supported
 transactions through one bounded execution service. They must be able to inspect
@@ -24,8 +24,9 @@ Build on [data identities](01-declarative-data-lifecycle.md),
 [statement results](04-statement-results-and-consumption.md) and the completed
 local Table profile in [transactions](05-transactions-and-atomic-composition.md).
 The database-runtime slice of [M6](06-streams-queues-and-durable-runtime.md) is
-implemented. Its Stream/Queue and transactional Station work, and the public
-Document cutover in [M7](07-document-storage-and-station-decoupling.md), remain
+implemented, alongside its first Stream/Queue contract, bitmap and finite-model
+foundations. Its public Stream/Queue owners and transactional Station work, and
+the public Document cutover in [M7](07-document-storage-and-station-decoupling.md), remain
 dependencies for those particular adapters, not prerequisites for optimizing
 existing Table SQL.
 
@@ -154,6 +155,212 @@ The [partial placement qualification](../history/qualification/sql.md#typed-loca
 records completed installation/TLS checks and the unresolved recovery timeouts.
 Matched performance measurements and full qualification remain open.
 
+### Remaining implementation plan — 2026-10-29
+
+**Review basis:** committed `main` at
+`3ee0d0b4dfe76d7fa275f6379cd7af8ffc8dad80`, after
+[recovery PR #235](https://github.com/spoke-sh/transit/pull/235),
+[co-hosting PR #239](https://github.com/spoke-sh/transit/pull/239) and
+[cache/startup PR #243](https://github.com/spoke-sh/transit/pull/243).
+This section updates delivery order; the P0–P6 contracts and completion gates
+below remain binding. It proposes implementation work and records no new
+benchmark or runtime qualification.
+
+The immediate outcome is a persistent console that reads declared Tables,
+commits small mutations and reads their new state within the
+[performance objectives](#performance-objectives-and-experiment-design), with
+the same complete results, exact counts and original-operation recovery.
+Prioritize this installed path before coarse remote placement. M6/M7 adapters
+remain independent dependencies for full milestone closure.
+
+| Work | Delivered at the review basis | Remaining gate |
+| --- | --- | --- |
+| P1 recovery | Foreground pending settlement, bounded execution claims, complete discovery, generation-based wakeups and lease-driven session expiry; the recorded recovery revision passes all 22 interfaces tasks and observes zero settled-idle upstream requests | Preserve these properties through subsequent placement, cache and scheduler changes; the earlier pass does not qualify this HEAD |
+| P2a/P2b local execution | `transit-sql-host` runs inside the installed node; typed signed Table/native calls share existing owners and policy checks | Configuration handoff, full local/HTTP equivalence and installed recovery qualification remain open |
+| #211 W4/W7 cache work | Live refresh retains hot caches; foreground paths reuse request/token state; snapshot metadata is cached; pin-slot discovery is batched; the node warms Catalog residents | Freeze a new matched baseline and exercise invalidation, restart and retained-reader cases together |
+| P2c remote execution | Standalone placement reuses the listener host | It still orchestrates fine-grained HTTP clients; coarse service delegation and server-owned handles remain work |
+| P3/P4 resources and protocols | Bounded reserves and some pure codec modules exist | Command/header timer-task races, connection-dependent worker counts, full protocol separation and Flight/Serving integration remain work |
+| P5/P6 qualification | Focused installation/TLS/allocation results are recorded | The latest co-hosting record has incomplete experience/interfaces lanes, including the original 67-row INSERT timeout; no complete matched performance qualification closes M8 |
+
+Use the [recovery evidence](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29)
+and [co-hosting evidence](../history/qualification/sql.md#typed-local-sql-dispatch-and-installed-co-hosting--2026-10-29)
+for their exact revisions and limits. PR #243 reports foreground DML at
+108–133 ms and warm SELECT at 95–108 ms in its console run. Those observations
+are separate from the following user-supplied diagnostic transcript:
+
+| Persistent console operation | Elapsed | `submit` | `fetch` |
+| --- | ---: | ---: | ---: |
+| First empty `SELECT * FROM items` | 261 ms | 247 ms | 13 ms |
+| Repeated empty SELECT, two observations | 104 / 108 ms | 95 / 96 ms | 9 / 12 ms |
+| INSERT one row | 276 ms | 275 ms | 0 ms |
+| SELECT immediately after INSERT | 248 ms | 233 ms | 15 ms |
+| Repeated one-row SELECT | 121 ms | 108 ms | 13 ms |
+
+The transcript has no pinned binary, build mode, host-load or sample-distribution
+evidence. It motivates the investigation; it establishes neither a regression
+against PR #243 nor a median. `submit` includes server preparation and execution;
+the displayed zero client `prepare`/`compile` times do not mean server parsing,
+planning or authorization is free. Attribute the empty-result baseline before
+choosing a transport, cryptography, cache or storage optimization.
+
+#### First delivery: reproduce and attribute the installed path (P0/P5)
+
+Extend the existing
+[`console_latency.py`](../../tests/performance/console/console_latency.py) and
+[`statements.py`](../../tests/performance/console/statements.py) workload rather
+than creating a second benchmark. Freeze current ReleaseSafe control binaries
+before implementation; retain hashes, definition, compiler, configuration,
+CPU/quota, filesystem and host-load observations. Use isolated owned installations
+with the same initial data, maintenance and durability settings in both arms.
+Do not use or reset the user's installation.
+
+Reproduce empty and one-row SELECT, first SELECT after startup/restart, unchanged
+warm SELECT and read-after-INSERT/UPDATE/DELETE. Keep changed/no-op/zero-match
+counts, the unchanged 67-row INSERT, multi-batch results, open retained readers
+and explicit Table transactions in the correctness matrix. Time connection and
+authentication setup separately from established-session commands.
+
+Trace the actual path from
+[`Executor`](../../packages/zig/transit-sql-client/src/Executor.zig) through
+[`Session`](../../packages/zig/transit-sql-service/src/Session.zig),
+[`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig),
+[`ReadCache`](../../packages/zig/transit-sql/src/ReadCache.zig) and
+[`LocalEndpoint`](../../packages/zig/transit-client/src/LocalEndpoint.zig) to
+the node owners. Add bounded opt-in timings/counts only where existing evidence
+cannot separate queue/lock wait, credential and policy validation, signing,
+parse/bind, cut acquisition/reuse, execution, result construction and delivery.
+For writes also separate intent publication, token admission, Table commit and
+pending settlement. Count typed local calls independently of HTTP calls; zero
+loopback RPCs does not establish zero orchestration cost. Keep nested spans and
+concurrent recovery distinct, report dropped trace events, and exclude payloads
+and credentials.
+
+**Review artifact:** raw uninstrumented samples and separate diagnostic traces,
+a current call/durability dependency graph, and a ranked cost table with measured
+and unexplained time. Use five repeats for iteration. Each optimization's
+performance gate requires at least three alternating control/candidate pairs
+with 50 samples per steady-state case per arm. Report distributions and sample counts; treat
+cold/restart cases separately and make no p99 claim from these sample sizes.
+Freeze resource and blocked-peer budgets before the scheduler comparison.
+
+#### Second delivery: reduce repeated read and fresh-cut work (P2/#211 W7)
+
+Use the first delivery's attribution to select the largest measured installed
+read cost. Audit `Session.begin/current/prepare/read`, Registry disclosure,
+`ReadCache`, direct caller preparation and `LocalTableHost` lock scopes. Identify
+which observations are already scoped to the current command and which must
+remain fresh. Reuse immutable definitions and exact snapshot metadata only
+with explicit invalidation keys; account for object/definition, source frontier,
+credential/policy and activation changes at their owning boundaries.
+
+Keep current authorization at execution and every disclosure, including buffered,
+repeated, empty and terminal results. Do not make a cached allow decision a new
+authority or silently skip local signatures. If profiling justifies a different
+local authenticated context, specify its issuer, scope, lifetime, fencing and
+revocation equivalence in the owning contract before implementation. Do not hold
+a broad Catalog/native lock during Fuze execution or output.
+
+Reduce redundant inspection, cloning and scratch allocation where measured;
+reuse the admitted slabs and preserve caller-owned result lifetimes. For a
+mutation followed by SELECT, acquire the correct new cut while an earlier open
+reader retains its old cut. Keep durable pin acquisition/closure recovery,
+failed-release wakeups and transaction-private cuts intact. A stronger pin-lifetime
+change requires its own contract and fault proof.
+
+**Exit:** matched evidence toward warm SELECT p50 ≤20 ms and post-mutation SELECT
+p50 ≤50 ms, with the tighter 10/20 ms objectives reported separately. Cover
+revocation/credential rotation after buffering, rename/DROP/recreation, mutation
+between prepare and execute, lost pin replies, retained readers, repeated batches,
+restart and bounded allocations. If the measured bottleneck is elsewhere, report
+the result and move that owner earlier; do not claim cache work closed the target.
+
+#### Third delivery: reduce serial durable write work (#211 W5/W6)
+
+Start from the measured INSERT dependency graph and the current
+[`DIRECT_TABLE_V1`](../../contracts/DIRECT_TABLE_V1.md) contract. Catalogue every
+required durable artifact and barrier across intent staging, account token
+admission, `commit_saved` and pending settlement. Link each ordering requirement
+to its safety/recovery obligation and identify reconstructible bookkeeping.
+Placement alone does not combine these decisions.
+
+Review the account-wide token/commit envelope before coding it: choose the
+authoritative decision owner; preserve `(AccountId, ClientToken)` uniqueness
+across Tables, frozen intent, quotas, policy/activation fences, exact counts,
+cancellation races and M5 transaction semantics. Explain recovery at each boundary
+when either the request or reply is lost. If an atomic envelope needs broader
+storage/transaction work, keep that dependency explicit and first deliver a
+measured independent publication reduction. Never move accepted-work authority
+into an in-memory queue or acknowledge before the required durable decision.
+
+Deliver barrier sharing/bounded publication batches separately from any stored
+semantic cutover. Each removal needs the physical publication model, intended
+negative control and real disk fault/reopen schedules. Preserve single-writer
+progress without waiting for a batch to fill, bounded recovery/maintenance debt,
+retained roots and original-operation inspection. Apply the current-v1 cutover
+and migrate fixtures/consumers together if stored meaning changes.
+
+**Exit:** qualify INSERT p50 ≤190 ms first, then ≤19 ms, using verified console
+completion and independent readback. Report UPDATE/DELETE variants separately,
+including unchanged and zero-match results. Prove duplicate-token convergence,
+cross-Table token conflict, lost bind/commit/settlement replies, pending-capacity
+release, revocation and restart. Report file/directory syncs and publication bytes
+separately from logical appends and device I/O. Keep unmet latency goals open.
+
+#### Fourth delivery: replace timer races and qualify worker scheduling (P3)
+
+Use the existing
+[`transit-sql-host`](../../packages/zig/transit-sql-host/src/root.zig),
+[`transit-http-server`](../../packages/zig/transit-http-server/src/root.zig),
+[`transit-tls-server`](../../packages/zig/transit-tls-server/README.md) and
+[`transit-io`](../../packages/zig/transit-io/README.md) owners. Audit nested local
+client deadlines as well as listener/header/command timers; co-hosting can retain
+task races even after HTTP is removed.
+
+Implement absolute socket deadlines with `io.operateTimeout` and bounded
+cooperative interruption for CPU/owner work. Retain a defined timeout path for
+admission, locks and storage waits; a socket timeout cannot replace those.
+Separate deadline conversion from the readiness-driven scheduler change so each
+has its own cancellation and progress proof. Demonstrate parked slow/idle peers
+and bounded blocking-storage work before reducing workers to effective CPU
+capacity. Preserve reserved control/recovery admission, fair queues and joined
+buffer/TLS cleanup through shutdown. Follow the full P3 exit matrix below.
+
+**Exit:** no per-header/per-command timer-task races in the qualified paths,
+workers independent of configured connection count, and measured control/data/
+recovery progress with more blocked peers than workers. Compare CPU, resident
+memory, task records, allocations and latency with frozen budgets. A lower thread
+count alone does not establish a console speedup. Move this delivery before the
+read/write changes if attribution identifies scheduling as their dominant cost.
+
+#### Remaining placement, protocol and qualification deliveries (P2/P4–P6)
+
+Finish P2's configuration handoff with the existing configuration owner and
+reload/generation contract, then P2c's coarse remote adapter. Reuse shared SQL
+results, transactions and original-operation recovery; define delegation and
+prepared-handle/disclosure lifetimes before replacing the standalone path.
+These are required M8 outcomes but need not delay optimization of local Table
+statements. Keep transport attempt counts separate from durable completion.
+
+Deliver P4 pure protocol modules and connection-slab ownership with their real
+client/fuzz/allocation checks. Qualify Flight/Serving hosting separately and keep
+direct Document/Stream/Queue routes gated on M6/M7. Supply P5 tests in every
+delivery; preserve each existing fault assertion when splitting slow suites.
+
+At each implementation PR, run owning package checks and the affected registered
+SQL/installation tests listed in P6. Before qualification, freeze a committed
+revision and run the complete affected clean lanes, including `interfaces` and
+`experience` for the installed host changes, plus storage/core/bindings checks
+when those owners change. Retain the original 67-row operation schedule, startup
+defaults and failure budgets. Investigate retained failed fixtures through their
+original identities; a passing fresh run does not resolve their outcomes.
+
+**Final review artifact:** common-revision correctness/recovery reports, matched
+console distributions, resource and maintenance measurements, local/remote
+capability matrix, and explicit pass/fail/open status for each P0–P6 obligation
+and each absolute latency goal. Record executed evidence in the owning ledgers
+and promote changed semantics to public owners. Close only the qualified slice;
+full M8 stays open while required adapter or performance gates remain unmet.
+
 ### Performance objectives and experiment design
 
 Use #211's actual-console targets as the primary scorecard. They are engineering
@@ -261,11 +468,14 @@ flowchart TD
 
 ### Work packages and delivery sequence
 
-Preserve P0–P6 identifiers for #211 coordination. Deliver reviewable slices:
-P0 with the first P1 implementation, P1, P2a–P2c, P3, P4, P5 closeout, P6.
-Add each slice's tests when it lands; P5 reorganizes and completes coverage.
-P3/P4 contract work can begin earlier, but shrinking workers waits for the
-nonblocking progress proof. Publication work under #211 has its own sequence.
+Preserve P0–P6 identifiers for #211 coordination. The
+[remaining implementation plan](#remaining-implementation-plan--2026-10-29)
+sets the current order: refresh P0 evidence, optimize the measured installed
+read/write costs with #211, complete P3, then close remaining P2/P4/P5/P6 gates.
+P1 and the delivered P2a/P2b slices are regression obligations, not work to
+repeat. Attribution can move P3 earlier. Add each slice's tests when it lands;
+P5 reorganizes and completes coverage. Shrinking workers still waits for the
+nonblocking progress proof; publication changes retain their independent gates.
 
 | Slice | Reviewable outcome | Entry gate |
 | --- | --- | --- |
@@ -284,8 +494,8 @@ nonblocking progress proof. Publication work under #211 has its own sequence.
 1. Freeze a current control and run default-console, TLS-console and native
    recovery workloads. Preserve the 67-row statement, caches, deadlines and
    durability. Capture thread/task/queue/request counters; extend existing
-   bounded probes only where attribution is missing. P0 supports a concrete P1
-   change rather than another metrics-only delivery.
+   bounded probes only where attribution is missing. The initial P0 supported
+   P1; its refresh now selects the next installed-path optimization.
 2. Define typed direct dispatch below SQL. Input is the current direct request
    and validated context; output has explicit owned/borrowed lifetimes and typed
    error/attempt evidence. HTTP encoding wraps the dispatcher. Local calls retain

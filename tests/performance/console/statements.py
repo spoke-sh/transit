@@ -2,6 +2,7 @@
 from collections import defaultdict
 import json
 import re
+import time
 
 from performance.mutations.mutation_latency import Console, distribution
 
@@ -26,7 +27,7 @@ def phases(timing):
     return int(match[1]), result
 
 
-def run(fixture, repeat, probes, *, config=None, resource_observer=None):
+def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_observer=None, cycles=1, warm_reads=1):
     shell = Console(fixture, mode='table', config=config)
     samples = defaultdict(list)
     expected = []
@@ -34,9 +35,17 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
         def call(case, sql):
             before = {name: probe.snapshot() for name, probe in probes.items()}
             starts = {name: probe.trace()['completed'] for name, probe in probes.items() if hasattr(probe, 'trace')}
+            before_cpu = cpu_observer() if cpu_observer is not None else None
+            started_unix_ns = time.time_ns()
             try:
                 value, measurement = shell.call(sql)
+            except Exception:
+                print(json.dumps(dict(phase='statement_failure', case=case, cycle=cycle,
+                                      **shell.last_measurement)), flush=True)
+                raise
             finally:
+                finished_unix_ns = time.time_ns()
+                node_cpu_seconds = cpu_observer() - before_cpu if before_cpu is not None else None
                 # Preserve bounded operation/work diagnostics even when the
                 # statement fails. No native payloads or credentials are kept.
                 for name, probe in probes.items():
@@ -44,7 +53,7 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
                         continue
                     trace = probe.trace()
                     events = [event for event in trace['retained'] if event['ordinal'] > starts[name]]
-                    print(json.dumps(dict(phase='statement_trace', case=case, probe=name,
+                    print(json.dumps(dict(phase='statement_trace', case=case, cycle=cycle, probe=name,
                                           completed=trace['completed'] - starts[name],
                                           omitted=max(0, trace['completed'] - starts[name] - len(events)),
                                           events=events)), flush=True)
@@ -56,14 +65,16 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
                 # These database statements must not dispatch Station turns.
                 for operation in ('send', 'open_view', 'turn', 'turn_with_versions'):
                     assert counts.get('update:' + operation, 0) == 0, counts
-                if case == 'select_warm':
+                if case in ('select_warm', 'select_empty_warm', 'select_one_warm'):
                     assert counts.get('table:pin', 0) == 0, counts
             samples[case].append(total * 1_000_000)
-            print(json.dumps(dict(phase='statement', case=case, sql=sql,
+            print(json.dumps(dict(phase='statement', case=case, cycle=cycle, sql=sql,
                                   **measurement, timer_ms=total, phases=measured_phases,
-                                  attempts=attempts, stdout=value)), flush=True)
+                                  attempts=attempts, node_cpu_seconds=node_cpu_seconds,
+                                  started_unix_ns=started_unix_ns, finished_unix_ns=finished_unix_ns,
+                                  stdout=value)), flush=True)
             if resource_observer is not None:
-                print(json.dumps(dict(phase='client_resources', case=case,
+                print(json.dumps(dict(phase='client_resources', case=case, cycle=cycle,
                                       **resource_observer(shell.process.pid))), flush=True)
             return value
 
@@ -82,35 +93,40 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
             shell.process.stdin.flush()
             shell.mode = 'table'
 
-        verify_table(call('select_cold', 'SELECT * FROM items;'), expected)
-        verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
-        for index in range(1, repeat + 1):
-            output = call('insert', f'INSERT INTO items (id, value) VALUES ({index}, {index * 10});')
-            assert output == 'Statement completed. Matched 1; changed 1.\n', output
-            expected.append((index, index * 10))
-            verify_table(call('select_after_write', 'SELECT * FROM items;'), expected)
-            verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
-        typed_readback('select_json_after_insert')
-        # Exercise changed/no-op/zero-match outcomes and read-after-write for
-        # the other executable DML kinds. TRUNCATE has no execution contract.
-        for index in range(1, repeat + 1):
-            output = call('update', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
-            assert output == 'Statement completed. Matched 1; changed 1.\n', output
-            expected[index - 1] = (index, index * 100)
-            verify_table(call('select_after_update', 'SELECT * FROM items;'), expected)
-            output = call('update_noop', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
-            assert output == 'Statement completed. Matched 1; changed 0.\n', output
-        output = call('update_empty', 'UPDATE items SET value = 0 WHERE id = -1;')
-        assert output == 'Statement completed. Matched 0; changed 0.\n', output
-        typed_readback('select_json_after_update')
-        for index in range(1, repeat + 1):
-            output = call('delete', f'DELETE FROM items WHERE id = {index};')
-            assert output == 'Statement completed. Matched 1; changed 1.\n', output
-            expected.remove((index, index * 100))
-            verify_table(call('select_after_delete', 'SELECT * FROM items;'), expected)
-        output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
-        assert output == 'Statement completed. Matched 0; changed 0.\n', output
-        typed_readback('select_json_after_delete')
+        # Each cycle returns to the verified empty table in the same session.
+        # With repeat=1 this keeps every steady-state case at zero or one row.
+        for cycle in range(cycles):
+            verify_table(call('select_cold' if cycle == 0 else 'select_empty', 'SELECT * FROM items;'), expected)
+            for _ in range(warm_reads):
+                verify_table(call('select_empty_warm' if cycles > 1 or warm_reads > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
+            for index in range(1, repeat + 1):
+                output = call('insert', f'INSERT INTO items (id, value) VALUES ({index}, {index * 10});')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                expected.append((index, index * 10))
+                verify_table(call('select_after_write', 'SELECT * FROM items;'), expected)
+                for _ in range(warm_reads):
+                    verify_table(call('select_one_warm' if cycles > 1 or warm_reads > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
+            typed_readback('select_json_after_insert')
+            # Exercise changed/no-op/zero-match outcomes and read-after-write for
+            # the other executable DML kinds. TRUNCATE has no execution contract.
+            for index in range(1, repeat + 1):
+                output = call('update', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                expected[index - 1] = (index, index * 100)
+                verify_table(call('select_after_update', 'SELECT * FROM items;'), expected)
+                output = call('update_noop', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
+                assert output == 'Statement completed. Matched 1; changed 0.\n', output
+            output = call('update_empty', 'UPDATE items SET value = 0 WHERE id = -1;')
+            assert output == 'Statement completed. Matched 0; changed 0.\n', output
+            typed_readback('select_json_after_update')
+            for index in range(1, repeat + 1):
+                output = call('delete', f'DELETE FROM items WHERE id = {index};')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                expected.remove((index, index * 100))
+                verify_table(call('select_after_delete', 'SELECT * FROM items;'), expected)
+            output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
+            assert output == 'Statement completed. Matched 0; changed 0.\n', output
+            typed_readback('select_json_after_delete')
         print(json.dumps(dict(phase='statement_summary', distributions={
             case: distribution(values) for case, values in samples.items()})), flush=True)
     finally:

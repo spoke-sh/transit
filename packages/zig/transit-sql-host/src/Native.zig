@@ -20,18 +20,38 @@ pub const RequestStorage = struct {
     data: memory.Pool,
     control: memory.Pool,
     control_bytes: usize,
+    data_scratch: [data_slots]memory.Workspace,
+    control_scratch: [control_slots]memory.Workspace,
     pub fn init(allocator: std.mem.Allocator, session_bytes: usize) !RequestStorage {
         const control_bytes = try std.math.add(usize, request_bytes, session_bytes);
         var data = try memory.Pool.init(allocator, &@as([data_slots]usize, @splat(request_bytes)));
         errdefer data.deinit();
-        return .{ .data = data, .control = try .init(allocator, &@as([control_slots]usize, @splat(control_bytes))), .control_bytes = control_bytes };
+        var control = try memory.Pool.init(allocator, &@as([control_slots]usize, @splat(control_bytes)));
+        errdefer control.deinit();
+        var result: RequestStorage = .{ .data = data, .control = control, .control_bytes = control_bytes, .data_scratch = undefined, .control_scratch = undefined };
+        for (&result.data_scratch, data.slots) |*scratch, *slot| scratch.* = .fromBuffer(slot.buffer);
+        for (&result.control_scratch, control.slots) |*scratch, *slot| scratch.* = .fromBuffer(slot.buffer[0..request_bytes]);
+        return result;
     }
     pub fn deinit(self: *RequestStorage) void {
+        for (&self.data_scratch) |*scratch| scratch.deinit();
+        for (&self.control_scratch) |*scratch| scratch.deinit();
         self.control.deinit();
         self.data.deinit();
     }
     pub fn acquire(self: *RequestStorage, control: bool) !memory.Pool.Lease {
         return if (control) self.control.acquire(self.control_bytes) else self.data.acquire(request_bytes);
+    }
+    /// The outer lease exclusively owns the slot. Retain scratch bookkeeping
+    /// across requests so only the used high-water range needs erasing.
+    fn scratchFor(self: *RequestStorage, lease: memory.Pool.Lease) !*memory.Workspace {
+        try lease.value.validate();
+        if (lease.pool == &self.data) {
+            for (self.data.slots, &self.data_scratch) |*slot, *workspace| if (slot == lease.value.owner) return workspace;
+        } else if (lease.pool == &self.control) {
+            for (self.control.slots, &self.control_scratch) |*slot, *workspace| if (slot == lease.value.owner) return workspace;
+        }
+        return error.InvalidMemoryLease;
     }
     pub fn reservedBytes(self: *const RequestStorage) usize {
         return self.data.reservedBytes() + self.control.reservedBytes();
@@ -111,7 +131,7 @@ pub fn handleConnection(self: *Self, _: std.Io, _: std.mem.Allocator, connection
     // Control execution frees and reuses temporary objects independently of the
     // request arena. Neither domain can consume the other's configured budget.
     const backing = lease.value.owner.buffer;
-    var scratch = memory.Workspace.fromBuffer(backing[0..RequestStorage.request_bytes]);
+    const scratch = try self.storage.scratchFor(lease);
     const scratch_lease = try scratch.acquire();
     // The nested owner accounts for scratch allocations, not the outer raw
     // pool lease. Erase its used range before returning the shared slot.
@@ -163,7 +183,7 @@ test "full native data slots leave separate erased control capacity available" {
     try t.expectError(error.MemoryPoolExhausted, storage.acquire(false));
     const control = try storage.acquire(true);
     {
-        var scratch = memory.Workspace.fromBuffer(control.value.owner.buffer[0..RequestStorage.request_bytes]);
+        const scratch = try storage.scratchFor(control);
         const scratch_lease = try scratch.acquire();
         defer scratch_lease.release(true) catch unreachable;
         const payload = try (try scratch_lease.allocator()).dupe(u8, "cancellation request");
@@ -181,5 +201,36 @@ test "full native data slots leave separate erased control capacity available" {
     const next = try storage.acquire(true);
     defer next.release(true) catch unreachable;
     try t.expect(std.mem.allEqual(u8, next.value.owner.buffer, 0));
+    try probe.verify();
+}
+
+test "native scratch survives reassignment and erases failed and freed request data" {
+    const t = std.testing;
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    var storage = try RequestStorage.init(probe.allocator(), 4096);
+    defer storage.deinit();
+    probe.begin(true);
+    for ([_]bool{ false, true }) |control| {
+        var previous: ?*memory.Workspace = null;
+        for (0..4) |iteration| {
+            const outer = try storage.acquire(control);
+            const scratch = try storage.scratchFor(outer);
+            if (previous) |known| try t.expectEqual(known, scratch);
+            previous = scratch;
+            const lease = try scratch.acquire();
+            const a = try lease.allocator();
+            // A smaller successor must not expose bytes freed by its predecessor.
+            try t.expect(std.mem.allEqual(u8, scratch.buffer, 0));
+            const bytes = try a.alloc(u8, if (iteration == 0) 16384 else 31);
+            @memset(bytes, 0xa5);
+            a.free(bytes);
+            try t.expectError(error.OutOfMemory, a.alloc(u8, RequestStorage.request_bytes + 1));
+            try lease.release(true);
+            try t.expectEqual(0, scratch.dirty_bytes);
+            try t.expectError(error.StaleMemoryLease, lease.allocator());
+            try outer.release(true);
+            try t.expectError(error.StaleMemoryLease, storage.scratchFor(outer));
+        }
+    }
     try probe.verify();
 }

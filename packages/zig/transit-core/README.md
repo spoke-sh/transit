@@ -42,6 +42,19 @@ walks within one immutable head. It does not retain operation permission checks,
 SET-role decisions or resource lifetime observations across requests; those still
 run against current authority and time.
 
+Each native and policy Catalog retains at most 16 immutable control records at
+its exact root. Recognized role, credential, object, domain, grant, process,
+resource and association records also retain their owned decoded values; other
+record types still parse normally. Cached records remain inputs to current
+validation and permission evaluation. An unpublished candidate's record takes
+precedence, and changing roots invalidates the cache, including when returning
+to a retained earlier root.
+
+Policy and required-dependency scans have separate eight-page caches, keyed by
+the complete root, namespace range and continuation. Empty pages are cached too.
+Current lifetime checks still inspect every dependency and sample the clock;
+cached bytes cannot turn expired or revoked work into usable state.
+
 Retention defaults to unlimited. Resource history policy, finite lifetimes,
 working metadata collection and authority-prefix trimming are separate opt-ins.
 Pending work, live dependencies, retained read versions and uncertain effects

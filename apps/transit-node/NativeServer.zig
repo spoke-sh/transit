@@ -500,12 +500,32 @@ pub fn Host(comptime Provider: type) type {
             fn localWork(self: *Context, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const io = invocation.client.http.io;
                 if (invocation.client.wait_hint != null and !std.mem.eql(u8, invocation.path, "/v1/query")) return error.InvalidLocalRequest;
-                const control = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.request(Provider.TableHost.Protocol.Request)).transport().control != null else if (std.mem.eql(u8, invocation.path, "/v1/command")) true else if (std.mem.eql(u8, invocation.path, "/v1/query")) switch ((try invocation.request(g.SignedQuery)).query.kind) {
+                const control = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.requestPtr(Provider.TableHost.Protocol.Request)).transport().control != null else if (std.mem.eql(u8, invocation.path, "/v1/command")) true else if (std.mem.eql(u8, invocation.path, "/v1/query")) switch ((try invocation.requestPtr(g.SignedQuery)).query.kind) {
                     .close_snapshot => true,
                     .snapshot_read => |read| read.finish,
                     else => false,
                 } else false;
+                // Debug attribution uses the same bounded sink as HTTP. Only
+                // closed protocol tags are labels; no caller values or SQL.
+                const observed = self.diagnostics.config.level == .debug;
+                var span = telemetry.begin(if (observed) self.diagnostics else null, .server, invocation.client.call_context);
+                var event: telemetry.Event = .{ .name = "transit.local.request", .level = .debug };
+                if (std.mem.eql(u8, invocation.path, "/table/v1")) {
+                    event.route = "/table/v1";
+                    event.operation = (try invocation.requestPtr(Provider.TableHost.Protocol.Request)).transport().operation;
+                } else if (std.mem.eql(u8, invocation.path, "/v1/query")) {
+                    event.route = "/v1/query";
+                    event.operation = @tagName((try invocation.requestPtr(g.SignedQuery)).query.kind);
+                }
+                const started = if (observed) std.Io.Clock.awake.now(io) else null;
+                defer span.finish(event);
+                errdefer event.outcome = .failed;
                 const lane = try self.acquire(io, if (control) .control else if (invocation.client.wait_hint != null) .wait else .data);
+                if (started) |before| event.wait_ns = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
+                defer if (started) |before| {
+                    const total: u64 = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
+                    event.work_ns = total -| (event.wait_ns orelse 0);
+                };
                 defer self.release(io, lane);
                 var server = self.server.*;
                 server.io = io;
@@ -523,7 +543,7 @@ pub fn Host(comptime Provider: type) type {
                 if (std.mem.eql(u8, invocation.path, "/table/v1")) {
                     if (comptime @hasDecl(Provider, "TableHost")) {
                         const owner = lane.table orelse return error.LocalRouteMissing;
-                        const request = try invocation.request(Provider.TableHost.Protocol.Request);
+                        const request = try invocation.requestPtr(Provider.TableHost.Protocol.Request);
                         var budget = self.table_memory.request(self.server.allocator, control);
                         defer std.debug.assert(budget.used == 0);
                         var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
@@ -537,7 +557,7 @@ pub fn Host(comptime Provider: type) type {
                             self.syncFromLane(lane);
                             self.changed.publishAll(io);
                         };
-                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request, control) catch |err| {
+                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control) catch |err| {
                             if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
                             return err;
                         };
@@ -545,40 +565,50 @@ pub fn Host(comptime Provider: type) type {
                     }
                     return error.LocalRouteMissing;
                 }
-                if (std.mem.eql(u8, invocation.path, "/v1/query")) {
-                    const request = try invocation.request(g.SignedQuery);
-                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
-                    return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
-                }
-                if (std.mem.eql(u8, invocation.path, "/v1/command")) {
-                    const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.request(g.CommandEnvelope) else null;
-                    const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
-                    g.validate(request.request) catch return error.InvalidLocalRequest;
-                    const position = try server.submitCommand(request, if (envelope) |*value| if (value.blocks) |*blocks| blocks else null else null);
-                    self.mutex.lockUncancelable(io);
-                    defer self.mutex.unlock(io);
-                    self.position = @max(self.position, lane.engine.head.position);
-                    self.syncFromLane(lane);
-                    self.changed.publish(io, request.request.command);
-                    return invocation.respond(wire.Receipt{ .position = position });
-                }
-                if (std.mem.eql(u8, invocation.path, "/v1/blocks")) {
-                    const request = try invocation.request(g.SignedQuery);
-                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
-                    const result = try invocation.allocator.create(g.BlockRead.Response);
+                if (std.mem.eql(u8, invocation.path, "/v1/query")) return localQuery(&server, invocation);
+                if (std.mem.eql(u8, invocation.path, "/v1/command")) return self.localCommand(&server, invocation);
+                if (std.mem.eql(u8, invocation.path, "/v1/blocks")) return localBlocks(&server, invocation);
+                if (std.mem.eql(u8, invocation.path, "/v1/payload")) return localPayload(&server, invocation);
+                return error.LocalRouteMissing;
+            }
+            // Native envelopes/results need large bounded frames. Keep their
+            // stack probes off Table calls, while retaining
+            // the enclosing lane, deadline and joined cleanup for every route.
+            noinline fn localQuery(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const request = try invocation.request(g.SignedQuery);
+                g.validateQuery(request.query) catch return error.InvalidLocalRequest;
+                return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
+            }
+            noinline fn localCommand(self: *Context, server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const io = server.io;
+                const lane = server.lane;
+                const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.requestPtr(g.CommandEnvelope) else null;
+                const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
+                g.validate(request.request) catch return error.InvalidLocalRequest;
+                const position = try server.submitCommand(request, if (envelope) |value| if (value.blocks) |*blocks| blocks else null else null);
+                self.mutex.lockUncancelable(io);
+                defer self.mutex.unlock(io);
+                self.position = @max(self.position, lane.engine.head.position);
+                self.syncFromLane(lane);
+                self.changed.publish(io, request.request.command);
+                return invocation.respond(wire.Receipt{ .position = position });
+            }
+            noinline fn localBlocks(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const request = try invocation.request(g.SignedQuery);
+                g.validateQuery(request.query) catch return error.InvalidLocalRequest;
+                const result = try invocation.allocator.create(g.BlockRead.Response);
+                defer invocation.allocator.destroy(result);
+                result.response = try server.readQuery(request, &result.blocks);
+                return invocation.respond(result.*);
+            }
+            noinline fn localPayload(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {
+                if (comptime @hasDecl(Provider, "payload")) {
+                    const request = try invocation.requestPtr(wire.protocol.NativePayload.Request);
+                    request.validate() catch return error.InvalidLocalRequest;
+                    const result = try invocation.allocator.create(wire.protocol.NativePayload.Response);
                     defer invocation.allocator.destroy(result);
-                    result.response = try server.readQuery(request, &result.blocks);
+                    try Provider.payload(&server.lane.engine, request, result);
                     return invocation.respond(result.*);
-                }
-                if (std.mem.eql(u8, invocation.path, "/v1/payload")) {
-                    if (comptime @hasDecl(Provider, "payload")) {
-                        const request = try invocation.request(wire.protocol.NativePayload.Request);
-                        request.validate() catch return error.InvalidLocalRequest;
-                        const result = try invocation.allocator.create(wire.protocol.NativePayload.Response);
-                        defer invocation.allocator.destroy(result);
-                        try Provider.payload(&lane.engine, &request, result);
-                        return invocation.respond(result.*);
-                    }
                 }
                 return error.LocalRouteMissing;
             }

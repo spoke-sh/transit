@@ -27,8 +27,13 @@ pub const Invocation = struct {
     completed: bool = false,
 
     pub fn request(self: *const Invocation, comptime T: type) !T {
+        return (try self.requestPtr(T)).*;
+    }
+    /// Borrows immutable input until invoke returns. The host must join all
+    /// work before returning and cannot retain this pointer in a response.
+    pub fn requestPtr(self: *const Invocation, comptime T: type) !*const T {
         if (self.input_type != token(T)) return error.InvalidLocalRequestType;
-        return @as(*const T, @ptrCast(@alignCast(self.input))).*;
+        return @ptrCast(@alignCast(self.input));
     }
     pub fn isRequest(self: *const Invocation, comptime T: type) bool {
         return self.input_type == token(T);
@@ -136,7 +141,9 @@ test "local invocation refuses mismatched types and owns nested response slices"
     const Host = struct {
         fn run(_: *anyopaque, invocation: *Invocation) !void {
             try t.expectError(error.InvalidLocalRequestType, invocation.request(u32));
-            const input = try invocation.request(Request);
+            try t.expectError(error.InvalidLocalRequestType, invocation.requestPtr(u32));
+            const input = try invocation.requestPtr(Request);
+            try t.expectEqual(invocation.input, @as(*const anyopaque, input));
             try t.expectEqual(7, input.id);
             try t.expectError(error.InvalidLocalResponseType, invocation.respond(@as(u64, 9)));
             var temporary: std.heap.ArenaAllocator = .init(t.allocator);
