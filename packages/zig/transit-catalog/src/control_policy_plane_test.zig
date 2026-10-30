@@ -560,3 +560,255 @@ test "SecretManager (SEC1) dual authorization and OAuth 2.1 + PKCE S256 challeng
         ),
     );
 }
+
+test "Security-barrier RLS, Geospatial RLS, Dynamic Column Masking (RLM1), GDPR crypto-shredding/purge (ERS1), WLM (WLM1), and EXPLAIN POLICY" {
+    const fuze = c.fuze;
+    const v = fuze.Types.Values;
+    const Rls = fuze.RlsAndMasking;
+    const Erasure = c.ErasureAndWorkload;
+    const now_ns: i64 = 1_700_000_000 * std.time.ns_per_s;
+
+    // 1. Security-barrier RLS + 2D Geospatial RLS (`ST_CoveredBy`)
+    const rls_policies = [_]Rls.RlsPolicyDescriptor{
+        .{
+            .policy_id = 1,
+            .name = "tenant_isolation",
+            .table_object = 500,
+            .mode = .permissive,
+            .using_predicate = .{ .column_equals_utf8 = .{ .column_idx = 0, .expected = "acme" } },
+        },
+        .{
+            .policy_id = 2,
+            .name = "na_geofence",
+            .table_object = 500,
+            .mode = .restrictive,
+            .using_predicate = .{
+                .spatial_covered_by_bbox2d = .{
+                    .x_col_idx = 2,
+                    .y_col_idx = 3,
+                    .min_x = -130.0,
+                    .min_y = 24.0,
+                    .max_x = -65.0,
+                    .max_y = 50.0,
+                },
+            },
+        },
+    };
+    const barrier: Rls.SecurityBarrierFilter = .{
+        .table_rls_enabled = true,
+        .policies = &rls_policies,
+    };
+
+    // Row 0: authorized ("acme", divisor = 5, lon = -122.3, lat = 47.6)
+    const row_ok = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "acme" } } },
+        .{ .value = .{ .atom = .{ .signed = 5 } } },
+        .{ .value = .{ .atom = .{ .float = -122.3 } } },
+        .{ .value = .{ .atom = .{ .float = 47.6 } } },
+    };
+    // Row 1: unauthorized tenant ("other", divisor = 0 -> would divide by zero if evaluated before barrier!)
+    const row_unauth_div_zero = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "other" } } },
+        .{ .value = .{ .atom = .{ .signed = 0 } } },
+        .{ .value = .{ .atom = .{ .float = -122.3 } } },
+        .{ .value = .{ .atom = .{ .float = 47.6 } } },
+    };
+    // Row 2: same tenant "acme", but outside NA geofence (lon = 2.35 Paris, divisor = 0)
+    const row_outside_geofence = [_]v.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "acme" } } },
+        .{ .value = .{ .atom = .{ .signed = 0 } } },
+        .{ .value = .{ .atom = .{ .float = 2.35 } } },
+        .{ .value = .{ .atom = .{ .float = 48.85 } } },
+    };
+
+    const batch_rows = [_][]const v.Cell{ &row_ok, &row_unauth_div_zero, &row_outside_geofence };
+    var quotients: [4]i64 = @splat(0);
+    // Evaluating `100 / divisor` after SecurityBarrierFilter succeeds with 1 row (`100 / 5 = 20`) and ZERO side-channel error leaks!
+    const out_count = try barrier.evaluateCheckedDivisionAfterBarrier(&batch_rows, 100, 1, &quotients);
+    try testing.expectEqual(@as(usize, 1), out_count);
+    try testing.expectEqual(@as(i64, 20), quotients[0]);
+
+    // Zone-map stats are sanitized under active RLS barrier
+    const raw_zm: Rls.ZoneMapSummary = .{
+        .row_count = 3,
+        .min_int64 = 0,
+        .max_int64 = 999_999,
+        .bbox2d_min_x = -122.3,
+        .bbox2d_max_x = 2.35,
+    };
+    const safe_zm = barrier.sanitizeZoneMapForCaller(raw_zm);
+    try testing.expect(safe_zm.redacted_by_rls_barrier);
+    try testing.expectEqual(@as(i64, 0), safe_zm.max_int64);
+
+    // 2. Dynamic Column Masking & GermanString prefix scrubbing
+    const ssn_mask: Rls.MaskingPolicyDescriptor = .{
+        .policy_id = 10,
+        .name = "ssn_partial_mask",
+        .column_idx = 0,
+        .transform_for_restricted = .{ .partial_string_mask = .{ .visible_suffix_len = 4 } },
+        .unmasked_roles = &.{1}, // Only admin role 1 sees unmasked SSN
+    };
+    var scratch: [16]u8 = @splat(0);
+    const ssn_cell: v.Cell = .{ .value = .{ .atom = .{ .bytes = "123-45-6789" } } };
+    const masked_res = ssn_mask.applyToCell(50, ssn_cell, &scratch); // Analyst role 50
+    try testing.expectEqualStrings("***-**-6789", masked_res.cell.value.atom.bytes);
+    // 4-byte GermanString inline sort prefix is scrubbed to "***-", NOT "123-"!
+    try testing.expectEqualStrings("***-", &masked_res.german_prefix);
+
+    const unmasked_res = ssn_mask.applyToCell(1, ssn_cell, &scratch); // Admin role 1
+    try testing.expectEqualStrings("123-45-6789", unmasked_res.cell.value.atom.bytes);
+
+    // Audience policy digests isolate role 1 (unmasked) vs role 50 (masked) in ReadCache
+    const masking_policies = [_]Rls.MaskingPolicyDescriptor{ssn_mask};
+    const aud_admin = Rls.audiencePolicyDigest(500, 1, 10, &rls_policies, &masking_policies);
+    const aud_analyst = Rls.audiencePolicyDigest(500, 50, 10, &rls_policies, &masking_policies);
+    try testing.expect(!std.mem.eql(u8, &aud_admin, &aud_analyst));
+
+    // 3. Right-to-Erasure (GDPR/CCPA) crypto-shredding & cross-branch purge receipts (`ERS1`)
+    var key_reg: Erasure.SubjectEnvelopeKeyRegistry = .{};
+    const salt: [32]u8 = @splat(0x42);
+    const subj_commitment = Erasure.SubjectEnvelopeKeyRegistry.computeBlindedSubjectCommitment(1, salt, "user-pii-subject-42");
+    try key_reg.registerSubjectKey(1, 500, subj_commitment, 901, 902);
+
+    const pii_cell: v.Cell = .{ .value = .{ .atom = .{ .bytes = "sensitive-eu-record" } } };
+    try testing.expect(key_reg.projectSubjectEncryptedCell(1, 500, subj_commitment, pii_cell) == .value);
+
+    const head_digest: [32]u8 = @splat(0x11);
+    const cand_digest: [32]u8 = @splat(0x22);
+    const dpo_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 105,
+        .actor_kind = .human,
+        .subject_principal = 105,
+        .subject_kind = .human,
+        .login_role = 1,
+        .active_role = 1,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .assurance_level = .aal3_hardware_cryptographic,
+        .authenticated_at_ns = now_ns,
+        .step_up_verified_at_ns = now_ns,
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    const erasure_approval: Delegation.ApprovalAttestation = .{
+        .realm_id = 1,
+        .approver_principal = 105,
+        .approver_role = 1,
+        .proposer_principal = 100,
+        .policy_epoch = 10,
+        .step_up_verified_at_ns = now_ns,
+        .target_object = 500,
+        .target_branch_id = 1,
+        .expected_target_head_digest = head_digest,
+        .candidate_manifest_digest = cand_digest,
+    };
+    var active_dek_buf = [_]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
+    const post_shred_epoch = try key_reg.shredSubjectKeysAndZeroBuffer(
+        dpo_ctx,
+        erasure_approval,
+        10,
+        now_ns,
+        head_digest,
+        cand_digest,
+        subj_commitment,
+        &active_dek_buf,
+    );
+    try testing.expectEqual(@as(u64, 11), post_shred_epoch);
+    try testing.expectEqualSlices(u8, &[_]u8{ 0, 0, 0, 0 }, &active_dek_buf);
+    // Immediate reads project `.missing` (erasure tombstone)
+    try testing.expect(key_reg.projectSubjectEncryptedCell(1, 500, subj_commitment, pii_cell) == .missing);
+
+    // Cross-branch `.tseg` purge compaction across `main` (branch 1) and `feature_x` (branch 2)
+    const branch_specs = [_]Erasure.BranchSegmentPurgeSpec{
+        .{ .branch_id = 1, .source_segment_id = 10, .replacement_segment_id = 11, .subject_row_count = 3, .unrelated_row_count = 97 },
+        .{ .branch_id = 2, .source_segment_id = 20, .replacement_segment_id = 21, .subject_row_count = 2, .unrelated_row_count = 48 },
+    };
+    var lineage_edges: [2]Erasure.CompactionLineageEdge = undefined;
+    const receipt = try key_reg.executeCrossBranchPurgeCompaction(
+        1,
+        1,
+        500,
+        subj_commitment,
+        &branch_specs,
+        5000,
+        post_shred_epoch,
+        &lineage_edges,
+    );
+    try testing.expectEqual(@as(usize, 2), receipt.affected_branch_count);
+    try testing.expectEqual(@as(usize, 5), receipt.total_erased_rows);
+    try testing.expect(!receipt.containsRawSubjectPii());
+    try testing.expectEqual(@as(u64, 11), lineage_edges[0].replacement_segment_id);
+
+    // 4. Hierarchical Workload Management (`WLM1`) & non-preemptible control reserve
+    var agent_wlm: Erasure.WorkloadGroupController = .{
+        .descriptor = .{
+            .group_id = 5,
+            .name = "mcp_agent_burst_group",
+            .kind = .agent_burst,
+            .max_concurrent_queries = 2,
+            .soft_memory_spill_bytes = 1024,
+            .hard_memory_limit_bytes = 4096,
+            .max_cpu_micros_per_query = 10_000,
+        },
+    };
+    const agent_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 201,
+        .actor_kind = .agent,
+        .subject_principal = 100,
+        .subject_kind = .human,
+        .login_role = 50,
+        .active_role = 50,
+        .credential_epoch = 1,
+        .policy_epoch = 11,
+        .authenticated_at_ns = now_ns,
+        .has_delegation = true,
+        .delegation_depth = 1,
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    // Delegated agent attempting to escalate into `oltp_critical` is rejected
+    try testing.expectError(error.WorkloadGroupEscalationDenied, agent_wlm.classifyAndAdmit(agent_ctx, .oltp_critical));
+    const cache_hint = try agent_wlm.classifyAndAdmit(agent_ctx, .agent_burst);
+    try testing.expectEqual(Erasure.CachePlacementHint.scan_transient, cache_hint);
+
+    // Soft memory limit triggers Tier 2 NVMe spill; hard limit rejects
+    try testing.expectEqual(
+        Erasure.MorselExecutionOutcome.spill_to_nvme_tier2,
+        try agent_wlm.chargeMorselAtBoundary(2048, 1000, false, false),
+    );
+    try testing.expectError(
+        error.WorkloadMemoryQuotaExceeded,
+        agent_wlm.chargeMorselAtBoundary(8192, 1000, false, false),
+    );
+
+    // 5. Zero-work `EXPLAIN POLICY` & post-revocation lost-reply operation inspection
+    const explain_report = try Erasure.explainPolicyForStatement(
+        agent_ctx,
+        .protected_destination,
+        &rls_policies,
+        &masking_policies,
+        agent_wlm.descriptor,
+        false,
+        .protected_branch_direct_write_denied,
+    );
+    try testing.expectEqual(@as(usize, 2), explain_report.active_rls_policy_count);
+    try testing.expectEqual(@as(usize, 1), explain_report.active_masking_policy_count);
+    try testing.expectEqual(Access.PolicyDenialCode.protected_branch_direct_write_denied, explain_report.denial_code);
+
+    const op_receipt: Erasure.AcceptedOperationReceipt = .{
+        .operation_id = 777,
+        .owner_principal = 100,
+        .accepted_at_policy_epoch = 10,
+        .accepted_at_lsn = 4500,
+        .committed = true,
+        .disclosed_row_count = 25,
+    };
+    // Metadata inspection of original accepted operation succeeds after read-grant revocation, but row disclosure rejects!
+    const status_only = try Erasure.inspectOperationAfterLostReply(op_receipt, 100, false, false);
+    try testing.expect(status_only.committed);
+    try testing.expectEqual(@as(usize, 0), status_only.disclosed_row_count);
+    try testing.expectError(
+        error.AccessRevokedOnResultDisclosure,
+        Erasure.inspectOperationAfterLostReply(op_receipt, 100, false, true),
+    );
+}

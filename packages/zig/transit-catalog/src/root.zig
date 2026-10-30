@@ -69,6 +69,7 @@ pub const BranchMergeRestore = @import("BranchMergeRestore.zig");
 pub const ManagedDataflow = @import("ManagedDataflow.zig");
 pub const AccessAndIdentity = @import("AccessAndIdentity.zig");
 pub const DelegationAndSecrets = @import("DelegationAndSecrets.zig");
+pub const ErasureAndWorkload = @import("ErasureAndWorkload.zig");
 test {
     // Keep hash contracts discoverable even when a test filter removes their
     // indirect callers in the catalog lifecycle suite.
@@ -109,6 +110,7 @@ test {
     _ = ManagedDataflow;
     _ = AccessAndIdentity;
     _ = DelegationAndSecrets;
+    _ = ErasureAndWorkload;
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;

@@ -465,6 +465,17 @@ def build_ledger():
             'corpus_sources': ['contracts/sql/corpus/declarations.json'],
             'states': {'parse': 'implemented', 'lower': 'implemented', 'execute': 'implemented', 'recover': 'implemented', 'transport': 'staged'},
         },
+        {
+            'id': 'X012-CONTROL-POLICY-PLANE',
+            'standard': 'transit_extension_v1',
+            'edition_clause': 'CONTROL_POLICY_PLANE_V1 §1-7',
+            'title': 'Enterprise OIDC/SCIM federation, bounded delegation (DLG1/APV1), declarative secrets (SEC1) & OAuth2/PKCE challenge dataflows, security-barrier RLS/masking (RLM1), GDPR crypto-shredding/purge (ERS1), WLM (WLM1), and EXPLAIN POLICY',
+            'owner': 'packages/zig/transit-fuze/src/RlsAndMasking.zig',
+            'dependencies': ['F111', 'T181-X003', 'X010-DATAFLOW-LIFECYCLE'],
+            'deviations': 'Enforces RLS as a mandatory security barrier before user predicates or 5-state errors, requires both USAGE ON SECRET and URI SCOPE match, and forbids plaintext secret literals in durable SQL.',
+            'corpus_sources': ['contracts/sql/corpus/declarations.json'],
+            'states': {'parse': 'implemented', 'lower': 'implemented', 'execute': 'implemented', 'recover': 'implemented', 'transport': 'staged'},
+        },
     ]
 
     operator_effects = {

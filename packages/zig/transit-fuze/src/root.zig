@@ -82,7 +82,9 @@ pub const HybridSearch = @import("HybridSearch.zig");
 pub const TDel = @import("TDel.zig");
 pub const TSeg = @import("TSeg.zig");
 pub const TSegReader = @import("TSegReader.zig");
+pub const RlsAndMasking = @import("RlsAndMasking.zig");
 test {
+    _ = RlsAndMasking;
     _ = Batch;
     _ = MemoryBudget;
     _ = BatchExecution;
