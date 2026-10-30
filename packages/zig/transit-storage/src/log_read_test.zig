@@ -28,6 +28,7 @@ test "log read bases survive disk reopen and authenticate exact finite coverage"
         .cut = .{ .target = target, .accepted = .{ .partition = 91, .next_lsn = 4 }, .retained_from = 0, .next = 0 },
         .until = 0,
         .batches = null,
+        .segments = null,
     };
     const receipt = try R.stage(objects.objectStore(), basis);
     try t.expectEqual(@as(u64, 5), receipt.accepted.next_lsn);

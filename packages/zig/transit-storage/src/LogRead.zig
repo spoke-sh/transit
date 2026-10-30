@@ -17,6 +17,7 @@ pub const Basis = struct {
     cut: q.Cut,
     until: u64,
     batches: ?pages.Reference,
+    segments: ?pages.Reference,
     pub fn validate(self: Basis) !void {
         try self.request.validate();
         try self.declared.validate();
@@ -25,6 +26,7 @@ pub const Basis = struct {
         try self.cut.requireOffset(self.until);
         if (self.declared.retired or self.declared.declaration.configuration.policy != .stream or
             self.cut.accepted.next_lsn == 0 or (self.cut.next != 0) != (self.batches != null) or
+            (self.cut.next == 0 and self.segments != null) or
             !std.meta.eql(self.declared.declaration.interpretation, self.cut.target.interpretation) or
             self.cut.target.partition >= self.declared.declaration.configuration.partitioning.count or
             self.until != (self.request.until orelse self.cut.next) or self.until < self.request.from) return error.InvalidStreamRead;

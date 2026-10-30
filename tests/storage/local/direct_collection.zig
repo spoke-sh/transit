@@ -155,9 +155,13 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     const read = try stream.beginRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .group = null, .from = 0, .until = null }, fixture.guard());
     const authority = try s.LogRead.Authority.init(@splat(7));
     const cursor = try stream.readCursor(read.handle(), authority, fixture.guard());
+    try t.expect((try stream.flush(stream.root.position(), fixture.guard())).complete);
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &stream.store };
+    const segment_reference = try s.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, try s.LogPartitionRecord.integerKey(1))).?);
     const cut = stream.root.position();
     while (!(try stream.archive(cut, .{ .frames = 1 }, fixture.guard())).complete) {}
     const checkpoint = try stream.checkpoint(cut, fixture.guard());
+    const payload_archive = try s.TableArchive.decodeReference((try tree.get(stream.root.archive.directory, try s.TableArchive.key(accepted.accepted.next_lsn - 1))).?);
     try t.expectEqual(cut.next_lsn, try stream.trimArchived(fixture.guard()));
     try t.expectError(error.WalHistoryTrimmed, fixture.data.log().read(t.allocator, 23, 0, 1));
     // A post-checkpoint archive transition needs its copied frames during replay,
@@ -170,6 +174,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
         .cut = try stream.observe(initialized.declared, fixture.guard()),
         .until = 1,
         .batches = stream.root.batches,
+        .segments = stream.root.segments,
     });
     const orphan_checkpoint = try s.LogRecovery.stage(fixture.data.objects(), .{ .root = stream.root, .commitment = stream.commitment });
     _ = try fixture.collect();
@@ -178,6 +183,8 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(orphan_checkpoint.content, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) != null);
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) != null);
+    try expectArchive(&fixture, payload_archive, true);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) != null);
     try stream.deinit();
     fixture.close();
     try fixture.open(tmp.dir, false);
@@ -199,6 +206,9 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     _ = try fixture.collect();
     try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) == null);
+    try expectArchive(&fixture, payload_archive, false);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) != null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) != null);
     try t.expectEqualDeep(read, (try stream.operation(read.request.operation, fixture.guard())).?.outcome.read);
     try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
     try stream.deinit();

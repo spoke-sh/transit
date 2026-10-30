@@ -18,27 +18,50 @@ fn identity(operation: d.Operation, ordinal: u32) !f.TableRow.Identity {
 }
 
 pub fn encode(schema: f.TableSchema.Schema, operation: d.Operation, kind: q.Kind, rows: []const Row, output: []u8) ![]const u8 {
-    try operation.validate();
-    try schema.validate();
-    if (rows.len == 0 or rows.len > std.math.maxInt(u32) or output.len < header_bytes) return error.InvalidLogBatch;
-    output[0..8].* = "LOGBAT01".*;
-    output[8..40].* = p.Growth.definition_bytes;
-    output[40..72].* = try schema.layoutFingerprint();
-    output[72] = if (kind == .stream) 1 else 2;
-    std.mem.writeInt(u32, output[73..77], @intCast(rows.len), .big);
-    var at: usize = header_bytes;
-    for (rows, 0..) |row, ordinal| {
-        if ((kind == .stream and row.visible_ms != 0) or (kind == .queue and row.tombstone)) return error.InvalidLogRowMetadata;
-        if (output.len - at < row_header_bytes) return error.LogBatchTooLarge;
-        const encoded_row: f.TableRow.Row = .{ .identity = try identity(operation, @intCast(ordinal)), .cells = row.cells };
-        const bytes = try encoded_row.encode(schema, output[at + row_header_bytes ..]);
-        std.mem.writeInt(u32, output[at..][0..4], @intCast(bytes.len), .big);
-        std.mem.writeInt(u64, output[at + 4 ..][0..8], row.visible_ms, .big);
-        output[at + 12] = @intFromBool(row.tombstone);
-        at += row_header_bytes + bytes.len;
-    }
-    return output[0..at];
+    if (rows.len > std.math.maxInt(u32)) return error.InvalidLogBatch;
+    var encoder = try Encoder.init(schema, operation, kind, @intCast(rows.len), output);
+    for (rows) |row| try encoder.append(row);
+    return encoder.finish();
 }
+
+/// Streaming serialization into one fixed caller buffer. Schema and row values
+/// borrow their callers; only the resulting encoded prefix is retained.
+pub const Encoder = struct {
+    schema: f.TableSchema.Schema,
+    operation: d.Operation,
+    kind: q.Kind,
+    count: u32,
+    ordinal: u32 = 0,
+    output: []u8,
+    at: usize = header_bytes,
+    pub fn init(schema: f.TableSchema.Schema, operation: d.Operation, kind: q.Kind, count: u32, output: []u8) !Encoder {
+        try operation.validate();
+        try schema.validate();
+        if (count == 0 or output.len < header_bytes) return error.InvalidLogBatch;
+        output[0..8].* = "LOGBAT01".*;
+        output[8..40].* = p.Growth.definition_bytes;
+        output[40..72].* = try schema.layoutFingerprint();
+        output[72] = if (kind == .stream) 1 else 2;
+        std.mem.writeInt(u32, output[73..77], count, .big);
+        return .{ .schema = schema, .operation = operation, .kind = kind, .count = count, .output = output };
+    }
+    pub fn append(self: *Encoder, row: Row) !void {
+        if (self.ordinal >= self.count) return error.InvalidLogBatch;
+        if ((self.kind == .stream and row.visible_ms != 0) or (self.kind == .queue and row.tombstone)) return error.InvalidLogRowMetadata;
+        if (self.output.len - self.at < row_header_bytes) return error.LogBatchTooLarge;
+        const encoded_row: f.TableRow.Row = .{ .identity = try identity(self.operation, self.ordinal), .cells = row.cells };
+        const bytes = try encoded_row.encode(self.schema, self.output[self.at + row_header_bytes ..]);
+        std.mem.writeInt(u32, self.output[self.at..][0..4], @intCast(bytes.len), .big);
+        std.mem.writeInt(u64, self.output[self.at + 4 ..][0..8], row.visible_ms, .big);
+        self.output[self.at + 12] = @intFromBool(row.tombstone);
+        self.at += row_header_bytes + bytes.len;
+        self.ordinal += 1;
+    }
+    pub fn finish(self: Encoder) ![]const u8 {
+        if (self.ordinal != self.count) return error.InvalidLogBatch;
+        return self.output[0..self.at];
+    }
+};
 
 pub fn content(bytes: []const u8) d.Content {
     var digest: [32]u8 = undefined;

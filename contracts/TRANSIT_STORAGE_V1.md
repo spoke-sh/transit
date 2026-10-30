@@ -1359,10 +1359,10 @@ length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` byte
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
-frontier, retained boundary, batch/receipt/producer/producer-receipt/group/pin
-directories, accepted archive coverage and nullable recovery reference. Missing
+frontier, retained boundary, batch/segment/receipt/producer/producer-receipt/group/pin
+directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
-offset, archival and checkpoint records use `manifest_checkpoint` and contain no row
+offset, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
 payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
@@ -1389,15 +1389,54 @@ reads at most the requested 1–256 records, verifies the hash chain, declaratio
 and index/outcome agreement, and advances only through validated history. Reads
 and appends refuse until recovery reaches the current physical frontier. Missing
 dependencies reject; recovery neither stages replacement indexes nor resets the
-partition. Required payloads remain retained in the WAL or immutable archives.
+partition. Required payloads remain retained in the WAL, immutable archives or
+published columnar segments.
 
 Current batch reads return an original append receipt, an observed cut and a
 pinned `LogTail` borrow. Cache hits reuse verified bytes. A miss verifies the
-accepted WAL record before admitting its payload; pinned cache pressure is an
+accepted WAL record or reconstructs the exact published segment batch before
+admitting its payload; pinned cache pressure is an
 explicit refusal. Read authorization is checked again after buffering, including
 empty terminal observations. A borrow survives other appends and prevents owner
 destruction, but does not pin durable history or prove finite traversal coverage.
 Explicit assignment preserves group progress across generation changes.
+
+### Stream columnar placement
+
+`flush` takes a fixed physical cut and seals at most one complete accepted append
+per call. It reports the exclusive sealed logical offset, rows handled and whether
+all appends through that cut are sealed. Appends accepted later cannot extend the
+obligation. Publication advances only the physical WAL frontier; logical offsets,
+producer state and original receipts do not change. Unknown publication follows
+normal partition recovery before retry.
+
+`LogSegment.Descriptor` binds the original evidence, `.tseg` content and delivery
+metadata content. The paged segment directory is keyed by the original exclusive
+batch end. Its value stores those three contents in order, each as big-endian
+`u64` byte length followed by SHA-256, totaling 120 bytes. Segment IDs are the
+original append's exclusive physical frontier. User columns preserve the declared
+schema, codecs and collations. Row identities preserve principal/operation/ordinal
+order within that append; no Table primary-key uniqueness semantics are added.
+
+`log-segments/{sha256}.tseg` uses the shared segment format.
+`log-segment-metadata/{sha256}.data` contains `LBMETA01`, the shared definition,
+original evidence SHA-256, big-endian `u32` row count, then one big-endian `u64`
+visibility time and one tombstone byte per original row. Only zero and one are
+valid tombstone bytes; Stream/Queue metadata rules remain unchanged. The metadata
+bound is 76 bytes plus the maximum WAL payload size. Neither object establishes
+acceptance. The owner reads back both, validates identities and reconstructs the
+original `LOGBAT01` digest before publishing their locator. A missing object,
+foreign receipt, changed payload or unsupported lossless reconstruction refuses.
+
+Build and cold reconstruction share an explicit simultaneous allocation budget
+(64 MiB by default, configurable up to 1 GiB). Segment row groups default to 1,024
+rows and cannot exceed 1,024 for this owner. A refusal leaves the original WAL
+placement usable and any private objects collectible. Each finite read base
+retains both its batch and segment directories. The bounded read iterator keeps
+the original cut and returns owned rows across WAL and segment boundaries; cache
+admission verifies the complete original batch. Physical copies may be reclaimed
+only after the retained graph no longer needs their placement, independently of
+logical payload retention.
 
 ### Retained Stream reads and offset settlement
 

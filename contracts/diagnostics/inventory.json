@@ -4828,7 +4828,7 @@
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 19,
+        "InvalidLogStorageGraph": 20,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
@@ -4874,6 +4874,7 @@
           "log_root",
           "log_index",
           "log_read",
+          "log_segment",
           "log_wal",
           "log_archive_range",
           "table_history",
@@ -4902,7 +4903,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 251,
+        "try": 263,
         "catch": 1
       },
       "imports": [
@@ -28278,7 +28279,7 @@
     "packages/zig/transit-storage/src/LogBatch.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogBatch": 7,
+        "InvalidLogBatch": 10,
         "InvalidLogRowMetadata": 2,
         "LogAppendLimitExceeded": 1,
         "LogBatchKindConflict": 1,
@@ -28294,6 +28295,9 @@
       "error_sets": {},
       "error_returns": {
         "EncodedRow.decode()": "<inferred>",
+        "Encoder.append()": "<inferred>",
+        "Encoder.finish()": "<inferred>",
+        "Encoder.init()": "<inferred>",
         "Iterator.init()": "<inferred>",
         "Iterator.next()": "<inferred>",
         "encode()": "<inferred>",
@@ -28302,7 +28306,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -28465,6 +28469,7 @@
         "InvalidLogHistory": 8,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
+        "InvalidLogSegment": 1,
         "LogDeclarationConflict": 3,
         "LogPayloadConflict": 1,
         "LogProducerRequired": 1,
@@ -28474,6 +28479,7 @@
         "Record.action": [
           "operation",
           "archive",
+          "flush",
           "checkpoint"
         ]
       },
@@ -28494,7 +28500,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -28504,6 +28510,7 @@
         "LogHistory.zig",
         "LogInitialization.zig",
         "LogRecovery.zig",
+        "LogSegment.zig",
         "TableArchive.zig",
         "TransitLog.zig",
         "TreeStore.zig",
@@ -28578,6 +28585,47 @@
         "LogPartitionRecord.zig",
         "TransitObjectStore.zig",
         "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogSegment.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidLogSegment": 16,
+        "LogPayloadConflict": 2,
+        "LogSegmentMissing": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.decode()": "<inferred>",
+        "Descriptor.encode()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Source.read()": "<inferred>",
+        "Source.verify()": "<inferred>",
+        "materialize()": "<inferred>",
+        "metadataKey()": "<inferred>",
+        "put()": "<inferred>",
+        "segmentKey()": "<inferred>",
+        "stage()": "<inferred>",
+        "verifyHead()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 43,
+        "catch": 1
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogEvidence.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_fuze",
         "transit_protocol"
       ]
     },
@@ -28793,10 +28841,11 @@
       "errors": {
         "InvalidLogArchive": 3,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 20,
+        "InvalidLogHistory": 22,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
-        "InvalidStreamBudget": 1,
+        "InvalidLogSegment": 3,
+        "InvalidStreamBudget": 2,
         "InvalidStreamReadBudget": 1,
         "InvalidWalEpoch": 1,
         "LogAppendLimitExceeded": 1,
@@ -28804,7 +28853,7 @@
         "LogCheckpointRequired": 1,
         "LogGroupFenced": 3,
         "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 8,
+        "LogHistoryUnavailable": 10,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
         "LogOperationConflict": 6,
@@ -28814,6 +28863,7 @@
         "LogProducerConflict": 1,
         "LogRecoveryMissing": 1,
         "LogRecoveryRequired": 2,
+        "LogSegmentBudgetExceeded": 2,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamReadByteBudgetTooSmall": 1,
@@ -28839,10 +28889,15 @@
         "decodeFrame()": "<inferred>",
         "decodeValue()": "<inferred>",
         "deinit()": "<inferred>",
+        "flush()": "<inferred>",
+        "flushCandidate()": "<inferred>",
+        "flushWithinBudget()": "<inferred>",
         "group()": "<inferred>",
         "historyFrame()": "<inferred>",
         "loadEvidence()": "<inferred>",
         "loadRead()": "<inferred>",
+        "materialize()": "<inferred>",
+        "materializeWithinBudget()": "<inferred>",
         "nextPosition()": "<inferred>",
         "nextProducer()": "<inferred>",
         "observe()": "<inferred>",
@@ -28870,8 +28925,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 287,
-        "catch": 8
+        "try": 319,
+        "catch": 10
       },
       "imports": [
         "LogBatch.zig",
@@ -28882,12 +28937,14 @@
         "LogPartitionRecord.zig",
         "LogRead.zig",
         "LogRecovery.zig",
+        "LogSegment.zig",
         "LogTail.zig",
         "PublicationGuard.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
+        "transit_fuze",
         "transit_protocol"
       ]
     },
@@ -30104,6 +30161,7 @@
         "LogPartitionRecord.zig",
         "LogRead.zig",
         "LogRecovery.zig",
+        "LogSegment.zig",
         "LogStorageRoots.zig",
         "LogTail.zig",
         "NvmeCache.zig",

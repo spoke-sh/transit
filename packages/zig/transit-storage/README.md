@@ -69,8 +69,18 @@ key rotation, pin closure and restart. Missing read/evidence objects block repla
 The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
-buffering. This component is not yet composed into payload service APIs. Segment
-maintenance, notification waits and logical payload expiry remain unfinished.
+buffering. This component is not yet composed into payload service APIs.
+Notification waits, key compaction and logical payload expiry remain unfinished.
+`flush` seals one accepted batch per call through a fixed physical cut, preserving
+its original receipt and offsets. Shared `.tseg` columns and a separate immutable
+delivery-metadata sidecar must reproduce the original payload digest before their
+paged placement index is published. Existing read pins keep their old placements;
+new reads can traverse sealed batches and the hot tail through the same iterator.
+Build and cold-read work have a separate 64 MiB default allocation budget, with
+at most 1,024 rows per segment group. These finite operation bounds do not cap
+the durable segment directory. Missing sidecars reject without falling back to
+different history. The retained graph protects both objects and allows obsolete
+WAL copies to be collected once pins and recovery no longer need them.
 `LogHistory` shares the immutable TWAL archive codec with Tables, staging at most
 eight frames per unit. `checkpoint` publishes an exact `LogRecovery` baseline;
 `trimArchived` requires both accepted archival coverage and that checkpoint,

@@ -15,6 +15,8 @@ const History = @import("LogHistory.zig");
 const Checkpoint = @import("LogRecovery.zig");
 const read = p.StreamRead;
 const Batch = @import("LogBatch.zig");
+const Segment = @import("LogSegment.zig");
+const f = @import("transit_fuze");
 const Tail = @import("LogTail.zig");
 const TreeStore = @import("TreeStore.zig");
 const Guard = @import("PublicationGuard.zig");
@@ -29,6 +31,8 @@ pub const Options = struct {
     read_rows: u32 = 4096,
     read_bytes: u32 = 4 * 1024 * 1024,
     key_bytes: u32 = 64 * 1024,
+    segment_work_bytes: usize = 64 * 1024 * 1024,
+    segment_rows_per_group: u32 = 1024,
     tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
 };
 
@@ -49,6 +53,7 @@ ready: bool = false,
 /// a caller cannot serve reads or accept writes until recoverStep completes.
 pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
     if (request.declared.declaration.configuration.policy != .stream) return error.LogPartitionConflict;
+    if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
     if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
     const initial = try Initialization.observe(allocator, log, objects, request, guard);
     var store = try TreeStore.init(allocator, objects, options.resident_pages);
@@ -233,7 +238,7 @@ fn readBasis(self: *Self, declared: Declaration.Stored, request: read.Request) !
     try request.target.requireSame(cut.target);
     try cut.requireOffset(request.from);
     if (request.group) |selected| _ = try self.requireGroup(selected, request.from);
-    const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches };
+    const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches, .segments = self.root.segments };
     try basis.validate();
     return basis;
 }
@@ -382,6 +387,51 @@ fn historyFrame(self: *Self, lsn: u64) !Log.Log.OwnedBatch {
 }
 
 pub const ArchiveProgress = struct { through: d.Position, frames: u8, encoded_bytes: u64, complete: bool };
+
+pub const FlushProgress = struct { cut: d.Position, through: u64, rows: u32, complete: bool };
+fn flushCandidate(self: *Self, through: u64, cut: d.Position) !?Evidence.Record {
+    if (through == self.root.next_offset) return null;
+    const page = try self.tree().scanFrom(self.root.batches, try r.integerKey(through + 1));
+    const entry = page.entries[0] orelse return error.LogHistoryUnavailable;
+    const evidence = try self.loadEvidence(entry.value);
+    if (evidence.outcome != .append) return error.InvalidLogHistory;
+    const receipt = evidence.outcome.append;
+    if (receipt.first != through or receipt.next > self.root.next_offset or receipt.accepted.partition != cut.partition or !std.meta.eql(entry.key, try r.integerKey(receipt.next))) return error.InvalidLogHistory;
+    return if (receipt.accepted.next_lsn <= cut.next_lsn) evidence else null;
+}
+/// Seal one accepted append under a fixed physical cut. Publication changes
+/// placement only; existing pins retain their exact placement directories.
+pub fn flush(self: *Self, cut: d.Position, guard: Guard) !FlushProgress {
+    try cut.validate();
+    try authorize(guard);
+    try self.requireReady();
+    if (cut.partition != self.root.initialization.partition or cut.next_lsn == 0 or cut.next_lsn > self.root.next_lsn) return error.InvalidLogSegment;
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    return self.flushWithinBudget(memory.allocator(), cut, guard) catch |err| return if (memory.exhausted) error.LogSegmentBudgetExceeded else err;
+}
+fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, cut: d.Position, guard: Guard) !FlushProgress {
+    const evidence = try self.flushCandidate(self.root.sealed_through, cut) orelse {
+        try authorize(guard);
+        return .{ .cut = cut, .through = self.root.sealed_through, .rows = 0, .complete = true };
+    };
+    const receipt = evidence.outcome.append;
+    const complete = try self.flushCandidate(receipt.next, cut) == null;
+    var borrowed = (try self.borrowAt(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, receipt.first, guard)) orelse return error.LogHistoryUnavailable;
+    defer borrowed.deinit();
+    var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
+    defer declaration.deinit();
+    const segment = try Segment.stage(allocator, self.objects, &declaration, evidence, try borrowed.payload.bytes(), self.options.segment_rows_per_group);
+    _ = try Segment.materialize(allocator, self.objects, segment, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var next = self.root;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    next.sealed_through = receipt.next;
+    next.segments = try self.tree().put(next.segments, try r.integerKey(receipt.next), try segment.encode());
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .flush = .{ .cut = cut, .receipt = receipt, .segment = segment } } }, &.{}, guard);
+    return .{ .cut = cut, .through = receipt.next, .rows = @intCast(receipt.append.rows), .complete = complete };
+}
+
 pub fn archive(self: *Self, cut: d.Position, limits: History.Limits, guard: Guard) !ArchiveProgress {
     try cut.validate();
     try limits.validate();
@@ -484,7 +534,7 @@ pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !Recovery {
         self.root = decoded.record.root;
         self.commitment = next_commitment;
     }
-    for ([_]?pages.Reference{ self.root.batches, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+    for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
         _ = try self.store.load(value);
     };
     try authorize(guard);
@@ -514,6 +564,14 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
                 if (!std.meta.eql(basis.root, self.root) or !std.mem.eql(u8, &basis.commitment, &self.commitment)) return error.InvalidLogRecovery;
                 try Checkpoint.requirePublication(basis, reference, record);
                 expected.recovery = next.recovery;
+            },
+            .flush => |value| {
+                const evidence = try self.flushCandidate(self.root.sealed_through, value.cut) orelse return error.InvalidLogSegment;
+                if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogSegment;
+                try self.verifyValue(next.segments, try r.integerKey(value.receipt.next), try value.segment.encode());
+                _ = try self.materialize(value.segment, evidence);
+                expected.segments = next.segments;
+                expected.sealed_through = value.receipt.next;
             },
         }
         if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
@@ -589,9 +647,18 @@ pub fn readBatch(self: *Self, declared: Declaration.Stored, offset: u64, guard: 
     try authorize(guard);
     try self.requireReady();
     const cut = try self.root.cut(declared);
-    return self.borrowAt(cut, self.root.batches, offset, guard);
+    return self.borrowAt(cut, self.root.batches, self.root.segments, offset, guard);
 }
-fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, offset: u64, guard: Guard) !?BorrowedBatch {
+fn materialize(self: *Self, segment: Segment.Descriptor, evidence: Evidence.Record) ![]const u8 {
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    return self.materializeWithinBudget(memory.allocator(), segment, evidence) catch |err| return if (memory.exhausted) error.LogSegmentBudgetExceeded else err;
+}
+fn materializeWithinBudget(self: *Self, allocator: std.mem.Allocator, segment: Segment.Descriptor, evidence: Evidence.Record) ![]const u8 {
+    var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
+    defer declaration.deinit();
+    return Segment.materialize(allocator, self.objects, segment, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
+}
+fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages.Reference, offset: u64, guard: Guard) !?BorrowedBatch {
     try cut.requireOffset(offset);
     if (offset == cut.next) {
         try authorize(guard);
@@ -607,12 +674,16 @@ fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, offset: u64, gua
     const binding: Tail.Binding = .{ .position = receipt.accepted, .content = receipt.append.payload };
     var borrowed = try self.cache.borrow(binding);
     if (borrowed == null) {
-        var frames = try self.historyFrame(receipt.accepted.next_lsn - 1);
-        defer frames.deinit();
-        if (frames.frames.len != 1) return error.LogHistoryUnavailable;
-        const decoded = try self.decodeFrame(frames.frames[0], receipt.accepted.partition, receipt.accepted.next_lsn - 1);
-        if (decoded.record.action != .operation or !std.meta.eql(decoded.record.action.operation, evidence)) return error.InvalidLogHistory;
-        try self.cache.admit(binding, decoded.payload);
+        if (try self.tree().get(segments, entry.key)) |value| {
+            try self.cache.admit(binding, try self.materialize(try Segment.Descriptor.decode(value), evidence));
+        } else {
+            var frames = try self.historyFrame(receipt.accepted.next_lsn - 1);
+            defer frames.deinit();
+            if (frames.frames.len != 1) return error.LogHistoryUnavailable;
+            const decoded = try self.decodeFrame(frames.frames[0], receipt.accepted.partition, receipt.accepted.next_lsn - 1);
+            if (decoded.record.action != .operation or !std.meta.eql(decoded.record.action.operation, evidence)) return error.InvalidLogHistory;
+            try self.cache.admit(binding, decoded.payload);
+        }
         borrowed = try self.cache.borrow(binding);
     }
     const result = borrowed orelse return error.LogHistoryUnavailable;
@@ -671,7 +742,7 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
     errdefer result.deinit();
     var coverage = cursor.coverage;
     outer: while (!coverage.complete and result.count < limits.rows) {
-        var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
+        var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, retained.basis.segments, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
         defer batch.deinit();
         var iterator = try Batch.Iterator.init(try batch.payload.bytes(), declaration.definition.schema, .stream, batch.receipt.append.rows);
         var advanced = false;

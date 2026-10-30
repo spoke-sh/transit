@@ -642,6 +642,93 @@ test "stream partition checkpoint and archive retain exact pins receipts and ini
     try t.expectError(error.LogRecoveryMissing, reopen(wal.log(), objects.objectStore(), initial, &policy));
 }
 
+test "stream partition sealed batches preserve finite reads and resume lost flush publication" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const first = try appendRequest(&declaration, 2, null, &buffer);
+    const accepted = try owner.append(initial.declared, first.request, first.payload, policy.guard());
+    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null }, policy.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const cursor = try owner.readCursor(pin.handle(), authority, policy.guard());
+    const cut = owner.root.position();
+    const before = owner.root;
+    owner.options.segment_work_bytes = 4096;
+    try t.expectError(error.LogSegmentBudgetExceeded, owner.flush(cut, policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    owner.options.segment_work_bytes = 64 * 1024 * 1024;
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.flush(cut, policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(@as(u64, 2), owner.root.sealed_through);
+    const appended = wal.appends;
+    const complete = try owner.flush(cut, policy.guard());
+    try t.expect(complete.complete and complete.rows == 0);
+    try t.expectEqual(appended, wal.appends);
+    const second = try appendRequest(&declaration, 4, null, &buffer);
+    _ = try owner.append(initial.declared, second.request, second.payload, policy.guard());
+    try t.expect((try owner.flush(cut, policy.guard())).complete);
+    try t.expectEqual(@as(u64, 2), owner.root.sealed_through);
+    const mixed = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = null, .from = 0, .until = null }, policy.guard());
+    const mixed_cursor = try owner.readCursor(mixed.handle(), authority, policy.guard());
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.store };
+    const segment = try s.LogSegment.Descriptor.decode((try tree.get(owner.root.segments, try s.LogPartitionRecord.integerKey(2))).?);
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    var page = try owner.readPage(mixed_cursor, authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer page.deinit();
+    try t.expectEqual(@as(u32, 3), page.count);
+    try t.expect(!page.cursor.coverage.complete);
+    try t.expectEqual(operation(2), page.rows()[0].operation);
+    try t.expectEqual(operation(4), page.rows()[2].operation);
+    var end = try owner.readPage(page.cursor, authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer end.deinit();
+    try t.expectEqual(@as(u32, 1), end.count);
+    try t.expect(end.cursor.coverage.complete);
+    // Output from the earlier physical batch remains owned after cache reuse.
+    var decoded = std.heap.ArenaAllocator.init(t.allocator);
+    defer decoded.deinit();
+    const row = try page.rows()[0].encoded.decode(decoded.allocator(), declaration.definition.schema, operation(2));
+    try t.expectEqualStrings("payload", row.cells[1].value.atom.bytes);
+    var old = try owner.readPage(cursor, authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer old.deinit();
+    try t.expect(old.cursor.coverage.complete and old.count == 2);
+    try t.expectEqualDeep(accepted, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    var name: [96]u8 = undefined;
+    const key = try s.LogSegment.metadataKey(segment.metadata, &name);
+    const metadata = try t.allocator.alloc(u8, @intCast(segment.metadata.bytes));
+    defer t.allocator.free(metadata);
+    _ = try objects.objectStore().getRange(key, 0, @intCast(metadata.len), metadata);
+    try objects.objectStore().delete(key);
+    try owner.deinit();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    try t.expectError(error.LogSegmentMissing, owner.recoverStep(policy.guard(), 256));
+    try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
+    _ = try objects.objectStore().putImmutable(key, metadata, segment.metadata.sha256);
+    try t.expect((try owner.recoverStep(policy.guard(), 256)).complete);
+    try t.expect((try owner.flush(owner.root.position(), policy.guard())).complete);
+    try t.expectEqual(@as(u64, 4), owner.root.sealed_through);
+}
+
 test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

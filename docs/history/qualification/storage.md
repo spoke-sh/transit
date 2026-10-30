@@ -4404,6 +4404,33 @@ retained roots, persist a collection queue, inventory allocations or delete
 objects. Test cursor JSON is not a stored maintenance format. Complete Table
 collection and final committed-HEAD clean qualification remain outstanding.
 
+## Stream retained graph and native physical collection — 2026-10-29
+
+At source `f2b4fd82a4d22ba01725781ca9ded2441323b13d`, the disk scenario in
+[direct collection](../../../tests/storage/local/direct_collection.zig) passes
+`nix develop --option eval-cache false --command zig build test-local-data-collection -Doptimize=ReleaseSafe`
+with exit zero. The executable SHA-256 is
+`8d01a0f36ce40ac49d358dc9da95f3b4ae55e9ed521c2ee4fe97f55078301b60`.
+The retained graph also passes the catalog's focused `log` package tests.
+
+The Stream case uses the real local native disk adapter and native epoch/time
+collection fences, with an explicit trusted component publication guard. It
+archives and checkpoints a pinned append, physically trims the WAL, publishes
+additional archive progress, collects abandoned read/checkpoint objects, then
+reopens the backend and recovers the same read and append receipt. Releasing the
+read preserves its basis while checkpoint replay still requires it. After a
+new checkpoint, collection removes that basis and the superseded checkpoint;
+fresh recovery still returns original outcomes and refuses the closed read.
+Its three collection passes complete in 125, 1,311 and 1,416 bounded steps,
+reclaiming 7, 538 and 669 allocations respectively. Existing Table collection
+cases also pass (225 and 2,177 steps).
+
+This executes native storage composition, not signed public payload APIs,
+automatic Stream maintenance, Queue scheduling or complete R0–R6 qualification.
+The source's payload owners still require service composition. Diagnostic
+inventory and 8,275 documentation links pass; final committed-source CI remains
+a separate gate.
+
 ## Rebase over private object I/O separation — 2026-10-26
 
 The branch rebases 31 commits onto `443404722` with all author dates preserved

@@ -17,10 +17,11 @@ const LogContext = struct {
     ordinal: u32,
     next_lsn: u64,
     next_offset: u64,
+    segments: ?s.TreeStore.pages.Reference,
     archive: s.LogHistory.Coverage,
     fn fromRoot(root: s.StreamPartition.Root, archive: s.LogHistory.Coverage) !LogContext {
         try root.validate();
-        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .archive = archive };
+        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .archive = archive };
     }
     fn requireTarget(self: LogContext, target: c.protocol.StreamQueue.Partition) !void {
         try target.validate();
@@ -57,6 +58,7 @@ pub const Work = union(enum) {
     log_root: struct { root: s.StreamPartition.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
     log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle },
+    log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
     log_archive_range: struct { context: LogContext, from: u64, until: u64 },
     table_history: s.TableStorageRoots,
@@ -74,7 +76,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -129,7 +131,10 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
                     if (evidence.outcome != .append) return error.InvalidLogStorageGraph;
                     const receipt = evidence.outcome.append;
                     if (receipt.next > context.next_offset or !std.meta.eql(entry.key, try s.LogPartitionRecord.integerKey(receipt.next))) return error.InvalidLogStorageGraph;
-                    try workspace.enqueue(.{ .log_wal = .{ .context = context, .lsn = receipt.accepted.next_lsn - 1, .receipt = receipt } });
+                    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
+                    if (try tree.get(context.segments, entry.key)) |value| {
+                        try workspace.enqueue(.{ .log_segment = .{ .context = context, .descriptor = try s.LogSegment.Descriptor.decode(value), .evidence = evidence } });
+                    } else try workspace.enqueue(.{ .log_wal = .{ .context = context, .lsn = receipt.accepted.next_lsn - 1, .receipt = receipt } });
                 },
                 .producer_receipts => {
                     if (evidence.outcome != .append or evidence.outcome.append.append.producer == null or !std.meta.eql(entry.key, try s.LogPartitionRecord.producerKey(evidence.outcome.append.append, true))) return error.InvalidLogStorageGraph;
@@ -164,7 +169,7 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_read, .log_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_read, .log_segment, .log_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -436,8 +441,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .log_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.pins, root.archive.directory };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .pins, .pages_only };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.pins, root.archive.directory, root.segments };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .pins, .pages_only, .pages_only };
             if (value.slot > directories.len + 1) return error.InvalidLogStorageGraph;
             if (value.slot == directories.len + 1) return true;
             const context = try LogContext.fromRoot(root, value.archive);
@@ -480,6 +485,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 context.interpretation = basis.cut.target.interpretation;
                 context.next_lsn = basis.cut.accepted.next_lsn;
                 context.next_offset = basis.cut.next;
+                context.segments = basis.segments;
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .batches } });
             }
         },
@@ -489,6 +495,19 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try workspace.enqueue(.{ .log_wal = .{ .context = value.context, .lsn = value.from } });
             value.from += 1;
             return false;
+        },
+        .log_segment => |value| {
+            const evidence = value.evidence;
+            try evidence.validate();
+            try value.context.requireTarget(evidence.target());
+            if (evidence.outcome != .append or evidence.accepted().partition != value.context.partition or evidence.accepted().next_lsn > value.context.next_lsn or evidence.outcome.append.next > value.context.next_offset or evidence.outcome.append.append.payload.bytes > s.LogPartitionRecord.max_batch_bytes) return error.InvalidLogStorageGraph;
+            var declaration = try s.LogDeclaration.load(allocator, index.store, evidence.declared);
+            defer declaration.deinit();
+            const output = try allocator.alloc(u8, @intCast(evidence.outcome.append.append.payload.bytes));
+            defer allocator.free(output);
+            _ = try s.LogSegment.materialize(allocator, index.store, value.descriptor, &declaration, evidence, output);
+            try markContent(workspace, try s.LogSegment.segmentKey(value.descriptor.segment, &key_buffer), value.descriptor.segment);
+            try markContent(workspace, try s.LogSegment.metadataKey(value.descriptor.metadata, &key_buffer), value.descriptor.metadata);
         },
         .log_wal => |value| {
             if (value.lsn >= value.context.next_lsn) return error.InvalidLogStorageGraph;

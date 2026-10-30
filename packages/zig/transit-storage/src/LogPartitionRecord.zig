@@ -20,6 +20,8 @@ pub const Root = struct {
     next_offset: u64,
     retained_from: u64,
     batches: ?pages.Reference,
+    segments: ?pages.Reference,
+    sealed_through: u64,
     receipts: ?pages.Reference,
     producers: ?pages.Reference,
     producer_receipts: ?pages.Reference,
@@ -30,14 +32,14 @@ pub const Root = struct {
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
-        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != 0) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null)) return error.InvalidLogRoot;
+        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != 0) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or (self.sealed_through != 0) != (self.segments != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
         try declared.validate();
@@ -69,6 +71,7 @@ pub const Record = struct {
     action: union(enum) {
         operation: Evidence.Record,
         archive: struct { cut: d.Position, from_lsn: u64 },
+        flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
         checkpoint,
     },
 
@@ -95,6 +98,12 @@ pub const Record = struct {
             .checkpoint => {
                 const reference = self.root.recovery orelse return error.InvalidLogRecovery;
                 if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
+            },
+            .flush => |value| {
+                try value.cut.validate();
+                try value.receipt.validate();
+                try value.segment.validate();
+                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.sealed_through) return error.InvalidLogSegment;
             },
         }
     }
