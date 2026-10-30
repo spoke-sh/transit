@@ -9,6 +9,8 @@ const Initialization = @import("LogInitialization.zig");
 const Evidence = @import("LogEvidence.zig");
 const Log = @import("TransitLog.zig");
 const pages = @import("TreeStore.zig").pages;
+const Compaction = @import("StreamCompaction.zig");
+const Maintenance = @import("StreamMaintenanceState.zig");
 pub const header_bytes = 44;
 pub const max_metadata_bytes = 32 * 1024;
 pub const max_batch_bytes = Log.max_payload_bytes - header_bytes - max_metadata_bytes;
@@ -23,6 +25,9 @@ pub const Root = struct {
     batches: ?pages.Reference,
     segments: ?pages.Reference,
     sealed_through: u64,
+    hidden: @import("BitmapDirectory.zig").Root,
+    compaction: ?Compaction.State,
+    compacted: ?d.Position,
     receipts: ?pages.Reference,
     producers: ?pages.Reference,
     producer_receipts: ?pages.Reference,
@@ -31,23 +36,56 @@ pub const Root = struct {
     pins: ?pages.Reference,
     archive: @import("LogHistory.zig").Coverage,
     recovery: ?@import("LogRecovery.zig").Reference,
+    maintenance: Maintenance,
+    queue: ?@import("QueueIndex.zig").Root,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null, .maintenance = .empty, .queue = if (request.declared.declaration.configuration.policy == .queue) .empty else null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
-        try self.requireDeclaration(self.declared);
+        try self.requireControlDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
+        try self.maintenance.validate(self);
+        if ((self.declared.declaration.configuration.policy == .queue) != (self.queue != null)) return error.InvalidQueueRoot;
+        if (self.queue) |queue| {
+            try queue.validate();
+            if (queue.next_offset != self.next_offset or self.groups != null or self.group_offsets != null or self.pins != null or
+                self.maintenance.compaction_source_lsn != 0 or self.maintenance.rewrite_source_lsn != 0 or self.maintenance.rewrite_target != null) return error.InvalidQueueRoot;
+        }
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
+        try self.hidden.validate();
+        if (self.hidden.cardinality > self.next_offset) return error.InvalidStreamCompaction;
+        if ((self.hidden.cardinality != 0 or self.compaction != null or self.compacted != null) and
+            (self.declared.declaration.configuration.policy != .stream or self.declared.declaration.configuration.policy.stream.compact_key_column == null)) return error.InvalidStreamCompaction;
+        if (self.compacted) |cut_value| {
+            try cut_value.validate();
+            if (cut_value.partition != self.initialization.partition or cut_value.next_lsn >= self.next_lsn) return error.InvalidStreamCompaction;
+        }
+        if (self.compaction) |work| {
+            try work.validate();
+            if (work.source.cut.accepted.partition != self.initialization.partition or work.source.cut.accepted.next_lsn >= self.next_lsn or
+                work.source.cut.retained_from != self.retained_from or work.source.cut.next > self.next_offset or
+                !std.meta.eql(work.source.cut.target.interpretation.object, self.declared.declaration.interpretation.object) or
+                work.source.cut.target.interpretation.revision > self.declared.declaration.interpretation.revision or
+                !std.meta.eql(work.source.declared.declaration.schema, self.initialization.declared.declaration.schema) or
+                !std.meta.eql(work.source.declared.declaration.configuration.policy.stream, self.declared.declaration.configuration.policy.stream) or
+                work.source.cut.target.partition != self.initialization.ordinal or !std.meta.eql(work.source.hidden, self.hidden)) return error.InvalidStreamCompaction;
+        }
         if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from) != (self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
+        try self.requireControlDeclaration(declared);
+        if (declared.retired) return error.LogDeclarationConflict;
+    }
+    /// Closure and settlement preserve the interpretation of accepted reads.
+    /// Their publication still records the current declaration, even after DROP.
+    pub fn requireControlDeclaration(self: Root, declared: Declaration.Stored) !void {
         try declared.validate();
         const seed = self.initialization.declared.declaration;
         const value = declared.declaration;
-        if (declared.retired or !std.meta.eql(value.interpretation.object, seed.interpretation.object) or
+        if ((self.declared.retired and !std.meta.eql(declared, self.declared)) or !std.meta.eql(value.interpretation.object, seed.interpretation.object) or
             value.interpretation.revision < self.declared.declaration.interpretation.revision or
             (value.interpretation.revision == self.declared.declaration.interpretation.revision and !std.meta.eql(declared, self.declared)) or
             !std.meta.eql(value.schema, seed.schema) or !std.meta.eql(value.configuration.partitioning, seed.configuration.partitioning) or
@@ -59,6 +97,12 @@ pub const Root = struct {
     }
     pub fn cut(self: Root, declared: Declaration.Stored) !q.Cut {
         try self.requireDeclaration(declared);
+        return self.retainedCut(declared);
+    }
+    /// Retained data remains readable by physical maintenance after retirement.
+    /// This descriptor grants no new append, claim or consume authority.
+    pub fn retainedCut(self: Root, declared: Declaration.Stored) !q.Cut {
+        try self.requireControlDeclaration(declared);
         return .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = self.initialization.ordinal }, .accepted = self.position(), .retained_from = self.retained_from, .next = self.next_offset };
     }
     pub fn position(self: Root) d.Position {
@@ -74,8 +118,16 @@ pub const Record = struct {
         operation: Evidence.Record,
         archive: struct { cut: d.Position, from_lsn: u64 },
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
-        expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, protected_next: u64 },
+        rewrite: struct { receipt: q.AppendReceipt, segment: ?@import("LogSegment.zig").Descriptor },
+        expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, clock_ms: u64, protected_next: u64 },
+        queue_expire: struct { lease: q.Lease, observed: @import("LogTime.zig").Sample },
+        queue_schedule: struct { kind: @import("QueueTimeRun.zig").Kind, steps: u16 },
+        compaction_start,
+        compaction_step: struct { from: u64, through: u64 },
+        compaction_publish: d.Position,
+        compaction_cancel: d.Position,
         checkpoint,
+        maintenance: Maintenance.Action,
     },
 
     pub fn frameKind(self: Record) Log.FrameKind {
@@ -93,6 +145,8 @@ pub const Record = struct {
                 if (!std.meta.eql(evidence.declared, self.root.declared) or !std.meta.eql(evidence.accepted(), self.root.position()) or
                     evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
                 if (evidence.outcome == .append and (evidence.outcome.append.next != self.root.next_offset or evidence.outcome.append.observed_ms != self.root.clock_ms)) return error.InvalidLogHistory;
+                if (evidence.outcome == .claim and evidence.outcome.claim.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
+                if (evidence.outcome == .settlement and evidence.outcome.settlement.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
             },
             .archive => |value| {
                 try value.cut.validate();
@@ -102,16 +156,50 @@ pub const Record = struct {
                 const reference = self.root.recovery orelse return error.InvalidLogRecovery;
                 if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
             },
+            .maintenance => {},
             .flush => |value| {
                 try value.cut.validate();
                 try value.receipt.validate();
                 try value.segment.validate();
                 if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.sealed_through) return error.InvalidLogSegment;
             },
+            .rewrite => |value| {
+                try value.receipt.validate();
+                if (value.receipt.accepted.partition != self.root.initialization.partition or value.receipt.accepted.next_lsn > lsn or value.receipt.next > self.root.sealed_through) return error.InvalidLogSegment;
+                if (value.segment) |segment| {
+                    try segment.validate();
+                    if (segment.layout != .sparse) return error.InvalidLogSegment;
+                }
+            },
             .expire => |value| {
                 try value.cut.validate();
                 try value.receipt.validate();
-                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.observed_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
+                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.clock_ms or value.observed_ms > value.clock_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
+            },
+            .queue_expire => |value| {
+                try value.lease.validate();
+                try value.observed.validate();
+                if (self.root.queue == null or self.root.clock_ms != value.observed.latest_ms or
+                    value.observed.earliest_ms < value.lease.expires_ms or
+                    value.lease.offset >= self.root.next_offset or value.lease.target.partition != self.root.initialization.ordinal or
+                    !std.meta.eql(value.lease.target.interpretation.object, self.root.declared.declaration.interpretation.object)) return error.InvalidQueueExpiration;
+            },
+            .queue_schedule => |value| {
+                if (self.root.queue == null or value.steps == 0 or value.steps > @import("QueueTimeRun.zig").max_rows or
+                    value.steps > self.root.declared.declaration.limits.timer_steps or self.root.queue.?.timer_next == value.kind) return error.InvalidQueueSchedule;
+            },
+            .compaction_start => {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (work.source.cut.accepted.next_lsn != lsn or work.phase != .index or work.next != work.source.cut.retained_from or work.latest != null) return error.InvalidStreamCompaction;
+            },
+            .compaction_step => |step| {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (step.from < work.source.cut.retained_from or step.through <= step.from or step.through > work.source.cut.next or step.through - step.from > Compaction.max_rows) return error.InvalidStreamCompaction;
+            },
+            .compaction_publish, .compaction_cancel => |cut_value| {
+                try cut_value.validate();
+                if (self.root.compaction != null or cut_value.partition != self.root.initialization.partition or cut_value.next_lsn >= lsn) return error.InvalidStreamCompaction;
+                if (self.action == .compaction_publish and !std.meta.eql(self.root.compacted, @as(?d.Position, cut_value))) return error.InvalidStreamCompaction;
             },
         }
     }

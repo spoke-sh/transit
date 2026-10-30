@@ -104,12 +104,16 @@ pub const Stored = struct {
     schema_fingerprint: []const u8,
     retired: bool,
     pub fn native(self: Stored) !c.storage.TableDeclaration.Stored {
-        const result: c.storage.TableDeclaration.Stored = .{ .interpretation = try self.interpretation.native(), .content = try self.content.native(), .schema_fingerprint = try v.digest(self.schema_fingerprint), .retired = self.retired };
+        // This language-native descriptor belongs exclusively to the Table
+        // API, like the Table-tagged captured-source formats. It has no generic
+        // data-kind discriminator and cannot represent a KV interpretation.
+        const result: c.storage.TableDeclaration.Stored = .{ .kind = .table, .interpretation = try self.interpretation.native(), .content = try self.content.native(), .schema_fingerprint = try v.digest(self.schema_fingerprint), .retired = self.retired };
         try result.validate();
         return result;
     }
     pub fn foreign(allocator: Allocator, value: c.storage.TableDeclaration.Stored) !Stored {
         try value.validate();
+        if (value.kind != .table) return error.InvalidTableResponse;
         return .{ .interpretation = try Interpretation.foreign(allocator, value.interpretation), .content = try Content.foreign(allocator, value.content), .schema_fingerprint = try v.hex(allocator, &value.schema_fingerprint), .retired = value.retired };
     }
 };
@@ -386,9 +390,15 @@ test "direct host references agree with independent saved-intent bytes" {
     try fixture.value.native.requireSame(try fixture.value.host.native());
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
-    const binding: c.DirectTableBinding = .{ .definition = p.Growth.current_definition, .connection = fixture.value.native.connection, .namespace = 1, .name = try .init("events"), .interpretation = .{ .interpretation = fixture.value.native.binding.expected_definition.?, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(9), .retired = false } };
+    const binding: c.DirectTableBinding = .{ .definition = p.Growth.current_definition, .connection = fixture.value.native.connection, .namespace = 1, .name = try .init("events"), .interpretation = .{ .kind = .table, .interpretation = fixture.value.native.binding.expected_definition.?, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(9), .retired = false } };
     const host = try PreparedBinding.foreign(arena.allocator(), binding);
     try t.expectEqualDeep(binding, try host.native());
+    var wrong_kind = binding.interpretation;
+    wrong_kind.kind = .kv;
+    try t.expectError(error.InvalidTableResponse, Stored.foreign(arena.allocator(), wrong_kind));
+    var wrong_binding = binding;
+    wrong_binding.interpretation = wrong_kind;
+    try t.expectError(error.InvalidTableResponse, wrong_binding.validate());
     var substituted = host;
     const wrong: [32]u8 = @splat(1);
     substituted.interpretation.content.sha256 = try v.hex(arena.allocator(), &wrong);

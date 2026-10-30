@@ -6,7 +6,7 @@
 defines neutral partition, append, receipt, read-coverage and consumer-offset
 bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
-availability or durable acceptance. There is no installed `CREATE STREAM`,
+availability or durable acceptance. There is no installed SQL `CREATE STREAM`,
 `PRODUCE`, `CONSUME`, `COMMIT OFFSET` or `STREAM_SLICE` execution API.
 
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
@@ -17,18 +17,27 @@ now publishes Stream/Queue declarations with native authority and verified
 partition initialization. SQL verbs and the Table-only transaction profile
 remain unchanged. Storage
 provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
-bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. These
-foundations do not enable payload operations or SQL verbs. Their stored
+bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. Their stored
 formats use the current shared definition under the coordinated cutover policy.
 
-The storage-only `StreamPartition` additionally accepts schema-bound batches,
+`StreamPartition` accepts schema-bound batches,
 publishes paged producer and original-result indexes atomically with each
 payload, and persists explicit group assignment generations. It also publishes
 finite read pins, authenticates cumulative traversal coverage and atomically
 settles group offsets with original receipts. These storage paths are exercised
 across disk reopen, including lost accepted replies. It seals batches into the
 shared `.tseg` format, retains pinned placements through collection and supports
-bounded timestamp-filtered traversal. Service payload APIs remain uncomposed. See the
+bounded timestamp-filtered traversal. The signed
+[`stream` service action](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+and shared `Catalog.callStream` compose append, finite reads, original-operation
+inspection, assignment, offset settlement and release under current native
+grants. Bounded waits select a finite read only after the requested offset
+frontier is available; timeout accepts no read. Existing accepted reads always
+retain their original cut. The local native maintenance executor composes bounded
+sealing, archive/checkpoint, WAL trim, key compaction and opted-in expiry under
+current authority. Accepted work targets survive restart; expiry separately
+requires trusted time and consumer protection. Sparse physical payload rewriting
+remains unfinished. See the
 [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append
@@ -109,10 +118,24 @@ Neither a WAL LSN nor its partition ID is the logical offset or ordinal.
 `requireAppend` compares every frozen field; retry cannot substitute a new
 producer, payload, interpretation, operation or partition.
 
-The receipt's mandatory nullable `observed_ms` is the trusted owner's UTC
-observation before private staging, rechecked under the publication guard. It is
+`DirectStreamMutation` binds append, assignment, finite-read acquisition,
+release and offset settlement in the catalog's shared operation namespace.
+Its immutable reservation contains the original operation, exact partition,
+mutation kind and a domain-separated digest of every frozen request field.
+Append includes its payload commitment; offset settlement includes the exact
+authenticated cursor. A reserved identity conflicts with Table/catalog work
+under that same principal and operation. Reservation alone is not acceptance
+and does not create a read pin or append payloads. The service must check current
+rights before reserving and retain the original storage outcome independently.
+
+The receipt's mandatory nullable `observed_ms` is the upper bound of the trusted
+owner's UTC interval before private staging, rechecked under the publication guard. It is
 separate from event timestamps and the physical WAL header. A configured clock
-must be available and nonregressing. An opted-in age policy requires a timed
+must be available with valid bounds and a nonregressing upper observation.
+Age eligibility uses the later sample's lower bound, so uncertainty cannot
+shorten retention. The upper clock floor and lower eligibility proof remain
+distinct; ongoing appends cannot force expiry to compare a lower bound against
+the most recent append's upper bound. An opted-in age policy requires a timed
 append and refuses publication if staging has already consumed that policy's
 age window. The accepted observation advances a persisted `LogClock` floor.
 Once a partition has accepted trusted time, a fresh append cannot revert it to
@@ -172,11 +195,19 @@ authorization, and must not sign caller-invented progress. Filters or delivery
 limits cannot manufacture a complete cursor.
 
 `StreamRead.Release` is a separate original operation by the read's principal,
-with its exact handle and current target. Release changes retention ownership,
+with its exact handle and original read target. Release changes retention ownership,
 not group progress, and does not cancel accepted mutations. Its original receipt
 survives pin closure. The storage `StreamPartition` implements these transitions
 with `LogRead` bases and authenticated coverage; these neutral types alone do
 not enable installed read/settlement APIs.
+
+Release and offset settlement preserve their accepted read's interpretation
+through later declaration revisions or DROP. Their publication records the
+current catalog declaration and checks current native rights; the request's
+historical target must match the retained pin. A retired declaration admits
+closure and settlement only. It cannot acquire another read, append new data,
+or be replaced with a live declaration in that partition. Original receipt
+inspection remains available under the operation's current privilege.
 
 ## Consumer settlement
 
@@ -240,6 +271,17 @@ logical expiry, while new reads below the retained boundary report a gap.
 Original outcomes and producer fences outlive payload eligibility. Physical
 collection requires separate closure of every retained dependency. These
 component operations are not yet composed into the public payload service.
+
+Declared key compaction uses the full collation-normalized key to find the
+latest offset at a frozen cut. A resumable two-pass operation builds a private
+key directory and visibility bitmap, processing at most 64 rows per step.
+Publication hides superseded values only below both the sealed frontier and
+protected consumer checkpoints; tombstones remain until explicit age expiry.
+A newly assigned lagging consumer blocks publication. Existing read pins retain
+their original visibility, while new reads authenticate the published bitmap
+and count hidden offsets as verified scanned coverage. Original append outcomes
+remain unchanged. This logical compaction does not rewrite sparse payload
+segments; physical cleanup still requires the retained dependency graph.
 
 Stream append and offset settlement remain reserved, unsupported transaction
 participants. Enabling them requires retained preparation, conflict/policy

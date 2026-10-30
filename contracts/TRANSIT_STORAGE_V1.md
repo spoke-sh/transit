@@ -157,12 +157,42 @@ Table root; it cannot acquire an empty directory by default.
 
 A declaration object contains `TDECL001` at `0..8`, mandatory shared definition
 bytes at `8..40`, then six little-endian `u64` identities (realm, resource,
-catalog, branch, object, definition revision), a `u64` retirement flag (`0` or
-`1`), and `u32` property/schema lengths. Its 104-byte header precedes up to
+catalog, branch, object, definition revision), a `u64` flags word (bit 0:
+retired; bit 1: KV; every other bit must be zero), and `u32` property/schema
+lengths. Its 104-byte header precedes up to
 4 KiB of exact catalog-owned property bytes and up to 64 KiB of encoded Table
 schema. Its key is `table-definitions/<digest>.data`. The complete byte hash is
 the definition digest; the row-schema fingerprint is separate. Staging these
 bytes publishes neither a definition nor a name.
+
+The immutable descriptor and accepted root carry a mandatory `kind` (`table`
+or `kv`). Recovery checks the selected kind before opening the latest record,
+checkpoint or cached predecessor. It cannot change during definition succession.
+The compact physical-interpretation mapping uses the same two flags in its final
+byte; a live mapping cannot be retired. Missing JSON kind fields reject.
+
+`KVDeclaration` and `KVPartition` use this common storage engine with a fixed
+binary key column and a typed value column (`int64`, `boolean`, `utf8` or
+`binary`, with declared nullability). These physical columns do not expose a
+relational Table API. The complete canonical layout is validated on loading;
+KV value types do not evolve through Table ALTER. Native writer PIDs and
+`STATE_V1` values are absent from this storage owner.
+
+KV keys contain 1–1,024 byte-exact bytes, including NUL. Text/binary values
+contain at most 1,047,552 bytes, reserving the largest key within the shared
+1-MiB logical-value budget. Missing/error/conflict cells reject; null requires
+declared nullability. A batch contains 1–1,024 ordered put/remove changes under
+the common encoded-row and candidate-memory budgets. Duplicate keys reject.
+One accepted WAL record publishes the complete batch, original binding, ordered
+change digest and matched/affected counts. A retry with changed changes conflicts.
+Physical flush/archive/checkpoint work preserves the logical conflict frontier;
+resource-wide read guards also protect absent keys. Retained cuts and receipt
+recovery use the same accepted pins, archives and checkpoints as Table storage.
+Decoded values own their output across later reads or mutations. Authorization
+is supplied by the database adapter and held again through publication.
+
+This storage owner does not itself publish catalog names or a caller route.
+The named KV lifecycle and mixed transaction integration remain separate gates.
 
 RENAME preserves row interpretation and indexes. ALTER streams the accepted
 source into bounded segments and private replacement indexes, validating all
@@ -1269,6 +1299,198 @@ reclamation still requires the owning retained-graph checks for payloads,
 receipts, snapshots, replay and pending transactions; terminal state does not
 authorize deletion.
 
+## Queue time-run chunks
+
+`QueueTimeRun` stages and verifies sorted scheduling chunks through the shared
+`.tseg` engine. A chunk contains at most 1,024 entries and 512 KiB. Its four
+non-null internal columns are kind (`uint8`), millisecond time, logical offset
+and lease epoch (three `uint64` values), with 64 rows per physical group. Kind
+one denotes visibility/retry and kind two denotes a lease deadline. Entries are
+strictly ordered by `(time, offset, epoch)` and share the time bucket
+`time >> 20`. An offset cannot equal the maximum `u64`; lease entries additionally
+require a nonzero epoch and deadline. Visibility entries may carry epoch zero.
+
+The canonical 240-byte descriptor contains, in order:
+
+- `QTIMRUN1` (8 bytes), mandatory current definition (32 bytes).
+- Realm, resource, catalog, branch, object and genesis definition revision
+  (six big-endian `u64` values), definition digest (32 bytes), and logical
+  partition ordinal (big-endian `u32`). The genesis revision is one.
+- Kind (`u8`), bucket and nonzero run serial (two big-endian `u64` values), and
+  nonzero row count (big-endian `u32`).
+- First and last `(time, offset, epoch)` triples (six big-endian `u64` values).
+- Segment byte length (big-endian `u64`), SHA-256 (32 bytes), seven zero bytes.
+
+The object key is `queue-time-runs/<sha256>.tseg`. The internal physical schema
+uses the Queue's stable object ID and revision one. The footer segment ID is the
+run serial; physical row identities are `(partition ordinal + 1, run serial,
+row ordinal)`. Loading checks the complete content digest, physical schema,
+identities, timer kind, ordering, bucket and exact descriptor bounds before
+returning the complete copied scalar output. Scratch does not escape. Partial
+output after a failed decode establishes neither valid events nor coverage.
+
+These operations define an immutable storage artifact. They do not publish a
+schedule, establish current time/authority, filter stale epochs or expire a lease.
+The owning Queue must validate the exact genesis and publish reachability with
+its accepted scheduling state. The current Queue scheduling directories have
+not yet adopted time-run chunks or resumable multi-chunk merging.
+
+### Pending timer buffers
+
+`QueueTimeBuffer` orders at most 256 pending events in caller-owned memory and
+stages an immutable `queue-time-buffers/<sha256>.data` object. It shares the
+run's `(time, offset, epoch)` event and kind rules, but may span time buckets.
+Sealing can split its contiguous bucket slices into `QueueTimeRun` chunks.
+A full buffer returns explicit refusal without eviction; it is an operation
+buffer bound, not a bound on retained Queue cardinality.
+
+The header is 128 bytes: `QTBUF001` (8), mandatory current definition (32),
+realm/resource/catalog/branch/object/genesis revision (six big-endian `u64`),
+definition digest (32), partition ordinal (big-endian `u32`), kind (`u8`),
+nonzero row count (big-endian `u16`), and one zero byte. Strictly ordered event
+triples follow as three big-endian `u64` values per row. The exact object size
+is `128 + 24 * rows`, at most 6,272 bytes. Loading verifies length, full digest,
+current definition, exact expected seed/kind and ordering into copied scalar
+output. No decoder allocation or encoded-byte borrow escapes.
+
+The buffer codec does not publish pending work or retire a previous buffer.
+Accepted scheduling state must own the active reference, any sealed chunks,
+merge inputs and output before their physical reclamation becomes eligible.
+
+### Paged timer-run directories
+
+`QueueTimeDirectory` indexes one sorted logical run within one seed/kind/time
+bucket. Its root contains a nullable chunk-directory reference, total row and
+chunk counts, and nullable first/last event bounds. All are absent/zero together
+for an empty run. Nonempty roots require compatible ordered bounds and counts
+consistent with one through 1,024 rows per chunk. Counts use checked `u64`
+arithmetic; directory size is independent of the configured page cache.
+
+Each key is a chunk's last `(time, offset, epoch)` as three big-endian `u64`
+values. Its 248-byte value contains the first row ordinal within the logical
+run (big-endian `u64`) followed by the canonical 240-byte chunk descriptor.
+Appending checks exact seed/kind/bucket, strict non-overlap and cardinality
+overflow before staging private copy-on-write pages. Only chunk boundaries enter
+this directory. The caller must have staged the referenced chunk and must
+separately accept the resulting root.
+
+An exclusive event-key lookup finds the first chunk whose upper key exceeds the
+cursor, including a chunk containing that cursor. Lookup alone proves neither
+earlier coverage nor chunk-body validity. A bounded audit carries one immutable
+root, an exclusive upper-key cursor, and exact visited row/chunk counts. It
+requires contiguous first-row ordinals and non-overlapping bounds, and reports
+completion only after actual directory exhaustion with matching totals. Errors
+leave its cursor unchanged. Chunk bodies require the separate `QueueTimeRun`
+verification. Holding a root or audit cursor does not create a retention pin or
+grant access to Queue data.
+
+### Private resumable timer merges
+
+`QueueTimeMerge` merges two immutable logical runs from the same exact genesis,
+kind and time bucket. Its scalar state retains both source roots, a frozen
+Queue item/sidecar basis and offset frontier, two input positions, the private
+output root, discarded-row count, last examined event and completion flag.
+Each position records consumed rows, completed chunks, an exclusive event cursor
+and verified exhaustion. Counts are checked `u64` values; the combined input
+cardinality must fit without wrapping. Output rows plus discarded rows exactly
+equal consumed input rows.
+
+One step examines at most 1–1,024 input rows and stages at most one output chunk.
+Duplicates and stale events consume that same budget. Equal events across both
+sources produce one output, including when their processing spans steps. Source
+reads verify complete bounded chunks, contiguous row ordinals, cursor identity
+and chunk counts. Completion additionally requires actual directory exhaustion
+with exact totals on both inputs. A budget boundary or an empty output chunk is
+not completion. Failure returns no successor state; private staged artifacts do
+not replace the caller's earlier roots.
+
+The filter receives the frozen basis explicitly. `QueueIndex.TimerFilter` checks
+the corresponding item and `.tack` state before discarding older epochs, settled
+leases, superseded deadlines, or blocked visibility entries. A future epoch,
+missing state or inconsistent bitmap refuses the step rather than discarding
+unexplained work. A matching event grants neither FIFO eligibility nor current
+time, access or settlement rights. Publishing and retaining the frozen basis,
+inputs, progress and output remains the Queue owner's responsibility.
+
+The workspace holds two 1,024-entry input arrays, one 1,024-entry output array
+and one 512-KiB encoding buffer, independently of logical-run size. The caller
+provides reusable scratch, a bounded private page candidate and a nonzero output
+serial. Identical input state, serial, budget and deterministic filter produce
+identical output content and roots; `CandidateObjects` can derive them during
+replay without writing the underlying provider. The Queue owner records merge
+progress in accepted scheduling roots and retains its inputs, frozen basis and
+partial output through the storage graph.
+
+### Private scheduling source composition
+
+`QueueSchedule` composes an active buffer, paged pending chunks, paged merged
+runs and optional resumable merge work. Its scalar root records the active
+content/count, pending directory/count, level directory/count, merge state,
+next nonzero serial, finite-sweep state and an eight-unit pending/sweep counter.
+These fields are mandatory when serialized. The accepted Queue root has one
+schedule for visibility and one for lease deadlines, plus mandatory `timer_next`
+(`visible` or `lease`) for fair physical maintenance selection.
+
+Appending to a full 256-entry delta seals one chunk for each contiguous time
+bucket. Pending keys are the first `(time, offset, epoch)` triple followed by
+the serial, all big-endian `u64`; values are the 240-byte run descriptors.
+Pending cardinality has no resident fan-in array or fixed total bound. Staging
+still obeys the caller's private page budget and provider quotas. Intermediate
+buffer candidates are not published by this helper. `QueueSchedule.Buffers`
+selects only the final visibility/deadline buffer names for
+`CandidateObjects.persistSelected`; every other object namespace remains
+selected. Previously accepted underlying buffers are never deleted. The caller
+must establish that no accepted reference in its action retains an intermediate
+buffer. Runs and merge states contain scalar events or chunk directories, never
+intermediate buffer references. The Queue WAL owner uses this selection for
+enqueue, claim, settlement, expiry and scheduling maintenance publication.
+
+Merged-run keys contain a big-endian `u64` bucket and `u8` level from zero
+through 63; their values are exact logical-run roots. A collision merges two
+runs into the next level, with checked serial and level exhaustion. Pending
+chunks are filtered even when their initial level is empty. Readers continue to
+use both complete input runs while a merge is in progress; private output never
+hides their unprocessed suffix. New appends can extend the active/pending roots
+without changing those frozen inputs.
+
+Maintenance performs one pending promotion, bounded merge step or finite-sweep
+transition at a time. The sweep hashes the item/sidecar basis solely for change
+detection, advances a bucket/level cursor, and freezes the current basis for
+each individual merge. Its initial buffer cleanup examines at most 256 entries.
+Up to eight pending promotions alternate with a sweep transition when both have
+work; an active merge finishes through bounded steps first. A completed sweep
+with an unchanged basis and no pending work is idle. Changed data starts another
+pass, including entries inserted before a previous pass's cursor.
+
+Reads inspect active events, merge inputs, pending chunks and merged runs to
+prove the earliest matching event after an exclusive cursor. Directory steps,
+chunk decodes and candidate checks consume an explicit work budget. Immutable
+event bounds prune later sources and skip earlier time buckets. An unfinished
+search returns `QueueTimerReadBudget`, never an empty result or a partially
+qualified earliest event. Every decoded chunk is bounded; whole scheduling
+cardinality does not determine resident allocation. Matching uses the supplied
+current-state filter and provides no authority or settlement decision.
+
+`QueuePartition.scheduleMaintenanceUnit` accepts a `queue_schedule` action with
+the selected kind and requested input-step budget. The budget must be positive,
+at most 1,024 and no greater than the current declaration's `timer_steps`.
+Publication verifies immutable declaration bytes and current authority, including
+for compatible retired declarations. It leaves logical item/bitmap state,
+counts, clock floor, payload offsets and original outcomes unchanged, switches
+`timer_next` to the other kind, and advances the WAL frontier. If the preferred
+kind is idle it may service the other; two idle schedules publish nothing.
+Replay deterministically derives the complete successor using private candidate
+objects and refuses a differing root. An uncertain append requires recovery.
+
+This maintenance uses reserved control capacity and requires no time observation:
+discarding a stale physical event cannot itself expire a lease. Native maintenance
+services it even when optional Stream compaction is disabled. Storage traversal
+verifies and retains active buffers, pending chunks, level directories, both
+merge inputs, partial output and frozen item/sidecar roots. An unfinished audit
+or missing artifact cannot authorize collection. The logical item root binds
+the resident wheel and heap caches; physical schedule rewrites do not grant
+eligibility or invalidate an otherwise unchanged logical basis.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.
@@ -1360,9 +1582,10 @@ Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
 frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/group-offset/pin
-directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
+directories, exclusive sealed offset, accepted archive coverage, nullable recovery reference and
+mandatory maintenance progress. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
-offset, expiry, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
+offset, expiry, flush, archival, checkpoint and maintenance records use `manifest_checkpoint` and contain no row
 payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
@@ -1385,9 +1608,10 @@ outcomes before fresh producer/declaration checks, while still requiring current
 permission. Conflict and uncertainty never allocate a replacement identity.
 
 The trusted adapter optionally supplies `LogTime.Source`. Fresh append samples
-it after validation and records that nullable observation in its receipt. A
-configured source must return an authoritative nonregressing UTC millisecond
-value. A positive retention age requires it; a partition with an accepted time
+it after validation and records the nullable upper UTC bound in its receipt. A
+configured source returns a closed authoritative interval with earliest and
+latest milliseconds; the latest bound must not regress below the persisted
+floor. A positive retention age requires it; a partition with an accepted time
 floor cannot later accept untimed work. Under the final publication guard the
 owner samples again, refuses regression/unavailability, and refuses an opted-in
 age window already elapsed since the first observation. Private staged objects
@@ -1398,7 +1622,7 @@ field can supply this capability.
 
 `Options.control`, when supplied, is a trusted adapter capability for the same
 physical namespace and authorization owner using reserved deployment capacity.
-Offset commits, read release, existing-group reassignment, expiry, archive and checkpoint
+Offset commits, read release, existing-group reassignment, expiry, archive, checkpoint and archive-target bookkeeping
 stage and publish through it. Fresh append, initial group assignment and read-pin
 admission use ordinary capacity. Every operation retains its current-policy
 checks and normal uncertainty semantics. Restoring ordinary I/O after each
@@ -1408,11 +1632,22 @@ to expire payloads, discard progress or forge an outcome.
 
 `expireHistory(declared, cut, guard)` requires an explicit positive retention age
 and advances the logical retained boundary by at most one complete sealed batch
-within the fixed physical cut. Its trusted observation must be at least the
-accepted append observation plus the declared age. Untimed accepted history
+within the fixed physical cut. Its trusted lower bound must be at least the
+accepted append upper bound plus the declared age. Untimed accepted history
 cannot acquire an invented timestamp after a policy change. The owner reports
 `consumer`, `unsealed`, `untimed` or `not_due` without advancing the boundary;
 `progress` and `complete` describe the selected cut, not later appends.
+
+`QueuePartition.expireTerminalHistory` adds the Queue's terminal-state gate to
+this prefix operation. Its exact `.tack` batch binding and state cardinalities
+must establish that every offset is ACKed or archived; otherwise `nonterminal`
+leaves the root unchanged. Queue expiry is control work after retirement as well
+as before it, and replay reconstructs the complete removed-key directories in
+private candidate memory. Its original claim selections store mandatory retained
+lower boundaries and keep their frozen placement roots until explicit payload-
+read release. Current observations can advance beyond those original offsets.
+The [Queue contract](QUEUE_V1.md#terminal-payload-retention) defines that lifetime
+separately from lease expiry and physical collection.
 
 Group assignments and offset commits atomically update both the group-ID index
 and a second index keyed by big-endian `(next_offset, group_id)`. The latter
@@ -1421,13 +1656,18 @@ independently of group count. Expiry cannot cross that checkpoint. No group
 means the current append frontier protects no additional unread prefix.
 
 An accepted expiry record binds its previous root, declaration, exact original
-append receipt, fixed cut, trusted time and protected checkpoint. It removes that
+append receipt, fixed cut, lower eligibility time (`observed_ms`), upper clock
+floor (`clock_ms`) and protected checkpoint. Both time fields are mandatory.
+The upper bound advances the root's floor even when its lower bound precedes a
+recent append's upper observation. It removes that
 batch and segment from the current placement roots while preserving original
 receipts, producer fencing and the next logical offset. Replay verifies these
 facts without current time. Publication rechecks current authority and time under
-the guard; uncertainty requires recovery. Existing read pins retain their old
+the guard; a lower-bound regression before publication refuses the candidate,
+and an uncertain append result requires recovery. Existing read pins retain their old
 placements and remain readable under current authorization. Fresh reads below
-the new boundary report `LogHistoryUnavailable`. Physical collection can remove
+the new boundary report `LogRangeExpired`; missing required storage still reports
+`LogHistoryUnavailable`. Physical collection can remove
 bytes only after their pins and recovery dependencies also close.
 
 An unknown or malformed append result marks the resident owner unready. Recovery
@@ -1456,23 +1696,40 @@ obligation. Publication advances only the physical WAL frontier; logical offsets
 producer state and original receipts do not change. Unknown publication follows
 normal partition recovery before retry.
 
-`LogSegment.Descriptor` binds the original evidence, `.tseg` content and delivery
-metadata content. The paged segment directory is keyed by the original exclusive
-batch end. Its value stores those three contents in order, each as big-endian
-`u64` byte length followed by SHA-256, totaling 120 bytes. Segment IDs are the
+`LogSegment.Descriptor` binds the original evidence, optional `.tseg` content,
+delivery metadata and materialized view content. The paged segment directory is
+keyed by the original exclusive batch end. Its 165-byte value stores a layout
+byte (`1` complete, `2` sparse), big-endian `u32` physical row count, then those
+four contents in order, each as big-endian `u64` byte length followed by SHA-256.
+Only an empty sparse view has no segment, encoded as 40 zero bytes. Segment IDs are the
 original append's exclusive physical frontier. User columns preserve the declared
 schema, codecs and collations. Row identities preserve principal/operation/ordinal
 order within that append; no Table primary-key uniqueness semantics are added.
 
 `log-segments/{sha256}.tseg` uses the shared segment format.
 `log-segment-metadata/{sha256}.data` contains `LBMETA01`, the shared definition,
-original evidence SHA-256, big-endian `u32` row count, then one big-endian `u64`
-visibility time and one tombstone byte per original row. Only zero and one are
+original evidence SHA-256, big-endian `u32` physical row count, then a big-endian
+`u32` original ordinal, `u64` visibility time and one tombstone byte per physical
+row. Original ordinals are strictly increasing and remain the row identities;
+physical row positions may differ. Only zero and one are
 valid tombstone bytes; Stream/Queue metadata rules remain unchanged. The metadata
 bound is 76 bytes plus the maximum WAL payload size. Neither object establishes
 acceptance. The owner reads back both, validates identities and reconstructs the
-original `LOGBAT01` digest before publishing their locator. A missing object,
+original `LOGBAT01` digest for a complete placement. A missing object,
 foreign receipt, changed payload or unsupported lossless reconstruction refuses.
+
+Sparse placement uses internal `LOGVIEW1` bytes: the eight-byte magic, shared
+definition, schema layout fingerprint, Stream kind byte (`1`), and big-endian
+`u32` retained row count form a 77-byte header. Each retained row contains its
+big-endian `u32` original ordinal, `u32` encoded length, `u64` visibility time,
+tombstone byte and unchanged encoded Table row. Zero retained rows are valid.
+This format is not accepted as an append. A sparse view retains at most half
+the original rows and cannot exceed the original payload byte budget. Its own
+digest supplies the cache binding, while the original receipt remains unchanged.
+Every omitted offset must be hidden in the exact retained visibility root;
+read pins and collection walks cannot substitute current visibility for that
+basis. Sparse timestamp reads use exact row predicates without dense ordinal
+zone-map shortcuts. These storage codecs do not themselves publish rewrites.
 
 Build and cold reconstruction share an explicit simultaneous allocation budget
 (64 MiB by default, configurable up to 1 GiB). Segment row groups default to 1,024
@@ -1480,9 +1737,92 @@ rows and cannot exceed 1,024 for this owner. A refusal leaves the original WAL
 placement usable and any private objects collectible. Each finite read base
 retains both its batch and segment directories. The bounded read iterator keeps
 the original cut and returns owned rows across WAL and segment boundaries; cache
-admission verifies the complete original batch. Physical copies may be reclaimed
+admission verifies the placement's bound complete batch or sparse view. Physical copies may be reclaimed
 only after the retained graph no longer needs their placement, independently of
 logical payload retention.
+
+### Retained Stream settlement and closure
+
+Stream read closure and offset settlement may publish a current retired
+declaration while keeping the request bound to its original retained read.
+`LogEvidence` permits an older interpretation only for those two controls;
+acceptance and replay compare it with the exact retained pin. Other outcomes
+require a live, exact declaration. A partition that records retirement cannot
+revert to a live declaration. Read pins and original receipts remain independent
+of that retirement, and later release still closes the original pin.
+
+### Stream key compaction
+
+`compactStep(declared, cut, maximum, guard)` selects the exact current physical
+cut when starting and resumes that same cut until publication or cancellation.
+The declared compaction column supplies canonical full keys under its collation;
+hash or prefix equality never establishes supersession. Each step handles at
+most 1–64 rows from one original batch, under the index and allocation budgets.
+
+The first pass builds a paged `OrderedKeyIndex` mapping each full key to its
+latest logical offset within the frozen source. Values contain a big-endian
+`u64` offset and 24 zero padding bytes. The second pass stages a paged Roaring
+visibility mask for superseded non-tombstone rows in the sealed prefix below
+the captured consumer watermark. Tombstones remain explicit records until
+age-based history expiry. Appends after the source cut cannot change that pass's
+supersession decisions.
+
+The accepted root has mandatory `hidden`, nullable `compaction` work and nullable
+`compacted` cut fields. Work records retain the exact declaration, cut, batch and
+segment placements, original mask, protected checkpoint, phase, continuation,
+private full-key index and candidate mask. Indexing and marking publish bounded
+progress without changing visible rows. A final WAL transition publishes the
+candidate mask and closes work. It rechecks current consumer protection; a newly
+assigned lagging group blocks publication until progress or explicit cancellation.
+Lost replies resume from accepted work rather than selecting a different cut.
+
+`compactionMaintenanceUnit` resumes that accepted cut with the same row budget.
+When idle it selects a new cut only after an append, assignment, offset settlement,
+flush or expiry advances the mandatory `compaction_source_lsn`. Publication sets
+`compacted_through_lsn` to the exact completed cut; compaction's own output and
+archive/checkpoint bookkeeping do not schedule another pass. Retiring a
+declaration cancels unpublished work without changing previously visible rows.
+
+Every finite read basis captures its own mandatory `hidden` root. Previously
+accepted reads preserve their visibility; new reads advance scanned coverage
+over verified masked offsets without emitting those rows. Empty intermediate
+pages remain incomplete until their original upper bound is reached. Original
+append receipts, offsets and producer state remain unchanged.
+
+`cancelCompaction` closes only unpublished work and can use the control reserve.
+Expiry refuses while a pass owns its frozen source. Recovery and native collection
+retain active work, full-key child directories, bitmap containers and pinned
+visibility roots. Component batch borrows expose placement bytes
+and a typed iterator preserving original identities; consumers use the
+visibility-aware finite reader.
+
+`rewriteMaintenanceUnit` follows published logical compaction with a finite
+physical pass. Mandatory `rewrite_source_lsn`, `rewritten_source_lsn` and nullable
+`rewrite_target {source_lsn, through_offset, after_offset}` fields retain its
+source and cursor. Only logical compaction publication selects new rewrite work.
+Starting a pass captures the current sealed frontier; later appends cannot extend
+it. Each call accepts at most one transition: start, skip an expired prefix,
+inspect/rewrite one accepted batch, complete, or cancel unpublished work after
+retirement. These publications require archive coverage but cannot trigger
+another logical compaction or rewrite pass themselves.
+
+A batch is rewritten only when at most half its original rows remain visible
+and at least one physically present row can be removed. Surviving encoded rows
+must equal the accepted old placement exactly. The owner reads back the staged
+view, verifies every omission against current accepted visibility, then publishes
+its descriptor and cursor in one WAL record. Recovery repeats that comparison;
+an accepted checkpoint permits later recovery without the superseded placement.
+Empty placements retain original range and receipt evidence with no `.tseg`.
+Sparse work uses the same finite segment allocation budget as flush. Logical
+compaction counts omitted offsets against its step budget and can cross an empty
+placement without inventing a row or stalling progress.
+
+`compactionMaintenanceUnit` resumes pending physical rewrite work before selecting
+another logical pass. Read pins and in-flight compaction sources keep their exact
+earlier placement roots and masks. Collection validates omissions against each
+root's own mask; closure and a later recovery baseline must release the earlier
+placement before its segment and sidecar can be reclaimed. Original append and
+producer receipts remain unchanged after that reclamation.
 
 ### Retained Stream reads and offset settlement
 
@@ -1555,6 +1895,17 @@ publishes the extended coverage in one control record. Its fixed requested cut
 is distinct from that record's newer frontier. Retrying after a lost reply
 observes accepted progress and never extends the requested obligation.
 
+`archiveMaintenanceUnit` accepts or advances one durable fixed target with at
+most one WAL publication per call. Mandatory maintenance fields record the
+latest non-archive source LSN, completed source LSN and nullable archive target.
+The target records its fixed exclusive frontier, source LSN and the first
+archive publication covering it. Completion requires a recovery checkpoint at
+or after that publication. Foreground changes during a pass can select a later
+pass, while archive/checkpoint bookkeeping alone cannot schedule itself forever.
+Publication and replay derive these fields from the exact accepted action;
+locally well-formed but invented completion progress rejects. These scheduling
+fields grant neither expiry nor physical collection authority.
+
 `LogRecovery` stages `log-checkpoints/{sha256}.data`: `LCHECK01`, the shared
 definition and canonical JSON for the complete prior root and its accepted
 payload commitment. The bound is 40 bytes plus 32 KiB. A reference records that
@@ -1579,7 +1930,23 @@ cut, payload and receipt. Initialization after trim verifies the checkpoint's
 publication and original request before returning its original frontier one.
 Physical trimming grants no logical expiry or object-deletion authority. Native
 `DataStore.trimUnit` verifies these bounds against the latest accepted record.
-Installed Stream payload maintenance still needs service composition.
+The local node composes these units under its current native maintenance guard
+and directory/object locks. It traverses complete declarations one partition at
+a time through a catalog pass with a fixed highest object ID. Up to five bounded
+recovery workspaces and 64 disposable prefix hints share the configured
+maintenance allocation budget with Table work. Each workspace replays at most
+16 frames per turn and retains no request proof or clock capability between
+turns. Physical settings enable sealing, archival
+and compaction; declaration opt-in and trusted time separately gate expiry.
+
+`StreamPartition.RecoveryState` is same-process evidence from a fully
+validated immutable prefix. `recoverStepSince` first selects any newer accepted
+checkpoint, then verifies a reused hint's exact root and payload commitment at
+its WAL boundary before replaying successors. It rechecks current authority and
+required index roots before readiness. Hints are neither persisted baselines nor
+caller-supplied recovery input, and physical-owner replacement discards them.
+A mismatched boundary or shortened history rejects. A collided hint is discarded
+before invocation, requiring ordinary bounded recovery.
 
 `LogStorageRoots` enumerates the current root, selected immutable baseline and
 hash-linked successors. Its final root and commitment must exactly equal the

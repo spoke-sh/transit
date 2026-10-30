@@ -78,8 +78,23 @@ timestamps do not. A paged consumer watermark index prevents expiry beyond the
 slowest checkpoint. Existing finite read pins preserve their original data;
 new reads below the retained boundary report a gap. Original receipts and
 producer fences remain retained. Physical collection separately requires pins
-and recovery dependencies to close. Stream payload APIs and automatic expiry
-scheduling are not yet exposed by the installed service.
+and recovery dependencies to close. The signed Stream API exposes original
+reads and releases; local native maintenance schedules opted-in age expiry.
+
+Queues add a terminal-state requirement to that age policy. Native maintenance
+expires at most one whole sealed batch from the retained prefix when every item
+is ACKed or durably archived. Nonterminal work, including delayed and exhausted
+items, blocks its batch; later batches wait behind that prefix. This check uses
+accepted `.tack` cardinalities and does not scan every item. Lease expiry and
+payload expiry are separate bounded tasks. DROP preserves the frozen policy;
+quota pressure grants no expiry right.
+
+An open original claim keeps its frozen payload placement even after the Queue's
+current retained boundary advances. Explicit `QueueRead.Release` closes only that
+claim's payload reads and preserves its original receipt and lease identities.
+It does not settle a lease. Older replay checkpoints and other open claims retain
+their own dependencies. Physical collection can remove the expired payload only
+when those dependencies have also closed. See the [Queue lifecycle](streams.md).
 
 Logical deletion precedes physical reclamation. Cleanup is fenced, resumable and
 dependency-aware; a delayed delete cannot target a replacement identity. An

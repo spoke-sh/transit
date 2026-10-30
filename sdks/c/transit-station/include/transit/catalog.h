@@ -11,7 +11,7 @@ extern "C" {
 typedef struct transit_station_catalog_scope { transit_sdk_resource resource; uint64_t catalog; } transit_station_catalog_scope;
 typedef struct transit_station_catalog_connection { transit_station_catalog_scope scope; uint64_t audience, branch; bool has_role; uint64_t role; } transit_station_catalog_connection;
 typedef struct transit_station_catalog_identity { uint64_t operation, namespace_id; } transit_station_catalog_identity;
-typedef struct transit_station_catalog_authority { uint64_t database_domain, schema_domain, table_domain, database, initial_schema_authority, initial_schema; } transit_station_catalog_authority;
+typedef struct transit_station_catalog_authority { uint64_t database_domain, schema_domain, table_domain, stream_domain, queue_domain, kv_domain, database, initial_schema_authority, initial_schema; } transit_station_catalog_authority;
 typedef struct transit_station_catalog_subject { uint64_t principal, login_role, role, credential_epoch, audience; uint8_t context[32]; } transit_station_catalog_subject;
 typedef struct transit_station_catalog_limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_records; } transit_station_catalog_limits;
 typedef struct transit_station_catalog_position { uint64_t partition, next_lsn; } transit_station_catalog_position;

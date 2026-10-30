@@ -373,11 +373,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_observability", .module = observations.module("transit_observability") } },
+        .imports = &.{ .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") }, .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_observability", .module = observations.module("transit_observability") } },
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     components_step.dependOn(&local_catalog_tests.step);
-    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
         .target = target,
         .optimize = optimize,
@@ -1353,6 +1353,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "fixture_direct_captured_query", .module = test_modules.get(.direct_captured_query) }, .{ .name = "fixture_direct_dependencies", .module = test_modules.get(.direct_dependencies) }, .{ .name = "fixture_direct_exchange_workers", .module = test_modules.get(.direct_exchange_workers) }, .{ .name = "fixture_direct_follow_query", .module = test_modules.get(.direct_follow_query) }, .{ .name = "fixture_direct_maintained_query", .module = test_modules.get(.direct_maintained_query) }, .{ .name = "fixture_direct_named_resources", .module = test_modules.get(.direct_named_resources) }, .{ .name = "fixture_direct_relational_capacity", .module = test_modules.get(.direct_relational_capacity) }, .{ .name = "fixture_direct_relational_exchanges", .module = test_modules.get(.direct_relational_exchanges) }, .{ .name = "fixture_direct_relational_failures", .module = test_modules.get(.direct_relational_failures) }, .{ .name = "fixture_direct_sql_conditions", .module = test_modules.get(.direct_sql_conditions) }, .{ .name = "fixture_direct_sql_read_recovery", .module = test_modules.get(.direct_sql_read_recovery) }, .{ .name = "fixture_direct_table_authorization", .module = test_modules.get(.direct_table_authorization) }, .{ .name = "fixture_direct_table_collations", .module = test_modules.get(.direct_table_collations) }, .{ .name = "fixture_direct_table_count_ranges", .module = test_modules.get(.direct_table_count_ranges) }, .{ .name = "fixture_direct_table_delegation", .module = test_modules.get(.direct_table_delegation) }, .{ .name = "fixture_direct_table_growth", .module = test_modules.get(.direct_table_growth) }, .{ .name = "fixture_direct_table_history", .module = test_modules.get(.direct_table_history) }, .{ .name = "fixture_direct_table_lifecycle", .module = test_modules.get(.direct_table_lifecycle) }, .{ .name = "fixture_direct_table_maintenance", .module = test_modules.get(.direct_table_maintenance) }, .{ .name = "fixture_direct_table_predicates", .module = test_modules.get(.direct_table_predicates) }, .{ .name = "fixture_direct_table_prepared", .module = test_modules.get(.direct_table_prepared) }, .{ .name = "fixture_direct_table_projection", .module = test_modules.get(.direct_table_projection) }, .{ .name = "fixture_direct_unified_boundaries", .module = test_modules.get(.direct_unified_boundaries) } },
     }) });
+    direct_table_client.root_module.addImport("fixture_direct_queue", test_modules.get(.direct_queue));
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
     direct_table_service.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
@@ -1370,7 +1371,17 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_maintenance.addArg("maintenance");
     direct_table_maintenance.has_side_effects = true;
     direct_table_maintenance.stdio = .inherit;
-    b.step("test-direct-table-maintenance", "Prove automatic Table maintenance, restart and retained pins on physical disk").dependOn(&direct_table_maintenance.step);
+    const direct_stream_maintenance = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_stream_maintenance.addFileArg(b.path("tests/runner/launch.py"));
+    direct_stream_maintenance.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+    direct_stream_maintenance.addArtifactArg(node_artifact);
+    direct_stream_maintenance.addArtifactArg(direct_table_client);
+    direct_stream_maintenance.addArg("stream-maintenance");
+    direct_stream_maintenance.has_side_effects = true;
+    direct_stream_maintenance.stdio = .inherit;
+    // Keep the disk schedules sequential while sharing their built artifacts.
+    direct_stream_maintenance.step.dependOn(&direct_table_maintenance.step);
+    b.step("test-direct-table-maintenance", "Prove automatic Table and Stream maintenance, restart and retained pins on physical disk").dependOn(&direct_stream_maintenance.step);
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
     direct_callers.addFileArg(b.path("tests/runner/launch.py"));
     direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
@@ -1996,6 +2007,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
     build_test_step.dependOn(&growing_capacity.step);
     test_modules.wire(&.{
+        .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") },
         .{ .name = "cli_support", .module = cli_support },
         .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },

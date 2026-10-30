@@ -43,7 +43,16 @@ pub const TableAuthority = @import("TableAuthority.zig");
 pub const DirectLog = @import("DirectLog.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
+pub const DirectStreamMutation = @import("DirectStreamMutation.zig");
+pub const DirectStream = @import("DirectStream.zig");
+pub const DirectStreamResponse = @import("DirectStreamResponse.zig");
+pub const DirectStreamClient = @import("DirectStreamClient.zig");
+pub const DirectQueueMutation = @import("DirectQueueMutation.zig");
+pub const DirectQueue = @import("DirectQueue.zig");
+pub const DirectQueueResponse = @import("DirectQueueResponse.zig");
+pub const DirectQueueClient = @import("DirectQueueClient.zig");
 pub const LogAuthority = @import("LogAuthority.zig");
+pub const KVAuthority = @import("KVAuthority.zig");
 pub const DocumentAuthority = @import("DocumentAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
 pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
@@ -98,8 +107,13 @@ test {
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;
+    _ = KVAuthority;
     _ = DocumentAuthority;
     _ = DirectLog;
+    _ = DirectStreamMutation;
+    _ = DirectStream;
+    _ = DirectQueueMutation;
+    _ = DirectQueue;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

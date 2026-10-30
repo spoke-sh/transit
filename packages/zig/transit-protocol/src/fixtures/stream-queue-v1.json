@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+    "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
   "append": {
     "append": {
       "target": {
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
         "interpretation": {
           "object": {
             "scope": {
@@ -244,7 +244,7 @@
   },
   "producer": {
     "target": {
-      "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+      "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
       "interpretation": {
         "object": {
           "scope": {
@@ -321,7 +321,7 @@
   "claim": {
     "claim": {
       "target": {
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
         "interpretation": {
           "object": {
             "scope": {
@@ -448,7 +448,7 @@
     "coverage": {
       "cut": {
         "target": {
-          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
           "interpretation": {
             "object": {
               "scope": {
@@ -526,7 +526,7 @@
       },
       "lease": {
         "target": {
-          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
           "interpretation": {
             "object": {
               "scope": {
@@ -600,7 +600,7 @@
   },
   "group_progress": {
     "target": {
-      "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+      "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
       "interpretation": {
         "object": {
           "scope": {
@@ -669,7 +669,7 @@
       },
       "cut": {
         "target": {
-          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
           "interpretation": {
             "object": {
               "scope": {
@@ -727,7 +727,7 @@
       },
       "expected": {
         "target": {
-          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
           "interpretation": {
             "object": {
               "scope": {
@@ -814,7 +814,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+            "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
             "interpretation": {
               "object": {
                 "scope": {
@@ -887,7 +887,7 @@
   "read": {
     "request": {
       "target": {
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
         "interpretation": {
           "object": {
             "scope": {
@@ -956,7 +956,7 @@
     },
     "cut": {
       "target": {
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
         "interpretation": {
           "object": {
             "scope": {
@@ -1107,7 +1107,7 @@
     "coverage": {
       "cut": {
         "target": {
-          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
           "interpretation": {
             "object": {
               "scope": {
@@ -1170,44 +1170,44 @@
       "complete": true
     },
     "authentication": [
-      216,
-      225,
-      88,
-      105,
-      128,
-      16,
-      128,
-      24,
+      155,
+      37,
+      140,
+      188,
+      151,
       191,
-      139,
-      85,
-      24,
-      64,
-      1,
-      98,
-      212,
-      88,
-      170,
-      124,
-      33,
-      222,
-      120,
-      23,
+      229,
+      251,
       113,
-      245,
-      211,
-      110,
-      180,
-      105,
-      26,
-      93,
-      248
+      185,
+      208,
+      206,
+      133,
+      48,
+      58,
+      176,
+      239,
+      187,
+      172,
+      54,
+      85,
+      3,
+      28,
+      192,
+      198,
+      177,
+      173,
+      230,
+      13,
+      178,
+      49,
+      136
     ]
   },
   "read_release": {
     "release": {
       "target": {
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
         "interpretation": {
           "object": {
             "scope": {
@@ -1318,5 +1318,382 @@
       "partition": 91,
       "next_lsn": 14
     }
+  },
+  "queue_cursor": {
+    "receipt": {
+      "claim": {
+        "target": {
+          "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551613
+        },
+        "maximum": 16,
+        "lease_ms": 500
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 12
+      },
+      "observed_ms": 500,
+      "expires_ms": 1000,
+      "rows": 2,
+      "leases": {
+        "bytes": 512,
+        "sha256": [
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41
+        ]
+      }
+    },
+    "next": 0
+  },
+  "queue_read_release": {
+    "release": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551602
+      },
+      "claim": {
+        "claim": {
+          "target": {
+            "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": 18446744073709551615
+                },
+                "branch": 1,
+                "object": 43
+              },
+              "revision": 2,
+              "digest": [
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29
+              ]
+            },
+            "partition": 0
+          },
+          "operation": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "principal": 17,
+            "operation": 18446744073709551613
+          },
+          "maximum": 16,
+          "lease_ms": 500
+        },
+        "accepted": {
+          "partition": 91,
+          "next_lsn": 12
+        },
+        "observed_ms": 500,
+        "expires_ms": 1000,
+        "rows": 2,
+        "leases": {
+          "bytes": 512,
+          "sha256": [
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41,
+            41
+          ]
+        }
+      }
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 14
+    }
+  },
+  "queue_observation_basis": {
+    "cut": {
+      "target": {
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 13
+      },
+      "retained_from": 0,
+      "next": 18446744073709551615
+    },
+    "time": {
+      "earliest_ms": 600,
+      "latest_ms": 700
+    }
+  },
+  "queue_lease_observation": {
+    "original": {
+      "target": {
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "claim": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551613
+      },
+      "offset": 18446744073709551612,
+      "epoch": 9,
+      "attempt": 2,
+      "expires_ms": 1000
+    },
+    "state": "acquired",
+    "epoch": 9,
+    "attempt": 2,
+    "expires_ms": 1000,
+    "blocked": {
+      "none": {}
+    },
+    "liveness": "live"
   }
 }

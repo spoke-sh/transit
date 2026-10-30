@@ -223,6 +223,95 @@ test "direct Table request proof binds the complete typed action and current def
     try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
 }
 
+test "direct Queue signs frozen claims and requires saved definition" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8, release_request: w.Request, release_intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-queue-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const work = request.action.queue.mutate.work;
+    try t.expectEqual(std.math.maxInt(u64), work.identity().operation);
+    try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
+    try t.expect(request.transport().mutation and request.transport().control == null);
+    const release_request = parsed.value.release_request;
+    try release_request.validate(t.allocator);
+    try release_request.proof.verify(parsed.value.public_key);
+    try t.expectEqualDeep(parsed.value.release_intent_digest, (try release_request.action.queue.mutate.work.binding(t.allocator)).intent);
+    try t.expect(release_request.transport().mutation and release_request.transport().control != null);
+    var changed_release = release_request;
+    changed_release.action.queue.mutate.work.release.claim.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed_release.validate(t.allocator));
+    const bytes = try c.DirectQueueClient.save(t.allocator, request.connection, .{ .work = work });
+    defer t.allocator.free(bytes);
+    const saved = try c.DirectQueueClient.load(t.allocator, bytes);
+    defer saved.deinit();
+    try t.expectEqualDeep(request.action.queue.mutate, saved.value.work);
+    var changed = request;
+    changed.action.queue.mutate.work.claim.maximum = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    const foreign = try t.allocator.dupe(u8, bytes);
+    defer t.allocator.free(foreign);
+    const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+    @memset(foreign[at..][0..64], '0');
+    try t.expectError(error.InvalidJsonShape, c.DirectQueueClient.load(t.allocator, foreign));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .connection = saved.value.connection, .work = saved.value.work });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectQueueClient.load(t.allocator, missing));
+    changed = request;
+    changed.action = .{ .queue = .{ .operation = work } };
+    try t.expect(!changed.transport().mutation and changed.transport().control != null);
+}
+
+test "direct Stream preserves independent signed work and required saved definition" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-stream-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const work = request.action.stream.mutate.work;
+    try t.expectEqual(std.math.maxInt(u64), work.identity().operation);
+    try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
+    const bytes = try c.DirectStreamClient.save(t.allocator, request.connection, .{ .work = work });
+    defer t.allocator.free(bytes);
+    const saved = try c.DirectStreamClient.load(t.allocator, bytes);
+    defer saved.deinit();
+    try t.expectEqualDeep(request.action.stream.mutate, saved.value.work);
+    var changed = request;
+    changed.action.stream.mutate.work.consume.from = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    const foreign = try t.allocator.dupe(u8, bytes);
+    defer t.allocator.free(foreign);
+    const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+    @memset(foreign[at..][0..64], '0');
+    try t.expectError(error.InvalidJsonShape, c.DirectStreamClient.load(t.allocator, foreign));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .connection = saved.value.connection, .work = saved.value.work });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectStreamClient.load(t.allocator, missing));
+}
+
+test "direct Stream wait binds its scheduling duration while preserving the consume intent" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-stream-wait-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const work: c.DirectStreamMutation.Request = .{ .consume = request.action.stream.wait.consume };
+    try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
+    try t.expectEqualDeep(c.client.WaitHint{ .after = 0, .milliseconds = 1000 }, request.transport().wait.?);
+    try t.expect(request.transport().mutation and request.transport().control == null);
+    var changed = request;
+    changed.action.stream.wait.milliseconds = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    var action = request.action.stream;
+    action.wait.milliseconds = 0;
+    try t.expectError(error.InvalidStreamWait, action.validate(request.connection.principal, request.connection.scope));
+    action.wait.milliseconds = 1001;
+    try t.expectError(error.InvalidStreamWait, action.validate(request.connection.principal, request.connection.scope));
+}
+
 test "direct log consumes independent signed intent and preserves saved full-width identity" {
     const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-log-v1.json"));
@@ -801,7 +890,7 @@ test "retained filter scan binds independent signed cursor and sparse coverage e
     try t.expectError(error.InvalidPlanEncoding, changed.validate(t.allocator));
     const page: w.Page = .{
         .snapshot = scan.snapshot,
-        .interpretation = .{ .interpretation = .{ .object = scan.snapshot.object, .revision = 1, .digest = @splat(3) }, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(5), .retired = false },
+        .interpretation = .{ .kind = .table, .interpretation = .{ .object = scan.snapshot.object, .revision = 1, .digest = @splat(3) }, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(5), .retired = false },
         .accepted = .{ .partition = 9, .next_lsn = 10 },
         .changed_lsn = 9,
         .total_rows = 24,
@@ -813,6 +902,9 @@ test "retained filter scan binds independent signed cursor and sparse coverage e
     var response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .filtered_page = value } };
     try c.DirectTableClient.validateResponse(t.allocator, request, response);
     value.examined = 0;
+    response.result.filtered_page.page.interpretation.kind = .kv;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, response));
+    response.result.filtered_page.page.interpretation.kind = .table;
     try t.expectError(error.InvalidTableResponse, value.validate());
     value.examined = 9;
     try t.expectError(error.InvalidTableResponse, value.validate());

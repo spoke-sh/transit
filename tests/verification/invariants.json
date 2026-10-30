@@ -2605,7 +2605,7 @@
         "Atomic state/outbox/ACK visibility and original decision recovery across derived-cache replacement",
         "Terminal segment collection preserves retained history and durable DLQ payload reachability"
       ],
-      "limits": "Safety-only design model assuming atomic durable state; no timing wheel, storage I/O, bitmap encoding, fairness or runtime correspondence. QueuePartition remains planned.",
+      "limits": "Safety-only design model assuming atomic durable state; no timing wheel, storage I/O, bitmap encoding, fairness or runtime correspondence. Standalone QueuePartition execution has separate evidence; common transactions and DLQ transfer remain unavailable.",
       "model": "tests/verification/models/QueueLeaseTransaction.tla",
       "qualification": "Execution evidence is retained under .cache/verification/queue-lease-transaction-model/ and CI artifacts."
     },

@@ -22,7 +22,7 @@ scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: 46, resource: 7),
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: true) }
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: 1 << 64) }
 rejects(ArgumentError) { M::Connection.new(scope: scope, audience: 1, branch: 0) }
-authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, stream_domain: 13, queue_domain: 14, database: 20, initial_schema: 1, initial_schema_authority: 21}
+authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, stream_domain: 13, queue_domain: 14, kv_domain: 15, database: 20, initial_schema: 1, initial_schema_authority: 21}
 authority = M::AuthorityProfile.new(**authority_values)
 rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(table_domain: 10)) }
 rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(initial_schema_authority: 20)) }
@@ -183,8 +183,8 @@ begin
   reply.response = {'catalog'=>{'description'=>description}}
   current = client.describe
   check(current.subject == subject && current.configuration.authority == authority && current.policy_revision == 2)
-  %w[stream_domain queue_domain].each do |field|
-    [nil, 0, 10, 11, 12, field == 'stream_domain' ? 14 : 13, 1 << 53].each do |value|
+  %w[stream_domain queue_domain kv_domain].each do |field|
+    [nil, 0, 10, 11, 12, field == 'stream_domain' ? 14 : 13, field == 'kv_domain' ? 14 : 15, 1 << 53].each do |value|
       bad = clone_json(description)
       if value.nil?
         bad['configuration']['authority'].delete(field)

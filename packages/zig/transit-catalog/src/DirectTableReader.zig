@@ -41,7 +41,7 @@ test "maximum direct source evidence fits the bounded canonical fingerprint" {
     const object: d.Object = .{ .scope = scope, .branch = 1, .object = wide };
     const basis: Basis = .{
         .snapshot = .{ .object = object, .handle = .{ .owner = .{ .scope = scope, .principal = native, .operation = wide }, .content = .{ .bytes = wide, .sha256 = @splat(255) } } },
-        .interpretation = .{ .interpretation = .{ .object = object, .revision = wide, .digest = @splat(255) }, .content = .{ .bytes = c.storage.TableDeclaration.max_bytes, .sha256 = @splat(255) }, .schema_fingerprint = @splat(255), .retired = false },
+        .interpretation = .{ .kind = .table, .interpretation = .{ .object = object, .revision = wide, .digest = @splat(255) }, .content = .{ .bytes = c.storage.TableDeclaration.max_bytes, .sha256 = @splat(255) }, .schema_fingerprint = @splat(255), .retired = false },
         .accepted = .{ .partition = wide, .next_lsn = wide },
         .changed_lsn = wide,
         .row_count = wide,

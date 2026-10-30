@@ -38,7 +38,7 @@ pub const Retained = struct {
     fn basis(self: Retained, record: Record) !c.DirectTableReader.Basis {
         const result: c.DirectTableReader.Basis = .{
             .snapshot = try record.snapshot(self.handle),
-            .interpretation = .{ .interpretation = record.grant.binding.interpretation, .content = .{ .bytes = self.declaration_bytes, .sha256 = record.grant.binding.interpretation.digest }, .schema_fingerprint = self.schema, .retired = false },
+            .interpretation = .{ .kind = .table, .interpretation = record.grant.binding.interpretation, .content = .{ .bytes = self.declaration_bytes, .sha256 = record.grant.binding.interpretation.digest }, .schema_fingerprint = self.schema, .retired = false },
             .accepted = self.accepted,
             .changed_lsn = self.changed_lsn,
             .row_count = self.rows,

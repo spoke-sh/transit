@@ -145,16 +145,39 @@ pub fn stage(objects: Objects.ObjectStore, owned: *const Owned) !Stored {
 
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, stored: Stored) !Owned {
     try stored.validate();
+    var result = try loadContent(allocator, objects, stored.content);
+    errdefer result.deinit();
+    if (!std.meta.eql(stored, try result.stored())) return error.InvalidLogDeclaration;
+    return result;
+}
+
+/// Resolve an exact retained interpretation without consulting a mutable name
+/// or current catalog definition. This verifies bytes, not publication or access.
+pub fn resolve(allocator: std.mem.Allocator, objects: Objects.ObjectStore, interpretation: d.Definition) !Owned {
+    try interpretation.validate();
     var name: [96]u8 = undefined;
-    const object_key = try key(stored.content, &name);
+    const object_key = try std.fmt.bufPrint(&name, "log-definitions/{x}.data", .{&interpretation.digest});
     const metadata = try objects.head(object_key) orelse return error.LogDeclarationMissing;
-    if (metadata.size != stored.content.bytes or !std.mem.eql(u8, &metadata.sha256, &stored.content.sha256)) return error.InvalidLogDeclaration;
-    const bytes = try allocator.alloc(u8, @intCast(stored.content.bytes));
+    if (!std.mem.eql(u8, &metadata.sha256, &interpretation.digest)) return error.InvalidLogDeclaration;
+    var result = try loadContent(allocator, objects, .{ .bytes = metadata.size, .sha256 = interpretation.digest });
+    errdefer result.deinit();
+    if (!std.meta.eql(interpretation, (try result.stored()).declaration.interpretation)) return error.InvalidLogDeclaration;
+    return result;
+}
+
+fn loadContent(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content: d.Content) !Owned {
+    try content.validate();
+    if (content.bytes <= header_bytes or content.bytes > max_bytes) return error.InvalidLogDeclaration;
+    var name: [96]u8 = undefined;
+    const object_key = try key(content, &name);
+    const metadata = try objects.head(object_key) orelse return error.LogDeclarationMissing;
+    if (metadata.size != content.bytes or !std.mem.eql(u8, &metadata.sha256, &content.sha256)) return error.InvalidLogDeclaration;
+    const bytes = try allocator.alloc(u8, @intCast(content.bytes));
     errdefer allocator.free(bytes);
     if ((try objects.getRange(object_key, 0, @intCast(bytes.len), bytes)).len != bytes.len) return error.InvalidLogDeclaration;
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    if (!std.mem.eql(u8, &digest, &stored.content.sha256) or !std.mem.eql(u8, bytes[0..8], "LDECL001")) return error.InvalidLogDeclaration;
+    if (!std.mem.eql(u8, &digest, &content.sha256) or !std.mem.eql(u8, bytes[0..8], "LDECL001")) return error.InvalidLogDeclaration;
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     if (bytes[88] > 1 or !std.mem.allEqual(u8, bytes[101..104], 0)) return error.InvalidLogDeclaration;
     const policy_length = std.mem.readInt(u32, bytes[89..93], .big);
@@ -182,6 +205,6 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, stored: 
     };
     try definition.validate();
     var result: Owned = .{ .allocator = allocator, .bytes = bytes, .schema = schema, .definition = definition };
-    if (!std.meta.eql(stored, try result.stored())) return error.InvalidLogDeclaration;
+    _ = try result.stored();
     return result;
 }

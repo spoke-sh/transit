@@ -9,6 +9,7 @@ const P = c.storage.TablePartition;
 
 fn definition(connection: w.Connection, stored: c.storage.TableDeclaration.Stored) !void {
     try stored.validate();
+    if (stored.kind != .table) return error.InvalidTableResponse;
     try connection.object(stored.interpretation.object);
 }
 fn frontier(position: d.Position, changed_lsn: u64) !void {
@@ -77,6 +78,7 @@ fn evidence(binding: d.Binding, value: P.Evidence) !void {
             !std.mem.eql(u8, &decision.attempt.workspace.sha256, &binding.intent)) return error.InvalidTableResponse;
     }
     try value.resulting.validate();
+    if (value.resulting.kind != .table) return error.InvalidTableResponse;
     try value.outcome.position.validate();
     if (!std.meta.eql(value.resulting.interpretation.object, binding.target) or
         value.outcome.position.next_lsn == 0 or value.outcome.affected > value.outcome.matched or
@@ -139,6 +141,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
+        .stream => .stream,
+        .queue => .queue,
         .transaction => .transaction,
         .record => .record,
         .client_token => .client_token,
@@ -195,6 +199,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
+        .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .record => |value| {
             try value.reference.validate();

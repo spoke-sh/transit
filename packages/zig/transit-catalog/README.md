@@ -20,6 +20,40 @@ owns roles, grants, current credentials and resource lifetime.
 
 ## Lifecycle owner
 
+`DirectQueue.apply` composes durable enqueue, exact original claims, fenced
+settlements and bounded claim pages with current catalog declarations and native
+grants. Its host supplies one serialized, bounded resident slot and trusted time;
+neither the time capability nor request authorization is retained. Queue work
+uses the common operation namespace, so an identity cannot be reused for another
+partition, intent or data kind. Claim receipt inspection and pages require
+current read and acquire privileges; settlements require settle privileges.
+Pages retain the original schema and payload while reporting current lease state
+separately. `DirectQueueResponse` validates that attribution, observation basis,
+row identities, byte budgets and exact cursor advance. The signed `queue` action
+and `DirectQueueClient` expose standalone operations through the native service.
+Saved work preserves the exact original mutation and payload commitment. The
+local node performs bounded automatic lease expiry through catalog maintenance.
+SQL, DLQ transfer and mixed transactions remain unavailable.
+
+`DirectStreamResponse` validates exact operation attribution, pinned schemas,
+ordered row identities, byte budgets and finite coverage. Pages carry the
+original source declaration, including after a later ALTER or DROP.
+
+`DirectStream.apply` composes Stream append, original-operation inspection,
+finite reads, consumer assignment and offset settlement with the current catalog
+declaration and native grants. The embedding host supplies a serialized owner
+slot, private cursor authority and trusted time source. Bounded recovery returns
+explicit incomplete progress before any new mutation executes. Request proofs,
+scratch allocations and time callbacks never remain in the cached owner;
+returned pages own their encoded rows and expose deterministic cleanup.
+Group reads recheck acquire rights on every cursor/page disclosure, and original
+read closure survives later policy revisions and DROP. The signed `stream`
+action and `DirectStreamClient` expose these operations through the local node.
+Bounded `wait` selects one finite consume cut or returns a timeout without
+accepting a read. The host owns register/recheck notifications and an absolute
+deadline; accepted identity remains the original consume request. SQL execution
+is unavailable.
+
 `DirectCatalog` composes paged metadata directories with independent Table logs.
 DDL admission reserves its original name and intent. A Table acceptance record
 makes a definition visible; catalog settlement records completion without
@@ -46,7 +80,11 @@ even after a later Table definition becomes current.
 resumable collector. It joins these catalog roots with Table history/recovery,
 live snapshots, original receipts and intents. Durable work/marks and physical
 deletion stay in the backend; this graph grants no read or deletion authority
-on its own. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+on its own. Queue declarations and blocked items retain exact historical DLQ
+definitions, including their own destination dependencies. A separate bounded
+work item resolves each immutable definition; current names or later revisions
+cannot substitute for the recorded identity. Missing or invalid destinations
+refuse closure. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, bounded work and permanently retained namespaces.
 
 `DirectResourceClient` uses the same directory for named native KV and Document
@@ -81,9 +119,12 @@ operation identity through retries and name reuse.
 `LogAuthority` defines the Stream/Queue action masks over separate native
 domains: inspect, read, append, acquire and settle. It shares database CONNECT,
 schema USAGE/CREATE and ownership checks with `TableAuthority`; it stores no
-grants. The current configuration requires all five domain identities, including
-Stream and Queue. Lifecycle publication uses these domains and the existing
+grants. The current configuration requires all six domain identities, including
+Stream, Queue and KV. Lifecycle publication uses these domains and the existing
 native registrar, with the caller's rights checked at every publication boundary.
+`KVAuthority` separates metadata inspection, value reads and writes, with
+CONNECT, USAGE/CREATE and native ownership checks. Its registered domain is
+required even before direct KV lifecycle operations are enabled.
 `DocumentAuthority` similarly defines direct Document action masks (`inspect`,
 `read`, `mutate`, `checkpoint`, `administer`) and domain-separated authorization
 bindings, while `DirectStorageGraph` enumerates retained `DocumentPartition`

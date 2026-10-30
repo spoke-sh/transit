@@ -172,7 +172,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
 }
 
 const cat_scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const cat_profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const cat_profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 const CatAccess = struct {
     const Context = struct { requested: p.Authorization.Guard };
     fn make(_: *anyopaque, allocator: std.mem.Allocator, requested: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
@@ -191,7 +191,7 @@ const CatAccess = struct {
             .database => cat_profile.database,
             .schema => if (id == 1) cat_profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
-            .stream, .queue => return null,
+            .stream, .queue, .kv => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -204,7 +204,7 @@ const CatAccess = struct {
                 .database => null,
                 .schema => a.reference(cat_profile.database),
                 .table => a.reference(cat_profile.initial_schema_authority),
-                .stream, .queue => return null,
+                .stream, .queue, .kv => return null,
             },
             .revision = 1,
         };

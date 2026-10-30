@@ -53,6 +53,30 @@ recovery; both require the exact connection and current contract definition.
 Lookup schemas belong to the output arena. No log payload or SQL operation is
 implied by creating a declaration.
 
+`Catalog.callStream(output, action)` exposes `DirectStreamClient.Action` for
+one-partition append, original-operation inspection, finite retained reads,
+consumer assignment, offset settlement and read release. Append payloads use
+the shared `LogBatch` encoder. Save exact mutation bytes with
+`DirectStreamClient.save` before dispatch; `load` checks the required definition,
+connection and payload commitment. No request invents a retry identity.
+`StreamOutcome` preserves mutation-attempt uncertainty. Pages carry the pinned
+schema and decoded rows owned by output; their coverage distinguishes an empty
+page from completion. Releasing a read or closing the client does not settle
+consumer progress. See the [Stream contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+for current service budgets and grants.
+
+`Catalog.callQueue(output, action)` exposes `DirectQueueClient.Action` for enqueue,
+claim, original-operation inspection, bounded original-claim pages and explicit
+ACK/NACK/extension settlement. `DirectQueueClient.save` preserves exact mutation
+bytes before dispatch; `load` verifies the mandatory definition, connection and
+payload commitment. `QueueOutcome` preserves the original mutation identity and
+unknown-outcome evidence. Decoded rows retain their original leases and payloads;
+the separately observed status is not authority to execute or settle them.
+Pages use selection ordinals and explicit completion, including empty terminal
+pages. Closing the client or output arena performs no ACK, NACK or renewal.
+The [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+owns current limits, grants and unavailable scheduling/transaction capabilities.
+
 Pass a separate output arena. Successful results and their strings/collections
 belong to that arena and remain valid across subsequent calls and client close.
 Reset it only after all associated borrows end. Retained local intents use the

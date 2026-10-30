@@ -131,7 +131,7 @@ pub const Source = struct {
                 const scope = try v.scope.native();
                 const branch = try unsigned(v.branch);
                 const object = try unsigned(v.object);
-                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc), .collations = try f.QueryCollations.fromSlice(v.row_type, v.collations) } };
+                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .kind = .table, .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc), .collations = try f.QueryCollations.fromSlice(v.row_type, v.collations) } };
             },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;

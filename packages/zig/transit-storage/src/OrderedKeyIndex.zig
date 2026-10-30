@@ -67,6 +67,12 @@ pub fn childIndex(entry: pages.Entry, prefix_bytes: u16) !?pages.Reference {
     if (prefix_bytes + entry.key.len == max_key_bytes and node.child != null) return error.InvalidOrderedKeyNode;
     return node.child;
 }
+/// Inspect a canonical terminal without treating its opaque value as a child
+/// pointer. Retention owners validate the value in their own data domain.
+pub fn terminalValue(entry: pages.Entry, prefix_bytes: u16) !?[32]u8 {
+    _ = try childIndex(entry, prefix_bytes);
+    return (try Node.decode(entry.value, entry.key)).value;
+}
 fn tree(self: Self) Tree {
     return .{ .store = self.store };
 }

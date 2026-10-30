@@ -204,6 +204,14 @@ pending signed work and use bounded read retries or polling after unavailable
 waits. The local gateway forwards the validated hint through a separate bounded
 upstream pool.
 
+The direct Stream `wait` action at `/table/v1` uses the same dedicated wait
+admission with a required `x-transit-wait: 0:MILLISECONDS` header matching its
+signed request. Its offset predicate, original consume identity, timeout and
+cancellation semantics belong to the
+[direct Stream contract](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress).
+Other direct actions reject wait hints. The hint cannot grant rights or change
+the signed wait duration.
+
 Signatures authenticate callers; they neither encrypt responses nor authenticate
 the response transport. A listener outside a trusted private network requires an
 authenticated TLS ingress boundary. Workloads cannot receive raw Ursula/provider

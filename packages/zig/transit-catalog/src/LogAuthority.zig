@@ -35,7 +35,7 @@ pub fn requirements(profile: a.Profile, subject: p.Authorization.Subject, schema
 test "log privileges distinguish metadata payload selection settlement and administration" {
     const std = @import("std");
     const t = std.testing;
-    const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+    const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
     const schema: a.Schema = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .id = 1, .authorization = 5, .name = try .init("public"), .revision = 1 };
     const object: a.Table = .{ .id = 42, .schema = 1, .authorization = 99 };
     const subject: p.Authorization.Subject = .{ .accepted = .{ .pid = 3, .input = 1, .principal = 17 } };

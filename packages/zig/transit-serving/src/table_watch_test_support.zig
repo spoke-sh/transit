@@ -13,7 +13,7 @@ const P = s.TablePartition;
 const w = c.DirectTableProtocol;
 pub const principal = 65536;
 pub const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 7, .catalog = 9 };
-pub const profile: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+pub const profile: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 pub const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 13, .principal = principal, .role = null };
 const Access = struct {
     fn make(context: *anyopaque, _: std.mem.Allocator, guard: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
@@ -31,12 +31,12 @@ const Access = struct {
             .database => 4,
             .schema => 5,
             .table => 1000 + id,
-            .stream, .queue => return null,
+            .stream, .queue, .kv => return null,
         }), .owner = 0, .registrar = principal, .actions = c.TableAuthority.actions(kind), .domain = profile.domain(kind), .binding = try c.TableAuthority.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => c.TableAuthority.reference(4),
             .table => c.TableAuthority.reference(5),
-            .stream, .queue => return null,
+            .stream, .queue, .kv => return null,
         }, .revision = 1 };
     }
 };

@@ -158,6 +158,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));

@@ -18,6 +18,7 @@ options: D.Options = .{},
 /// no policy, native owner, result buffer, or borrowed request allocation.
 recovery_state: ?*D.RecoveryState = null,
 resident: ?*Resident = null,
+waiting: @FieldType(c.DirectStream.Environment, "waiting") = null,
 /// Inject a real authority change after response serialization in fault proofs.
 before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backend.DataAuthority.Engine) anyerror!void } = null,
 
@@ -31,6 +32,8 @@ pub const Resident = struct {
     data: backend.DataStore,
     catalog: D,
     table: ?D.CachedTable = null,
+    stream: ?c.DirectStream.Cached = null,
+    queue: ?c.DirectQueue.Cached = null,
 
     pub fn create(allocator: std.mem.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
         const self = try allocator.create(Resident);
@@ -45,6 +48,8 @@ pub const Resident = struct {
         return self;
     }
     pub fn destroy(self: *Resident) void {
+        if (self.queue) |*cached| cached.deinit();
+        if (self.stream) |*cached| cached.deinit();
         if (self.table) |*cached| cached.table.deinit();
         self.catalog.deinit();
         std.debug.assert(self.memory.used == 0);
@@ -115,7 +120,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .stream = executeStream, .queue = executeQueue };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -135,10 +140,46 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     return output;
 }
 
+fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    const source = @import("LocalLogClock.zig").source(self.engine);
+    return source.read(source.context);
+}
+
+fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var temporary: ?c.DirectStream.Cached = null;
+    defer if (temporary) |*cached| cached.deinit();
+    const slot = if (self.resident) |resident| &resident.stream else &temporary;
+    var seed = self.registrar.key.secret_key.seed();
+    defer std.crypto.secureZero(u8, &seed);
+    var secret: [32]u8 = undefined;
+    defer std.crypto.secureZero(u8, &secret);
+    std.crypto.auth.hmac.sha2.HmacSha256.create(&secret, "transit.catalog.stream.cursor.v1\x00", &seed);
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+        .authority = .{ .secret = secret },
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+        .waiting = self.waiting,
+    }, request, policy);
+}
+
 fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy, steps: u16) !D.Observation {
     const self: *Self = @ptrCast(@alignCast(raw));
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return (try runner.run(catalog, binding, policy, steps)).observation;
+}
+fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var temporary: ?c.DirectQueue.Cached = null;
+    defer if (temporary) |*cached| cached.deinit();
+    const slot = if (self.resident) |resident| &resident.queue else &temporary;
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+    }, request, policy);
 }
 fn executeNamespace(raw: *anyopaque, catalog: *D, binding: c.DirectNamespace.Binding, policy: D.Policy, steps: u16) !c.DirectNamespace.Observation {
     const self: *Self = @ptrCast(@alignCast(raw));

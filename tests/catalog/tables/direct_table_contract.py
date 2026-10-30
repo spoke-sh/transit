@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+definition = "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -199,6 +199,40 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     log_request = {**log_input, "proof": {"claim": log_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_claim)).digest())}}
     log_fixture = {"request": log_request, "public_key": public_key, "intent_digest": list(log_digest)}
 
+    stream_work = {"consume": {
+        "target": {"definition": definition, "interpretation": source_definition, "partition": 1},
+        "operation": log_binding["identity"], "group": None, "from": 0, "until": None, "timestamp": None,
+    }}
+    stream_input = {**request_input, "action": {"stream": {"mutate": {"work": stream_work, "payload": None}}}}
+    stream_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(stream_input)).digest())}
+    stream_request = {**stream_input, "proof": {"claim": stream_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(stream_claim)).digest())}}
+    stream_digest = hashlib.sha256(b"transit.catalog.stream.operation.v1\0" + bytes.fromhex(definition) + canonical(stream_work)).digest()
+    stream_fixture = {"request": stream_request, "public_key": public_key, "intent_digest": list(stream_digest)}
+    wait_input = {**request_input, "action": {"stream": {"wait": {"consume": stream_work["consume"], "milliseconds": 1000}}}}
+    wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(wait_input)).digest())}
+    wait_request = {**wait_input, "proof": {"claim": wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(wait_claim)).digest())}}
+    wait_fixture = {"request": wait_request, "public_key": public_key, "intent_digest": list(stream_digest)}
+    queue_work = {"claim": {
+        "target": stream_work["consume"]["target"], "operation": log_binding["identity"],
+        "maximum": 16, "lease_ms": 1000,
+    }}
+    queue_input = {**request_input, "action": {"queue": {"mutate": {"work": queue_work, "payload": None}}}}
+    queue_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_input)).digest())}
+    queue_request = {**queue_input, "proof": {"claim": queue_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_claim)).digest())}}
+    queue_digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_work)).digest()
+    queue_fixture = {"request": queue_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    queue_release_work = {"release": {
+        "operation": {**log_binding["identity"], "operation": 2**64-2},
+        "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
+                  "observed_ms": 100, "expires_ms": 1100, "rows": 2,
+                  "leases": {"bytes": 1024, "sha256": [49]*32}},
+    }}
+    queue_release_input = {**request_input, "action": {"queue": {"mutate": {"work": queue_release_work, "payload": None}}}}
+    queue_release_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_release_input)).digest())}
+    queue_release_request = {**queue_release_input, "proof": {"claim": queue_release_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_release_claim)).digest())}}
+    queue_fixture["release_request"] = queue_release_request
+    queue_fixture["release_intent_digest"] = list(hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_release_work)).digest())
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -208,6 +242,7 @@ fixture = {
 }
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
+validator.validate(wait_request)
 validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
@@ -221,6 +256,21 @@ for columns in ("abc", [0] * 129):
 validator.validate(dependency_request)
 validator.validate(resource_request)
 validator.validate(log_request)
+validator.validate(stream_request)
+validator.validate(queue_request)
+validator.validate(queue_release_request)
+for field in ("operation", "claim"):
+    invalid = copy.deepcopy(queue_release_request)
+    del invalid["action"]["queue"]["mutate"]["work"]["release"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("target", "operation", "maximum", "lease_ms"):
+    invalid = copy.deepcopy(queue_request)
+    del invalid["action"]["queue"]["mutate"]["work"]["claim"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("target", "operation", "group", "from", "until", "timestamp"):
+    invalid = copy.deepcopy(stream_request)
+    del invalid["action"]["stream"]["mutate"]["work"]["consume"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("binding", "kind", "namespace", "name", "action"):
     invalid = copy.deepcopy(log_request)
     del invalid["action"]["log_admit"][field]
@@ -265,6 +315,12 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
+        (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",
+        (json.dumps(queue_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-wait-v1.json",
+        (json.dumps(wait_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",
         (json.dumps(log_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-filter-v1.json",

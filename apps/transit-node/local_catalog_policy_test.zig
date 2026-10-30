@@ -1153,6 +1153,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
     defer host.deinit();
     var work: Work = .{ .host = &host, .allocator = t.allocator };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
@@ -1230,6 +1231,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
     var restarted: Work = .{ .host = &host, .allocator = t.allocator };
+    defer restarted.deinit();
     const after = current.table.root;
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
@@ -1280,6 +1282,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{
         .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
         .archive = .{ .enabled = true, .work_frames = 2 },
@@ -1297,6 +1300,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         if (units == 4096) return error.FixtureBudget;
         if (units == 17) {
             // Lose scheduling/recovery hints once while accepted targets remain.
+            work.deinit();
             work = .{ .host = &host, .allocator = allocations.allocator() };
             host.table_recovery = @splat(null);
             idle = 0;
@@ -1382,10 +1386,11 @@ fn catalogSchedule() !void {
     const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
     const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
     const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     const request_digest: [32]u8 = @splat(5);
     var signed = try proof(&engine, request_digest);
     try t.expectError(error.InvalidAuthorizationCredential, Policy.init(&engine, config, signed, @splat(6), null));
@@ -1822,10 +1827,11 @@ fn transactionSchedule() !void {
     const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
     const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
     const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
     const initialized = try dispatch(&service, .initialize);
     initialized.deinit();
@@ -1844,6 +1850,21 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     const unavailable = failure.table(error.InjectedStorageUnavailable);
     try t.expectEqual(std.http.Status.service_unavailable, unavailable.status);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, unavailable.code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.LogGroupFenced).code);
+    try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.StreamReadReleased).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.StreamCursorUnauthenticated).code);
+    try t.expectEqual(p.ErrorCode.ClockUnavailable, failure.table(error.LogTimeUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.LogRetentionWindowElapsed).code);
+    try t.expectEqual(p.ErrorCode.HistoryReclaimed, failure.table(error.LogRangeExpired).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.LogHistoryUnavailable).code);
+    try t.expectEqual(p.ErrorCode.ClockUnavailable, failure.table(error.QueueTimeUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseFenced).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseExpired).code);
+    try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.QueueLeaseCapacityExceeded).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.QueueReadBudgetExceeded).code);
+    try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.QueueReadReleased).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueReadReleaseConflict).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidQueueReadRelease).code);
 }
 
 test "log privileges enforce separate native domains and current disclosure rights" {
@@ -1864,10 +1885,11 @@ test "log privileges enforce separate native domains and current disclosure righ
     const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
     const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
     const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     var scratch: std.heap.ArenaAllocator = .init(t.allocator);
     defer scratch.deinit();
     const alloc = scratch.allocator();
@@ -1911,7 +1933,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("registered_stream"), .action = .{ .create = .{
         .owner = role,
         .schema = .{ .object = 300, .revision = 1, .next_column = 2, .columns = &cols, .primary_key = &.{} },
-        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = 1, .timestamp_column = null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
     const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 300 }, .target = .{ .scope = config.scope, .branch = 1, .object = 300 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
@@ -1927,14 +1949,67 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     const found = try dispatch(&service, .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } });
     defer found.deinit();
     try t.expectEqualDeep(finished.value.result.log_operation.operation.resulting.?, found.value.result.log_lookup.?.declaration);
+    const retained_page = try streamPayloadDispatch(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema);
     const Revoke = struct {
+        fn prepare(current: *Engine, id: u64) !u64 {
+            const change_id = try command(current, .{ .authorization = .{ .begin = .{ .expected_revision = current.head.authorization.revision, .action = .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = 0 } } } } });
+            for (0..256) |_| {
+                const observed = try outcome(current, change_id);
+                if (observed.status == .ready) return change_id;
+                try t.expectEqual(.preparing, observed.status);
+                _ = try command(current, .{ .authorization = .{ .advance = change_id } });
+            }
+            return error.PolicyPreparationBudget;
+        }
+        fn publish(current: *Engine, id: u64) !void {
+            _ = try command(current, .{ .authorization = .{ .publish = id } });
+        }
+        fn transfer(current: *Engine, id: u64, new_owner: u64) !void {
+            _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = new_owner } });
+        }
         fn run(raw: *anyopaque, current: *Engine) !void {
             const id: *u64 = @ptrCast(@alignCast(raw));
             _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
         }
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
+    try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
+    const maintenance_context: [32]u8 = @splat(19);
+    var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
+    try @import("local_stream_maintenance_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, maintenance_policy.policy());
+    var retention = intent.action.create.configuration;
+    retention.retention.max_age_ms = 100;
+    const expiry_intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = intent.name, .action = .{ .alter = .{ .configuration = retention, .limits = intent.action.create.limits } } };
+    const expiry_binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 }, .target = binding.target, .action = .alter, .expected_definition = found.value.result.log_lookup.?.declaration.stored.declaration.interpretation, .expected_data = null, .intent = try expiry_intent.digest(t.allocator) };
+    const expiry_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = expiry_binding, .intent = expiry_intent });
+    (try dispatch(&service, .{ .log_admit = expiry_ddl })).deinit();
+    const expiry = try dispatch(&service, .{ .log_operation = .{ .binding = expiry_binding, .command = .execute, .steps = 32 } });
+    defer expiry.deinit();
+    try @import("local_stream_maintenance_test.zig").expire(&service, expiry.value.result.log_operation.operation.resulting.?);
+    var queue_intent = intent;
+    queue_intent.kind = .queue;
+    queue_intent.name = try .init("registered_queue");
+    queue_intent.action.create.schema.object = 301;
+    queue_intent.action.create.configuration.retention.max_age_ms = 100;
+    queue_intent.action.create.configuration.policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } };
+    var queue_binding = binding;
+    queue_binding.identity.operation = 500;
+    queue_binding.target.object = 301;
+    queue_binding.intent = try queue_intent.digest(t.allocator);
+    const queue_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = queue_binding, .intent = queue_intent });
+    (try dispatch(&service, .{ .log_admit = queue_ddl })).deinit();
+    const queue_created = try dispatch(&service, .{ .log_operation = .{ .binding = queue_binding, .command = .execute, .steps = 32 } });
+    defer queue_created.deinit();
+    const queue_declared = queue_created.value.result.log_operation.operation.resulting.?;
+    const queue_terminal = try @import("local_queue_test.zig").exercise(&service, queue_declared, queue_intent.action.create.schema, try key(29));
+    var queue_native_id = queue_declared.properties.authorization;
+    service.before_reply = .{ .context = &queue_native_id, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .queue = queue_terminal }));
+    service.before_reply = null;
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(queue_native_id), .owner = role } });
+    try @import("local_queue_maintenance_test.zig").exercise(&service, queue_declared, queue_intent.action.create.schema, maintenance_policy.policy());
     const disclosures = [_]c.DirectTableProtocol.Action{
+        .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },
         .{ .log_list = .{ .namespace = 1, .after = null } },
         .{ .log_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } },
@@ -1945,7 +2020,102 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         service.before_reply = null;
         const filtered = try dispatch(&service, .{ .log_list = .{ .namespace = 1, .after = null } });
         defer filtered.deinit();
-        try t.expect(filtered.value.result.log_list.entries[0] == null);
+        for (filtered.value.result.log_list.entries) |entry| if (entry) |visible| {
+            try t.expect(visible.properties.authorization != native_id);
+        };
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_id), .owner = role } });
     }
+}
+
+fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration: c.DirectLog.Definition, schema: c.fuze.TableSchema.Schema) !c.DirectStream.Request {
+    const q = p.StreamQueue;
+    const Clock = struct {
+        fn read(_: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = 100, .error_ms = 5 };
+        }
+    };
+    const previous_clock = service.engine.clock;
+    defer service.engine.clock = previous_clock;
+    service.engine.clock = .{ .context = service, .read = Clock.read };
+    const target: q.Partition = .{ .definition = g.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
+    const identity: p.DataLifecycle.Operation = .{ .scope = service.configuration.scope, .principal = 101, .operation = 301 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    const payload = try c.storage.LogBatch.encode(schema, identity, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &buffer);
+    const append: c.DirectStreamMutation.Request = .{ .append = .{ .target = target, .operation = identity, .kind = .stream, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(payload) } };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const saved = try c.DirectStreamClient.save(t.allocator, connection, .{ .work = append, .payload = payload });
+    defer t.allocator.free(saved);
+    const original = try c.DirectStreamClient.load(t.allocator, saved);
+    defer original.deinit();
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = original.value.work } });
+    service.engine.clock = null; // Original acceptance survives clock loss.
+    const accepted = try dispatch(service, .{ .stream = .{ .operation = append } });
+    defer accepted.deinit();
+    try t.expectEqual(@as(u64, 2), accepted.value.result.stream.operation.?.append.next);
+    try t.expectEqual(@as(?u64, 105), accepted.value.result.stream.operation.?.append.observed_ms);
+    const repeated = try dispatch(service, .{ .stream = .{ .mutate = original.value.work } });
+    defer repeated.deinit();
+    try t.expectEqualDeep(accepted.value.result.stream, repeated.value.result.stream);
+
+    const read: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = identity.scope, .principal = identity.principal, .operation = 302 }, .group = null, .from = 0, .until = null, .timestamp = null };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = .{ .consume = read }, .payload = null } } });
+    const pinned = try dispatch(service, .{ .stream = .{ .operation = .{ .consume = read } } });
+    defer pinned.deinit();
+    const cursor = try dispatch(service, .{ .stream = .{ .cursor = .{ .target = target, .read = pinned.value.result.stream.operation.?.consume.handle() } } });
+    defer cursor.deinit();
+    const page_request: c.DirectStream.Request = .{ .page = .{ .cursor = cursor.value.result.stream.cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 2 } } };
+
+    // The real shared caller crosses the typed endpoint and destroys its wire
+    // response before these decoded output rows are inspected.
+    const Endpoint = struct {
+        fn run(raw: *anyopaque, invocation: *c.client.LocalEndpoint.Invocation) !void {
+            const current: *@import("LocalTableService.zig") = @ptrCast(@alignCast(raw));
+            try t.expectEqualStrings("/table/v1", invocation.path);
+            var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+            defer scratch.deinit();
+            try invocation.respond(try current.executeResult(.typed, &scratch, invocation.allocator, try invocation.request(c.DirectTableProtocol.Request)));
+        }
+    };
+    var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    transport.local = .{ .context = service, .invoke = Endpoint.run };
+    const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = try key(29), .credential_epoch = (try service.engine.principal(101)).credential_epoch };
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const first = (try c.DirectStreamClient.apply(&output, caller, .{ .page = page_request.page })).page;
+    try t.expectEqual(@as(usize, 1), first.rows.len);
+    try t.expect(!first.cursor.coverage.complete);
+    const second = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = first.cursor, .limits = page_request.page.limits } })).page;
+    try t.expect(second.cursor.coverage.complete);
+    try t.expectEqual(@as(u64, 2), second.cursor.coverage.rows);
+    const terminal = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = second.cursor, .limits = page_request.page.limits } })).page;
+    try t.expect(terminal.cursor.coverage.complete);
+    try t.expectEqual(@as(usize, 0), terminal.rows.len);
+    try t.expectEqual(@as(i64, 42), first.rows[0].value.cells[0].value.atom.signed);
+    try t.expectEqual(@as(u64, 0), first.rows[0].offset);
+    try t.expectEqual(@as(u64, 1), second.rows[0].offset);
+
+    const cut = (try c.DirectStreamClient.apply(&output, caller, .{ .observe = target })).cut;
+    const group: q.Group = .{ .id = 1, .generation = 1, .principal = 101 };
+    const assignment: c.DirectStreamMutation.Request = .{ .assign = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 303 }, .cut = cut, .expected = null, .group = group, .next = 0 } };
+    _ = try c.DirectStreamClient.apply(&output, caller, .{ .mutate = .{ .work = assignment } });
+    var grouped = read;
+    grouped.operation.operation = 304;
+    grouped.group = group;
+    const group_read = (try c.DirectStreamClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
+    const group_cursor = (try c.DirectStreamClient.apply(&output, caller, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
+    const consumed = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    const commit: c.DirectStreamMutation.Request = .{ .offset = .{
+        .commit = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 305 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 },
+        .cursor = consumed.cursor,
+    } };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = commit, .payload = null } } });
+    _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = commit })).operation.?.offset;
+    try t.expectEqual(@as(u64, 2), (try c.DirectStreamClient.apply(&output, caller, .{ .group = .{ .target = target, .id = 1 } })).group.?.next);
+    const release: c.DirectStreamMutation.Request = .{ .release = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 306 }, .target = target, .read = group_read.handle() } };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = release, .payload = null } } });
+    _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = release })).operation.?.release;
+    try t.expectError(error.StreamReadReleased, c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = page_request.page.limits } }));
+    return page_request;
 }

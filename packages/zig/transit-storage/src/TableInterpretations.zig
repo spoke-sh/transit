@@ -32,7 +32,7 @@ pub fn encode(stored: Declaration.Stored) !pages.Value {
     for ([_]u64{ object.scope.realm, object.scope.resource, object.scope.catalog, object.branch, object.object, stored.interpretation.revision, stored.content.bytes }) |id| try writer.writeInt(u64, id, .little);
     try writer.writeAll(&stored.content.sha256);
     try writer.writeAll(&stored.schema_fingerprint);
-    try writer.writeByte(@intFromBool(stored.retired));
+    try writer.writeByte(@backingInt(stored.kind) << 1 | @intFromBool(stored.retired));
     return pages.Value.init(writer.buffered());
 }
 
@@ -44,9 +44,9 @@ pub fn decode(value: pages.Value) !Declaration.Stored {
     const length = try reader.takeInt(u64, .little);
     const digest = (try reader.takeArray(32)).*;
     const fingerprint = (try reader.takeArray(32)).*;
-    const retired = try reader.takeByte();
-    if (retired != 0) return error.InvalidTableInterpretation;
-    const result: Declaration.Stored = .{ .interpretation = .{ .object = object, .revision = revision, .digest = digest }, .content = .{ .bytes = length, .sha256 = digest }, .schema_fingerprint = fingerprint, .retired = false };
+    const flags = try reader.takeByte();
+    if (flags != 0 and flags != 2) return error.InvalidTableInterpretation;
+    const result: Declaration.Stored = .{ .kind = @fromBackingInt(@intCast(flags >> 1)), .interpretation = .{ .object = object, .revision = revision, .digest = digest }, .content = .{ .bytes = length, .sha256 = digest }, .schema_fingerprint = fingerprint, .retired = false };
     try result.validate();
     return result;
 }
@@ -86,7 +86,7 @@ pub fn adjust(store: *Store, root: ?pages.Reference, revision: u64, delta: i64, 
     const tree: pages.Tree(Store) = .{ .store = store };
     const old = try physical(store, root, revision);
     if (old) |value| {
-        if (!std.meta.eql(value.declaration.interpretation.object, current.interpretation.object) or
+        if (value.declaration.kind != current.kind or !std.meta.eql(value.declaration.interpretation.object, current.interpretation.object) or
             (delta > 0 and !std.mem.eql(u8, &value.declaration.schema_fingerprint, &current.schema_fingerprint))) return error.InvalidTableInterpretation;
     }
     const count = if (old) |value| value.rows else 0;

@@ -116,15 +116,16 @@ class AuthorityProfile:
     table_domain: int
     stream_domain: int
     queue_domain: int
+    kv_domain: int
     database: int
     initial_schema: int
     initial_schema_authority: int
     def __post_init__(self) -> None:
         for name, value in self._wire().items(): integer(value, name)
-        if len({self.database_domain, self.schema_domain, self.table_domain, self.stream_domain, self.queue_domain}) != 5 or self.database == self.initial_schema_authority:
+        if len({self.database_domain, self.schema_domain, self.table_domain, self.stream_domain, self.queue_domain, self.kv_domain}) != 6 or self.database == self.initial_schema_authority:
             raise ValueError('Distinct native authorization bindings are required')
     def _wire(self) -> dict[str, int]:
-        return {name: getattr(self, name) for name in ('database_domain', 'schema_domain', 'table_domain', 'stream_domain', 'queue_domain', 'database', 'initial_schema', 'initial_schema_authority')}
+        return {name: getattr(self, name) for name in ('database_domain', 'schema_domain', 'table_domain', 'stream_domain', 'queue_domain', 'kv_domain', 'database', 'initial_schema', 'initial_schema_authority')}
 
 
 @dataclass(frozen=True, slots=True)
@@ -922,7 +923,7 @@ class Description:
 def _description(value: object, connection: Connection, principal: int) -> Description:
     value = _object(value, 'configuration subject policy_revision')
     config = _object(value['configuration'], 'scope branch partition audience authority database_name initial_schema_name')
-    authority = AuthorityProfile(**_object(config['authority'], 'database_domain schema_domain table_domain stream_domain queue_domain database initial_schema initial_schema_authority'))
+    authority = AuthorityProfile(**_object(config['authority'], 'database_domain schema_domain table_domain stream_domain queue_domain kv_domain database initial_schema initial_schema_authority'))
     configuration = Configuration(_scope(config['scope']), _decimal(config['branch']), _decimal(config['partition']), integer(config['audience'], 'audience'),
                                   authority, _text(config['database_name'], 63), _text(config['initial_schema_name'], 63))
     raw = _object(value['subject'], 'principal login_role role credential_epoch audience context')

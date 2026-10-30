@@ -27,19 +27,19 @@ response(A,Root,Value,Action)->C=open(A,Root,#{status=>0,value=>Value}),try Acti
 invalid({error,#transit_error{kind=Kind}})->true=lists:member(Kind,[invalid_argument,incompatible_native,read_failed]),ok.
 restore(A,K,V)->{ok,Out}=A:restore(K,iolist_to_binary(json:encode(V))),Out.
 values(A,Root)->
-    Authority=#{database_domain=>10,schema_domain=>11,table_domain=>12,stream_domain=>13,queue_domain=>14,database=>20,initial_schema_authority=>21,initial_schema=>1},
+    Authority=#{database_domain=>10,schema_domain=>11,table_domain=>12,stream_domain=>13,queue_domain=>14,kv_domain=>15,database=>20,initial_schema_authority=>21,initial_schema=>1},
     Configuration=#{scope=>scope(),branch=><<"1">>,partition=>integer_to_binary(max()),audience=>3,authority=>Authority,database_name=><<"ledger">>,initial_schema_name=><<"public">>},
     Description=#{configuration=>Configuration,subject=>#{principal=>17,login_role=>17,role=>17,credential_epoch=>1,audience=>3,context=>lists:duplicate(32,1)},policy_revision=>2},
     response(A,Root,#{catalog=>#{description=>Description}},fun(C)->
         {ok,#transit_catalog_description{configuration=#transit_catalog_configuration{authority=Profile}}}=A:describe(C),
-        #transit_catalog_authority{stream_domain=13,queue_domain=14}=Profile
+        #transit_catalog_authority{stream_domain=13,queue_domain=14,kv_domain=15}=Profile
     end),
     lists:foreach(fun(Field)->
-        Other=case Field of stream_domain->14;queue_domain->13 end,
+        Other=case Field of stream_domain->14;queue_domain->13;kv_domain->13 end,
         lists:foreach(fun(BadAuthority)->
             response(A,Root,#{catalog=>#{description=>Description#{configuration=>Configuration#{authority=>BadAuthority}}}},fun(C)->invalid(A:describe(C)) end)
-        end,[maps:remove(Field,Authority)|[Authority#{Field=>V}||V<-[0,10,11,12,Other,1 bsl 53]]])
-    end,[stream_domain,queue_domain]),
+        end,[maps:remove(Field,Authority)|[Authority#{Field=>V}||V<-[0,10,11,12,Other,case Field of kv_domain->14;_->15 end,1 bsl 53]]])
+    end,[stream_domain,queue_domain,kv_domain]),
     Basis=restore(A,basis,basis()),true=is_record(Basis,transit_catalog_basis),{ok,SavedBasis}=A:save(Basis),Size=byte_size(SavedBasis)-1,<<Prefix:Size/binary,_>>=SavedBasis,
     invalid(A:restore(basis,<<Prefix/binary,",\"name\":\"other\"}">>)),
     lists:foreach(fun(V)->invalid(A:restore(reference,iolist_to_binary(json:encode(#{table=>V})))) end,[maps:remove(definition,maps:get(table,reference())),(maps:get(table,reference()))#{definition=>binary:copy(<<"0">>,64)},(maps:get(table,reference()))#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>18,operation=><<"10">>}}}]),

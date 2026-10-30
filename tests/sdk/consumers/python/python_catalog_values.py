@@ -25,13 +25,13 @@ contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes(
 definition = contract['definition']
 scope = m.Scope(ResourceRef(46, 7), (1 << 64) - 1)
 connection = m.Connection(scope, 3)
-authority = m.AuthorityProfile(21, 22, 23, 31, 32, 24, 1, 25)
+authority = m.AuthorityProfile(21, 22, 23, 31, 32, 33, 24, 1, 25)
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), True))
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), 1 << 64))
 rejects(ValueError, lambda: m.Connection(scope, 3, role=True))
 rejects(ValueError, lambda: m.Connection(scope, 3, branch=0))
 rejects(ValueError, lambda: m.Identity(1, 0))
-rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 31, 32, 24, 1, 25))
+rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 31, 32, 33, 24, 1, 25))
 object_id = dict(scope=scope._wire(), branch='1', object=str((1 << 64) - 1))
 interpretation = dict(object=object_id, revision='1', digest='ab'*32)
 stored = dict(interpretation=interpretation, content=dict(bytes='300', sha256='ab'*32), schema_fingerprint='cd'*32, retired=False)
@@ -211,6 +211,14 @@ try:
     retained = owner.describe()
     owner._api.response['catalog']['description']['subject']['context'][0] = 2
     assert retained.subject.context == bytes([1]*32) and retained.policy_revision == 4
+    for field in ('stream_domain', 'queue_domain', 'kv_domain'):
+        for missing in (True, False):
+            bad = copy.deepcopy(description)
+            profile = bad['configuration']['authority']
+            if missing: del profile[field]
+            else: profile[field] = profile['table_domain']
+            owner._api.response = {'catalog': {'description': bad}}
+            rejects(IncompatibleNative, owner.describe)
     for field, value in (('principal', 18), ('role', 29), ('audience', 4), ('credential_epoch', 0), ('context', [True]*32)):
         bad = copy.deepcopy(description); bad['subject'][field] = value
         owner._api.response = {'catalog': {'description': bad}}

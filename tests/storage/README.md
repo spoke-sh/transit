@@ -14,7 +14,8 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
 | Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
-| Automatic Table maintenance, concurrent reads/writes, admission pressure and restart | [Method and resource observations](tables/maintenance.md), [schedule](tables/direct_table_maintenance.py), [public caller](tables/direct_table_maintenance.zig); `just test direct-table-maintenance` |
+| Automatic Table/Stream maintenance, retained reads, admission pressure and restart | [Method and resource observations](tables/maintenance.md), [schedule](tables/direct_table_maintenance.py), [Table caller](tables/direct_table_maintenance.zig), [Stream caller](../interfaces/native/direct_table_client.zig); `just test direct-table-maintenance` |
+| Queue FIFO claims, uncertain replies, automatic retired-lease expiry and original payloads after restart | [Signed caller](tables/direct_queue.zig), [HTTP schedule](tables/direct_table_service.py); `just test direct-table-service queues` (also included in the default direct-service gate) |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |
 | Ursula/provider-specific conformance | [Provider storage](providers/storage.py), [pages](providers/pages.py), [blocks](providers/block_storage.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
 | Expiry, deletion, capacity and maintenance | [retention/](retention/), [real ENOSPC](retention/capacity.py) |

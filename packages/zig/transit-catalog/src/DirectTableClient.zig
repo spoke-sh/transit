@@ -38,6 +38,8 @@ pub const Attempt = struct {
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
             .identity = switch (request.action) {
+                .stream => |value| value.identity(),
+                .queue => |value| value.identity(),
                 // A raced token may select a different original operation. Never
                 // label the proposed operation as the accepted recovery identity.
                 .client_token => null,
@@ -67,6 +69,20 @@ pub const Attempt = struct {
         return result;
     }
 };
+
+test "Stream wait cancellation retains its original consume identity as unknown work" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-stream-wait-v1.json"));
+    defer fixture.deinit();
+    var attempt: Attempt = .{};
+    attempt.begin(fixture.value.request);
+    const identity = fixture.value.request.action.stream.wait.consume.operation;
+    try t.expectEqualDeep(identity, attempt.mutation.?.identity.?);
+    const diagnostic = (try attempt.failure(error.Canceled, null)).?;
+    try t.expectEqual(.unknown, diagnostic.outcome);
+    try t.expectEqual(.saved_intent, diagnostic.evidence);
+    try t.expectEqual(identity.operation, try diagnostic.identity.?.id.value());
+}
 
 test "direct caller attempt evidence survives reads and service rejection" {
     const t = std.testing;

@@ -7,39 +7,69 @@ const d = p.DataLifecycle;
 const f = @import("transit_fuze");
 const Objects = @import("TransitObjectStore.zig");
 const Batch = @import("LogBatch.zig");
+const View = @import("LogView.zig");
 const Evidence = @import("LogEvidence.zig");
 const Declaration = @import("LogDeclaration.zig");
 const pages = @import("TreeStore.zig").pages;
 const metadata_header = 76;
-const metadata_row = 9;
+const metadata_row = 13;
 pub const max_metadata_bytes = metadata_header + @import("TransitLog.zig").max_payload_bytes;
+pub const Layout = enum(u8) { complete = 1, sparse = 2 };
 pub const Descriptor = struct {
+    layout: Layout,
+    rows: u32,
     evidence: d.Content,
-    segment: d.Content,
+    segment: ?d.Content,
     metadata: d.Content,
+    view: d.Content,
     pub fn validate(self: Descriptor) !void {
         _ = try Evidence.reference(self.evidence);
-        try self.segment.validate();
+        if (self.segment) |segment| {
+            try segment.validate();
+            if (segment.bytes > f.TSeg.max_segment_bytes) return error.InvalidLogSegment;
+        }
         try self.metadata.validate();
-        if (self.segment.bytes > f.TSeg.max_segment_bytes or self.metadata.bytes <= metadata_header or self.metadata.bytes > max_metadata_bytes or
-            (self.metadata.bytes - metadata_header) % metadata_row != 0) return error.InvalidLogSegment;
+        try self.view.validate();
+        if ((self.rows != 0) != (self.segment != null) or (self.layout == .complete and self.rows == 0) or
+            self.metadata.bytes != metadata_header + @as(u64, self.rows) * metadata_row or self.metadata.bytes > max_metadata_bytes or
+            self.view.bytes < View.header_bytes or self.view.bytes > @import("TransitLog.zig").max_payload_bytes) return error.InvalidLogSegment;
     }
     pub fn encode(self: Descriptor) !pages.Value {
         try self.validate();
-        var bytes: [120]u8 = undefined;
-        for ([_]d.Content{ self.evidence, self.segment, self.metadata }, 0..) |content, i| {
-            std.mem.writeInt(u64, bytes[i * 40 ..][0..8], content.bytes, .big);
-            bytes[i * 40 + 8 ..][0..32].* = content.sha256;
-        }
+        var bytes: [165]u8 = @splat(0);
+        bytes[0] = @backingInt(self.layout);
+        std.mem.writeInt(u32, bytes[1..5], self.rows, .big);
+        for ([_]?d.Content{ self.evidence, self.segment, self.metadata, self.view }, 0..) |content, i| if (content) |value| {
+            std.mem.writeInt(u64, bytes[5 + i * 40 ..][0..8], value.bytes, .big);
+            bytes[13 + i * 40 ..][0..32].* = value.sha256;
+        };
         return pages.Value.init(&bytes);
     }
     pub fn decode(value: pages.Value) !Descriptor {
-        if (value.len != 120) return error.InvalidLogSegment;
-        var contents: [3]d.Content = undefined;
-        for (&contents, 0..) |*content, i| content.* = .{ .bytes = std.mem.readInt(u64, value.data[i * 40 ..][0..8], .big), .sha256 = value.data[i * 40 + 8 ..][0..32].* };
-        const result: Descriptor = .{ .evidence = contents[0], .segment = contents[1], .metadata = contents[2] };
+        if (value.len != 165) return error.InvalidLogSegment;
+        const layout = std.enums.fromInt(Layout, value.data[0]) orelse return error.InvalidLogSegment;
+        var contents: [4]d.Content = undefined;
+        for (&contents, 0..) |*content, i| content.* = .{ .bytes = std.mem.readInt(u64, value.data[5 + i * 40 ..][0..8], .big), .sha256 = value.data[13 + i * 40 ..][0..32].* };
+        const segment: ?d.Content = if (std.mem.allEqual(u8, value.data[45..85], 0)) null else contents[1];
+        const result: Descriptor = .{ .layout = layout, .rows = std.mem.readInt(u32, value.data[1..5], .big), .evidence = contents[0], .segment = segment, .metadata = contents[2], .view = contents[3] };
         try result.validate();
         return result;
+    }
+    pub fn iterator(self: Descriptor, bytes: []const u8, schema: f.TableSchema.Schema, append: p.StreamQueue.Append) !View.Rows {
+        try self.validate();
+        if (!std.meta.eql(self.view, Batch.content(bytes))) return error.LogPayloadConflict;
+        return switch (self.layout) {
+            .complete => blk: {
+                if (self.rows != append.rows or !std.meta.eql(self.view, append.payload)) return error.InvalidLogSegment;
+                break :blk .{ .complete = try Batch.Iterator.init(bytes, schema, if (append.kind == .stream) .stream else .queue, append.rows) };
+            },
+            .sparse => blk: {
+                if (append.kind != .stream or self.view.bytes > append.payload.bytes) return error.InvalidLogSegment;
+                const rows = try View.Iterator.init(bytes, schema, append.rows);
+                if (rows.count != self.rows or self.rows > append.rows / 2) return error.InvalidLogSegment;
+                break :blk .{ .sparse = rows };
+            },
+        };
     }
 };
 pub fn segmentKey(content: d.Content, output: *[96]u8) ![]const u8 {
@@ -65,34 +95,54 @@ fn put(objects: Objects.ObjectStore, bytes: []const u8, comptime key: anytype) !
 /// All decode/encode allocations belong to the caller's finite build budget.
 /// One arena retains a batch; there is no per-row heap arena lifecycle.
 pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, declaration: *const Declaration.Owned, evidence: Evidence.Record, payload: []const u8, rows_per_group: u32) !Descriptor {
+    return stageLayout(allocator, objects, declaration, evidence, payload, rows_per_group, .complete);
+}
+/// The owner must prove omissions against its exact visibility root and compare
+/// surviving bytes to the old placement before publishing this private object.
+pub fn stageSparse(allocator: std.mem.Allocator, objects: Objects.ObjectStore, declaration: *const Declaration.Owned, evidence: Evidence.Record, view: []const u8, rows_per_group: u32) !Descriptor {
+    return stageLayout(allocator, objects, declaration, evidence, view, rows_per_group, .sparse);
+}
+fn stageLayout(allocator: std.mem.Allocator, objects: Objects.ObjectStore, declaration: *const Declaration.Owned, evidence: Evidence.Record, payload: []const u8, rows_per_group: u32, layout: Layout) !Descriptor {
     try evidence.validate();
     if (evidence.outcome != .append or !std.meta.eql(evidence.declared, try declaration.stored())) return error.InvalidLogSegment;
     const receipt = evidence.outcome.append;
     const append = receipt.append;
     if (payload.len > @import("TransitLog.zig").max_payload_bytes) return error.InvalidLogSegment;
-    if (!std.meta.eql(append.payload, Batch.content(payload))) return error.LogPayloadConflict;
+    if (layout == .complete and !std.meta.eql(append.payload, Batch.content(payload))) return error.LogPayloadConflict;
+    if (payload.len > append.payload.bytes or (layout == .sparse and append.kind != .stream)) return error.InvalidLogSegment;
     const kind: p.StreamQueueDeclaration.Kind = if (append.kind == .stream) .stream else .queue;
     const schema = declaration.definition.schema;
-    var iterator = try Batch.Iterator.init(payload, schema, kind, append.rows);
+    var iterator: View.Rows = switch (layout) {
+        .complete => .{ .complete = try Batch.Iterator.init(payload, schema, kind, append.rows) },
+        .sparse => .{ .sparse = try View.Iterator.init(payload, schema, append.rows) },
+    };
+    const count = switch (iterator) {
+        inline else => |value| value.count,
+    };
+    if (layout == .sparse and count > append.rows / 2) return error.InvalidLogSegment;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const rows = try a.alloc(f.TableRow.Row, iterator.count);
-    const metadata_size = metadata_header + @as(usize, iterator.count) * metadata_row;
+    const rows = try a.alloc(f.TableRow.Row, count);
+    const metadata_size = metadata_header + @as(usize, count) * metadata_row;
     if (metadata_size > max_metadata_bytes) return error.InvalidLogSegment;
     const metadata = try a.alloc(u8, metadata_size);
     const evidence_content = try Evidence.decodeReference(try Evidence.expectedReference(evidence));
     metadata[0..8].* = "LBMETA01".*;
     metadata[8..40].* = p.Growth.definition_bytes;
     metadata[40..72].* = evidence_content.sha256;
-    std.mem.writeInt(u32, metadata[72..76], iterator.count, .big);
+    std.mem.writeInt(u32, metadata[72..76], count, .big);
+    var physical: usize = 0;
     while (try iterator.next()) |encoded| {
         const decoded = try encoded.decode(a, schema, append.operation);
-        rows[encoded.ordinal] = .{ .identity = .{ .origin = append.operation.principal + 1, .operation = append.operation.operation, .ordinal = encoded.ordinal }, .cells = decoded.cells };
-        const at = metadata_header + @as(usize, encoded.ordinal) * metadata_row;
-        std.mem.writeInt(u64, metadata[at..][0..8], encoded.visible_ms, .big);
-        metadata[at + 8] = @intFromBool(encoded.tombstone);
+        rows[physical] = .{ .identity = .{ .origin = append.operation.principal + 1, .operation = append.operation.operation, .ordinal = encoded.ordinal }, .cells = decoded.cells };
+        const at = metadata_header + physical * metadata_row;
+        std.mem.writeInt(u32, metadata[at..][0..4], encoded.ordinal, .big);
+        std.mem.writeInt(u64, metadata[at + 4 ..][0..8], encoded.visible_ms, .big);
+        metadata[at + 12] = @intFromBool(encoded.tombstone);
+        physical += 1;
     }
+    if (count == 0) return .{ .layout = layout, .rows = 0, .evidence = evidence_content, .segment = null, .metadata = try put(objects, metadata, metadataKey), .view = Batch.content(payload) };
     var output = try allocator.alloc(u8, 64 * 1024);
     defer allocator.free(output);
     const encoded = while (true) {
@@ -106,7 +156,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, declara
         };
         break bytes;
     };
-    const result: Descriptor = .{ .evidence = evidence_content, .segment = try put(objects, encoded, segmentKey), .metadata = try put(objects, metadata, metadataKey) };
+    const result: Descriptor = .{ .layout = layout, .rows = count, .evidence = evidence_content, .segment = try put(objects, encoded, segmentKey), .metadata = try put(objects, metadata, metadataKey), .view = Batch.content(payload) };
     try result.validate();
     return result;
 }
@@ -131,7 +181,7 @@ pub const Source = struct {
     }
 };
 
-/// Reconstruct the exact original batch into caller-owned bounded output. Each
+/// Reconstruct the declared complete batch or sparse view into bounded output. Each
 /// columnar group has a separate bounded lifetime; tail admission can then share
 /// verified borrowed bytes with the normal WAL path.
 pub fn materialize(allocator: std.mem.Allocator, objects: Objects.ObjectStore, descriptor: Descriptor, declaration: *const Declaration.Owned, evidence: Evidence.Record, output: []u8) ![]const u8 {
@@ -141,41 +191,60 @@ pub fn materialize(allocator: std.mem.Allocator, objects: Objects.ObjectStore, d
     const receipt = evidence.outcome.append;
     const append = receipt.append;
     if (append.rows > (max_metadata_bytes - metadata_header) / metadata_row or append.payload.bytes > @import("TransitLog.zig").max_payload_bytes) return error.InvalidLogSegment;
-    if (descriptor.metadata.bytes != metadata_header + @as(u64, append.rows) * metadata_row) return error.InvalidLogSegment;
+    if (descriptor.rows > append.rows or (descriptor.layout == .complete and descriptor.rows != append.rows) or (descriptor.layout == .sparse and (append.kind != .stream or descriptor.rows > append.rows / 2 or descriptor.view.bytes > append.payload.bytes))) return error.InvalidLogSegment;
     var name: [96]u8 = undefined;
     const key = try metadataKey(descriptor.metadata, &name);
     try verifyHead(objects, key, descriptor.metadata);
     const metadata = try allocator.alloc(u8, @intCast(descriptor.metadata.bytes));
     defer allocator.free(metadata);
     const bytes = try objects.getRange(key, 0, @intCast(metadata.len), metadata);
-    if (bytes.len != metadata.len or !std.mem.eql(u8, &Evidence.hash(bytes), &descriptor.metadata.sha256) or !std.mem.eql(u8, bytes[0..8], "LBMETA01") or !std.mem.eql(u8, bytes[40..72], &descriptor.evidence.sha256) or std.mem.readInt(u32, bytes[72..76], .big) != append.rows) return error.InvalidLogSegment;
+    if (bytes.len != metadata.len or !std.mem.eql(u8, &Evidence.hash(bytes), &descriptor.metadata.sha256) or !std.mem.eql(u8, bytes[0..8], "LBMETA01") or !std.mem.eql(u8, bytes[40..72], &descriptor.evidence.sha256) or std.mem.readInt(u32, bytes[72..76], .big) != descriptor.rows) return error.InvalidLogSegment;
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    var source: Source = .{ .objects = objects, .content = descriptor.segment };
-    try source.verify();
-    var reader = try f.TSegReader.open(allocator, source.source(), descriptor.segment.bytes, f.TSeg.max_segment_bytes);
-    defer reader.deinit();
-    if (reader.footer.segment_id != receipt.accepted.next_lsn or reader.footer.total_rows != append.rows or reader.footer.pk_index.len != append.rows) return error.InvalidLogSegment;
     const schema = declaration.definition.schema;
+    var dense: ?Batch.Encoder = if (descriptor.layout == .complete) try Batch.Encoder.init(schema, append.operation, if (append.kind == .stream) .stream else .queue, @intCast(append.rows), output) else null;
+    var sparse: ?View.Encoder = if (descriptor.layout == .sparse) try View.Encoder.init(schema, @intCast(append.rows), descriptor.rows, output) else null;
+    if (descriptor.segment == null) {
+        const empty = try sparse.?.finish();
+        if (!std.meta.eql(descriptor.view, Batch.content(empty))) return error.LogPayloadConflict;
+        return empty;
+    }
+    const segment = descriptor.segment.?;
+    var source: Source = .{ .objects = objects, .content = segment };
+    try source.verify();
+    var reader = try f.TSegReader.open(allocator, source.source(), segment.bytes, f.TSeg.max_segment_bytes);
+    defer reader.deinit();
+    if (reader.footer.segment_id != receipt.accepted.next_lsn or reader.footer.total_rows != descriptor.rows or reader.footer.pk_index.len != descriptor.rows) return error.InvalidLogSegment;
     var projection: [f.TableSchema.max_columns]usize = undefined;
     for (projection[0..schema.columns.len], 0..) |*column, i| column.* = i;
-    var encoder = try Batch.Encoder.init(schema, append.operation, if (append.kind == .stream) .stream else .queue, @intCast(append.rows), output);
+    const row_buffer = try allocator.alloc(u8, @intCast(@min(append.payload.bytes, f.TableRow.max_bytes)));
+    defer allocator.free(row_buffer);
+    var previous: ?u32 = null;
     for (reader.footer.row_groups, 0..) |group, gi| {
         var decoded = try reader.group(allocator, source.source(), schema, gi, projection[0..schema.columns.len], .{});
         defer decoded.deinit();
         var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
         for (0..group.row_count) |ri| {
-            const ordinal = group.start_row_offset + ri;
+            const physical = group.start_row_offset + ri;
+            if (physical >= descriptor.rows) return error.InvalidLogSegment;
+            const at = metadata_header + physical * metadata_row;
+            const ordinal = std.mem.readInt(u32, bytes[at..][0..4], .big);
+            if (ordinal >= append.rows or (previous != null and ordinal <= previous.?) or (descriptor.layout == .complete and ordinal != physical)) return error.InvalidLogSegment;
+            previous = ordinal;
             const identity: f.TableRow.Identity = .{ .origin = append.operation.principal + 1, .operation = append.operation.operation, .ordinal = @intCast(ordinal) };
-            const entry = reader.footer.pk_index[ordinal];
-            if (!std.meta.eql(entry.identity, identity) or entry.row_group != gi or entry.row_in_group != ri or entry.global_row_offset != ordinal) return error.InvalidLogSegment;
+            const entry = reader.footer.pk_index[physical];
+            if (!std.meta.eql(entry.identity, identity) or entry.row_group != gi or entry.row_in_group != ri or entry.global_row_offset != physical) return error.InvalidLogSegment;
             for (decoded.columns, cells[0..schema.columns.len]) |column, *cell| cell.* = column.cell(ri);
-            const at = metadata_header + ordinal * metadata_row;
-            if (bytes[at + 8] > 1) return error.InvalidLogSegment;
-            try encoder.append(.{ .cells = cells[0..schema.columns.len], .visible_ms = std.mem.readInt(u64, bytes[at..][0..8], .big), .tombstone = bytes[at + 8] != 0 });
+            if (bytes[at + 12] > 1) return error.InvalidLogSegment;
+            const row: Batch.Row = .{ .cells = cells[0..schema.columns.len], .visible_ms = std.mem.readInt(u64, bytes[at + 4 ..][0..8], .big), .tombstone = bytes[at + 12] != 0 };
+            if (dense) |*encoder| try encoder.append(row);
+            if (sparse) |*encoder| {
+                const original: f.TableRow.Row = .{ .identity = identity, .cells = row.cells };
+                try encoder.append(.{ .ordinal = ordinal, .visible_ms = row.visible_ms, .tombstone = row.tombstone, .bytes = try original.encode(schema, row_buffer) });
+            }
         }
     }
-    const original = try encoder.finish();
-    if (!std.meta.eql(append.payload, Batch.content(original))) return error.LogPayloadConflict;
+    const original = if (dense) |encoder| try encoder.finish() else try sparse.?.finish();
+    if (!std.meta.eql(descriptor.view, Batch.content(original)) or (descriptor.layout == .complete and !std.meta.eql(append.payload, descriptor.view))) return error.LogPayloadConflict;
     return original;
 }
 
@@ -189,12 +258,15 @@ pub fn skipTimestamp(allocator: std.mem.Allocator, objects: Objects.ObjectStore,
     if (evidence.outcome != .append or evidence.outcome.append.append.kind != .stream or !std.meta.eql(evidence.declared, try declaration.stored()) or !std.meta.eql(descriptor.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogSegment;
     const receipt = evidence.outcome.append;
     const append = receipt.append;
-    if (ordinal >= append.rows or maximum == 0 or append.rows > (max_metadata_bytes - metadata_header) / metadata_row or descriptor.metadata.bytes != metadata_header + append.rows * metadata_row) return error.InvalidLogSegment;
+    if (ordinal >= append.rows or maximum == 0) return error.InvalidLogSegment;
+    if (descriptor.layout == .sparse) return 0;
+    if (descriptor.rows != append.rows or !std.meta.eql(descriptor.view, append.payload) or append.rows > (max_metadata_bytes - metadata_header) / metadata_row) return error.InvalidLogSegment;
+    const segment = descriptor.segment orelse return error.InvalidLogSegment;
     var name: [96]u8 = undefined;
     try verifyHead(objects, try metadataKey(descriptor.metadata, &name), descriptor.metadata);
-    var source: Source = .{ .objects = objects, .content = descriptor.segment };
+    var source: Source = .{ .objects = objects, .content = segment };
     try source.verify();
-    var reader = try f.TSegReader.open(allocator, source.source(), descriptor.segment.bytes, f.TSeg.max_segment_bytes);
+    var reader = try f.TSegReader.open(allocator, source.source(), segment.bytes, f.TSeg.max_segment_bytes);
     defer reader.deinit();
     const footer = reader.footer;
     const schema = declaration.definition.schema;
@@ -218,4 +290,19 @@ pub fn skipTimestamp(allocator: std.mem.Allocator, objects: Objects.ObjectStore,
         if (!std.meta.eql(item.identity, identity) or item.global_row_offset != position or item.row_group != entry.row_group or item.row_in_group != position - group.start_row_offset) return error.InvalidLogSegment;
     }
     return count;
+}
+
+/// Every physical omission must be hidden in this exact retained basis. A view
+/// digest alone does not prove logical coverage or authorize dropping a row.
+pub fn requireVisibility(descriptor: Descriptor, payload: []const u8, schema: f.TableSchema.Schema, receipt: p.StreamQueue.AppendReceipt, store: *@import("TreeStore.zig"), hidden: @import("BitmapDirectory.zig").Root) !void {
+    if (descriptor.layout == .complete) return;
+    var rows = try descriptor.iterator(payload, schema, receipt.append);
+    var visibility: @import("BitmapDirectory.zig") = .{ .store = store, .objects = store.store };
+    var through = receipt.first;
+    while (try rows.next()) |row| {
+        const offset = receipt.first + row.ordinal;
+        while (through < offset) : (through += 1) if (!try visibility.contains(hidden, through)) return error.LogHistoryUnavailable;
+        through = offset + 1;
+    }
+    while (through < receipt.next) : (through += 1) if (!try visibility.contains(hidden, through)) return error.LogHistoryUnavailable;
 }

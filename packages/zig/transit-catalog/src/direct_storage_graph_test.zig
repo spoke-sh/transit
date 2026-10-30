@@ -29,6 +29,307 @@ pub const Workspace = struct {
     }
 };
 
+test "direct graph retains Queue scheduling bitmaps and full FIFO keys after collecting private candidates" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn clock(raw: *anyopaque) !?s.LogTime.Sample {
+            const phase: *u8 = @ptrCast(@alignCast(raw));
+            return .exact(if (phase.* == 0) 100 else 500);
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    var definition: s.LogDeclaration.Definition = .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 8 },
+        .revision = 1,
+        .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .ascii_ci }} },
+        .configuration = .{
+            .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
+            .retention = .{ .max_age_ms = null },
+            .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 1, .maximum_ms = 100, .multiplier = 2 }, .dead_letter = null } },
+        },
+        .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "queue-graph",
+    };
+    var target_definition = definition;
+    target_definition.object.object = 10;
+    target_definition.schema.object = 10;
+    var terminal_destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer terminal_destination.deinit();
+    const terminal_stored = try s.LogDeclaration.stage(objects.objectStore(), &terminal_destination);
+    target_definition.object.object = 9;
+    target_definition.schema.object = 9;
+    target_definition.configuration.policy.queue.dead_letter = terminal_stored.declaration.interpretation;
+    var destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer destination.deinit();
+    const destination_stored = try s.LogDeclaration.stage(objects.objectStore(), &destination);
+    target_definition.revision = 2;
+    target_definition.retired = true;
+    target_definition.configuration.policy.queue.dead_letter = null;
+    var replacement = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer replacement.deinit();
+    const replacement_stored = try s.LogDeclaration.stage(objects.objectStore(), &replacement);
+    target_definition.object.object = 11;
+    target_definition.schema.object = 11;
+    target_definition.revision = 1;
+    target_definition.retired = false;
+    target_definition.configuration.policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } };
+    var stream_destination = try s.LogDeclaration.prepare(t.allocator, target_definition);
+    defer stream_destination.deinit();
+    const stream_stored = try s.LogDeclaration.stage(objects.objectStore(), &stream_destination);
+    definition.configuration.policy.queue.maximum_attempts = 1;
+    definition.configuration.policy.queue.dead_letter = destination_stored.declaration.interpretation;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
+    const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
+    _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 65536, .key_bytes = 1024, .clock = .{ .context = &context, .read = Fixture.clock }, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 65536, .resident_bytes = 131072 } };
+    var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(guard, 1);
+    const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
+    var bytes: [65536]u8 = undefined;
+    var encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, operation, .queue, 24, &bytes);
+    var long_key: [300]u8 = @splat('a');
+    for (0..24) |i| {
+        long_key[299] = @intCast('A' + i);
+        try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }}, .visible_ms = i });
+    }
+    const payload = try encoder.finish();
+    const request: c.protocol.StreamQueue.Append = .{ .target = initial.target(), .operation = operation, .kind = .queue, .producer = null, .rows = 24, .payload = s.LogBatch.content(payload) };
+    const receipt = try owner.enqueue(declared, request, payload, guard);
+    const frozen_batches = owner.owner.root.batches.?;
+    const claim: c.protocol.StreamQueue.Claim = .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 16, .lease_ms = 100 };
+    const claimed = try owner.claim(declared, claim, guard);
+    try t.expectEqual(@as(u32, 16), claimed.rows);
+    var original_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const original_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &original_bytes);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 4 }, .lease = try original_selection.lease(0), .action = .ack }, guard);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 5 }, .lease = try original_selection.lease(2), .action = .{ .nack = .{ .visible_ms = 0 } } }, guard);
+    context = 1;
+    try t.expect(try owner.expireOne(declared, guard));
+    const later: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 6 };
+    encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, later, .queue, 1, &bytes);
+    long_key[299] = 'z';
+    try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }} });
+    const added = try encoder.finish();
+    _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = later, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(added) }, added, guard);
+    // Leave accepted scheduling with a pending chunk, an unfinished two-input
+    // merge and a partial output directory. Its frozen item/bitmap basis must
+    // remain reachable independently of the current Queue state.
+    for (7..13) |id| {
+        const identity: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = id };
+        encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, identity, .queue, 128, &bytes);
+        var key_bytes: [32]u8 = undefined;
+        for (0..128) |i| {
+            const key = try std.fmt.bufPrint(&key_bytes, "timer-{d}-{d}", .{ id, i });
+            try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = key } } }} });
+        }
+        const batch = try encoder.finish();
+        _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = identity, .kind = .queue, .producer = null, .rows = 128, .payload = s.LogBatch.content(batch) }, batch, guard);
+    }
+    var merged = false;
+    for (0..256) |_| {
+        try t.expect(try owner.scheduleMaintenanceUnit(declared, 17, guard));
+        if (owner.owner.root.queue.?.eligible.work) |pending| {
+            if (pending.merge.sources[1].rows != 0 and pending.merge.output.rows != 0) {
+                merged = true;
+                break;
+            }
+        }
+    }
+    try t.expect(merged);
+    // Current time still precedes this later claim's deadline. A NACK changes
+    // the current basis after the timer merge froze it, without completing it.
+    const next_claim = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 13 }, .maximum = 1, .lease_ms = 100 }, guard);
+    var next_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const next_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), next_claim.leases.?, &next_bytes);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 14 }, .lease = try next_selection.lease(0), .action = .{ .nack = .{ .visible_ms = 1000 } } }, guard);
+    const cut = owner.owner.root.position();
+    while (!(try owner.flush(cut, guard)).complete) {}
+    while (!(try owner.archive(cut, .{ .frames = 2 }, guard)).complete) {}
+    _ = try owner.checkpoint(cut, guard);
+    _ = try owner.trimArchived(guard);
+    const root = owner.owner.root;
+    try t.expect(!std.meta.eql(frozen_batches, root.batches.?));
+    {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        const scheduling = root.queue.?.eligible;
+        try t.expect(scheduling.pending != null and scheduling.work != null);
+        const frozen = scheduling.work.?.merge;
+        try t.expect(!std.meta.eql(frozen.basis.items, root.queue.?.items));
+        try isolated.enqueue(.{ .queue_schedule = .{
+            .context = .{ .log = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = root.queue.?.read_releases, .archive = root.archive }, .seed = initial.target(), .kind = .visible, .serial = scheduling.serial },
+            .root = scheduling,
+        } });
+        var at_job: usize = 0;
+        while (at_job < isolated.jobs.items.len) : (at_job += 1) {
+            var work = isolated.jobs.items[at_job];
+            while (!try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated)) {}
+        }
+        var key: [96]u8 = undefined;
+        for ([_]?s.TreeStore.pages.Reference{ frozen.basis.items, frozen.basis.sidecars }) |reference| try t.expect(isolated.marks.contains(try s.TreeStore.key(reference.?.location, &key)));
+        for (frozen.sources ++ [_]s.QueueTimeDirectory.Root{frozen.output}) |run| {
+            try t.expect(isolated.marks.contains(try s.TreeStore.key(run.directory.?.location, &key)));
+            const directory: s.QueueTimeDirectory = .{ .store = &owner.owner.store, .seed = initial.target(), .kind = .visible, .bucket = frozen.bucket };
+            var audit: s.QueueTimeDirectory.Audit = .{ .basis = run };
+            while (try directory.audit(&audit)) |entry| try t.expect(isolated.marks.contains(try s.QueueTimeRun.key(entry.chunk.content, &key)));
+        }
+    }
+    // Isolate the accepted item directory: neither source declaration nor
+    // catalog/history traversal may mask a missing blocked-destination edge.
+    {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        try isolated.enqueue(.{ .log_index = .{
+            .context = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = root.queue.?.read_releases, .archive = root.archive },
+            .reference = root.queue.?.items.?,
+            .kind = .queue_items,
+        } });
+        var job: usize = 0;
+        var steps: usize = 0;
+        while (job < isolated.jobs.items.len) : (job += 1) {
+            var work = isolated.jobs.items[job];
+            while (true) {
+                const queued = isolated.jobs.items.len;
+                const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated);
+                try t.expect(isolated.jobs.items.len - queued <= 3);
+                steps += 1;
+                if (steps > 10000) return error.FixtureBudget;
+                if (complete) break;
+            }
+        }
+        var name: [96]u8 = undefined;
+        for ([_]s.LogDeclaration.Stored{ destination_stored, terminal_stored }) |stored| try t.expect(isolated.marks.contains(try s.LogDeclaration.key(stored.content, &name)));
+        try t.expect(!isolated.marks.contains(try s.LogDeclaration.key(replacement_stored.content, &name)));
+        var invalid: Graph.Work = .{ .queue_destination = replacement_stored.declaration.interpretation };
+        try t.expectError(error.InvalidQueueDestination, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid = .{ .queue_destination = stream_stored.declaration.interpretation };
+        try t.expectError(error.InvalidQueueDestination, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid = .{ .queue_destination = destination_stored.declaration.interpretation };
+        invalid.queue_destination.revision += 1;
+        try t.expectError(error.InvalidLogDeclaration, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+        invalid.queue_destination.digest = @splat(99);
+        try t.expectError(error.LogDeclarationMissing, Graph.step(t.allocator, &owner.owner.store, wal.log(), &invalid, &isolated));
+    }
+    var latest = try wal.log().read(t.allocator, 92, root.next_lsn - 1, 1);
+    defer latest.deinit();
+    var workspace: Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest.frames[0]));
+    var job: usize = 0;
+    var steps: usize = 0;
+    while (job < workspace.jobs.items.len) : (job += 1) {
+        var work = workspace.jobs.items[job];
+        while (true) {
+            const queued = workspace.jobs.items.len;
+            const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - queued <= 3);
+            steps += 1;
+            if (steps > 100000) return error.FixtureBudget;
+            if (complete) break;
+        }
+    }
+    var name: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try s.TreeStore.key(frozen_batches.location, &name)));
+    try t.expect(workspace.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
+    for ([_]s.LogDeclaration.Stored{ destination_stored, terminal_stored }) |stored| try t.expect(workspace.marks.contains(try s.LogDeclaration.key(stored.content, &name)));
+    try t.expect(!workspace.marks.contains(try s.LogDeclaration.key(replacement_stored.content, &name)));
+    for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
+    for ([_]s.QueueSchedule.Root{ root.queue.?.eligible, root.queue.?.deadlines }) |scheduled| try t.expect(workspace.marks.contains(try s.QueueTimeBuffer.key(scheduled.active.?, &name)));
+    var removed: usize = 0;
+    var at: usize = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (Graph.collectible(item.key) and !workspace.marks.contains(item.key)) {
+            try objects.objectStore().delete(item.key);
+            removed += 1;
+        } else at += 1;
+    }
+    try t.expect(removed > 24);
+    try owner.deinit();
+    owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(guard, 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(root, owner.owner.root);
+    try t.expectEqualDeep(receipt, (try owner.operation(operation, guard)).?.outcome.append);
+    try t.expectEqualDeep(claimed, try owner.claim(declared, claim, guard));
+    var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
+    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &selection_buffer);
+    try selection.requireReceipt(claimed);
+    var payload_page = try owner.readClaimPage(declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, guard);
+    defer payload_page.deinit();
+    try t.expect(payload_page.cursor.complete() and payload_page.rows().len == 16);
+    try t.expectEqual(c.protocol.QueueRead.State.acked, payload_page.rows()[0].lease.state);
+    try t.expectEqual(c.protocol.QueueRead.Liveness.fenced, payload_page.rows()[1].lease.liveness);
+    try t.expectEqualDeep(c.protocol.QueueRead.Blocked{ .dead_letter = destination_stored.declaration.interpretation }, payload_page.rows()[1].lease.blocked);
+    try t.expectEqualDeep(c.protocol.QueueRead.Blocked{ .dead_letter = destination_stored.declaration.interpretation }, payload_page.rows()[2].lease.blocked);
+    try t.expectEqual(c.protocol.QueueRead.Liveness.expired, payload_page.rows()[3].lease.liveness);
+    var decoded_payload = try c.fuze.TableRow.decode(t.allocator, declaration.definition.schema, payload_page.rows()[0].encoded);
+    defer decoded_payload.deinit();
+    long_key[299] = 'A';
+    try t.expectEqualSlices(u8, &long_key, decoded_payload.row().cells[0].value.atom.bytes);
+    var bitmap: s.BitmapDirectory = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
+    const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer, .timer_workspace = owner.owner.queue_timers, .timer_seed = owner.owner.root.initialization.target(), .timer_read_work = owner.owner.options.queue_timer_read_work };
+    var canonical: [1024]u8 = undefined;
+    for (0..24) |i| {
+        long_key[299] = @intCast('a' + i);
+        const key = try c.fuze.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = &long_key } } }, .utf8, .ascii_ci, &canonical);
+        if (i == 0) {
+            try t.expect(try queue.head(root.queue.?, key) == null);
+        } else try t.expectEqualDeep(s.QueueIndex.Head{ .first = i, .last = i }, (try queue.head(root.queue.?, key)).?);
+        const state: s.Tack.State = if (i == 0) .acked else if (i >= 3 and i < 16) .acquired else .available;
+        try t.expectEqual(state, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
+    }
+    var maintenance_units: usize = 0;
+    while (try owner.scheduleMaintenanceUnit(declared, 17, guard)) : (maintenance_units += 1) {
+        if (maintenance_units > 512) return error.FixtureBudget;
+    }
+    try t.expect(maintenance_units > 20);
+    const before_release = owner.owner.root;
+    const released = try owner.releaseClaimRead(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 1000 }, .claim = claimed }, guard);
+    const after_release = owner.owner.root;
+    // Isolate the selection edge. The current Queue still retains its live
+    // payloads independently, and older recovery roots still retain their cuts.
+    for ([_]s.QueuePartition.Root{ before_release, after_release }) |basis| {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        try isolated.enqueue(.{ .queue_selection = .{
+            .context = .{ .interpretation = basis.declared.declaration.interpretation, .partition = basis.initialization.partition, .ordinal = basis.initialization.ordinal, .next_lsn = basis.next_lsn, .next_offset = basis.next_offset, .segments = basis.segments, .hidden = basis.hidden, .queue_read_releases = basis.queue.?.read_releases, .archive = basis.archive },
+            .receipt = claimed,
+        } });
+        var at_job: usize = 0;
+        var traversed: usize = 0;
+        while (at_job < isolated.jobs.items.len) : (at_job += 1) {
+            var work = isolated.jobs.items[at_job];
+            while (true) {
+                const done = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated);
+                traversed += 1;
+                if (traversed > 10000) return error.FixtureBudget;
+                if (done) break;
+            }
+        }
+        try t.expect(isolated.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
+        try t.expectEqual(basis.next_lsn < released.accepted.next_lsn, isolated.marks.contains(try s.TreeStore.key(frozen_batches.location, &name)));
+        if (basis.queue.?.read_releases != null) {
+            var impossible = isolated.jobs.items[0];
+            impossible.queue_selection.context.next_lsn = before_release.next_lsn;
+            try t.expectError(error.InvalidQueueReadRelease, Graph.step(t.allocator, &owner.owner.store, wal.log(), &impossible, &isolated));
+        }
+    }
+}
+
 test "direct graph retains physical and ADD interpretations without receipt or history roots" {
     const Fixture = struct {
         fn acquire(_: *anyopaque) !P.Guard.Fence {

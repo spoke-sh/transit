@@ -3634,10 +3634,10 @@
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "AccessDenied": 2,
-        "CatalogDenied": 58,
+        "CatalogDenied": 59,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
-        "CatalogKindMismatch": 3,
+        "CatalogKindMismatch": 4,
         "CatalogNameHashCollision": 2,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
@@ -3667,7 +3667,7 @@
         "InvalidDirectCatalogTransition": 1,
         "InvalidLogCatalogDefinition": 2,
         "InvalidLogCatalogOperation": 5,
-        "InvalidMaintenanceCursor": 1,
+        "InvalidMaintenanceCursor": 4,
         "InvalidPartitionLease": 2,
         "InvalidQueueDestination": 1,
         "InvalidStorageBudget": 1,
@@ -3683,7 +3683,7 @@
         "InvalidTransactionWork": 6,
         "InvalidTransactionWorkspace": 5,
         "LogCatalogRequestRequired": 1,
-        "LogDeclarationConflict": 1,
+        "LogDeclarationConflict": 3,
         "MissingRequiredField": 1,
         "NamedResourceAllocationUnreconciled": 1,
         "NamedResourceNativeUnavailable": 4,
@@ -3825,8 +3825,11 @@
         "listNamespaces()": "<inferred>",
         "listResources()": "<inferred>",
         "loadRequest()": "<inferred>",
+        "logAuthorization()": "<inferred>",
         "logDefinition()": "<inferred>",
         "logGuard()": "<inferred>",
+        "logMaintenanceDefinition()": "<inferred>",
+        "logMaintenanceNext()": "<inferred>",
         "logOperation()": "<inferred>",
         "logReason()": "<inferred>",
         "logRecord()": "<inferred>",
@@ -3939,7 +3942,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1288,
+        "try": 1314,
         "catch": 20
       },
       "imports": [
@@ -4839,6 +4842,143 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectQueue.zig": {
+      "errors": {
+        "CatalogDenied": 2,
+        "InvalidLogRecoveryBudget": 1,
+        "InvalidQueuePayload": 1,
+        "InvalidQueueReadBudget": 1,
+        "LogOperationConflict": 1,
+        "LogPayloadConflict": 1
+      },
+      "outcomes": {
+        "Receipt": [
+          "enqueue",
+          "claim",
+          "settle",
+          "release"
+        ],
+        "Request": [
+          "observe",
+          "mutate",
+          "operation",
+          "page"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "authorize()": "<inferred>",
+        "originalReceipt()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 36,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueueClient.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueIntent": 1,
+        "InvalidQueueResponse": 1,
+        "LogPayloadConflict": 1
+      },
+      "outcomes": {
+        "Action": [
+          "observe",
+          "mutate",
+          "operation",
+          "page"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Action.encode()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "load()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueueMutation.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidQueueOperationBinding": 1
+      },
+      "outcomes": {
+        "Request": [
+          "enqueue",
+          "claim",
+          "settle",
+          "release"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Request.binding()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueueResponse.zig": {
+      "errors": {
+        "InvalidQueueResponse": 12
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "requireReceipt()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectReadAuthority.zig": {
       "errors": {
         "InvalidCatalogConfiguration": 1
@@ -5077,7 +5217,8 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 20,
+        "InvalidLogStorageGraph": 45,
+        "InvalidQueueDestination": 2,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
@@ -5102,7 +5243,13 @@
           "producers",
           "groups",
           "group_offsets",
-          "pins"
+          "pins",
+          "bitmap",
+          "ordered_keys",
+          "queue_items",
+          "queue_sidecars",
+          "queue_keys",
+          "queue_read_releases"
         ],
         "Role": [
           "current",
@@ -5126,11 +5273,18 @@
           "catalog_intent",
           "log_operation",
           "log_declaration",
+          "queue_destination",
           "log_partitions",
           "log_initialization",
           "log_history",
           "log_root",
           "log_index",
+          "log_compaction",
+          "queue_sidecar",
+          "queue_schedule",
+          "queue_timer_index",
+          "queue_timer_run",
+          "queue_selection",
           "log_read",
           "log_segment",
           "log_wal",
@@ -5151,6 +5305,10 @@
           "snapshot",
           "wal",
           "segment"
+        ],
+        "Work.queue_timer_index.kind": [
+          "pending",
+          "levels"
         ]
       },
       "error_sets": {},
@@ -5161,6 +5319,7 @@
         "LogContext.fromRoot()": "<inferred>",
         "LogContext.owner()": "<inferred>",
         "LogContext.requireTarget()": "<inferred>",
+        "TimerContext.validate()": "<inferred>",
         "documentEntry()": "<inferred>",
         "fromFrame()": "<inferred>",
         "logEntry()": "<inferred>",
@@ -5169,11 +5328,12 @@
         "markPage()": "<inferred>",
         "requireOwner()": "<inferred>",
         "scope()": "<inferred>",
-        "step()": "<inferred>"
+        "step()": "<inferred>",
+        "timerChunk()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 337,
+        "try": 424,
         "catch": 1
       },
       "imports": [
@@ -5184,10 +5344,178 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectStream.zig": {
+      "errors": {
+        "CatalogDenied": 2,
+        "InvalidLogGroup": 1,
+        "InvalidLogRecoveryBudget": 1,
+        "InvalidStreamPayload": 1,
+        "InvalidStreamReadBudget": 1,
+        "InvalidStreamWait": 1,
+        "LogDeclarationConflict": 1,
+        "LogGroupFenced": 1,
+        "LogGroupRequired": 1,
+        "LogOffsetConflict": 1,
+        "LogOperationConflict": 6,
+        "LogPayloadConflict": 1,
+        "LogRangeExpired": 1,
+        "StreamReadConflict": 2,
+        "StreamReadMissing": 1,
+        "StreamWaitCapacity": 1,
+        "StreamWaitPending": 1,
+        "StreamWaitUnavailable": 1
+      },
+      "outcomes": {
+        "Receipt": [
+          "append",
+          "assign",
+          "consume",
+          "release",
+          "offset"
+        ],
+        "Request": [
+          "observe",
+          "mutate",
+          "operation",
+          "group",
+          "cursor",
+          "page",
+          "wait"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "group",
+          "cursor",
+          "page",
+          "timed_out"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "authorize()": "<inferred>",
+        "originalReceipt()": "<inferred>",
+        "receipt()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectStreamClient.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidStreamIntent": 1,
+        "InvalidStreamResponse": 1,
+        "LogPayloadConflict": 1
+      },
+      "outcomes": {
+        "Action": [
+          "observe",
+          "mutate",
+          "operation",
+          "group",
+          "cursor",
+          "page",
+          "wait"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "group",
+          "cursor",
+          "page",
+          "timed_out"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Action.encode()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "load()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectStreamMutation.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidStreamOperationBinding": 1,
+        "StreamReadConflict": 1
+      },
+      "outcomes": {
+        "Request": [
+          "append",
+          "assign",
+          "consume",
+          "release",
+          "offset"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Request.binding()": "<inferred>",
+        "Request.offset.validate()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectStreamResponse.zig": {
+      "errors": {
+        "InvalidStreamResponse": 18
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "requireReceipt()": "<inferred>",
+        "samePartition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
         "IncompatibleDefinition": 1,
+        "InvalidTableResponse": 1,
         "TableDefinitionChanged": 2
       },
       "outcomes": {},
@@ -5349,6 +5677,8 @@
         "InvalidCatalogCursor": 5,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
+        "QueueServiceUnavailable": 1,
+        "StreamServiceUnavailable": 1,
         "TableDelegationDenied": 1,
         "UnsupportedTableAction": 2
       },
@@ -5358,16 +5688,19 @@
         "Execution.ddl()": "anyerror",
         "Execution.log()": "anyerror",
         "Execution.namespace()": "anyerror",
+        "Execution.queue()": "anyerror",
         "Execution.resource()": "anyerror",
+        "Execution.stream()": "anyerror",
         "apply()": "anyerror",
+        "applySelected()": "anyerror",
         "encodeDefinition()": "<inferred>",
         "historySource()": "<inferred>",
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 8,
       "propagation": {
-        "try": 178,
+        "try": 180,
         "catch": 0
       },
       "imports": [
@@ -5585,7 +5918,9 @@
           "column_scan",
           "filter_scan",
           "key_range",
-          "release"
+          "release",
+          "stream",
+          "queue"
         ],
         "Action.operation.command": [
           "inspect",
@@ -5676,7 +6011,9 @@
           "page",
           "filtered_page",
           "key_range",
-          "released"
+          "released",
+          "stream",
+          "queue"
         ],
         "Result.list.consistency": [
           "independent"
@@ -5720,7 +6057,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 162,
+        "try": 164,
         "catch": 3
       },
       "imports": [
@@ -5788,7 +6125,7 @@
       "errors": {
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 135
+        "InvalidTableResponse": 137
       },
       "outcomes": {},
       "error_sets": {},
@@ -5809,7 +6146,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 197,
+        "try": 199,
         "catch": 10
       },
       "imports": [
@@ -5853,7 +6190,7 @@
     "packages/zig/transit-catalog/src/DirectTableValues.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableResponse": 3,
+        "InvalidTableResponse": 4,
         "UnsupportedTransactionRead": 1
       },
       "outcomes": {
@@ -6533,6 +6870,32 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/KVAuthority.zig": {
+      "errors": {
+        "InvalidCatalogIdentity": 2
+      },
+      "outcomes": {
+        "Access": [
+          "create",
+          "inspect",
+          "read",
+          "write",
+          "administer"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "requirements()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-catalog/src/LogAuthority.zig": {
       "errors": {
         "InvalidCatalogIdentity": 2
@@ -6750,7 +7113,7 @@
     },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
-        "DataIdentityConflict": 6,
+        "DataIdentityConflict": 8,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
@@ -6768,7 +7131,9 @@
           "name_assertion",
           "namespace",
           "dependency",
-          "resource"
+          "resource",
+          "stream",
+          "queue"
         ]
       },
       "error_sets": {},
@@ -6781,8 +7146,10 @@
         "claimDependency()": "<inferred>",
         "claimExternal()": "<inferred>",
         "claimNamespace()": "<inferred>",
+        "claimQueue()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
+        "claimStream()": "<inferred>",
         "claimTransaction()": "<inferred>",
         "claimTransactionAttempt()": "<inferred>",
         "claimTransactionCall()": "<inferred>",
@@ -6793,12 +7160,14 @@
         "lookupAssertion()": "<inferred>",
         "lookupDependency()": "<inferred>",
         "lookupNamespace()": "<inferred>",
+        "lookupQueue()": "<inferred>",
         "lookupResource()": "<inferred>",
-        "lookupStored()": "<inferred>"
+        "lookupStored()": "<inferred>",
+        "lookupStream()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 1
       },
       "imports": [
@@ -7044,7 +7413,8 @@
           "schema",
           "table",
           "stream",
-          "queue"
+          "queue",
+          "kv"
         ]
       },
       "error_sets": {},
@@ -7257,12 +7627,20 @@
         "DirectLogClient.zig",
         "DirectLogProtocol.zig",
         "DirectNamespace.zig",
+        "DirectQueue.zig",
+        "DirectQueueClient.zig",
+        "DirectQueueMutation.zig",
+        "DirectQueueResponse.zig",
         "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
         "DirectRecord.zig",
         "DirectResource.zig",
         "DirectResourceClient.zig",
         "DirectStorageGraph.zig",
+        "DirectStream.zig",
+        "DirectStreamClient.zig",
+        "DirectStreamMutation.zig",
+        "DirectStreamResponse.zig",
         "DirectTableBinding.zig",
         "DirectTableBridge.zig",
         "DirectTableClient.zig",
@@ -7289,6 +7667,7 @@
         "HistoricalCatalog.zig",
         "Inspection.zig",
         "InvestigationBasis.zig",
+        "KVAuthority.zig",
         "LogAuthority.zig",
         "ManagedDataflow.zig",
         "Model.zig",
@@ -8221,7 +8600,7 @@
     },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 2,
+        "Busy": 4,
         "InvalidArgument": 1
       },
       "outcomes": {
@@ -8232,6 +8611,14 @@
         "Outcome.value": [
           "result",
           "failure"
+        ],
+        "QueueOutcome.value": [
+          "result",
+          "failure"
+        ],
+        "StreamOutcome.value": [
+          "result",
+          "failure"
         ]
       },
       "error_sets": {
@@ -8240,17 +8627,25 @@
         ],
         "callLog().<error>": [
           "Busy"
+        ],
+        "callQueue().<error>": [
+          "Busy"
+        ],
+        "callStream().<error>": [
+          "Busy"
         ]
       },
       "error_returns": {
         "call()": "error { Busy }",
         "callLog()": "error { Busy }",
+        "callQueue()": "error { Busy }",
+        "callStream()": "error { Busy }",
         "init()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 5
+        "catch": 9
       },
       "imports": [
         "std",
@@ -15707,6 +16102,44 @@
         "std"
       ]
     },
+    "packages/zig/transit-io/src/Notification.zig": {
+      "errors": {
+        "InvalidNotificationCapacity": 1,
+        "NotificationAlreadyWaiting": 1,
+        "NotificationCapacityExceeded": 1,
+        "NotificationClosed": 1,
+        "NotificationSerialExhausted": 1,
+        "NotificationStillWaiting": 1,
+        "NotificationTicketsOutstanding": 1,
+        "StaleNotificationTicket": 2,
+        "Timeout": 1
+      },
+      "outcomes": {
+        "Outcome": [
+          "changed",
+          "timeout",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Waiter.run()": "<inferred>",
+        "deinit()": "<inferred>",
+        "init()": "<inferred>",
+        "register()": "<inferred>",
+        "release()": "<inferred>",
+        "validate()": "<inferred>",
+        "wait()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-io/src/root.zig": {
       "errors": {
         "Closed": 2,
@@ -15726,6 +16159,7 @@
         "catch": 6
       },
       "imports": [
+        "Notification.zig",
         "std",
         "transit_memory"
       ]
@@ -17230,7 +17664,7 @@
           "deadline"
         ],
         "Definition": [
-          "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+          "@\"342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d\""
         ],
         "Effect.phase": [
           "pending",
@@ -17571,6 +18005,58 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/QueueRead.zig": {
+      "errors": {
+        "InvalidQueueCursor": 1,
+        "InvalidQueueObservation": 11,
+        "InvalidQueueReadRelease": 2,
+        "LogTimeUnavailable": 1,
+        "QueueClaimConflict": 1,
+        "QueueReadReleaseConflict": 1
+      },
+      "outcomes": {
+        "Blocked": [
+          "none",
+          "exhausted",
+          "dead_letter"
+        ],
+        "Liveness": [
+          "live",
+          "expired",
+          "unavailable",
+          "fenced"
+        ],
+        "State": [
+          "available",
+          "acquired",
+          "acked",
+          "archived"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Basis.requireReceipt()": "<inferred>",
+        "Basis.validate()": "<inferred>",
+        "Blocked.validate()": "<inferred>",
+        "Cursor.requireReceipt()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "LeaseObservation.requireBasis()": "<inferred>",
+        "LeaseObservation.validate()": "<inferred>",
+        "Release.validate()": "<inferred>",
+        "ReleaseReceipt.requireRelease()": "<inferred>",
+        "ReleaseReceipt.validate()": "<inferred>",
+        "TimeBounds.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -18318,6 +18804,7 @@
         "Json.zig",
         "Lifecycle.zig",
         "NativePayload.zig",
+        "QueueRead.zig",
         "Runtime.zig",
         "Schema.zig",
         "State.zig",
@@ -20029,7 +20516,7 @@
     "packages/zig/transit-query/src/RelationalHistoryRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidRelationalHistory": 8
+        "InvalidRelationalHistory": 9
       },
       "outcomes": {},
       "error_sets": {},
@@ -20979,7 +21466,7 @@
         "IncompatibleDefinition": 1,
         "IncompleteSource": 1,
         "InvalidQueryCursor": 2,
-        "InvalidQuerySource": 2,
+        "InvalidQuerySource": 3,
         "InvalidSourceEncoding": 3,
         "QueryComplete": 1,
         "SourceChanged": 4,
@@ -30332,6 +30819,40 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/CandidateObjects.zig": {
+      "errors": {
+        "CandidateMutationUnsupported": 2,
+        "CandidateObjectBudgetExceeded": 2,
+        "ImmutableObjectConflict": 1,
+        "InvalidCandidateObject": 1,
+        "InvalidCandidateObjectBase": 1,
+        "InvalidCandidateObjectBudget": 2,
+        "InvalidObjectRange": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "conditional()": "<inferred>",
+        "delete()": "<inferred>",
+        "get()": "<inferred>",
+        "head()": "<inferred>",
+        "init()": "<inferred>",
+        "persist()": "<inferred>",
+        "persistSelected()": "<inferred>",
+        "put()": "<inferred>",
+        "reset()": "<inferred>",
+        "slot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/DiskObjects.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -30910,6 +31431,81 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/KVDeclaration.zig": {
+      "errors": {
+        "DataKindMismatch": 1,
+        "InvalidKVDeclaration": 3
+      },
+      "outcomes": {
+        "Spec.value_type": [
+          "int64",
+          "boolean",
+          "utf8",
+          "binary"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "fromPhysical()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validateSchema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "TableDeclaration.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/KVPartition.zig": {
+      "errors": {
+        "InvalidKVKey": 2,
+        "InvalidKVOperation": 2,
+        "KVBuildBudget": 2,
+        "KVValueTooLarge": 1,
+        "OutOfMemory": 1
+      },
+      "outcomes": {
+        "Change": [
+          "put",
+          "remove"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "applyBounded()": "<inferred>",
+        "create()": "<inferred>",
+        "encodeKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "observe()": "<inferred>",
+        "pin()": "<inferred>",
+        "readSnapshot()": "<inferred>",
+        "recover()": "<inferred>",
+        "releaseSnapshot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 2
+      },
+      "imports": [
+        "KVDeclaration.zig",
+        "TableChanges.zig",
+        "TablePartition.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -31040,11 +31636,11 @@
     "packages/zig/transit-storage/src/LogDeclaration.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogDeclaration": 10,
+        "InvalidLogDeclaration": 13,
         "InvalidLogKeyColumn": 1,
         "InvalidQueueDestination": 1,
         "InvalidStreamTimestampColumn": 1,
-        "LogDeclarationMissing": 1,
+        "LogDeclarationMissing": 2,
         "LogDeclarationTooLarge": 2,
         "UnsupportedLogPrimaryKey": 1
       },
@@ -31058,12 +31654,14 @@
         "Stored.validate()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
+        "loadContent()": "<inferred>",
         "prepare()": "<inferred>",
+        "resolve()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 53,
         "catch": 0
       },
       "imports": [
@@ -31076,7 +31674,7 @@
     "packages/zig/transit-storage/src/LogEvidence.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogEvidence": 9,
+        "InvalidLogEvidence": 15,
         "LogEvidenceMissing": 1,
         "LogEvidenceTooLarge": 1
       },
@@ -31086,7 +31684,10 @@
           "assignment",
           "offset",
           "read",
-          "release"
+          "release",
+          "claim",
+          "settlement",
+          "queue_release"
         ]
       },
       "error_sets": {},
@@ -31104,11 +31705,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 26,
         "catch": 0
       },
       "imports": [
         "LogDeclaration.zig",
+        "LogTime.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
@@ -31184,16 +31786,238 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/LogPartition.zig": {
+      "errors": {
+        "InvalidLogArchive": 3,
+        "InvalidLogExpiration": 14,
+        "InvalidLogGroup": 1,
+        "InvalidLogHistory": 39,
+        "InvalidLogRecovery": 4,
+        "InvalidLogRecoveryBudget": 1,
+        "InvalidLogSegment": 8,
+        "InvalidQueueAffinityBudget": 1,
+        "InvalidQueueClaimBudget": 1,
+        "InvalidQueueExpiration": 2,
+        "InvalidQueueHead": 1,
+        "InvalidQueueReadBudget": 1,
+        "InvalidQueueSchedule": 1,
+        "InvalidQueueScheduleBudget": 2,
+        "InvalidQueueSelection": 2,
+        "InvalidQueueTimerBudget": 2,
+        "InvalidStreamBudget": 3,
+        "InvalidStreamCompaction": 16,
+        "InvalidStreamCompactionBudget": 3,
+        "InvalidStreamMaintenance": 4,
+        "InvalidStreamReadBudget": 2,
+        "InvalidStreamTimestampColumn": 1,
+        "InvalidWalEpoch": 1,
+        "LogAppendLimitExceeded": 1,
+        "LogAppendUncertain": 2,
+        "LogCheckpointRequired": 1,
+        "LogCompactionBudgetExceeded": 2,
+        "LogCompactionConflict": 5,
+        "LogCompactionConsumerProtected": 1,
+        "LogGroupFenced": 3,
+        "LogGroupRequired": 1,
+        "LogHistoryUnavailable": 19,
+        "LogMaintenanceConflict": 2,
+        "LogOffsetConflict": 3,
+        "LogOffsetExhausted": 1,
+        "LogOperationConflict": 11,
+        "LogPartitionConflict": 4,
+        "LogPayloadConflict": 3,
+        "LogPositionExhausted": 1,
+        "LogProducerConflict": 1,
+        "LogRangeExpired": 1,
+        "LogRecoveryMissing": 1,
+        "LogRecoveryRequired": 2,
+        "LogRetentionNotDeclared": 2,
+        "LogRetentionWindowElapsed": 1,
+        "LogSegmentBudgetExceeded": 5,
+        "LogTimeRegression": 3,
+        "LogTimeUnavailable": 1,
+        "QueueClaimMissing": 2,
+        "QueueItemMissing": 4,
+        "QueueLeaseExpired": 1,
+        "QueueReadBudgetExceeded": 1,
+        "QueueReadReleased": 3,
+        "QueueTimeUnavailable": 5,
+        "StalePolicyEpoch": 1,
+        "StaleWriterEpoch": 1,
+        "StreamCompactionNotDeclared": 1,
+        "StreamReadByteBudgetTooSmall": 1,
+        "StreamReadConflict": 3,
+        "StreamReadMissing": 2,
+        "StreamReadReleased": 1
+      },
+      "outcomes": {
+        "Owner().<return>.ExpirationStatus": [
+          "progress",
+          "complete",
+          "consumer",
+          "nonterminal",
+          "unsealed",
+          "untimed",
+          "not_due"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Owner().<return>.BorrowedBatch.iterator()": "<inferred>",
+        "Owner().<return>.activePin()": "<inferred>",
+        "Owner().<return>.advanceGroup()": "<inferred>",
+        "Owner().<return>.append()": "<inferred>",
+        "Owner().<return>.archive()": "<inferred>",
+        "Owner().<return>.archiveMaintenanceUnit()": "<inferred>",
+        "Owner().<return>.archivedThrough()": "<inferred>",
+        "Owner().<return>.assign()": "<inferred>",
+        "Owner().<return>.authorize()": "<inferred>",
+        "Owner().<return>.beginRead()": "<inferred>",
+        "Owner().<return>.borrowAt()": "<inferred>",
+        "Owner().<return>.borrowWithinBudget()": "<inferred>",
+        "Owner().<return>.cancelCompaction()": "<inferred>",
+        "Owner().<return>.candidate()": "<inferred>",
+        "Owner().<return>.candidateClaim()": "<inferred>",
+        "Owner().<return>.candidateExpiration()": "<inferred>",
+        "Owner().<return>.candidateQueueExpiry()": "<inferred>",
+        "Owner().<return>.candidateQueueSchedule()": "<inferred>",
+        "Owner().<return>.candidateSettlement()": "<inferred>",
+        "Owner().<return>.checkpoint()": "<inferred>",
+        "Owner().<return>.claim()": "<inferred>",
+        "Owner().<return>.claimReadReleased()": "<inferred>",
+        "Owner().<return>.commitOffset()": "<inferred>",
+        "Owner().<return>.compactStep()": "<inferred>",
+        "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
+        "Owner().<return>.compactionProgress()": "<inferred>",
+        "Owner().<return>.compactionRows()": "<inferred>",
+        "Owner().<return>.compactionSource()": "<inferred>",
+        "Owner().<return>.decodeFrame()": "<inferred>",
+        "Owner().<return>.decodeValue()": "<inferred>",
+        "Owner().<return>.deinit()": "<inferred>",
+        "Owner().<return>.expirationObservation()": "<inferred>",
+        "Owner().<return>.expireHistory()": "<inferred>",
+        "Owner().<return>.expireQueueOne()": "<inferred>",
+        "Owner().<return>.flush()": "<inferred>",
+        "Owner().<return>.flushCandidate()": "<inferred>",
+        "Owner().<return>.flushWithinBudget()": "<inferred>",
+        "Owner().<return>.group()": "<inferred>",
+        "Owner().<return>.historyFrame()": "<inferred>",
+        "Owner().<return>.leaseObservation()": "<inferred>",
+        "Owner().<return>.loadEvidence()": "<inferred>",
+        "Owner().<return>.loadRead()": "<inferred>",
+        "Owner().<return>.materialize()": "<inferred>",
+        "Owner().<return>.materializeWithinBudget()": "<inferred>",
+        "Owner().<return>.nextPosition()": "<inferred>",
+        "Owner().<return>.nextProducer()": "<inferred>",
+        "Owner().<return>.observe()": "<inferred>",
+        "Owner().<return>.open()": "<inferred>",
+        "Owner().<return>.operation()": "<inferred>",
+        "Owner().<return>.original()": "<inferred>",
+        "Owner().<return>.persistQueue()": "<inferred>",
+        "Owner().<return>.producerState()": "<inferred>",
+        "Owner().<return>.progress()": "<inferred>",
+        "Owner().<return>.protectedOffset()": "<inferred>",
+        "Owner().<return>.publish()": "<inferred>",
+        "Owner().<return>.publishMaintenance()": "<inferred>",
+        "Owner().<return>.publishRecord()": "<inferred>",
+        "Owner().<return>.putGroup()": "<inferred>",
+        "Owner().<return>.queueCanonicalKey()": "<inferred>",
+        "Owner().<return>.queueDeadline()": "<inferred>",
+        "Owner().<return>.queueTime()": "<inferred>",
+        "Owner().<return>.readBasis()": "<inferred>",
+        "Owner().<return>.readBatch()": "<inferred>",
+        "Owner().<return>.readClaimPage()": "<inferred>",
+        "Owner().<return>.readCursor()": "<inferred>",
+        "Owner().<return>.readPage()": "<inferred>",
+        "Owner().<return>.recoverStep()": "<inferred>",
+        "Owner().<return>.recoverStepSince()": "<inferred>",
+        "Owner().<return>.recoveryState()": "<inferred>",
+        "Owner().<return>.releaseClaimRead()": "<inferred>",
+        "Owner().<return>.releaseRead()": "<inferred>",
+        "Owner().<return>.requireCompactionPublication()": "<inferred>",
+        "Owner().<return>.requireGroup()": "<inferred>",
+        "Owner().<return>.requireOriginalClaim()": "<inferred>",
+        "Owner().<return>.requireReady()": "<inferred>",
+        "Owner().<return>.requireTarget()": "<inferred>",
+        "Owner().<return>.retainedRead()": "<inferred>",
+        "Owner().<return>.rewriteCandidate()": "<inferred>",
+        "Owner().<return>.rewriteMaintenanceUnit()": "<inferred>",
+        "Owner().<return>.rewriteView()": "<inferred>",
+        "Owner().<return>.rewriteWithinBudget()": "<inferred>",
+        "Owner().<return>.scheduleQueueUnit()": "<inferred>",
+        "Owner().<return>.selectCheckpoint()": "<inferred>",
+        "Owner().<return>.settle()": "<inferred>",
+        "Owner().<return>.skipTimestamp()": "<inferred>",
+        "Owner().<return>.skipTimestampWithinBudget()": "<inferred>",
+        "Owner().<return>.superseded()": "<inferred>",
+        "Owner().<return>.terminalExpirationBatch()": "<inferred>",
+        "Owner().<return>.timestampMatches()": "<inferred>",
+        "Owner().<return>.trimArchived()": "<inferred>",
+        "Owner().<return>.validateExpiration()": "<inferred>",
+        "Owner().<return>.verifyCompactionStep()": "<inferred>",
+        "Owner().<return>.verifyGroup()": "<inferred>",
+        "Owner().<return>.verifyRewrite()": "<inferred>",
+        "Owner().<return>.verifyTransition()": "<inferred>",
+        "Owner().<return>.verifyValue()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 674,
+        "catch": 18
+      },
+      "imports": [
+        "BitmapDirectory.zig",
+        "CandidateObjects.zig",
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogEvidence.zig",
+        "LogHistory.zig",
+        "LogInitialization.zig",
+        "LogPartitionRecord.zig",
+        "LogRead.zig",
+        "LogRecovery.zig",
+        "LogSegment.zig",
+        "LogTail.zig",
+        "LogTime.zig",
+        "LogView.zig",
+        "OrderedKeyIndex.zig",
+        "PublicationGuard.zig",
+        "QueueAffinity.zig",
+        "QueueClaims.zig",
+        "QueueIndex.zig",
+        "QueueItem.zig",
+        "QueueLeaseHeap.zig",
+        "QueueReadRelease.zig",
+        "QueueSchedule.zig",
+        "QueueSelection.zig",
+        "QueueTimeRun.zig",
+        "QueueTimingWheel.zig",
+        "QueueVisibilityCache.zig",
+        "StreamCompaction.zig",
+        "StreamMaintenanceState.zig",
+        "Tack.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LogPartitionRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
-        "InvalidLogHistory": 8,
+        "InvalidLogHistory": 10,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
-        "InvalidLogSegment": 1,
-        "LogDeclarationConflict": 3,
+        "InvalidLogSegment": 3,
+        "InvalidQueueExpiration": 1,
+        "InvalidQueueRoot": 2,
+        "InvalidQueueSchedule": 1,
+        "InvalidStreamCompaction": 10,
+        "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
         "LogProducerRequired": 1,
         "LogRecordTooLarge": 3
@@ -31203,8 +32027,16 @@
           "operation",
           "archive",
           "flush",
+          "rewrite",
           "expire",
-          "checkpoint"
+          "queue_expire",
+          "queue_schedule",
+          "compaction_start",
+          "compaction_step",
+          "compaction_publish",
+          "compaction_cancel",
+          "checkpoint",
+          "maintenance"
         ]
       },
       "error_sets": {},
@@ -31212,7 +32044,9 @@
         "Record.validate()": "<inferred>",
         "Root.cut()": "<inferred>",
         "Root.initial()": "<inferred>",
+        "Root.requireControlDeclaration()": "<inferred>",
         "Root.requireDeclaration()": "<inferred>",
+        "Root.retainedCut()": "<inferred>",
         "Root.validate()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
@@ -31225,10 +32059,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 39,
         "catch": 0
       },
       "imports": [
+        "BitmapDirectory.zig",
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
@@ -31236,6 +32071,11 @@
         "LogInitialization.zig",
         "LogRecovery.zig",
         "LogSegment.zig",
+        "LogTime.zig",
+        "QueueIndex.zig",
+        "QueueTimeRun.zig",
+        "StreamCompaction.zig",
+        "StreamMaintenanceState.zig",
         "TableArchive.zig",
         "TransitLog.zig",
         "TreeStore.zig",
@@ -31246,7 +32086,7 @@
     "packages/zig/transit-storage/src/LogRead.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidStreamRead": 7,
+        "InvalidStreamRead": 8,
         "InvalidStreamReadAuthority": 2,
         "StreamCursorUnauthenticated": 1,
         "StreamReadConflict": 1,
@@ -31273,10 +32113,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 33,
         "catch": 1
       },
       "imports": [
+        "BitmapDirectory.zig",
         "LogDeclaration.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -31318,37 +32159,49 @@
       "errors": {
         "BufferTooSmall": 1,
         "IncompatibleDefinition": 1,
-        "InvalidLogSegment": 22,
-        "LogPayloadConflict": 2,
+        "InvalidLogSegment": 33,
+        "LogHistoryUnavailable": 2,
+        "LogPayloadConflict": 4,
         "LogSegmentMissing": 1,
         "StreamTimestampNotDeclared": 1,
         "WriteFailed": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Layout": [
+          "complete",
+          "sparse"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Descriptor.decode()": "<inferred>",
         "Descriptor.encode()": "<inferred>",
+        "Descriptor.iterator()": "<inferred>",
         "Descriptor.validate()": "<inferred>",
         "Source.read()": "<inferred>",
         "Source.verify()": "<inferred>",
         "materialize()": "<inferred>",
         "metadataKey()": "<inferred>",
         "put()": "<inferred>",
+        "requireVisibility()": "<inferred>",
         "segmentKey()": "<inferred>",
         "skipTimestamp()": "<inferred>",
         "stage()": "<inferred>",
+        "stageLayout()": "<inferred>",
+        "stageSparse()": "<inferred>",
         "verifyHead()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 73,
         "catch": 1
       },
       "imports": [
+        "BitmapDirectory.zig",
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
+        "LogView.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -31401,7 +32254,7 @@
     },
     "packages/zig/transit-storage/src/LogTail.zig": {
       "errors": {
-        "InvalidTailBinding": 1,
+        "InvalidTailBinding": 2,
         "InvalidTailBorrow": 3,
         "InvalidTailBudget": 3,
         "InvalidTailContent": 2,
@@ -31426,7 +32279,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 1
       },
       "imports": [
@@ -31437,21 +32290,56 @@
     },
     "packages/zig/transit-storage/src/LogTime.zig": {
       "errors": {
-        "LogTimeUnavailable": 3
+        "LogTimeUnavailable": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Source.read()": "anyerror",
         "advance()": "<inferred>",
+        "bounds()": "<inferred>",
         "observe()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 2,
+        "try": 4,
         "catch": 1
       },
       "imports": [
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogView.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogSegment": 9,
+        "LogSegmentBudgetExceeded": 1,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {
+        "Rows": [
+          "complete",
+          "sparse"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Encoder.append()": "<inferred>",
+        "Encoder.finish()": "<inferred>",
+        "Encoder.init()": "<inferred>",
+        "Iterator.init()": "<inferred>",
+        "Iterator.next()": "<inferred>",
+        "Rows.next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "std",
+        "transit_fuze",
         "transit_protocol"
       ]
     },
@@ -31501,11 +32389,12 @@
         "put()": "<inferred>",
         "remove()": "<inferred>",
         "seek()": "<inferred>",
+        "terminalValue()": "<inferred>",
         "validateKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 28,
         "catch": 1
       },
       "imports": [
@@ -31560,6 +32449,546 @@
       },
       "imports": []
     },
+    "packages/zig/transit-storage/src/QueueAffinity.zig": {
+      "errors": {
+        "InvalidQueueAffinityBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "TreeStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueClaims.zig": {
+      "errors": {
+        "InvalidQueueRoot": 1,
+        "InvalidQueueSelection": 1,
+        "LogPartitionConflict": 1,
+        "QueueClaimLimitExceeded": 1,
+        "QueueLeaseCapacityExceeded": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "metadata()": "<inferred>",
+        "receipt()": "<inferred>",
+        "select()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogPartitionRecord.zig",
+        "LogTime.zig",
+        "QueueIndex.zig",
+        "QueueSelection.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueIndex.zig": {
+      "errors": {
+        "InvalidQueueHead": 9,
+        "InvalidQueueItem": 4,
+        "InvalidQueueRoot": 2,
+        "InvalidQueueSchedule": 9,
+        "InvalidQueueTimerBudget": 1,
+        "LogPartitionConflict": 1,
+        "QueueItemMissing": 1,
+        "QueueNotEligible": 2,
+        "QueueOffsetOutOfRange": 1,
+        "QueueSidecarConflict": 3,
+        "QueueSidecarMissing": 2,
+        "QueueSidecarOverlap": 1,
+        "QueueStateConflict": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Head.decode()": "<inferred>",
+        "Head.encode()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "TimerFilter.keep()": "<inferred>",
+        "acquire()": "<inferred>",
+        "addDeadline()": "<inferred>",
+        "advanceHead()": "<inferred>",
+        "changeState()": "<inferred>",
+        "deadlineAfter()": "<inferred>",
+        "eligibleAfter()": "<inferred>",
+        "enqueue()": "<inferred>",
+        "expire()": "<inferred>",
+        "firstEligible()": "<inferred>",
+        "firstExpired()": "<inferred>",
+        "head()": "<inferred>",
+        "item()": "<inferred>",
+        "itemAt()": "<inferred>",
+        "prepareVisibility()": "<inferred>",
+        "putItem()": "<inferred>",
+        "putSidecar()": "<inferred>",
+        "removeDeadline()": "<inferred>",
+        "schedule()": "<inferred>",
+        "scheduledEvent()": "<inferred>",
+        "scheduledItem()": "<inferred>",
+        "settle()": "<inferred>",
+        "sidecar()": "<inferred>",
+        "sidecarAt()": "<inferred>",
+        "state()": "<inferred>",
+        "stateAt()": "<inferred>",
+        "terminalBatch()": "<inferred>",
+        "timedKey()": "<inferred>",
+        "timerCursor()": "<inferred>",
+        "unschedule()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 123,
+        "catch": 1
+      },
+      "imports": [
+        "BitmapDirectory.zig",
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogPartitionRecord.zig",
+        "LogTime.zig",
+        "OrderedKeyIndex.zig",
+        "QueueAffinity.zig",
+        "QueueItem.zig",
+        "QueueSchedule.zig",
+        "QueueTimeMerge.zig",
+        "QueueTimeRun.zig",
+        "QueueTimingWheel.zig",
+        "QueueVisibilityCache.zig",
+        "Tack.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueItem.zig": {
+      "errors": {
+        "InvalidQueueItem": 4,
+        "InvalidQueueLeaseDuration": 1,
+        "QueueAttemptExhausted": 1,
+        "QueueLeaseEpochExhausted": 1,
+        "QueueLeaseFenced": 2,
+        "QueueNotVisible": 1,
+        "QueueRetryDeadlineOverflow": 1,
+        "QueueRetryExhausted": 1,
+        "QueueStateConflict": 2,
+        "QueueTimeUnavailable": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "acquire()": "<inferred>",
+        "expire()": "<inferred>",
+        "initial()": "<inferred>",
+        "requireLive()": "<inferred>",
+        "requireState()": "<inferred>",
+        "retry()": "<inferred>",
+        "settle()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 3
+      },
+      "imports": [
+        "LogTime.zig",
+        "Tack.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueLeaseHeap.zig": {
+      "errors": {
+        "InvalidQueueSchedule": 1,
+        "QueueLeaseCapacityExceeded": 1,
+        "QueueLeaseFenced": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "insert()": "<inferred>",
+        "removeExact()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueuePartition.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "archive()": "<inferred>",
+        "archiveMaintenanceUnit()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "claim()": "<inferred>",
+        "deinit()": "<inferred>",
+        "enqueue()": "<inferred>",
+        "expireOne()": "<inferred>",
+        "expireTerminalHistory()": "<inferred>",
+        "flush()": "<inferred>",
+        "observe()": "<inferred>",
+        "open()": "<inferred>",
+        "operation()": "<inferred>",
+        "readClaimPage()": "<inferred>",
+        "recoverStep()": "<inferred>",
+        "recoverStepSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
+        "releaseClaimRead()": "<inferred>",
+        "scheduleMaintenanceUnit()": "<inferred>",
+        "settle()": "<inferred>",
+        "trimArchived()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "LogDeclaration.zig",
+        "LogEvidence.zig",
+        "LogHistory.zig",
+        "LogInitialization.zig",
+        "LogPartition.zig",
+        "LogRecovery.zig",
+        "PublicationGuard.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueReadRelease.zig": {
+      "errors": {
+        "InvalidQueueReadRelease": 2,
+        "QueueClaimConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "entry()": "<inferred>",
+        "find()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "LogEvidence.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueSchedule.zig": {
+      "errors": {
+        "InvalidQueueSchedule": 20,
+        "InvalidQueueTimerBudget": 2,
+        "QueueTimerLevelExhausted": 1,
+        "QueueTimerReadBudget": 1,
+        "QueueTimerSerialExhausted": 2
+      },
+      "outcomes": {
+        "Work.mode": [
+          "promote",
+          "sweep"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Budget.charge()": "<inferred>",
+        "Buffers.init()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "Slot.decode()": "<inferred>",
+        "Slot.key()": "<inferred>",
+        "Slot.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "contains()": "<inferred>",
+        "decodeLevel()": "<inferred>",
+        "decodePending()": "<inferred>",
+        "epoch()": "<inferred>",
+        "inspectChunk()": "<inferred>",
+        "inspectRun()": "<inferred>",
+        "loadBuffer()": "<inferred>",
+        "maintain()": "<inferred>",
+        "nextEvent()": "<inferred>",
+        "pendingKey()": "<inferred>",
+        "promote()": "<inferred>",
+        "putLevel()": "<inferred>",
+        "removeLevel()": "<inferred>",
+        "require()": "<inferred>",
+        "saveBuffer()": "<inferred>",
+        "seal()": "<inferred>",
+        "verifyRoots()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 105,
+        "catch": 2
+      },
+      "imports": [
+        "LogPartitionRecord.zig",
+        "QueueTimeBuffer.zig",
+        "QueueTimeDirectory.zig",
+        "QueueTimeMerge.zig",
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueSelection.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidQueueSelection": 13,
+        "QueueClaimConflict": 1,
+        "QueueSelectionBudgetExceeded": 1,
+        "QueueSelectionMissing": 1,
+        "QueueSelectionOffsetOutOfRange": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Metadata.receipt()": "<inferred>",
+        "Metadata.validate()": "<inferred>",
+        "View.lease()": "<inferred>",
+        "View.requireReceipt()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeVerified()": "<inferred>",
+        "encode()": "<inferred>",
+        "load()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "requireLease()": "<inferred>",
+        "stage()": "<inferred>",
+        "validateContent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogTime.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimeBuffer.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueTimeBuffer": 13,
+        "QueueTimeBufferBudget": 3,
+        "QueueTimeBufferFull": 1,
+        "QueueTimeBufferMissing": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "header()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "QueueTimeRun.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimeDirectory.zig": {
+      "errors": {
+        "InvalidQueueTimeDirectory": 12,
+        "QueueTimeRunCardinalityOverflow": 2,
+        "QueueTimeRunOverlap": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Entry.decode()": "<inferred>",
+        "Entry.encode()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "audit()": "<inferred>",
+        "eventKey()": "<inferred>",
+        "find()": "<inferred>",
+        "requireChunk()": "<inferred>",
+        "requireRoot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 2
+      },
+      "imports": [
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimeMerge.zig": {
+      "errors": {
+        "InvalidQueueTimeMerge": 18,
+        "InvalidQueueTimerBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Basis.validate()": "<inferred>",
+        "Position.validate()": "<inferred>",
+        "Reader.finish()": "<inferred>",
+        "Reader.peek()": "<inferred>",
+        "Reader.take()": "<inferred>",
+        "State.init()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 1
+      },
+      "imports": [
+        "QueueTimeDirectory.zig",
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimeRun.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueTimeRun": 16,
+        "QueueTimeRunBudget": 1,
+        "QueueTimeRunMissing": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "visible",
+          "lease"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.decode()": "<inferred>",
+        "Descriptor.encode()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Event.validate()": "<inferred>",
+        "MemorySource.read()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimingWheel.zig": {
+      "errors": {
+        "InvalidQueueTimerBudget": 2,
+        "QueueTimerCapacityExceeded": 1,
+        "QueueTimerFenced": 2,
+        "QueueTimerTimeRegression": 1
+      },
+      "outcomes": {
+        "Entry.state": [
+          "free",
+          "waiting",
+          "ready",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "cancel()": "<inferred>",
+        "init()": "<inferred>",
+        "insert()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueVisibilityCache.zig": {
+      "errors": {},
+      "outcomes": {
+        "Lookup": [
+          "miss",
+          "empty",
+          "event"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "QueueTimingWheel.zig",
+        "TreeStore.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/S3ObjectStore.zig": {
       "errors": {
         "InvalidObjectKey": 1
@@ -31585,139 +33014,82 @@
         "std"
       ]
     },
-    "packages/zig/transit-storage/src/StreamPartition.zig": {
+    "packages/zig/transit-storage/src/StreamCompaction.zig": {
       "errors": {
-        "InvalidLogArchive": 3,
-        "InvalidLogExpiration": 9,
-        "InvalidLogGroup": 1,
-        "InvalidLogHistory": 28,
-        "InvalidLogRecovery": 4,
-        "InvalidLogRecoveryBudget": 1,
-        "InvalidLogSegment": 3,
-        "InvalidStreamBudget": 3,
-        "InvalidStreamReadBudget": 2,
-        "InvalidStreamTimestampColumn": 1,
-        "InvalidWalEpoch": 1,
-        "LogAppendLimitExceeded": 1,
-        "LogAppendUncertain": 2,
-        "LogCheckpointRequired": 1,
-        "LogGroupFenced": 3,
-        "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 11,
-        "LogOffsetConflict": 3,
-        "LogOffsetExhausted": 1,
-        "LogOperationConflict": 6,
-        "LogPartitionConflict": 4,
-        "LogPayloadConflict": 1,
-        "LogPositionExhausted": 1,
-        "LogProducerConflict": 1,
-        "LogRecoveryMissing": 1,
-        "LogRecoveryRequired": 2,
-        "LogRetentionNotDeclared": 2,
-        "LogRetentionWindowElapsed": 1,
-        "LogSegmentBudgetExceeded": 3,
-        "LogTimeRegression": 2,
-        "StalePolicyEpoch": 1,
-        "StaleWriterEpoch": 1,
-        "StreamReadByteBudgetTooSmall": 1,
-        "StreamReadConflict": 3,
-        "StreamReadMissing": 2,
-        "StreamReadReleased": 1
+        "InvalidStreamCompaction": 4
       },
       "outcomes": {
-        "ExpirationStatus": [
+        "Phase": [
+          "index",
+          "mark",
+          "ready"
+        ],
+        "Progress.status": [
           "progress",
           "complete",
           "consumer",
-          "unsealed",
-          "untimed",
-          "not_due"
+          "unsealed"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "activePin()": "<inferred>",
-        "advanceGroup()": "<inferred>",
-        "append()": "<inferred>",
-        "archive()": "<inferred>",
-        "archivedThrough()": "<inferred>",
-        "assign()": "<inferred>",
-        "authorize()": "<inferred>",
-        "beginRead()": "<inferred>",
-        "borrowAt()": "<inferred>",
-        "candidate()": "<inferred>",
-        "checkpoint()": "<inferred>",
-        "commitOffset()": "<inferred>",
-        "decodeFrame()": "<inferred>",
-        "decodeValue()": "<inferred>",
-        "deinit()": "<inferred>",
-        "expirationObservation()": "<inferred>",
-        "expireHistory()": "<inferred>",
-        "flush()": "<inferred>",
-        "flushCandidate()": "<inferred>",
-        "flushWithinBudget()": "<inferred>",
-        "group()": "<inferred>",
-        "historyFrame()": "<inferred>",
-        "loadEvidence()": "<inferred>",
-        "loadRead()": "<inferred>",
-        "materialize()": "<inferred>",
-        "materializeWithinBudget()": "<inferred>",
-        "nextPosition()": "<inferred>",
-        "nextProducer()": "<inferred>",
-        "observe()": "<inferred>",
-        "open()": "<inferred>",
-        "operation()": "<inferred>",
-        "original()": "<inferred>",
-        "producerState()": "<inferred>",
-        "progress()": "<inferred>",
-        "protectedOffset()": "<inferred>",
-        "publish()": "<inferred>",
-        "publishRecord()": "<inferred>",
-        "putGroup()": "<inferred>",
-        "readBasis()": "<inferred>",
-        "readBatch()": "<inferred>",
-        "readCursor()": "<inferred>",
-        "readPage()": "<inferred>",
-        "recoverStep()": "<inferred>",
-        "releaseRead()": "<inferred>",
-        "requireGroup()": "<inferred>",
-        "requireReady()": "<inferred>",
-        "requireTarget()": "<inferred>",
-        "retainedRead()": "<inferred>",
-        "selectCheckpoint()": "<inferred>",
-        "skipTimestamp()": "<inferred>",
-        "skipTimestampWithinBudget()": "<inferred>",
-        "timestampMatches()": "<inferred>",
-        "trimArchived()": "<inferred>",
-        "validateExpiration()": "<inferred>",
-        "verifyGroup()": "<inferred>",
-        "verifyTransition()": "<inferred>",
-        "verifyValue()": "<inferred>"
+        "Source.validate()": "<inferred>",
+        "State.advance()": "<inferred>",
+        "State.init()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "decodeOffset()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 379,
-        "catch": 11
+        "try": 7,
+        "catch": 0
       },
       "imports": [
-        "LogBatch.zig",
+        "BitmapDirectory.zig",
         "LogDeclaration.zig",
-        "LogEvidence.zig",
-        "LogHistory.zig",
-        "LogInitialization.zig",
-        "LogPartitionRecord.zig",
-        "LogRead.zig",
-        "LogRecovery.zig",
-        "LogSegment.zig",
-        "LogTail.zig",
-        "LogTime.zig",
-        "PublicationGuard.zig",
-        "TransitLog.zig",
-        "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
-        "transit_fuze",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/StreamMaintenanceState.zig": {
+      "errors": {
+        "InvalidStreamMaintenance": 20
+      },
+      "outcomes": {
+        "Action": [
+          "begin_archive",
+          "complete_archive",
+          "begin_rewrite",
+          "skip_expired_rewrite",
+          "complete_rewrite",
+          "cancel_rewrite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "transition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-storage/src/StreamPartition.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "LogPartition.zig"
       ]
     },
     "packages/zig/transit-storage/src/TableArchive.zig": {
@@ -31787,7 +33159,12 @@
         "TableDeclarationMissing": 1,
         "TableDeclarationTooLarge": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Kind": [
+          "table",
+          "kv"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Definition.encode()": "<inferred>",
@@ -31801,10 +33178,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 0
       },
       "imports": [
+        "KVDeclaration.zig",
         "TransitObjectStore.zig",
         "std",
         "transit_fuze",
@@ -32003,6 +33381,7 @@
       "errors": {
         "BufferTooSmall": 1,
         "DataIdentityConflict": 13,
+        "DataKindMismatch": 6,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 7,
         "DuplicateTableRowIdentity": 3,
@@ -32621,14 +34000,7 @@
         "QueueSidecarOverlap": 2,
         "QueueStateConflict": 1
       },
-      "outcomes": {
-        "State": [
-          "available",
-          "acquired",
-          "acked",
-          "archived"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Audit.init()": "<inferred>",
@@ -32939,6 +34311,8 @@
         "DocumentRecovery.zig",
         "DocumentShredder.zig",
         "DocumentStorageRoots.zig",
+        "KVDeclaration.zig",
+        "KVPartition.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
         "LogBatch.zig",
@@ -32953,11 +34327,26 @@
         "LogStorageRoots.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogView.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",
         "PublicationGuard.zig",
+        "QueueAffinity.zig",
+        "QueueIndex.zig",
+        "QueueItem.zig",
+        "QueueLeaseHeap.zig",
+        "QueuePartition.zig",
+        "QueueReadRelease.zig",
+        "QueueSchedule.zig",
+        "QueueSelection.zig",
+        "QueueTimeBuffer.zig",
+        "QueueTimeDirectory.zig",
+        "QueueTimeMerge.zig",
+        "QueueTimeRun.zig",
+        "QueueTimingWheel.zig",
         "S3ObjectStore.zig",
+        "StreamCompaction.zig",
         "StreamPartition.zig",
         "TableArchive.zig",
         "TableDeclaration.zig",

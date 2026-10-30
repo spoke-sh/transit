@@ -264,6 +264,80 @@ fn logRecord(self: *Self, object: u64) !?L.Operation {
     return value;
 }
 
+/// Bounded operator traversal. A pass freezes its highest object ID and visits
+/// one partition of one complete declaration of the selected log kind per step. These disposable
+/// hints retain no authorization, schema allocations or partition owners.
+pub const LogMaintenanceCursor = struct {
+    objects: MaintenanceCursor = .{},
+    pending: ?struct { object: u64, ordinal: u32 } = null,
+};
+pub const LogMaintenanceTarget = struct { object: u64, ordinal: u32 };
+pub const LogMaintenanceSelection = struct { target: ?LogMaintenanceTarget, pass_complete: bool };
+
+pub fn logMaintenanceNext(self: *Self, kind: p.StreamQueueDeclaration.Kind, cursor: *LogMaintenanceCursor, guard_value: P.Guard) !LogMaintenanceSelection {
+    try check(guard_value);
+    try self.store.refresh();
+    var next = cursor.*;
+    if (next.objects.after) |after| if (next.objects.through == null or after > next.objects.through.?) return error.InvalidMaintenanceCursor;
+    if (next.pending) |active| {
+        if (next.objects.through == null or active.object > next.objects.through.? or
+            active.object <= (next.objects.after orelse 0) or active.ordinal == 0)
+            return error.InvalidMaintenanceCursor;
+    }
+    if (next.objects.through == null) {
+        if (try self.store.tree().lastEntry(self.store.root.objects)) |last| {
+            const value = try r.fromValue(r.Entry, self.allocator, last.value);
+            try self.validateEntry(value, last.key);
+            next.objects.through = value.object;
+        }
+    }
+    var object: ?u64 = if (next.pending) |active| active.object else null;
+    if (object == null and self.store.root.initialized and next.objects.through != null) {
+        const page = try self.store.tree().scan(self.store.root.objects, if (next.objects.after) |after| try r.idKey(after) else null);
+        if (page.entries[0]) |item| {
+            const value = try r.fromValue(r.Entry, self.allocator, item.value);
+            try self.validateEntry(value, item.key);
+            if (value.object <= next.objects.through.?) object = value.object;
+        }
+    }
+    var target: ?LogMaintenanceTarget = null;
+    var complete = true;
+    if (object) |id| {
+        const ordinal = if (next.pending) |active| active.ordinal else 0;
+        next.pending = null;
+        next.objects.after = id;
+        complete = id == next.objects.through.?;
+        if (try self.logRecord(id)) |known| {
+            if (known.phase == .complete and known.kind == kind) {
+                const definition = known.resulting.?;
+                if (ordinal >= definition.count()) return error.InvalidMaintenanceCursor;
+                target = .{ .object = id, .ordinal = ordinal };
+                if (ordinal + 1 < definition.count()) {
+                    next.pending = .{ .object = id, .ordinal = ordinal + 1 };
+                    next.objects.after = cursor.objects.after;
+                    complete = false;
+                }
+            }
+        }
+    }
+    try check(guard_value);
+    cursor.* = if (complete) .{} else next;
+    return .{ .target = target, .pass_complete = complete };
+}
+
+/// Revalidate under the host's directory and object locks. The returned owned
+/// scalar definition can select storage work; only the current guard can
+/// authorize it. Retired declarations remain eligible for recovery and closure.
+pub fn logMaintenanceDefinition(self: *Self, kind: p.StreamQueueDeclaration.Kind, target: LogMaintenanceTarget, guard_value: P.Guard) !?L.Definition {
+    try check(guard_value);
+    try self.store.refresh();
+    const known = try self.logRecord(target.object);
+    const definition = if (known != null and known.?.phase == .complete and known.?.kind == kind) known.?.resulting else null;
+    if (definition) |value| _ = try value.partition(target.ordinal);
+    try check(guard_value);
+    return definition;
+}
+
 fn logGuard(self: *Self, allocator: std.mem.Allocator, request: L.Request, policy: Policy, write: bool, acceptance: bool) !P.Guard {
     if (request.binding.identity.principal != policy.subject.principal()) return error.CatalogDenied;
     const known = try self.logRecord(request.binding.target.object);
@@ -670,6 +744,33 @@ pub fn logDefinition(self: *Self, allocator: std.mem.Allocator, definition: L.De
     errdefer result.deinit();
     try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
     return result;
+}
+
+pub const LogAuthorization = struct { definition: L.Definition, guard: P.Guard };
+/// Resolve stable identity under current native rights, independently of the
+/// original request's definition. Storage checks that frozen definition for new
+/// acceptance; old outcomes and retained reads remain observable after ALTER
+/// or DROP. The caller holds the directory/partition locks through disclosure.
+/// Guard context belongs to scratch and must never enter a cached owner.
+pub fn logAuthorization(self: *Self, scratch: std.mem.Allocator, kind: p.StreamQueueDeclaration.Kind, target: p.StreamQueue.Partition, access: c.LogAuthority.Access, policy: Policy) !LogAuthorization {
+    try self.requireInitialized();
+    try target.validate();
+    if (access == .create or !std.meta.eql(target.interpretation.object.scope, self.config().scope) or target.interpretation.object.branch != self.config().branch) return error.CatalogDenied;
+    const known = try self.logRecord(target.interpretation.object.object) orelse return error.LogDeclarationConflict;
+    if (known.phase != .complete) return error.LogDeclarationConflict;
+    const definition = known.resulting.?;
+    if (definition.kind() != kind) return error.CatalogKindMismatch;
+    _ = try definition.partition(target.partition);
+    const namespace = try self.authorizationSchema(definition.properties.namespace);
+    _ = try self.requirements(policy, namespace, null, .schema);
+    try self.verifiedObject(policy, switch (kind) {
+        .stream => .stream,
+        .queue => .queue,
+    }, target.interpretation.object.object, definition.properties.authorization, a.reference(namespace.authorization));
+    const required = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, definition.properties.target(target.interpretation.object.object), access);
+    const current = try policy.make_guard(policy.context, scratch, required, null);
+    try check(current);
+    return .{ .definition = definition, .guard = current };
 }
 
 fn resourceRequirements(self: *Self, policy: Policy, binding: Resource.Binding, value: ?Resource.Definition, write: bool) !p.Authorization.Guard {

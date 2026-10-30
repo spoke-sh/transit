@@ -214,8 +214,11 @@ Description description(const Json &v, Connection c, uint64_t p) {
     Description out{}; const auto &config = v.at("configuration"); auto &g = out.configuration;
     g.scope = scope(config.at("scope")); g.branch = full(config.at("branch")); g.partition = full(config.at("partition")); g.audience = counter_value(config.at("audience"));
     string(config.at("database_name"), g.database_name); string(config.at("initial_schema_name"), g.initial_schema_name);
-    const auto &a = config.at("authority"); g.authority = {counter_value(a.at("database_domain")), counter_value(a.at("schema_domain")), counter_value(a.at("table_domain")), counter_value(a.at("database")), counter_value(a.at("initial_schema_authority")), counter_value(a.at("initial_schema"))};
-    const auto &x = g.authority; require(x.database_domain != x.schema_domain && x.database_domain != x.table_domain && x.schema_domain != x.table_domain && x.database != x.initial_schema_authority, "catalog-authority");
+    const auto &a = config.at("authority"); g.authority = {counter_value(a.at("database_domain")), counter_value(a.at("schema_domain")), counter_value(a.at("table_domain")), counter_value(a.at("stream_domain")), counter_value(a.at("queue_domain")), counter_value(a.at("kv_domain")), counter_value(a.at("database")), counter_value(a.at("initial_schema_authority")), counter_value(a.at("initial_schema"))};
+    const auto &x = g.authority;
+    const uint64_t domains[] = {x.database_domain, x.schema_domain, x.table_domain, x.stream_domain, x.queue_domain, x.kv_domain};
+    for (size_t i = 0; i < 6; ++i) for (size_t j = 0; j < i; ++j) require(domains[i] != domains[j], "catalog-authority");
+    require(x.database != x.initial_schema_authority, "catalog-authority");
     const auto &s = v.at("subject"); out.subject = {counter_value(s.at("principal"), true), counter_value(s.at("login_role"), true), counter_value(s.at("role"), true), counter_value(s.at("credential_epoch")), counter_value(s.at("audience")), {}};
     const auto &context = s.at("context").array(32); require(context.size() == 32, "catalog-context");
     for (size_t i = 0; i < context.size(); ++i) out.subject.context[i] = static_cast<uint8_t>(context[i].number(255));

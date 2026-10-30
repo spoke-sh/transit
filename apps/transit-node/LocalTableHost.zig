@@ -5,6 +5,7 @@ const std = @import("std");
 const c = @import("transit_catalog");
 const backend = @import("transit_backend_local");
 const Service = @import("LocalTableService.zig");
+const StreamWaits = @import("LocalStreamWaits.zig");
 const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
@@ -37,9 +38,11 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// Retained caches and owner work have a separate aggregate bound from parsed
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
+stream_waits: ?*StreamWaits = null,
 
 /// The embedding owner joins every request before closing retained workspaces.
 pub fn deinit(self: *Self) void {
+    if (self.stream_waits) |waits| waits.destroy();
     for (&self.residents) |*slot| if (slot.value) |resident| resident.destroy();
     for (&self.control_residents) |*slot| if (slot.value) |resident| resident.destroy();
     std.debug.assert(self.resident_memory.data.used.load(.acquire) == 0);
@@ -66,7 +69,12 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // Validate retained configuration/history before listener readiness. This
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = try catalog.recoveryState() };
+    const recovered = try catalog.recoveryState();
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .stream_waits = try StreamWaits.create(allocator, io) };
+}
+/// Publication, policy changes and maintenance only prompt current checks.
+pub fn notifyStreams(self: *Self) void {
+    if (self.stream_waits) |waits| waits.notify();
 }
 pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
     const owner = engine.journal.backend;
@@ -82,7 +90,8 @@ fn exclusive(action: w.Action) bool {
         .transaction => true,
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
-        .initialize, .admit_ddl, .check_set, .name_assertion, .name_preview => true,
+        .initialize, .admit_ddl, .log_admit, .check_set, .name_assertion, .name_preview => true,
+        .log_operation => |value| value.command != .inspect,
         .namespace_operation => |value| value.command != .inspect,
         .dependency_operation => |value| value.command != .inspect,
         .resource_operation => |value| value.command != .inspect,
@@ -99,6 +108,8 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .stream => |value| value.target().interpretation.object.object,
+        .queue => |value| value.target().interpretation.object.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
         inline .observe, .read_current => |value| value.interpretation.object.object,
         inline .storage, .flush => |value| value.object.object,
@@ -108,6 +119,7 @@ fn target(action: w.Action) ?u64 {
         .preview => |value| value.binding.target.object,
         inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
+        inline .log_preview, .log_admit, .log_operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
         inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
@@ -139,6 +151,44 @@ pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engi
     return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null);
 }
 fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) !Service.Result(format) {
+    if (request.action != .stream or request.action.stream != .wait) {
+        // Wake even when accepted work loses its reply. Read-only probes never
+        // wake other probes; this is notification, not an idle polling loop.
+        defer if ((request.action == .stream and request.action.stream.mutation()) or exclusive(request.action)) self.notifyStreams();
+        return self.executeSingle(format, io, engine, arena, output_allocator, request, control, memory_report, null);
+    }
+    if (control) return error.InvalidRequest;
+    const waits = self.stream_waits orelse return error.StreamWaitUnavailable;
+    const input = request.action.stream.wait;
+    try request.action.stream.validate(request.connection.principal, request.connection.scope);
+    const deadline = (std.Io.Timeout{ .duration = .{ .raw = .fromMilliseconds(input.milliseconds), .clock = .awake } }).toDeadline(io);
+    // The parsed request belongs to arena. Reuse independent scratch for each
+    // recheck so unrelated publications cannot accumulate request allocations.
+    var scratch: std.heap.ArenaAllocator = .init(arena.child_allocator);
+    defer scratch.deinit();
+    var expired = false;
+    while (true) {
+        _ = scratch.reset(.retain_capacity);
+        expired = expired or deadline.toDurationFromNow(io).?.raw.nanoseconds <= 0;
+        const ticket = try waits.register(input.consume.target);
+        defer waits.release(ticket);
+        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket) }) catch |err| {
+            if (err != error.StreamWaitPending) {
+                self.notifyStreams(); // Acceptance may precede a failed reply.
+                return err;
+            }
+            switch (try waits.wait(ticket, deadline)) {
+                .changed => {},
+                .timeout => expired = true,
+                .closed => return error.StreamWaitUnavailable,
+            }
+            continue;
+        };
+        self.notifyStreams();
+        return result;
+    }
+}
+fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting")) !Service.Result(format) {
     if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
@@ -168,15 +218,17 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
     };
     defer resident.mutex.unlock(io);
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
-    errdefer {
+    var discard_on_error = true;
+    errdefer if (discard_on_error) {
         resident.value.?.destroy();
         resident.value = null;
-    }
+    };
     defer if (memory_report) |report| {
         report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
     };
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value };
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
+        if (err == error.StreamWaitPending) discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;
@@ -190,4 +242,35 @@ test "projected and filtered Table reads share the retained object's host lock" 
     try std.testing.expectEqual(@as(?u64, 97), target(projected));
     try std.testing.expectEqual(@as(?u64, 97), target(filtered));
     try std.testing.expect(!exclusive(projected) and !exclusive(filtered));
+}
+
+test "log lifecycle publication serializes the shared catalog directory" {
+    const binding: c.protocol.DataLifecycle.Binding = .{
+        .definition = c.protocol.Growth.current_definition,
+        .identity = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .principal = 0, .operation = 1 },
+        .target = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 97 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = @splat(1),
+    };
+    for ([_]@FieldType(c.DirectLogProtocol.Operation, "command"){ .inspect, .execute, .cancel }) |command| {
+        const action: w.Action = .{ .log_operation = .{ .binding = binding, .command = command, .steps = 1 } };
+        try std.testing.expectEqual(command != .inspect, exclusive(action));
+        try std.testing.expectEqual(@as(?u64, 97), target(action));
+    }
+    // Admission changes the same names, operations and partition allocation
+    // roots as Table DDL, even before native registration and initialization.
+    const admission: w.Action = .{ .log_admit = .{ .binding = binding, .kind = .stream, .namespace = 1, .name = "events", .action = .drop } };
+    try std.testing.expect(exclusive(admission));
+    try std.testing.expectEqual(@as(?u64, 97), target(admission));
+    const queue: w.Action = .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{
+        .target = .{ .definition = c.protocol.Growth.current_definition, .interpretation = .{ .object = binding.target, .revision = 1, .digest = @splat(1) }, .partition = 3 },
+        .operation = binding.identity,
+        .maximum = 1,
+        .lease_ms = 100,
+    } }, .payload = null } } };
+    try std.testing.expect(!exclusive(queue));
+    try std.testing.expectEqual(target(admission), target(queue));
+    try std.testing.expectEqual(stripe(admission), stripe(queue));
 }

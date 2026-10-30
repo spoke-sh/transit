@@ -35,6 +35,7 @@ pub fn validate(self: Self, source: q.TableSource, grant: Grant) !void {
     try source.requireGrant(fixed.allocator(), grant);
     const basis = self.basis;
     try basis.interpretation.validate();
+    if (basis.interpretation.kind != .table) return error.InvalidRelationalHistory;
     try basis.snapshot.handle.content.validate();
     try basis.authority.validate();
     try basis.accepted.validate();
@@ -91,7 +92,7 @@ pub fn decode(source: q.TableSource, grant: Grant, value: p.Value) !Self {
     if (retired > 1) return error.InvalidRelationalHistory;
     const result: Self = .{ .basis = .{
         .snapshot = .{ .object = interpretation.object, .handle = .{ .owner = grant.binding.owner, .content = content } },
-        .interpretation = .{ .interpretation = interpretation, .content = .{ .bytes = declaration_bytes, .sha256 = interpretation.digest }, .schema_fingerprint = schema, .retired = retired == 1 },
+        .interpretation = .{ .kind = .table, .interpretation = interpretation, .content = .{ .bytes = declaration_bytes, .sha256 = interpretation.digest }, .schema_fingerprint = schema, .retired = retired == 1 },
         .accepted = accepted,
         .changed_lsn = try reader.takeInt(u64, .little),
         .row_count = try reader.takeInt(u64, .little),

@@ -57,6 +57,12 @@ publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
 per-principal fairness.
 
+Typed Stream waits use these same dedicated wait lanes. They register before
+checking the durable offset frontier, park without catalog/object locks, and
+recheck current authorization after appends or policy changes. One deadline
+bounds each wait to at most 1000 milliseconds before its final check. A timeout
+accepts no read; accepted consume retries retain their original finite cut.
+
 Request deadlines cancel and join active work, release its admission lane and
 close the connection. A lost reply leaves any accepted mutation unresolved;
 callers retain its original signed identity for recovery.
@@ -74,8 +80,8 @@ pending commands through their own bounded scheduling policy.
 
 With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
-runs lifecycle scans, accepted-floor trimming and configured automatic Table
-flushing, archiving/checkpointing and compaction inside the node's exclusive owner;
+runs lifecycle scans, accepted-floor trimming and configured automatic Table, Stream and Queue
+flushing and archiving/checkpointing, Table/Stream compaction and Queue lease expiry inside the node's exclusive owner;
 a separate `--maintain` process rejects. Native/direct immutable-object collection
 resumes accepted progress under current maintenance privilege and trusted epoch/time
 fences. Retained roots continue to own their objects. The local launcher selects this backend. Configured Table operations
@@ -109,11 +115,27 @@ owns language coverage.
 
 `LocalTableHost` validates the complete catalog history before readiness. It
 retains up to ten ordinary and two reserved control workspaces, each containing
-one Catalog and at most one Table owner. The owners retain verified immutable
+one Catalog, at most one Table owner, one Stream partition owner and one Queue
+partition owner. The owners retain verified immutable
 index pages and owned declarations. Every acquisition checks the current log
 frontier; a changed frontier validates the saved boundary and every newer
 record before serving the request. A different Table replaces only the volatile
-workspace, preserving durable pins, receipts and pending work.
+workspace, preserving durable pins, receipts and pending work. Stream payload
+actions share the object's lock with catalog DDL and recheck native grants.
+They use the [Stream payload contract](../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress),
+including finite reads and explicit group settlement. Cursor authentication uses
+a private key derived from the registrar seed; replacing that seed invalidates
+old cursor authentication but preserves accepted work.
+
+Queue payload actions use the same object lock, current native grants and
+trusted UTC interval source. They expose enqueue, original claims, bounded
+payload/status pages and explicit fenced settlements through the
+[Queue action contract](../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements).
+Claim pages need current read and acquire rights even after acceptance. Queue
+owners share the resident budgets below; they retain neither request proofs nor
+time callbacks. Native maintenance expires at most one accepted lease per Queue
+unit under trusted time. Terminal payload cleanup and DLQ/common transaction
+publication remain unfinished.
 
 Retained owners and their private work share a 256 MiB ordinary allowance and a
 separate 64 MiB control allowance, with per-owner limits of 128 MiB and 64 MiB,
@@ -131,6 +153,44 @@ root/chain hints. Replacement joins all borrowers, destroys their caches and
 repeats full recovery. See the
 [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
 for the immutable-history assumption and failure boundaries.
+
+Stream and Queue maintenance visit one partition of a complete declaration at a time,
+including retired declarations for archival and closure. Each catalog pass
+freezes its highest object ID. Table, Stream and Queue work rotate within the same
+`storage.maintenance.resident_bytes` budget. Each log kind retains at most one
+workspace with incomplete recovery between turns, replaying at most 16 records.
+Up to 64 disposable root/commitment hints per log kind avoid repeating validated history
+when work switches partitions; their allocation shares the same budget. Reuse
+verifies the accepted boundary, and newer checkpoints supersede old hints.
+All are released on executor shutdown. A finite quiescent history can therefore
+finish recovery without a resident limit on the partition population.
+
+The existing flush and archive settings also enable Queue physical maintenance;
+compact enables Stream key compaction. Queue timer-run merging and stale-event
+cleanup run independently of this optional compaction setting. Log flushing seals one whole accepted batch, bounded by append limits,
+instead of Table's partial-row or age thresholds. Archive units honor
+`archive.work_frames`; key compaction uses at most 64 rows or the smaller
+`compaction_rows` setting. Physical rewriting then inspects at most one accepted
+batch per unit under the segment allocation budget, removing proven hidden rows
+when at least half the original batch is hidden. Accepted fixed targets survive restart and become
+idle after finite work. With native maintenance enabled, only a declaration's
+positive retention age enables Stream expiry. Each expiry unit handles at most
+one sealed batch under trusted clock bounds and consumer protection. Current
+read pins and original receipts remain retained. Quota pressure grants no expiry.
+
+Queue lease expiry is independent of payload retention. A unit considers the
+earliest accepted deadline and requires the trusted lower time bound to reach
+it. Retry backoff starts at that deadline, including after downtime. Retired
+Queues can settle expired leases and archive accepted history. Empty active-lease
+sets need no clock; unavailable time with active leases refuses expiry. Queue
+expiry uses reserved control capacity and preserves original claims and payloads.
+Queue scheduling maintenance uses the same reserve and publishes one resumable
+physical transition per unit. Visibility and lease work alternate; merge steps
+consume at most 1,024 input entries or the smaller declared `timer_steps` limit.
+Initial sweep cleanup separately examines at most 256 buffered events. Frozen
+merge inputs and progress survive restart, while current item/bitmap state
+continues to govern claims. Scheduling cleanup needs no clock, also after DROP;
+it neither expires payloads nor settles leases.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

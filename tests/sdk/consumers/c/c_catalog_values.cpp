@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
         transit_sdk_error result{};
         if (command == "describe") {
             transit_station_catalog_description out{}; result = transit_station_catalog_describe(client, &out);
-            if (!result.kind) assert(out.subject.principal == 17 && out.subject.role == 23 && out.subject.context[31] == 171 && out.policy_revision == 9 && out.configuration.authority.table_domain == 3);
+            if (!result.kind) assert(out.subject.principal == 17 && out.subject.role == 23 && out.subject.context[31] == 171 && out.policy_revision == 9 && out.configuration.authority.table_domain == 3 && out.configuration.authority.stream_domain == 31 && out.configuration.authority.queue_domain == 32 && out.configuration.authority.kv_domain == 33);
         } else if (command == "lookup" || command == "wrong_name") {
             transit_station_catalog_metadata *out = nullptr; result = transit_station_catalog_lookup(client, command == "lookup" ? "items" : "wrong", 1, &out);
             if (!result.kind && out) {

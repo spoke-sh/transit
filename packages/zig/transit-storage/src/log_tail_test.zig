@@ -8,6 +8,28 @@ fn binding(lsn: u64, bytes: []const u8) Tail.Binding {
     return .{ .position = .{ .partition = 1, .next_lsn = lsn }, .content = .{ .bytes = bytes.len, .sha256 = digest } };
 }
 
+test "log tail retains simultaneous sparse and complete views without weakening original identity checks" {
+    var cache = try Tail.init(t.allocator, .{ .slots = 2, .borrow_slots = 2, .slot_bytes = 128, .resident_bytes = 4096 });
+    defer cache.deinit() catch unreachable;
+    const original = binding(1, "original payload");
+    var sparse = original;
+    sparse.view = binding(1, "view").content;
+    try cache.admit(original, "original payload");
+    const old = (try cache.borrow(original)).?;
+    defer old.release() catch unreachable;
+    try cache.admit(sparse, "view");
+    const new = (try cache.borrow(sparse)).?;
+    defer new.release() catch unreachable;
+    try t.expectEqualStrings("original payload", try old.bytes());
+    try t.expectEqualStrings("view", try new.bytes());
+    var foreign = sparse;
+    foreign.content = binding(1, "foreign payload").content;
+    try t.expectError(error.TailContentConflict, cache.borrow(foreign));
+    foreign = sparse;
+    foreign.view = binding(1, "a view larger than the original payload").content;
+    try t.expectError(error.InvalidTailBinding, cache.borrow(foreign));
+}
+
 test "log tail pins survive eviction pressure and copied handles cannot release new borrows" {
     var cache = try Tail.init(t.allocator, .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 64, .resident_bytes = 4096 });
     defer cache.deinit() catch unreachable;

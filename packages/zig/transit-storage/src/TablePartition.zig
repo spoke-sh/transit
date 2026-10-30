@@ -41,6 +41,9 @@ pub const default_predicate_resident_bytes = 4 * 1024 * 1024;
 /// immediately before append. A lease supplied by a client is not a Guard.
 pub const Guard = @import("PublicationGuard.zig");
 pub const Options = struct {
+    /// Explicitly selected by the database owner. Ordinary Table opens refuse
+    /// KV declarations, including checkpoint-based recovery and cached roots.
+    kind: Declaration.Kind = .table,
     /// Only transaction recovery/control owners may open an unresolved barrier.
     transaction_control: bool = false,
     resident_pages: usize = 16,
@@ -329,6 +332,7 @@ workspace_read: ?p.Transaction.ReadView = null,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
+    if (definition.kind != options.kind) return error.DataKindMismatch;
     if (partition == 0 or options.index_work_bytes == 0 or options.build_resident_bytes == 0 or options.statement_scan_rows == 0 or options.statement_scan_bytes == 0 or
         options.segment_rows_per_group == 0 or options.segment_rows_per_group > max_changes or options.segment_decode_bytes == 0 or options.segment_predicate_bytes == 0) return error.InvalidTableIdentity;
     var owned = try Declaration.prepare(allocator, definition);
@@ -339,11 +343,12 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty, .transaction = null };
+    return .{ .kind = stored.kind, .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty, .transaction = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
     const after = record.root;
+    if (before.kind != after.kind) return error.DataKindMismatch;
     if (!std.meta.eql(after.maintenance, try @import("TableMaintenanceState.zig").transition(before, after, record.action))) return error.InvalidTableMaintenance;
     if ((record.action != .declaration or record.action.declaration.binding.action != .alter) and
         !std.meta.eql(before.column_origins, after.column_origins)) return error.InvalidTableHistory;
@@ -486,6 +491,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         if (latest.frames.len != 1 or latest.frames[0].header.partition_id != next.partition or
             latest.frames[0].header.lsn != end - 1) return error.TableHistoryMissing;
         const record = (try decodeFrame(self.allocator, latest.frames[0], next.partition, end - 1)).record;
+        if (record.root.kind != self.options.kind) return error.DataKindMismatch;
         if (!std.meta.eql(record.root.interpretation.object, next.interpretation.object) or
             record.root.partition != next.partition) return error.InvalidTableHistory;
         self.recovery_archive = record.root.archive;
@@ -493,6 +499,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
     }
     if (selected) |reference| {
         const basis = try Recovery.load(self.allocator, self.objects, reference, end, next.partition, next.interpretation.object);
+        if (basis.root.kind != self.options.kind) return error.DataKindMismatch;
         next = basis.root;
         chain = basis.chain;
         work.checkpoint_lsn = next.next_lsn;
@@ -500,6 +507,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
     var checkpoint_boundary = selected != null;
     if (prior) |known| {
         try known.root.validate();
+        if (known.root.kind != self.options.kind) return error.DataKindMismatch;
         if (known.root.partition != next.partition or
             !std.meta.eql(known.root.interpretation.object, next.interpretation.object)) return error.InvalidTableHistory;
         if (known.root.next_lsn > end) return error.TableHistoryMissing;
@@ -1410,6 +1418,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
     var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
     var transition: ?f.TableEvolution.Transition = if (edit == .alter) try f.TableEvolution.apply(self.declaration.schema.schema, edit.alter.change, &columns) else null;
     var replacement = try Declaration.prepare(self.allocator, .{
+        .kind = self.root.kind,
         .object = self.root.interpretation.object,
         .revision = try std.math.add(u64, self.root.interpretation.revision, 1),
         .schema = if (transition) |value| value.after else self.declaration.schema.schema,
@@ -1783,6 +1792,7 @@ pub fn getAt(self: *Self, allocator: std.mem.Allocator, basis: Root, key: []cons
 
 fn requireBasis(self: *Self, basis: Root) !void {
     try basis.validate();
+    if (basis.kind != self.options.kind) return error.DataKindMismatch;
     if (!std.meta.eql(basis.interpretation.object, self.root.interpretation.object) or basis.partition != self.root.partition or
         basis.next_lsn > self.root.next_lsn) return error.InvalidTableBasis;
 }

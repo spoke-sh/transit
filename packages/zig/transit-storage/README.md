@@ -7,6 +7,15 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`KVPartition` provides typed point reads and atomic put/remove batches over the
+same paged engine, with an explicit persisted KV kind. It supports binary keys
+up to 1,024 bytes and text/binary values up to 1,047,552 bytes, bounded batches,
+original receipts, current-policy publication guards and retained read cuts.
+Its disk checks cover reply loss, large values, cardinality beyond the page
+cache, sealing, archive/trim and restart. Table opens reject KV storage,
+including recovery from checkpoints. Catalog/caller migration and mixed
+transaction participation are not established by this storage component.
+
 `Tack` binds a queue segment's available, acquired, acked and archived state
 sets to its exact interpretation, offset range and accepted WAL frontier. The
 488-byte envelope references immutable paged `BitmapDirectory` roots and uses
@@ -17,6 +26,64 @@ stage private roots; lease metadata, receipts and publication remain the owning
 partition's responsibility. Terminal cardinality is a reclamation eligibility
 hint and supplies no authority to delete retained payloads.
 
+`QueueItem` computes lease, renewal, retry and exhaustion candidates using
+trusted time intervals. `QueueIndex` stages paged per-offset metadata, `.tack`
+roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
+Only the head of each FIFO key enters eligibility; its delay, active lease and
+retry block its successors while other keys can advance. ACK moves that head;
+exhaustion retains an available but blocked source. Its DLQ reason retains the
+exact destination definition; it does not publish that destination or make the
+source terminal. Old roots remain independently readable.
+
+`QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
+and full canonical key. The Queue owner preallocates 64 hash buckets by default
+(`Options.queue_affinity_rows`, 1–4,096) and twice as many replacement slots.
+Each slot holds at most 256 canonical key bytes and the encoded head. Hash
+collisions compare full keys; longer keys, misses and saturated caches use the
+paged owner. Cache capacity never limits the durable key population.
+
+The cache supports one serialized writer and concurrent readers. Atomic handles
+bind a slot and generation; readers pin that exact generation, recheck its bucket
+and copy the value before releasing the pin. A writer can reuse only an unmapped
+slot with no readers. Exhausted generations permanently retire their slots,
+preventing ABA reuse. Readers attempt at most four pin exchanges; publication
+examines at most the bounded slot population. Contention returns a miss without
+waiting, allocating or changing accepted work. Initialization and destruction
+require quiescence. This cache does not make the surrounding serialized Queue
+owner concurrent, and a hit provides no lease, retention pin or current-grant authority.
+
+`QueuePartition.enqueue` binds initial scheduling state, payloads and original
+producer receipts to one fenced WAL record. Claims publish acquired state,
+exact leases and deadlines together; settlement and expiry publish their full
+successor state through that same owner. Bounded resident timing caches accelerate
+the accepted paged schedule; DLQ transfer remains unavailable.
+
+`QueueSelection` retains a nonempty claim's exact leases and payload placement
+cut in a bounded immutable artifact. It keeps original offsets, epochs and
+attempts in canonical order and binds them to the original receipt's content
+digest. Its decoder checks canonical metadata without building a dynamic JSON
+tree; decoded metadata is owned while lease bytes borrow the caller's buffer.
+This artifact does not establish current lease status or publish a claim. Empty
+claims have no selection artifact.
+
+`QueuePartition.releaseClaimRead` records explicit closure of one original
+selection's payload reads without changing its leases. `QueueReadRelease` resolves
+the accepted evidence through a paged directory in that Queue cut. Retained
+traversal always preserves the original receipt and selection, but follows its
+payload-placement roots only while that cut has no accepted release. Older
+replay roots and other open claims preserve their independent dependencies.
+Local buffer disposal does not invoke this operation, and closure alone does
+not expire the Queue's current payloads.
+
+`CandidateObjects` derives one proposed transition's immutable pages and bitmap
+containers in bounded, reusable memory. It enforces separate byte, object-count
+and total resident budgets for that operation. Reads fall through to the existing
+provider; private puts reach the provider only through explicit `persist`.
+Replay can reconstruct and compare roots without writing or requiring old
+intermediate staging objects. Persistence alone publishes no root and supplies no
+WAL acceptance. The enclosing owner must clear derived page caches when abandoning
+or resetting a candidate and must preserve original identity after uncertainty.
+
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
 slices without copying, and keeps 64 trailing zero bytes for internal vector
@@ -25,6 +92,9 @@ cannot release a later borrow. All cache operations reuse initialization storage
 Cache pressure may refuse admission without affecting the durable log. Callers
 serialize access, retain the owner through release, and check current rights
 before disclosing buffered bytes. A cache pin is not a durable retention pin.
+Complete and sparse placements can coexist under one original append identity;
+their view digests distinguish cache entries without weakening original-content
+conflict checks.
 
 `LogDeclaration` validates schema-bound partition/FIFO/compaction keys and stores
 immutable schema, policy, limits and catalog property bytes. `LogInitialization`
@@ -53,6 +123,181 @@ retries reject. `LogEvidence` stores bounded immutable outcomes, while
 accepted record. Uncertain append invalidates resident readiness and requires
 recovery under the original identity. `recoverStep` checks at most 256 records;
 it must complete before the owner serves payloads or accepts more work.
+Trusted same-process adapters can retain `RecoveryState` from a fully recovered
+owner and pass it to `recoverStepSince`. Reuse verifies its exact accepted
+boundary, yields to newer checkpoints and preserves current-policy checks.
+These disposable hints are not persisted recovery authority.
+Its publication and recovery implementation lives in the internal `LogPartition`
+owner, shared with `QueuePartition`.
+
+`QueuePartition` publishes enqueue payloads, FIFO links, eligibility entries and
+`.tack` availability roots together with producer deduplication. It derives
+immutable state in `CandidateObjects`, persists those bytes, then rechecks the
+publication guard before appending the accepted root. A lost reply requires
+recovery before further operations. Replay privately reconstructs the complete
+candidate and compares its root without writing objects; collected intermediate
+pages are not replay dependencies. Sealing, archive/checkpoint and WAL trimming
+preserve original payloads and outcomes. The direct retained graph marks Queue
+metadata, nested full-key directories and all sidecar bitmap containers before
+reclamation. Queue declarations and blocked items retain each exact recorded DLQ
+definition and its declaration dependencies. Resolution verifies immutable bytes
+against the complete object/revision/digest identity, independently of current
+names. Missing, incompatible or invalid destinations stop the mark pass; they
+cannot establish permission to reclaim the source or transfer its payload.
+
+`QueuePartition.claim` freezes a bounded original selection from eligible FIFO
+heads, capped by declared and deployment limits and remaining active-lease
+capacity. Exhausted capacity cannot become an accepted empty result. The claim
+persists exact epochs, attempts, trusted time bounds and its immutable selection
+before acknowledgement, and rechecks current authority and conservative liveness
+at publication. Original claims, including empty selections, remain exact on retry
+after expiry or loss of authoritative time; a fresh selection needs a new identity.
+The retained graph preserves each original selection's earlier batch and placement
+directories. This storage receipt does not establish current lease status or
+settle any message.
+
+`QueuePartition.settle` publishes ACK, NACK and renewal with the exact current
+lease and a conservative liveness check repeated at publication. Renewal fences
+the older receipt. ACK obtains the canonical FIFO key from the original payload,
+including sealed placement, and advances one head. NACK preserves that head and
+records backoff or a blocked exhaustion reason. Original settlement receipts
+remain recoverable after expiry and retirement without consulting today's clock;
+current authorization still applies. Current policy governs fresh settlement,
+and compatible retired declarations can close accepted work.
+
+`expireOne` handles at most one earliest accepted deadline under the control
+reserve. It rechecks the exact renewed lease and authoritative time before
+publication. Uncertain time cannot authorize expiry. Retry backoff starts at the
+accepted deadline, so downtime does not restart the delay; exhaustion keeps the
+source nonterminal and blocked. A large clock jump still needs separate bounded
+steps. The local node invokes it through bounded catalog maintenance; the
+transition performs no DLQ transfer.
+
+The Queue owner preallocates a `QueueLeaseHeap` with 64 entries by default
+(`Options.queue_deadline_rows`, 1–4,096). It caches only an earliest prefix of
+accepted active deadlines, independently of the durable active population. A
+refill examines at most the smaller of that capacity and the declaration's
+`timer_steps`. Exhausting a prefix reloads the remaining durable directory; it
+never reports an empty Queue because the cache is full.
+
+The cache binds its immutable item-directory root. Claims, renewals and
+settlements that change that root invalidate it. An accepted expiry removes only
+the exact cached lease, including claim identity, epoch and deadline; physical
+timer merges can preserve that logical basis. Time, authorization and the
+complete durable transition are checked separately before publication. Warm
+observations before the next deadline need no object reads or backing allocation
+inside the retained storage owner. Owner disposal drops the cache. The local
+maintenance driver currently disposes ready workspaces between units, so this is
+not a claim of allocation-free background maintenance.
+
+Visibility and retry wakeups use a separate `QueueTimingWheel`; this wheel never
+expires an acquired lease. Eight radix-256 levels span the unsigned millisecond
+range. Intrusive bucket links give constant-time insertion and exact cancellation.
+Generation-tagged handles fence reuse; exhausted generations permanently retire
+their slots. Advancement jumps to occupied boundaries and charges each boundary
+jump and individual cascade against its work budget, including after a large
+clock jump. Ready-event selection scans only the bounded resident entries.
+
+The Queue owner caches an earliest eligibility prefix in that wheel, with 64
+entries by default (`Options.queue_visibility_rows`, 1–4,096). Each selection pass
+loads at most the smaller of capacity and declared `timer_steps`, then advances
+at most `timer_steps` wheel units. Deterministic publication validation may repeat
+selection. The cache binds its immutable item directory and scheduled count; changed
+roots or a backward speculative observation discard it. Incomplete advancement
+or a cursor beyond a partial prefix uses the durable directory. A full cache
+cannot establish an empty claim. Each selected event still validates its current
+durable item and `.tack` state; current authority and time remain separate checks.
+Warm checks before a known future prefix need no object reads or backing allocation.
+Durable visibility and deadline schedules use bounded immutable delta buffers,
+paged pending chunks and time-bucketed `.tseg` runs. Physical schedule changes
+preserve these caches when their logical item basis is unchanged.
+
+`QueueTimeRun` stages bounded sorted `.tseg` chunks for visibility/retry and lease
+metadata. Each chunk holds at most 1,024 `(time, offset, epoch)` entries from one
+time bucket, with an exact genesis interpretation and physical serial. Loading
+verifies full content, typed row identities and descriptor bounds into caller-owned
+scalar output. The caller supplies reusable scratch and an encoded output buffer;
+neither staging nor loading alone schedules work. The Queue owner publishes run
+directories, merge progress and stale-event filtering in its WAL root. The
+[storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#queue-time-run-chunks)
+defines the exact descriptor and physical bounds.
+
+`QueueTimeBuffer` keeps at most 256 sorted pending events in caller-owned memory
+and stages exact immutable bytes without internal heap allocation. A full buffer
+refuses further insertion without evicting an event. Its contiguous time-bucket
+slices can seal into `QueueTimeRun` chunks. This bounds one operation buffer;
+the Queue owner publishes active/pending references with its complete candidate.
+
+`QueueTimeDirectory` indexes a sorted run through paged chunk-boundary entries.
+Runs can exceed chunk and cache capacity while earlier roots remain immutable.
+Exclusive upper-key lookup locates a containing or following chunk. Its bounded
+directory audit requires contiguous row counts, ordered bounds and actual
+exhaustion; payload verification remains with `QueueTimeRun.load`. These private
+roots do not grant a read, retain a snapshot or publish a Queue schedule.
+
+`QueueTimeMerge` resumes a two-run merge from scalar input positions and a private
+output root. A step consumes at most 1,024 input entries, counting duplicates and
+filtered entries, and stages at most one output chunk. Exact directory exhaustion
+is required for completion. Its frozen Queue item/sidecar basis keeps filtering
+stable while newer operations change current state. `QueueIndex.TimerFilter`
+checks that basis and refuses missing or inconsistent state and future epochs.
+The caller owns reusable chunk arrays and scratch; identical private transitions
+can be rederived without provider writes. Accepted roots retain the frozen basis,
+both inputs and every partial output through the storage graph.
+
+`QueueSchedule` composes those artifacts in private scheduling roots. Full deltas
+seal into paged pending chunks; size-tiered runs merge through resumable frozen
+inputs, and a finite stale-entry sweep stops when its basis is unchanged. Reads
+check all possibly earlier sources under an explicit work budget, including
+both inputs of an unfinished merge. Budget exhaustion refuses instead of
+reporting an empty schedule. Pending cardinality remains on disk; a fixed fan-in
+array cannot limit accepted settlement. The accepted Queue root contains separate
+visibility and lease schedules plus the next maintenance kind. Reads use
+`Options.queue_timer_read_work` (default 4,096; 1–65,536) to bound source discovery,
+chunk decoding and candidate checks separately from resident cache capacity.
+
+`scheduleMaintenanceUnit` publishes one physical scheduling transition with
+current authorization and verified declaration bytes, including after retirement.
+It alternates visibility and lease work, examines at most the requested merge
+rows (1–1,024 and no more than declared `timer_steps`), and records exact progress
+in `LOGPART1`. Starting a sweep separately checks the at-most-256-entry active
+buffer; a chunk decode is bounded to 1,024 entries. Replay rederives the same
+successor without provider writes. Lost replies require recovery before further
+work. This operation changes no logical lease, clock floor or original receipt.
+
+`QueueSchedule.Buffers` selects the final visibility and lease delta objects
+when persisting a private candidate. Intermediate buffer versions can remain
+only in reusable candidate memory, while all other object namespaces persist
+normally. The Queue owner supplies both final roots, so per-event private delta
+versions do not become per-event object writes. This selection never deletes a
+previously accepted buffer; collection requires complete retained graph traversal.
+
+`readClaimPage` resolves an original claim before traversing its frozen selection
+and payload directories. Rows own their encoded bytes independently of scratch
+and tail slabs. Row and byte budgets apply across append batches, and current
+authorization is rechecked after buffering, including empty and terminal pages.
+Each page separately reports its observed partition/time basis and the original
+leases' current state, epochs, attempts, deadlines, blocked reasons and liveness.
+Unavailable time does not prevent payload recovery; renewal, reassignment and
+settlement never substitute different payloads under the original claim.
+Observation does not authorize later execution or settlement. The neutral
+`transit-protocol.QueueRead` contract owns these distinctions.
+
+The Queue wrapper exposes enqueue, claim, original claim pages, settlement,
+bounded lease expiry, terminal payload expiry, observation, original outcome
+recovery and physical maintenance. It has no Stream consumption or group API.
+`expireTerminalHistory` requires opted-in age policy, trusted append/time evidence
+and a sealed, fully terminal prefix batch. A paged `.tack` lookup plus its four
+cardinalities bounds the eligibility check. Each accepted step removes exactly
+one batch from current placement while preserving metadata and receipts. Queue
+replay derives the exact successor directories without provider writes. Open
+claim selections retain their original lower/upper boundaries and payload roots;
+release and replay closure remain necessary for physical collection.
+`DirectQueue` composes this storage boundary with the shared catalog operation
+namespace and current grants. The signed native Queue action exposes standalone
+operations through that adapter. The local node shares its Table/Stream
+maintenance executor with Queue sealing, archiving/checkpointing, WAL trimming
+one-deadline lease expiry and a separate terminal-retention class.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut
@@ -69,8 +314,9 @@ key rotation, pin closure and restart. Missing read/evidence objects block repla
 The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
-buffering. This component is not yet composed into payload service APIs.
-Notification waits and key compaction remain unfinished.
+buffering. The catalog and native service compose the owner into signed payload
+operations and bounded notification waits; see the
+[Streams reference](../../../docs/handbook/reference/streams.md).
 `flush` seals one accepted batch per call through a fixed physical cut, preserving
 its original receipt and offsets. Shared `.tseg` columns and a separate immutable
 delivery-metadata sidecar must reproduce the original payload digest before their
@@ -94,8 +340,27 @@ through physical WAL trim; missing checkpoints or required archive bytes block
 recovery or reads. `LogStorageRoots` enumerates the selected checkpoint and
 hash-linked replay in bounded steps. The native adapter admits only qualified
 trim floors; the catalog retained graph keeps live pins, original receipts and
-required archive frames through physical collection. Service payload maintenance
-still requires its authorization and scheduling composition.
+required archive frames through physical collection. The local node composes
+these units through bounded catalog traversal and current native maintenance
+authority, sharing its allocation budget with Table work.
+
+`archiveMaintenanceUnit` persists a fixed archive/checkpoint target and advances
+it by at most one publication per call. `compactionMaintenanceUnit` resumes a
+frozen key-compaction cut in at most 64-row steps. Accepted source and completion
+frontiers let both become idle after finite input; their own bookkeeping does
+not create another pass. Lost replies and restart recover those same targets.
+Later appends and consumer progress can select further work. Retirement closes
+unpublished compaction without discarding accepted payloads or read pins.
+
+After logical compaction, `rewriteMaintenanceUnit` replaces one sparse accepted
+batch per unit under a retained sealed frontier. It preserves original encoded
+row identities and removes only offsets proven hidden. Batches with at most half
+their original rows still visible qualify; empty placements retain range and
+receipt evidence without a segment. `LogView` encodes sparse ordinals in bounded
+caller buffers. Reads and collection validate omitted offsets against each
+retained visibility root. Prior pins and replay keep the old placement until
+closure and a later checkpoint permit collection. The node composes rewriting
+with logical compaction under the same maintenance budget.
 
 An optional control store must address the same physical namespace and current
 authority with the deployment's reserved capacity. Offset settlement, read
@@ -105,8 +370,8 @@ complete progress and closure, and verify that revocation still refuses both
 mutation and original-outcome disclosure. Reserved capacity grants no expiry or
 permission, and remains finite.
 
-`LogTime.Source` supplies trusted UTC milliseconds when timing is configured or
-required by retention. Append persists its pre-staging observation and rechecks
+`LogTime.Source` supplies a trusted closed UTC interval when timing is configured or
+required by retention. Append persists its pre-staging upper bound and rechecks
 time under the publication guard. Missing/regressing clocks and an already
 elapsed retention window refuse fresh publication. Accepted clock floors survive
 restart; original receipts and recovery do not depend on current clock
@@ -118,9 +383,22 @@ batch through a fixed physical cut. It requires a declared age and trusted time,
 and cannot cross the oldest consumer checkpoint. A paged offset index finds that
 checkpoint without loading all groups. Ineligible work reports whether it is
 unsealed, untimed, not due or protected by a consumer. Existing pins retain their
-original bytes; new reads below the boundary report `LogHistoryUnavailable`.
+original bytes; new reads below the boundary report `LogRangeExpired`.
+Expiry requires a lower UTC bound proving that the append's upper bound plus its
+age has elapsed. The accepted record preserves that lower proof separately from
+the upper clock floor, so recent appends do not prevent eligible older expiry.
 Original outcomes, producer fences and logical offset allocation survive expiry.
 Physical collection separately waits for pins and recovery dependencies to close.
+
+`compactStep` captures a fixed source cut and performs two bounded passes: a
+paged full-key index identifies the latest offset under the declared collation,
+then a Roaring mask hides superseded sealed values below protected consumer
+checkpoints. Each call handles at most 64 rows. Publication rechecks consumer
+protection; original pins keep their earlier visibility and newer reads preserve
+scanned coverage across hidden offsets. Tombstones remain until history expiry.
+Work resumes after restart or explicit cancellation, which does not undo any
+published visibility. Sparse segment payload rewriting remains separate; the
+current pass preserves original batch bytes and receipts.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an

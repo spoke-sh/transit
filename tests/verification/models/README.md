@@ -583,6 +583,9 @@ Earlier 21-state/five-control results apply to the earlier model revision.
 
 The pure [Stream/Queue bindings](../../../packages/zig/transit-protocol/src/StreamQueue.zig)
 independently check supplied lease/time guards and original accepted receipts;
-those unit checks are not replay of this model. `QueuePartition` remains an
-unimplemented runtime owner. The [Queue contract](../../../contracts/QUEUE_V1.md)
-defines that boundary and the obligations before execution.
+those unit checks are not replay of this model. The implemented standalone
+`QueuePartition` has separate disk, signed-caller and collection evidence for
+claims, settlements, scheduling and terminal payload retention. This model does
+not establish correspondence to those owners. Common state/outbox/ACK decisions
+and DLQ transfer remain unavailable; the [Queue contract](../../../contracts/QUEUE_V1.md)
+defines those execution boundaries.

@@ -86,11 +86,11 @@ module Transit
         def wire = { 'record_bytes' => record_bytes, 'staging_bytes' => staging_bytes.to_s, 'staging_records' => staging_records }
       end
       # These opaque IDs are allocated by public native provisioning.
-      AuthorityProfile = Data.define(:database_domain, :schema_domain, :table_domain, :stream_domain, :queue_domain, :database, :initial_schema, :initial_schema_authority) do
+      AuthorityProfile = Data.define(:database_domain, :schema_domain, :table_domain, :stream_domain, :queue_domain, :kv_domain, :database, :initial_schema, :initial_schema_authority) do
         def initialize(**values)
           raise ArgumentError, 'Specify every native authorization binding' unless values.keys.sort == self.class.members.sort
           values.each_value { |value| Internal.integer(value) }
-          unless [values[:database_domain], values[:schema_domain], values[:table_domain], values[:stream_domain], values[:queue_domain]].uniq.length == 5 && values[:database] != values[:initial_schema_authority]
+          unless [values[:database_domain], values[:schema_domain], values[:table_domain], values[:stream_domain], values[:queue_domain], values[:kv_domain]].uniq.length == 6 && values[:database] != values[:initial_schema_authority]
             raise ArgumentError, 'Distinct native authorization bindings are required'
           end
           super

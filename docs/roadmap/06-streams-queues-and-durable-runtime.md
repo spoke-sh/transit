@@ -351,11 +351,14 @@ independent library boundary warrants its own manifest and checks.
 
 R2's typed declaration lifecycle now passes its local catalog/native service
 gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
-R0/R1 retain contract/model and integrated maintenance obligations. R3 now has a
-disk-backed storage owner; its public payload service composition remains open.
+R0/R1 retain contract/model and integrated maintenance obligations. R3 has a
+disk-backed storage owner, signed typed payload/consumer operations and bounded
+wait composition, automatic local maintenance and sparse physical payload
+rewriting. Full exit qualification remains open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
-storage and catalog integration without enabling Queue execution or SQL verbs.
+storage and catalog integration, signed Stream/Queue callers and installed
+restart checks. Dedicated SQL verbs remain outstanding.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
 
@@ -364,34 +367,135 @@ The current progress slice delivers:
 - R0 declaration/routing/retention contracts, original producer outcomes,
   consumer assignment/progress, finite authenticated reads and trusted-time
   observations. Expanded Stream and mixed-participant model correspondence,
-  direct KV and complete Queue settlement contracts remain outstanding.
+  complete direct KV lifecycle contracts and common-decision settlement
+  correspondence remain outstanding.
 - R1 paged Roaring directories, the coordinated `.tdel` migration, `.tack`
   envelopes, fenced initialization, bounded pinned tail slabs, immutable log
-  archives/checkpoints and retained-graph integration. Queue-specific indexes,
-  scheduling and integrated resource qualification remain outstanding.
+  archives/checkpoints and retained-graph integration. Queue-specific indexes and bounded durable scheduling are now implemented;
+  final integrated resource qualification remains outstanding.
 - R2 typed create/alter/rename/drop/lookup/list/pending/recovery, shared names and
   operation identities, native grants and exact-definition DLQ dependencies.
-  Historical Queue dependency closure remains gated by its execution owner.
+  Historical Queue dependency closure uses exact recorded destinations; atomic
+  DLQ transfer still depends on R5.
 - R3 atomic single-partition append and producer deduplication, bounded retained
   reads and offset settlement, sealed `.tseg` placement, timestamp filtering,
   archive/checkpoint/trim, control reserve and explicit age-based prefix expiry.
   Paged consumer watermarks protect unread input; old pins and original outcomes
-  survive logical expiry. Notification waits, key compaction, public payload
-  operation identity and authorization composition, service scheduling and
-  installed qualification remain open.
+  survive logical expiry. Resumable key compaction publishes sparse read
+  visibility while preserving old pins, tombstones and current consumer cuts;
+  native collection retains pending candidates through checkpoint and restart.
+  A bounded notification component covers register/recheck wake ordering,
+  cancellation and deadlines. Signed `stream` dispatch and shared
+  `Catalog.callStream` compose original operation identity, current grants,
+  owned finite pages, group settlement and closure. Independent signing fixtures
+  and native composition tests cover exact recovery and buffered revocation.
+  Trusted clock intervals keep append upper bounds, expiry lower proofs and
+  persisted floors distinct. Bounded wait composition passes catalog and native
+  concurrent host tests for timeout without acceptance, original cut recovery,
+  append wakeup, cancellation and revocation after parking. The rebased
+  [HTTP and contract checks](../history/qualification/catalog.md#bounded-stream-consume-waits-and-main-integration--2026-10-30)
+  pass, including reserved wait admission and original read recovery.
+  Automatic local scheduling passes a
+  [native disk schedule](../history/qualification/catalog.md#automatic-local-stream-maintenance--2026-10-30)
+  covering bounded recovery, executor replacement, finite archive/compaction
+  completion, retained reads, clock refusal and opted-in expiry under quota.
+  Table and Stream work share a measured allocation budget; disposable validated
+  prefix hints avoid repeated historical replay between units. Sparse payload
+  rewriting now preserves original ordinals and old placement pins through
+  bounded accepted passes, disk restart and empty placements. The updated native
+  scheduler completes both partitions within the same memory budget. Native
+  collection retains old placement directories and payloads until both read pins
+  and replay release them, then preserves current reads after reclamation. The
+  installed signed-caller schedule also passes: new reads converge to compacted
+  rows while old read pins and original producer outcomes survive SIGKILL and
+  restart. The committed Stream slice also passes all 28 tasks in the
+  [clean core lane](../history/qualification/catalog.md#clean-core-qualification-of-the-stream-maintenance-slice--2026-10-30).
+  Final common-revision qualification with subsequent Queue work remains open.
+- R4 private candidate transitions and paged Queue indexes now cover FIFO heads,
+  eligibility, exact lease metadata, retries and blocked destinations. Immutable
+  claim-selection artifacts preserve original leases and placement cuts. Their
+  [disk and format checks](../history/qualification/catalog.md#queue-index-and-original-selection-candidates--2026-10-30)
+  pass. The storage Queue owner now accepts enqueue payloads, producer outcomes
+  and initial scheduling state in one WAL record; bounded replay reconstructs
+  the complete root without object writes. Disk restart, lost replies,
+  archive/checkpoint/trim, candidate pressure, revocation and retained-graph
+  reclamation pass focused tests. Bounded durable claims now preserve exact
+  selections and empty outcomes across expiry and disk recovery, retain original
+  payload directories through collection, and refuse capacity or time uncertainty
+  before publication. ACK/NACK/renewal and one-deadline expiry now publish full
+  successor roots, preserve original settlement outcomes through retirement and
+  restart, and keep exhausted FIFO heads nonterminal. Bounded original-claim pages
+  now own payload bytes across scratch/tail reuse and report observed current
+  lease status under separate authority/time checks, including after collection
+  and retirement. Catalog composition now preserves Queue work in the shared
+  operation namespace and checks current native grants across policy edits and
+  disk reopen. Signed native dispatch, typed caller recovery, independent signing
+  fixtures and installed HTTP now pass focused checks, including FIFO head
+  selection, three uncertain replies and original payloads after DROP and
+  SIGKILL/restart. Shared native maintenance now rotates Tables, Streams and
+  Queues under one allocation budget, with one recovering workspace per log
+  kind, physical Queue tiering and one-deadline expiry. The
+  [native and installed schedules](../history/qualification/catalog.md#automatic-local-queue-maintenance--2026-10-30)
+  pass clock-bound expiry, reserved capacity, physical tiering after retirement,
+  original outcomes and the combined Table/Stream maintenance regression.
+  A bounded exact-lease heap now caches the earliest active deadline prefix and
+  invalidates on changed durable lease state; its capacity does not limit the
+  active population. Retained graph traversal now follows exact historical DLQ
+  definitions from declarations and blocked items, refusing missing or invalid
+  destinations. A hierarchical visibility/retry wheel now accelerates a bounded
+  earliest eligibility prefix; incomplete advancement or prefix exhaustion
+  consults the durable directory and never establishes an empty claim. Lease
+  expiry remains owned separately by the fenced heap. Bounded sorted `.tseg`
+  timer chunks, pending buffers and paged logical-run directories now have
+  storage codecs. Private two-run merging now resumes bounded input progress
+  with exact completion evidence and frozen Queue-state filtering. Schedule
+  composition adds paged pending chunks, bounded earliest-event reads, size-tiered
+  merges and a finite stale-entry sweep. Accepted Queue roots now publish both
+  timer kinds, final delta buffers and bounded maintenance progress. Retained
+  traversal owns frozen inputs, partial output and Queue-state bases; the
+  [disk recovery and collection schedules](../history/qualification/catalog.md#accepted-queue-timer-schedules--2026-10-30)
+  preserve original work through lost replies, retirement and physical deletion.
+  Native maintenance passes trusted-time expiry, reserved capacity, recovery and
+  the unchanged 32-MiB shared budget; the subsequent installed closure schedule
+  also passes with accepted timer scheduling enabled.
+  A bounded full-key FIFO affinity cache now binds entries to immutable key
+  roots, pins generations during concurrent reads and retires exhausted slots.
+  Collisions, long keys and saturation fall back to paged lookup. Focused cache,
+  owner, disk warm-hit, retained-graph, native and installed regression checks pass. Explicit original-claim payload-read closure now
+  records its own recoverable operation without settling or cancelling leases.
+  Retained traversal uses closure only from its own accepted cut; older replay
+  roots keep their payload dependencies. Focused disk, signed-contract and
+  catalog checks pass; the [installed closure schedule](../history/qualification/catalog.md#explicit-queue-claim-payload-read-closure--2026-10-30)
+  passes four uncertain replies and repeated node restarts. Terminal payload
+  expiry now removes at most one sealed, fully terminal prefix batch under an
+  opted-in age policy, preserving open claims and exact original outcomes. Disk
+  recovery, unrelated-removal negative controls and native physical collection
+  and installed automatic retention pass. The combined native schedule preserves
+  open claims while expiring forty terminal batches under reserved capacity and
+  the unchanged 32-MiB bound. See the [terminal-retention evidence](../history/qualification/catalog.md#terminal-queue-payload-retention--2026-10-30).
+  Atomic DLQ transfer remains outstanding.
 
-The next implementation work is to finish that R3 service slice, then implement
-R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
-state/append/settlement decision, and R6's dedicated SQL/shared caller/finite
-analytical surfaces. None of those later packages is completed by publishing
-their declarations or neutral data types.
+R5 now has a database-owned KV storage foundation over the shared paged engine:
+typed values, byte-exact keys, bounded atomic batches, exact receipts and retained
+cuts. Disk checks cover large values, more keys than the resident page cache,
+lost replies, sealing, archive/trim and restart. A mandatory persisted kind keeps
+Table callers and checkpoint recovery from treating KV objects as Tables.
+The native profile and all affected callers now require a distinct KV authority
+domain; bootstrap, generated contracts and strict SDK decoding share that
+profile. The [authority qualification](../history/qualification/catalog.md#direct-kv-authority-and-complete-caller-profiles--2026-10-30)
+records the installed Table regression matrix and its pre-rebase source.
+Named KV catalog/caller migration and the common state/append/settlement decision
+remain outstanding, including atomic DLQ transfer. R6's dedicated SQL/shared
+caller/finite analytical surfaces, R0 model correspondence and final integrated
+qualification also remain open. Publishing declarations or neutral types does
+not complete these gates.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
-| R3 | Partial: storage append, retained reads, groups and maintenance; service composition open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
+| R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
@@ -608,7 +712,12 @@ Deliver a database-owned KV partition/read/mutation owner with paged keys,
 bounded large values, retained cuts, exact receipts and current policy guards.
 Reuse storage indexes and segments without routing writes through a PID or
 `STATE_V1`. Migrate named KV lifecycle bindings and direct callers as part of
-its cutover. The initial conservative conflict frontier can be resource-wide;
+its cutover. The [M12 managed-computation modules](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30)
+now supply bounded lifecycle, cut-alignment and outbox component cases. Use their
+watermark/revision/outbox requirements as a consumer of this common decision;
+their in-memory transitions do not replace durable participant preparation,
+publication guards or restart recovery. M12 P7 depends on this gate before a
+sink outbox can publish atomically with its completed revision. The initial conservative conflict frontier can be resource-wide;
 it must separate logical changes from flush/checkpoint activity.
 
 For each executable participant implement these obligations:
@@ -666,8 +775,15 @@ from one logical result. A wait timeout may complete an explicitly empty bounded
 observation; it does not complete an unbounded stream. Check current grants for
 buffered rows, repeated batches, metadata, receipts and terminal counts.
 
-Integrate finite `STREAM_SLICE` with the existing direct Fuze planner and source
-reader. Carry row/batch limits, source attribution and early-close cleanup through
+M12 P4 now provides `BitemporalAndTvf.evaluateStreamSliceTvf`, a bounded
+in-memory evaluator with offset/time filtering and unchanged-watermark tests.
+Reuse that semantic coverage when integrating finite `STREAM_SLICE` with the
+existing direct Fuze planner and retained Stream source reader. The evaluator
+alone does not bind a catalog object, definition, retained cut or current grant,
+and is not yet an executable SQL source. Define the adapter around the existing
+Stream owner, preserving bounded pages and payload ownership; do not accumulate
+the durable stream into the component's input array. M12 continues to own
+continuous dataflows, while this package owns the finite SQL bridge. Carry row/batch limits, source attribution and early-close cleanup through
 SQL native sessions, console, PostgreSQL and MySQL adapters. Select explicit
 transport/type capabilities; unsupported Arrow/Flight or language combinations
 must reject instead of silently narrowing data. SQL consumption and inspection
@@ -749,14 +865,17 @@ Station sends/turns and direct imports remain acyclic.
 ### R9 Close the database write lifecycle and latency work
 
 Continue [#211](https://github.com/spoke-sh/transit/issues/211) from the delivered
-resident owners, foreground completion, five-sync object publication and
-event-driven recovery. Keep M3's installed recovery obligations and M8's
+resident owners, foreground completion, bounded object publication groups and
+event-driven recovery. M8 now also supplies batched allocation-inventory WAL
+appends, one head-directory barrier per group, cross-tree `TreeStore.Batch`
+staging and reduced duplicate statement validation/token lookups. Keep M3's installed recovery obligations and M8's
 [gateway plan](08-gateway-architecture-and-protocol-ingress.md#work-packages-and-delivery-sequence)
 as shared dependencies, with one owner per change.
 
-- **Publication:** implement explicit bounded multi-object batches only after
-  defining dependency inventories, partial/uncertain outcomes and recovery.
-  Extend physical models and disk fault tests before coalescing barriers. Evaluate
+- **Publication:** reuse the delivered bounded multi-object groups and shared
+  candidate index staging. Preserve their dependency inventories, uncertain
+  outcomes and disk recovery checks when integrating Stream/Queue writes. Extend
+  physical models and disk fault tests before coalescing further barriers. Evaluate
   reconstructible indexes/accounting against accepted WAL evidence; never defer
   the sole copy of an accepted identity or expose an uncommitted descriptor.
 - **Combined single-partition commit:** define the account-wide token routing and
@@ -777,10 +896,14 @@ as shared dependencies, with one owner per change.
 
 Use the existing installed persistent-console driver and independent typed
 readback. Preserve the 190 ms then 19 ms INSERT objectives and 10–20 ms warm
-SELECT objective with their matched workload and baseline. The latest
-[event-driven measurements](../history/qualification/performance.md#event-driven-sql-recovery--2026-10-29)
-still miss them and include mutation regressions; reduced idle traffic does not
-close latency. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
+SELECT objective with their matched workload and baseline. The newer
+[batched-publication and validation measurements](../history/qualification/performance.md#batched-allocation-inventory-cross-tree-index-staging-and-sql-validation-trimming--2026-10-30)
+record a 175-ms INSERT median over five samples and 36–40-ms warm SELECT medians,
+plus a passing installed SQL gateway run. This is progress toward the original
+190-ms INSERT objective; the 19-ms write and 10–20-ms warm-read targets remain
+open, as do account-wide token/commit composition and reconstructible allocation
+bookkeeping. Those measurements qualify their recorded main revision, not the
+rebased Stream/Queue branch or a new matched control/candidate comparison. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
 errors, startup and original-operation recovery separately. Attribute foreground
 requests, background traffic, staging, syncs and final decisions without adding
 instrumented timings into an invented end-to-end sample.

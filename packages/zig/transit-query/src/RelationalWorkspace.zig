@@ -367,7 +367,7 @@ test "relational workspace fences concurrent hosts and preserves interrupted ori
         .connection = native,
         .namespace = 1,
         .name = try c.TableAuthority.Name.init("items"),
-        .interpretation = .{ .interpretation = .{ .object = .{ .scope = native.scope, .branch = 1, .object = std.math.maxInt(u64) }, .revision = 1, .digest = @splat(2) }, .content = .{ .bytes = 300, .sha256 = @splat(2) }, .schema_fingerprint = @splat(3), .retired = false },
+        .interpretation = .{ .kind = .table, .interpretation = .{ .object = .{ .scope = native.scope, .branch = 1, .object = std.math.maxInt(u64) }, .revision = 1, .digest = @splat(2) }, .content = .{ .bytes = 300, .sha256 = @splat(2) }, .schema_fingerprint = @splat(3), .retired = false },
     };
     const source: b.Source = .{ .alias = "items", .binding = try h.PreparedBinding.foreign(allocator, binding), .position = .{ .partition = "1", .next_lsn = "9" } };
     var pins = [_]Pin{.{ .operation = std.math.maxInt(u64), .handle = null, .released = false }};

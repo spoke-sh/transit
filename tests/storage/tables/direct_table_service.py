@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import struct
 import sys
 import threading
 import time
@@ -17,7 +18,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "queues", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -38,7 +39,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode == "tables":
             settings["request_metrics"] = True
-        if mode in ("resources", "resource-growth"):
+        if mode in ("resources", "resource-growth", "queues"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -72,6 +73,9 @@ def run(node, caller, mode="tables", *artifacts):
         fault = {"changed": False, "log_admit": False, "log_publish": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
+        stream_faults = set()
+        queue_faults = set()
+        stream_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
@@ -109,6 +113,24 @@ def run(node, caller, mode="tables", *artifacts):
                 for name in ("x-transit-control", "x-transit-wait"):
                     if name in self.headers:
                         headers[name] = self.headers[name]
+                stream_action = envelope.get("action", {}).get("stream") if isinstance(envelope.get("action"), dict) else None
+                if mode == "tables" and stream_action and "wait" in stream_action:
+                    waiting = stream_action["wait"]
+                    assert headers.get("x-transit-wait") == f'0:{waiting["milliseconds"]}'
+                    if int(waiting["consume"]["operation"]["operation"]) == 621007:
+                        # A signed wait cannot occupy an ordinary lane, and its
+                        # scheduling hint cannot disagree with its signed bound.
+                        for invalid in ({"Content-Type": "application/json"},
+                                        {"Content-Type": "application/json", "x-transit-wait": "0:2"}):
+                            probe = HTTPConnection("127.0.0.1", port, timeout=70)
+                            try:
+                                probe.request("POST", self.path, body, invalid)
+                                rejected = probe.getresponse()
+                                assert rejected.status == 400, rejected.status
+                                assert json.loads(rejected.read()) == {"err": "InvalidRequest"}
+                            finally:
+                                probe.close()
+                        stream_wait_checks.add("admission")
                 connection = HTTPConnection("127.0.0.1", port, timeout=70)
                 try:
                     connection.request("POST", self.path, body, headers)
@@ -163,6 +185,27 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
                         log_admit = envelope["action"].get("log_admit")
+                        queue = envelope["action"].get("queue", {}).get("mutate")
+                        if mode == "queues" and queue and response.status == 200:
+                            kind, work = next(iter(queue["work"].items()))
+                            selected = work["operation"]["operation"]
+                            if selected in (633001, 633002, 633004, 633008) and selected not in queue_faults:
+                                parsed = json.loads(data)
+                                assert kind in parsed["result"]["queue"]["operation"], parsed
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                queue_faults.add(selected)
+                        stream = envelope["action"].get("stream", {}).get("mutate")
+                        if mode == "tables" and stream and response.status == 200:
+                            kind, work = next(iter(stream["work"].items()))
+                            identity = work["commit"]["operation"] if kind == "offset" else work["operation"]
+                            selected = identity["operation"]
+                            if selected in (621001, 621002, 621005, 621006) and selected not in stream_faults:
+                                parsed = json.loads(data)
+                                assert kind in parsed["result"]["stream"]["operation"], parsed
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                stream_faults.add(selected)
                         log_operation = envelope["action"].get("log_operation")
                         for selected, tag, result, phase in ((log_admit, "log_admit", "log_admitted", "admitted"), (log_operation, "log_publish", "log_operation", "complete")):
                             if (mode == "tables" and selected and selected["binding"]["identity"]["operation"] == 620001
@@ -280,7 +323,106 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
-            if mode == "maintenance":
+            if mode == "queues":
+                subprocess.run([caller, endpoint, "queue-prepare", str(profile)], check=True, timeout=180)
+                saved = Path(str(profile) + ".queue").read_bytes()
+                assert queue_faults == {633001, 633002, 633004}
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue").read_bytes() == saved
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                settings["storage"] = {"maintenance": {"flush": {"enabled": False}, "archive": {"enabled": False}}}
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 90  # Accepted 60-second leases plus clock bounds and bounded work.
+                probes = 0
+                def queue_observation():
+                    result = subprocess.run([caller, endpoint, "queue-maintenance", str(profile)],
+                                            timeout=30, capture_output=True, text=True)
+                    with (root / "queue-maintenance.stderr").open("a") as output:
+                        output.write(result.stderr)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    observed = json.loads(result.stdout)
+                    with (root / "queue-maintenance-observations.jsonl").open("a") as output:
+                        output.write(json.dumps(observed) + "\n")
+                    return observed
+                while True:
+                    observed = queue_observation()
+                    probes += 1
+                    if observed["expired"]:
+                        break
+                    assert time.monotonic() < deadline, observed
+                    time.sleep(1)
+                assert not list((root / "native").rglob("*.tseg")), "Disabled flushing sealed Queue payloads"
+                # Expiry has now recorded the retired definition in the Queue
+                # root. Physical relocation must remain possible in this order.
+                settings["storage"]["maintenance"]["flush"]["enabled"] = True
+                settings["storage"]["maintenance"]["archive"]["enabled"] = True
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 60
+                while True:
+                    assert queue_observation()["expired"]
+                    segments = list((root / "native").rglob("*.tseg"))
+                    if segments:
+                        break
+                    assert time.monotonic() < deadline, "Retired Queue payload sealing did not converge"
+                    time.sleep(.1)
+                assert len(segments) == 1, segments
+                segment = segments[0].read_bytes()
+                assert segment[:8] == b"TSEG\x01\0\0\0" and segment[-4:] == b"TSEG"
+                assert struct.unpack_from("<Q", segment, 16)[0] == 633000
+                assert struct.unpack_from("<I", segment, 32)[0] == 3
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                assert queue_observation()["expired"]
+                subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue").read_bytes() == saved
+                subprocess.run([caller, endpoint, "queue-release", str(profile)], check=True, timeout=180)
+                release_saved = Path(str(profile) + ".queue.release").read_bytes()
+                assert queue_faults == {633001, 633002, 633004, 633008}
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, "queue-release-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue.release").read_bytes() == release_saved
+                subprocess.run([caller, endpoint, "queue-terminal-prepare", str(profile)], check=True, timeout=180)
+                def terminal_observation():
+                    result = subprocess.run([caller, endpoint, "queue-terminal-observe", str(profile)],
+                                            timeout=30, capture_output=True, text=True)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    return json.loads(result.stdout)["ready"]
+                deadline = time.monotonic() + 30
+                while not terminal_observation():
+                    assert time.monotonic() < deadline, "Trusted retention age was not observed"
+                    time.sleep(.1)
+                subprocess.run([caller, endpoint, "queue-terminal-ack", str(profile)], check=True, timeout=180)
+                terminal_saved = Path(str(profile) + ".terminal").read_bytes()
+                deadline = time.monotonic() + 60
+                while not terminal_observation():
+                    assert time.monotonic() < deadline, "Terminal Queue retention did not converge"
+                    time.sleep(.1)
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                assert terminal_observation(), "Restart lost terminal expiry or original claim payload"
+                assert Path(str(profile) + ".terminal").read_bytes() == terminal_saved
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)],
+                                      requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
+                                      passed=True)), flush=True)
+                print("Direct Queue HTTP: FIFO heads, original empty claims, four lost replies, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
+                return
+            if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):
                     nonlocal authority
                     authority.kill()
@@ -297,6 +439,10 @@ def run(node, caller, mode="tables", *artifacts):
                         settings["storage"]["requests"] = {"request_bytes": 1048576, "data_bytes": 1048576}
                     config.write_text(json.dumps(settings))
                     authority = start()
+                if mode == "stream-maintenance":
+                    direct_table_maintenance.exercise_streams(caller, endpoint, profile, root, restart,
+                                                             lambda: authority, node)
+                    return
                 direct_table_maintenance.exercise(caller, endpoint, profile, root, restart,
                                                   lambda: authority, node, request_memory,
                                                   port, accepted_inspections)
@@ -614,6 +760,8 @@ def run(node, caller, mode="tables", *artifacts):
             subprocess.run([caller, endpoint, "projection", str(profile)], check=True, timeout=180)
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             assert fault["log_admit"] and fault["log_publish"]
+            assert stream_faults == {621001, 621002, 621005, 621006}
+            assert stream_wait_checks == {"admission"}
             stop(authority)
             authority = None
             authority = start()
@@ -652,3 +800,7 @@ def run(node, caller, mode="tables", *artifacts):
 
 if __name__ == "__main__":
     run(*sys.argv[1:])
+    # The ordinary direct-service gate includes the Queue schedule with a
+    # separate physical directory and clock policy. Focused modes stay focused.
+    if len(sys.argv) == 3 or sys.argv[3] == "tables":
+        run(sys.argv[1], sys.argv[2], "queues")

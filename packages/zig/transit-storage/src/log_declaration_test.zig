@@ -25,6 +25,15 @@ test "log declarations bind schema policy and catalog properties across disk reo
     try t.expectEqualStrings("catalog-owned-properties", loaded.definition.properties);
     try t.expectEqualStrings("key", loaded.schema.schema.columns[0].name);
     try t.expectEqual(.ascii_ci, loaded.schema.schema.columns[0].collation);
+    var resolved = try D.resolve(t.allocator, objects.objectStore(), stored.declaration.interpretation);
+    defer resolved.deinit();
+    try t.expectEqualDeep(stored, try resolved.stored());
+    var changed = stored.declaration.interpretation;
+    changed.revision += 1;
+    try t.expectError(error.InvalidLogDeclaration, D.resolve(t.allocator, objects.objectStore(), changed));
+    changed = stored.declaration.interpretation;
+    changed.object.object += 1;
+    try t.expectError(error.InvalidLogDeclaration, D.resolve(t.allocator, objects.objectStore(), changed));
     var foreign = stored;
     foreign.declaration.configuration.policy.queue.lease_ms += 1;
     try t.expectError(error.InvalidLogDeclaration, D.load(t.allocator, objects.objectStore(), foreign));
@@ -34,6 +43,7 @@ test "log declarations bind schema policy and catalog properties across disk reo
     var name: [96]u8 = undefined;
     try objects.objectStore().delete(try D.key(stored.content, &name));
     try t.expectError(error.LogDeclarationMissing, D.load(t.allocator, objects.objectStore(), stored));
+    try t.expectError(error.LogDeclarationMissing, D.resolve(t.allocator, objects.objectStore(), stored.declaration.interpretation));
 }
 
 test "log declarations reject undefined nullable keys relational uniqueness and foreign DLQ" {
@@ -66,6 +76,25 @@ test "log declarations reject undefined nullable keys relational uniqueness and 
     var changed = definition.configuration;
     changed.policy.stream.timestamp_column = null;
     try t.expectError(error.UnsupportedLogTimestampChange, definition.configuration.requireEvolution(changed));
+}
+
+test "log declarations resolve exact digests without accepting foreign definitions or malformed bounds" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var owned = try D.prepare(t.allocator, support.definition(.queue));
+    defer owned.deinit();
+    var interpretation = (try owned.stored()).declaration.interpretation;
+    owned.bytes[8] ^= 1;
+    var content = s.LogBatch.content(owned.bytes);
+    interpretation.digest = content.sha256;
+    var name: [96]u8 = undefined;
+    _ = try objects.objectStore().putImmutable(try D.key(content, &name), owned.bytes, content.sha256);
+    try t.expectError(error.IncompatibleDefinition, D.resolve(t.allocator, objects.objectStore(), interpretation));
+    const truncated = owned.bytes[0..100];
+    content = s.LogBatch.content(truncated);
+    interpretation.digest = content.sha256;
+    _ = try objects.objectStore().putImmutable(try D.key(content, &name), truncated, content.sha256);
+    try t.expectError(error.InvalidLogDeclaration, D.resolve(t.allocator, objects.objectStore(), interpretation));
 }
 
 test "log declarations preserve fixed byte arrays for textual DLQ digests" {

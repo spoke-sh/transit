@@ -128,6 +128,40 @@ on top of `origin/main` at `796e7fe86`:
   `transit-station-document` remain gated on `D5` and the Milestone 5/6
   common transaction decision for Station turns.
 
+## Stream compaction visibility and retained candidates — 2026-10-30
+
+The implementation committed as `4b5735304` passes the storage package's
+`zig build test -Dtest-filter='stream partition' -Dtest-filter='log read'`
+and the root `zig build test-local-data-collection -Doptimize=ReleaseSafe`,
+inside the pinned Nix shell. These runs used the implementation worktree before
+commit; they are not committed-source clean-CI evidence. The native executable
+SHA-256 is `07a95a63622913e356ebe887673eb61d5a11234c6a3981745ed72c9037b5da3f`.
+
+The disk compaction case preserves full collation keys sharing a long prefix,
+tombstones and a frozen source cut through later appends, lost replies,
+checkpoint/trim and restart. Bounded reads distinguish hidden offsets from
+returned rows, including empty incomplete pages. A lagging group assigned after
+work starts blocks candidate publication; revocation also refuses publication.
+Cancel closes only unpublished maintenance. Earlier pinned reads keep their
+original visible rows and accepted append receipts remain identical.
+
+The native retained-graph case checkpoints a partially built candidate, collects
+and reopens it, then completes compaction. A later checkpoint allows collection
+of the superseded private bitmap while old and new pinned visibility remain
+readable. Its two collection passes take 73 and 664 bounded steps and reclaim
+3 and 294 allocations. The explicit age-expiry case also passes all four
+collection/reopen stages (167, 1,707, 1,840 and 502 steps); the existing Table
+cases pass at 225 and 2,177 steps. These are fixture counts, not throughput
+guarantees. Sparse payload rewriting and signed public payload composition are
+outside this evidence.
+
+The new definition passes all 18 generated contract/independent fixture checks.
+The bounded notification owner committed as `9bb6b063e` passes `zig build test`
+in `packages/zig/transit-io`: register/recheck ordering, broadcast, cancellation,
+absolute deadlines, capacity refusal, ticket reuse and zero backing allocation
+for its warmed ticket directory. It does not yet qualify an installed consume
+wait. Final committed-source integration qualification remains separate.
+
 ## Shared object content-directory barrier — 2026-10-29
 
 At runtime source `b7d2980048305c66449b340861b114bb2a0e1024`, payload and

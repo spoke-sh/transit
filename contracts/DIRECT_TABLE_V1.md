@@ -1,8 +1,9 @@
 # Direct Table request contract v1
 
 `DirectTableProtocol` defines signed Table, Stream and Queue declaration, Table
-row mutation, operation inspection and retained-read requests. The node's internal `LocalTableService`
-dispatches these requests through `DirectCatalog`, the Table storage owner and
+row mutation, Stream append/consumer progress, Queue enqueue/claim/settlement,
+operation inspection and retained-read requests. The node's internal `LocalTableService`
+dispatches these requests through `DirectCatalog`, the partition storage owners and
 native authorization. The local node's optional `table` setting serves
 `POST /table/v1`; the local launcher configures that owner for its default Tables
 and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
@@ -432,8 +433,172 @@ mutation attempt still requires original-operation recovery.
 `DirectLogClient` and `transit-data-client.Catalog.callLog` use these same signed
 actions. Saved work includes mandatory shared definition, exact connection and
 complete DDL; lookup schemas belong to the caller's output arena. No call retries
-or chooses a replacement identity implicitly. This profile enables declaration
-lifecycles; payload append/consume/claim and SQL verbs require separate owners.
+or chooses a replacement identity implicitly. Payload operations use the
+separate signed actions below; SQL Stream/Queue verbs remain unavailable.
+
+### Stream payload and consumer progress
+
+The signed `stream` action carries `DirectStream.Request`: `observe`,
+`mutate`, `operation`, `group`, `cursor`, `page` or `wait`. Every request binds a
+logical partition and exact declaration. Mutations carry one
+`DirectStreamMutation.Request` (`append`, `assign`, `consume`, `offset` or
+`release`); only append carries binary `LogBatch` payload. The complete request
+is covered by the ordinary signed catalog envelope. Queue partitions reject
+this action. No Station turn or Table row operation participates.
+
+Append returns its original allocated range and producer receipt. Consume
+accepts a finite retained cut; subsequent appends cannot extend it. Cursor and
+page requests carry the original read handle, authenticated coverage, and
+explicit row, encoded-byte and scanned-row budgets. Pages include the original
+source declaration and schema, ascending offsets, operation/ordinal identities,
+tombstones, and encoded Fuze rows. Encoded-byte accounting includes the 13-byte
+log row header. Empty filtered pages can be incomplete; only the returned
+coverage establishes exhaustion. Each page is separately authorized, including
+terminal empty pages. Group pages additionally require current acquire rights.
+
+`wait` carries the complete `StreamRead.Request` and a 1–1000 millisecond
+scheduling bound. Its accepted identity and intent are the underlying `consume`;
+the wait duration is not part of durable work. An existing read returns its
+original receipt immediately, even if its original cut was empty or its pin has
+since been released. Fresh work waits until `from < next`, or an explicit
+exclusive `until <= next`, before selecting one finite cut. Timestamp filters
+do not change this readiness predicate. Group membership and the expected
+checkpoint are checked on every attempt. No read or operation reservation is
+accepted while the predicate remains false.
+
+The host registers before checking, releases catalog/object locks before
+parking, and rechecks current rights, declaration, retention and group state
+after each notification. One monotonic deadline covers all wakeups. A final
+authorized recheck accepts a ready read even if the wait deadline has elapsed;
+otherwise `timed_out` reports the observed cut without accepting a read or
+pinning that cut. This outcome does not prove rejection of a concurrent attempt
+with the same identity. Cancellation releases the registration and propagates
+through transport; it cannot undo acceptance or establish nonacceptance. A lost
+or cancelled exchange still requires original-operation inspection.
+
+HTTP waits require the exact `x-transit-wait: 0:MILLISECONDS` header matching
+the signed body, and cannot carry a control hint. Missing, conflicting or
+unsupported hints reject before execution. HTTP and typed local waits share
+the four dedicated wait lanes, leaving ordinary/control capacity available.
+The host bounds active registrations to 64 across all objects and enforces the
+current declaration's waiter limit per stable object/partition; a revision
+change does not reset this count. Capacity refusal is `ControlCapacity`.
+
+Consumer assignment uses an explicit generation and initial next offset.
+Offset settlement requires the exact group generation, expected checkpoint and
+authenticated complete read coverage. Reading, releasing a pin, closing a
+client or losing a response never commits an offset. Original settlement and
+release can finish after ALTER or DROP under current rights. Fresh appends and
+reads require the current live definition.
+
+Mutations reserve their full intent in the shared catalog operation namespace
+before partition acceptance. Reservation alone is not acceptance. `operation`
+inspects that exact work and returns its original receipt or null; it does not
+execute it. Changed fields, including a different target partition or offset
+cursor, conflict. Every attempt retains its original identity after an
+uncertain response. Bounded recovery can instead return `recovering` with its
+examined count and physical position; this result accepts no new mutation and
+establishes no data coverage.
+
+Observe requires metadata rights; append requires append rights; positional
+reads and release require read rights; group consumption requires acquire;
+offset settlement requires settle; assignment requires ownership. All checks
+include the current database/schema scope and repeat after response buffering.
+Operation inspection requires the original work's current rights. Inspection,
+release, offset settlement and reassignment use the control reserve.
+
+`DirectStreamClient` and `Catalog.callStream` use this action. Saved mutation
+bytes include mandatory shared definition, full connection, exact work and
+payload commitment. Returned schemas and decoded rows belong to the caller's
+output arena. The service bounds append payloads to 1 MiB, pages to 4096 returned
+and scanned rows and 4 MiB encoded data; declaration limits can be smaller.
+Recovery examines at most 256 frames per request. The local service derives its
+private cursor key from the registrar seed; replacement with the same seed
+preserves cursors. Rotating the seed requires reacquiring authenticated cursors
+for retained reads and does not alter accepted receipts. Timed new work requires
+an authoritative UTC interval within the native genesis clock-error limit and a
+nonregressing persisted upper floor. Append age starts at the interval's upper
+bound; expiry requires a lower bound proving the age has elapsed. Original
+receipt lookup does not require a clock.
+
+Conflicting identities, producer/group generations or checkpoints return
+`Conflict`; released/missing read pins return `QueryExpired`; an opted-in
+expired source range returns `HistoryReclaimed`. Invalid payloads, cursors or
+budgets or wait hints return `InvalidRequest`. Missing required recovery storage remains
+unavailable. Any mutation transport failure still requires original-work
+inspection; its error class cannot establish rejection.
+
+### Queue payloads, claims and settlements
+
+The signed `queue` action carries `DirectQueue.Request`: `observe`, `mutate`,
+`operation` or `page`. A mutation carries `DirectQueueMutation.Request`:
+`enqueue` with a binary `LogBatch`, `claim`, `settle` with ACK, NACK or an
+extension, or explicit original payload-read `release`. Stream partitions reject
+this action. Each operation reserves its
+full immutable intent in the same catalog namespace as Tables, Streams and
+declarations before Queue WAL acceptance. The reservation alone is not acceptance.
+Changing kind, partition, definition, payload, claim limits or lease intent under
+that identity conflicts, including after a lost response.
+
+Every action requires current database CONNECT and schema USAGE. `observe`
+requires Queue inspect, enqueue requires append, claim and original claim-page
+disclosure and payload-read release require read plus acquire; settlement
+requires settle. Original
+operation lookup applies the original work's privileges. Receipts and exact lease
+fields grant no authority. Current rights are checked after buffering data and
+again before response disclosure, including empty selections and terminal pages.
+The host serializes each Queue with its declaration changes and supplies trusted
+UTC intervals through the same local clock capability used by Streams.
+
+Enqueue accepts at most 1 MiB per batch, additionally bounded by declaration
+limits. A claim selects at most 256 rows in the current service, further bounded
+by the requested count, declaration limits and active lease capacity. Exhaustion
+refuses rather than recording a false empty result. An accepted empty claim stays
+empty on retry. Nonempty selections, per-message epochs, deadlines and attempts
+are accepted atomically; original inspection and open payload reads survive expiry,
+compatible declaration changes, DROP and unavailable time.
+
+`page` carries a `QueueRead.Cursor` containing the exact original claim receipt
+and a selection ordinal, plus row and encoded-byte budgets. Pages allow at most
+4096 rows and 4 MiB of encoded row data, with smaller owner/declaration limits
+applied. Rows contain original lease identity, producer attribution, visibility
+time and encoded typed values, plus the separately observed current lease state.
+The source schema belongs to the original selection; `basis` records the current
+metadata cut and optional trusted time. Cursor advancement equals the returned
+row count, including a final data page; an already complete cursor returns an
+empty terminal page. A too-large first row refuses without advancement. A cursor
+selects original rows and is neither a consumption proof nor a live lease.
+
+`release` freezes its own operation and the entire original claim receipt. It
+closes that claim's retained payload reads without changing any lease. Later
+pages, including empty terminal pages, refuse with `QueryExpired`; original
+claim and release receipts remain inspectable under current rights. This explicit
+mutation is separate from local result-buffer cleanup and does not require a
+clock. See [claim-read closure](QUEUE_V1.md#explicit-original-payload-read-closure)
+for its retention boundary.
+
+`DirectQueueResponse` validates original receipt and schema attribution, row
+identity, increasing selected offsets, cursor advancement, encoded-byte totals
+and lease observations. `DirectQueueClient` and `Catalog.callQueue` return schema
+and rows owned by the caller's output arena. Save the complete mutation with
+`DirectQueueClient.save` before dispatch and use `load` for recovery. No call
+automatically retries, collects pages, renews or settles a lease. Mutation-attempt
+evidence remains uncertain after a missing or unvalidated response. Original
+inspection uses reserved control admission; settlement and payload-read release
+use it for both original inspection and mutation.
+
+Lease/identity conflicts and expiry return `Conflict`; unavailable or uncertain
+time returns `ClockUnavailable`, and regression returns `ClockRollback`. Active
+lease or private candidate capacity returns `StorageQuota`. Invalid payloads,
+claim limits, lease durations or page budgets return `InvalidRequest`. These
+classes describe a failed attempt, not rejection of earlier accepted work.
+
+This standalone operation profile does not enable SQL Queue verbs, common
+transactions or DLQ transfer. Native maintenance processes lease expiry and
+physical timer cleanup in bounded accepted steps. Terminal payload cleanup
+remains unfinished; an expired observation alone neither releases the acquired
+bit nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
+lease, retry, original-selection and remaining composition contracts.
 
 ### Namespace lifecycle
 

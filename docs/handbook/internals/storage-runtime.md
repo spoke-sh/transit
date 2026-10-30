@@ -1288,6 +1288,24 @@ needed for readback verification. Unpublished checkpoints and read bases confer
 no ownership. Native trimming verifies both archive coverage and the accepted
 checkpoint frontier, preserving the record that publishes recovery authority.
 
+Queue traversal retains the same payload and receipt directories plus scheduling
+metadata, full FIFO keys, original claim selections and all four `.tack` bitmap
+sets. Visibility and lease schedules retain active delta bytes, paged pending
+chunks and sorted-run directories. An unfinished merge owns both complete input
+runs, its partial output and the frozen item/sidecar basis used for filtering.
+Traversal audits each run's exact chunk and row coverage and verifies bounded
+chunk contents before marking them. Physical timer namespaces become collectible
+only through this complete closure; a sweep's change-detection hash is not a
+dereferenced ownership edge. A declaration or exhausted item's recorded DLQ destination owns the exact
+historical declaration identified by object, revision and digest. Resolution
+verifies its immutable bytes and Queue kind before enqueuing its declaration
+dependencies. One bounded work item follows each edge; typed visited marks avoid
+repeating the same interpretation. A later rename, policy edit or retirement
+cannot substitute a different definition. Missing or invalid destinations stop
+closure. This is a retention dependency, not append authority or proof of an
+atomic transfer. Source payloads remain nonterminal until a supported transaction
+can establish their destination outcome.
+
 The mark frontier is a durable paged FIFO plus one owned active item. A checkpoint
 publishes those coordinates with all changed mark roots. A failed step discards
 its unpublished coordinates; any staged pages remain new-epoch allocations.

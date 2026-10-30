@@ -132,8 +132,8 @@ After graph completion, inventory WAL cleanup uses the same bounded units and
 resumption behavior as native collection above.
 
 `DataStore.trimUnit` separately performs one bounded cleanup unit for archived
-Table or Stream WAL history. Every unit verifies the latest accepted record and
-rejects a floor beyond its immutable archive coverage. Stream floors also cannot
+Table, Stream or Queue WAL history. Every unit verifies the latest accepted record and
+rejects a floor beyond its immutable archive coverage. Stream/Queue floors also cannot
 cross the accepted checkpoint's publishing LSN. It always retains the latest
 acceptance record. The serialized partition owner supplies current policy
 authorization. Its progress reports physical completion, independently of

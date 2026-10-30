@@ -9,6 +9,1217 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Rebased storage crash boundary and installed SDK attempts — 2026-10-30
+
+The clean core run at `37111b927` passes fast checks, contract reflection and the
+corrected serving compilation, then fails the compaction crash oracle in
+`/var/tmp/transit-m6-progress-clean-core-37111b927.log`. The remaining run is
+interrupted after that failure. Main's cross-tree index staging moves the final
+staging syncs to 12/13; the fixture's former global 14/15 cuts now follow WAL
+acceptance. Diagnostics against the exact clean-run binary preserve both rows,
+the old pin, original receipt and history at every tested boundary. Syncs 11–13
+leave no new WAL frame; 14/15 recover the accepted compaction. Raw observations
+remain in `/var/tmp/transit-m6-compaction-boundaries.log` and
+`/var/tmp/transit-m6-compaction-last-staging.log` with their retained directories.
+The fixture now targets 12/13, retains all explicit WAL acceptance cuts and all
+165 schedules, and reports the point and observed/expected state on failure. The
+complete corrected suite passes against the same clean-run binary in
+`/var/tmp/transit-m6-compaction-boundary-fix.log`; no recovery assertion, count or
+deadline changes.
+
+The concurrent installed Python run fails with an unexpected uncertain outcome
+while executing its initial CREATE in
+`/var/tmp/transit-m6-progress-sdk.log`; its private installation remains at
+`/var/tmp/transit-table-sdk-python-hqh6dx1w`. No runtime cause is established by
+that run. After stopping the failed clean lane, the exact same node, caller and
+installed packages pass the Python schedule with unchanged deadlines and 383
+public requests. `/var/tmp/transit-m6-sdk-node-diagnostic.log` records the rerun
+and node exit observations: the injected SIGKILL replacements and final shutdown
+are expected. This isolated success does not turn the earlier run into a pass;
+the ordinary full matrix and corrected clean core lane remain to be completed.
+
+The installed Queue scenario passes in
+`/var/tmp/transit-m6-progress-queue-installed.log`: 374 public requests, four lost
+replies, original claims, ACK, automatic retired-lease expiry, retained tiered
+payloads, explicit read closure and terminal retention across node SIGKILL and
+restart. Its source is `37111b927` plus documentation and the Python crash-oracle
+correction; neither changes the node or caller. The recorded node/caller SHA-256s
+are `6aba7cef9779b792db8a35b3095f5e0b6bb0dfefd6785be8c2c5e6ba0c276bfb`
+and `74b47d5a1be663336a4efb1d9d5e0239be4fb109b675af58d19a3d7bd10c20c9`.
+
+At `37111b927`, the complete serving package passes in
+`/var/tmp/transit-m6-rebase-serving-fixture.log`, and both Rust authority units
+pass in `/var/tmp/transit-m6-progress-rust-authority.log`. The four affected model
+targets pass in `/var/tmp/transit-m6-progress-model-fixtures-final.log`: 25 write
+profiles with 15 negative controls, 304 transaction-workspace states with eight
+negative controls, 1,200 storage-lifecycle states with six negative controls, and
+149 resident-owner-cache states with five negative controls. Existing Zig replay
+checks pass. This does not supply the remaining mixed Stream/Queue correspondence.
+Initial model invocations failed on tool selection/arguments before exploration;
+the successful run uses the pinned formal shell and individual owning recipes.
+
+
+## Rebased Stream and Queue validation attempt — 2026-10-30
+
+At `b928941bb`, rebased on `84b7c8f18`, all 54 fast checks and 18 generated-contract
+checks pass in `/var/tmp/transit-m6-rebase-fast.log` and
+`/var/tmp/transit-m6-rebase-contracts.log`. The clean core checkout at
+`/var/tmp/transit-ci-ogg7jsma/src` reaches native component compilation and fails
+because the Table-watch test policy omits the new KV authority enum case.
+`/var/tmp/transit-m6-rebase-clean-core-b928941bb.log` retains that failure.
+The lane is interrupted after the compile failure; it is not a passing lane.
+
+The Table-only fixture now explicitly refuses KV registration, alongside Stream
+and Queue, in both object and parent selection. The installed SDK rerun is also
+interrupted to keep native source hashes consistent during this repair;
+`/var/tmp/transit-m6-rebase-sdk-84b7c8f18.log` is an incomplete run. New validation
+must qualify the corrected commit; earlier scoped successes do not close this gate.
+
+## Direct KV authority and complete caller profiles — 2026-10-30
+
+On dirty parent `a729bf0ae`, the native catalog authority profile adds a mandatory,
+distinct KV domain with inspect/read/write privileges. Local bootstrap registers
+that domain; shared generated contracts and every affected SDK require the
+complete profile. Missing or duplicated domains reject before catalog use.
+The [catalog authority](../../../packages/zig/transit-catalog/README.md) and
+[security reference](../../handbook/reference/security.md) own the semantics.
+
+All eight installed direct-catalog targets pass in
+`/var/tmp/transit-direct-kv-policy-installed.log`: Python, Node, Rust, Ruby,
+C/C++, Java, .NET and BEAM (Erlang/Elixir). These exercise the existing Table
+surface with the extended authority profile, including current access,
+wide values, uncertain receipts and pin/release replies, caller/node replacement,
+and retained metadata after DROP/name reuse. They do not expose direct KV data
+operations. Source and binary hashes remain in each run's native artifact record;
+the final BEAM record is
+`.cache/native-artifacts/clients-ReleaseSafe-jicbmkdi/record.json`.
+
+Focused KV/log authority tests pass in
+`/var/tmp/transit-direct-kv-authority-first.log`. Python/Ruby source checks,
+the Rust complete-profile unit, the TypeScript package check and its eleven
+catalog tests pass in `/var/tmp/transit-direct-kv-policy-sdk-units.log`,
+`/var/tmp/transit-direct-kv-policy-rust.log`,
+`/var/tmp/transit-direct-kv-policy-node.log` and
+`/var/tmp/transit-direct-kv-policy-node-profile-2.log`. The first Rust attempt
+lacked a native artifact; the successful retry uses the matching recorded build.
+The first TypeScript negative test expected the wrong error class for a missing
+wire field; the corrected test distinguishes wire decoding from semantic rejection.
+
+All 53 fast checks, including generated inventories and documentation links, pass
+in `/var/tmp/transit-direct-kv-policy-fast-final.log`.
+
+This evidence predates the rebase onto `84b7c8f18` and does not qualify that combined
+source, direct KV catalog/data integration, mixed transactions or the clean core
+lane. The broad catalog-filter run also passes in
+`/var/tmp/transit-direct-kv-policy-catalog-final.log`. The full native catalog
+policy run was stopped after the rebase to avoid duplicating the clean core lane
+on the older source; that run remains incomplete.
+
+## Direct KV storage foundation — 2026-10-30
+
+On dirty parent `bf83e0b5f`, `KVPartition` storage checks pass in
+`/var/tmp/transit-direct-kv-storage-final.log`. A disk schedule accepts six keys
+and a 128-KiB value in one WAL record, recovers the exact receipt after a lost
+reply, grows to 69 live keys with a one-page resident cache, seals payloads,
+archives/trims WAL and reopens from a checkpoint. Original pinned reads retain
+the earlier large value while current reads see its replacement. Changed retries
+conflict; explicit pin release closes the original read. Table initialization
+and checkpoint recovery reject KV storage under a Table kind.
+
+Other cases in that run cover publication-time revocation, resource-wide logical
+conflicts after physical flush, absent-key mutation guards, duplicate keys,
+missing values, maximum key/value lengths together, bounded candidate memory,
+missing persisted kind, and rename/retirement preserving original receipts and
+retained reads. An initial limit test exposed error-precedence behavior; the
+KV byte limit now returns its own refusal before the generic value budget. The
+final test run includes that correction. Earlier selected checkpoint regressions
+also pass in `/var/tmp/transit-direct-kv-storage-third.log`.
+
+Selected existing catalog/host checks pass in
+`/var/tmp/transit-direct-kv-catalog.log`; the complete query package passes in
+`/var/tmp/transit-direct-kv-query-2.log`. Focused final Table response and host
+conversion checks reject KV descriptors in
+`/var/tmp/transit-direct-kv-caller-kinds-final.log`. All 18 generated-contract
+checks pass in `/var/tmp/transit-direct-kv-contracts-final.log`. Language SDK
+descriptors remain Table-specific; native stored descriptors carry the mandatory
+kind, and conversion to a Table descriptor refuses KV.
+
+All 53 fast checks pass in `/var/tmp/transit-direct-kv-fast-pass.log`. The final
+prepared-binding refusal uses the existing invalid Table descriptor diagnostic;
+its focused check passes in `/var/tmp/transit-direct-kv-binding-rejection.log`.
+
+These are storage and adapter checks, not installed direct-KV caller evidence,
+a clean integration lane, or mixed transaction qualification. Named KV catalog
+cutover and state/append/settlement composition remain open.
+
+## Terminal Queue payload retention — 2026-10-30
+
+On dirty parent `b015393bf`, after rebasing onto `4ea7152b5`, focused storage
+checks pass for one sealed terminal prefix batch per maintenance unit. The disk
+schedule preserves nonterminal payloads, refuses absent retention and trusted
+time, rechecks time and authority at publication, recovers a lost expiry reply
+without object writes, and keeps original claim rows readable below the advanced
+current lower boundary. Subsequent claims bind that lower boundary explicitly.
+Retirement, checkpoint publication, actual WAL trim and disk reopen preserve the
+original enqueue, claim, ACK and read-release outcomes. The first run also passes
+the existing Stream expiry regression. Raw output is
+`/var/tmp/transit-queue-terminal-storage-first.log`.
+
+The extended schedule in `/var/tmp/transit-queue-terminal-storage-third.log`
+passes a malformed-replay negative control: a structurally valid expiry that
+also removes a different live batch is rejected with the prior root intact and
+no object writes. Selection format checks reject offsets below their original
+lower boundary and metadata missing that mandatory field. Test compilation
+issues were corrected before this successful run. All 53 fast checks pass in
+`/var/tmp/transit-queue-terminal-fast.log`.
+
+The focused native disk collection schedule passes in
+`/var/tmp/transit-queue-terminal-collection-second.log`. Three fenced collection
+passes take 115, 627 and 859 bounded steps and reclaim 17, 231 and 372 allocations.
+An expired terminal payload survives collection and reopen while its original
+claim is open. Releasing that claim still preserves the payload through the old
+accepted replay checkpoint; an unaccepted staged checkpoint is collected. After
+publishing a new checkpoint, collection physically removes the segment and its
+metadata. Restart still recovers the original enqueue, claim, ACK and release;
+new stale settlement refuses without requiring the deleted payload. This uses
+the actual local native collector and disk provider, with the fixture's explicit
+trusted guard. It does not qualify signed collection authorization separately.
+
+The full installed Queue scenario passes on the same dirty parent in
+`/var/tmp/transit-queue-terminal-installed.log`: **333 requests**, four uncertain
+replies and repeated SIGKILL/restarts. The added retention phase observes trusted
+age while an acquired item remains retained, then ACKs the saved lease and waits
+for automatic terminal expiry. The signed cut advances to offset one while the
+original claim still returns offset zero and its payload; node restart preserves
+that result and the saved operation bytes. Artifacts remain at
+`/var/tmp/transit-table-queues-5krkkazx`. Node and caller SHA-256 values are
+`00006e62850905cf5b9aa3f01efcc7cef7ca090c322c3c401ec6e23b083320f3` and
+`705e6e62c7da4f7f35b60ae3a07096d7a7037185b43fd188fcde855ec70c93d2`.
+The protocol suite, focused signed/catalog/retained-graph checks and all 18
+contract checks also pass in `/var/tmp/transit-queue-terminal-protocol.log`,
+`/var/tmp/transit-queue-terminal-catalog.log` and
+`/var/tmp/transit-queue-terminal-contracts.log`.
+
+The combined `ReleaseSafe` native schedule also passes in
+`/var/tmp/transit-queue-terminal-native-second.log`: Stream maintenance takes
+157 units with 6,976,018 peak bytes; Queue maintenance takes 223 physical units
+and **219 terminal-retention units**, with **18,627,821 peak bytes** under the
+unchanged shared 32-MiB limit. Forty messages settle through the catalog owner,
+then automatic retention advances across forty sealed batches while ordinary
+capacity is exhausted. Executor replacement preserves progress; the original
+expired claim still returns its two payloads below the new lower boundary.
+These results do not establish the remaining transactional DLQ or mixed-
+participant work, nor a final committed-source clean lane.
+
+## Explicit Queue claim payload-read closure — 2026-10-30
+
+On dirty parent `63fdd3ed2`, `QueueRead.Release` binds a new saved operation to
+one exact original claim. The disk storage schedule passes current-authority
+refusal before publication, forged-selection rejection, lost-reply recovery,
+empty-claim closure, control progress after retirement without a clock, and
+replay without object writes. Closure changes neither leases nor scheduling;
+a live original lease still ACKs afterward. Checkpoint, actual WAL trim and disk
+reopen preserve the release and original claim receipts while refusing both
+initial and terminal payload pages. Raw output is
+`/var/tmp/transit-queue-read-release-storage-first.log`.
+
+The protocol suite and focused catalog tests pass in
+`/var/tmp/transit-queue-read-release-protocol.log` and
+`/var/tmp/transit-queue-read-release-catalog.log`. The signed independent fixture
+binds the release's complete claim; tampering invalidates its credential. Catalog
+checks cover current read/acquire rights, refusal before operation reservation,
+saved-work round trips, DROP, changed-work conflicts and original receipt
+recovery. The retained graph keeps selection metadata in both cuts, follows its
+payload roots before closure, and omits only that dependency after closure. A
+release directory from a later cut cannot authorize an earlier cut's traversal.
+This isolates the selection edge; it does not establish physical Queue payload
+reclamation. Terminal expiry and the other retained dependencies remain separate.
+
+The same storage run also passes the affinity cache's disk-reopen warm-hit check:
+100 canonical-key hits perform no parent-allocator calls or object range reads
+after the page cache is cleared. Native memory-budget and installed-node checks
+for the combined cache/closure changes remain pending. All 50 fast checks and
+18 contract checks pass in `/var/tmp/transit-queue-read-release-fast.log` and
+`/var/tmp/transit-queue-read-release-contracts.log`; the independent fixtures and
+reflected schemas were regenerated before those checks.
+
+The installed Queue schedule then passes on committed `faf56425d` with
+`dirty: false`: **297 requests**, four uncertain replies (enqueue, claim, ACK,
+read release), automatic retired-lease expiry, physical tiering and repeated
+SIGKILL/restarts. The saved release bytes remain unchanged; both original and
+terminal payload pages refuse after closure while the other claim stays
+readable. Raw output is `/var/tmp/transit-queue-read-release-installed.log`;
+the fixture directory is `/var/tmp/transit-table-queues-xh6e0vtw`. Node and caller
+SHA-256 values are respectively
+`835569427f70f347186fff4fe12e8ae85ba6be66e0f9aab01aa2a5c5f68ddbc2` and
+`4bb20363d3962cbb8b059d0cd9dc4691711bb6a0ec9df47749b8217cc31f8d3a`.
+
+The `ReleaseSafe` native log-privilege/maintenance schedule also passes for that
+source: Stream maintenance takes 157 units with 7,014,736 peak bytes; Queue
+maintenance takes 223 physical units with **18,601,227 peak bytes**, below the
+unchanged shared 32-MiB budget. Trusted expiry, reserved capacity, bounded replay
+and original claims survive WAL trimming. Raw output is
+`/var/tmp/transit-queue-read-release-native.log`. These results close the pending
+cache/closure native and installed checks above; they are not a final clean
+lane or proof of terminal payload deletion, DLQ transfer or mixed transactions.
+
+## Bounded FIFO affinity cache — 2026-10-30
+
+On dirty parent `d2d54bb67`, the Queue owner adds a disposable full-canonical-key
+cache bound to each immutable FIFO key root. Focused checks pass forced hash
+collisions, changed roots, oversized-key fallback, bounded saturation, a pinned
+reader across replacement, stale handles after reuse and permanent generation
+exhaustion. Four concurrent readers each perform 20,000 lookups while one writer
+performs 20,000 publications and periodic invalidation. Every hit must match its
+requested root and full key; completion releases every pin. This exercises the
+cache's reader/writer protocol, not concurrent Queue publication.
+
+The cache checks pass in `/var/tmp/transit-queue-affinity-third.log`; selected
+Queue private-memory and malformed-replay checks pass in
+`/var/tmp/transit-queue-affinity-owner-memory.log`. The expanded memory-provider
+retained graph passes in `/var/tmp/transit-queue-affinity-graph.log`, including
+300-byte canonical keys that bypass the cache. All 50 fast checks pass in
+`/var/tmp/transit-queue-affinity-fast.log`. Initial compile failures in the tests
+were corrected before these successful executions.
+
+Disk reopen/warm-hit allocation checks, the native shared-memory ceiling and
+installed-service regression have not yet run for this change. The preceding
+timer-integration native result below does not qualify this additional cache.
+
+## Queue foundation clean core failure — 2026-10-30
+
+The committed-source core lane at pre-rebase
+`52e8d40a89426db6546a611b71b6c01c60544aba` fails in the installed Station
+transport-retry fixture. The assertion at `tests/runtime/station/station.py:187`
+requires exactly two identical audit/reply turn request bodies. The captured
+run reports request timeouts and connection closures, then reaches that failed
+assertion; it does not record the body count or their digests, so the failing
+conjunct and cause are not established. The test completed domain progress but
+this does not waive its retry assertion. No deadline or semantic check was relaxed.
+
+Earlier lane phases, including `check::core`, properties, delivery/resource
+simulations, package checks, SDK/runtime-boundary checks and client ABI checks,
+passed. The lane as a whole failed and later phases did not execute. Raw output
+is `/var/tmp/transit-queue-clean-core-52e8d40a8.log`; the failed fresh checkout and
+artifacts are retained at `/var/tmp/transit-ci-n7fndw1z`. This run predates the
+rebase and accepted timer integration. Isolated reproduction and final-candidate
+clean qualification remain open; concurrent disk work is an observation, not
+an established explanation of the failure.
+
+An isolated rerun with those same built binaries and diagnostic-only driver
+changes passes the exact two-identical-bodies assertion, then fails later while
+uploading a query. Its ledger head is a delayed `UQN1` self-wake at position 298;
+the new query has namespace 299. The fixture pumps only the requester and leaves
+that earlier ledger input unprocessed. Its 200-ms quiet check cannot exclude
+later courier delivery. This second failure is recorded in
+`/var/tmp/transit-queue-station-isolated.log`; it does not explain the first
+retry-count failure.
+
+The corrected driver advances an observed non-query head, then stops at the
+exact requester resource and query namespace before capture. It also leaves a
+valid non-query predecessor deliberately, so this progression is exercised on
+every run. No assertion or deadline is weakened. Against the same original
+binaries, the complete Station run passes the exact retry assertion, captured
+query policy/native-grant revocation, worker/node recovery, framework services
+and lifetime checks. The driver SHA-256 is
+`65bc06531418948a29d9fcc7db37683582bc0b52c04846a189afa70ce9415fb7`;
+raw output is `/var/tmp/transit-queue-station-exact-head.log`. This is an isolated
+fixture regression, not a completed clean core lane or qualification of later
+Queue code.
+
+## Accepted Queue timer schedules — 2026-10-30
+
+On dirty parent `e387a41ca`, accepted Queue roots replace per-event visibility
+and deadline indexes with bounded delta buffers, paged pending chunks and sorted
+time runs. Scheduling maintenance records its kind, input budget and complete
+successor in the Queue WAL; recovery rederives it without provider writes.
+
+The disk fixture enqueues 512 rows, freezes visibility maintenance, claims all
+rows in two original selections, then ACKs and NACKs while both timer kinds have
+unfinished merges and partial output. Publication revocation leaves the accepted
+root unchanged. A lost accepted reply requires recovery; disk reopen reproduces
+the exact root without object writes. Maintenance finishes after retirement with
+no clock, preserves 510 acquired rows and the one delayed row, and becomes idle
+without writes. Sealing, archival, checkpointing and actual WAL trimming preserve
+the original claims and payload pages. Declaration-mismatch rejection passes.
+The focused run passes in `/var/tmp/transit-queue-schedule-owner-large.log`.
+
+The expanded retained-graph fixture covers a pending chunk, a two-input merge,
+partial output and a frozen item/bitmap basis distinct from current Queue state.
+Isolated scheduling traversal marks every input/output chunk and frozen basis;
+full traversal then permits actual deletion of unreferenced candidates. Cold
+recovery and subsequent merge completion preserve original claims, full FIFO
+keys and historical blocked destinations. This memory-provider graph fixture
+passes in `/var/tmp/transit-queue-schedule-graph-large-second.log`; disk recovery
+is the separate fixture above. Documentation checks pass in
+`/var/tmp/transit-queue-schedule-docs.log`.
+
+A conservative reflected-schema bound permits full-width integers, populated
+references, both complete merge states and the largest action variant within
+22,050 of the existing 32,768 metadata bytes. A structurally valid scheduling
+record with a forged sweep basis is rejected by replay without advancing state
+or writing provider objects. Both pass in
+`/var/tmp/transit-queue-schedule-replay-bound.log`. All 50 fast checks pass in
+`/var/tmp/transit-queue-schedule-accepted-fast.log`; all 18 contract checks pass
+in `/var/tmp/transit-queue-schedule-accepted-contracts.log`. Native maintenance
+and collection regressions were still running when the storage slice was committed.
+
+The native log-privilege/maintenance regression subsequently passes in
+`/var/tmp/transit-queue-schedule-native.log`, against the timer-integration source
+committed as `b74fee887` (before later affinity work). Stream maintenance completes
+157 units with a 7,010,576-byte peak; Queue physical maintenance completes 223
+units with a 19,215,663-byte peak, below the unchanged shared 32-MiB limit. Clock
+refusal permits preceding physical timer cleanup but no lease settlement;
+trusted lower-bound expiry, reserved control capacity, restart and original
+claim payloads after trimming pass. The native Table/Stream collection regression
+also passes in `/var/tmp/transit-queue-schedule-native-collection.log`: 11 physical
+collection passes retain pins and original outcomes while reclaiming obsolete
+allocations, including restart and trimmed-history cases. That native fixture
+does not exercise Queue merge closure; the expanded Queue graph fixture above
+owns that coverage. A new installed timer-integration run remains open.
+
+Initial fixture attempts refused undersized payload/tail buffers and exhausted
+the previous smaller graph traversal allowance. Those test bounds were adjusted
+for the added population; runtime row limits, metadata size and maintenance
+resident budgets were not increased. These component checks do not establish
+installed scheduling behavior, final clean qualification or completion of Queue
+affinity, terminal payload cleanup or atomic DLQ transfer.
+
+## Final Queue delta persistence — 2026-10-30
+
+On dirty parent `b97f41a18`, the disk scheduling fixture persists 100 private
+appends as one final active buffer. From that retained root, another 158 appends
+seal a chunk and leave a two-entry delta. Two cold private derivations produce
+the same root without underlying writes. Selecting final buffer names then
+persists exactly three additional objects: the sealed chunk, its directory page
+and the final delta. Disk reopen verifies the earlier and later roots, confirms
+the earlier accepted buffer is retained, and finds no intermediate delta object.
+
+The selected candidate-object and scheduling tests pass in
+`/var/tmp/transit-queue-buffer-persistence.log`. All 50 fast checks pass in
+`/var/tmp/transit-queue-buffer-persistence-fast.log`. The ordinary `persist`
+operation continues to select every candidate object; its existing paged-root
+and bounded-reuse checks pass in the same selected test run. The new selection
+does not delete provider objects or grant physical collection authority.
+
+This qualifies private scheduling composition and persistence, not an accepted
+Queue WAL transition. The Queue owner has not yet adopted the new scheduling
+roots or final-buffer selection. No new installed or clean-lane result is claimed.
+
+## Queue scheduling rebase qualification — 2026-10-30
+
+At `1766f70a706443ca59c81bd83c72d150c0aba8dc`, the feature branch is rebased
+onto `54e176fd0` using author-date committer dates. Main's non-Table rejection
+fixes supersede the earlier fixture-only commit, which is dropped. The rebase
+also includes main's batched immutable-object publication and historical-catalog
+changes without replacing the branch's current-v1 definition.
+
+All selected Queue tests, Stream partition tests, tree-store and disk-object
+tests pass in `/var/tmp/transit-queue-schedule-rebased-storage.log`. All 50 fast
+checks pass in `/var/tmp/transit-queue-schedule-rebased-fast.log`, and all 18
+contract checks pass in `/var/tmp/transit-queue-schedule-rebased-contracts.log`.
+These are workspace regressions at the committed rebased source. They are not
+installed-service reruns or clean-lane qualification of that revision. The
+separate clean core run still targets pre-rebase `52e8d40a8` and remains open.
+
+## Private Queue scheduling roots — 2026-10-30
+
+On dirty parent `11881ca08`, `QueueSchedule` passes a disk schedule that seals
+three pending chunks (including duplicate events and a far-future time bucket),
+retains a partial active buffer, and completes 78 bounded maintenance units.
+Seventeen input entries bound each merge step. A one-page cache and repeated
+disk reopen preserve reads during unfinished merges, two final run levels and
+the original pre-maintenance root. Appending while a merge has private output
+preserves its frozen inputs and makes the new event separately readable.
+Unchanged completed maintenance performs no object writes.
+
+A separate schedule seals one delta into 256 distinct pending time buckets.
+After clearing its one-page cache, a six-unit read budget finds a later bucket
+without scanning the preceding pending prefix. A failed partial seal preserves
+the complete earlier active buffer. Negative cases refuse an undersized read
+budget, inconsistent pending counts, malformed active metadata, wrong ownership,
+zero maintenance budget and missing chunk bytes. Budget refusal does not return
+an empty result or publish a private candidate.
+
+Focused scheduling and timer checks pass in
+`/var/tmp/transit-queue-schedule-final.log`; the first disk schedule also passes
+in `/var/tmp/transit-queue-schedule-first.log`. All 48 fast checks pass in
+`/var/tmp/transit-queue-schedule-fast.log`, and all 18 contract checks pass in
+`/var/tmp/transit-queue-schedule-contracts.log`. The diagnostic inventory records
+the reviewed private storage owner and refusal cases.
+
+These checks cover private composition with a deterministic fixture filter.
+Real frozen Queue filtering is covered separately above the storage boundary in
+the preceding merge record. Accepted Queue scheduling roots, batched buffer
+persistence, native maintenance, retained graph integration and their WAL fault
+schedules remain open. The separate core lane at `52e8d40a8` is still running;
+it does not qualify these later helpers or the newly fetched `origin/main`.
+
+## Resumable private Queue timer merges — 2026-10-30
+
+The two-run merge and frozen Queue-state filter pass workspace checks on dirty
+parent `52e8d40a8`. A disk schedule merges 2,000 input entries in 55 steps capped
+at 37 entries each, retaining 1,200 distinct selected events and accounting for
+800 duplicate/filtered entries. It uses a one-page cache, serializes scalar
+progress between steps, and reopens disk storage every eleven steps. Both an
+earlier output prefix and the completed output retain their exact ordered rows.
+Separate cases split duplicates across one-entry steps and prove empty filtered
+and empty-input completion.
+
+Private candidate replay derives identical roots with cold scratch and then
+passes a sealed backing-allocation check after warmup, without underlying object
+writes. This allocator claim covers merge scratch, not provider allocations.
+Explicit persistence makes the derived output reachable. Index-budget and filter
+failures preserve the old progress; missing directory entries, wrong ownership,
+invalid counters, zero work budgets and missing saved-position fields refuse.
+Frozen real Queue roots separately preserve earlier matches after disk reopen,
+ACK, expiry and renewal. Older epochs and blocked retries filter out; future
+epochs and inconsistent item/bitmap state refuse instead of disappearing.
+
+Evidence: `/var/tmp/transit-queue-time-merge-integrated.log` passes all selected
+Queue/Stream partition, timer and Queue-index tests;
+`/var/tmp/transit-queue-time-merge-final.log` repeats the affected merge/index
+checks after making saved progress fields mandatory. All 48 fast checks pass in
+`/var/tmp/transit-queue-time-merge-fast-final.log`, and all 18 contract checks
+pass in `/var/tmp/transit-queue-time-merge-contracts.log`. The first compile failed
+because the test referenced an unexported helper; its corrected direct import
+passes. The first fast run required recording the reviewed diagnostic inventory.
+
+These are private storage/transition checks, not accepted timer-run scheduling,
+WAL merge publication, retained graph integration or a new clean-lane result.
+The isolated core lane at committed `52e8d40a8` is still in progress when this
+record is written and does not include this merge implementation.
+
+## Paged Queue timer-run directories — 2026-10-30
+
+`QueueTimeDirectory` passes its focused disk schedule on dirty parent `6cc0f57ec`.
+Forty-nine `.tseg` chunks contain 3,136 ordered events, exceeding both the physical
+chunk bound and the one-page cache. Cold reopen verifies every event under the
+current root and an earlier 21-chunk root. Exclusive lookup finds both containing
+and following chunks. Private index-budget refusal leaves the staged next chunk
+outside the selected root, and overlap refuses before publication.
+
+Directory audit completion requires actual exhaustion after contiguous counts.
+Negative cases cover wrong owner/bucket, reduced total rows, a missing first
+entry, an extra entry beyond declared bounds and foreign descriptor definitions.
+Failures preserve the preceding audit cursor and do not mark it complete.
+Chunk bodies are separately loaded and verified in the disk schedule; directory
+audit alone does not qualify their contents.
+
+Evidence is `/var/tmp/transit-queue-time-directory-first.log`. All 48 fast checks
+and all 18 contract checks pass in
+`/var/tmp/transit-queue-time-directory-fast.log` and
+`/var/tmp/transit-queue-time-directory-contracts.log`. These are workspace checks
+for private run directories, not accepted Queue schedule publication, merge
+recovery, retained graph integration or a clean lane.
+
+## Queue pending timer buffers — 2026-10-30
+
+The `QueueTimeBuffer` codec passes focused checks on dirty parent `1d62204ed`.
+A 256-entry buffer accepts reverse-order insertion across time buckets, refuses
+overflow and duplication without eviction, and survives disk reopen with exact
+copied scalar output. The encoded bound is 6,272 bytes. A 128-entry buffer seals
+into four sorted `.tseg` chunks and reconstructs the same event sequence.
+Negative cases reject foreign owner/kind/definition, invalid lease metadata,
+corruption, missing objects, reserved bytes, duplicate ordering, truncation and
+insufficient output. Clearing permits explicit reuse but an empty buffer cannot
+be staged as a nonempty artifact.
+
+Focused buffer/run checks pass in `/var/tmp/transit-queue-time-buffer-final.log`;
+all 48 fast checks pass in `/var/tmp/transit-queue-time-buffer-fast.log`, and all
+18 contract checks pass in `/var/tmp/transit-queue-time-buffer-contracts.log`.
+This is codec composition, not an accepted Queue transition. Pending directories,
+publication, merge progress, collection and proof of removing per-item timer
+index rewrites remain integration work. No new clean lane is claimed.
+
+## Bounded Queue time-run codec — 2026-10-30
+
+The physical `QueueTimeRun` codec passes focused storage checks on dirty parent
+`dc8a70400`. A 1,024-entry sorted chunk spans multiple row groups, preserves
+full-width scalar metadata across disk reopen, and verifies its exact descriptor
+and physical identities. It encodes to 100,608 bytes and peaks at 592,088 bytes
+of codec allocation under an explicit 4 MiB budget. Five repeated loads reuse
+a warmed scratch arena with a sealed backing allocator; this excludes provider
+I/O allocations and is not a claim about whole-Queue steady-state allocation.
+
+Negative cases reject duplicate/reordered entries, mixed buckets, a changed
+partition or object, mismatched kind or bounds, missing objects, corrupted payload
+bytes, foreign descriptor definitions, nonzero reserved bytes, truncation and
+insufficient output. The largest unsigned deadline and epoch round-trip exactly.
+Retained scalar output survives scratch disposal and later loads.
+
+Evidence is `/var/tmp/transit-queue-time-run-final.log`. All 48 fast checks pass
+in `/var/tmp/transit-queue-time-run-fast.log`; all 18 contract checks pass in
+`/var/tmp/transit-queue-time-run-contracts.log`. These workspace checks cover the
+codec, not accepted Queue publication, run directories, resumable merge,
+stale-entry filtering, retained run collection or a new clean lane. Runtime
+scheduling still uses the previously qualified paged directories and caches.
+
+## Bounded Queue visibility wheel — 2026-10-30
+
+`a90c1f1bc490953e2fc9b0d7e41f186b29f81fad` adds the eight-level radix wheel
+and its bounded eligibility prefix to real claim selection. Standalone checks
+cover every level through the largest unsigned millisecond value, one-unit
+resumable cascades, cancellation/reuse, backward-time refusal and permanently
+retired generations. A 3,000-step finite reference compares interleaved insert,
+cancel, clear and clock-jump outcomes. The first standalone compile rejected an
+untyped left-shift operand; the corrected fixed-width operand passes.
+
+The disk Queue schedule uses one cached entry with two eligible heads and a
+one-unit declared timer budget. A cursor beyond that prefix finds the other head
+through durable storage. Incomplete cascading also finds due work through the
+directory. Twenty warm future-head observations perform no object range reads
+and pass the sealed backing allocator. Original empty claims, uncertain claim
+acceptance and cold replay remain exact. All Queue/Stream partition tests pass in
+`/var/tmp/transit-queue-wheel-integration-final.log`; all 48 fast checks pass in
+`/var/tmp/transit-queue-wheel-fast.log`. Initial standalone failure/success logs
+are `/var/tmp/transit-queue-wheel-first.log` and
+`/var/tmp/transit-queue-wheel-second.log`.
+
+The ReleaseSafe native schedule passes with 157 Stream units and 220 physical
+Queue units. Peak private allocations are 6,867,364 and 18,317,753 bytes,
+respectively, under the shared 32 MiB budget. Its log is
+`/var/tmp/transit-queue-wheel-native.log`, compiled from dirty parent `a8aa8331c`
+with the code subsequently committed as `a90c1f1bc`.
+
+The installed Queue schedule passes on that committed revision with `dirty:
+false`: 280 signed HTTP calls, three uncertain replies and 60 expiry probes.
+Retirement, expiry while flushing is disabled, later physical tiering and repeated
+SIGKILL/restarts preserve original claims and payloads. Evidence is
+`/var/tmp/transit-queue-wheel-installed.log`; the successful private installation
+`/var/tmp/transit-table-queues-2daltg0t` was removed by the harness. SHA-256 values:
+
+- Node: `28fd08936a0d94c7f47bdf9d218c08999c6f94f32b0a832adb4948b81f6d0488`.
+- Caller: `4524956758305051c2c49c2aadc6dc6b9e6753518974d6d4241935d799e336ce`.
+
+The wheel owns only visibility/retry wakeups. Exact lease expiry remains with
+the separate fenced heap and durable transition. These workspace checks do not
+qualify time-bucketed immutable runs, lock-free affinity, terminal cleanup, DLQ
+transfer, mixed transactions, whole-claim zero allocation or new clean lanes.
+
+## Historical Queue destination closure — 2026-10-30
+
+The exact-definition resolver and retained graph extension pass focused storage
+and catalog checks on dirty parent `140be1469`. The graph fixture exhausts
+leases through NACK and expiry, then traverses the item directory in isolation.
+It retains the original DLQ definition and that definition's own destination,
+without a source declaration or catalog root masking either edge. A separately
+staged later retirement is not substituted. Full traversal, actual removal of
+unmarked objects and owner reopen preserve original claims, blocked destinations
+and payloads. The fixture uses the memory object provider; the declaration
+resolver separately runs across disk reopen.
+
+Negative cases reject missing bytes, changed object/revision attribution, a
+retired target, a Stream target, foreign contract bytes and truncated bounds.
+Each graph step emits at most three children. Logs are
+`/var/tmp/transit-queue-destination-storage-final.log` and
+`/var/tmp/transit-queue-destination-graph-final.log`. All 48 fast checks pass in
+`/var/tmp/transit-queue-destination-fast.log`. The ReleaseSafe native direct-data
+collection regression also passes in
+`/var/tmp/transit-queue-destination-native-collection.log`; that existing disk
+schedule verifies the collector integration, not a DLQ payload transfer.
+
+These are workspace checks with existing caches. They establish historical
+definition retention and refusal, not current destination append authority,
+terminal source reclamation, atomic transfer or clean-lane qualification.
+
+## Bounded active-lease cache — 2026-10-30
+
+`140be1469` adds the exact-lease heap and binds each cached prefix to its durable
+deadline-directory root. The storage test uses a one-entry cache with two active
+leases, then a larger cache with a one-entry declared refill budget. Renewal
+invalidates the old deadline; expiry, an uncertain publication, cold recovery,
+retirement, physical sealing and WAL trim preserve original claims. Twenty warm
+idle checks make no new object range reads and pass a sealed backing allocator.
+Current authority denial and unavailable time still refuse on that warm path.
+
+The focused heap and all Queue/Stream partition tests pass, as do all 48 fast
+checks. The ReleaseSafe native `log privileges` schedule passes with 157 Stream
+maintenance units and 220 physical Queue units; measured peak private allocation
+is 6,867,364 and 17,799,533 bytes respectively under the shared 32 MiB budget.
+Its log is `/var/tmp/transit-queue-heap-native.log`, compiled from dirty parent
+`5bf910f71` with the code subsequently committed as `140be1469`.
+The storage log is `/var/tmp/transit-queue-lease-heap-final.log`; a repeat of the
+same focused command also returns zero. Fast-check timings are retained in this
+worktree's `.cache/checks/fast.json`.
+
+The no-allocation claim covers a retained storage owner after warmup. The native
+driver disposes ready workspaces between units and therefore discards this cache.
+These checks do not establish allocation-free background maintenance, a timing
+wheel, time-bucketed runs or lock-free FIFO affinity. They are workspace checks,
+not new clean-lane qualification.
+
+## Automatic local Queue maintenance — 2026-10-30
+
+`9c1c5f0169737ecca5a6981a251d5ada2b30a0f1` shares bounded catalog maintenance
+between Tables, Streams and Queues. Each log kind retains at most one recovering
+workspace and 64 disposable root hints under the existing 32 MiB aggregate
+budget. Queue units seal accepted batches, archive/checkpoint/trim physical WAL
+and expire one earliest accepted lease under current native maintenance rights.
+Expiry does not grant payload retention permission.
+
+The native disk schedule passes with two Queue partitions alongside existing
+Streams. Forty separate appends exceed the 16-record replay unit. Missing time
+refuses expiry; an interval spanning the deadline leaves the two current leases
+acquired; moving its lower bound to the deadline expires them under ordinary
+quota exhaustion. Backoff remains anchored to the accepted deadline. Disposal
+releases all private bytes; cold reopen after actual WAL trimming retains original
+claims and payloads. The ReleaseSafe run records 220 physical Queue work units
+and 17,789,221 peak private bytes; the Stream arm records 157 units and 6,867,356
+peak bytes. These measurements exclude provider caches and whole-process memory.
+
+The first combined native run exposed an old fixture ordering that left an active
+Queue with no trusted clock during the Stream arm. It correctly refused with
+`QueueTimeUnavailable`; the fixture now separates those phases. A subsequent
+review found that sealing after expiry had recorded retirement reused a fresh
+operation cut and refused `LogDeclarationConflict`. The expanded disk test
+reproduced that failure, then passed with a retained-data cut for physical
+sealing. Fresh claims still refuse. Archive, checkpoint, WAL trim and cold reopen
+preserve the original selection after this ordering.
+
+Successful component logs are `/var/tmp/transit-queue-maintenance-catalog.log`,
+`/var/tmp/transit-queue-retired-flush-final.log` (all Queue/Stream partition tests)
+and `/var/tmp/transit-queue-maintenance-fast-final.log` (48 checks).
+`/var/tmp/transit-queue-maintenance-native-final.log` is the ReleaseSafe native
+schedule on dirty parent `c3613ee70`, before the subsequent retired-flush fix;
+`/var/tmp/transit-queue-maintenance-native-second.log` is its Debug run.
+The preserved initial clock failure is
+`/var/tmp/transit-queue-maintenance-native-first.log`; the deliberate retirement
+regression failure is `/var/tmp/transit-queue-retired-flush-red.log`.
+
+The final installed Queue schedule passes on committed `9c1c5f016` with
+`dirty: false`: 280 signed HTTP calls, three uncertain replies and 60 expiry
+probes. It retires the Queue, kills/restarts the node, recovers the original
+operations, and enables expiry with physical flushing disabled. Both original
+leases become available while the ACKed row stays ACKed. Only then does it enable
+sealing/archive work; one segment contains all three rows. A further restart
+preserves original outcomes, payloads and saved request bytes. Evidence is
+`/var/tmp/transit-queue-maintenance-installed-final.log`. The private successful
+installation `/var/tmp/transit-table-queues-93o98aua` was removed by the harness.
+
+The combined installed Table/Stream maintenance gate also passes on that same
+committed revision and binaries. It verifies 258 original Table rows, 48 concurrent
+writes, pressure on ordinary request admission, reserved original-outcome recovery,
+archive/checkpoint convergence and retained cuts across restart. Two Stream
+partitions compact 16 rows to two visible rows after seven probes while original
+reads still return all 16. Evidence is
+`/var/tmp/transit-log-maintenance-combined-installed.log`.
+
+Both installed runs record SHA-256 values:
+
+- Node: `ceefc1f6a58b3727fcfdf2cbd3b9438957d947b4e6106884bc66547860676d2d`.
+- Caller: `c9aca2bfbf4675d6b09143f870cef8d4f665f2335658c9270bb2329e5eaf8f56`.
+
+These are committed-source workspace checks with existing build caches, not
+isolated clean lanes. They do not qualify a hierarchical timing wheel, bounded
+lock-free affinity, far-future runs, terminal payload cleanup, DLQ transfer or
+mixed transactions. The earlier Stream clean-core result does not qualify these
+later Queue changes.
+
+## Signed Queue service, typed recovery and installed restart — 2026-10-30
+
+`46e5e4da1` adds the signed Queue action and shared typed client. The focused
+native policy schedule passes with real native registration and grants: lost
+enqueue, claim and ACK replies retain original identity; renewal fences the old
+receipt; NACK preserves requested visibility; an originally empty claim stays
+empty after visibility advances. Owned decoded pages survive later calls, and
+expired-but-unreassigned work reports acquired/expired without authorizing
+settlement. A revocation after serialization suppresses terminal-page disclosure.
+The host-lock check confirms Queue payloads and declaration edits select the same
+object stripe. Independent Python signing vectors bind the complete Queue claim;
+saved work rejects missing/foreign definitions.
+
+The installed ReleaseSafe schedule passes 25 signed HTTP calls on physical local
+storage. It selects offsets 0 and 2 from two FIFO keys, leaving offset 1 blocked
+behind its head; after ACK it selects that successor. The proxy corrupts accepted
+enqueue, claim and ACK replies, and the caller preserves unknown outcomes and
+inspects the original operations. DROP followed by node SIGKILL/restart preserves
+the original saved bytes, producer receipt, claim, ACK and payload pages. Fresh
+claims on the retired declaration refuse. The caller issues no actor data command.
+The standard direct-service gate now includes this isolated Queue schedule.
+
+Installed evidence is `/var/tmp/transit-queue-installed-http-final.log`, with
+private runtime files in `/var/tmp/transit-table-queues-wba_3w0q`. It records dirty
+parent `88b41d089018e0e246c623a507bb94922b64b3f0` and binary SHA-256 values:
+
+- Node: `205ca0086d1a2263453cf7a47d075660a8cc64a9826775e1ab07168011b781d2`.
+- Caller: `9f1c98c175f125230ebb8769e0c9d789114dd1f32bc0cd693f2f3ed5c463a1d6`.
+
+Other successful logs are `/var/tmp/transit-queue-native-policy.log`,
+`/var/tmp/transit-queue-host-lock.log`, `/var/tmp/transit-queue-native-catalog.log`,
+`/var/tmp/transit-queue-catalog-full.log` (full catalog suite),
+`/var/tmp/transit-queue-data-client-final.log`,
+`/var/tmp/transit-queue-native-fast.log` (48 checks),
+`/var/tmp/transit-queue-native-contracts.log` (18 checks) and
+`/var/tmp/transit-queue-native-docs.log`. The first installed build failed on an
+incorrect fixture URL field; the corrected fixture uses the public client's
+`url` field. That failed build remains `/var/tmp/transit-queue-installed-http.log`.
+
+This qualifies standalone signed operations. It does not qualify automatic
+Queue expiry scheduling, timing-wheel/affinity behavior, terminal cleanup, DLQ
+transfer, mixed transactions or a final committed-source clean lane. The earlier
+Stream clean-core result does not extend to this Queue change.
+
+The subsequent default direct-service gate also passes on committed
+`056be8a68a24e75f4447d540b1938042c20afd86`: 2,055 Table/Stream HTTP calls followed
+by the isolated 25-call Queue schedule. The latter records `dirty: false` and
+the same binary hashes above. The log is
+`/var/tmp/transit-queue-direct-service-regression.log`; this is a committed-source
+workspace run, not an isolated clean lane with empty build caches.
+
+## Queue catalog composition and shared identity — 2026-10-30
+
+The Queue catalog composition passes its disk test, the original Stream
+composition regression, Queue reservation tests and all 48 fast checks
+(`/var/tmp/transit-direct-queue-catalog-final.log` and
+`/var/tmp/transit-direct-queue-catalog-fast.log`). Claims require both read and
+acquire rights; original claim inspection and payload pages cannot bypass
+revoked acquire rights. Settlement requires its separate privilege. Revocation
+on the final disclosure check frees already copied page output.
+
+Enqueue retries, original claim payloads and ACK outcomes survive compatible
+ALTER, DROP, closing the remaining accepted lease, full disk reopen and loss of
+the trusted clock. One-record recovery returns explicit incomplete progress.
+Retired declarations reject fresh claims. The response validator rejects omitted
+rows and incorrect byte totals. Disk reservations reject changed claim limits,
+duration, partition, definition, settlement action or extension deadline and
+exclude Table/Stream use of the same operation identity. Cached owners retain
+neither request scratch nor the request's clock capability.
+
+This qualifies internal catalog composition with injected current-policy guards.
+It does not qualify native signed Queue dispatch, installed HTTP, automatic
+expiry scheduling, DLQ transfer or mixed transactions.
+
+## Original Queue claim pages and observed leases — 2026-10-30
+
+`0ff275765` passes the Queue and Stream storage regression, the protocol package
+suite, the retained Queue graph schedule, all 48 fast checks and all 18 contract
+checks. Claim pages retain caller-owned original rows across scratch reuse,
+later appends and multiple payload batches with one tail slot. Row and byte
+budgets preserve exact selection ordinals and distinguish a final data page
+from an empty terminal page. Too-small byte budgets advance no cursor.
+
+Current observations distinguish live, expired, unavailable and fenced original
+leases without substituting another holder's claim. Tests expire and reassign
+work, observe with no clock, reject forged receipts, and revoke authorization
+after buffering and on terminal or originally empty reads. Disk reopening after
+retirement preserves ACKed original payloads. The collector schedule deletes
+unmarked candidates, checkpoints and trims the WAL, then reads the original
+ACKed payload through its frozen selection and archive coverage.
+
+Executed logs are `/var/tmp/transit-queue-claim-pages-final.log`,
+`/var/tmp/transit-queue-claim-pages-collection.log`,
+`/var/tmp/transit-queue-read-contract-final.log`,
+`/var/tmp/transit-queue-read-storage-regression-confirmed.log`,
+`/var/tmp/transit-queue-read-fast.log` and
+`/var/tmp/transit-queue-read-contracts.log`. The first protocol invocation used
+an unsupported test-filter option; the full package invocation passed. These
+checks qualify storage reads and neutral observation shapes, not installed Queue
+admission, automatic scheduling, DLQ transfer or common transactions. A page's
+observed lease status does not authorize a later settlement.
+
+## Clean core qualification of the Stream maintenance slice — 2026-10-30
+
+Committed source `f5c7cc0861d5b45b13d37d1c0d6e01438b8d40d7` passes
+`just ci clean --lane core` in a fresh checkout with no inherited workspace
+build outputs. All 28 tasks complete successfully in 5,293.93 seconds, including
+native component/storage collection checks, 43 standalone packages, Zig SDK and
+runtime distribution boundaries, client ABI, Station, disk recovery, service,
+authorization, runtime upgrade, caller, inspection and state schedules.
+
+The execution log is `/var/tmp/transit-stream-clean-core-sparse.log`. Completion,
+source, toolchain and per-task evidence are retained in
+`/var/tmp/transit-m6-qualification-65f9eba22/.cache/ci/clean/f5c7cc0861d5-transit-ci-isdi8jnl/`;
+`core.meta.json` records `dirty: false`, `completed: true` and 28 results.
+The shared definition is
+`342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d`.
+
+This qualifies the committed Stream maintenance/rewrite slice and its corrected
+derived fixtures. It does not qualify the later Queue implementation, all other
+clean lanes, or complete Milestone 6. The earlier failed clean attempts remain
+failure evidence; they are not reclassified by this successful run.
+
+## Fenced Queue settlements and bounded expiry — 2026-10-30
+
+`ac52c941d` passes the combined Queue and Stream partition suites, the focused
+Queue retained-graph schedule and all 48 fast checks. ACK, NACK and renewal
+publish their original outcomes with complete Queue successors. Disk tests lose
+renewal and ACK replies, recover without object writes, fence the old renewal
+receipt, ACK through cold sealed payload placement, advance exactly one FIFO
+head and retain retry backoff and attempt/epoch increments. Compatible retired
+declarations can settle already accepted work; new claims refuse. Accepted
+settlements remain recoverable after retirement, expiry and restart with no
+available clock, while current authorization still governs disclosure.
+
+Publication rejects an interval spanning expiry and a definitely expired lease.
+One-step expiry ignores the superseded renewal deadline, loses an accepted
+expiry reply and recovers it from disk. Each step advances exactly one WAL record
+even after a large clock jump. Backoff remains anchored to the accepted deadline;
+exhausted work stays available but blocked, with no terminal or DLQ claim. Backward
+and unavailable time refuse new expiry work.
+
+Review found that Queue control candidates also needed to load and verify the
+complete immutable declaration. Claims, settlements and expiry now reject
+structurally valid metadata with a fabricated revision before acceptance. The
+regression keeps the original root and WAL frontier unchanged. The collection
+schedule adds ACK, NACK and expiry before sealing, checkpointing and trimming;
+after reclaiming private objects, it preserves original selection directories,
+the remaining FIFO heads and available/acquired/acked bitmap sets.
+
+Executed logs are `/var/tmp/transit-queue-settlement-declarations-final.log`,
+`/var/tmp/transit-queue-settlement-collection-final.log` and
+`/var/tmp/transit-queue-settlement-fast-final.log`. Earlier focused settlement
+and expiry runs also passed. These are storage-owner checks, not installed Queue
+admission, automatic timer-wheel/affinity scheduling, current lease inspection,
+DLQ transfer or mixed transaction qualification.
+
+## Durable original Queue claims — 2026-10-30
+
+`d1bc4cb83` adds accepted claims to the shared Queue WAL owner. The disk test
+loses a claim reply, reconstructs the exact selection without object writes,
+preserves empty-claim retries after more work becomes eligible, and reopens with
+authoritative time unavailable. Original leases, acquired state, deadlines and
+attempts remain unchanged. A delayed FIFO head excludes its successor while an
+unrelated key is claimed. Competing owners must recover the newer accepted root
+before selecting work.
+
+Publication refuses unavailable time, an interval spanning lease expiry and a
+definitely expired lease. Active-capacity pressure and backward time accept no
+empty outcome. A canonical selection artifact containing an ineligible FIFO
+successor is rejected during replay even though its format and WAL envelope
+validate. The first capacity fixture specified `claim_rows > active_leases`,
+which correctly failed declaration validation; the corrected fixture uses the
+existing declaration invariant and passes its time/capacity assertions.
+
+The Queue graph schedule now claims sixteen distinct 300-byte keys, appends
+later input, seals payloads, checkpoints and trims the WAL. After deleting
+unmarked objects it reopens the accepted state and original claim, with all
+sixteen acquired bits, remaining available bits and FIFO heads intact. The
+original selection's earlier batch directory remains marked independently of
+the current directory.
+
+Logs are `/var/tmp/transit-queue-partition-claims-final.log` (the invalid
+capacity-fixture attempt), `/var/tmp/transit-queue-claim-time-stream-regression.log`
+(corrected capacity test and full Stream partition regression),
+`/var/tmp/transit-queue-claim-refusals.log` (competing-owner and forged-selection
+checks), `/var/tmp/transit-queue-claim-collection.log` and
+`/var/tmp/transit-queue-claims-fast.log` (48 checks passed). These storage checks
+do not qualify installed Queue operations, current lease inspection, settlement,
+expiry scheduling, timing wheels, DLQ transfer or common transactions.
+
+## Atomic Queue enqueue and retained scheduling state — 2026-10-30
+
+`b72cec81e` passes the pinned-shell Queue partition suite and the catalog's
+focused Queue graph test. Twelve accepted batches span thirty-six offsets with
+one resident index page and one tail slot. The disk schedule loses an append
+reply, recovers its exact producer outcome, reopens every handle and replays one
+record per step without object writes. FIFO links and availability bits survive
+sealing, archive/checkpoint, WAL trimming and a second disk reopen. Original
+producer retries remain exact and current authorization still applies.
+
+Candidate-object quota pressure and authorization revoked before publication
+leave the WAL frontier and accepted root unchanged. A validly encoded record
+with a false scheduling count rejects during full candidate reconstruction,
+without writing objects or establishing readiness. The retained-graph test uses
+twenty-four distinct 300-byte collation-aware keys, limits each graph step to at
+most three child jobs, deletes unmarked candidate objects and then recovers the
+same accepted root without writes. All live FIFO heads and bitmap states remain
+readable after collection.
+
+Logs are `/var/tmp/transit-queue-partition-enqueue-complete.log`,
+`/var/tmp/transit-queue-partition-collection.log` and
+`/var/tmp/transit-queue-owner-fast.log` (48 checks passed). The first enqueue-test
+compile exposed a shadowed helper name; the corrected test is included in the
+successful source. The Stream partition regression also passes with the new
+mandatory Queue root field. Earlier `5e35943dc` separately passes four private
+candidate-overlay tests, including zero allocations after initialization, full
+key collision resolution, exact rederivation and retry after a lost object reply
+(`/var/tmp/transit-queue-candidate-objects-final.log`).
+
+These checks qualify storage enqueue and its reachability edges. They do not
+establish durable claim/settlement publication, installed Queue admission,
+timing-wheel/affinity scheduling, DLQ transfer or mixed transactions. The graph
+conservatively refuses collection of a recorded DLQ block until historical
+destination dependency closure is implemented.
+
+## Queue index and original-selection candidates — 2026-10-30
+
+`fcb583b66` and `aefa35c4c` pass the pinned-shell Queue item, index and selection
+suites. Disk-backed candidate indexes use one resident page, span forty offsets,
+and preserve earlier roots. The schedules cover collation-equivalent FIFO keys,
+delayed heads, unrelated-key claims, multiple claims from one batch, head
+advancement across batches, disjoint bitmap audits, exact terminal counts,
+expiry backoff and staging-budget refusal. Foreign claim targets reject.
+
+Pure transitions check renewal fencing, expired-but-unreassigned refusal,
+uncertain clock intervals, checked deadline/counter overflow and exhausted work
+remaining blocked. A DLQ block retains its exact destination definition across
+later policy edits. Selection artifacts reopen with original leases and placement
+metadata, reject changed row selections under an original receipt, and reject
+duplicates, truncation, foreign/missing definitions and alternate JSON array
+shapes. Empty claims have no selection artifact.
+
+The first selection test exceeded its 64 KiB parsing scratch buffer while the
+shared JSON parser built a dynamic tree before typed decoding. The final reader
+decodes fixed fields and checks the public encoder's canonical bytes; the same
+scratch bound now passes. Its combined Queue test executable SHA-256 is
+`bbacc5c7961f68ab4cedc3c6a4cf2cd3b8b1388b75fa1a82e46c6f19858a305f`.
+Logs are `/var/tmp/transit-queue-index-fenced.log`,
+`/var/tmp/transit-queue-selection.log` (failed),
+`/var/tmp/transit-queue-candidates-final.log` and
+`/var/tmp/transit-queue-selection-fast.log` (all 48 fast checks passed).
+
+These are candidate/index/format checks. They establish neither accepted Queue
+WAL transitions nor installed claims, timer-wheel/affinity scheduling, DLQ
+transfer or mixed transaction execution. The shared log-owner refactor
+`a66ac8042` separately passes the Stream partition suite; Queue instantiation
+still rejects until its state joins publication and recovery.
+
+## Automatic local Stream maintenance — 2026-10-30
+
+The installed signed-caller schedule committed as `5aeca56fe` passes in
+ReleaseSafe. With maintenance disabled, two partitions expose eight original
+rows each. Enabling the background scheduler converges after seven observations
+to one row per partition, at original offset seven. Every observation also
+checks all sixteen rows through the old read pins and recovers unchanged
+producer receipts from saved append bytes. SIGKILL and fresh-process restart
+preserve both views and the original outcomes. Temporary observation pins close
+explicitly. The existing Table maintenance target now runs the Table and Stream
+schedules sequentially; this focused invocation executed only the Stream arm.
+
+The node and caller SHA-256 values are
+`c08b5d219f3c5ff76058afb2db94852f353c36cd3b2f7c865bd6be11235a1672` and
+`5e0296045d029d60629913ca75066dc0ed127017b64037fe5a8fdf23d82d80b6`.
+The log is `/var/tmp/transit-stream-installed-maintenance-final.log` and records
+the working source at `77d5f858b`, exact toolchain and numeric node observations.
+An earlier compile attempt failed on a shadowed fixture declaration; the caller
+was corrected before this successful execution. These results establish public
+visibility and caller recovery, not physical reclamation, full clean-lane
+qualification or Queue execution. Physical reclamation is covered separately
+below.
+
+The sparse-rewrite extension committed as `91575f785` passes the same native
+disk schedule, now including sparse placements in both partitions and cold reads
+of their original row ordinals. It completes **205 units** with **20,271,578 peak
+private allocated bytes** inside the unchanged 32 MiB budget. All accepted
+rewrite, compaction and archive targets settle. Its executable SHA-256 is
+`61b98ca8c201c484e6b88d1ccb51584d6c188cdabd55d3f7067303e93ff5d3d3`;
+the log is `/var/tmp/transit-stream-sparse-native-maintenance.log`.
+
+The focused storage suite also passes sparse and empty placement reconstruction,
+complete/sparse cache coexistence, original identity conflicts, omission checks
+against exact visibility, lost start/rewrite replies, disk reopen, fixed upper
+bounds despite later input, old read pins and repeated compaction across empty
+placements. Retirement cancels unpublished rewrite progress. A replay negative
+control stages a valid sparse segment with an altered surviving value; recovery
+rejects it and keeps the owner unready. Work-budget refusal leaves the accepted
+root unchanged. Logs are `/var/tmp/transit-stream-sparse-storage-final.log` and
+`/var/tmp/transit-stream-sparse-restart.log`. All 48 fast checks and all 18 contract
+checks pass after regenerating the reviewed diagnostic inventory. This evidence
+does not establish installed-loop, clean-lane or Queue execution qualification.
+
+The first extended ReleaseSafe collection run passed two of its three disk
+schedules but failed the new rewrite/retention schedule. It exposed a missing
+edge: read pins retained old segment objects without retaining the segment
+directory pages needed to locate them after placement changed. `087160eeb`
+adds a bounded directory walk, and the focused Debug disk schedule passes with
+an explicit old-directory assertion. Its five collection passes take
+75/672/673/722/1,106 steps and reclaim 3/295/233/271/510 allocations. Old complete
+placements remain while a read pin or recovery baseline requires them; release
+plus a later checkpoint permits reclamation, after which a cold read of the
+current sparse placement and original append receipt still succeeds. The test
+uses an explicit trusted fixture guard; signed policy is qualified separately.
+The successful executable SHA-256 is
+`2ec8c23662fa87f112e1cb3d9cbce272e86b003f93bf54744f07e42f0f042f9b`.
+Logs are `/var/tmp/transit-stream-sparse-native-collection.log` (failed) and
+`/var/tmp/transit-stream-sparse-collection-directory.log` (passed). The focused
+ReleaseSafe rerun also passes with the same five collection counts; its log is
+`/var/tmp/transit-stream-sparse-collection-directory-safe.log` and its executable
+SHA-256 is `26f9a27ff043ab999a3c0ff863c3c04866b48a02bc0893a052c5dd073ad2fe4c`.
+
+The working implementation subsequently committed as `1a9c87274`, including
+the recovery-prefix change `f87b54771`, passes the native `log privileges`
+schedule on local disk. It drives the real catalog and shared maintenance
+executor through **195 units**, with **20,268,442 peak private allocated bytes**
+inside a 32 MiB budget. The setup accepts and releases 130 reads, creating a
+history longer than one replay budget without an unbounded active-pin set.
+Executor replacement discards its caches and hints; later units resume accepted
+work, finish both partitions, and become idle. Original finite reads remain
+usable after compaction, archive, checkpoint and physical WAL trim.
+
+The same schedule changes retention through the signed catalog. Missing trusted
+time refuses expiry without advancing the data log. With an authoritative
+interval, timed eligible history expires using the control reserve after
+ordinary quota is filled. The other partition's previously untimed data remains
+retained. Current native authorization still gates final disclosure.
+
+The first combined native attempt was stopped incomplete after diagnosing
+repeated full recovery between archive units. It is not a pass. The final
+executor keeps at most 64 same-process prefix hints, verifies their accepted
+boundaries, and replays at most 16 frames per turn. Storage disk controls reject
+altered hint roots and commitments, recheck current permission, and prefer newer
+accepted checkpoints after WAL trim. Catalog traversal tests cover every
+partition in a fixed object pass, later high-ID creation, Queue/private skips,
+and denial before returning a selection or definition.
+
+The native test executable's SHA-256 is
+`0b5a9aded0daea2e1f5fd846fb111dad1f5f9db7d1518e046942b3281530a73d`.
+Logs are `/var/tmp/transit-stream-maintenance-native-hints.log`,
+`/var/tmp/transit-stream-maintenance-hints.log` and
+`/var/tmp/transit-stream-maintenance-catalog.log`. The workspace fast check
+passes all 48 checks. These executions do not establish a committed-source clean
+lane, installed background-loop qualification, sparse physical payload
+rewriting, or Queue execution.
+
+## Retained Stream maintenance targets — 2026-10-30
+
+The storage change `b30758a87` passes the pinned-shell Stream partition and log
+read suites. New disk cases lose archive replies with archive and compaction
+targets active, reopen the providers, admit later input outside the original
+cuts, and run bounded units until both become idle. WAL trim and another reopen
+preserve original append receipts and earlier pinned visibility. Every unit
+publishes at most one record. Further idle calls accept none. A separate replay
+control rejects a locally well-formed root that invents archive completion.
+Retirement closes only an unpublished compaction candidate.
+
+The committed-source core attempt at that revision stopped in the fast query
+fixture check: the shared definition had changed but the independently hashed
+Table descriptor fingerprint had not been regenerated. `107e9bc9e` regenerates
+that fingerprint and its query-policy reference with the Python owner. The
+subsequent workspace fast check passes all 48 checks. This is not a completed
+clean-core result. The failed clean checkout and phase evidence remain at
+`/var/tmp/transit-ci-5j06uv3u`.
+
+Logs are `/var/tmp/transit-stream-maintenance-storage.log`,
+`/var/tmp/transit-stream-maintenance-all-storage.log`,
+`/var/tmp/transit-stream-clean-core.log` and
+`/var/tmp/transit-stream-maintenance-fast.log`. These results qualify storage
+transitions and fixture reconciliation; they do not yet qualify the automatic
+native scheduler or sparse physical payload rewriting.
+
+A second clean-core attempt at `938a54a06` passed fast checks but failed five
+independent fixture generators and their embedded consumers: named relational
+records, reactive signatures, worker handoff, application signatures and unified
+query commitments still contained hashes derived from the previous shared
+definition. `65f9eba22` regenerates those seven fixture files with their existing
+owners. The complete workspace `test-fixtures` target then passes, including 143
+shared native/port codec cases. The known-failed clean run's remaining native
+tests were stopped; it is failed and incomplete, not a clean pass. Evidence is
+`/var/tmp/transit-stream-clean-core-final.log`,
+`/var/tmp/transit-stream-cutover-all-fixtures.log` and the retained checkout
+`/var/tmp/transit-ci-6lf9kpq1/src`.
+
+## Bounded Stream consume waits and main integration — 2026-10-30
+
+The bounded-wait implementation `4caf380fa` is rebased on `a4e695de6`, including
+the gateway dispatch changes and Document storage graph. Shared Document
+fixtures were regenerated under the branch definition in `0681f887e`.
+
+The pinned-shell `zig build test-direct-table-service -Doptimize=ReleaseSafe -- tables`
+passes **2,055 typed HTTP calls**. The real shared caller supplies the signed
+wait's exact scheduling header, receives timeout without a read receipt, and
+recovers an existing consume's original cut. The proxy separately proves that
+a missing or mismatched wait hint rejects before execution. Existing retained
+Table/Stream reads, original mutation recovery, restart, current authorization,
+and reserved-control checks also pass. The first HTTP run caught header access
+after body parsing; the successful run includes parsing the scalar hint before
+the header lifetime ends.
+
+| Executable | SHA-256 |
+| --- | --- |
+| `transit-node` | `0499350075099b83e70503db71a004e37c3283e5fcac7fb5579610428c2e1b9a` |
+| `transit-direct-table-proof` | `18704ee273ad0e41ff2e43eeb6f67114f48be9877a341ad75d5b7ff44cd2b875` |
+
+Catalog disk tests cover pending waits without operation reservations, timeout,
+readiness at the final deadline check, immutable empty-read retries, per-object
+waiter capacity and group generation/checkpoint refusals. The concurrent native
+host test observes an actual parked condition waiter before append, cancellation
+or revocation publication. Appends proceed without the parked reader's object
+lock, cancellation joins and releases the ticket, and published revocation
+prevents disclosure. Policy preparation happens before the bounded wait; its
+publication is the tested race. Independent signing fixtures cover the wait
+duration and the unchanged underlying consume intent. Cancellation preserves
+the original identity as unknown work.
+
+The rebased protocol suite, selected catalog Document/Stream tests, native
+catalog wait tests, all 18 contract checks, and documentation links pass.
+The preceding native collection run also passes all three disk schedules after
+correcting the expected expired-range error; the error remains distinct from
+missing recovery history. Logs include
+`/var/tmp/transit-stream-wait-http-rebased.log`,
+`/var/tmp/transit-stream-wait-native-rebased.log`,
+`/var/tmp/transit-stream-rebase-catalog.log`,
+`/var/tmp/transit-stream-rebase-contracts.log` and
+`/var/tmp/transit-stream-bounds-collection-fixed.log`.
+
+These executions do not constitute a full nightly or committed-source clean
+lane result. Automatic Stream maintenance, sparse physical payload rewriting,
+Queue execution, mixed-kind transactions and SQL Stream operations remain
+outside this evidence. The [public Stream contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+owns supported behavior and limits.
+
+## Signed Stream payload and consumer operations — 2026-10-30
+
+The work committed as `3a596ba31` composes `DirectStream` with the local signed
+catalog endpoint and shared `Catalog.callStream`. The owning
+[payload contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+defines current behavior, budgets and grants.
+
+The pinned-shell `zig build test-direct-table-service -Doptimize=ReleaseSafe -- tables`
+passed **2,052 typed HTTP calls** on local disk. The Stream caller saves original
+append/read work before sending it, recovers deliberately corrupted append,
+consume, offset and release responses, reads bounded pages, and settles a group
+only with complete authenticated coverage. After node replacement, the original
+append returns the same range and a saved read cursor returns its original
+schema and offsets despite later RENAME and ALTER. The existing Table pressure,
+reserved-control, CRUD/DDL, retained-history, projection, collation, restart and
+authorization-lifetime schedules also pass.
+
+| Executable | SHA-256 |
+| --- | --- |
+| `transit-node` | `2420ed443b598d3a83f31dbe2509c639f306f52f9e43d414d135153a51d1eca9` |
+| `transit-direct-table-proof` | `b051f2b34a91656e84b022ce4c704410314ae84c53b8c126b1907a6a10616596` |
+
+The HTTP binaries were built from the uncommitted implementation before the
+final enum-order/schema cleanup and explicit fresh-read `LogRangeExpired`
+classification. The final source separately passes the native catalog selection
+`log privileges`, `log lifecycle publication`, `shared refusals`; the storage
+`stream partition expiry` tests; the shared data-client tests; and all 18
+`check-contracts` checks. Independent signing fixtures and catalog composition
+tests cover required definitions, full-width identities, exact intent hashes,
+buffer ownership and original work after declaration edits. The native
+composition test revokes permission after response serialization and suppresses
+the buffered page.
+
+Logs are `/var/tmp/transit-stream-native-service.log`,
+`/var/tmp/transit-stream-service-final.log`,
+`/var/tmp/transit-stream-range-expiry-test.log` and
+`/var/tmp/transit-stream-contract-check.log`. Documentation link and site checks
+also pass. These are local executions, not committed-source clean CI or a full
+nightly result. They do not qualify blocking waits, automatic Stream maintenance,
+uncertain deployed-clock intervals, Queue execution, mixed-kind transactions,
+SQL Stream verbs or provider power loss.
+
+## Direct dispatcher stack isolation — 2026-10-30
+
+Hosted PR #256 qualification found an installed Board query provisioning crash.
+The same failure reproduces locally: debug `DirectTableDispatch.apply` reserves
+3,895,600 bytes for all action branches, and its nested native authorization
+read exhausts the default worker stack. The crash occurs at `PageStore.load`'s
+stack probe; it is not a page checksum or authority rejection.
+
+The implementation committed as `7c4beeed0` specializes one action per function
+frame. The measured x86-64 debug dispatcher frame is 1,010,544 bytes and the
+largest specialized frame is 264,400 bytes. Worker stack capacity is unchanged.
+The pinned-shell `just transit-board::query-test` passes provisioning, unavailable
+submit/next replies, bounded capacity recovery and generated query-client checks.
+The catalog selection `zig build test -Dtest-filter='direct dispatch'
+-Dtest-filter='direct Table protocol' -Dtest-filter='direct catalog log'` also
+passes. Both commands ran before the implementation commit; final clean-CI
+qualification is separate. The installed log is
+`/var/tmp/transit-stream-board-stack-check.log`; these compiler-specific frame
+measurements do not establish a portable whole-server stack bound.
+
 ## Typed Stream and Queue catalog lifecycle — 2026-10-29
 
 Source `58197ac42` implements the typed declaration lifecycle on the local native

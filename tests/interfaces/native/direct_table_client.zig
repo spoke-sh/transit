@@ -25,7 +25,16 @@ const Dependencies = @import("fixture_direct_dependencies");
 const NamedResources = @import("fixture_direct_named_resources");
 const sql_runtime = @import("transit_sql_service");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { log_saved: ?[]const u8 = null, maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
+const StreamProof = struct { append: []const u8, consume: p.StreamRead.Request, cursor: ?p.StreamRead.Cursor };
+const StreamMaintenanceProof = struct {
+    target: p.StreamQueue.Partition,
+    appends: [2]?[]const u8 = @splat(null),
+    requests: [2]?p.StreamRead.Request = @splat(null),
+    reads: [2]?p.StreamRead.Receipt = @splat(null),
+    next_probe: u64 = 632000,
+    probe: ?u64 = null,
+};
+const Profile = struct { stream_maintenance: ?StreamMaintenanceProof = null, stream: ?StreamProof = null, log_saved: ?[]const u8 = null, maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -69,6 +78,7 @@ fn provision(admin: *Admin) !Profile {
     const table_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
     const stream_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
     const queue_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const scope: d.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try admin.change(.{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try admin.change(.{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
@@ -77,7 +87,7 @@ fn provision(admin: *Admin) !Profile {
         .branch = 1,
         .partition = 1,
         .audience = 100,
-        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
+        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
         .database_name = try .init("transit"),
         .initial_schema_name = try .init("public"),
     } };
@@ -243,6 +253,7 @@ fn logWrite(init: std.process.Init, client: c.DirectTableClient, profile: *Profi
     try t.expectEqual(@as(u32, 2), original.initialized);
     try t.expectEqualDeep(original, (try logCall(&caller, &output, .{ .admit = request })).admitted);
     const observed = (try logCall(&caller, &output, .{ .lookup = .{ .namespace = 1, .name = "typed_stream" } })).lookup.?;
+    try streamWrite(init, &caller, observed, profile, profile_path);
     const renamed = try logFinish(&caller, &output, try logEdit(init.gpa, client.connection, observed.declaration, 620002, .{ .rename = try .init("typed_stream_retained") }));
     var configuration = renamed.stored.declaration.configuration;
     configuration.retention.max_age_ms = 86400000;
@@ -267,6 +278,191 @@ fn logWrite(init: std.process.Init, client: c.DirectTableClient, profile: *Profi
     // The caller-owned schema remains valid across every subsequent request.
     try t.expectEqualStrings("id", observed.schema.columns[0].name);
     try t.expectEqual(@as(usize, 0), observed.schema.primary_key.len);
+}
+fn streamCall(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: c.DirectStreamClient.Action) !c.DirectStreamClient.Result {
+    const outcome = try caller.callStream(output, action);
+    return switch (outcome.value) {
+        .result => |value| value,
+        .failure => |failure| failure.cause,
+    };
+}
+fn streamUnknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, work: @FieldType(c.DirectStreamClient.Action, "mutate")) !void {
+    const outcome = try caller.callStream(output, .{ .mutate = work });
+    try t.expect(outcome.value == .failure);
+    try t.expectEqual(error.InvalidTableResponse, outcome.value.failure.cause);
+    try t.expect(outcome.mutationAttempted());
+    try t.expectEqualDeep(work.work.identity(), outcome.attempt.mutation.?.identity.?);
+    try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
+}
+fn streamWrite(init: std.process.Init, caller: *data.Catalog, source: c.DirectLogClient.Metadata, profile: *Profile, profile_path: []const u8) !void {
+    const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = source.declaration.stored.declaration.interpretation, .partition = 0 };
+    const operation: d.Operation = .{ .scope = target.interpretation.object.scope, .principal = caller.connection.principal, .operation = 621001 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    const payload = try c.storage.LogBatch.encode(source.schema, operation, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &buffer);
+    const append: c.DirectStreamMutation.Request = .{ .append = .{ .target = target, .operation = operation, .kind = .stream, .producer = .{ .id = @splat(7), .epoch = 1, .sequence = 1 }, .rows = 2, .payload = c.storage.LogBatch.content(payload) } };
+    const consume: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621002 }, .group = null, .from = 0, .until = null, .timestamp = null };
+    profile.stream = .{ .append = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = append, .payload = payload }), .consume = consume, .cursor = null };
+    try save(init, profile_path, profile.*);
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    try streamUnknown(caller, &output, .{ .work = append, .payload = payload });
+    const receipt = (try streamCall(caller, &output, .{ .operation = append })).operation.?.append;
+    try t.expectEqual(@as(u64, 0), receipt.first);
+    try t.expectEqual(@as(u64, 2), receipt.next);
+    try t.expectEqualDeep(receipt, (try streamCall(caller, &output, .{ .mutate = .{ .work = append, .payload = payload } })).operation.?.append);
+    try streamUnknown(caller, &output, .{ .work = .{ .consume = consume } });
+    const read = (try streamCall(caller, &output, .{ .operation = .{ .consume = consume } })).operation.?.consume;
+    const cursor = (try streamCall(caller, &output, .{ .cursor = .{ .target = target, .read = read.handle() } })).cursor;
+    profile.stream.?.cursor = cursor;
+    try save(init, profile_path, profile.*);
+    const first = (try streamCall(caller, &output, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    try t.expect(!first.cursor.coverage.complete);
+    const second = (try streamCall(caller, &output, .{ .page = .{ .cursor = first.cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    try t.expect(second.cursor.coverage.complete);
+    try t.expectEqual(@as(u64, 2), second.cursor.coverage.rows);
+    const group: p.StreamQueue.Group = .{ .id = 1, .generation = 1, .principal = operation.principal };
+    const assignment: c.DirectStreamMutation.Request = .{ .assign = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621003 }, .cut = cursor.coverage.cut, .expected = null, .group = group, .next = 0 } };
+    _ = try streamCall(caller, &output, .{ .mutate = .{ .work = assignment } });
+    var grouped = consume;
+    grouped.operation.operation = 621004;
+    grouped.group = group;
+    const group_read = (try streamCall(caller, &output, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
+    const group_cursor = (try streamCall(caller, &output, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
+    const consumed = (try streamCall(caller, &output, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    const offset: c.DirectStreamMutation.Request = .{ .offset = .{ .commit = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621005 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 }, .cursor = consumed.cursor } };
+    const release: c.DirectStreamMutation.Request = .{ .release = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621006 }, .target = target, .read = group_read.handle() } };
+    // Persist settlement and closure before entering their uncertain attempts.
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.stream-offset", .{profile_path}), .data = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = offset }) });
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.stream-release", .{profile_path}), .data = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = release }) });
+    try streamUnknown(caller, &output, .{ .work = offset });
+    _ = (try streamCall(caller, &output, .{ .operation = offset })).operation.?.offset;
+    try t.expectEqual(@as(u64, 2), (try streamCall(caller, &output, .{ .group = .{ .target = target, .id = 1 } })).group.?.next);
+    try streamUnknown(caller, &output, .{ .work = release });
+    _ = (try streamCall(caller, &output, .{ .operation = release })).operation.?.release;
+    try t.expectEqual(@as(i64, 42), first.rows[0].value.cells[0].value.atom.signed);
+    // The shared caller supplies the exact wait admission header. A timeout
+    // creates no read; retrying an already accepted read returns its old cut.
+    var waiting = consume;
+    waiting.operation.operation = 621007;
+    waiting.from = 2;
+    const timed_out = try streamCall(caller, &output, .{ .wait = .{ .consume = waiting, .milliseconds = 1 } });
+    try t.expectEqual(@as(u64, 2), timed_out.timed_out.next);
+    try t.expect((try streamCall(caller, &output, .{ .operation = .{ .consume = waiting } })).operation == null);
+    try t.expectEqualDeep(read, (try streamCall(caller, &output, .{ .wait = .{ .consume = consume, .milliseconds = 1000 } })).operation.?.consume);
+}
+fn streamMaintenancePrepare(init: std.process.Init, client: c.DirectTableClient, profile: *Profile, path: []const u8) !void {
+    (try client.call(.initialize)).deinit();
+    var caller = try logCaller(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const stream_schema: c.fuze.TableSchema.Schema = .{ .object = 630001, .revision = 1, .next_column = 2, .columns = columns[0..1], .primary_key = &.{} };
+    const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("maintained_stream"), .action = .{ .create = .{
+        .owner = profile.role,
+        .schema = stream_schema,
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = 1, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 8192, .claim_rows = 16, .read_rows = 128, .read_bytes = 8192, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 630001 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 630001 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
+    profile.log_saved = try c.DirectLogClient.save(init.arena.allocator(), client.connection, request);
+    try save(init, path, profile.*);
+    const definition = try logFinish(&caller, &output, request);
+    profile.stream_maintenance = .{ .target = .{ .definition = g.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 } };
+    for (0..2) |ordinal| {
+        var target = profile.stream_maintenance.?.target;
+        target.partition = @intCast(ordinal);
+        const operation: d.Operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 631001 + ordinal };
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(42 + ordinal) } } }};
+        const rows: [8]c.storage.LogBatch.Row = @splat(.{ .cells = &cells });
+        var buffer: [8192]u8 = undefined;
+        const payload = try c.storage.LogBatch.encode(stream_schema, operation, .stream, &rows, &buffer);
+        const append: c.DirectStreamMutation.Request = .{ .append = .{ .target = target, .operation = operation, .kind = .stream, .producer = .{ .id = @splat(@intCast(7 + ordinal)), .epoch = 1, .sequence = 1 }, .rows = 8, .payload = c.storage.LogBatch.content(payload) } };
+        profile.stream_maintenance.?.appends[ordinal] = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = append, .payload = payload });
+        try save(init, path, profile.*);
+        const accepted = (try streamCall(&caller, &output, .{ .mutate = .{ .work = append, .payload = payload } })).operation.?.append;
+        try t.expect(accepted.first == 0 and accepted.next == 8);
+        const consume: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 631101 + ordinal }, .group = null, .from = 0, .until = null, .timestamp = null };
+        profile.stream_maintenance.?.requests[ordinal] = consume;
+        try save(init, path, profile.*);
+        profile.stream_maintenance.?.reads[ordinal] = (try streamCall(&caller, &output, .{ .mutate = .{ .work = .{ .consume = consume } } })).operation.?.consume;
+        try save(init, path, profile.*);
+    }
+}
+
+fn streamMaintenanceCheck(init: std.process.Init, client: c.DirectTableClient, profile: *Profile, path: []const u8, writer: *std.Io.Writer) !void {
+    var caller = try logCaller(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const state = &profile.stream_maintenance.?;
+    if (state.probe != null) return error.UnsettledStreamProbe;
+    state.probe = state.next_probe;
+    state.next_probe += 4;
+    // Failed runs retain these exact identities for original-outcome inspection.
+    try save(init, path, profile.*);
+    var counts: [2]u64 = undefined;
+    var positions: [2]u64 = undefined;
+    for (0..2) |ordinal| {
+        _ = output.reset(.retain_capacity);
+        const saved = try c.DirectStreamClient.load(init.gpa, state.appends[ordinal].?);
+        defer saved.deinit();
+        const payload = try saved.value.work.payload.?.decode(output.allocator(), 8192);
+        const original = (try streamCall(&caller, &output, .{ .operation = saved.value.work.work })).operation.?.append;
+        try t.expect(original.first == 0 and original.next == 8);
+        try t.expectEqualDeep(original, (try streamCall(&caller, &output, .{ .mutate = .{ .work = saved.value.work.work, .payload = payload } })).operation.?.append);
+        var target = state.target;
+        target.partition = @intCast(ordinal);
+        const old_cursor = (try streamCall(&caller, &output, .{ .cursor = .{ .target = target, .read = state.reads[ordinal].?.handle() } })).cursor;
+        const old = (try streamCall(&caller, &output, .{ .page = .{ .cursor = old_cursor, .limits = .{ .rows = 8, .encoded_bytes = 8192, .scanned_rows = 8 } } })).page;
+        try t.expect(old.cursor.coverage.complete and old.rows.len == 8 and old.cursor.coverage.rows == 8);
+        for (old.rows, 0..) |row, offset| {
+            try t.expectEqual(@as(u64, @intCast(offset)), row.offset);
+            try t.expectEqual(@as(i64, @intCast(42 + ordinal)), row.value.cells[0].value.atom.signed);
+        }
+        const consume: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = client.connection.principal, .operation = state.probe.? + 2 * ordinal }, .group = null, .from = 0, .until = null, .timestamp = null };
+        const fresh = (try streamCall(&caller, &output, .{ .mutate = .{ .work = .{ .consume = consume } } })).operation.?.consume;
+        const cursor = (try streamCall(&caller, &output, .{ .cursor = .{ .target = target, .read = fresh.handle() } })).cursor;
+        const page = (try streamCall(&caller, &output, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 8, .encoded_bytes = 8192, .scanned_rows = 8 } } })).page;
+        try t.expect(page.cursor.coverage.complete and page.cursor.coverage.through == 8);
+        try t.expect(page.rows.len == 1 or page.rows.len == 8);
+        for (page.rows, 0..) |row, offset| {
+            try t.expectEqual(@as(u64, if (page.rows.len == 1) 7 else @intCast(offset)), row.offset);
+            try t.expectEqual(@as(i64, @intCast(42 + ordinal)), row.value.cells[0].value.atom.signed);
+        }
+        counts[ordinal] = page.rows.len;
+        positions[ordinal] = fresh.cut.accepted.next_lsn;
+        var release = consume.operation;
+        release.operation += 1;
+        _ = try streamCall(&caller, &output, .{ .mutate = .{ .work = .{ .release = .{ .operation = release, .target = target, .read = fresh.handle() } } } });
+    }
+    state.probe = null;
+    try save(init, path, profile.*);
+    try std.json.Stringify.value(.{ .rows = counts, .positions = positions }, .{}, writer);
+}
+
+fn streamRecover(init: std.process.Init, client: c.DirectTableClient, saved: StreamProof) !void {
+    const original = try c.DirectStreamClient.load(init.gpa, saved.append);
+    defer original.deinit();
+    try t.expectEqualDeep(client.connection, original.value.connection);
+    const payload = try original.value.work.payload.?.decode(init.arena.allocator(), 1024 * 1024);
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    var caller = try logCaller(init, client);
+    defer caller.deinit();
+    const receipt = (try streamCall(&caller, &output, .{ .operation = original.value.work.work })).operation.?.append;
+    try t.expectEqual(@as(u64, 2), receipt.next);
+    try t.expectEqualDeep(receipt, (try streamCall(&caller, &output, .{ .mutate = .{ .work = original.value.work.work, .payload = payload } })).operation.?.append);
+    const pinned = (try streamCall(&caller, &output, .{ .operation = .{ .consume = saved.consume } })).operation.?.consume;
+    try t.expectEqualDeep(saved.cursor.?.read, pinned.handle());
+    const page = (try streamCall(&caller, &output, .{ .page = .{ .cursor = saved.cursor.?, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    try t.expect(page.cursor.coverage.complete);
+    try t.expectEqual(@as(usize, 2), page.rows.len);
+    try t.expectEqual(@as(u64, 1), page.source.declaration.stored.declaration.interpretation.revision);
+    for (page.rows, 0..) |row, index| {
+        try t.expectEqual(@as(u64, @intCast(index)), row.offset);
+        try t.expectEqual(@as(i64, 42), row.value.cells[0].value.atom.signed);
+    }
 }
 fn logRecover(init: std.process.Init, client: c.DirectTableClient, saved_bytes: []const u8) !void {
     const saved_log = try c.DirectLogClient.load(init.gpa, saved_bytes);
@@ -308,6 +504,7 @@ fn retainedRows(init: std.process.Init, client: c.DirectTableClient, profile: Pr
 }
 fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
     try logRecover(init, client, profile.log_saved.?);
+    try streamRecover(init, client, profile.stream.?);
     const saved = profile.saved.?;
     try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
     try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
@@ -606,6 +803,31 @@ pub fn main(init: std.process.Init) !void {
             try Growth.read(init, client, profile.growth.?);
         } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
             try Growth.maintenance(client, profile.growth.?, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "queue-prepare")) {
+            try @import("fixture_direct_queue").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-recover")) {
+            try @import("fixture_direct_queue").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-release") or std.mem.eql(u8, args[2], "queue-release-recover")) {
+            try @import("fixture_direct_queue").releaseReads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}), std.mem.eql(u8, args[2], "queue-release-recover"));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-prepare")) {
+            try @import("fixture_direct_queue").terminalPrepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-ack")) {
+            try @import("fixture_direct_queue").terminalAck(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-observe")) {
+            const ready = try @import("fixture_direct_queue").terminalObserve(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(.{ .ready = ready }, &encoder);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "queue-maintenance")) {
+            const expired = try @import("fixture_direct_queue").maintenance(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(.{ .expired = expired }, &encoder);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "stream-maintenance-prepare")) {
+            try streamMaintenancePrepare(init, client, &profile, args[3]);
+        } else if (std.mem.eql(u8, args[2], "stream-maintenance-check")) {
+            try streamMaintenanceCheck(init, client, &profile, args[3], &output.interface);
             return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "maintenance-prepare")) {
             profile.maintenance = try Maintenance.prepare(init, client, profile.role);

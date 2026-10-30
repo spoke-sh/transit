@@ -7,6 +7,85 @@ fn fixture() !std.json.Parsed(q.SchemaTypes) {
     return p.Json.parseFromSlice(q.SchemaTypes, t.allocator, @embedFile("fixtures/stream-queue-v1.json"));
 }
 
+test "queue payload release binds the original claimant selection and a later acceptance" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const claim = parsed.value.claim;
+    try parsed.value.queue_read_release.requireRelease(parsed.value.queue_read_release.release);
+    var release: p.QueueRead.Release = .{ .operation = claim.claim.operation, .claim = claim };
+    try t.expectError(error.InvalidQueueReadRelease, release.validate());
+    release.operation.operation -= 1;
+    try release.validate();
+    const receipt: p.QueueRead.ReleaseReceipt = .{ .release = release, .accepted = .{
+        .partition = claim.accepted.partition,
+        .next_lsn = claim.accepted.next_lsn + 1,
+    } };
+    try receipt.requireRelease(release);
+    var changed = release;
+    changed.operation.principal += 1;
+    try t.expectError(error.InvalidQueueReadRelease, changed.validate());
+    changed = release;
+    changed.claim.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.QueueReadReleaseConflict, receipt.requireRelease(changed));
+    changed = release;
+    changed.operation.operation -= 1;
+    try t.expectError(error.QueueReadReleaseConflict, receipt.requireRelease(changed));
+    var invalid = receipt;
+    invalid.accepted.next_lsn = claim.accepted.next_lsn;
+    try t.expectError(error.InvalidQueueReadRelease, invalid.validate());
+    invalid = receipt;
+    invalid.accepted.partition += 1;
+    try t.expectError(error.InvalidQueueReadRelease, invalid.validate());
+    // Empty accepted claims can close too; a lease or payload is not fabricated.
+    release.claim.rows = 0;
+    release.claim.leases = null;
+    try release.validate();
+}
+
+test "queue claim cursors separate original selection from current lease observations" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const values = parsed.value;
+    const original = values.claim;
+    var cursor = values.queue_cursor;
+    try cursor.requireReceipt(original);
+    try t.expect(!cursor.complete());
+    cursor.next = original.rows;
+    try cursor.validate();
+    try t.expect(cursor.complete());
+    cursor.next += 1;
+    try t.expectError(error.InvalidQueueCursor, cursor.validate());
+    cursor = values.queue_cursor;
+    cursor.receipt.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.QueueClaimConflict, cursor.requireReceipt(original));
+    var basis = values.queue_observation_basis;
+    var observed = values.queue_lease_observation;
+    try observed.requireBasis(basis, original);
+    basis.time = .{ .earliest_ms = 999, .latest_ms = 1000 };
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+    observed.liveness = .unavailable;
+    try observed.requireBasis(basis, original);
+    basis.time = null;
+    try observed.requireBasis(basis, original);
+    observed.liveness = .expired;
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+    basis.time = .exact(1000);
+    try observed.requireBasis(basis, original);
+    observed.expires_ms = 2000;
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+    observed.liveness = .fenced;
+    try observed.requireBasis(basis, original);
+    observed.state = .acked;
+    observed.expires_ms = null;
+    try observed.requireBasis(basis, original);
+    observed.blocked = .exhausted;
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+    observed.state = .available;
+    try observed.requireBasis(basis, original);
+    basis.cut.accepted.next_lsn = original.accepted.next_lsn - 1;
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+}
+
 test "stream finite read attribution freezes its original cut range source and claimant" {
     const parsed = try fixture();
     defer parsed.deinit();
