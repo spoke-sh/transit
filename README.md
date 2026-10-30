@@ -32,6 +32,7 @@ Copy [transit.yaml.example](transit.yaml.example) to `transit.yaml` for an annot
 
 ## Find Your Way
 
+- [Artwork studies](docs/design/transit-artwork/D1.md): branching directions and color palettes.
 - [Component map](docs/handbook/reference/components.md): libraries, apps, and their READMEs.
 - [Examples](examples/README.md): complete applications and public SDK callers.
 - [Proof coverage](tests/README.md) and [qualification ledger](docs/history/qualification/README.md): executable checks, failure schedules, and verification limits.

@@ -13,6 +13,7 @@ and links to supporting material.
 
 | Design item | Focus |
 | --- | --- |
+| [transit-artwork](transit-artwork/README.md) | README visual identity: score-to-wave continuity, branching terrain/resonance and terrain/refraction, and color palettes |
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
 | [board-grammar](board-grammar/README.md) | Reactive Board composition, SQL-to-visual grammar, monochrome theme dimensions and application migration experience |
