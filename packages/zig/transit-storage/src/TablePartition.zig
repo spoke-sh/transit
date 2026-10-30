@@ -805,7 +805,8 @@ fn writeOperation(self: *Self, operation: Operation, guard: Guard) !OperationSta
         self.log = control.log;
         self.index.store = control.objects;
     };
-    try self.index.begin(self.options.index_work_bytes);
+    var index_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.index.end();
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -1116,7 +1117,8 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
         if (!std.mem.eql(u8, &changes_digest, &receipt.changes)) return error.DataIdentityConflict;
         return receipt.outcome;
     }
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -1260,7 +1262,8 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
     const after_bytes = try allocator.alloc(u8, max_row_bytes);
     defer allocator.free(after_bytes);
     var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     var index_batch: RowIndexBatch = .{ .table = self, .root = &next };
@@ -1423,7 +1426,8 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
     next.retired = stored.retired;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.changed_lsn = next.next_lsn;
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     if (transition) |*value| {
         value.after = replacement.schema.schema;
@@ -1605,12 +1609,14 @@ fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard)
             .operation => {},
             else => return error.UnsupportedTransactionStatement,
         }
+        if (self.index.candidate != null) try self.index.flush();
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
         self.root = record.root;
         return;
     }
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
+    if (self.index.candidate != null) try self.index.flush();
     const buffer = try self.allocator.alloc(u8, Log.max_payload_bytes);
     defer self.allocator.free(buffer);
     const payload = try r.encode(record, row_bytes, buffer);
@@ -1744,7 +1750,8 @@ pub fn resolveTransaction(self: *Self, guard: Guard) !?p.Transaction.Decision {
         next = try transactionSuccessor(self.root, preparation);
         const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = preparation.workspace.matched, .affected = preparation.workspace.affected, .live_rows = next.live_rows };
         var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = preparation.commitBinding(), .changes = reference.content.sha256, .outcome = outcome, .ingestion = .bulk, .transaction = .{ .prepared = reference, .decision = decision } } } };
-        try self.index.begin(self.options.index_work_bytes);
+        var tree_batch: TreeStore.Batch = .{};
+        try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
         defer self.index.end();
         try self.stageReceipt(&record);
         try self.publish(record, &.{}, guard);
@@ -2196,7 +2203,8 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, ro
 }
 
 fn publishSegmentRows(self: *Self, allocator: std.mem.Allocator, rows: []const f.TableRow.Row, compaction: bool, guard: Guard) !void {
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     const segment = try self.stageSegment(allocator, self.declaration.schema.schema, next.next_segment, rows);
@@ -2522,7 +2530,8 @@ pub fn archive(self: *Self, through: d.Position, limits: Archive.Limits, guard: 
         self.log = control.log;
         self.index.store = control.objects;
     }
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     while (next.archive.through < through.next_lsn and result.frames < limits.frames) {
@@ -2703,7 +2712,8 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
     }
     const basis = self.root;
     const handle = try Snapshot.stage(self.allocator, self.objects, owner, retention, basis, self.declaration.schema.schema);
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -2751,7 +2761,8 @@ pub fn releaseSnapshot(self: *Self, handle: SnapshotHandle, guard: Guard) !void 
     }
     var frozen = try self.loadSnapshot(self.allocator, handle);
     defer frozen.deinit();
-    try self.index.begin(self.options.index_work_bytes);
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);

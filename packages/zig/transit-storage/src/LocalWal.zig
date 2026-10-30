@@ -102,15 +102,35 @@ pub const LocalWal = struct {
         kind: TransitLog.FrameKind,
         payload: []const u8,
     ) !TransitLog.AppendReceipt {
+        return self.appendFrames(partition_id, expected_lsn, writer_epoch, policy_epoch, kind, &.{payload});
+    }
+
+    pub fn appendFrames(
+        self: *LocalWal,
+        partition_id: u64,
+        expected_lsn: ?u64,
+        writer_epoch: u64,
+        policy_epoch: u64,
+        kind: TransitLog.FrameKind,
+        payloads: []const []const u8,
+    ) !TransitLog.AppendReceipt {
         if (self.disk) |disk| {
-            const receipt = try disk.append(partition_id, expected_lsn, writer_epoch, policy_epoch, kind, payload);
-            self.appends += 1;
+            const receipt = try disk.appendFrames(partition_id, expected_lsn, writer_epoch, policy_epoch, kind, payloads);
+            self.appends += payloads.len;
             self.bytes_written += receipt.frame_bytes;
             self.syncs = disk.syncs;
             return receipt;
         }
+        const limits: Disk.Options = .{};
+        if (payloads.len == 0 or payloads.len > limits.batch_frames) return error.InvalidWalBatch;
         if (writer_epoch == 0 or policy_epoch == 0) return error.InvalidWalEpoch;
-        if (payload.len > TransitLog.max_payload_bytes) return error.WalPayloadTooLarge;
+        var total_bytes: usize = 0;
+        for (payloads) |payload| {
+            if (payload.len > TransitLog.max_payload_bytes) return error.WalPayloadTooLarge;
+            const frame_bytes = TransitLog.alignedFrameSize(payload.len);
+            if (frame_bytes > memory_bytes - total_bytes) return error.WalPayloadTooLarge;
+            total_bytes += frame_bytes;
+        }
         const part = try self.getOrCreatePartition(partition_id);
         if (writer_epoch < part.min_writer_epoch) return error.StaleWriterEpoch;
         if (policy_epoch < part.min_policy_epoch) return error.StalePolicyEpoch;
@@ -118,38 +138,42 @@ pub const LocalWal = struct {
             if (exp != part.next_lsn) return error.WalLsnConflict;
         }
         const lsn = part.next_lsn;
-        const successor = std.math.add(u64, lsn, 1) catch return error.WalLsnExhausted;
-        const frame_bytes = TransitLog.alignedFrameSize(payload.len);
+        const successor = std.math.add(u64, lsn, payloads.len) catch return error.WalLsnExhausted;
         var retained: usize = 0;
         for (self.partitions.items) |existing| retained += existing.bytes.items.len;
-        if (frame_bytes > memory_bytes - retained) return error.WalMemoryCapacity;
+        if (total_bytes > memory_bytes - retained) return error.WalMemoryCapacity;
         const old_len = part.bytes.items.len;
-        try part.bytes.resize(self.allocator, old_len + frame_bytes);
+        try part.bytes.resize(self.allocator, old_len + total_bytes);
         errdefer part.bytes.shrinkRetainingCapacity(old_len);
 
-        _ = try TransitLog.encodeFrame(
-            partition_id,
-            writer_epoch,
-            policy_epoch,
-            lsn,
-            1,
-            kind,
-            payload,
-            part.bytes.items[old_len .. old_len + frame_bytes],
-        );
+        var offset = old_len;
+        for (payloads, 0..) |payload, i| {
+            const frame_bytes = TransitLog.alignedFrameSize(payload.len);
+            _ = try TransitLog.encodeFrame(
+                partition_id,
+                writer_epoch,
+                policy_epoch,
+                lsn + i,
+                1,
+                kind,
+                payload,
+                part.bytes.items[offset .. offset + frame_bytes],
+            );
+            offset += frame_bytes;
+        }
         part.next_lsn = successor;
         part.min_writer_epoch = writer_epoch;
         part.min_policy_epoch = policy_epoch;
 
-        self.appends += 1;
-        self.bytes_written += frame_bytes;
+        self.appends += payloads.len;
+        self.bytes_written += total_bytes;
         return .{
             .partition_id = partition_id,
-            .lsn = lsn,
-            .next_lsn = part.next_lsn,
+            .lsn = successor - 1,
+            .next_lsn = successor,
             .writer_epoch = writer_epoch,
             .policy_epoch = policy_epoch,
-            .frame_bytes = frame_bytes,
+            .frame_bytes = total_bytes,
         };
     }
 

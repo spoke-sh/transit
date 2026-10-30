@@ -61,6 +61,7 @@ io: std.Io,
 directory: std.Io.Dir,
 queue: storage.LocalWal.LocalWal,
 allocator: std.mem.Allocator,
+head: ?QueueHead = null,
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir) !Self {
     const directory = try parent.openDir(io, "native-allocations", .{ .iterate = true });
@@ -113,6 +114,64 @@ pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
     try Files.save(self.io, self.directory, &name, &encoded, false);
     return true;
 }
+pub fn recordBatchTracked(self: *Self, allocations: []const Allocation, source: bool) !void {
+    const Objects = storage.TransitObjectStore;
+    if (allocations.len == 0 or allocations.len > Objects.max_put_batch) return error.InvalidNativeAllocation;
+    var encoded: [Objects.max_put_batch][record_bytes]u8 = undefined;
+    var names: [Objects.max_put_batch]Name = undefined;
+    var active: [Objects.max_put_batch]usize = undefined;
+    var active_count: usize = 0;
+    var synced_existing = false;
+    for (allocations, 0..) |allocation, i| {
+        encoded[i] = try allocation.encode();
+        names[i] = allocation.name();
+        for (allocations[0..i], names[0..i]) |earlier, earlier_name| {
+            if (std.mem.eql(u8, &earlier_name, &names[i])) {
+                if (!std.meta.eql(earlier, allocation)) return error.InvalidNativeAllocation;
+                break;
+            }
+        } else {
+            var bytes: [record_bytes]u8 = undefined;
+            if (try Files.read(self.io, self.directory, &names[i], &bytes)) |existing| {
+                if (!std.mem.eql(u8, existing, &encoded[i])) return error.InvalidNativeAllocation;
+                const file = try self.directory.openFile(self.io, &names[i], .{});
+                defer file.close(self.io);
+                try file.sync(self.io);
+                synced_existing = true;
+                continue;
+            }
+            active[active_count] = i;
+            active_count += 1;
+        }
+    }
+    if (active_count == 0) {
+        if (synced_existing) try Files.sync(self.io, self.directory);
+        return;
+    }
+    const head = try self.current();
+    var next_head = head;
+    var queue_bytes: [Objects.max_put_batch][queue_record_bytes]u8 = undefined;
+    var payloads: [Objects.max_put_batch][]const u8 = undefined;
+    for (active[0..active_count], 0..) |idx, k| {
+        const activity = try std.math.add(u64, next_head.source_activity, @intFromBool(source));
+        queue_bytes[k] = try encodeQueueRecord(.{
+            .position = next_head.tail,
+            .cursor = next_head.cursor,
+            .source_activity = activity,
+            .item = allocations[idx],
+        });
+        payloads[k] = &queue_bytes[k];
+        next_head.tail += 1;
+        next_head.source_activity = activity;
+    }
+    errdefer self.head = null;
+    _ = try self.queue.appendFrames(0, head.tail, 1, 1, .manifest_checkpoint, payloads[0..active_count]);
+    self.head = next_head;
+    for (active[0..active_count]) |idx| {
+        try Files.saveWithoutDirSync(self.io, self.directory, &names[idx], &encoded[idx], false);
+    }
+    try Files.sync(self.io, self.directory);
+}
 pub fn read(self: *Self, name: Name) !?Allocation {
     var bytes: [record_bytes]u8 = undefined;
     const encoded = (try Files.read(self.io, self.directory, &name, &bytes)) orelse return null;
@@ -120,7 +179,7 @@ pub fn read(self: *Self, name: Name) !?Allocation {
     if (!std.mem.eql(u8, &allocation.name(), &name)) return error.InvalidNativeAllocation;
     return allocation;
 }
-fn append(self: *Self, entry: QueueRecord) !void {
+fn encodeQueueRecord(entry: QueueRecord) ![queue_record_bytes]u8 {
     if (entry.position == std.math.maxInt(u64) or entry.cursor > entry.position or entry.source_activity > core.protocol.max_counter or entry.source_activity > entry.position + 1) return error.InvalidAllocationHistory;
     var bytes: [queue_record_bytes]u8 = @splat(0);
     bytes[0..8].* = "TNALQ1\x00\x00".*;
@@ -132,7 +191,13 @@ fn append(self: *Self, entry: QueueRecord) !void {
         bytes[56] = 1;
         bytes[72..].* = try item.encode();
     }
+    return bytes;
+}
+fn append(self: *Self, entry: QueueRecord) !void {
+    const bytes = try encodeQueueRecord(entry);
+    errdefer self.head = null;
     _ = try self.queue.log().append(0, entry.position, 1, 1, .manifest_checkpoint, &bytes);
+    self.head = .{ .tail = entry.position + 1, .cursor = entry.cursor, .source_activity = entry.source_activity };
 }
 pub fn at(self: *Self, position: u64) !QueueRecord {
     var batch = try self.queue.log().read(self.allocator, 0, position, 1);
@@ -149,9 +214,16 @@ pub fn at(self: *Self, position: u64) !QueueRecord {
 }
 pub fn current(self: *Self) !QueueHead {
     const tail = try self.queue.log().tail(0);
-    if (tail == 0) return .{ .tail = 0, .cursor = 0, .source_activity = 0 };
+    if (tail == 0) {
+        const empty: QueueHead = .{ .tail = 0, .cursor = 0, .source_activity = 0 };
+        self.head = empty;
+        return empty;
+    }
+    if (self.head) |cached| if (cached.tail == tail) return cached;
     const latest = try self.at(tail - 1);
-    return .{ .tail = tail, .cursor = latest.cursor, .source_activity = latest.source_activity };
+    const loaded: QueueHead = .{ .tail = tail, .cursor = latest.cursor, .source_activity = latest.source_activity };
+    self.head = loaded;
+    return loaded;
 }
 /// The caller serializes queue operations. A carry and cursor advance share one
 /// accepted WAL record, so uncertainty cannot lose or double-consume ownership.

@@ -9,6 +9,13 @@ const header_bytes = 40;
 pub const max_resident_pages = 4096;
 const Cached = struct { reference: pages.Reference, page: pages.Page };
 
+pub const Batch = struct {
+    references: [objects.max_put_batch]pages.Reference = undefined,
+    buffers: [objects.max_put_batch][header_bytes + pages.max_encoded_bytes]u8 = undefined,
+    lengths: [objects.max_put_batch]usize = undefined,
+    count: usize = 0,
+};
+
 allocator: std.mem.Allocator,
 store: objects.ObjectStore,
 cache: []?Cached,
@@ -20,7 +27,7 @@ misses: u64 = 0,
 /// deduplication. Provider/device writes and failed attempts are separate.
 staged_pages: u64 = 0,
 staged_bytes: u64 = 0,
-candidate: ?struct { limit: usize, staged: usize = 0 } = null,
+candidate: ?struct { limit: usize, staged: usize = 0, batch: ?*Batch = null } = null,
 
 pub fn init(allocator: std.mem.Allocator, store: objects.ObjectStore, resident_pages: usize) !Self {
     if (resident_pages > max_resident_pages) return error.InvalidPageCacheBudget;
@@ -42,8 +49,42 @@ pub fn begin(self: *Self, byte_limit: usize) !void {
     self.candidate = .{ .limit = byte_limit };
 }
 
+pub fn beginBatch(self: *Self, byte_limit: usize, batch: *Batch) !void {
+    if (self.candidate != null) return error.ActiveStorageCandidate;
+    if (byte_limit == 0) return error.InvalidStorageBudget;
+    batch.count = 0;
+    self.candidate = .{ .limit = byte_limit, .batch = batch };
+}
+
+pub fn flush(self: *Self) !void {
+    const candidate = if (self.candidate) |*value| value else return error.NoStorageCandidate;
+    const batch = candidate.batch orelse return;
+    if (batch.count == 0) return;
+    const count = batch.count;
+    var names: [objects.max_put_batch][96]u8 = undefined;
+    var puts: [objects.max_put_batch]objects.ImmutablePut = undefined;
+    var metas: [objects.max_put_batch]objects.ObjectMeta = undefined;
+    for (0..count) |i| {
+        const reference = batch.references[i];
+        const encoded = batch.buffers[i][0..batch.lengths[i]];
+        puts[i] = .{
+            .key = try key(reference.location, &names[i]),
+            .bytes = encoded,
+            .sha256 = reference.location,
+        };
+    }
+    try self.store.putImmutableBatch(puts[0..count], metas[0..count]);
+    for (puts[0..count], metas[0..count]) |put, meta| {
+        if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
+    }
+    batch.count = 0;
+}
+
 /// Discarding private work never deletes objects or changes a published root.
 pub fn end(self: *Self) void {
+    if (self.candidate) |candidate| if (candidate.batch) |batch| {
+        batch.count = 0;
+    };
     self.candidate = null;
 }
 
@@ -66,6 +107,23 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     candidate.staged += encoded.len;
     var result = reference;
     std.crypto.hash.sha2.Sha256.hash(encoded, &result.location, .{});
+    if (candidate.batch) |batch| {
+        const duplicate = for (batch.references[0..batch.count]) |existing| {
+            if (std.mem.eql(u8, &existing.location, &result.location)) break true;
+        } else false;
+        if (!duplicate) {
+            if (batch.count == objects.max_put_batch) try self.flush();
+            batch.references[batch.count] = result;
+            @memcpy(batch.buffers[batch.count][0..encoded.len], encoded);
+            batch.lengths[batch.count] = encoded.len;
+            batch.count += 1;
+            if (batch.count == objects.max_put_batch) try self.flush();
+        }
+        self.staged_pages +|= 1;
+        self.staged_bytes +|= encoded.len;
+        self.remember(result, page.*, false);
+        return result;
+    }
     var name: [96]u8 = undefined;
     const accepted = try self.store.putImmutable(try key(result.location, &name), encoded, result.location);
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &result.location)) return error.InvalidDataIndexObject;
@@ -104,9 +162,25 @@ pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []page
             count += 1;
         }
     }
-    try self.store.putImmutableBatch(puts[0..count], metas[0..count]);
-    for (puts[0..count], metas[0..count]) |put, meta| {
-        if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
+    if (candidate.batch) |staged_batch| {
+        for (references[0..batch.len], buffers[0..batch.len], lengths[0..batch.len]) |reference, *bytes, length| {
+            const duplicate = for (staged_batch.references[0..staged_batch.count]) |existing| {
+                if (std.mem.eql(u8, &existing.location, &reference.location)) break true;
+            } else false;
+            if (!duplicate) {
+                if (staged_batch.count == objects.max_put_batch) try self.flush();
+                staged_batch.references[staged_batch.count] = reference;
+                @memcpy(staged_batch.buffers[staged_batch.count][0..length], bytes[0..length]);
+                staged_batch.lengths[staged_batch.count] = length;
+                staged_batch.count += 1;
+                if (staged_batch.count == objects.max_put_batch) try self.flush();
+            }
+        }
+    } else {
+        try self.store.putImmutableBatch(puts[0..count], metas[0..count]);
+        for (puts[0..count], metas[0..count]) |put, meta| {
+            if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
+        }
     }
     for (batch, references[0..batch.len], lengths[0..batch.len]) |*page, reference, length| {
         self.staged_pages +|= 1;
@@ -122,6 +196,18 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
             self.hits +|= 1;
             self.markUsed(index);
             return cached.page;
+        }
+    };
+    if (self.candidate) |candidate| if (candidate.batch) |batch| {
+        for (batch.references[0..batch.count], 0..) |staged_ref, i| {
+            if (std.meta.eql(staged_ref, reference)) {
+                self.misses +|= 1;
+                const encoded = batch.buffers[i][0..batch.lengths[i]];
+                const page = try pages.Page.decode(self.allocator, encoded[header_bytes..]);
+                try reference.verify(&page);
+                self.remember(reference, page, true);
+                return page;
+            }
         }
     };
     self.misses +|= 1;

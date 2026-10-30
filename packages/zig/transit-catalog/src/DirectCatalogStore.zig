@@ -151,6 +151,7 @@ pub fn publish(self: *Self, next: r.Root, action: @FieldType(r.Record, "action")
     var bytes: [r.max_record_bytes]u8 = undefined;
     const encoded = try encode(record, &bytes);
     const chain = r.hash(encoded);
+    if (self.index.candidate != null) try self.index.flush();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidPartitionLease;

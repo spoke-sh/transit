@@ -374,7 +374,8 @@ pub fn previewLog(self: *Self, request: L.Request, policy: Policy) !L.Preview {
 }
 
 fn recordLog(self: *Self, input: L.Operation, previous: ?L.Operation, current: P.Guard) !L.Operation {
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     var operation = input;
@@ -699,7 +700,8 @@ fn resourceReason(self: *Self, binding: Resource.Binding, current: P.Guard) !Res
 }
 
 fn recordResource(self: *Self, operation_input: Resource.Operation, previous: ?Resource.Operation, current: P.Guard) !Resource.Operation {
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     var operation = operation_input;
@@ -1311,7 +1313,8 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
         .name_assertion => |value| try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, value),
         .namespace_change => |value| try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, value.binding),
     }
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -1367,7 +1370,8 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
     }
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -1523,7 +1527,8 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
         return acquired;
     }
     if (!state.pending or state.cancel) return error.InvalidTransactionCut;
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -1806,7 +1811,8 @@ pub fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progr
     head.charged_bytes = charge;
     try head.validate(progress);
     progress.record = try TransactionWorkspace.stage(staging.objects(), prior.receipt.binding.key.scope(), TransactionWorkspace.head_format, head.*);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     try self.store.clientIndices(&next, progress);
     try self.store.publish(next, .{ .client_token = progress }, current);
@@ -1910,7 +1916,8 @@ fn publishTransactionCall(self: *Self, progress: *c.DirectClientToken.Progress, 
         progress.pending = value == .settled and !value.settled.cleanup_complete;
         progress.record = try TransactionWorkspace.stage(self.data_objects, progress.receipt.binding.key.scope(), c.DirectTransactionCall.format, c.DirectTransactionCall.Stored{ .definition = p.Growth.current_definition, .call = progress.receipt.binding.intent.transaction_call, .result = value });
     }
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     try self.store.clientIndices(&next, progress.*);
     try self.store.publish(next, .{ .client_token = progress.* }, current);
@@ -2221,7 +2228,8 @@ fn publishTransactionControl(self: *Self, progress: *c.DirectClientToken.Progres
     control.revision = progress.revision;
     try control.validate(progress.*);
     progress.record = try TransactionWorkspace.stage(self.data_objects, progress.receipt.binding.key.scope(), TransactionControl.format, control.*);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     try self.store.clientIndices(&next, progress.*);
     try self.store.publish(next, .{ .client_token = progress.* }, guard_value);
@@ -2460,7 +2468,8 @@ pub fn initialize(self: *Self, policy: Policy) !void {
     const current = try self.guard(arena.allocator(), policy, initial, null, .create_schema);
     try check(current);
     if (self.store.root.initialized) return;
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.initialized = true;
@@ -2706,7 +2715,8 @@ pub fn namespaceOperation(self: *Self, binding: N.Binding, command: N.Command, p
     }
     if (command == .execute and previous == null) return .not_observed;
     try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, binding);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     var operation: N.Operation = previous orelse .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = .admitted, .reason = .none, .after = null, .resulting = null };
@@ -2870,7 +2880,8 @@ pub fn assertName(self: *Self, binding: c.NameAssertion.Binding, command: c.Name
     const current_guard = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current_guard);
     try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, binding);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -3051,7 +3062,8 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     const object = request.binding.target.object;
     const reason = try self.admissionReason(request, known != null, if (existing) |*view| view else null, current);
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     if (reason != .none) {
@@ -3168,7 +3180,8 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
     defer declaration.deinit();
     target.seed = try s.TableDeclaration.stage(self.store.objects, &declaration);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     next.objects = try self.store.tree().put(next.objects, try r.idKey(target.object), try r.pageValue(target));
@@ -3409,7 +3422,8 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
         }
     }
     const previous = try self.dependencyEdge(binding.edge);
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     if (outcome.phase == .applied) {
@@ -3910,7 +3924,8 @@ pub fn rangeRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, ha
 }
 
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {
-    try self.store.index.begin(self.options.index_work_bytes);
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     var next = self.store.root;
     const object_key = try r.idKey(previous.binding.target.object);

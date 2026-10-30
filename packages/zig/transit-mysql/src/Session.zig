@@ -75,10 +75,10 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             if (fields.len != 0) try self.metadataEnd();
             self.statements[free] = .{ .id = id, .prepared = prepared };
         }
-        fn execute(self: *Self, prepared: *Host.Prepared, values: []const ?g.fuze.Types.Values.Atom, binary: bool) !void {
+        fn execute(self: *Self, prepared: *Host.Prepared, values: []const ?g.fuze.Types.Values.Atom, binary: bool, validated: bool) !void {
             if (prepared.empty()) return error.EmptyWireQuery;
             try self.host.bind(prepared, values);
-            try self.host.validate(prepared);
+            if (!validated) try self.host.validate(prepared);
             if (prepared.mutation()) {
                 const result = try self.host.write(prepared, values);
                 try result.validate();
@@ -146,7 +146,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 .query => |sql| {
                     const prepared = try self.host.prepare(sql);
                     defer self.host.destroy(prepared);
-                    try self.execute(prepared, &.{}, false);
+                    try self.execute(prepared, &.{}, false, true);
                 },
                 .prepare => |sql| try self.prepare(sql),
                 .execute => |body| {
@@ -157,7 +157,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                     if (types.len > kinds.len) return error.TooManyWireParameters;
                     for (types, kinds[0..types.len]) |logical, *kind| kind.* = (try g.Type.from(.{ .name = "?", .type = logical, .nullable = true })).kind;
                     const bound = try slot.parameters.execute(body, id, kinds[0..types.len]);
-                    try self.execute(slot.prepared, bound.values[0..bound.count], true);
+                    try self.execute(slot.prepared, bound.values[0..bound.count], true, false);
                 },
                 .close => |id| if (self.index(id)) |i| {
                     self.host.destroy(self.statements[i].?.prepared);
