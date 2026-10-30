@@ -9,6 +9,73 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Automatic local Queue maintenance — 2026-10-30
+
+`9c1c5f0169737ecca5a6981a251d5ada2b30a0f1` shares bounded catalog maintenance
+between Tables, Streams and Queues. Each log kind retains at most one recovering
+workspace and 64 disposable root hints under the existing 32 MiB aggregate
+budget. Queue units seal accepted batches, archive/checkpoint/trim physical WAL
+and expire one earliest accepted lease under current native maintenance rights.
+Expiry does not grant payload retention permission.
+
+The native disk schedule passes with two Queue partitions alongside existing
+Streams. Forty separate appends exceed the 16-record replay unit. Missing time
+refuses expiry; an interval spanning the deadline leaves the two current leases
+acquired; moving its lower bound to the deadline expires them under ordinary
+quota exhaustion. Backoff remains anchored to the accepted deadline. Disposal
+releases all private bytes; cold reopen after actual WAL trimming retains original
+claims and payloads. The ReleaseSafe run records 220 physical Queue work units
+and 17,789,221 peak private bytes; the Stream arm records 157 units and 6,867,356
+peak bytes. These measurements exclude provider caches and whole-process memory.
+
+The first combined native run exposed an old fixture ordering that left an active
+Queue with no trusted clock during the Stream arm. It correctly refused with
+`QueueTimeUnavailable`; the fixture now separates those phases. A subsequent
+review found that sealing after expiry had recorded retirement reused a fresh
+operation cut and refused `LogDeclarationConflict`. The expanded disk test
+reproduced that failure, then passed with a retained-data cut for physical
+sealing. Fresh claims still refuse. Archive, checkpoint, WAL trim and cold reopen
+preserve the original selection after this ordering.
+
+Successful component logs are `/var/tmp/transit-queue-maintenance-catalog.log`,
+`/var/tmp/transit-queue-retired-flush-final.log` (all Queue/Stream partition tests)
+and `/var/tmp/transit-queue-maintenance-fast-final.log` (48 checks).
+`/var/tmp/transit-queue-maintenance-native-final.log` is the ReleaseSafe native
+schedule on dirty parent `c3613ee70`, before the subsequent retired-flush fix;
+`/var/tmp/transit-queue-maintenance-native-second.log` is its Debug run.
+The preserved initial clock failure is
+`/var/tmp/transit-queue-maintenance-native-first.log`; the deliberate retirement
+regression failure is `/var/tmp/transit-queue-retired-flush-red.log`.
+
+The final installed Queue schedule passes on committed `9c1c5f016` with
+`dirty: false`: 280 signed HTTP calls, three uncertain replies and 60 expiry
+probes. It retires the Queue, kills/restarts the node, recovers the original
+operations, and enables expiry with physical flushing disabled. Both original
+leases become available while the ACKed row stays ACKed. Only then does it enable
+sealing/archive work; one segment contains all three rows. A further restart
+preserves original outcomes, payloads and saved request bytes. Evidence is
+`/var/tmp/transit-queue-maintenance-installed-final.log`. The private successful
+installation `/var/tmp/transit-table-queues-93o98aua` was removed by the harness.
+
+The combined installed Table/Stream maintenance gate also passes on that same
+committed revision and binaries. It verifies 258 original Table rows, 48 concurrent
+writes, pressure on ordinary request admission, reserved original-outcome recovery,
+archive/checkpoint convergence and retained cuts across restart. Two Stream
+partitions compact 16 rows to two visible rows after seven probes while original
+reads still return all 16. Evidence is
+`/var/tmp/transit-log-maintenance-combined-installed.log`.
+
+Both installed runs record SHA-256 values:
+
+- Node: `ceefc1f6a58b3727fcfdf2cbd3b9438957d947b4e6106884bc66547860676d2d`.
+- Caller: `c9aca2bfbf4675d6b09143f870cef8d4f665f2335658c9270bb2329e5eaf8f56`.
+
+These are committed-source workspace checks with existing build caches, not
+isolated clean lanes. They do not qualify a hierarchical timing wheel, bounded
+lock-free affinity, far-future runs, terminal payload cleanup, DLQ transfer or
+mixed transactions. The earlier Stream clean-core result does not qualify these
+later Queue changes.
+
 ## Signed Queue service, typed recovery and installed restart — 2026-10-30
 
 `46e5e4da1` adds the signed Queue action and shared typed client. The focused
