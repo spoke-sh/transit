@@ -473,7 +473,8 @@
       "timeout": 120
     },
     "launchers": {
-      "cache": "experience"
+      "cache": "experience",
+      "timeout": 45
     },
     "bindings-1": {
       "cache": "bindings",

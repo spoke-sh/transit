@@ -78,6 +78,8 @@ A finite query upload can contain several signed steps. If any step loses its
 reply, **Retry exact submission** recovers that step's saved request. A later step
 can require the same explicit action again. Status polling alone does not confirm
 an uncertain submission or authorize a replacement query.
+An explicit retry waits for an ongoing workspace check; navigation or a known
+denial cancels the waiting action while retaining the saved request.
 
 The optional application editor uses the shared compiler and neutral definition.
 Review the whole valid proposal and publish conditionally with the operator's

@@ -27,6 +27,7 @@ import { QueryInspection, type Inspection } from "./query-inspection";
 import { DraftControls } from "./draft-controls";
 import { useScope } from "./state";
 import { unifiedContract, unifiedPage, mismatch, type QueryBinding } from "./binding";
+import { WorkspaceTasks } from "./workspace-tasks";
 
 type Description = Extract<UnifiedQueryResponse, { description: unknown }>["description"];
 type Compiled = Extract<UnifiedQueryResponse, { compiled: unknown }>["compiled"];
@@ -56,7 +57,7 @@ const retained = {
   runDraft: "",
   resource: 0,
   work: { current: empty() },
-  active: false,
+  tasks: new WorkspaceTasks(),
   follow: false,
   blocked: false,
   binding: null as string | null,
@@ -174,38 +175,42 @@ export function UnifiedWorkspace({
     setAuthorized(false);
   }, []);
   const task = useCallback(
-    async (operation: (signal: AbortSignal) => Promise<void>) => {
-      if (retained.active) return;
-      retained.active = true;
+    async (operation: (signal: AbortSignal) => Promise<void>, wait = false) => {
       const signal = abort.current.signal;
-      setWorking(true);
-      try {
-        await operation(signal);
-      } catch (cause) {
-        if (alive.current && !signal.aborted) {
-          showError(cause);
-          if (cause instanceof BoardError && cause.code === "BindingChanged") {
-            setAuthorized(false);
-            setPage(null);
-            setInspection(null);
+      await retained.tasks.run(
+        async () => {
+          if (!alive.current) return;
+          setWorking(true);
+          try {
+            await operation(signal);
+          } catch (cause) {
+            if (alive.current && !signal.aborted) {
+              showError(cause);
+              if (cause instanceof BoardError && cause.code === "BindingChanged") {
+                setAuthorized(false);
+                setPage(null);
+                setInspection(null);
+              }
+              if (
+                cause instanceof BoardError &&
+                (cause.status === 403 || cause.status === 410 || cause.code === "HistoryReclaimed")
+              )
+                clear();
+            }
+          } finally {
+            if (!work.current.pending) {
+              retained.release?.();
+              retained.release = null;
+            }
+            if (alive.current) {
+              setWorking(false);
+              render((n) => n + 1);
+            }
           }
-          if (
-            cause instanceof BoardError &&
-            (cause.status === 403 || cause.status === 410 || cause.code === "HistoryReclaimed")
-          )
-            clear();
-        }
-      } finally {
-        if (!work.current.pending) {
-          retained.release?.();
-          retained.release = null;
-        }
-        retained.active = false;
-        if (alive.current) {
-          setWorking(false);
-          render((n) => n + 1);
-        }
-      }
+        },
+        signal,
+        wait,
+      );
     },
     [clear],
   );
@@ -648,7 +653,7 @@ export function UnifiedWorkspace({
                 await caller(signal);
                 await dispatch(signal);
                 refresh((n) => n + 1);
-              })
+              }, true)
             }
           >
             Retry exact submission

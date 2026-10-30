@@ -265,7 +265,7 @@ and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
 Hosted execution caps are 90 minutes for core, 150 each for growth and interfaces, 120 for experience,
-30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
+45 for launchers, and 360 for each of the two bindings lanes.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
 hosted setup, and one original 40 KiB SQL mutation takes 56.61 minutes to complete.
@@ -276,6 +276,15 @@ motivate finite headroom for the expanded inventories; they are not a measured
 hosted job duration or a claim that the entire current suite has passed.
 Individual proof deadlines, resident bounds and the separately recorded feedback
 budgets remain unchanged.
+
+The [hosted launcher run](https://github.com/spoke-sh/transit/actions/runs/40967081402/job/123774483021)
+takes 27 minutes including setup, Debug build smoke checks and ReleaseSafe
+launcher qualification. The [nightly launcher attempt](https://github.com/spoke-sh/transit/actions/runs/40967294752/job/123775175169)
+reaches 28 minutes before its first cold launcher build exceeds the startup
+invocation's ten-minute limit. Launcher proofs prepare artifacts before starting
+runtime deadlines; the 45-minute outer cap includes that compilation and setup
+even when a nominal cache-reuse run misses its dependencies. It does not extend
+startup, readiness or recovery deadlines.
 
 The [hosted core inventory record](../docs/history/qualification/runtime.md#hosted-core-execution-cap--2026-10-26)
 adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
