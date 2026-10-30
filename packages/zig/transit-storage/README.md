@@ -219,6 +219,12 @@ array cannot limit accepted settlement. The accepted Queue WAL root, batched
 buffer persistence, native maintenance and retained graph are not yet migrated
 to this helper.
 
+`QueueSchedule.Buffers` selects the final visibility and lease delta objects
+when persisting a private candidate. Intermediate buffer versions can remain
+only in reusable candidate memory, while all other object namespaces persist
+normally. It never deletes a previously accepted buffer. The integrating Queue
+owner must supply both final roots and preserve any earlier accepted references.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current

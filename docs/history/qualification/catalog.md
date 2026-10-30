@@ -9,6 +9,27 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Final Queue delta persistence — 2026-10-30
+
+On dirty parent `b97f41a18`, the disk scheduling fixture persists 100 private
+appends as one final active buffer. From that retained root, another 158 appends
+seal a chunk and leave a two-entry delta. Two cold private derivations produce
+the same root without underlying writes. Selecting final buffer names then
+persists exactly three additional objects: the sealed chunk, its directory page
+and the final delta. Disk reopen verifies the earlier and later roots, confirms
+the earlier accepted buffer is retained, and finds no intermediate delta object.
+
+The selected candidate-object and scheduling tests pass in
+`/var/tmp/transit-queue-buffer-persistence.log`. All 50 fast checks pass in
+`/var/tmp/transit-queue-buffer-persistence-fast.log`. The ordinary `persist`
+operation continues to select every candidate object; its existing paged-root
+and bounded-reuse checks pass in the same selected test run. The new selection
+does not delete provider objects or grant physical collection authority.
+
+This qualifies private scheduling composition and persistence, not an accepted
+Queue WAL transition. The Queue owner has not yet adopted the new scheduling
+roots or final-buffer selection. No new installed or clean-lane result is claimed.
+
 ## Queue scheduling rebase qualification — 2026-10-30
 
 At `1766f70a706443ca59c81bd83c72d150c0aba8dc`, the feature branch is rebased

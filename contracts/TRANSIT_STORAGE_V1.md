@@ -1404,8 +1404,14 @@ bucket. Pending keys are the first `(time, offset, epoch)` triple followed by
 the serial, all big-endian `u64`; values are the 240-byte run descriptors.
 Pending cardinality has no resident fan-in array or fixed total bound. Staging
 still obeys the caller's private page budget and provider quotas. Intermediate
-buffer candidates are not published by this helper; the integrating owner must
-batch their persistence so per-event staging does not become per-event I/O.
+buffer candidates are not published by this helper. `QueueSchedule.Buffers`
+selects only the final visibility/deadline buffer names for
+`CandidateObjects.persistSelected`; every other object namespace remains
+selected. Previously accepted underlying buffers are never deleted. The caller
+must establish that no accepted reference in its action retains an intermediate
+buffer. Runs and merge states contain scalar events or chunk directories, never
+intermediate buffer references. The Queue WAL owner still needs to adopt this
+selection so per-event private derivation does not become per-event I/O.
 
 Merged-run keys contain a big-endian `u64` bucket and `u8` level from zero
 through 63; their values are exact logical-run roots. A collision merges two

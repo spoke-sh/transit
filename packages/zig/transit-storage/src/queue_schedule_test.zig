@@ -168,3 +168,56 @@ test "queue schedule refuses malformed roots lost coverage and private sealing f
     try objects.objectStore().delete(try Run.key(chunk.content, &name));
     try t.expectError(error.QueueTimeRunMissing, schedule.nextEvent(root, null, basis, 1024, Even{}));
 }
+
+test "queue schedule persists final buffers and replays without intermediate disk writes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "candidate");
+    defer objects.deinit();
+    var candidates = try @import("CandidateObjects.zig").init(t.allocator, objects.objectStore(), .{ .bytes = 2 * 1024 * 1024, .objects = 512, .resident_bytes = 3 * 1024 * 1024 });
+    defer candidates.deinit();
+    var tree = try s.TreeStore.init(t.allocator, candidates.objectStore(), 1);
+    defer tree.deinit();
+    var scratch = std.heap.ArenaAllocator.init(t.allocator);
+    defer scratch.deinit();
+    const workspace = try t.allocator.create(Schedule.Workspace);
+    defer t.allocator.destroy(workspace);
+    const schedule: Schedule = .{ .store = &tree, .scratch = &scratch, .workspace = workspace, .seed = seed(), .kind = .visible };
+    var root: Schedule.Root = .empty;
+    for (0..100) |i| root = try schedule.append(root, event(i, 0));
+    const earlier = root;
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    try candidates.persistSelected(try Schedule.Buffers.init(root, .empty));
+    try t.expectEqual(@as(u64, 1), objects.puts);
+    var final: ?Schedule.Root = null;
+    var intermediate: ?p.DataLifecycle.Content = null;
+    for (0..2) |_| {
+        try candidates.reset(objects.objectStore());
+        tree.clearCache();
+        _ = scratch.reset(.free_all);
+        root = earlier;
+        try tree.begin(2 * 1024 * 1024);
+        for (100..258) |i| {
+            root = try schedule.append(root, event(i, 0));
+            if (i == 123) intermediate = root.active;
+        }
+        tree.end();
+        if (final) |expected| try t.expectEqualDeep(expected, root) else final = root;
+        try t.expectEqual(@as(u64, 1), objects.puts);
+        try t.expect(candidates.count > 150);
+    }
+    try candidates.persistSelected(try Schedule.Buffers.init(root, .empty));
+    // One sealed chunk, one directory page and one final delta, independent of
+    // the 158 private appends and their intermediate immutable buffer objects.
+    try t.expectEqual(@as(u64, 4), objects.puts);
+    tree.deinit();
+    objects.deinit();
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "candidate");
+    try candidates.reset(objects.objectStore());
+    tree = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    var name: [96]u8 = undefined;
+    try t.expect(try objects.objectStore().head(try s.QueueTimeBuffer.key(intermediate.?, &name)) == null);
+    try t.expect(try objects.objectStore().head(try s.QueueTimeBuffer.key(earlier.active.?, &name)) != null);
+    try t.expect(try schedule.nextEvent(earlier, event(98, 0), basis, 4, Even{}) == null);
+    try t.expectEqualDeep(event(100, 0), (try schedule.nextEvent(root, event(98, 0), basis, 128, Even{})).?);
+}

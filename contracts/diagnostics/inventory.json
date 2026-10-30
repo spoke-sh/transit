@@ -30794,6 +30794,7 @@
         "head()": "<inferred>",
         "init()": "<inferred>",
         "persist()": "<inferred>",
+        "persistSelected()": "<inferred>",
         "put()": "<inferred>",
         "reset()": "<inferred>",
         "slot()": "<inferred>"
@@ -32534,6 +32535,7 @@
       "error_sets": {},
       "error_returns": {
         "Budget.charge()": "<inferred>",
+        "Buffers.init()": "<inferred>",
         "Root.validate()": "<inferred>",
         "Slot.decode()": "<inferred>",
         "Slot.key()": "<inferred>",
@@ -32557,7 +32559,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
+        "try": 98,
         "catch": 2
       },
       "imports": [

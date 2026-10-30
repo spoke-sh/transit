@@ -81,6 +81,27 @@ pub const Workspace = struct {
     buffer_bytes: [Buffer.max_bytes]u8,
     merge: Merge.Workspace,
 };
+
+/// Queue actions retain only their final visibility/deadline delta buffers.
+/// Runs, merge states and FIFO metadata never reference an intermediate buffer;
+/// previously accepted buffers are untouched in the underlying object store.
+pub const Buffers = struct {
+    names: [2][96]u8,
+    lengths: [2]u8,
+    pub fn init(visible: Root, lease: Root) !Buffers {
+        var result: Buffers = .{ .names = undefined, .lengths = @splat(0) };
+        for ([_]Root{ visible, lease }, &result.names, &result.lengths) |root, *name, *length| {
+            try root.validate();
+            if (root.active) |content| length.* = @intCast((try Buffer.key(content, name)).len);
+        }
+        return result;
+    }
+    pub fn keep(self: Buffers, name: []const u8) bool {
+        if (!std.mem.startsWith(u8, name, "queue-time-buffers/")) return true;
+        for (&self.names, self.lengths) |*retained, length| if (length != 0 and std.mem.eql(u8, retained[0..length], name)) return true;
+        return false;
+    }
+};
 store: *Store,
 scratch: *std.heap.ArenaAllocator,
 workspace: *Workspace,

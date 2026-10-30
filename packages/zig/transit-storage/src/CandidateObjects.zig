@@ -79,7 +79,19 @@ pub fn objectStore(self: *Self) Objects.ObjectStore {
 /// fenced WAL publication can accept the derived roots. On failure, retain the
 /// original operation and retry these same immutable objects if needed.
 pub fn persist(self: *Self) !void {
+    return self.persistSelected(struct {
+        pub fn keep(_: @This(), _: []const u8) bool {
+            return true;
+        }
+    }{});
+}
+
+/// The owner may exclude intermediate artifacts proven unreachable from every
+/// accepted reference in this candidate. This never deletes existing objects;
+/// it is not a substitute for the retained storage graph's collection authority.
+pub fn persistSelected(self: *Self, selection: anytype) !void {
     for (self.entries[0..self.count]) |entry| {
+        if (!selection.keep(self.key(entry))) continue;
         const stored = try self.underlying.putImmutable(self.key(entry), self.bytes(entry), entry.digest);
         if (!std.meta.eql(stored, entry.metadata())) return error.InvalidCandidateObject;
     }
