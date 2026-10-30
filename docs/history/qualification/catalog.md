@@ -9,6 +9,26 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue foundation clean core failure — 2026-10-30
+
+The committed-source core lane at pre-rebase
+`52e8d40a89426db6546a611b71b6c01c60544aba` fails in the installed Station
+transport-retry fixture. The assertion at `tests/runtime/station/station.py:187`
+requires exactly two identical audit/reply turn request bodies. The captured
+run reports request timeouts and connection closures, then reaches that failed
+assertion; it does not record the body count or their digests, so the failing
+conjunct and cause are not established. The test completed domain progress but
+this does not waive its retry assertion. No deadline or semantic check was relaxed.
+
+Earlier lane phases, including `check::core`, properties, delivery/resource
+simulations, package checks, SDK/runtime-boundary checks and client ABI checks,
+passed. The lane as a whole failed and later phases did not execute. Raw output
+is `/var/tmp/transit-queue-clean-core-52e8d40a8.log`; the failed fresh checkout and
+artifacts are retained at `/var/tmp/transit-ci-n7fndw1z`. This run predates the
+rebase and accepted timer integration. Isolated reproduction and final-candidate
+clean qualification remain open; concurrent disk work is an observation, not
+an established explanation of the failure.
+
 ## Accepted Queue timer schedules — 2026-10-30
 
 On dirty parent `e387a41ca`, accepted Queue roots replace per-event visibility
