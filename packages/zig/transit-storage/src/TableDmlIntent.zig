@@ -82,12 +82,8 @@ pub fn key(content: d.Content, output: *[96]u8) ![]const u8 {
     return std.fmt.bufPrint(output, "table-intents/{x}.data", .{&content.sha256});
 }
 
-pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: Request) !d.Content {
+fn encodeWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, request: Request, bytes: []u8) ![]const u8 {
     try request.validate();
-    var declaration = try Declaration.load(allocator, objects, request.interpretation);
-    defer declaration.deinit();
-    const bytes = try allocator.alloc(u8, max_bytes);
-    defer allocator.free(bytes);
     var metadata: [max_metadata_bytes]u8 = undefined;
     var metadata_writer: std.Io.Writer = .fixed(&metadata);
     try std.json.Stringify.value(Metadata{ .binding = request.binding, .interpretation = request.interpretation, .ingestion = request.ingestion, .work = if (request.statement != null) .statement else .rows, .count = @intCast(request.changes.len) }, .{}, &metadata_writer);
@@ -105,7 +101,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request
             try writer.writeByte(@backingInt(value.expect));
             const length_at = header_bytes + writer.end;
             try writer.writeInt(u32, 0, .little);
-            const row = try value.row.encode(declaration.schema.schema, bytes[header_bytes + writer.end ..]);
+            const row = try value.row.encode(schema, bytes[header_bytes + writer.end ..]);
             writer.end += row.len;
             std.mem.writeInt(u32, bytes[length_at..][0..4], @intCast(row.len), .little);
         },
@@ -116,7 +112,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request
             try writer.writeAll(value.key);
             const length_at = header_bytes + writer.end;
             try writer.writeInt(u32, 0, .little);
-            const row = try value.row.encode(declaration.schema.schema, bytes[header_bytes + writer.end ..]);
+            const row = try value.row.encode(schema, bytes[header_bytes + writer.end ..]);
             writer.end += row.len;
             std.mem.writeInt(u32, bytes[length_at..][0..4], @intCast(row.len), .little);
         },
@@ -127,7 +123,30 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request
             try writer.writeAll(value);
         },
     };
-    const encoded = bytes[0 .. header_bytes + writer.end];
+    return bytes[0 .. header_bytes + writer.end];
+}
+
+pub fn expectedContentWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, request: Request) !d.Content {
+    const bytes = try allocator.alloc(u8, max_bytes);
+    defer allocator.free(bytes);
+    const encoded = try encodeWithSchema(allocator, schema, request, bytes);
+    return .{ .bytes = encoded.len, .sha256 = hash(encoded) };
+}
+
+pub fn expectedContent(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: Request) !d.Content {
+    try request.validate();
+    var declaration = try Declaration.load(allocator, objects, request.interpretation);
+    defer declaration.deinit();
+    return expectedContentWithSchema(allocator, declaration.schema.schema, request);
+}
+
+pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: Request) !d.Content {
+    try request.validate();
+    var declaration = try Declaration.load(allocator, objects, request.interpretation);
+    defer declaration.deinit();
+    const bytes = try allocator.alloc(u8, max_bytes);
+    defer allocator.free(bytes);
+    const encoded = try encodeWithSchema(allocator, declaration.schema.schema, request, bytes);
     const content: d.Content = .{ .bytes = encoded.len, .sha256 = hash(encoded) };
     var name: [96]u8 = undefined;
     const stored = try objects.putImmutable(try key(content, &name), encoded, content.sha256);

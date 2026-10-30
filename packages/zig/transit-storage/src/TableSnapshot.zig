@@ -41,6 +41,14 @@ pub fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
 }
 
 pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
+    return stageWith(allocator, objects, null, owner, retention, root, schema);
+}
+
+pub fn stageInTree(allocator: std.mem.Allocator, tree: *@import("TreeStore.zig"), owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
+    return stageWith(allocator, tree.store, tree, owner, retention, root, schema);
+}
+
+fn stageWith(allocator: std.mem.Allocator, objects: Objects.ObjectStore, tree: ?*@import("TreeStore.zig"), owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
     try owner.validate();
     try root.validate();
     if (!std.meta.eql(owner.scope, root.interpretation.object.scope) or !std.mem.eql(u8, &try schema.fingerprint(), &root.schema_fingerprint)) return error.InvalidTableBasis;
@@ -65,7 +73,11 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: 
     const encoded = bytes[0 .. header_bytes + metadata.len + encoded_schema.len];
     const content: d.Content = .{ .bytes = encoded.len, .sha256 = r.hash(encoded) };
     var name: [96]u8 = undefined;
-    const stored = try objects.putImmutable(try key(content, &name), encoded, content.sha256);
+    const object_key = try key(content, &name);
+    const stored = if (tree) |store|
+        try store.stageObject(object_key, encoded, content.sha256)
+    else
+        try objects.putImmutable(object_key, encoded, content.sha256);
     if (stored.size != content.bytes or !std.mem.eql(u8, &stored.sha256, &content.sha256)) return error.InvalidTableSnapshot;
     return .{ .owner = owner, .content = content };
 }

@@ -622,7 +622,7 @@ fn requireReceiptTransition(self: *Self, before: Root, record: r.Record) !void {
 
 fn stageReceipt(self: *Self, record: *r.Record) !void {
     const receipt = try record.receipt();
-    const value = try StoredEvidence.stage(self.index.store, try StoredEvidence.Record.fromAcceptance(record.*));
+    const value = try StoredEvidence.stageInTree(&self.index, try StoredEvidence.Record.fromAcceptance(record.*));
     record.root.receipts = try self.tree().put(record.root.receipts, try r.operationKey(receipt.binding.identity), value);
 }
 
@@ -819,7 +819,7 @@ fn writeOperation(self: *Self, operation: Operation, guard: Guard) !OperationSta
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     const key = try r.operationKey(operation.binding.identity);
-    const value = try StoredEvidence.stage(self.index.store, .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .evidence = .{ .operation = operation } });
+    const value = try StoredEvidence.stageInTree(&self.index, .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .evidence = .{ .operation = operation } });
     next.operations = try self.tree().put(next.operations, key, value);
     next.pending = if (operation.phase == .admitted) try self.tree().put(next.pending, key, value) else try self.tree().remove(next.pending, key);
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .operation = operation } }, &.{}, guard);
@@ -862,6 +862,13 @@ pub fn admit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
     return self.writeOperation(operation, guard);
 }
 
+fn expectedIntentContent(self: *Self, allocator: std.mem.Allocator, request: Dml.Request) !d.Content {
+    if (self.root.next_lsn != 0 and std.meta.eql(request.interpretation, self.root.declared())) {
+        return Dml.expectedContentWithSchema(allocator, self.declaration.schema.schema, request);
+    }
+    return Dml.expectedContent(allocator, self.objects, request);
+}
+
 /// Commit one complete frozen single-partition request with one data WAL
 /// append. Original request acceptance/recovery may already belong to Catalog;
 /// no intermediate Table admission record is required for this atomic path.
@@ -869,7 +876,7 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
     try self.ready();
     try request.validate();
     const state = try self.operationState(request.binding, guard);
-    const content = try Dml.stage(self.allocator, self.objects, request);
+    const content = try self.expectedIntentContent(self.allocator, request);
     if (try self.operationAt(self.root, request.binding)) |known| {
         if (!std.meta.eql(known.intent, content)) return error.DataIdentityConflict;
         return if (state == .admitted) self.perform(request.binding, guard) else state;
@@ -891,6 +898,7 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
             error.TableDataChanged => .data_changed,
             else => return err,
         };
+        _ = try Dml.stage(self.allocator, self.objects, request);
         return self.writeOperation(operation, guard);
     };
     return self.performPrepared(operation, request, guard);
@@ -920,6 +928,7 @@ fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Reques
             error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge, error.TableBuildBudget => .work_limit,
             else => return err,
         };
+        if (known_request) |request| _ = try Dml.stage(self.allocator, self.objects, request);
         return self.writeOperation(rejected, guard);
     };
     return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome, .transaction = null } };
@@ -1037,7 +1046,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
         var frozen = try Dml.load(allocator, self.objects, known.intent);
         defer frozen.deinit();
         try frozen.request.binding.requireSame(binding);
-        const requested = try Dml.stage(allocator, self.objects, .{ .binding = binding, .interpretation = frozen.request.interpretation, .changes = changes, .ingestion = ingestion });
+        const requested = try Dml.expectedContentWithSchema(allocator, frozen.declaration.schema.schema, .{ .binding = binding, .interpretation = frozen.request.interpretation, .changes = changes, .ingestion = ingestion });
         if (!std.meta.eql(requested, known.intent)) return error.DataIdentityConflict;
     }
     const schema = if (original) |value| value.schema.schema else self.declaration.schema.schema;
@@ -2109,7 +2118,7 @@ fn stageSegment(self: *Self, allocator: std.mem.Allocator, schema: f.TableSchema
     };
     const digest = r.hash(bytes);
     var name: [96]u8 = undefined;
-    const metadata = try self.objects.putImmutable(try segmentKey(digest, &name), bytes, digest);
+    const metadata = try self.index.stageObject(try segmentKey(digest, &name), bytes, digest);
     if (metadata.size != bytes.len or !std.mem.eql(u8, &metadata.sha256, &digest)) return error.InvalidTableSegment;
     return .{ .content = .{ .bytes = bytes.len, .sha256 = digest }, .footer = try f.TSeg.readFooter(allocator, bytes) };
 }
@@ -2657,7 +2666,10 @@ fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record
             const after_pin = try self.tree().get(record.root.pins, try r.operationKey(value.owner)) orelse return error.InvalidTablePin;
             const expected = try (Snapshot.Pin{ .content = value.basis, .released = record.action == .release }).encode();
             if (!std.meta.eql(after_pin, expected)) return error.InvalidTablePin;
-            var frozen = try Snapshot.load(self.allocator, self.objects, .{ .owner = value.owner, .content = value.basis });
+            var frozen = if (self.recovery_required)
+                try Snapshot.load(self.allocator, self.objects, .{ .owner = value.owner, .content = value.basis })
+            else
+                try self.loadSnapshot(self.allocator, .{ .owner = value.owner, .content = value.basis });
             defer frozen.deinit();
             if (frozen.retention == .snapshot) {
                 if (!std.meta.eql(before.history_pins, record.root.history_pins)) return error.InvalidTablePin;
@@ -2721,16 +2733,20 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
         if (expected.partition != self.root.partition or expected.next_lsn != self.root.next_lsn) return error.TableDataChanged;
     }
     const basis = self.root;
-    const handle = try Snapshot.stage(self.allocator, self.objects, owner, retention, basis, self.declaration.schema.schema);
     var tree_batch: TreeStore.Batch = .{};
     try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
     defer self.index.end();
+    const handle = try Snapshot.stageInTree(self.allocator, &self.index, owner, retention, basis, self.declaration.schema.schema);
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.pins = try self.tree().put(next.pins, try r.operationKey(owner), try (Snapshot.Pin{ .content = handle.content }).encode());
     if (retention == .history) next.history_pins = try self.tree().put(next.history_pins, try Snapshot.historyKey(owner, self.root.next_lsn), try (Snapshot.Pin{ .content = handle.content }).encode());
-    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin = .{ .owner = owner, .basis = handle.content } } }, &.{}, guard);
+    const previous_cache = self.snapshot_cache;
     self.snapshot_cache = .{ .handle = handle, .retention = retention, .root = basis };
+    self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin = .{ .owner = owner, .basis = handle.content } } }, &.{}, guard) catch |err| {
+        self.snapshot_cache = previous_cache;
+        return err;
+    };
     try self.reply();
     return handle;
 }

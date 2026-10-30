@@ -7,11 +7,15 @@ const objects = @import("TransitObjectStore.zig");
 const Self = @This();
 const header_bytes = 40;
 pub const max_resident_pages = 4096;
+pub const max_batch_object_bytes = header_bytes + pages.max_encoded_bytes;
 const Cached = struct { reference: pages.Reference, page: pages.Page };
 
 pub const Batch = struct {
-    references: [objects.max_put_batch]pages.Reference = undefined,
-    buffers: [objects.max_put_batch][header_bytes + pages.max_encoded_bytes]u8 = undefined,
+    keys: [objects.max_put_batch][96]u8 = undefined,
+    key_lengths: [objects.max_put_batch]u8 = undefined,
+    sha256s: [objects.max_put_batch][32]u8 = undefined,
+    references: [objects.max_put_batch]?pages.Reference = @splat(null),
+    buffers: [objects.max_put_batch][max_batch_object_bytes]u8 = undefined,
     lengths: [objects.max_put_batch]usize = undefined,
     count: usize = 0,
 };
@@ -61,16 +65,13 @@ pub fn flush(self: *Self) !void {
     const batch = candidate.batch orelse return;
     if (batch.count == 0) return;
     const count = batch.count;
-    var names: [objects.max_put_batch][96]u8 = undefined;
     var puts: [objects.max_put_batch]objects.ImmutablePut = undefined;
     var metas: [objects.max_put_batch]objects.ObjectMeta = undefined;
     for (0..count) |i| {
-        const reference = batch.references[i];
-        const encoded = batch.buffers[i][0..batch.lengths[i]];
         puts[i] = .{
-            .key = try key(reference.location, &names[i]),
-            .bytes = encoded,
-            .sha256 = reference.location,
+            .key = batch.keys[i][0..batch.key_lengths[i]],
+            .bytes = batch.buffers[i][0..batch.lengths[i]],
+            .sha256 = batch.sha256s[i],
         };
     }
     try self.store.putImmutableBatch(puts[0..count], metas[0..count]);
@@ -78,6 +79,36 @@ pub fn flush(self: *Self) !void {
         if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
     }
     batch.count = 0;
+}
+
+pub fn stageObject(self: *Self, object_key: []const u8, bytes: []const u8, sha256: [32]u8) !objects.ObjectMeta {
+    if (self.candidate) |*candidate| if (candidate.batch) |batch| {
+        if (object_key.len <= 96 and bytes.len <= max_batch_object_bytes) {
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+            if (!std.mem.eql(u8, &digest, &sha256)) return error.ObjectDigestMismatch;
+            const duplicate = for (0..batch.count) |i| {
+                if (std.mem.eql(u8, batch.keys[i][0..batch.key_lengths[i]], object_key)) {
+                    if (batch.lengths[i] != bytes.len or !std.mem.eql(u8, &batch.sha256s[i], &sha256)) return error.ImmutableObjectConflict;
+                    break true;
+                }
+            } else false;
+            if (!duplicate) {
+                if (batch.count == objects.max_put_batch) try self.flush();
+                const slot = batch.count;
+                @memcpy(batch.keys[slot][0..object_key.len], object_key);
+                batch.key_lengths[slot] = @intCast(object_key.len);
+                batch.sha256s[slot] = sha256;
+                batch.references[slot] = null;
+                @memcpy(batch.buffers[slot][0..bytes.len], bytes);
+                batch.lengths[slot] = bytes.len;
+                batch.count += 1;
+                if (batch.count == objects.max_put_batch) try self.flush();
+            }
+            return .{ .size = bytes.len, .sha256 = sha256 };
+        }
+    };
+    return self.store.putImmutable(object_key, bytes, sha256);
 }
 
 /// Discarding private work never deletes objects or changes a published root.
@@ -108,14 +139,20 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     var result = reference;
     std.crypto.hash.sha2.Sha256.hash(encoded, &result.location, .{});
     if (candidate.batch) |batch| {
-        const duplicate = for (batch.references[0..batch.count]) |existing| {
-            if (std.mem.eql(u8, &existing.location, &result.location)) break true;
+        var name: [96]u8 = undefined;
+        const object_key = try key(result.location, &name);
+        const duplicate = for (0..batch.count) |i| {
+            if (std.mem.eql(u8, batch.keys[i][0..batch.key_lengths[i]], object_key)) break true;
         } else false;
         if (!duplicate) {
             if (batch.count == objects.max_put_batch) try self.flush();
-            batch.references[batch.count] = result;
-            @memcpy(batch.buffers[batch.count][0..encoded.len], encoded);
-            batch.lengths[batch.count] = encoded.len;
+            const slot = batch.count;
+            @memcpy(batch.keys[slot][0..object_key.len], object_key);
+            batch.key_lengths[slot] = @intCast(object_key.len);
+            batch.sha256s[slot] = result.location;
+            batch.references[slot] = result;
+            @memcpy(batch.buffers[slot][0..encoded.len], encoded);
+            batch.lengths[slot] = encoded.len;
             batch.count += 1;
             if (batch.count == objects.max_put_batch) try self.flush();
         }
@@ -163,15 +200,20 @@ pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []page
         }
     }
     if (candidate.batch) |staged_batch| {
-        for (references[0..batch.len], buffers[0..batch.len], lengths[0..batch.len]) |reference, *bytes, length| {
-            const duplicate = for (staged_batch.references[0..staged_batch.count]) |existing| {
-                if (std.mem.eql(u8, &existing.location, &reference.location)) break true;
+        for (references[0..batch.len], buffers[0..batch.len], lengths[0..batch.len], names[0..batch.len]) |reference, *bytes, length, *name| {
+            const object_key = try key(reference.location, name);
+            const duplicate = for (0..staged_batch.count) |i| {
+                if (std.mem.eql(u8, staged_batch.keys[i][0..staged_batch.key_lengths[i]], object_key)) break true;
             } else false;
             if (!duplicate) {
                 if (staged_batch.count == objects.max_put_batch) try self.flush();
-                staged_batch.references[staged_batch.count] = reference;
-                @memcpy(staged_batch.buffers[staged_batch.count][0..length], bytes[0..length]);
-                staged_batch.lengths[staged_batch.count] = length;
+                const slot = staged_batch.count;
+                @memcpy(staged_batch.keys[slot][0..object_key.len], object_key);
+                staged_batch.key_lengths[slot] = @intCast(object_key.len);
+                staged_batch.sha256s[slot] = reference.location;
+                staged_batch.references[slot] = reference;
+                @memcpy(staged_batch.buffers[slot][0..length], bytes[0..length]);
+                staged_batch.lengths[slot] = length;
                 staged_batch.count += 1;
                 if (staged_batch.count == objects.max_put_batch) try self.flush();
             }
@@ -199,7 +241,7 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
         }
     };
     if (self.candidate) |candidate| if (candidate.batch) |batch| {
-        for (batch.references[0..batch.count], 0..) |staged_ref, i| {
+        for (batch.references[0..batch.count], 0..) |maybe_ref, i| if (maybe_ref) |staged_ref| {
             if (std.meta.eql(staged_ref, reference)) {
                 self.misses +|= 1;
                 const encoded = batch.buffers[i][0..batch.lengths[i]];
@@ -208,7 +250,7 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
                 self.remember(reference, page, true);
                 return page;
             }
-        }
+        };
     };
     self.misses +|= 1;
     var name: [96]u8 = undefined;
