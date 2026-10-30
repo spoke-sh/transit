@@ -717,7 +717,7 @@ pub fn fetchNextHistoricalBatch(
 
         // Collation-aware zone-map pruning under the historical column's declared kappa profile
         if (query.filter) |flt| {
-            if ( try shouldPruneSegmentByZoneMap(query.binding, seg, flt) ) {
+            if (try shouldPruneSegmentByZoneMap(query.binding, seg, flt)) {
                 continue;
             }
         }

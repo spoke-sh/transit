@@ -175,7 +175,7 @@ pub fn evaluateCheckRow(
                     .{ .id = cmp.right_column, .cell = row_cells[r_idx] },
                 }) |side| {
                     switch (side.cell) {
-                        .missing, .type_error, .conflict => | _, tag | {
+                        .missing, .type_error, .conflict => |_, tag| {
                             if (violation_out) |out| out.* = .{
                                 .constraint_id = constraint.id,
                                 .constraint_name = constraint.name,
