@@ -1,0 +1,300 @@
+{
+  "append": {
+    "append": {
+      "target": {
+        "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551612
+      },
+      "kind": "stream",
+      "producer": {
+        "id": [
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13
+        ],
+        "epoch": 5,
+        "sequence": 18446744073709551615
+      },
+      "rows": 4,
+      "payload": {
+        "bytes": 1024,
+        "sha256": [
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31,
+          31
+        ]
+      }
+    },
+    "first": 18446744073709551611,
+    "next": 18446744073709551615,
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 12
+    }
+  },
+  "offset_commit": {
+    "operation": {
+      "scope": {
+        "realm": 1,
+        "resource": 7,
+        "catalog": 18446744073709551615
+      },
+      "principal": 17,
+      "operation": 102
+    },
+    "group": {
+      "id": 42,
+      "generation": 7,
+      "principal": 17
+    },
+    "coverage": {
+      "cut": {
+        "target": {
+          "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "accepted": {
+          "partition": 91,
+          "next_lsn": 12
+        },
+        "retained_from": 18446744073709551607,
+        "next": 18446744073709551615
+      },
+      "from": 18446744073709551611,
+      "until": 18446744073709551615,
+      "through": 18446744073709551615,
+      "rows": 2,
+      "complete": true
+    },
+    "expected_next": 18446744073709551611,
+    "next": 18446744073709551615
+  },
+  "settlement": {
+    "settlement": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551614
+      },
+      "lease": {
+        "target": {
+          "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "claim": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551613
+        },
+        "offset": 18446744073709551612,
+        "epoch": 9,
+        "attempt": 2,
+        "expires_ms": 1000
+      },
+      "action": {
+        "ack": {}
+      }
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
+  }
+}
