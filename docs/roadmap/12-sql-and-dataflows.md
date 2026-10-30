@@ -83,7 +83,17 @@ half-committed transaction as a completed result.
      retaining historical provenance and receipts. Preserve the last complete
      result while any successor is incomplete, and define dependency/schema
      changes, revocation, unavailable history and policy expiry without inventing
-     cross-owner atomicity.
+     cross-owner atomicity. When a computation or connector sink depends on a
+     catalog `SECRET` ([Milestone 26](26-control-and-policy-plane.md)) whose
+     OAuth 2.1 / PKCE challenge-response flow or lease refresh is pending, the
+     computation records `BlockedReason.credential_pending` in `Suspended` and
+     resumes from its checkpointed source watermark when the secret's
+     `rotation_epoch` advances in `TransitLog`. Stateful security challenge
+     games (such as OAuth 2.1 Authorization Code + PKCE `S256` verification,
+     single-use anti-replay joins and proactive lease-refresh timing wheels) run
+     as deterministic WAL-activated dataflows that emit governed outbox intents
+     while keeping entropy generation, remote token exchange and raw token
+     storage inside the connector and secret-vault boundaries.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    expose the same typed lifecycle state machine and DDL verbs across SQL
    (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and

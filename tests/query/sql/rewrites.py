@@ -11,6 +11,9 @@ SPECS = (
             'projection_pruning_preserves_rows',
             'predicate_pushdown_through_projection',
             'pushdown_preserves_downstream_errors',
+            'security_barrier_rls_non_interference',
+            'delegation_attenuation_sound',
+            'delegated_agent_cannot_approve',
         },
     ),
     (

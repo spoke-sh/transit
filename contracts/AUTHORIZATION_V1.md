@@ -351,8 +351,11 @@ provided. Removing old local data is an explicit user action.
 
 The reference profile follows NIST core/hierarchical RBAC and PostgreSQL 18's
 documented role/privilege semantics. It is not a claim of complete SQL-standard,
-PostgreSQL or MySQL server conformance. Unsupported row/column policies, ABAC,
-identity federation and security-definer behavior reject. Adapter dialects lower
+PostgreSQL or MySQL server conformance. Enterprise identity federation,
+bounded delegation, declarative secret management, security-barrier row/column
+policies, GDPR crypto-shredding/purge and workload management are specified in
+[`CONTROL_POLICY_PLANE_V1`](CONTROL_POLICY_PLANE_V1.md); unattested
+security-definer behavior rejects. Adapter dialects lower
 to shared typed operations; they do not maintain independent permission stores.
 Transit role records also have an administrative owner. This is a Transit
 extension; PostgreSQL roles themselves do not have object owners.

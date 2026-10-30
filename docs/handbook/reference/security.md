@@ -6,9 +6,13 @@ generation needed to commit. A PID, resource reference, session, cursor or ticke
 answers none of them by itself.
 
 The [collaboration stories](collaborative-decisions.md#what-the-control--policy-plane-contributes)
-describe the proposed extension from native grants to enterprise identity,
-delegated agents and branch/publication policy. Those additions are not part of
-the implemented authorization profile described here.
+and the [Control & Policy Plane contract](../../../contracts/CONTROL_POLICY_PLANE_V1.md)
+define the typed catalog and query primitives (`ACTX1`, `IDF1`, `DLG1`, `APV1`,
+`SEC1`, `RLM1`, `ERS1`, `WLM1`) for enterprise identity bindings, delegated
+agents, declarative secrets with OAuth 2.1 + PKCE challenge dataflows,
+security-barrier RLS, dynamic column masking, Right-to-Erasure crypto-shredding
+and workload resource groups alongside the native authorization profile
+described here.
 
 ## Principals, realms and grants
 

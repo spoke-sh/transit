@@ -33,8 +33,13 @@ language convenience cannot replace them with an unrecorded host tool call.
    owning transport/exchange layer. Preserve original actor/delegation and intent
    across dispatch, additional input and selected task polling. Authentication
    renewal, status lookup and cancellation are external work under explicit
-   policy, never hidden replay actions. Scope secrets to the destination;
-   downstream tokens are not forwarded from inbound callers indiscriminately.
+   policy, never hidden replay actions. Bind outbound credentials through
+   catalog `SECRET` declarations (`TYPE oauth2_bearer`, `SCOPE`, `AUDIENCE` and
+   `rotation_epoch` in [Milestone 26](26-control-and-policy-plane.md)), where
+   OAuth 2.1 + PKCE or RFC 8693 challenge-response and lease-refresh dataflows
+   seal refreshed tokens into the secret vault and wake `Suspended
+   (CredentialPending)` tasks without forwarding raw inbound caller tokens
+   indiscriminately.
 3. **Capture evidence with honest coverage.** Retain permitted request/response
    bytes, protocol and business outcomes, timing/basis and omitted fields.
    Redacted capture does not claim byte completeness. Replay consumes authorized

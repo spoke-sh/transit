@@ -114,6 +114,72 @@ theorem pushdown_preserves_downstream_errors
 #print axioms predicate_pushdown_through_projection
 #print axioms pushdown_preserves_downstream_errors
 
+/-- Deterministic security-barrier RLS filter evaluated before user predicates (`A6`). -/
+def filterRlsBarrier {Input : Type} (rlsBarrier : Input → Bool) : List Input → List Input
+  | [] => []
+  | row :: rest =>
+      match rlsBarrier row with
+      | true => row :: filterRlsBarrier rlsBarrier rest
+      | false => filterRlsBarrier rlsBarrier rest
+
+/-- Security-barrier Row-Level Security (RLS) non-interference (`A6`, `CONTROL_POLICY_PLANE_V1`).
+    Evaluating a fallible user predicate (`selectChecked`) after `filterRlsBarrier`
+    depends only on rows where `rlsBarrier row = true`. Even if `userPred1` fails with
+    `.error failure` (e.g., division-by-zero or 5-state `type_error`) on unauthorized
+    rows where `rlsBarrier row = false`, those errors can never leak across the barrier. -/
+theorem security_barrier_rls_non_interference
+    {Input Failure : Type}
+    (rlsBarrier : Input → Bool)
+    (userPred1 userPred2 : Input → Except Failure Bool)
+    (agrees_on_authorized : ∀ row, rlsBarrier row = true → userPred1 row = userPred2 row)
+    (rows : List Input) :
+    selectChecked userPred1 (filterRlsBarrier rlsBarrier rows) =
+      selectChecked userPred2 (filterRlsBarrier rlsBarrier rows) := by
+  induction rows with
+  | nil => rfl
+  | cons row rest ih =>
+    unfold filterRlsBarrier
+    have h_eq := agrees_on_authorized row
+    cases h : rlsBarrier row with
+    | false => exact ih
+    | true =>
+      have hp : userPred1 row = userPred2 row := h_eq h
+      unfold selectChecked
+      rw [hp, ih]
+
+/-- Multi-hop delegation attenuation (`A6`, `CONTROL_POLICY_PLANE_V1`):
+    an action is permitted across a delegation chain only if the represented
+    subject permits it and every delegation hop permits it. -/
+def evaluateDelegated {Action : Type}
+    (subjectPermits : Action → Bool)
+    (hopPermits : Action → Bool)
+    (a : Action) : Bool :=
+  subjectPermits a && hopPermits a
+
+theorem delegation_attenuation_sound
+    {Action : Type}
+    (subjectPermits : Action → Bool)
+    (hopPermits : Action → Bool)
+    (a : Action)
+    (h_ok : evaluateDelegated subjectPermits hopPermits a = true) :
+    subjectPermits a = true ∧ hopPermits a = true := by
+  unfold evaluateDelegated at h_ok
+  cases hs : subjectPermits a <;> cases hh : hopPermits a <;> simp_all
+
+/-- Human-only approval non-delegability (`A6`, `CONTROL_POLICY_PLANE_V1`):
+    any request carrying a delegation (`hasDelegation = true`) cannot exercise
+    human-only approval authority, regardless of multi-factor assurance. -/
+def canExerciseHumanOnlyApproval (hasDelegation isHumanMultiFactor : Bool) : Bool :=
+  (!hasDelegation) && isHumanMultiFactor
+
+theorem delegated_agent_cannot_approve (isHumanMultiFactor : Bool) :
+    canExerciseHumanOnlyApproval true isHumanMultiFactor = false := by
+  rfl
+
+#print axioms security_barrier_rls_non_interference
+#print axioms delegation_attenuation_sound
+#print axioms delegated_agent_cannot_approve
+
 /-
 Model/implementation correspondence assumptions:
 * Plan.bind / Stream.Plan.bind validate column identities and literal types

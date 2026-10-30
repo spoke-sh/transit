@@ -95,6 +95,12 @@ retrieval, streaming CDC ingestion and import/export costs.
      declarative sequence/context synthesis research to
      [Milestone 37](37-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
+   - Bind external object-store and HTTP credentials through catalog `SECRET`
+     declarations (`CREATE SECRET ... TYPE s3 | gcs | r2 | http ... SCOPE ...` in
+     [Milestone 26](26-control-and-policy-plane.md)), requiring both an exact
+     destination `SCOPE`/`TLS_POLICY` match and `USAGE ON SECRET` under the
+     caller's `AccessContext` at `policy_epoch` so URI prefix matching never
+     grants ambient authority or stores cleartext keys in table definitions.
    - **Analytical and 2D spatial columnar formats (`PARQUET`, `GEOPARQUET`, `ARROW_IPC`, `GEOARROW`, `FLATGEOBUF`, `PMTILES` / `MVT`):** use qualified
      borrowed layouts or bounded decoding for column chunks/dictionaries and
      [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `.geoarrow`

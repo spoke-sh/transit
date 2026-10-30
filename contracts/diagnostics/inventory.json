@@ -3189,6 +3189,124 @@
         "transit_station"
       ]
     },
+    "packages/zig/transit-catalog/src/AccessAndIdentity.zig": {
+      "errors": {
+        "AccessRevoked": 1,
+        "AuditLogCapacityExceeded": 1,
+        "ConflictingManagementSource": 2,
+        "DelegationDepthExceeded": 1,
+        "ExpiredCredential": 2,
+        "IdTokenNotPermittedForApiAccess": 1,
+        "IdentityProviderUnavailable": 1,
+        "IdentitySubjectCollision": 2,
+        "InvalidAccessContextEpoch": 1,
+        "InvalidAccessContextIdentity": 1,
+        "InvalidAccessContextMagic": 1,
+        "InvalidAccessContextRole": 1,
+        "InvalidAccessContextTarget": 1,
+        "InvalidAttributeClaimKey": 1,
+        "InvalidAttributeClaimValue": 3,
+        "InvalidIdentityBinding": 1,
+        "InvalidIdentityProviderProfile": 1,
+        "InvalidTokenAudience": 1,
+        "InvalidTokenIssuer": 1,
+        "LocalRestrictionOverridesExternalSync": 2,
+        "PrincipalDirectoryFull": 1,
+        "PrincipalLocallyRestricted": 1,
+        "RetiredPrincipalIdReuseForbidden": 2,
+        "ServiceCredentialAmplificationForbidden": 1,
+        "StaleExternalMembership": 1,
+        "TokenNotYetValid": 1,
+        "TooManyVerifiedAttributes": 1,
+        "UnboundExternalSubject": 3,
+        "UndelegatedActorSubjectMismatch": 1,
+        "UnknownOrRevokedJwksKey": 2
+      },
+      "outcomes": {
+        "AssuranceLevel": [
+          "aal1_single_factor",
+          "aal2_multi_factor",
+          "aal3_hardware_cryptographic"
+        ],
+        "AttributeValue": [
+          "utf8",
+          "int64",
+          "s2_cell_prefix",
+          "h3_cell_prefix",
+          "oct_cell_prefix",
+          "bbox2d",
+          "bbox3d"
+        ],
+        "AuditOutcome": [
+          "allowed",
+          "denied"
+        ],
+        "JwksKeyState": [
+          "active",
+          "grace_rotation",
+          "revoked_or_retired"
+        ],
+        "ManagementSource": [
+          "native_local",
+          "external_iam_scim",
+          "external_oidc_claim"
+        ],
+        "PolicyDenialCode": [
+          "none",
+          "invalid_token_audience",
+          "id_token_not_permitted",
+          "unknown_or_revoked_jwks_key",
+          "expired_credential",
+          "identity_subject_collision",
+          "conflicting_management_source",
+          "local_restriction_override_denied",
+          "stale_external_membership",
+          "identity_provider_unavailable",
+          "access_revoked",
+          "delegation_attenuation_denied",
+          "delegated_agent_cannot_approve",
+          "separation_of_duties_violation",
+          "protected_branch_direct_write_denied",
+          "installation_prohibits_merge",
+          "secret_scope_or_usage_denied",
+          "workload_quota_exceeded"
+        ],
+        "PrincipalKind": [
+          "human",
+          "workload",
+          "service",
+          "agent"
+        ],
+        "TokenKind": [
+          "login_id_token",
+          "api_access_token",
+          "workload_jwt"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "AccessAuditLog.append()": "<inferred>",
+        "AccessContext.contextDigest()": "<inferred>",
+        "AccessContext.validate()": "<inferred>",
+        "AttributeClaim.validate()": "<inferred>",
+        "MembershipFreshnessGuard.offboardAndAdvanceEpoch()": "<inferred>",
+        "MembershipFreshnessGuard.verifyAccessAndFreshness()": "<inferred>",
+        "OidcIssuerProfile.validateToken()": "<inferred>",
+        "PrincipalBindingDirectory.bindPrincipal()": "<inferred>",
+        "PrincipalBindingDirectory.resolvePrincipal()": "<inferred>",
+        "PrincipalBindingDirectory.retirePrincipal()": "<inferred>",
+        "PrincipalBindingDirectory.setLocalRestrictionHold()": "<inferred>",
+        "ScimProvisioningEngine.syncMemberships()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Attribution.zig": {
       "errors": {
         "AttributionBasisMismatch": 2,
@@ -3546,6 +3664,134 @@
       },
       "imports": [
         "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DelegationAndSecrets.zig": {
+      "errors": {
+        "AccessDenied": 7,
+        "AccessRevoked": 4,
+        "ActorExecutionDisabled": 1,
+        "ApprovalCandidateDigestMismatch": 1,
+        "ApprovalPrincipalMismatch": 1,
+        "ApprovalTargetHeadMoved": 1,
+        "BranchPermissionDenied": 1,
+        "CannotDelegateHumanOnlyAction": 1,
+        "ChallengeGameCapacityExceeded": 1,
+        "DelegatedAgentCannotApprove": 2,
+        "DelegatedExternalActivationDenied": 1,
+        "DelegationDepthExceeded": 2,
+        "ExpiredCredential": 2,
+        "InstallationProhibitsMerge": 1,
+        "InvalidApprovalAttestation": 1,
+        "InvalidDelegationEpoch": 1,
+        "InvalidDelegationHopOrder": 1,
+        "InvalidDelegationPrincipal": 4,
+        "InvalidDelegationTicket": 2,
+        "InvalidPkceCodeVerifierLength": 1,
+        "InvalidSecretDeclaration": 1,
+        "InvalidSecretName": 1,
+        "InvalidTokenAudience": 1,
+        "MissingApprovalAttestation": 1,
+        "MissingSecretProviderReference": 1,
+        "MissingSecretScopePrefix": 1,
+        "MissingSecretUsagePrivilege": 1,
+        "OauthChallengeExpired": 1,
+        "OauthChallengeReplayDetected": 1,
+        "OauthChallengeStateMismatch": 1,
+        "OauthPkceVerificationFailed": 1,
+        "PlaintextSecretLiteralForbidden": 1,
+        "ProtectedBranchDirectWriteDenied": 1,
+        "ProtectedDestinationRequiresApproval": 1,
+        "SecretAudienceMismatch": 2,
+        "SecretChallengePending": 1,
+        "SecretScopeMismatch": 1,
+        "SecretTlsPolicyViolation": 1,
+        "SeparationOfDutiesViolation": 1,
+        "StaleApprovalPolicyEpoch": 1,
+        "StepUpAuthenticationExpired": 1,
+        "StepUpAuthenticationRequired": 1,
+        "UnsupportedTokenExchangeGrantType": 1
+      },
+      "outcomes": {
+        "AdapterSurface": [
+          "sql_session",
+          "direct_table_v1",
+          "direct_stream_v1",
+          "direct_queue_v1",
+          "document_partition",
+          "kv_partition",
+          "arrow_flight_do_put",
+          "sdk_client",
+          "mcp_tool"
+        ],
+        "BranchCollaborationAction": [
+          "inspect",
+          "create_branch",
+          "edit",
+          "share",
+          "propose",
+          "approve",
+          "merge",
+          "external_activation"
+        ],
+        "BranchPolicyProfile": [
+          "standard_writable",
+          "branching_only",
+          "protected_destination"
+        ],
+        "SecretKind": [
+          "s3",
+          "gcs",
+          "r2",
+          "http_bearer",
+          "oauth2_bearer",
+          "postgres",
+          "kms_key_ref",
+          "webhook_hmac"
+        ],
+        "SecretLeaseState": [
+          "pending_challenge",
+          "active_lease",
+          "refresh_due",
+          "expired",
+          "revoked"
+        ],
+        "SecretProvider": [
+          "kms_envelope",
+          "vault_kv",
+          "workload_identity",
+          "env_ref",
+          "oauth2_authorization_code_pkce",
+          "oauth2_client_credentials",
+          "rfc8693_token_exchange"
+        ],
+        "TlsPolicy": [
+          "strict_verified",
+          "mutual_tls_pinned"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "ApprovalAttestation.verifyHumanApproval()": "<inferred>",
+        "DelegationChain.evaluateAttenuatedAccess()": "<inferred>",
+        "DelegationHop.validateForCreation()": "<inferred>",
+        "OauthChallengeGame.computePkceS256Challenge()": "<inferred>",
+        "OauthChallengeGame.evaluateCallbackTurn()": "<inferred>",
+        "OauthChallengeGame.sealTokenLeaseAndWakeDataflow()": "<inferred>",
+        "SecretDeclaration.resolveForDestination()": "<inferred>",
+        "SecretDeclaration.validateForCatalog()": "<inferred>",
+        "authorizeBranchOperation()": "<inferred>",
+        "exchangeTokenToDelegationHop()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "AccessAndIdentity.zig",
         "root.zig",
         "std"
       ]
@@ -6669,6 +6915,67 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/ErasureAndWorkload.zig": {
+      "errors": {
+        "AccessRevokedOnResultDisclosure": 1,
+        "ErasureReceiptLedgerFull": 1,
+        "ErasureRequiresShreddedSubjectKey": 1,
+        "ExplainPolicyMustPerformZeroWork": 1,
+        "InvalidPurgeCompactionSpec": 1,
+        "OperationNotFoundOrUnauthorized": 1,
+        "SubjectKeyNotFound": 2,
+        "SubjectKeyRegistryFull": 1,
+        "WorkloadConcurrencyExceeded": 1,
+        "WorkloadCpuBudgetExceeded": 1,
+        "WorkloadGroupEscalationDenied": 1,
+        "WorkloadMemoryQuotaExceeded": 1
+      },
+      "outcomes": {
+        "CachePlacementHint": [
+          "pinned_hot",
+          "scan_transient"
+        ],
+        "MorselExecutionOutcome": [
+          "continue_in_memory",
+          "spill_to_nvme_tier2",
+          "yield_morsel_slot_drr",
+          "bypass_preemption_control_reserve"
+        ],
+        "SubjectKeyState": [
+          "active",
+          "shredded"
+        ],
+        "WorkloadKind": [
+          "sys_control_and_recovery",
+          "oltp_critical",
+          "interactive_governance",
+          "continuous_dataflow",
+          "agent_burst",
+          "background_maintenance"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "SubjectEnvelopeKeyRegistry.executeCrossBranchPurgeCompaction()": "<inferred>",
+        "SubjectEnvelopeKeyRegistry.registerSubjectKey()": "<inferred>",
+        "SubjectEnvelopeKeyRegistry.shredSubjectKeysAndZeroBuffer()": "<inferred>",
+        "WorkloadGroupController.chargeMorselAtBoundary()": "<inferred>",
+        "WorkloadGroupController.classifyAndAdmit()": "<inferred>",
+        "explainPolicyForStatement()": "<inferred>",
+        "inspectOperationAfterLostReply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "AccessAndIdentity.zig",
+        "DelegationAndSecrets.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/HistoricalCatalog.zig": {
       "errors": {
         "AuthorizationRevokedMidStream": 1,
@@ -6978,7 +7285,8 @@
           "source_phased_rewrite_in_progress",
           "sink_unavailable",
           "budget_exhausted",
-          "lease_fenced"
+          "lease_fenced",
+          "credential_pending"
         ],
         "ConsumerContract": [
           "complete_ordered_changes",
@@ -7624,10 +7932,12 @@
         "catch": 0
       },
       "imports": [
+        "AccessAndIdentity.zig",
         "Attribution.zig",
         "AuthorizationLowering.zig",
         "BranchLifecycle.zig",
         "BranchMergeRestore.zig",
+        "DelegationAndSecrets.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
         "DirectCatalogAdministration.zig",
@@ -7682,6 +7992,7 @@
         "DirectTransactionWorkspace.zig",
         "DisclosurePolicy.zig",
         "DocumentAuthority.zig",
+        "ErasureAndWorkload.zig",
         "HistoricalCatalog.zig",
         "Inspection.zig",
         "InvestigationBasis.zig",
@@ -12793,6 +13104,58 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/RlsAndMasking.zig": {
+      "errors": {
+        "ColumnIndexOutOfBounds": 1,
+        "DivisionByZeroInAuthorizedRow": 1,
+        "RlsWithCheckViolation": 2,
+        "TypeErrorInAuthorizedRow": 1
+      },
+      "outcomes": {
+        "MaskingTransform": [
+          "unmasked",
+          "full_redact",
+          "partial_string_mask",
+          "keyed_hash_hmac",
+          "numeric_bucket",
+          "spatial_coarsen_s2"
+        ],
+        "RlsCommandScope": [
+          "all",
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ],
+        "RlsPolicyMode": [
+          "permissive",
+          "restrictive"
+        ],
+        "RlsPredicate": [
+          "column_equals_utf8",
+          "column_equals_int64",
+          "spatial_covered_by_bbox2d",
+          "spatial_covered_by_bbox3d",
+          "s2_cell_prefix_match"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "SecurityBarrierFilter.evaluateCheckedDivisionAfterBarrier()": "<inferred>",
+        "SecurityBarrierFilter.validateMutationRow()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "GermanString.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/RowAllocator.zig": {
       "errors": {},
       "outcomes": {},
@@ -15808,6 +16171,7 @@
         "RelationalOutput.zig",
         "RelationalSql.zig",
         "RelationalValues.zig",
+        "RlsAndMasking.zig",
         "SearchOracle.zig",
         "SourceCodec.zig",
         "Sql.zig",

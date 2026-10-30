@@ -80,6 +80,7 @@ pub const BlockedReason = enum(u8) {
     sink_unavailable = 6,
     budget_exhausted = 7,
     lease_fenced = 8,
+    credential_pending = 9,
 };
 
 pub const SourceEvolutionClass = enum(u8) {
