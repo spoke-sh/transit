@@ -148,9 +148,9 @@ remain separate from drafts, and no result or credential enters browser storage.
 | [records.tsx](src/records.tsx)                   | Growing record identities and source-backed exchange metadata                     |
 | [http-metadata.tsx](src/http-metadata.tsx)       | Selected HTTP policy, timing, omission and completion evidence                    |
 | [query-workspace.tsx](src/unified-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
-| [workbench-layout.tsx](src/workbench-layout.tsx) | Shared navigation, selection identities, one inspector and keyboard return |
-| [data-workbench.tsx](src/data-workbench.tsx) | Catalog/dataset metadata and temporary SQL workbooks |
-| [workbench-result.tsx](src/workbench-result.tsx) | Shared result reader presentation, window profiles and observation evidence |
+| [workbench-layout.tsx](src/workbench-layout.tsx) | Shared navigation, selection identities, one inspector and keyboard return        |
+| [data-workbench.tsx](src/data-workbench.tsx)     | Catalog/dataset metadata and temporary SQL workbooks                              |
+| [workbench-result.tsx](src/workbench-result.tsx) | Shared result reader presentation, window profiles and observation evidence       |
 | [model.test.ts](src/model.test.ts)               | Model/client boundary tests                                                       |
 
 Import public types and transports from `@transit/board-client`; do not copy

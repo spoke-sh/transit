@@ -78,7 +78,7 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     (dataPage || workbookPage) &&
     !(current?.published && definition?.screens.some((screen) => screen.path === pathname));
   const application = current?.published
-    ? definition?.screens.find((screen) => screen.area === "workspace")
+    ? definition?.screens.find((screen) => screen.name === definition.entry)
     : undefined;
   const operations = definition?.screens.find((screen) => screen.renderer === "operations");
   useEffect(() => {
