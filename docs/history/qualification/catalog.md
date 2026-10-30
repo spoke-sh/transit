@@ -9,6 +9,56 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Rebased storage crash boundary and installed SDK attempts — 2026-10-30
+
+The clean core run at `37111b927` passes fast checks, contract reflection and the
+corrected serving compilation, then fails the compaction crash oracle in
+`/var/tmp/transit-m6-progress-clean-core-37111b927.log`. The remaining run is
+interrupted after that failure. Main's cross-tree index staging moves the final
+staging syncs to 12/13; the fixture's former global 14/15 cuts now follow WAL
+acceptance. Diagnostics against the exact clean-run binary preserve both rows,
+the old pin, original receipt and history at every tested boundary. Syncs 11–13
+leave no new WAL frame; 14/15 recover the accepted compaction. Raw observations
+remain in `/var/tmp/transit-m6-compaction-boundaries.log` and
+`/var/tmp/transit-m6-compaction-last-staging.log` with their retained directories.
+The fixture now targets 12/13, retains all explicit WAL acceptance cuts and all
+165 schedules, and reports the point and observed/expected state on failure. The
+complete corrected suite passes against the same clean-run binary in
+`/var/tmp/transit-m6-compaction-boundary-fix.log`; no recovery assertion, count or
+deadline changes.
+
+The concurrent installed Python run fails with an unexpected uncertain outcome
+while executing its initial CREATE in
+`/var/tmp/transit-m6-progress-sdk.log`; its private installation remains at
+`/var/tmp/transit-table-sdk-python-hqh6dx1w`. No runtime cause is established by
+that run. After stopping the failed clean lane, the exact same node, caller and
+installed packages pass the Python schedule with unchanged deadlines and 383
+public requests. `/var/tmp/transit-m6-sdk-node-diagnostic.log` records the rerun
+and node exit observations: the injected SIGKILL replacements and final shutdown
+are expected. This isolated success does not turn the earlier run into a pass;
+the ordinary full matrix and corrected clean core lane remain to be completed.
+
+The installed Queue scenario passes in
+`/var/tmp/transit-m6-progress-queue-installed.log`: 374 public requests, four lost
+replies, original claims, ACK, automatic retired-lease expiry, retained tiered
+payloads, explicit read closure and terminal retention across node SIGKILL and
+restart. Its source is `37111b927` plus documentation and the Python crash-oracle
+correction; neither changes the node or caller. The recorded node/caller SHA-256s
+are `6aba7cef9779b792db8a35b3095f5e0b6bb0dfefd6785be8c2c5e6ba0c276bfb`
+and `74b47d5a1be663336a4efb1d9d5e0239be4fb109b675af58d19a3d7bd10c20c9`.
+
+At `37111b927`, the complete serving package passes in
+`/var/tmp/transit-m6-rebase-serving-fixture.log`, and both Rust authority units
+pass in `/var/tmp/transit-m6-progress-rust-authority.log`. The four affected model
+targets pass in `/var/tmp/transit-m6-progress-model-fixtures-final.log`: 25 write
+profiles with 15 negative controls, 304 transaction-workspace states with eight
+negative controls, 1,200 storage-lifecycle states with six negative controls, and
+149 resident-owner-cache states with five negative controls. Existing Zig replay
+checks pass. This does not supply the remaining mixed Stream/Queue correspondence.
+Initial model invocations failed on tool selection/arguments before exploration;
+the successful run uses the pinned formal shell and individual owning recipes.
+
+
 ## Rebased Stream and Queue validation attempt — 2026-10-30
 
 At `b928941bb`, rebased on `84b7c8f18`, all 54 fast checks and 18 generated-contract

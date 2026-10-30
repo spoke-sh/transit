@@ -184,8 +184,11 @@ def run(binary):
                 assert not (directory / "wal" / f"part-17-{lsn}.twal").exists()
             table_rows(directory, 3)
 
+        # Cross-tree index batching ends staging at sync 13. The old global
+        # syncs 14/15 now belong to WAL acceptance, covered explicitly below.
+        # Keep the last two staging barriers before any acceptance frame exists.
         compact_points = ["sync-1", "sync-4", "sync-5", "sync-9", "sync-10",
-                          "sync-14", "sync-15", "before-accept", "accept-write",
+                          "sync-12", "sync-13", "before-accept", "accept-write",
                           "accept-sync-1", "accept-sync-2", "accept-sync-3",
                           "accept-publish", "accept-sync-4", "ack"]
         for point in compact_points:
@@ -196,7 +199,8 @@ def run(binary):
                                     "accept-publish", "accept-sync-4", "ack"})
             expected = dict(archived=0, tail=3 + accepted, rows=2, pinned=1,
                             receipt=1, history=2, current=[1, 2], next_segment=3 + accepted)
-            assert call(directory, "table-compact-inspect") == expected
+            observed = call(directory, "table-compact-inspect")
+            assert observed == expected, (point, observed, expected)
             assert call(directory, "table-compact") == dict(next_segment=4, rows=0 if accepted else 2)
             expected.update(tail=4, next_segment=4)
             assert call(directory, "table-compact-inspect") == expected
