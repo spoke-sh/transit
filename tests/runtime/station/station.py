@@ -184,7 +184,11 @@ def run(node, cli, worker, courier):
             writer = launch(proxied, once=False)
             pump_until(lambda: value(requester_resource, b'answer') == b'7', [requester_config])
             writer.terminate(); writer.wait(timeout=10)
-            assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1]
+            assert len(control['bodies']) == 2 and control['bodies'][0] == control['bodies'][1], {
+                'attempts': len(control['bodies']),
+                'sha256': [hashlib.sha256(body).hexdigest() for body in control['bodies']],
+                'mode': control['mode'],
+            }
             assert total() == 7
             assert control['expired_view'] == 1
             assert control['initialization_refused'] == 1
