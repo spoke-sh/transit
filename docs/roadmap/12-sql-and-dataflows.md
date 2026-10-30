@@ -1092,3 +1092,18 @@ flowchart TD
 | `P4` — Bitemporal `AS OF JOIN`, `CHANGES(...)` / `STREAM_SLICE(...)` TVFs & transactional `MERGE INTO` | [`packages/zig/transit-fuze/src/BitemporalAndTvf.zig`](../../packages/zig/transit-fuze/src/BitemporalAndTvf.zig) | [`packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig`](../../packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig) |
 | `P5`, `P9` (`A3`) — Incremental DBSP Z-set engine (`FuzeDelta`) & finite recomputation equivalence oracle | [`packages/zig/transit-fuze/src/FuzeDelta.zig`](../../packages/zig/transit-fuze/src/FuzeDelta.zig) | [`packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig`](../../packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig), [`tests/catalog/tables/managed_dataflows.py`](../../tests/catalog/tables/managed_dataflows.py) |
 | `P0`, `P6`, `P7`, `P8`, `P9` (`T5`, `T8`) — 5-state WAL-activated dataflow lifecycle, multi-object M5 `Transaction.Cut` barrier, `T5` snapshot-to-live handoff, `EXPLAIN` zero-work invariant & governed `CONNECTION`/`SOURCE`/`SINK` catalog | [`packages/zig/transit-catalog/src/ManagedDataflow.zig`](../../packages/zig/transit-catalog/src/ManagedDataflow.zig), [`contracts/catalog/managed-dataflow-fixtures.json`](../../contracts/catalog/managed-dataflow-fixtures.json) | [`packages/zig/transit-catalog/src/managed_dataflow_test.zig`](../../packages/zig/transit-catalog/src/managed_dataflow_test.zig), [`tests/catalog/tables/managed_dataflows.py`](../../tests/catalog/tables/managed_dataflows.py) |
+
+
+The delivered module and fixture tests above establish component behavior. Their
+integration with durable declared Streams and Queues depends on
+[Milestone 6 R5](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv)
+for common state/append/settlement decisions and
+[R6](06-streams-queues-and-durable-runtime.md#r6-expose-sql-and-shared-caller-operations)
+for finite retained Stream reads through the SQL result lifecycle.
+`evaluateStreamSliceTvf` currently consumes a caller-provided array;
+`DataflowRuntime` keeps pending records and outbox intents in bounded resident
+arrays. Neither component establishes durable outbox publication or the installed
+Stream SQL bridge. Preserve their finite semantic oracles while supplying paged
+owners, current authorization, exact source cuts and process-death recovery at
+those boundaries. The P9 formal correspondence and common-revision qualification
+gates still require their specified executed proofs.

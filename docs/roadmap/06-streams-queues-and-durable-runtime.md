@@ -478,6 +478,10 @@ typed values, byte-exact keys, bounded atomic batches, exact receipts and retain
 cuts. Disk checks cover large values, more keys than the resident page cache,
 lost replies, sealing, archive/trim and restart. A mandatory persisted kind keeps
 Table callers and checkpoint recovery from treating KV objects as Tables.
+The native profile and all affected callers now require a distinct KV authority
+domain; bootstrap, generated contracts and strict SDK decoding share that
+profile. The [authority qualification](../history/qualification/catalog.md#direct-kv-authority-and-complete-caller-profiles--2026-10-30)
+records the installed Table regression matrix and its pre-rebase source.
 Named KV catalog/caller migration and the common state/append/settlement decision
 remain outstanding, including atomic DLQ transfer. R6's dedicated SQL/shared
 caller/finite analytical surfaces, R0 model correspondence and final integrated
@@ -706,7 +710,12 @@ Deliver a database-owned KV partition/read/mutation owner with paged keys,
 bounded large values, retained cuts, exact receipts and current policy guards.
 Reuse storage indexes and segments without routing writes through a PID or
 `STATE_V1`. Migrate named KV lifecycle bindings and direct callers as part of
-its cutover. The initial conservative conflict frontier can be resource-wide;
+its cutover. The [M12 managed-computation modules](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30)
+now supply bounded lifecycle, cut-alignment and outbox component cases. Use their
+watermark/revision/outbox requirements as a consumer of this common decision;
+their in-memory transitions do not replace durable participant preparation,
+publication guards or restart recovery. M12 P7 depends on this gate before a
+sink outbox can publish atomically with its completed revision. The initial conservative conflict frontier can be resource-wide;
 it must separate logical changes from flush/checkpoint activity.
 
 For each executable participant implement these obligations:
@@ -764,8 +773,15 @@ from one logical result. A wait timeout may complete an explicitly empty bounded
 observation; it does not complete an unbounded stream. Check current grants for
 buffered rows, repeated batches, metadata, receipts and terminal counts.
 
-Integrate finite `STREAM_SLICE` with the existing direct Fuze planner and source
-reader. Carry row/batch limits, source attribution and early-close cleanup through
+M12 P4 now provides `BitemporalAndTvf.evaluateStreamSliceTvf`, a bounded
+in-memory evaluator with offset/time filtering and unchanged-watermark tests.
+Reuse that semantic coverage when integrating finite `STREAM_SLICE` with the
+existing direct Fuze planner and retained Stream source reader. The evaluator
+alone does not bind a catalog object, definition, retained cut or current grant,
+and is not yet an executable SQL source. Define the adapter around the existing
+Stream owner, preserving bounded pages and payload ownership; do not accumulate
+the durable stream into the component's input array. M12 continues to own
+continuous dataflows, while this package owns the finite SQL bridge. Carry row/batch limits, source attribution and early-close cleanup through
 SQL native sessions, console, PostgreSQL and MySQL adapters. Select explicit
 transport/type capabilities; unsupported Arrow/Flight or language combinations
 must reject instead of silently narrowing data. SQL consumption and inspection
@@ -847,14 +863,17 @@ Station sends/turns and direct imports remain acyclic.
 ### R9 Close the database write lifecycle and latency work
 
 Continue [#211](https://github.com/spoke-sh/transit/issues/211) from the delivered
-resident owners, foreground completion, five-sync object publication and
-event-driven recovery. Keep M3's installed recovery obligations and M8's
+resident owners, foreground completion, bounded object publication groups and
+event-driven recovery. M8 now also supplies batched allocation-inventory WAL
+appends, one head-directory barrier per group, cross-tree `TreeStore.Batch`
+staging and reduced duplicate statement validation/token lookups. Keep M3's installed recovery obligations and M8's
 [gateway plan](08-gateway-architecture-and-protocol-ingress.md#work-packages-and-delivery-sequence)
 as shared dependencies, with one owner per change.
 
-- **Publication:** implement explicit bounded multi-object batches only after
-  defining dependency inventories, partial/uncertain outcomes and recovery.
-  Extend physical models and disk fault tests before coalescing barriers. Evaluate
+- **Publication:** reuse the delivered bounded multi-object groups and shared
+  candidate index staging. Preserve their dependency inventories, uncertain
+  outcomes and disk recovery checks when integrating Stream/Queue writes. Extend
+  physical models and disk fault tests before coalescing further barriers. Evaluate
   reconstructible indexes/accounting against accepted WAL evidence; never defer
   the sole copy of an accepted identity or expose an uncommitted descriptor.
 - **Combined single-partition commit:** define the account-wide token routing and
@@ -875,10 +894,14 @@ as shared dependencies, with one owner per change.
 
 Use the existing installed persistent-console driver and independent typed
 readback. Preserve the 190 ms then 19 ms INSERT objectives and 10–20 ms warm
-SELECT objective with their matched workload and baseline. The latest
-[event-driven measurements](../history/qualification/performance.md#event-driven-sql-recovery--2026-10-29)
-still miss them and include mutation regressions; reduced idle traffic does not
-close latency. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
+SELECT objective with their matched workload and baseline. The newer
+[batched-publication and validation measurements](../history/qualification/performance.md#batched-allocation-inventory-cross-tree-index-staging-and-sql-validation-trimming--2026-10-30)
+record a 175-ms INSERT median over five samples and 36–40-ms warm SELECT medians,
+plus a passing installed SQL gateway run. This is progress toward the original
+190-ms INSERT objective; the 19-ms write and 10–20-ms warm-read targets remain
+open, as do account-wide token/commit composition and reconstructible allocation
+bookkeeping. Those measurements qualify their recorded main revision, not the
+rebased Stream/Queue branch or a new matched control/candidate comparison. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
 errors, startup and original-operation recovery separately. Attribute foreground
 requests, background traffic, staging, syncs and final decisions without adding
 instrumented timings into an invented end-to-end sample.
