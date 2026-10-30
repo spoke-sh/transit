@@ -658,3 +658,33 @@ test "two native candidates share only conditional WAL acceptance" {
     try t.expectEqual(@as(u64, 2), try journal_b.tail());
     try t.expect(std.meta.eql(a.head, b.head));
 }
+
+test "native page batches reopen original references and preserve budget failure output" {
+    const pages = core.pages;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var page: pages.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = try pages.Key.init("key"), .value = try pages.Value.init("retained") };
+    var refs: [2]pages.Reference = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var store = try backend.PageStore.init(&owner, 0);
+        defer store.deinit();
+        try store.begin(1, false);
+        try store.stageMany(&.{ page, page }, &refs);
+        try store.finish();
+        const original = refs;
+        owner.limits.candidate_bytes = 1;
+        try store.begin(1, false);
+        defer store.discard();
+        try t.expectError(error.StorageCandidateTooLarge, store.stageMany(&.{ page, page }, &refs));
+        try t.expectEqualDeep(original, refs);
+        try t.expectEqual(@as(u64, 2), store.created);
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var reader = try backend.PageStore.init(&owner, 0);
+    defer reader.deinit();
+    for (refs) |reference| try t.expectEqualDeep(page, try reader.load(reference));
+}

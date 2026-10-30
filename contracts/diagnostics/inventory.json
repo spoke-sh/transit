@@ -2192,11 +2192,12 @@
       "errors": {
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
+        "InvalidObjectBatch": 1,
         "MissingStorageObject": 1,
         "NativeObjectReserved": 1,
         "NativeStorageInUse": 1,
         "NativeStorageUnmarked": 2,
-        "ObjectTooLarge": 1,
+        "ObjectTooLarge": 2,
         "StaleStorageEpoch": 1,
         "StorageObjectTooLarge": 1,
         "StorageQuota": 1
@@ -2211,11 +2212,16 @@
       "error_sets": {},
       "error_returns": {
         "bindNativeOwner()": "<inferred>",
+        "confirmDataPuts()": "<inferred>",
         "countFiles()": "<inferred>",
         "dataKey()": "<inferred>",
         "open()": "<inferred>",
+        "prepareDataPut()": "<inferred>",
+        "prepareNativePut()": "<inferred>",
         "put()": "<inferred>",
+        "putBatch()": "<inferred>",
         "putNative()": "<inferred>",
+        "putNativePages()": "<inferred>",
         "putNativeTracked()": "<inferred>",
         "putTracked()": "<inferred>",
         "read()": "<inferred>",
@@ -2225,7 +2231,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 77,
         "catch": 3
       },
       "imports": [
@@ -2453,6 +2459,8 @@
         "headImpl()": "<inferred>",
         "partition()": "<inferred>",
         "put()": "<inferred>",
+        "putBatch()": "<inferred>",
+        "putBatchImpl()": "<inferred>",
         "putImpl()": "<inferred>",
         "range()": "<inferred>",
         "rangeImpl()": "<inferred>",
@@ -2466,7 +2474,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -2596,7 +2604,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -28405,10 +28413,10 @@
         "BufferTooSmall": 1,
         "CorruptObjectDescriptor": 5,
         "FileNotFound": 4,
-        "ImmutableObjectConflict": 4,
+        "ImmutableObjectConflict": 5,
         "IncompatibleDefinition": 3,
         "ObjectDigestMismatch": 8,
-        "ObjectKeyConflict": 1,
+        "ObjectKeyConflict": 2,
         "ObjectNotFound": 2,
         "ObjectTooLarge": 4,
         "PathAlreadyExists": 1,
@@ -28432,19 +28440,22 @@
         "publishName()": "<inferred>",
         "putConditional()": "<inferred>",
         "putImmutable()": "<inferred>",
+        "putImmutableBatch()": "<inferred>",
         "read()": "<inferred>",
         "readRecord()": "<inferred>",
         "reclaimImmutable()": "<inferred>",
         "removeFile()": "<inferred>",
         "saveRecord()": "<inferred>",
+        "saveRecordName()": "<inferred>",
         "stage()": "<inferred>",
+        "stageContent()": "<inferred>",
         "sync()": "<inferred>",
         "syncIterated()": "<inferred>",
         "verify()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 82,
+        "try": 92,
         "catch": 9
       },
       "imports": [
@@ -28996,13 +29007,15 @@
         "LocalSegmentStore.openDiskAt()": "<inferred>",
         "LocalSegmentStore.putConditionalErased()": "anyerror",
         "LocalSegmentStore.putConditionalObject()": "<inferred>",
+        "LocalSegmentStore.putImmutableBatch()": "<inferred>",
+        "LocalSegmentStore.putImmutableBatchErased()": "<inferred>",
         "LocalSegmentStore.putImmutableErased()": "anyerror",
         "LocalSegmentStore.putImmutableObject()": "<inferred>",
         "LocalSegmentStore.reclaimImmutableObject()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 20,
+        "try": 23,
         "catch": 1
       },
       "imports": [
@@ -30885,9 +30898,11 @@
     "packages/zig/transit-storage/src/TransitObjectStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
+        "DuplicateObjectKey": 1,
+        "InvalidObjectBatch": 1,
         "InvalidObjectKey": 5,
-        "ObjectDigestMismatch": 1,
-        "ObjectTooLarge": 2
+        "ObjectDigestMismatch": 2,
+        "ObjectTooLarge": 3
       },
       "outcomes": {
         "Condition": [
@@ -30902,16 +30917,19 @@
         "ObjectStore.VTable.head()": "anyerror",
         "ObjectStore.VTable.putConditional()": "anyerror",
         "ObjectStore.VTable.putImmutable()": "anyerror",
+        "ObjectStore.VTable.putImmutableBatch()": "anyerror",
         "ObjectStore.delete()": "<inferred>",
         "ObjectStore.getRange()": "<inferred>",
         "ObjectStore.head()": "<inferred>",
         "ObjectStore.putConditional()": "<inferred>",
         "ObjectStore.putImmutable()": "<inferred>",
+        "ObjectStore.putImmutableBatch()": "<inferred>",
+        "validateBatch()": "<inferred>",
         "validateKey()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 5,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -30922,14 +30940,14 @@
       "errors": {
         "ActiveStorageCandidate": 1,
         "IncompatibleDefinition": 1,
-        "InvalidDataIndexObject": 5,
+        "InvalidDataIndexObject": 6,
         "InvalidDataIndexReference": 2,
         "InvalidPageBatch": 1,
         "InvalidPageCacheBudget": 1,
         "InvalidStorageBudget": 1,
         "MissingDataIndexObject": 1,
-        "NoStorageCandidate": 1,
-        "StorageCandidateTooLarge": 1
+        "NoStorageCandidate": 2,
+        "StorageCandidateTooLarge": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -30943,7 +30961,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 14,
         "catch": 0
       },
       "imports": [

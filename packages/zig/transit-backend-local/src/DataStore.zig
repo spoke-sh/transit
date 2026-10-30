@@ -19,7 +19,15 @@ pub fn log(self: *Self) Log.Log {
     return .{ .context = self, .vtable = &.{ .append = append, .read = read, .tail = tail, .trim = trim, .fence = fence } };
 }
 pub fn objects(self: *Self) Objects.ObjectStore {
-    return .{ .context = self, .vtable = &.{ .putImmutable = put, .putConditional = conditional, .getRange = range, .head = head, .delete = delete } };
+    return .{ .context = self, .vtable = &.{ .putImmutable = put, .putImmutableBatch = putBatch, .putConditional = conditional, .getRange = range, .head = head, .delete = delete } };
+}
+fn putBatch(context: *anyopaque, batch: []const Objects.ImmutablePut, output: []Objects.ObjectMeta) !void {
+    const self = erased(context);
+    return self.observe.run(self.backend.io, "data.object_batch", putBatchImpl, .{ self, batch, output });
+}
+fn putBatchImpl(self: *Self, batch: []const Objects.ImmutablePut, output: []Objects.ObjectMeta) !void {
+    for (batch) |item| self.observe.metrics.request_payload_bytes +|= item.bytes.len;
+    try self.backend.putBatch(batch, output, self.control, self.track_activity);
 }
 fn erased(context: *anyopaque) *Self {
     return @ptrCast(@alignCast(context));

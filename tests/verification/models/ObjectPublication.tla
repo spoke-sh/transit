@@ -1,20 +1,24 @@
 ------------------------- MODULE ObjectPublication -------------------------
 EXTENDS Integers, Sequences, FiniteSets, TLC
 
-\* One key, one candidate and its exact retry under the per-key process lock.
-\* 1 = payload, 2 = checks, 3 = descriptor; 0/1/2 = absent/partial/complete.
+\* A bounded group, one candidate and its exact retry under ordered per-key locks.
+\* Content pairs precede descriptors; 0/1/2 = absent/partial/complete.
 \* Names and bytes can persist independently before successful sync. Successful
 \* sync is truthful. An old conditional descriptor is abstracted as no NEW
 \* descriptor; this model does not establish CAS, inventory or GC authority.
-CONSTANTS SyncPayload, SyncChecks, SyncContentNames, SyncDescriptor,
+CONSTANTS ObjectCount, SyncPayload, SyncChecks, SyncContentNames, SyncDescriptor,
           SyncDescriptorName
 VARIABLES s, last
 vars == <<s, last>>
-Files == 1..3
-Content == {1, 2}
+Files == 1..(3 * ObjectCount)
+Content == 1..(2 * ObjectCount)
+Descriptors == (2 * ObjectCount + 1)..(3 * ObjectCount)
+ContentBarrier == 6 * ObjectCount
+FinalBarrier == 9 * ObjectCount + 1
+Done == FinalBarrier + 2
 
 Init == /\ s = [phase |-> 0, live |-> TRUE, ack |-> FALSE,
-                bytes |-> <<0, 0, 0>>, durable |-> <<0, 0, 0>>,
+                bytes |-> [i \in Files |-> 0], durable |-> [i \in Files |-> 0],
                 names |-> {}, savedNames |-> {}]
         /\ last = "Init"
 
@@ -36,27 +40,30 @@ Link(i, phase, event) ==
     /\ s' = [s EXCEPT !.names = @ \cup {i}, !.phase = phase + 1]
     /\ last' = event
 
-PayloadWrite == Write(1, 0, "PayloadWrite")
-PayloadSync == Sync(1, 1, SyncPayload, "PayloadSync")
-PayloadLink == Link(1, 2, "PayloadLink")
-ChecksWrite == Write(2, 3, "ChecksWrite")
-ChecksSync == Sync(2, 4, SyncChecks, "ChecksSync")
-ChecksLink == Link(2, 5, "ChecksLink")
+PayloadWrite == \E k \in 1..ObjectCount: Write(2*k-1, 6*(k-1), "PayloadWrite")
+PayloadSync == \E k \in 1..ObjectCount: Sync(2*k-1, 6*(k-1)+1, SyncPayload, "PayloadSync")
+PayloadLink == \E k \in 1..ObjectCount: Link(2*k-1, 6*(k-1)+2, "PayloadLink")
+ChecksWrite == \E k \in 1..ObjectCount: Write(2*k, 6*(k-1)+3, "ChecksWrite")
+ChecksSync == \E k \in 1..ObjectCount: Sync(2*k, 6*(k-1)+4, SyncChecks, "ChecksSync")
+ChecksLink == \E k \in 1..ObjectCount: Link(2*k, 6*(k-1)+5, "ChecksLink")
 ContentNamesSync ==
-    /\ s.live /\ s.phase = 6
+    /\ s.live /\ s.phase = ContentBarrier
     /\ s' = [s EXCEPT !.savedNames = IF SyncContentNames THEN @ \cup Content ELSE @,
-                       !.phase = 7]
+                       !.phase = ContentBarrier + 1]
     /\ last' = "ContentNamesSync"
-DescriptorWrite == Write(3, 7, "DescriptorWrite")
-DescriptorSync == Sync(3, 8, SyncDescriptor, "DescriptorSync")
-DescriptorReplace == Link(3, 9, "DescriptorReplace")
+DescriptorWrite == \E k \in 1..ObjectCount:
+    Write(2*ObjectCount+k, ContentBarrier+1+3*(k-1), "DescriptorWrite")
+DescriptorSync == \E k \in 1..ObjectCount:
+    Sync(2*ObjectCount+k, ContentBarrier+2+3*(k-1), SyncDescriptor, "DescriptorSync")
+DescriptorReplace == \E k \in 1..ObjectCount:
+    Link(2*ObjectCount+k, ContentBarrier+3+3*(k-1), "DescriptorReplace")
 DescriptorNameSync ==
-    /\ s.live /\ s.phase = 10
-    /\ s' = [s EXCEPT !.savedNames = IF SyncDescriptorName THEN @ \cup {3} ELSE @,
-                       !.phase = 11]
+    /\ s.live /\ s.phase = FinalBarrier
+    /\ s' = [s EXCEPT !.savedNames = IF SyncDescriptorName THEN @ \cup Descriptors ELSE @,
+                       !.phase = FinalBarrier + 1]
     /\ last' = "DescriptorNameSync"
-Ack == /\ s.live /\ s.phase = 11
-       /\ s' = [s EXCEPT !.phase = 12, !.ack = TRUE]
+Ack == /\ s.live /\ s.phase = FinalBarrier + 1
+       /\ s' = [s EXCEPT !.phase = Done, !.ack = TRUE]
        /\ last' = "Ack"
 
 \* Environment writeback may persist any prefix and any linked name. This
@@ -73,7 +80,7 @@ PersistName ==
 Kill == /\ s.live
         /\ s' = [s EXCEPT !.live = FALSE, !.phase = 0]
         /\ last' = "Kill"
-IoError == /\ s.live /\ s.phase < 12
+IoError == /\ s.live /\ s.phase < Done
            /\ s' = [s EXCEPT !.live = FALSE, !.phase = 0]
            /\ last' = "IoError"
 PowerLoss == /\ s.live
@@ -87,17 +94,18 @@ Recover == /\ ~s.live /\ ~s.ack
 Next == PayloadWrite \/ PayloadSync \/ PayloadLink \/ ChecksWrite \/ ChecksSync
         \/ ChecksLink \/ ContentNamesSync \/ DescriptorWrite \/ DescriptorSync
         \/ DescriptorReplace \/ DescriptorNameSync \/ Ack
-        \/ Partial(1, 0) \/ Partial(2, 3) \/ Partial(3, 7)
+        \/ (\E k \in 1..ObjectCount: Partial(2*k-1, 6*(k-1)) \/ Partial(2*k, 6*(k-1)+3)
+            \/ Partial(2*ObjectCount+k, ContentBarrier+1+3*(k-1)))
         \/ PersistBytes \/ PersistName \/ Kill \/ IoError \/ PowerLoss \/ Recover
 Spec == Init /\ [][Next]_vars
 
-TypeOK == /\ s.phase \in 0..12 /\ s.live \in BOOLEAN /\ s.ack \in BOOLEAN
+TypeOK == /\ s.phase \in 0..Done /\ s.live \in BOOLEAN /\ s.ack \in BOOLEAN
           /\ s.bytes \in [Files -> 0..2] /\ s.durable \in [Files -> 0..2]
           /\ s.names \subseteq Files /\ s.savedNames \subseteq Files
 ContentBeforeVisibility ==
-    3 \in s.names => /\ Content \subseteq s.savedNames
+    s.names \cap Descriptors # {} => /\ Content \subseteq s.savedNames
                         /\ \A i \in Content: s.durable[i] = 2
-DescriptorBeforeVisibility == 3 \in s.names => s.durable[3] = 2
+DescriptorBeforeVisibility == \A i \in Descriptors \cap s.names: s.durable[i] = 2
 AcknowledgedDurable == s.ack => /\ s.savedNames = Files
                                 /\ \A i \in Files: s.durable[i] = 2
 =============================================================================

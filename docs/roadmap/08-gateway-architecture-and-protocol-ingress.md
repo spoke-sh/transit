@@ -276,6 +276,16 @@ the result and move that owner earlier; do not claim cache work closed the targe
 
 #### Third delivery: reduce serial durable write work (#211 W5/W6)
 
+The bounded publication slice is implemented: native and direct index-page groups
+of up to eight objects share their two directory barriers, using `3n + 2`
+object-publication sync calls instead of `5n`. Inventory and accepting WAL syncs
+remain separate. The [qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
+records finite models, disk failures, retries and process-death schedules.
+The [console attempts](../history/qualification/performance.md#bounded-publication-console-attempts--2026-10-30)
+are incomplete and establish no latency gain. Reconstructible bookkeeping
+(W5b), the account-wide token/commit envelope (W6), and the third delivery's
+end-to-end latency/recovery exit remain open.
+
 Start from the measured INSERT dependency graph and the current
 [`DIRECT_TABLE_V1`](../../contracts/DIRECT_TABLE_V1.md) contract. Catalogue every
 required durable artifact and barrier across intent staging, account token
@@ -408,7 +418,7 @@ from application call counts.
 | --- | --- |
 | M3 / M4 / completed local M5 | Preserve bootstrap, logical results and Table transactions while changing placement. Source-bound and captured operations remain explicit adapters. |
 | M6 / M7 | Gate new data-kind routes on direct owner contracts and transaction participation. Document extraction and reserved Stream/Queue categories do not establish runtime support. |
-| #211 W5a | Extend the qualified five-sync publication toward explicit bounded batches only with physical models, guard-removal controls and disk faults. M8 does not remove storage barriers. |
+| #211 W5a | Bounded native/direct page groups now share directory barriers (`3n + 2` object-publication sync calls). Finite models and disk faults qualify the scoped mechanism; the installed latency/recovery exit remains open. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
 | #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
 | M9 / M20 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |

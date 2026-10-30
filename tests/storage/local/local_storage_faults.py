@@ -133,6 +133,23 @@ def run(binary):
                     "after" if operation == "replace" else "immutable")
                 if operation == "immutable":
                     assert call(directory, "objects-conflict") == {"conflict": True}
+        for point in [*(f"sync-{i}" for i in range(1, 9)),
+                      *(f"content-link-{i}" for i in range(1, 5)),
+                      "publish", "publish-2", "ack"]:
+            directory = root / f"objects-batch-{point}"
+            assert call(directory, "objects-init") == {"initialized": True}
+            kill(directory, "objects-batch", point)
+            for index, (key, value) in enumerate((("batch-a", "first"), ("batch-b", "second"))):
+                visible = point in ({"sync-7", "sync-8", "publish", "publish-2", "ack"}
+                                    if index == 0 else {"sync-8", "publish-2", "ack"})
+                result = call(directory, "objects-inspect", key)
+                assert result["value"] == (value if visible else None), (point, key, result)
+            assert call(directory, "objects-batch") == {"accepted": True}
+            for key, value in (("batch-a", "first"), ("batch-b", "second")):
+                result = call(directory, "objects-inspect", key)
+                assert result["value"] == value, (point, key, result)
+                assert bytes(result["meta"]["sha256"]) == hashlib.sha256(value.encode()).digest()
+
         def table_rows(directory, archived):
             result = call(directory, "table-inspect")
             assert result == dict(archived=archived, tail=3 + archived, rows=2,
@@ -267,9 +284,9 @@ def run(binary):
                 assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
                 assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
                 assert metadata(directory / "wal")["floor"] == 0
-    # Three removed per-content directory boundaries (two object paths and one
-    # checkpoint), plus four new unsynced-link crash cuts across both put kinds.
-    assert schedules == 150, schedules
+    # The original 150 schedules plus all eight batch syncs, four content links,
+    # two descriptor replacements and the grouped acknowledgement.
+    assert schedules == 165, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
           "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "

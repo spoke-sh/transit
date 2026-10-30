@@ -12,6 +12,24 @@ pub const ObjectMeta = struct {
     sha256: [32]u8,
 };
 
+/// A bounded group of individually immutable objects. Success establishes all
+/// publications; failure can leave any subset visible and must be retried with
+/// the original keys/content. This is not an atomic multi-object visibility API.
+pub const max_put_batch = 8;
+pub const ImmutablePut = struct { key: []const u8, bytes: []const u8, sha256: [32]u8 };
+
+pub fn validateBatch(batch: []const ImmutablePut, output: []ObjectMeta) !void {
+    if (batch.len == 0 or batch.len > max_put_batch or batch.len != output.len) return error.InvalidObjectBatch;
+    for (batch, 0..) |item, i| {
+        try validateKey(item.key);
+        if (item.bytes.len > max_object_bytes) return error.ObjectTooLarge;
+        var actual: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(item.bytes, &actual, .{});
+        if (!std.mem.eql(u8, &actual, &item.sha256)) return error.ObjectDigestMismatch;
+        for (batch[0..i]) |previous| if (std.mem.eql(u8, item.key, previous.key)) return error.DuplicateObjectKey;
+    }
+}
+
 pub const Condition = union(enum) {
     if_none_match,
     if_match: [32]u8,
@@ -41,6 +59,7 @@ pub const ObjectStore = struct {
 
     pub const VTable = struct {
         putImmutable: *const fn (ctx: *anyopaque, key: []const u8, bytes: []const u8, expected_sha256: [32]u8) anyerror!ObjectMeta,
+        putImmutableBatch: ?*const fn (ctx: *anyopaque, batch: []const ImmutablePut, output: []ObjectMeta) anyerror!void = null,
         putConditional: *const fn (ctx: *anyopaque, key: []const u8, condition: Condition, bytes: []const u8) anyerror!bool,
         getRange: *const fn (ctx: *anyopaque, key: []const u8, offset: u64, length: u32, out: []u8) anyerror![]const u8,
         head: *const fn (ctx: *anyopaque, key: []const u8) anyerror!?ObjectMeta,
@@ -54,6 +73,19 @@ pub const ObjectStore = struct {
         std.crypto.hash.sha2.Sha256.hash(bytes, &actual, .{});
         if (!std.mem.eql(u8, &actual, &expected_sha256)) return error.ObjectDigestMismatch;
         return self.vtable.putImmutable(self.context, key, bytes, expected_sha256);
+    }
+
+    /// Input slices are borrowed until return. Output is written only after all
+    /// puts succeed, including for providers that implement individual puts.
+    pub fn putImmutableBatch(self: ObjectStore, batch: []const ImmutablePut, output: []ObjectMeta) !void {
+        try validateBatch(batch, output);
+        var completed: [max_put_batch]ObjectMeta = undefined;
+        if (self.vtable.putImmutableBatch) |put| {
+            try put(self.context, batch, completed[0..batch.len]);
+        } else {
+            for (batch, completed[0..batch.len]) |item, *meta| meta.* = try self.putImmutable(item.key, item.bytes, item.sha256);
+        }
+        @memcpy(output, completed[0..batch.len]);
     }
 
     pub fn putConditional(self: ObjectStore, key: []const u8, condition: Condition, bytes: []const u8) !bool {

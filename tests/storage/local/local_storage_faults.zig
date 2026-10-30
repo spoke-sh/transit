@@ -184,6 +184,16 @@ fn objects(init: std.process.Init, io: std.Io, directory: []const u8, operation:
         Fault.acknowledged();
         return emit(init, .{ .accepted = true });
     }
+    if (std.mem.eql(u8, operation, "batch")) {
+        const batch = [_]storage.TransitObjectStore.ImmutablePut{
+            .{ .key = "batch-a", .bytes = "first", .sha256 = digest("first") },
+            .{ .key = "batch-b", .bytes = "second", .sha256 = digest("second") },
+        };
+        var output: [2]storage.TransitObjectStore.ObjectMeta = undefined;
+        try store.putImmutableBatch(&batch, &output);
+        Fault.acknowledged();
+        return emit(init, .{ .accepted = true });
+    }
     if (std.mem.eql(u8, operation, "conflict")) {
         _ = store.putImmutable("new.tseg", "conflict", digest("conflict")) catch |err| {
             if (err != error.ImmutableObjectConflict) return err;

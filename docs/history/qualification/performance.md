@@ -9,6 +9,42 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded publication console attempts — 2026-10-30
+
+The [storage change](storage.md#bounded-immutable-publication-groups--2026-10-30)
+reduces object-publication sync calls, but these installed-console attempts do
+**not** establish a latency improvement. Both use the persistent statement driver
+with `--statements --repeat 1 --cycles 5`, default service deadlines and independent
+row/count checks. No owned build or disk test runs alongside the timed commands;
+unrelated work continues on the shared host, without affinity or frequency control.
+
+The control is frozen ReleaseSafe source
+`61cf1ffd85833f71bb35d3f869a6863a30f51d5e`; its runtime matches merged base
+`c09b0d8796b11cefe9e3885ba10c7b0badda48f0` (the intervening changes are handbook
+images). It completes 12 statements, then stops on `Canceled (57014)` at the
+first SELECT after DELETE. Its private installation remains at
+`/var/tmp/transit-server-proof-sbhs5fbv`. The paired driver stops on that failure.
+
+A separately invoked candidate at
+`da01bb340fb909220de0d3fa315dea898e37da9a` completes 52 statements, including
+three complete cycles. In cycle four it acknowledges an UPDATE in 8,428 ms, then
+stops on `SqlSessionExpired` at the following SELECT. Its private installation
+remains at `/var/tmp/transit-server-proof-tmu_bdq7`. Neither failed statement is
+resubmitted as new work. The longer matched matrix is not run after these failures.
+
+Raw stdout, failure stderr, source/executable/driver hashes and the control's
+host-pressure observations remain under `.cache/write-publication/`.
+`matched-5cycles-1-control.jsonl` has SHA-256
+`eb67c2e02bff06d4d15601a98151f94ecd87e70b25f0ee5be8b161bb278e3042`;
+`candidate-iteration.jsonl` has
+`d4401d6acd085fc0a5aadd29ffccef010ee6903989733aff4668ed4e54496fb3`.
+These are incomplete, sequential samples with different failure points, not a
+completed matched comparison. Host contention is observed, not established as
+the cause of either failure. No percentile, speedup, regression attribution or
+milestone completion is inferred. These binaries predate the subsequent rebase
+on Document storage source `a4e695de6`; they do not qualify that integrated runtime.
+
+
 ## Shared client resource baseline — 2026-10-29
 
 The query/value ownership extraction preserves the installed SQL workload but

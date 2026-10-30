@@ -53,6 +53,15 @@ verified page caches; it does not continuously detect historical corruption.
 This inventory supplies no reachability or deletion authority. Its mandatory
 directory is created only for a fresh current-definition installation; missing
 history rejects on reopen instead of being reset.
+Native and direct index-page groups contain at most eight pages. Their allocation
+records and quota reservations precede content creation, and the shared creator
+fence covers the complete group. The object store shares directory barriers
+within that group; inventory WAL records retain their individual durability.
+Partial failure produces no page references or new cached confirmations, while
+retaining charged reservations and any private published objects for exact retry
+and ordinary collection. Page encoders use at most eight 24 KiB buffers plus
+envelopes in a separate batch stack frame; single-page staging keeps its own
+frame. No stored format, acceptance decision, timeout or cache capacity changes.
 Native page/block creation likewise uses its own allocation-queue mutex and
 holds a shared creation/reclamation fence until immutable publication finishes.
 Only the accepted-epoch check and quota reservation take the journal mutex;

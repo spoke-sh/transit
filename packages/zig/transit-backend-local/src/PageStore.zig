@@ -113,9 +113,28 @@ fn stageImpl(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     return result;
 }
 
-pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
+pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
     if (batch.len != output.len or batch.len > pages.mutation_batch) return error.InvalidPageBatch;
-    for (batch, output) |page, *reference| reference.* = try self.stage(try page.reference(), &page);
+    if (batch.len == 0) return;
+    var buffers: [pages.mutation_batch][envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
+    var references: [pages.mutation_batch]pages.Reference = undefined;
+    var puts: [pages.mutation_batch]Backend.NativePut = undefined;
+    for (batch, buffers[0..batch.len], references[0..batch.len], puts[0..batch.len]) |*page, *bytes, *reference, *put| {
+        reference.* = try page.reference();
+        envelope('p', bytes);
+        const body = try page.encode(bytes[envelope_bytes..]);
+        const encoded = bytes[0 .. envelope_bytes + body.len];
+        reference.location = try self.location('p', reference.digest, encoded.len);
+        self.create_payload_bytes_attempted +|= encoded.len;
+        self.observe.metrics.request_payload_bytes +|= encoded.len;
+        put.* = .{ .address = reference.location, .bytes = encoded };
+    }
+    try self.observe.run(self.backend.io, "page.stage_batch", Backend.putNativePages, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
+    for (batch, references[0..batch.len]) |*page, reference| {
+        self.created +|= 1;
+        self.remember(reference, page.*);
+    }
+    @memcpy(output, references[0..batch.len]);
 }
 
 pub fn load(self: *Self, reference: pages.Reference) !pages.Page {

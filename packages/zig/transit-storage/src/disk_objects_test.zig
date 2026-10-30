@@ -467,3 +467,151 @@ test "immutable confirmation verifies content and syncs observed publications wi
     memory.objects.items[0].bytes[0] ^= 1;
     try t.expectError(error.ObjectDigestMismatch, memory.confirmImmutableObject("memory", volatile_meta));
 }
+
+test "immutable object batches share directory barriers and retain exact per-object bytes" {
+    const Objects = @import("TransitObjectStore.zig");
+    const Probe = struct {
+        var real: std.Io = undefined;
+        var enabled = false;
+        var files: usize = 0;
+        var directories: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try real.vtable.fileSync(context, file);
+            if (!enabled) return;
+            const stat = file.stat(real) catch return error.InputOutput;
+            if (stat.kind == .directory) directories += 1 else files += 1;
+        }
+    };
+    Probe.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Probe.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]usize{ 1, 2, Objects.max_put_batch }) |count| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+        defer owner.deinit();
+        var names: [Objects.max_put_batch][24]u8 = undefined;
+        var batch: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
+        var output: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+        for (batch[0..count], names[0..count], 0..) |*item, *name, i| {
+            const key = try std.fmt.bufPrint(name, "batch/{d}", .{i});
+            item.* = .{ .key = key, .bytes = key, .sha256 = hash(key) };
+        }
+        Probe.files = 0;
+        Probe.directories = 0;
+        Probe.enabled = true;
+        defer Probe.enabled = false;
+        try owner.objectStore().putImmutableBatch(batch[0..count], output[0..count]);
+        Probe.enabled = false;
+        try t.expectEqual(3 * count, Probe.files);
+        try t.expectEqual(@as(usize, 2), Probe.directories);
+        try t.expectEqual(count, owner.puts);
+        var reader = try open(tmp.dir);
+        defer reader.deinit();
+        for (batch[0..count], output[0..count]) |item, meta| {
+            var bytes: [24]u8 = undefined;
+            try t.expectEqualStrings(item.bytes, try reader.objectStore().getRange(item.key, 0, bytes.len, &bytes));
+            try t.expectEqualDeep(meta, (try reader.objectStore().head(item.key)).?);
+        }
+        try reader.objectStore().putImmutableBatch(batch[0..count], output[0..count]);
+        const original = batch[0];
+        batch[0].bytes = "conflicting";
+        batch[0].sha256 = hash("conflicting");
+        try t.expectError(error.ImmutableObjectConflict, reader.objectStore().putImmutableBatch(batch[0..count], output[0..count]));
+        batch[0] = original;
+        try t.expectError(error.InvalidObjectBatch, owner.objectStore().putImmutableBatch(&.{}, &.{}));
+        try t.expectError(error.DuplicateObjectKey, owner.objectStore().putImmutableBatch(&.{ original, original }, output[0..2]));
+    }
+}
+
+test "immutable object batch failure never returns partial output and exact retry recovers" {
+    const Objects = @import("TransitObjectStore.zig");
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var sync_remaining: usize = 0;
+        var write_remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (sync_remaining != 0) {
+                sync_remaining -= 1;
+                if (sync_remaining == 0) return error.InputOutput;
+            }
+            return real.vtable.fileSync(context, file);
+        }
+        fn operate(context: ?*anyopaque, operation: std.Io.Operation) std.Io.Cancelable!std.Io.Operation.Result {
+            if (operation == .file_write_streaming and write_remaining != 0) {
+                write_remaining -= 1;
+                if (write_remaining == 0) {
+                    const write = operation.file_write_streaming;
+                    write.file.writeStreamingAll(real, write.data[0][0..1]) catch return .{ .file_write_streaming = error.InputOutput };
+                    return .{ .file_write_streaming = error.NoSpaceLeft };
+                }
+            }
+            return real.vtable.operate(context, operation);
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    vtable.operate = Fault.operate;
+    var io = t.io;
+    io.vtable = &vtable;
+    const batch = [_]Objects.ImmutablePut{
+        .{ .key = "a", .bytes = "first", .sha256 = hash("first") },
+        .{ .key = "b", .bytes = "second", .sha256 = hash("second") },
+    };
+    const sentinel: Objects.ObjectMeta = .{ .size = 999, .sha256 = @splat(9) };
+    for ([_]bool{ false, true }) |write_failure| {
+        for (1..(if (write_failure) @as(usize, 7) else 9)) |failure| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+            defer owner.deinit();
+            var output: [2]Objects.ObjectMeta = @splat(sentinel);
+            if (write_failure) Fault.write_remaining = failure else Fault.sync_remaining = failure;
+            try t.expectError(if (write_failure) error.NoSpaceLeft else error.InputOutput, owner.objectStore().putImmutableBatch(&batch, &output));
+            try t.expectEqual(@as(usize, 0), Fault.write_remaining + Fault.sync_remaining);
+            try t.expectEqualDeep([2]Objects.ObjectMeta{ sentinel, sentinel }, output);
+            var reader = try open(tmp.dir);
+            defer reader.deinit();
+            for (batch) |item| if (try reader.objectStore().head(item.key)) |_| {
+                var bytes: [16]u8 = undefined;
+                try t.expectEqualStrings(item.bytes, try reader.objectStore().getRange(item.key, 0, bytes.len, &bytes));
+            };
+            try reader.objectStore().putImmutableBatch(&batch, &output);
+            for (batch, output) |item, meta| {
+                var bytes: [16]u8 = undefined;
+                try t.expectEqual(item.bytes.len, meta.size);
+                try t.expectEqualStrings(item.bytes, try owner.objectStore().getRange(item.key, 0, bytes.len, &bytes));
+            }
+        }
+    }
+}
+
+test "overlapping immutable object batches lock keys in one order" {
+    const Objects = @import("TransitObjectStore.zig");
+    const Writer = struct {
+        fn run(owner: *Store, reversed: bool) !void {
+            var batch = [_]Objects.ImmutablePut{
+                .{ .key = "a", .bytes = "a", .sha256 = hash("a") },
+                .{ .key = "b", .bytes = "b", .sha256 = hash("b") },
+            };
+            if (reversed) std.mem.swap(Objects.ImmutablePut, &batch[0], &batch[1]);
+            var output: [2]Objects.ObjectMeta = undefined;
+            try owner.objectStore().putImmutableBatch(&batch, &output);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var a = try open(tmp.dir);
+    defer a.deinit();
+    var b = try open(tmp.dir);
+    defer b.deinit();
+    var first = try t.io.concurrent(Writer.run, .{ &a, false });
+    defer _ = first.cancel(t.io) catch {};
+    var second = try t.io.concurrent(Writer.run, .{ &b, true });
+    defer _ = second.cancel(t.io) catch {};
+    try first.await(t.io);
+    try second.await(t.io);
+}

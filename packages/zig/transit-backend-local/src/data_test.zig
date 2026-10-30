@@ -647,3 +647,95 @@ fn revocationAfterStaging(prerequisite: bool) !void {
     _ = try submit(&engine, .{ .retire_resource = setup.resource });
     try t.expectError(error.StateResourceExpired, table.observe(binding, authority.guard()));
 }
+
+test "batched native and direct publications retain inventory across every sync failure" {
+    const Objects = storage.TransitObjectStore;
+    const Native = @import("NativeAllocations.zig");
+    const Direct = @import("DataAllocations.zig");
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var calls: usize = 0;
+        var remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            calls += 1;
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+            return real.fileSync(context, file);
+        }
+        fn put(owner: *backend.Backend, native: bool, items: []const Objects.ImmutablePut) !void {
+            if (native) {
+                const batch = [_]backend.Backend.NativePut{
+                    .{ .address = @splat(1), .bytes = items[0].bytes },
+                    .{ .address = @splat(2), .bytes = items[1].bytes },
+                };
+                try owner.putNativePages(1, &batch, false, true);
+            } else {
+                var output: [2]Objects.ObjectMeta = undefined;
+                var data: backend.DataStore = .{ .backend = owner };
+                try data.objects().putImmutableBatch(items, &output);
+            }
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]bool{ false, true }) |native| {
+        var names: [2][96]u8 = undefined;
+        var items: [2]Objects.ImmutablePut = undefined;
+        var allocations: [2]Native.Allocation = undefined;
+        for (&items, &allocations, &names, 0..) |*item, *allocation, *name, i| {
+            const bytes: []const u8 = if (i == 0) "first" else "second";
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+            allocation.* = .{ .epoch = 1, .kind = .page, .address = @splat(@intCast(i + 1)), .meta = .{ .size = bytes.len, .sha256 = digest } };
+            item.* = .{ .key = if (native) try allocation.key(name) else if (i == 0) "first" else "second", .bytes = bytes, .sha256 = digest };
+        }
+        var schedules: usize = 0;
+        var failure: usize = 0;
+        while (failure <= schedules) : (failure += 1) {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            {
+                var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
+                defer owner.deinit();
+                Fault.calls = 0;
+                Fault.remaining = failure;
+                if (failure == 0) {
+                    try Fault.put(&owner, native, &items);
+                    schedules = Fault.calls;
+                    try t.expect(schedules > 0 and schedules < 40);
+                    if (!native) {
+                        Fault.calls = 0;
+                        try Fault.put(&owner, native, &items);
+                        try t.expectEqual(@as(usize, 0), Fault.calls);
+                    }
+                } else {
+                    try t.expectError(error.InputOutput, Fault.put(&owner, native, &items));
+                    try t.expectEqual(@as(usize, 0), Fault.remaining);
+                }
+            }
+            var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
+            defer owner.deinit();
+            for (items, allocations) |item, allocation| if (try owner.objects.objectStore().head(item.key)) |_| {
+                if (native) {
+                    try t.expectEqualDeep(allocation, (try owner.allocations.read(allocation.name())).?);
+                } else {
+                    const wanted = try Direct.Allocation.init(1, item.key, allocation.meta);
+                    try t.expectEqualDeep(wanted, (try owner.data_allocations.latest(wanted.name())).?);
+                }
+            };
+            // A replacement owner cannot inherit a volatile confirmation.
+            Fault.calls = 0;
+            try Fault.put(&owner, native, &items);
+            try t.expect(Fault.calls > 0);
+            for (items) |item| {
+                var output: [16]u8 = undefined;
+                try t.expectEqualStrings(item.bytes, try owner.read(item.key, &output));
+            }
+        }
+    }
+}
