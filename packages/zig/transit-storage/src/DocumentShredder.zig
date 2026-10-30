@@ -443,18 +443,18 @@ fn updateZoneMap(
             zm.max_int64 = if (zm.max_int64) |cur| @max(cur, v) else v;
         },
         .string => |v| {
-            const p = computePrefixU32(collation, v);
+            const prefix_u32 = computePrefixU32(collation, v);
             if (zm.min_string == null or compareStrings(collation, v, zm.min_string.?) == .lt) {
                 const copy = try output.dupe(u8, v);
                 if (zm.min_string) |old| output.free(old);
                 zm.min_string = copy;
-                zm.min_prefix_u32 = p;
+                zm.min_prefix_u32 = prefix_u32;
             }
             if (zm.max_string == null or compareStrings(collation, v, zm.max_string.?) == .gt) {
                 const copy = try output.dupe(u8, v);
                 if (zm.max_string) |old| output.free(old);
                 zm.max_string = copy;
-                zm.max_prefix_u32 = p;
+                zm.max_prefix_u32 = prefix_u32;
             }
         },
         else => {},
