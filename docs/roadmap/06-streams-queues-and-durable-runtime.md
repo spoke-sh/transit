@@ -388,8 +388,10 @@ The current progress slice delivers:
   Trusted clock intervals keep append upper bounds, expiry lower proofs and
   persisted floors distinct. Bounded wait composition passes catalog and native
   concurrent host tests for timeout without acceptance, original cut recovery,
-  append wakeup, cancellation and revocation after parking. HTTP qualification,
-  automatic service scheduling, sparse payload rewriting and installed
+  append wakeup, cancellation and revocation after parking. The rebased
+  [HTTP and contract checks](../history/qualification/catalog.md#bounded-stream-consume-waits-and-main-integration--2026-10-30)
+  pass, including reserved wait admission and original read recovery. Automatic
+  service scheduling, sparse payload rewriting and installed
   qualification remain open.
 
 The next implementation work is to finish that R3 service slice, then implement

@@ -9,6 +9,55 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded Stream consume waits and main integration — 2026-10-30
+
+The bounded-wait implementation `4caf380fa` is rebased on `a4e695de6`, including
+the gateway dispatch changes and Document storage graph. Shared Document
+fixtures were regenerated under the branch definition in `0681f887e`.
+
+The pinned-shell `zig build test-direct-table-service -Doptimize=ReleaseSafe -- tables`
+passes **2,055 typed HTTP calls**. The real shared caller supplies the signed
+wait's exact scheduling header, receives timeout without a read receipt, and
+recovers an existing consume's original cut. The proxy separately proves that
+a missing or mismatched wait hint rejects before execution. Existing retained
+Table/Stream reads, original mutation recovery, restart, current authorization,
+and reserved-control checks also pass. The first HTTP run caught header access
+after body parsing; the successful run includes parsing the scalar hint before
+the header lifetime ends.
+
+| Executable | SHA-256 |
+| --- | --- |
+| `transit-node` | `0499350075099b83e70503db71a004e37c3283e5fcac7fb5579610428c2e1b9a` |
+| `transit-direct-table-proof` | `18704ee273ad0e41ff2e43eeb6f67114f48be9877a341ad75d5b7ff44cd2b875` |
+
+Catalog disk tests cover pending waits without operation reservations, timeout,
+readiness at the final deadline check, immutable empty-read retries, per-object
+waiter capacity and group generation/checkpoint refusals. The concurrent native
+host test observes an actual parked condition waiter before append, cancellation
+or revocation publication. Appends proceed without the parked reader's object
+lock, cancellation joins and releases the ticket, and published revocation
+prevents disclosure. Policy preparation happens before the bounded wait; its
+publication is the tested race. Independent signing fixtures cover the wait
+duration and the unchanged underlying consume intent. Cancellation preserves
+the original identity as unknown work.
+
+The rebased protocol suite, selected catalog Document/Stream tests, native
+catalog wait tests, all 18 contract checks, and documentation links pass.
+The preceding native collection run also passes all three disk schedules after
+correcting the expected expired-range error; the error remains distinct from
+missing recovery history. Logs include
+`/var/tmp/transit-stream-wait-http-rebased.log`,
+`/var/tmp/transit-stream-wait-native-rebased.log`,
+`/var/tmp/transit-stream-rebase-catalog.log`,
+`/var/tmp/transit-stream-rebase-contracts.log` and
+`/var/tmp/transit-stream-bounds-collection-fixed.log`.
+
+These executions do not constitute a full nightly or committed-source clean
+lane result. Automatic Stream maintenance, sparse physical payload rewriting,
+Queue execution, mixed-kind transactions and SQL Stream operations remain
+outside this evidence. The [public Stream contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+owns supported behavior and limits.
+
 ## Signed Stream payload and consumer operations — 2026-10-30
 
 The work committed as `3a596ba31` composes `DirectStream` with the local signed
