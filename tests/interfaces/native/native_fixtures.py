@@ -226,6 +226,86 @@ def generated():
                          read=read_handle), accepted=dict(partition=91, next_lsn=14))
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
+        doc_partition = dict(
+            definition=definition,
+            interpretation=dict(
+                object=dict(scope=log_scope, branch=1, object=2**64-2),
+                revision=1, digest=[47]*32),
+            partition=0)
+        doc_target = dict(partition=doc_partition, document=list(range(33, 49)))
+        doc_replica = dict(id=list(range(49, 65)), epoch=3,
+                           sequence=2**64-1, preceding_sequence=2**64-2)
+        doc_mutation = dict(
+            target=doc_target,
+            operation=dict(scope=log_scope, principal=17, operation=2**64-1),
+            lineage=dict(profile='causal_crdt', merge_epoch=3,
+                         base_revision=2**64-5, parent_revision=None,
+                         replica=doc_replica,
+                         raw_span=dict(part_id=1, byte_start=0, byte_end=256)),
+            operations=4,
+            payload=dict(bytes=256, sha256=[53]*32))
+        doc_cut = dict(
+            target=doc_target, merge_epoch=3,
+            retained_from=2**64-6, accepted_revision=2**64-2,
+            state=dict(bytes=1024, sha256=[59]*32),
+            accepted=dict(partition=93, next_lsn=15))
+        doc_read_op = dict(scope=log_scope, principal=17, operation=2**64-14)
+        doc_read_source = dict(bytes=1024, sha256=[61]*32)
+        doc_read_handle = dict(owner=doc_read_op, source=doc_read_source)
+        doc_coverage = dict(
+            cut=doc_cut, from_revision=2**64-5, through_revision=2**64-2,
+            next_revision=2**64-1, steps=12, bytes=512, complete=True)
+        doc_coverage_body = b'transit.document.read.coverage.v1\0' + bytes.fromhex(definition) + compact(dict(read=doc_read_handle, coverage=doc_coverage))
+        document = dict(
+            declaration=dict(
+                definition=definition,
+                interpretation=doc_partition['interpretation'],
+                schema=dict(bytes=256, sha256=[51]*32),
+                configuration=dict(
+                    partitioning=dict(count=4, key_column=1, hash='sha256_64'),
+                    profile='causal_crdt',
+                    shredding=dict(frequent_path_threshold=64,
+                                   max_shredded_columns=32,
+                                   default_collation='utf8_binary'),
+                    retention=dict(max_age_ms=86400000,
+                                   merge_window_revisions=1024)),
+                limits=dict(change_bytes=65536, operations_per_change=64,
+                            path_depth=32, read_steps=4096,
+                            read_bytes=262144, unresolved_conflicts=16)),
+            mutation=dict(
+                mutation=doc_mutation,
+                accepted_revision=2**64-2,
+                state=doc_cut['state'],
+                unresolved_conflicts=1,
+                accepted=dict(partition=93, next_lsn=15)),
+            replica=dict(
+                target=doc_target, principal=17,
+                replica=doc_replica, discarded_through=2**64-7),
+            checkpoint=dict(
+                checkpoint=dict(
+                    target=doc_target,
+                    operation=dict(scope=log_scope, principal=17, operation=2**64-9),
+                    previous_epoch=2, next_epoch=3,
+                    retained_from=2**64-6, checkpoint_revision=2**64-2,
+                    checkpoint=doc_cut['state']),
+                cut=doc_cut),
+            read=dict(
+                request=dict(target=doc_target, operation=doc_read_op,
+                             from_revision=2**64-5, through_revision=None,
+                             max_steps=4096, max_bytes=262144),
+                cut=doc_cut, through_revision=2**64-2, source=doc_read_source,
+                accepted=dict(partition=93, next_lsn=16)),
+            read_cursor=dict(
+                read=doc_read_handle, coverage=doc_coverage,
+                authentication=list(hmac.digest(bytes([7]*32), doc_coverage_body, 'sha256'))),
+            read_release=dict(
+                release=dict(
+                    target=doc_target,
+                    operation=dict(scope=log_scope, principal=17, operation=2**64-15),
+                    read=doc_read_handle),
+                accepted=dict(partition=93, next_lsn=17)))
+        results[FIXTURES / 'document-v1.json'] = document
+        lifecycle['document'] = document
         results[lifecycle_path] = lifecycle
 
         serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'

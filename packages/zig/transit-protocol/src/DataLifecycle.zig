@@ -329,6 +329,7 @@ pub const SchemaTypes = struct {
     observation: Observation,
     transaction: p.Transaction.SchemaTypes,
     stream_queue: p.StreamQueue.SchemaTypes,
+    document: p.DocumentOperation.SchemaTypes,
 };
 
 test {

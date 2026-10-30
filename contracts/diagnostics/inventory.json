@@ -14832,6 +14832,161 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/DocumentDeclaration.zig": {
+      "errors": {
+        "DocumentDeclarationConflict": 2,
+        "DocumentPartitionKeyRequired": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDocumentLimits": 1,
+        "InvalidDocumentPartitioning": 2,
+        "InvalidDocumentRetention": 2,
+        "InvalidDocumentShredding": 1,
+        "UnsupportedDocumentRepartition": 1,
+        "UnsupportedTransactionDomain": 1
+      },
+      "outcomes": {
+        "Collation": [
+          "utf8_binary",
+          "ascii_ci",
+          "ebcdic_cp037"
+        ],
+        "Partitioning.hash": [
+          "sha256_64"
+        ],
+        "Profile": [
+          "causal_crdt",
+          "versioned"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Configuration.requireEvolution()": "<inferred>",
+        "Configuration.validate()": "<inferred>",
+        "Declaration.requireSuccessor()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Partitioning.select()": "<inferred>",
+        "Partitioning.validate()": "<inferred>",
+        "Retention.validate()": "<inferred>",
+        "Shredding.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentOperation.zig": {
+      "errors": {
+        "DocumentCheckpointConflict": 1,
+        "DocumentHistoryUnavailable": 1,
+        "DocumentMutationConflict": 1,
+        "DocumentPartitionConflict": 2,
+        "DocumentReplicaConflict": 1,
+        "DocumentReplicaFenced": 1,
+        "DocumentReplicaReceiptExpired": 1,
+        "DocumentReplicaRequired": 2,
+        "DocumentReplicaSequenceGap": 3,
+        "DocumentRevisionBeyondCut": 1,
+        "DocumentTargetConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidDocumentCheckpoint": 1,
+        "InvalidDocumentCheckpointReceipt": 1,
+        "InvalidDocumentCut": 1,
+        "InvalidDocumentLineage": 6,
+        "InvalidDocumentMutation": 1,
+        "InvalidDocumentMutationReceipt": 3,
+        "InvalidDocumentRawSpan": 1,
+        "InvalidDocumentReplica": 2,
+        "InvalidDocumentReplicaFloor": 1,
+        "InvalidDocumentReplicaState": 1,
+        "InvalidDocumentTarget": 1,
+        "UnsupportedTransactionDomain": 1
+      },
+      "outcomes": {
+        "ReplicaState.check().<enum>": [
+          "apply",
+          "advance_epoch",
+          "retry"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Checkpoint.requireSame()": "<inferred>",
+        "Checkpoint.validate()": "<inferred>",
+        "CheckpointReceipt.requireCheckpoint()": "<inferred>",
+        "CheckpointReceipt.validate()": "<inferred>",
+        "Cut.requireRevision()": "<inferred>",
+        "Cut.validate()": "<inferred>",
+        "Lineage.validate()": "<inferred>",
+        "Mutation.requireSame()": "<inferred>",
+        "Mutation.validate()": "<inferred>",
+        "MutationReceipt.requireMutation()": "<inferred>",
+        "MutationReceipt.validate()": "<inferred>",
+        "Partition.requireOperation()": "<inferred>",
+        "Partition.requireSame()": "<inferred>",
+        "Partition.validate()": "<inferred>",
+        "RawSpan.validate()": "<inferred>",
+        "Replica.validate()": "<inferred>",
+        "ReplicaState.check()": "<inferred>",
+        "ReplicaState.forgetThrough()": "<inferred>",
+        "ReplicaState.initial()": "<inferred>",
+        "ReplicaState.validate()": "<inferred>",
+        "Target.requireOperation()": "<inferred>",
+        "Target.requireSame()": "<inferred>",
+        "Target.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 42,
+        "catch": 0
+      },
+      "imports": [
+        "DocumentDeclaration.zig",
+        "DocumentRead.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentRead.zig": {
+      "errors": {
+        "DocumentReadConflict": 3,
+        "InvalidDocumentCoverage": 4,
+        "InvalidDocumentCursor": 1,
+        "InvalidDocumentRead": 4,
+        "InvalidDocumentRelease": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Coverage.validate()": "<inferred>",
+        "Cursor.requireReceipt()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "Handle.validate()": "<inferred>",
+        "Receipt.initialCoverage()": "<inferred>",
+        "Receipt.requireRequest()": "<inferred>",
+        "Receipt.validate()": "<inferred>",
+        "Release.validate()": "<inferred>",
+        "ReleaseReceipt.requireRelease()": "<inferred>",
+        "ReleaseReceipt.validate()": "<inferred>",
+        "Request.requireSame()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 2
+      },
+      "imports": [
+        "DocumentOperation.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/EffectDiagnostic.zig": {
       "errors": {
         "InvalidRead": 1
@@ -16013,6 +16168,9 @@
         "Blocks.zig",
         "DataLifecycle.zig",
         "Diagnostic.zig",
+        "DocumentDeclaration.zig",
+        "DocumentOperation.zig",
+        "DocumentRead.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
         "IndexLifecycle.zig",
