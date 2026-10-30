@@ -3261,6 +3261,106 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/BranchLifecycle.zig": {
+      "errors": {
+        "BranchAlreadyExists": 1,
+        "BranchCutIdentityMismatch": 1,
+        "BranchPermissionDenied": 1,
+        "BranchTableWriteDenied": 1,
+        "BrokenManifestDigestChain": 1,
+        "CannotDropMainBranch": 1,
+        "ConditionalBranchHeadConflict": 1,
+        "CopyOracleArityMismatch": 1,
+        "CopyOracleCellValueMismatch": 1,
+        "CopyOracleRowCountMismatch": 1,
+        "InvalidBranchName": 1,
+        "InvalidCompactionCandidate": 1,
+        "InvalidMainBranchGenesis": 1,
+        "InvalidNextManifestVersion": 1,
+        "InvalidPinnedTailFrontier": 1,
+        "InvalidPinnedTailRowArity": 1,
+        "InvalidPolicyEpoch": 3,
+        "MaterializeBufferTooSmall": 6,
+        "NoCommonBranchAncestor": 1,
+        "NonMonotonicManifestLsn": 1,
+        "PinnedTailObjectMismatch": 1,
+        "PinnedTailTableNotFound": 1,
+        "ProtectedBranchDirectWriteForbidden": 1,
+        "ReachabilityBufferFull": 2,
+        "SchemaOnlyBufferTooSmall": 1,
+        "SourceTableSelectDenied": 1,
+        "TooManyBranches": 1,
+        "UnknownBranchName": 4,
+        "UnknownManifestVersion": 1,
+        "UnknownSourceBranch": 1
+      },
+      "outcomes": {
+        "BranchMergePolicy": [
+          "allow_merge",
+          "merge_disabled",
+          "protected_head"
+        ],
+        "BranchMode": [
+          "full_data",
+          "schema_only"
+        ],
+        "BranchPrivilege": [
+          "create_branch",
+          "read_branch",
+          "write_branch",
+          "merge_branch",
+          "restore_branch"
+        ],
+        "CompactionAction": [
+          "skip_healthy",
+          "compact_branch_local",
+          "defer_shared_amplification_guard",
+          "compact_shared_amortized"
+        ],
+        "DataflowActivationState": [
+          "published_inactive",
+          "active",
+          "suspended",
+          "completed"
+        ],
+        "IndexReadiness": [
+          "ready_verified_coverage",
+          "rebuild_required"
+        ],
+        "OutboxDisposition": [
+          "executable_live",
+          "fenced_historical"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BranchGrantSet.authorizeObjectWrite()": "<inferred>",
+        "BranchGrantSet.authorizePrivilege()": "<inferred>",
+        "BranchGrantSet.authorizeSourceSelect()": "<inferred>",
+        "BranchRegistry.advanceBranchHeadConditional()": "<inferred>",
+        "BranchRegistry.createBranchConditional()": "<inferred>",
+        "BranchRegistry.dropBranch()": "<inferred>",
+        "BranchRegistry.findLowestCommonAncestor()": "<inferred>",
+        "BranchRegistry.getCut()": "<inferred>",
+        "BranchRegistry.initWithMain()": "<inferred>",
+        "PinnedTailFrontier.validate()": "<inferred>",
+        "ReachabilityReport.addSegmentRef()": "<inferred>",
+        "ReachabilityReport.addWalPartition()": "<inferred>",
+        "computeMultiBranchReachability()": "<inferred>",
+        "evaluateBranchAwareCompaction()": "<inferred>",
+        "materializeBranchTableRows()": "<inferred>",
+        "verifyAgainstIndependentCopyOracle()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/CallerCodes.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -6932,6 +7032,7 @@
       "imports": [
         "Attribution.zig",
         "AuthorizationLowering.zig",
+        "BranchLifecycle.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
         "DirectCatalogAdministration.zig",
