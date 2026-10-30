@@ -9,6 +9,22 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue scheduling rebase qualification — 2026-10-30
+
+At `1766f70a706443ca59c81bd83c72d150c0aba8dc`, the feature branch is rebased
+onto `54e176fd0` using author-date committer dates. Main's non-Table rejection
+fixes supersede the earlier fixture-only commit, which is dropped. The rebase
+also includes main's batched immutable-object publication and historical-catalog
+changes without replacing the branch's current-v1 definition.
+
+All selected Queue tests, Stream partition tests, tree-store and disk-object
+tests pass in `/var/tmp/transit-queue-schedule-rebased-storage.log`. All 50 fast
+checks pass in `/var/tmp/transit-queue-schedule-rebased-fast.log`, and all 18
+contract checks pass in `/var/tmp/transit-queue-schedule-rebased-contracts.log`.
+These are workspace regressions at the committed rebased source. They are not
+installed-service reruns or clean-lane qualification of that revision. The
+separate clean core run still targets pre-rebase `52e8d40a8` and remains open.
+
 ## Private Queue scheduling roots — 2026-10-30
 
 On dirty parent `11881ca08`, `QueueSchedule` passes a disk schedule that seals
