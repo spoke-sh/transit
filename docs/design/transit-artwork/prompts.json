@@ -137,5 +137,6 @@
       "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower translucent refraction planes.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use clean warm chalk-white paper, graphite/charcoal structural lines, silver-gray terrain strata and a single restrained vermilion-red continuity trace that divides into both branches. Render the entire lower branch in subtle gray ink with only that shared vermilion thread as color. Preserve fine structure and transparent overlaps. Elegant monochrome print with one signal color. No blue, teal, coral, ochre or other accent colors.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
     }
   ],
-  "earlier_prompts": "../../handbook/static/img/architecture/transit-concepts.prompts.json"
+  "earlier_prompts": "../../handbook/static/img/architecture/transit-concepts.prompts.json",
+  "readme_asset": "images/d1-refraction-graphite.jpg"
 }

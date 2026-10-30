@@ -6,7 +6,7 @@
 query engine, and durable execution runtime.** It's written in Zig and provides
 [SDKs for a wide range of languages](docs/handbook/reference/sdks.md).
 
-![Measured marks on parallel lines become flowing blue and ochre waves, then a layered landscape with a continuous path and faint earlier contours.](docs/handbook/static/img/architecture/transit-score-wave-landscape.jpg)
+![A measured score becomes waves that fork upward into graphite terrain and downward into translucent planes, with a shared vermilion path.](docs/design/transit-artwork/images/d1-refraction-graphite.jpg)
 
 ## Documentation and Handbook
 
