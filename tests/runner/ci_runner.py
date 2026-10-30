@@ -57,7 +57,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
         record = root / "commands.jsonl"
         env = os.environ | {"PATH": str(root) + os.pathsep + os.environ["PATH"],
                             "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
-        for lane, exit_code in (("formal", 0), ("experience", 0), ("bindings-1", 0), ("formal", 23),
+        for lane, exit_code in (("formal", 0), ("installation-ui", 0),
+                                *((lane, 0) for lane in SUITE["tiers"]["sdks"]), ("sdks", 0), ("formal", 23),
                                 ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24)):
             record.unlink(missing_ok=True)
             work = root / f"{lane}-{exit_code}"
@@ -71,7 +72,7 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
             commands = [json.loads(line) for line in record.read_text().splitlines()]
             expected = ({"shell": "default", "prepare": [] if check_scope == "fast" else
                         [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
-                        if check_scope else SUITE["environments"][lane])
+                        if check_scope else profile(SUITE, lane))
             assert len(commands) == 2 + len(expected["prepare"]), commands
             assert all(command[:6] == ["develop", ".#" + expected["shell"],
                                        "--option", "eval-cache", "false", "--command"]
@@ -163,8 +164,8 @@ def main():
     workers = matrix({task for lane in SUITE["tiers"]["ordinary"] for task in LANES[lane]})
     selected = [row["lane"] for row in workers]
     assert selected == SUITE["tiers"]["ordinary"]
-    assert SUITE["tiers"]["bindings"] == ["bindings-1", "bindings-2"]
-    assert set(SUITE["tiers"]["bindings"]) <= set(selected)
+    assert SUITE["tiers"]["sdks"] == ["sdks-conformance", "sdks-scripting", "sdks-systems", "sdks-managed"]
+    assert set(SUITE["tiers"]["sdks"]) <= set(selected)
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     steps = workflow["jobs"]["checks"]["steps"]
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
@@ -190,7 +191,14 @@ def main():
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.documentation == 'true'"
     assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.checks == 'true'"
-    assert "transit-docs::check" in LANES["experience"]
+    assert "transit-docs::check" in LANES["installation-ui"]
+    # Renaming a lane must not omit its frontend preparation or the separately
+    # invoked browser continuation from hosted qualification.
+    assert next(step["if"] for step in steps if step.get("name") == "Install locked Board frontend dependencies") == (
+        "matrix.lane == 'installation-ui' || matrix.lane == 'launchers'")
+    for name in ("Install browser and host dependencies", "Qualify embedded Board in Chromium"):
+        assert next(step["if"] for step in steps if step.get("name") == name) == "matrix.lane == 'installation-ui'"
+    assert select([], "push")["additional_lanes"] == {"browser": LANES["browser"]}
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
@@ -248,7 +256,7 @@ def main():
         assert stale['status'] == 'measured' and not stale['budget_met']
         assert stale['budget'] is None and not stale['budget_inventory_matches']
     expanded = json.loads(json.dumps(SUITE))
-    expanded['lanes']['growth'].append('test::additional-growth-scope')
+    expanded['lanes']['storage-query'].append('test::additional-storage-scope')
     assert inventory_identity(expanded)['ordinary_tasks'] == expected_tasks + 1
     expanded_measurement = summarize(sample, full_jobs, full_log, budgets, suite=expanded)
     assert expanded_measurement['status'] == 'measured'
@@ -369,7 +377,7 @@ def main():
     assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
     assert select(["contracts/sql/FuzeCell.lean"])["lanes"] == {"formal": ["test::sql-rewrites"]}
     assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::object-publication-model"]}
-    assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
+    assert select(["sdks/go/client/types.go"])["lanes"] == {"sdks-systems": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
     # A moved source file must not become a docs-only diff. Check Git path
@@ -451,9 +459,9 @@ def main():
         assert (logs / evidence[0]["log"]).read_text() == "deliberate task failure\n"
         assert json.loads((logs / "results.json").read_text()) == evidence
         assert "transit-board::browser" in (path / "summary").read_text()
-    # Both independent binding jobs and the full local selector must execute
+    # Independent SDK jobs and the full local selector must execute
     # exactly their declared tasks, retaining complete per-lane evidence.
-    with tempfile.TemporaryDirectory(prefix="transit-ci-bindings-") as directory:
+    with tempfile.TemporaryDirectory(prefix="transit-ci-sdks-") as directory:
         path = Path(directory)
         runner = path / "tests/runner/ci.py"
         runner.parent.mkdir(parents=True)
@@ -465,7 +473,7 @@ def main():
                           "with Path('executed').open('a') as log: log.write(sys.argv[1]+'\\n')\n")
         script.chmod(0o755)
         env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"]}
-        for selection in ("formal", "bindings", *SUITE["tiers"]["bindings"]):
+        for selection in ("formal", "sdks", *SUITE["tiers"]["sdks"]):
             (path / "executed").unlink(missing_ok=True)
             subprocess.run([sys.executable, "-B", runner, selection], env=env,
                            capture_output=True, check=True)

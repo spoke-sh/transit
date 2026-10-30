@@ -111,7 +111,7 @@ def select(paths, event="pull_request", *, suite=SUITE, mode=None):
                       "reviewed dependencies" if reviewed else "documentation only",
             "paths": paths, "groups": reviewed["groups"] if reviewed else [],
             "resources": reviewed["resources"] if reviewed else [],
-            "additional_lanes": {"browser": suite["lanes"]["browser"]} if "experience" in lanes else {},
+            "additional_lanes": {"browser": suite["lanes"]["browser"]} if "installation-ui" in lanes else {},
             "proposed_tasks": proposed, "lanes": lanes, "matrix": {"include": matrix(tasks, suite)}}
 
 

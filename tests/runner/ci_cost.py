@@ -14,7 +14,7 @@ SUITE = json.loads((ROOT / 'tests/runner/suite.json').read_text())
 
 
 def inventory_identity(suite=SUITE):
-    # Include the browser continuation required by the experience job. A budget
+    # Include the browser continuation required by the installation-ui job. A budget
     # for fewer tasks, or a different lane allocation, cannot qualify this suite.
     lanes = {name: suite['lanes'][name] for name in [*suite['tiers']['ordinary'], 'browser']}
     encoded = json.dumps(lanes, sort_keys=True, separators=(',', ':')).encode()
@@ -56,7 +56,7 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
             continue
-        # The full matrix owns documentation through experience. Its separate
+        # The full matrix owns documentation through installation-ui. Its separate
         # docs-only job is intentionally skipped by the selection gate.
         if full_inventory and job['name'] == 'Documentation site' and job['conclusion'] == 'skipped':
             continue

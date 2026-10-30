@@ -47,7 +47,7 @@
       "test::inspection",
       "test::state"
     ],
-    "growth": [
+    "storage-query": [
       "test::arrow",
       "test::fuze-types",
       "test::fuze-sources",
@@ -97,7 +97,7 @@
       "examples::http",
       "examples::grpc"
     ],
-    "experience": [
+    "installation-ui": [
       "transit-board::check",
       "transit-docs::check",
       "bindings::node-check",
@@ -118,22 +118,26 @@
       "test::build",
       "launchers::local::test"
     ],
-    "bindings-1": [
+    "sdks-conformance": [
       "bindings::check",
       "bindings::native",
-      "bindings::python-test",
-      "bindings::node-sdk-test",
       "bindings::logical-test",
-      "bindings::rust-sdk-test",
-      "bindings::ruby-sdk-test",
       "bindings::sdk-interop",
       "test::sql",
       "bindings::grpc-faults",
       "bindings::connector-preparation"
     ],
-    "bindings-2": [
+    "sdks-scripting": [
+      "bindings::python-test",
+      "bindings::node-sdk-test",
+      "bindings::ruby-sdk-test"
+    ],
+    "sdks-systems": [
+      "bindings::rust-sdk-test",
       "bindings::go-sdk-test",
-      "bindings::c-sdk-test",
+      "bindings::c-sdk-test"
+    ],
+    "sdks-managed": [
       "bindings::java-sdk-test",
       "bindings::dotnet-sdk-test",
       "bindings::beam-sdk-test"
@@ -153,27 +157,33 @@
     "ordinary": [
       "formal",
       "core",
-      "growth",
+      "storage-query",
       "interfaces",
-      "experience",
+      "installation-ui",
       "launchers",
-      "bindings-1",
-      "bindings-2"
+      "sdks-conformance",
+      "sdks-scripting",
+      "sdks-systems",
+      "sdks-managed"
     ],
     "complete": [
       "formal",
       "core",
-      "growth",
+      "storage-query",
       "interfaces",
-      "experience",
+      "installation-ui",
       "launchers",
-      "bindings-1",
-      "bindings-2",
+      "sdks-conformance",
+      "sdks-scripting",
+      "sdks-systems",
+      "sdks-managed",
       "browser"
     ],
-    "bindings": [
-      "bindings-1",
-      "bindings-2"
+    "sdks": [
+      "sdks-conformance",
+      "sdks-scripting",
+      "sdks-systems",
+      "sdks-managed"
     ]
   },
   "external_tasks": {
@@ -351,7 +361,7 @@
         ]
       ]
     },
-    "growth": {
+    "storage-query": {
       "shell": "default",
       "prepare": []
     },
@@ -359,7 +369,7 @@
       "shell": "default",
       "prepare": []
     },
-    "experience": {
+    "installation-ui": {
       "shell": "ci-experience",
       "prepare": [
         [
@@ -377,7 +387,7 @@
         ]
       ]
     },
-    "bindings-1": {
+    "sdks-conformance": {
       "shell": "ci-bindings",
       "prepare": [
         [
@@ -391,7 +401,35 @@
         ]
       ]
     },
-    "bindings-2": {
+    "sdks-scripting": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "sdks-systems": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "sdks-managed": {
       "shell": "ci-bindings",
       "prepare": [
         [
@@ -460,7 +498,7 @@
       "cache": "core",
       "timeout": 90
     },
-    "growth": {
+    "storage-query": {
       "cache": "core",
       "timeout": 150
     },
@@ -468,7 +506,7 @@
       "cache": "core",
       "timeout": 150
     },
-    "experience": {
+    "installation-ui": {
       "cache": "experience",
       "timeout": 120
     },
@@ -476,11 +514,19 @@
       "cache": "experience",
       "timeout": 45
     },
-    "bindings-1": {
+    "sdks-conformance": {
       "cache": "bindings",
       "timeout": 360
     },
-    "bindings-2": {
+    "sdks-scripting": {
+      "cache": "bindings",
+      "timeout": 360
+    },
+    "sdks-systems": {
+      "cache": "bindings",
+      "timeout": 360
+    },
+    "sdks-managed": {
       "cache": "bindings",
       "timeout": 360
     }

@@ -390,15 +390,18 @@ The [pre-split run](https://github.com/spoke-sh/transit/actions/runs/36073815381
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
 qualification accounted for 5m39s of those checks. The later three-lane
 [baseline](https://github.com/spoke-sh/transit/actions/runs/36181871580) took 17m42s
-and 40m11s of aggregate job time. Seven ordinary lanes now separate
+and 40m11s of aggregate job time. Ten ordinary lanes now separate
 `just ci::formal` (finite models, concrete replay and Lean theorems),
-`just ci::core` (foundation/library/protocol), `just ci::growth` (Arrow, pages
-and growing authority/service), `just ci::experience` (frontend, observability,
-Board and native Station), `just ci::launchers` (build smoke and native counter),
-and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages).
-`just ci::bindings` runs both bindings inventories sequentially. Chromium follows
-experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
-that additional inventory explicitly. `just ci all` runs the eight ordinary inventories
+`just ci::core` (foundation/library/protocol), `just ci::storage-query` (Arrow,
+storage, catalog and query), `just ci::interfaces` (SQL and HTTP/gRPC),
+`just ci::installation-ui` (installation, Board, documentation and observability),
+`just ci::launchers` (build smoke and native counter), and four SDK suites:
+`sdks-conformance` (shared contracts and interoperability), `sdks-scripting`
+(Python/Node/Ruby), `sdks-systems` (Rust/Go/C/C++), and `sdks-managed`
+(Java/.NET/Erlang/Elixir). Each SDK suite has a matching `just ci::NAME` recipe.
+`just ci::sdks` runs all four sequentially. Chromium follows installation-ui in
+hosted CI as `just ci::browser`; local `just ci::complete` includes that additional
+inventory explicitly. `just ci all` runs the ten ordinary inventories
 sequentially in the pinned bindings shell; `just check all` uses the ordinary
 developer tools. [The task inventory](../tests/runner/suite.json) owns the
 exact checks in each lane.
@@ -414,7 +417,7 @@ separately. Other single-lane clean runs likewise use the environments declared
 in `suite.json`. Multi-lane clean qualification still prepares the full bindings
 and frontend environment. No compiler, model bounds or lockfile pins change.
 
-The experience lane uses `nix develop .#ci-experience`, a shell with the native
+The installation-ui lane uses `nix develop .#ci-experience`, a shell with the native
 Ursula and MinIO fixtures but no Kubernetes/provider management tools. Its Python
 environment includes PyYAML and `jsonschema` for
 the Board query contract checks, and PyArrow for the Station launcher's independent
@@ -425,8 +428,9 @@ and includes those same Python packages.
 Both use the existing locked nixpkgs input; no compiler, provider or lockfile
 revision changes are required. The previously measured 1.2 GiB environment
 closure predates the database clients, PyArrow, gRPC peer and MinIO; the current closure has not
-been measured. Experience/launchers share one Nix cache, core/growth/interfaces
-share another, and bindings owns the third; each group has one writer. Formal
+been measured. Installation-ui/launchers share the `experience` Nix cache group,
+core/storage-query/interfaces share `core`, and all four SDK lanes share `bindings`;
+each group has one writer. Formal
 uses upstream Nix substitutes without a GitHub Nix archive. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
@@ -435,7 +439,7 @@ for heavy toolchain/pin updates; the first new-key run pays that upload cost.
 New lane caches can fall back to the previous shared cache for their first run,
 so the split itself does not force rebuilding Ursula from Rust source.
 
-The bindings lanes use `nix develop .#ci-bindings`: the native tools, PyArrow and
+The SDK lanes use `nix develop .#ci-bindings`: the native tools, PyArrow and
 foreign SDKs and pinned native MinIO, without Kubernetes/provider management tools.
 Its previously measured environment closure was 6.1 GiB before adding native MinIO.
 Those SDKs are cached only in the bindings cache group; these lanes install the Node
@@ -443,13 +447,17 @@ binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
 The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
-experience (including browser proofs) 120 minutes, growth and interfaces 150 minutes each, and each bindings
-lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
+installation-ui (including browser proofs) 120 minutes, storage-query and
+interfaces 150 minutes each, each SDK lane 360 minutes, and launchers 45 minutes. These are
 finite failure limits, not measured feedback budgets. A larger cap does not
 qualify a slower run or change any accepted operation's deadline.
+The four SDK groups preserve the full task inventory and seven-job ceiling, but
+repeat preparation in more jobs. Their cost needs new hosted measurements;
+historical budgets retain the original inventory identities.
 
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
-Zig manifests. Only `bindings-1` writes it, including the C++ standard library.
+Zig manifests. The first selected SDK lane writes it (`sdks-conformance` for a
+full run), including the C++ standard library when compiled by its proofs.
 It holds fetched packages and global compiler
 objects, excluding checkout objects, launchers, credentials and the Git archive
 transport cache. This avoids caching the tens of gigabytes accumulated by local

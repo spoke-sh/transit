@@ -173,13 +173,20 @@ complete successful runs before enabling it. Directory location alone is not
 evidence that no other caller exists. CI records the proposal with the executed
 tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
 different policy. A scoped successful result cannot qualify a full-suite budget.
-Hosted work schedules eight lanes within the existing seven-job ceiling; each
+Hosted work schedules ten lanes within the existing seven-job ceiling; each
 lane remains sequential, with isolated mutable state and one writer per selected
-Nix cache group; formal does not write a Nix cache. Storage/catalog/query tasks belong to `growth`;
-SQL protocol/relational and HTTP/gRPC tasks belong to `interfaces`. These split
-the former 39-task growth lane at existing task boundaries. Formal feedback stays
-early. The additional job repeats its shell/cache and native preparation; cost
-comparisons must include that work as well as elapsed-time changes.
+Nix cache group; formal does not write a Nix cache. Storage/catalog/query tasks
+belong to `storage-query`; SQL protocol/relational and HTTP/gRPC tasks belong to
+`interfaces`. Installation, Board and documentation belong to `installation-ui`,
+which also runs the browser continuation. SDK suites separate shared contracts and
+interoperability (`sdks-conformance`), Python/Node/Ruby (`sdks-scripting`),
+Rust/Go/C/C++ (`sdks-systems`), and Java/.NET/Erlang/Elixir (`sdks-managed`).
+`just ci::sdks` runs all four SDK suites sequentially. Every recipe declares its
+own build prerequisites; no lane inherits another lane's outputs. Formal feedback
+stays early. Each job repeats shell/cache and native preparation; cost comparisons
+must include that work as well as elapsed-time changes. Renamed or regrouped
+inventories require new measurements; archived names and budget hashes still
+describe their original source revisions.
 
 `just bindings::runtime-boundary` checks Nix input selection, then builds and
 exercises the actual packaged runtime and SQL gateway without test or SDK source.
