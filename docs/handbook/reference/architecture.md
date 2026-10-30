@@ -41,20 +41,24 @@ and Board expose their documented portions of the lifecycle.
 
 ## Responsibilities
 
-![Transit System Responsibilities and Authority Boundaries](../static/img/architecture/system-responsibilities.jpg)
+[![Transit responsibilities and authority boundaries: public operations reach distinct control, direct data/query and process/effect owners. Storage and runtime supply persistence and placement, not execution authority.](../static/img/architecture/system-responsibilities.svg)](../static/img/architecture/system-responsibilities.svg)
+
+The diagram maps responsibilities rather than a mandatory call sequence or
+package dependency graph. Open it for full-size labels; the table below gives
+each owner's boundary.
 
 | Layer | Responsibility | Boundary |
 | --- | --- | --- |
-| Protocol and core | Identity, ordering, current grants, fencing, lifecycle and atomic commit decisions | No application handlers, provider types or query execution |
-| Client | Canonical requests, signatures, bounded reads, private proposals and exact retry | Application code still validates its domain rules |
-| Direct Table owner | Names, immutable definitions, row acceptance and retained data cuts | Reuses current native authorization; direct rows do not pass through actor turns |
-| Station | Behaviors, durable calls, names, supervision and Document services | Builds above the client; no alternate execution authority |
-| Fuze | Typed finite plans, source adapters, bounded execution and Arrow output | No raw storage credentials or kernel authority; no DataFusion/Acero runtime |
-| Shared SQL service | Independent logical sessions, account coordination and durable operation recovery for console and database clients | Temporary connection/session state is separate from accepted operation history |
-| Connectors | Authorized external attempts and durable capture | Replay reads outcomes; it does not redispatch |
-| Serving and Flight | Protocol adaptation, scoped admission and bounded disclosure | A socket, cursor or ticket is not permission |
-| Board | Evidence projections and separately configured query/application workspaces | Inspection does not decode arbitrary application payloads |
-| Storage and runtime | Persistence and physical process placement | Provider state cannot revive a retired PID or grant ownership |
+| [Protocol and core](native.md) | Identity, ordering, current grants, fencing, lifecycle and atomic commit decisions | No application handlers, provider types or query execution |
+| [Client](callers.md) | Canonical requests, signatures, bounded reads, private proposals and exact retry | Application code still validates its domain rules |
+| [Direct Table owner](tables.md) | Names, immutable definitions, row acceptance and retained data cuts | Reuses current native authorization; direct rows do not pass through actor turns |
+| [Station](station.md) | Behaviors, durable calls, names, supervision and Document services | Builds above the client; no alternate execution authority |
+| [Fuze](queries.md) | Typed finite plans, source adapters, bounded execution and Arrow output | No raw storage credentials or kernel authority; no DataFusion/Acero runtime |
+| [Shared SQL service](sql-sessions.md) | Independent logical sessions, account coordination and durable operation recovery for console and database clients | Temporary connection/session state is separate from accepted operation history |
+| [Connectors](connectors.md) | Authorized external attempts and durable capture | Replay reads outcomes; it does not redispatch |
+| [Serving](serving.md) and [Flight](flight.md) | Protocol adaptation, scoped admission and bounded disclosure | A socket, cursor or ticket is not permission |
+| [Board](../guides/inspect-board.md) | Evidence projections and separately configured query/application workspaces | Inspection does not decode arbitrary application payloads |
+| [Storage](storage.md) and [runtime](deployment.md) | Persistence and physical process placement | Provider state cannot revive a retired PID or grant ownership |
 
 Transit supplies data and execution infrastructure for downstream applications.
 Trading policy, reasoning loops, goals and delegation belong to applications.

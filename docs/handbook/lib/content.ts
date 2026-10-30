@@ -36,6 +36,9 @@ export function resolveLink(
   // Downloads are files, not React-router pages. Docusaurus's pathname scheme
   // keeps ordinary navigation and base-path handling for these verified assets.
   if (spec) return `pathname://${baseUrl}specs/${spec.name}${suffix}`;
+  const staticRoot = "docs/handbook/static/";
+  if (relative.startsWith(staticRoot))
+    return `pathname://${baseUrl}${relative.slice(staticRoot.length)}${suffix}`;
   return `${repository}/blob/${revision}/${relative}${suffix}`;
 }
 

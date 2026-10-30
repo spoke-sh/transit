@@ -146,14 +146,36 @@ and shading carry the depth; the horizontal transformation is part of the artwor
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions
-stay within the artwork. Updates use a passive scroll listener and a single pending animation
-frame while the scene is visible; cleanup removes listeners and pending work.
-There is no continuous animation loop or animation-library dependency.
+stay within the artwork. Structure and Activity share this portrait. Its framing
+uses the two Activity chapters plus the Context copy height, independently of the
+longer Context illustration, preserving the selected R1 view.
 
-Narrow layouts and reduced-motion preference show the complete static portrait. The
-server-rendered page also provides all narrative and handbook links without
-JavaScript. Motion never gates navigation or access to content. Artwork describes
-a visual metaphor, not execution state or additional runtime guarantees.
+[`ContextFabric`](src/components/ContextFabric.tsx) continues below the resonance
+zones with a [single tall drawing](../design/handbook-theme/images/d5-fabric-pockets.jpg).
+The fabric straightens, forms small pockets, and ends in an angled opening with
+an indistinct form behind its rim. The complete 1:3 image stays in normal document
+flow. Native scrolling reveals it in sequence; there is no scroll-controlled
+crop, transform or independent animation. A soft mask blends its ends into the
+page. On tall desktop screens the accompanying copy stays alongside the drawing;
+short screens keep the copy in flow so its links remain reachable. The image is
+an abstract metaphor, not a display of data or a runtime guarantee.
+
+Activity uses a passive scroll listener and one pending animation frame while
+the story is visible. Media changes and unmount cleanup cancel pending work and
+remove its motion property. Narrow layouts, reduced-motion preference and
+no-JavaScript rendering show the complete illustrations in normal flow, with
+Context's text before its fabric on narrow screens. All narrative and handbook
+links are server-rendered; motion never gates navigation or access to content.
+
+The introduction's [three-plane map](static/img/architecture/three-plane-architecture.svg),
+Architecture's [responsibility map](static/img/architecture/system-responsibilities.svg),
+and Internals' [storage and activation map](static/img/architecture/storage-and-activation.svg)
+are editable SVGs in the same paper, graphite and vermilion palette. Their text,
+arrows and line styles carry meaning independently of color. The Internals map
+labels the target composition explicitly and links to its owning storage account;
+it is not an inventory of installed capabilities.
+Relative links to static assets resolve to full-size files under the configured
+publication base path, while the same Markdown links remain usable in GitHub.
 
 For structural changes beyond CSS, wrap the specific Docusaurus theme component
 in `src/theme/` before considering a larger theme replacement. Keep the shared

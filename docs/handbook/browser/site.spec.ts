@@ -208,6 +208,17 @@ test("production navigation, search, generated references and exact downloads", 
     page.getByRole("heading", { name: "Execution, authorization and recovery", exact: true }),
   ).toBeVisible();
   await page.goto(new URL("internals", baseURL).href);
+  const storage = page.getByRole("img", { name: /^Target storage and activation architecture:/ });
+  await expect(storage).toBeVisible();
+  await expect
+    .poll(() => storage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1280);
+  const diagramLink = page.getByRole("link", {
+    name: /^Target storage and activation architecture:/,
+  });
+  const diagramResponse = await request.get((await diagramLink.getAttribute("href"))!);
+  expect(diagramResponse.ok()).toBe(true);
+  expect(diagramResponse.headers()["content-type"]).toContain("image/svg+xml");
   await expect(
     page.locator("main").getByRole("link", { name: "Roadmap", exact: true }),
   ).toHaveAttribute(
@@ -248,10 +259,21 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(page.locator("#channel-reactive")).toHaveText(/Channel reactive/);
   await page.goto(new URL("reference/architecture", baseURL).href);
   const archImg = page.getByRole("img", {
-    name: "Transit System Responsibilities and Authority Boundaries",
+    name: /^Transit responsibilities and authority boundaries:/,
   });
   await expect(archImg).toBeVisible();
-  expect(await archImg.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  await expect
+    .poll(() => archImg.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1280);
+  const responsibilityLink = page.getByRole("link", {
+    name: /^Transit responsibilities and authority boundaries:/,
+  });
+  const opened = page.waitForEvent("popup");
+  await responsibilityLink.click();
+  const diagram = await opened;
+  await expect(diagram).toHaveURL(/\/img\/architecture\/system-responsibilities\.svg$/);
+  await expect(diagram.locator("svg")).toBeVisible();
+  await diagram.close();
   expect(errors).toEqual([]);
 });
 
@@ -303,6 +325,22 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
     .getByRole("link", { name: "Internals", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "Internals", exact: true })).toBeVisible();
+  const storage = page.getByRole("img", { name: /^Target storage and activation architecture:/ });
+  await storage.scrollIntoViewIfNeeded();
+  await expect(storage).toBeVisible();
+  await expect
+    .poll(() => storage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1280);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.goto(new URL("reference/architecture", baseURL).href);
+  const responsibilities = page.getByRole("img", {
+    name: /^Transit responsibilities and authority boundaries:/,
+  });
+  await responsibilities.scrollIntoViewIfNeeded();
+  await expect(responsibilities).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -408,6 +446,64 @@ test("homepage artwork follows scroll and respects reduced motion", async ({
   await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
 });
 
+test("context fabric reveals pockets through native scroll without hiding content", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "no-preference", colorScheme: "light" });
+  await page.goto(baseURL!);
+  const fabric = page.getByRole("img", { name: /^The graphite fabric straightens/ });
+  await page.locator("#context-title").scrollIntoViewIfNeeded();
+  await expect(fabric).toBeInViewport();
+  await expect
+    .poll(() => fabric.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(724);
+  await expect(fabric).toHaveCSS("transform", "none");
+  await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "sticky");
+  const beginning = (await fabric.boundingBox())!;
+  // The terminal pocket is near 82% of the full drawing, beyond the first viewport.
+  expect(beginning.y + beginning.height * 0.82).toBeGreaterThan(1000);
+  await page.screenshot({ path: testInfo.outputPath("context-straight.png") });
+  await fabric.evaluate((image) => {
+    const bounds = image.getBoundingClientRect();
+    window.scrollTo(0, bounds.top + window.scrollY + bounds.height * 0.82 - innerHeight * 0.55);
+  });
+  await expect(page.locator("#context-title")).toBeInViewport();
+  const ending = (await fabric.boundingBox())!;
+  expect(ending.y).toBeLessThan(beginning.y);
+  expect(ending.height).toBe(beginning.height);
+  expect(ending.y + ending.height * 0.82).toBeCloseTo(550, 0);
+  await page.screenshot({ path: testInfo.outputPath("context-pocket.png") });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await expect(fabric).toHaveCSS("transform", "none");
+  expect((await fabric.boundingBox())!.height).toBe(beginning.height);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fabric.scrollIntoViewIfNeeded();
+  await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  const mobile = (await fabric.boundingBox())!;
+  expect(mobile.height / mobile.width).toBeCloseTo(3, 2);
+  expect(mobile.x).toBeGreaterThanOrEqual(0);
+  expect(mobile.x + mobile.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("context-mobile.png") });
+
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await page.locator("#context-title").scrollIntoViewIfNeeded();
+  await expect(page.locator(".refraction-story")).toHaveAttribute("data-motion", "enabled");
+  // Short screens keep the copy in flow so its links remain reachable.
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await page.getByRole("link", { name: "Follow a declaration to its outcome" }).click();
+  await expect(page.locator("#inspect-whether-a-declaration-is-being-fulfilled")).toBeInViewport();
+});
+
 test("homepage content and navigation work without JavaScript", async ({ browser, baseURL }) => {
   const context = await browser.newContext({
     javaScriptEnabled: false,
@@ -418,6 +514,15 @@ test("homepage content and navigation work without JavaScript", async ({ browser
     await page.goto(baseURL!);
     await expect(page.getByRole("heading", { name: "Give structure to change." })).toBeVisible();
     await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
+    const contextScene = page.getByRole("img", { name: /^The graphite fabric straightens/ });
+    await contextScene.scrollIntoViewIfNeeded();
+    await expect(contextScene).toBeVisible();
+    await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
+    await expect
+      .poll(() => contextScene.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(724);
+    const bounds = (await contextScene.boundingBox())!;
+    expect(bounds.height / bounds.width).toBeCloseTo(3, 2);
     await page.getByRole("link", { name: "Go to the handbook" }).click();
     await expect(page.locator("#handbook-title")).toBeInViewport();
     await page.getByRole("link", { name: "Follow the quickstart", exact: true }).click();

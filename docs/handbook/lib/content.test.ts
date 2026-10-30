@@ -172,6 +172,17 @@ describe("documentation ownership and navigation", () => {
       "missing link",
     );
   });
+  it("opens static diagrams directly under both root and prefixed hosting", () => {
+    for (const base of ["/", "/transit/", "/handbook/"])
+      expect(
+        resolveLink(
+          root,
+          "docs/handbook/internals/README.md",
+          "../static/img/architecture/storage-and-activation.svg#title",
+          base,
+        ),
+      ).toBe(`pathname://${base}img/architecture/storage-and-activation.svg#title`);
+  });
 });
 
 describe("executable workload excerpts", () => {
