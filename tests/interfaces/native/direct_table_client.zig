@@ -1,6 +1,7 @@
 //! Real public typed caller; no node, core, backend or provider imports.
 const std = @import("std");
 const c = @import("transit_catalog");
+const data = @import("transit_data_client");
 const q = @import("transit_query");
 const wire = c.client;
 const p = c.protocol;
@@ -24,7 +25,7 @@ const Dependencies = @import("fixture_direct_dependencies");
 const NamedResources = @import("fixture_direct_named_resources");
 const sql_runtime = @import("transit_sql_service");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
+const Profile = struct { log_saved: ?[]const u8 = null, maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -66,6 +67,8 @@ fn provision(admin: *Admin) !Profile {
     const database_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
     const schema_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
     const table_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
     const scope: d.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try admin.change(.{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try admin.change(.{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
@@ -74,7 +77,7 @@ fn provision(admin: *Admin) !Profile {
         .branch = 1,
         .partition = 1,
         .audience = 100,
-        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
+        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
         .database_name = try .init("transit"),
         .initial_schema_name = try .init("public"),
     } };
@@ -106,10 +109,11 @@ fn binaryRow(allocator: std.mem.Allocator, id: i64, operation: u64, payload: []c
     defer allocator.free(bytes);
     return w.Binary.encode(allocator, try row.encode(schema, bytes));
 }
-fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile) !void {
+fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile, profile_path: []const u8) !void {
     const alloc = init.arena.allocator();
     const initialized = try client.call(.initialize);
     defer initialized.deinit();
+    try logWrite(init, client, profile, profile_path);
     // Server-owned cut records cannot be supplied through caller-owned record
     // staging. This is a request refusal, not transport/storage uncertainty.
     for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format }) |format|
@@ -178,6 +182,111 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     try t.expectEqual(@as(u64, 2), second.outcome.live_rows);
     profile.saved = .{ .create = binding, .insert = work.binding, .snapshot = snapshot, .first = first, .second = second };
 }
+fn logCaller(init: std.process.Init, client: c.DirectTableClient) !data.Catalog {
+    return data.Catalog.init(init.gpa, init.io, .{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, @splat(29));
+}
+fn logCall(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: c.DirectLogClient.Action) !c.DirectLogClient.Result {
+    const outcome = try caller.callLog(output, action);
+    return switch (outcome.value) {
+        .result => |value| value,
+        .failure => |failure| failure.cause,
+    };
+}
+fn logUnknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: c.DirectLogClient.Action, identity: d.Operation) !void {
+    const outcome = try caller.callLog(output, action);
+    try t.expect(outcome.value == .failure);
+    try t.expectEqual(error.InvalidTableResponse, outcome.value.failure.cause);
+    try t.expect(outcome.mutationAttempted());
+    try t.expectEqualDeep(identity, outcome.attempt.mutation.?.identity.?);
+    try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
+}
+fn logEdit(allocator: std.mem.Allocator, connection: w.Connection, current: c.DirectLog.Definition, operation: u64, action: @FieldType(c.DirectLog.Intent, "action")) !c.DirectLog.Request {
+    const intent: c.DirectLog.Intent = .{ .kind = current.kind(), .namespace = current.properties.namespace, .name = current.properties.name, .action = action };
+    return .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = connection.scope, .principal = connection.principal, .operation = operation }, .target = current.stored.declaration.interpretation.object, .action = switch (action) {
+        .create => unreachable,
+        .alter => .alter,
+        .rename => .rename,
+        .drop => .drop,
+    }, .expected_definition = current.stored.declaration.interpretation, .expected_data = null, .intent = try intent.digest(allocator) } };
+}
+fn logFinish(caller: *data.Catalog, output: *std.heap.ArenaAllocator, request: c.DirectLog.Request) !c.DirectLog.Definition {
+    try t.expectEqual(.admitted, (try logCall(caller, output, .{ .admit = request })).admitted.phase);
+    const finished = (try logCall(caller, output, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 32 } })).operation.operation;
+    try t.expectEqual(.complete, finished.phase);
+    return finished.resulting.?;
+}
+fn logWrite(init: std.process.Init, client: c.DirectTableClient, profile: *Profile, profile_path: []const u8) !void {
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    var caller = try logCaller(init, client);
+    defer caller.deinit();
+    var intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("typed_stream"), .action = .{ .create = .{
+        .owner = profile.role,
+        .schema = .{ .object = 620001, .revision = 1, .next_column = 2, .columns = columns[0..1], .primary_key = &.{} },
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    var request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 620001 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 620001 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
+    profile.log_saved = try c.DirectLogClient.save(init.arena.allocator(), client.connection, request);
+    // Persist the exact original request before any admission can become unknown.
+    try save(init, profile_path, profile.*);
+    try t.expectEqual(.none, (try logCall(&caller, &output, .{ .preview = request })).preview.reason);
+    try t.expectEqual(.not_observed, (try logCall(&caller, &output, .{ .operation = .{ .binding = request.binding, .command = .inspect, .steps = 1 } })).operation);
+    try logUnknown(&caller, &output, .{ .admit = request }, request.binding.identity);
+    try t.expectEqual(.admitted, (try logCall(&caller, &output, .{ .operation = .{ .binding = request.binding, .command = .inspect, .steps = 1 } })).operation.operation.phase);
+    const pending = (try logCall(&caller, &output, .{ .pending = .{ .namespace = 1, .after = null } })).pending;
+    try t.expectEqualDeep(request.binding, pending.entries[0].?.binding);
+    try t.expect((try logCall(&caller, &output, .{ .lookup = .{ .namespace = 1, .name = "typed_stream" } })).lookup == null);
+    try logUnknown(&caller, &output, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 32 } }, request.binding.identity);
+    const original = (try logCall(&caller, &output, .{ .operation = .{ .binding = request.binding, .command = .inspect, .steps = 1 } })).operation.operation;
+    try t.expectEqual(.complete, original.phase);
+    try t.expectEqual(@as(u32, 2), original.initialized);
+    try t.expectEqualDeep(original, (try logCall(&caller, &output, .{ .admit = request })).admitted);
+    const observed = (try logCall(&caller, &output, .{ .lookup = .{ .namespace = 1, .name = "typed_stream" } })).lookup.?;
+    const renamed = try logFinish(&caller, &output, try logEdit(init.gpa, client.connection, observed.declaration, 620002, .{ .rename = try .init("typed_stream_retained") }));
+    var configuration = renamed.stored.declaration.configuration;
+    configuration.retention.max_age_ms = 86400000;
+    const altered = try logFinish(&caller, &output, try logEdit(init.gpa, client.connection, renamed, 620003, .{ .alter = .{ .configuration = configuration, .limits = renamed.stored.declaration.limits } }));
+    try t.expectEqual(@as(u64, 3), altered.stored.declaration.interpretation.revision);
+    try t.expectEqualDeep(original.resulting.?.seed, altered.seed);
+    intent.kind = .queue;
+    intent.name = try .init("typed_queue");
+    intent.action.create.schema.object = 620004;
+    intent.action.create.configuration.policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } };
+    request.intent = intent;
+    request.binding.identity.operation = 620004;
+    request.binding.target.object = 620004;
+    request.binding.intent = try intent.digest(init.gpa);
+    const queue = try logFinish(&caller, &output, request);
+    const page = (try logCall(&caller, &output, .{ .list = .{ .namespace = 1, .after = null } })).list;
+    try t.expectEqualDeep(altered, page.entries[0].?);
+    try t.expectEqualDeep(queue, page.entries[1].?);
+    try t.expect(page.next == null);
+    try t.expect((try logFinish(&caller, &output, try logEdit(init.gpa, client.connection, queue, 620005, .drop))).stored.retired);
+    try t.expect((try logCall(&caller, &output, .{ .lookup = .{ .namespace = 1, .name = "typed_queue" } })).lookup == null);
+    // The caller-owned schema remains valid across every subsequent request.
+    try t.expectEqualStrings("id", observed.schema.columns[0].name);
+    try t.expectEqual(@as(usize, 0), observed.schema.primary_key.len);
+}
+fn logRecover(init: std.process.Init, client: c.DirectTableClient, saved_bytes: []const u8) !void {
+    const saved_log = try c.DirectLogClient.load(init.gpa, saved_bytes);
+    defer saved_log.deinit();
+    try t.expectEqualDeep(client.connection, saved_log.value.connection);
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const metadata = blk: {
+        var caller = try logCaller(init, client);
+        defer caller.deinit();
+        const original = (try logCall(&caller, &output, .{ .operation = .{ .binding = saved_log.value.work.binding, .command = .inspect, .steps = 1 } })).operation.operation;
+        try t.expectEqual(.complete, original.phase);
+        const metadata = (try logCall(&caller, &output, .{ .lookup = .{ .namespace = 1, .name = "typed_stream_retained" } })).lookup.?;
+        try t.expectEqualDeep(original.resulting.?.seed, metadata.declaration.seed);
+        try t.expectEqual(@as(u64, 3), metadata.declaration.stored.declaration.interpretation.revision);
+        try t.expectEqual(@as(u64, 86400000), metadata.declaration.stored.declaration.configuration.retention.max_age_ms.?);
+        break :blk metadata;
+    };
+    try t.expectEqualStrings("id", metadata.schema.columns[0].name);
+}
 fn retainedRows(init: std.process.Init, client: c.DirectTableClient, profile: Profile) !c.DirectTableReader {
     const saved = profile.saved.?;
     var reader = try c.DirectTableReader.open(init.gpa, client, saved.snapshot);
@@ -198,6 +307,7 @@ fn retainedRows(init: std.process.Init, client: c.DirectTableClient, profile: Pr
     return reader;
 }
 fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
+    try logRecover(init, client, profile.log_saved.?);
     const saved = profile.saved.?;
     try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
     try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
@@ -524,7 +634,7 @@ pub fn main(init: std.process.Init) !void {
             try Maintenance.maintained(init, client, &profile.maintenance.?);
             try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "write")) {
-            try write(init, client, &profile);
+            try write(init, client, &profile, args[3]);
             profile.delegation = try Delegation.prepare(client);
             try SqlPins.prepare(init, client, directory);
             profile.conditions = try Conditions.prepare(init.gpa, client);

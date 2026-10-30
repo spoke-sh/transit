@@ -954,6 +954,8 @@ export interface AuthorityProfile {
   readonly databaseDomain: number;
   readonly schemaDomain: number;
   readonly tableDomain: number;
+  readonly streamDomain: number;
+  readonly queueDomain: number;
   readonly database: number;
   readonly initialSchema: number;
   readonly initialSchemaAuthority: number;
@@ -1129,6 +1131,8 @@ export class Client {
           databaseDomain: authority.database_domain,
           schemaDomain: authority.schema_domain,
           tableDomain: authority.table_domain,
+          streamDomain: authority.stream_domain,
+          queueDomain: authority.queue_domain,
           database: authority.database,
           initialSchema: authority.initial_schema,
           initialSchemaAuthority: authority.initial_schema_authority,

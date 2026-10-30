@@ -7,6 +7,7 @@ This generator never decodes or converts a user's saved operations or state.
 from runner.paths import ROOT
 import argparse
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import tempfile
@@ -172,14 +173,57 @@ def generated():
                      claim=dict(scope=log_scope, principal=17, operation=2**64-3),
                      offset=2**64-4, epoch=9, attempt=2, expires_ms=1000)
         stream_queue = dict(
+            declaration=dict(definition=definition, interpretation=log_target['interpretation'],
+                             schema=dict(bytes=128, sha256=[37]*32),
+                             configuration=dict(
+                                 partitioning=dict(count=4, key_column=9, hash='sha256_64'),
+                                 retention=dict(max_age_ms=None),
+                                 policy=dict(stream=dict(compact_key_column=None, timestamp_column=None))),
+                             limits=dict(append_rows=4096, append_bytes=1048576,
+                                         claim_rows=64, read_rows=4096, read_bytes=1048576,
+                                         active_leases=1024, waiters=64, timer_steps=256)),
             append=dict(append=append, first=2**64-5, next=2**64-1,
-                        accepted=dict(partition=91, next_lsn=12)),
+                        accepted=dict(partition=91, next_lsn=12), observed_ms=500),
+            producer=dict(target=log_target, principal=17, producer=append['producer'],
+                          discarded_through=2**64-7),
+            claim=dict(claim=dict(target=log_target, operation=lease['claim'],
+                                  maximum=16, lease_ms=500),
+                       accepted=dict(partition=91, next_lsn=12),
+                       observed_ms=500, expires_ms=1000, rows=2,
+                       leases=dict(bytes=512, sha256=[41]*32)),
+            clock=dict(floor_ms=500),
             offset_commit=dict(operation=dict(scope=log_scope, principal=17, operation=102),
                                group=dict(id=42, generation=7, principal=17),
                                coverage=coverage, expected_next=2**64-5, next=2**64-1),
             settlement=dict(settlement=dict(
                 operation=dict(scope=log_scope, principal=17, operation=2**64-2),
                 lease=lease, action=dict(ack={})), accepted=dict(partition=91, next_lsn=13)))
+        stream_queue['group_progress'] = dict(target=log_target,
+                                              group=stream_queue['offset_commit']['group'],
+                                              next=stream_queue['offset_commit']['expected_next'])
+        stream_queue['group_assignment'] = dict(
+            assignment=dict(operation=dict(scope=log_scope, principal=0, operation=2**64-8),
+                            cut=coverage['cut'], expected=stream_queue['group_progress'],
+                            group=dict(id=42, generation=8, principal=19),
+                            next=stream_queue['group_progress']['next']),
+            accepted=dict(partition=91, next_lsn=13))
+        stream_queue['offset_receipt'] = dict(commit=stream_queue['offset_commit'], accepted=dict(partition=91, next_lsn=13))
+        read_operation = dict(scope=log_scope, principal=17, operation=2**64-12)
+        read_source = dict(bytes=1024, sha256=[43]*32)
+        stream_queue['read'] = dict(
+            request=dict(target=log_target, operation=read_operation,
+                         group=stream_queue['offset_commit']['group'],
+                         **{'from': coverage['from']}, until=None, timestamp=None),
+            cut=coverage['cut'], until=coverage['until'], source=read_source,
+            accepted=dict(partition=91, next_lsn=13))
+        read_handle = dict(owner=read_operation, source=read_source)
+        coverage_body = b'transit.stream.read.coverage.v1\0' + bytes.fromhex(definition) + compact(dict(read=read_handle, coverage=coverage))
+        stream_queue['read_cursor'] = dict(read=read_handle, coverage=coverage,
+                                         authentication=list(hmac.digest(bytes([7]*32), coverage_body, 'sha256')))
+        results[ROOT / 'packages/zig/transit-storage/src/stream_read_fixture.json'] = stream_queue['read_cursor']
+        stream_queue['read_release'] = dict(
+            release=dict(target=log_target, operation=dict(scope=log_scope, principal=17, operation=2**64-13),
+                         read=read_handle), accepted=dict(partition=91, next_lsn=14))
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
         results[lifecycle_path] = lifecycle

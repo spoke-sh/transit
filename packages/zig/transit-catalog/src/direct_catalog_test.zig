@@ -7,7 +7,7 @@ const a = c.TableAuthority;
 const D = c.DirectCatalog;
 const P = s.TablePartition;
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 
 // Injected policy exercises required scopes and fence placement. Native signed
 // proofs, registration and service enforcement need separate composition tests.
@@ -52,17 +52,17 @@ const Access = struct {
     }
     fn release(_: *anyopaque) void {}
     fn registered(context: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
-        if (kind == .table and erased(context).missing_table) return null;
+        if ((kind == .table or kind == .stream or kind == .queue) and erased(context).missing_table) return null;
         if (kind == .schema and id != 1 and erased(context).missing_schema) return null;
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table => 100 + id,
+            .table, .stream, .queue => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => a.reference(profile.database),
-            .table => a.reference(profile.initial_schema_authority),
+            .table, .stream, .queue => a.reference(profile.initial_schema_authority),
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {
@@ -1501,7 +1501,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try catalog.store.index.begin(64 * 1024 * 1024);
     defer catalog.store.index.end();
     for (100..173) |id| {
-        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null };
+        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null, .log = null };
         reference = try catalog.store.tree().put(reference, try r.idKey(id), try r.pageValue(entry));
     }
     basis.next_partition = 173;
@@ -1534,7 +1534,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try t.expect(try skip.next(t.allocator, &index) == null);
 
     // A typed object directory must not reinterpret a mismatched object key.
-    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null };
+    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null, .log = null };
     const invalid = try catalog.store.tree().put(null, try r.idKey(98), try r.pageValue(foreign));
     var corrupt = try c.DirectCatalogWalk.init(basis, .{ .reference = invalid, .kind = .objects });
     try t.expect((try corrupt.next(t.allocator, &index)).? == .page);
@@ -4257,4 +4257,227 @@ test "transaction predicate writes bind virtual private frontiers through rollba
     try t.expectEqual(@as(u64, 0), state.root.live_rows);
     const result = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 800 }, .commit, 8, access.policy());
     try t.expect(result.cleanup_complete and result.observation.decided.outcome == .committed);
+}
+
+fn logCreation(kind: c.DirectLog.Kind, object: u64, operation: u64, name: []const u8, partitions: u32) !c.DirectLog.Request {
+    const intent: c.DirectLog.Intent = .{ .kind = kind, .namespace = 1, .name = try .init(name), .action = .{ .create = .{
+        .owner = 0,
+        .schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} },
+        .configuration = .{ .partitioning = .{ .count = partitions, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = if (kind == .stream) .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } else .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    return .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };
+}
+fn logEdit(value: c.DirectLog.Definition, operation: u64, action: @FieldType(c.DirectLog.Intent, "action")) !c.DirectLog.Request {
+    const intent: c.DirectLog.Intent = .{ .kind = value.kind(), .namespace = value.properties.namespace, .name = value.properties.name, .action = action };
+    return .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = value.stored.declaration.interpretation.object, .action = switch (action) {
+        .create => unreachable,
+        .alter => .alter,
+        .rename => .rename,
+        .drop => .drop,
+    }, .expected_definition = value.stored.declaration.interpretation, .expected_data = null, .intent = try intent.digest(t.allocator) } };
+}
+
+test "catalog log publication resumes private partitions and retains identity across policy rename and drop" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const request = try logCreation(.stream, 17, 100, "events", 3);
+    const original_root = catalog.store.root;
+    const puts = objects.puts;
+    try t.expectEqual(.none, (try catalog.previewLog(request, access.policy())).reason);
+    try t.expectEqualDeep(original_root, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    const admitted = try catalog.admitLog(request, access.policy());
+    try t.expectEqual(original_root.next_partition, admitted.first_partition);
+    try t.expectEqual(original_root.next_partition + 3, catalog.store.root.next_partition);
+    try t.expect(try catalog.resolveLog(1, request.intent.name, access.policy()) == null);
+    // The shared name directory excludes both Tables and another log kind.
+    try t.expectEqual(.name_conflict, (try catalog.preview(try creation(18, 101, "events"), access.policy())).reason);
+    try t.expectEqual(.name_conflict, (try catalog.previewLog(try logCreation(.queue, 19, 102, "events", 1), access.policy())).reason);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.logOperation(request.binding, .execute, access.policy()));
+    catalog.deinit();
+    wal.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    catalog = try owner(&wal, &objects);
+    const resumed = (try catalog.logOperation(request.binding, .inspect, access.policy())).operation;
+    try t.expectEqual(.initializing, resumed.phase);
+    try t.expectEqual(@as(u32, 1), resumed.initialized);
+    const pending_page = try catalog.pendingLogs(1, null, access.policy());
+    try t.expectEqualDeep(resumed, pending_page.entries[0].?);
+    try t.expect(pending_page.next == null);
+    try t.expectEqualDeep(resumed, try catalog.admitLog(request, access.policy()));
+    // Admission retries report the current original operation, never allocate.
+    const reserved = catalog.store.root.next_partition;
+    try t.expectEqual(.initializing, (try catalog.logOperation(request.binding, .execute, access.policy())).operation.phase);
+    const completed = (try catalog.logOperation(request.binding, .execute, access.policy())).operation;
+    try t.expectEqual(.complete, completed.phase);
+    try t.expect((try catalog.pendingLogs(1, null, access.policy())).entries[0] == null);
+    try t.expectEqual(reserved, catalog.store.root.next_partition);
+    var value = (try catalog.resolveLog(1, request.intent.name, access.policy())).?;
+    try t.expectEqualDeep(completed.resulting.?, value);
+    for (0..value.count()) |i| try t.expectEqual(@as(u64, 1), try wal.log().tail(try value.partition(@intCast(i))));
+    const initial = value.seed;
+    const renamed = try logEdit(value, 103, .{ .rename = try .init("renamed") });
+    _ = try catalog.admitLog(renamed, access.policy());
+    _ = try catalog.logOperation(renamed.binding, .execute, access.policy());
+    try t.expect(try catalog.resolveLog(1, request.intent.name, access.policy()) == null);
+    value = (try catalog.resolveLog(1, try .init("renamed"), access.policy())).?;
+    try t.expectEqualDeep(initial, value.seed);
+    try t.expectEqualDeep(request.binding.identity, value.initialization);
+    var configuration_value = value.stored.declaration.configuration;
+    configuration_value.partitioning.count += 1;
+    const unsupported = try logEdit(value, 104, .{ .alter = .{ .configuration = configuration_value, .limits = value.stored.declaration.limits } });
+    const before_unsupported = catalog.store.root;
+    try t.expectError(error.UnsupportedLogRepartition, catalog.admitLog(unsupported, access.policy()));
+    try t.expectEqualDeep(before_unsupported, catalog.store.root);
+    try t.expect(try c.OperationBinding.lookup(t.allocator, objects.objectStore(), unsupported.binding.identity) == null);
+    configuration_value = value.stored.declaration.configuration;
+    configuration_value.retention.max_age_ms = 1000;
+    const alter = try logEdit(value, 105, .{ .alter = .{ .configuration = configuration_value, .limits = value.stored.declaration.limits } });
+    _ = try catalog.admitLog(alter, access.policy());
+    _ = try catalog.logOperation(alter.binding, .execute, access.policy());
+    value = (try catalog.resolveLog(1, try .init("renamed"), access.policy())).?;
+    try t.expectEqual(@as(?u64, 1000), value.stored.declaration.configuration.retention.max_age_ms);
+    const drop = try logEdit(value, 106, .drop);
+    _ = try catalog.admitLog(drop, access.policy());
+    _ = try catalog.logOperation(drop.binding, .execute, access.policy());
+    try t.expect(try catalog.resolveLog(1, try .init("renamed"), access.policy()) == null);
+    try t.expectEqualDeep(completed, (try catalog.logOperation(request.binding, .inspect, access.policy())).operation);
+    // Dropped identity stays reserved while the name may be reused.
+    try t.expectEqual(.object_conflict, (try catalog.previewLog(try logCreation(.stream, 17, 107, "new", 1), access.policy())).reason);
+    try t.expectEqual(.none, (try catalog.previewLog(try logCreation(.queue, 18, 108, "renamed", 1), access.policy())).reason);
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(completed, (try catalog.logOperation(request.binding, .inspect, access.policy())).operation);
+    access.denied_metadata = 117;
+    try t.expectError(error.CatalogDenied, catalog.logOperation(request.binding, .inspect, access.policy()));
+}
+
+test "catalog log pagination exceeds cache and filters revoked metadata without losing continuation" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var name_buffer: [32]u8 = undefined;
+    for (0..19) |i| {
+        const create = try logCreation(if (i % 2 == 0) .stream else .queue, 100 + i, 200 + i, try std.fmt.bufPrint(&name_buffer, "log-{d}", .{i}), 1);
+        _ = try catalog.admitLog(create, access.policy());
+        _ = try catalog.logOperation(create.binding, .execute, access.policy());
+    }
+    access.denied_metadata = 200;
+    var after: ?s.TreeStore.pages.Key = null;
+    var count: usize = 0;
+    while (true) {
+        const page = try catalog.listLogs(1, after, access.policy());
+        for (page.entries) |slot| if (slot) |value| {
+            try t.expect(value.properties.authorization != access.denied_metadata.?);
+            count += 1;
+        };
+        after = page.next orelse break;
+    }
+    try t.expectEqual(@as(usize, 18), count);
+    try t.expectError(error.CatalogDenied, catalog.resolveLog(1, try .init("log-0"), access.policy()));
+    access.denied_metadata = null;
+    const private = try logCreation(.queue, 300, 400, "private", 2);
+    _ = try catalog.admitLog(private, access.policy());
+    _ = try catalog.logOperation(private.binding, .execute, access.policy());
+    access.denied_metadata = 400;
+    try t.expect((try catalog.pendingLogs(1, null, access.policy())).entries[0] == null);
+    access.denied_metadata = null;
+    const cancelled = (try catalog.logOperation(private.binding, .cancel, access.policy())).operation;
+    try t.expectEqual(.cancelled, cancelled.phase);
+    try t.expectEqual(@as(u32, 1), cancelled.initialized);
+    try t.expect((try catalog.pendingLogs(1, null, access.policy())).entries[0] == null);
+    try t.expect(try catalog.resolveLog(1, try .init("private"), access.policy()) == null);
+    try t.expectEqual(.none, (try catalog.previewLog(try logCreation(.stream, 301, 401, "private", 1), access.policy())).reason);
+}
+
+test "catalog log DLQ definitions guard publication and retain dependency and storage roots" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const destination = try logCreation(.queue, 70, 1, "dead_letters", 1);
+    access.missing_table = true;
+    _ = try catalog.admitLog(destination, access.policy());
+    const registration = (try catalog.logRegistration(destination.binding, access.policy())).?;
+    try t.expectEqual(profile.queue_domain, registration.action.domain);
+    try t.expectError(error.CatalogRegistrationRequired, catalog.logOperation(destination.binding, .execute, access.policy()));
+    access.missing_table = false;
+    _ = try catalog.logOperation(destination.binding, .execute, access.policy());
+    var target = (try catalog.resolveLog(1, destination.intent.name, access.policy())).?;
+    var source = try logCreation(.queue, 71, 2, "jobs", 2);
+    source.intent.action.create.configuration.policy.queue.dead_letter = target.stored.declaration.interpretation;
+    source.binding.intent = try source.intent.digest(t.allocator);
+    access.denied_metadata = target.properties.authorization;
+    try t.expectError(error.CatalogDenied, catalog.admitLog(source, access.policy()));
+    try t.expect(try c.OperationBinding.lookup(t.allocator, objects.objectStore(), source.binding.identity) == null);
+    access.denied_metadata = null;
+    _ = try catalog.admitLog(source, access.policy());
+    const rename = try logEdit(target, 3, .{ .rename = try .init("renamed_dlq") });
+    _ = try catalog.admitLog(rename, access.policy());
+    _ = try catalog.logOperation(rename.binding, .execute, access.policy());
+    try t.expectError(error.QueueDestinationChanged, catalog.logOperation(source.binding, .execute, access.policy()));
+    const cancelled = (try catalog.logOperation(source.binding, .cancel, access.policy())).operation;
+    try t.expectEqual(.cancelled, cancelled.phase);
+    target = (try catalog.resolveLog(1, try .init("renamed_dlq"), access.policy())).?;
+    source = try logCreation(.queue, 72, 4, "jobs", 2);
+    source.intent.action.create.configuration.policy.queue.dead_letter = target.stored.declaration.interpretation;
+    source.binding.intent = try source.intent.digest(t.allocator);
+    _ = try catalog.admitLog(source, access.policy());
+    _ = try catalog.logOperation(source.binding, .execute, access.policy());
+    const published = (try catalog.logOperation(source.binding, .execute, access.policy())).operation;
+    const edge = (try published.resulting.?.deadLetterEdge()).?;
+    try t.expect((try catalog.dependencyState(edge, access.policy())).present);
+    const drop = try logEdit(target, 5, .drop);
+    try t.expectEqual(.dependency, (try catalog.previewLog(drop, access.policy())).reason);
+    // Revocation after buffering rejects the complete disclosure as well.
+    access.deny_at = access.calls + 3;
+    try t.expectError(error.CatalogDenied, catalog.resolveLog(1, try .init("jobs"), access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    const retired = try logEdit(published.resulting.?, 6, .drop);
+    _ = try catalog.admitLog(retired, access.policy());
+    _ = try catalog.logOperation(retired.binding, .execute, access.policy());
+    try t.expect((try catalog.dependencyState(edge, access.policy())).present);
+    // Catalog history owns declarations and initialization even after DROP.
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < graph.jobs.items.len) : (at += 1) {
+        var work = graph.jobs.items[at];
+        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph)) {
+            steps += 1;
+            if (steps > 20000) return error.FixtureBudget;
+        }
+    }
+    var key_buffer: [96]u8 = undefined;
+    for ([_]s.LogDeclaration.Stored{ target.seed, target.stored, published.resulting.?.stored }) |stored| {
+        try t.expect(graph.marks.contains(try s.LogDeclaration.key(stored.content, &key_buffer)));
+    }
+    try t.expect(graph.marks.contains(try c.DirectLog.IntentStore.key(published.intent, &key_buffer)));
+    var frame = try wal.log().read(t.allocator, target.first_partition, 0, 1);
+    defer frame.deinit();
+    try t.expect((try c.DirectStorageGraph.fromFrame(t.allocator, frame.frames[0])) == .log_initialization);
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expect((try catalog.dependencyState(edge, access.policy())).present);
 }

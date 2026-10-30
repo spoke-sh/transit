@@ -10,7 +10,7 @@ rights: std.AutoHashMapUnmanaged(u64, Rights) = .empty,
 object_rights: std.AutoHashMapUnmanaged(struct { principal: u64, object: u64 }, u64) = .empty,
 bindings: std.AutoHashMapUnmanaged([32]u8, p.Authorization.Object) = .empty,
 last_subject: u64 = 17,
-pub const profile: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+pub const profile: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 /// Injected authorization answers for catalog transition tests. Native graph,
 /// signatures and disk enforcement have separate independent integration tests.
 pub const Rights = struct {
@@ -83,7 +83,7 @@ pub fn binding(raw: *anyopaque, domain: u64, identity: [32]u8) !?p.Authorization
     const self: *Self = @ptrCast(@alignCast(raw));
     if (self.bindings.get(identity)) |value| return value;
     const id: u64 = if (domain == profile.database_domain) profile.database else if (domain == profile.schema_domain) profile.initial_schema_authority else 100 + self.bindings.count();
-    const value: p.Authorization.Object = .{ .reference = c.TableAuthority.reference(id), .domain = domain, .binding = identity, .parent = if (domain == profile.database_domain) null else c.TableAuthority.reference(if (domain == profile.schema_domain) profile.database else profile.initial_schema_authority), .owner = self.last_subject, .registrar = 2, .revision = 1, .actions = if (domain == profile.database_domain) c.TableAuthority.connect else if (domain == profile.schema_domain) c.TableAuthority.usage | c.TableAuthority.create else c.TableAuthority.table_actions };
+    const value: p.Authorization.Object = .{ .reference = c.TableAuthority.reference(id), .domain = domain, .binding = identity, .parent = if (domain == profile.database_domain) null else c.TableAuthority.reference(if (domain == profile.schema_domain) profile.database else profile.initial_schema_authority), .owner = self.last_subject, .registrar = 2, .revision = 1, .actions = if (domain == profile.database_domain) c.TableAuthority.connect else if (domain == profile.schema_domain) c.TableAuthority.usage | c.TableAuthority.create else if (domain == profile.stream_domain or domain == profile.queue_domain) c.LogAuthority.all_privileges else c.TableAuthority.table_actions };
     try self.bindings.put(t.allocator, identity, value);
     return value;
 }

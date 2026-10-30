@@ -101,7 +101,7 @@ Compose `DataCollection.Collector(transit_catalog.DirectStorageGraph)` with the
 same local backend and native engine. Its `start`, `current` and `step` lifecycle
 uses accepted native epoch/time fences and the same grace interval described
 above. The storage package owns inventory and deletion; the catalog package owns
-the typed Table/catalog dependency graph. The backend does not depend on catalog.
+the typed database dependency graph. The backend does not depend on catalog.
 
 The graph retains complete catalog control history, current Table roots, the
 selected recovery baseline and replay, unexpired history, live snapshots,
@@ -111,6 +111,16 @@ old history eligible; collection separately establishes whether remaining owners
 need it. Releasing a snapshot does not expire logical history. Unknown object
 namespaces, permanent operation identity reservations and saved direct-intent
 references stay retained.
+
+Stream roots retain their current and recovery directories, accepted checkpoint,
+exact declarations, producer/group progress, original receipts and live finite
+read bases. Recovery replay retains the intermediate pins and newly archived
+frames it must verify. Archive directory entries alone do not retain frame bytes;
+payload locators, pins and replay do. A released read base becomes collectible
+only after a checkpoint removes its replay dependency. An unpublished read or
+checkpoint object establishes no retention root. The graph validates owner,
+logical range, physical frontier and hash-linked checkpoint publication before
+allowing a pass to reach deletion.
 
 Four graph transitions, one inventory allocation or 64 empty inventory records
 bound a step. Graph/index allocations have a 64 MiB simultaneous limit, one cached
@@ -122,13 +132,14 @@ After graph completion, inventory WAL cleanup uses the same bounded units and
 resumption behavior as native collection above.
 
 `DataStore.trimUnit` separately performs one bounded cleanup unit for archived
-Table WAL history. Every unit verifies the latest accepted Table record and
-rejects a floor beyond its immutable archive coverage; it always retains the
-latest acceptance record. The serialized Table owner supplies current policy
+Table or Stream WAL history. Every unit verifies the latest accepted record and
+rejects a floor beyond its immutable archive coverage. Stream floors also cannot
+cross the accepted checkpoint's publishing LSN. It always retains the latest
+acceptance record. The serialized partition owner supplies current policy
 authorization. Its progress reports physical completion, independently of
 logical expiry and object collection. The generic synchronous log trim drains
 these units for component callers. Restart derives the pending cleanup from the
-persisted WAL floor and accepted Table archive rather than a volatile cursor.
+persisted WAL floor and accepted archive rather than a volatile cursor.
 
 An incomplete or corrupt graph cannot reach deletion. A racing required-history
 trim aborts the pass; repairable I/O or quota errors preserve its last checkpoint.

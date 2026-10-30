@@ -43,6 +43,16 @@ retention operations. These are explicit operations, not an automatic settlement
 API. Metadata-dependent preparation performs authorized reads. Importing a
 saved operation does not supply a new identity or grant.
 
+`Catalog.callLog(output, action)` exposes the shared `DirectLogClient.Action`
+for Stream/Queue lifecycle preview, admission, bounded execution/inspection/
+cancellation, lookup, paged listing and caller-scoped pending discovery. A declaration contains an explicit
+schema, partitioning, retention, scheduling policy and operation budgets.
+Use `DirectLogClient.save` before admission and `load` for original-operation
+recovery; both require the exact connection and current contract definition.
+`LogOutcome` preserves the same mutation-attempt evidence as other catalog calls.
+Lookup schemas belong to the output arena. No log payload or SQL operation is
+implied by creating a declaration.
+
 Pass a separate output arena. Successful results and their strings/collections
 belong to that arena and remain valid across subsequent calls and client close.
 Reset it only after all associated borrows end. Retained local intents use the
@@ -79,3 +89,7 @@ The root `test-direct-catalog-abi` schedule exercises the existing ABI/port
 consumer of this implementation against the real direct owner, including lost
 replies and saved recovery. Package checks alone do not establish installed
 language coverage or physical durability.
+
+The root `test-direct-table-service -- tables` schedule also uses this package's
+typed Stream/Queue lifecycle over signed HTTP, corrupts admission and publication
+replies, and recovers saved original work after a disk-backed node restart.

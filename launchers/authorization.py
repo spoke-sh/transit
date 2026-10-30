@@ -70,7 +70,7 @@ def station(changes, realm, workers, registrar):
     registrar_role = changes.apply('registrar-login', {'create_role': dict(name=f'station/{ledger["pid"]}/registrar'.encode().hex(), login=True)})
     changes.apply('registrar-credential', {'bind_credential': dict(principal=registrar['principal'], role=registrar_role, public_key=registrar['public_key'], pid=None)})
     domains = [changes.apply('domain-' + name, {'register_domain': dict(registrar=registrar['principal'], actions=mask, lifetime_resource=ledger['resource'])})
-               for name, mask in (('database', 1), ('schema', 3), ('table', 15))]
+               for name, mask in (('database', 1), ('schema', 3), ('table', 15), ('stream', 31), ('queue', 31))]
 
     def binding(kind, identity):
         return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(changes.definition)
@@ -85,7 +85,7 @@ def station(changes, realm, workers, registrar):
         changes.apply('owner-' + name, {'grant': dict(object={'kind': 'domain', 'id': identity}, grantee=roles['ledger'], privileges=privileges)})
     changes.apply('table-defaults', {'default_grant': dict(creator=roles['ledger'], schema={'kind': 'domain', 'id': schema},
         domain=domains[2], grantee=data, privileges=7)})
-    profile = dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2],
+    profile = dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2], stream_domain=domains[3], queue_domain=domains[4],
         database=database, initial_schema=1, initial_schema_authority=schema)
     scope = dict(realm=realm, resource=ledger['resource'], catalog=1)
     def name(value):

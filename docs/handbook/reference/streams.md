@@ -1,5 +1,40 @@
 # Streams and delivery
 
+## Declarative Streams and Queues
+
+Typed callers can declare schema-bound Streams and Queues through
+`transit-data-client.Catalog.callLog`. A declaration selects stable object and
+column identities, partitioning, retention and bounded operation budgets. Queues
+also declare ordering, leases, retry backoff and an optional exact-definition DLQ.
+Retention defaults to unlimited. Current database CONNECT, schema USAGE/CREATE
+and object ownership govern publication and administration; metadata inspection
+uses separate Stream/Queue grants.
+
+Preview writes nothing. Admission freezes the original request and reserves its
+name and partition identities. Bounded execution registers the permission object
+and initializes partitions; the declaration becomes visible only when all of
+that evidence is complete. Save the original request before admission and inspect
+that identity after a lost reply. A pending or cancelled declaration is not a
+published data source.
+
+ALTER currently changes retention, operation limits and compatible scheduling
+policy. Schema changes, repartitioning and changes to routing, keys or ordering
+are refused before admission. RENAME preserves identity; DROP hides the name but
+retains accepted operations, definitions and required storage. DLQ references
+bind an existing compatible Queue definition, require current append rights and
+protect it with DROP RESTRICT. Renaming never retargets an accepted reference.
+Historical Queue dependency edges remain retained pending the Queue closure owner.
+
+Lookup and listing recheck current metadata rights. Each bounded listing page
+has its own catalog observation position; it is not an atomic data snapshot.
+These operations currently publish declarations only. Stream production and
+consumption, Queue leasing, SQL verbs and Station composition require their
+execution owners. The existing mailbox delivery profile below remains separate.
+See the [caller package](../../../packages/zig/transit-data-client/README.md) and
+[exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+
+## Mailbox delivery
+
 A mailbox is an ordered durable sequence for a Transit PID. Logical backlog can
 outlive its worker and exceed resident memory. Admission, operation sizes, physical
 capacity and per-operation budgets still impose explicit limits.

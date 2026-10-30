@@ -349,17 +349,49 @@ independent library boundary warrants its own manifest and checks.
 
 ### Work packages and dependencies
 
-All R packages below retain remaining work. The
-[first foundation slice](#first-foundation-slice) delivers parts of R0/R1.
+R2's typed declaration lifecycle now passes its local catalog/native service
+gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
+R0/R1 retain contract/model and integrated maintenance obligations. R3 now has a
+disk-backed storage owner; its public payload service composition remains open.
+R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
+delivered the initial parts of R0/R1; the following progress slice adds shared
+storage and catalog integration without enabling Queue execution or SQL verbs.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
+
+The current progress slice delivers:
+
+- R0 declaration/routing/retention contracts, original producer outcomes,
+  consumer assignment/progress, finite authenticated reads and trusted-time
+  observations. Expanded Stream and mixed-participant model correspondence,
+  direct KV and complete Queue settlement contracts remain outstanding.
+- R1 paged Roaring directories, the coordinated `.tdel` migration, `.tack`
+  envelopes, fenced initialization, bounded pinned tail slabs, immutable log
+  archives/checkpoints and retained-graph integration. Queue-specific indexes,
+  scheduling and integrated resource qualification remain outstanding.
+- R2 typed create/alter/rename/drop/lookup/list/pending/recovery, shared names and
+  operation identities, native grants and exact-definition DLQ dependencies.
+  Historical Queue dependency closure remains gated by its execution owner.
+- R3 atomic single-partition append and producer deduplication, bounded retained
+  reads and offset settlement, sealed `.tseg` placement, timestamp filtering,
+  archive/checkpoint/trim, control reserve and explicit age-based prefix expiry.
+  Paged consumer watermarks protect unread input; old pins and original outcomes
+  survive logical expiry. Notification waits, key compaction, public payload
+  operation identity and authorization composition, service scheduling and
+  installed qualification remain open.
+
+The next implementation work is to finish that R3 service slice, then implement
+R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
+state/append/settlement decision, and R6's dedicated SQL/shared caller/finite
+analytical surfaces. None of those later packages is completed by publishing
+their declarations or neutral data types.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
-| R2 | Catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | Typed create/alter/drop/inspect/recovery, stable identities and dependency/policy checks |
-| R3 | Stream append, retained reads and consumer groups | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress |
+| R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
+| R3 | Partial: storage append, retained reads, groups and maintenance; service composition open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
@@ -849,15 +881,15 @@ with [scoped qualification](../history/qualification/verification.md#stream-and-
   reusable allocation-free mutation scratch. Its standalone manifest and root
   component checks qualify the library independently of a storage owner.
 
-R0 remains open for complete declarations, partition/hash/schema policy,
+At that first foundation's source revision, R0 remained open for complete declarations, partition/hash/schema policy,
 producer/group/claim owner transitions, direct KV and generalized participant
-preparation. R1 remains open for the paged container directory, coordinated
+preparation. R1 remained open for the paged container directory, coordinated
 `.tdel` cutover, `.tack` envelopes, partition initialization, tail slabs and disk
-publication/recovery. Current `.tdel` bytes and native execution semantics are
-unchanged; the new container codec is not used to reinterpret stored data.
+publication/recovery. That slice left `.tdel` bytes and native execution semantics
+unchanged; it did not use the new container codec to reinterpret stored data.
 Neither foundation enables Stream/Queue SQL, claims, transaction participants
-or a Station migration. The next change should complete the declaration and
-storage ownership contracts before that integration.
+or a Station migration. Subsequent delivery and current remaining work are
+tracked in [work packages and dependencies](#work-packages-and-dependencies).
 
 ## Database dependency separation — 2026-10-27
 

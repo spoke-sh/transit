@@ -1,5 +1,6 @@
-//! Immutable copies of complete accepted TWAL frames. Only a Table acceptance
-//! record publishes Coverage; orphan objects never establish recovery authority.
+//! Shared immutable copies of complete accepted TWAL frames. Table Coverage
+//! and LogHistory retain separate publication/range semantics; staged objects
+//! never establish recovery authority.
 const std = @import("std");
 const d = @import("transit_protocol").DataLifecycle;
 const Log = @import("TransitLog.zig");
@@ -78,17 +79,23 @@ pub fn read(allocator: std.mem.Allocator, index: *TreeStore, coverage: Coverage,
     if (lsn >= coverage.through) return error.InvalidTableArchive;
     const tree: pages.Tree(TreeStore) = .{ .store = index };
     const value = try tree.get(coverage.directory, try key(lsn)) orelse return error.TableHistoryMissing;
+    return readReference(allocator, index.store, value, partition, lsn);
+}
+
+/// Shared immutable TWAL object decoder. The caller owns retained-range and
+/// publication semantics; both Table and declared log histories use this codec.
+pub fn readReference(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: pages.Value, partition: u64, lsn: u64) !Log.Log.OwnedBatch {
     const content = try decodeReference(value);
     const size: u32 = @intCast(content.bytes);
     const digest = content.sha256;
     var name: [96]u8 = undefined;
     const object_key = try objectKey(digest, &name);
-    const metadata = try index.store.head(object_key) orelse return error.TableHistoryMissing;
+    const metadata = try objects.head(object_key) orelse return error.TableHistoryMissing;
     if (metadata.size != size or !std.mem.eql(u8, &metadata.sha256, &digest)) return error.InvalidTableArchive;
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const bytes = try arena.allocator().alloc(u8, size);
-    const encoded = try index.store.getRange(object_key, 0, size, bytes);
+    const encoded = try objects.getRange(object_key, 0, size, bytes);
     if (encoded.len != size or !std.mem.eql(u8, &hash(encoded), &digest)) return error.InvalidTableArchive;
     // A provider may return borrowed storage. The returned frame owns its bytes.
     if (encoded.ptr != bytes.ptr) @memcpy(bytes, encoded);

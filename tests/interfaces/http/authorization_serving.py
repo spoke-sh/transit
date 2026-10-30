@@ -263,7 +263,7 @@ def main():
         source = system.command({'spawn': {}})
         resource = system.command({'create_resource': dict(writer=source)})
         system.command({'grant_resource': dict(resource=resource, subject=0, permissions=7)})
-        domains = [apply({'register_domain': dict(registrar=0, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15)]
+        domains = [apply({'register_domain': dict(registrar=0, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15, 31, 31)]
         scope = dict(realm=72, resource=resource, catalog=1)
 
         def binding(kind, identity):
@@ -275,7 +275,7 @@ def main():
         def name(text):
             return dict(len=len(text), bytes=list(text.encode()) + [0] * (63-len(text)))
         catalog = dict(scope=scope, branch=1, partition=1, audience=source,
-            authority=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2],
+            authority=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2], stream_domain=domains[3], queue_domain=domains[4],
                 database=database, initial_schema=1, initial_schema_authority=schema),
             database_name=name('serving'), initial_schema_name=name('public'))
         settings = json.loads(system.config.read_text())

@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
+definition = "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -181,6 +181,23 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
                            "resource": 21, "allocating_principal": 4, "allocation": {"sequence": 22}, "creation": resource_create}
     resource_digest = hashlib.sha256(b"transit.catalog.native-resource.v1\0" + canonical(resource_definition)).digest()
     resource_fixture = {"request": resource_request, "public_key": public_key, "resource": resource_definition, "digest": list(resource_digest)}
+    # Independent native-intent digest and signed lifecycle envelope. A rename
+    # needs no fabricated binary schema and retains full-width original IDs.
+    def native_name(value):
+        encoded = value.encode()
+        return {"len": len(encoded), "bytes": list(encoded) + [0] * (63 - len(encoded))}
+
+    log_intent = {"kind": "queue", "namespace": 1, "name": native_name("jobs"), "action": {"rename": native_name("jobs_v2")}}
+    log_digest = hashlib.sha256(b"transit.catalog.log.intent.v1\0" + canonical(log_intent)).digest()
+    log_binding = {"definition": definition,
+                   "identity": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
+                   "target": source_definition["object"], "action": "rename",
+                   "expected_definition": source_definition, "expected_data": None,
+                   "intent": list(log_digest), "prerequisite": None}
+    log_input = {**request_input, "action": {"log_admit": {"binding": log_binding, "kind": "queue", "namespace": 1, "name": "jobs", "action": {"rename": "jobs_v2"}}}}
+    log_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_input)).digest())}
+    log_request = {**log_input, "proof": {"claim": log_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_claim)).digest())}}
+    log_fixture = {"request": log_request, "public_key": public_key, "intent_digest": list(log_digest)}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -203,6 +220,11 @@ for columns in ("abc", [0] * 129):
     assert not validator.is_valid(invalid)
 validator.validate(dependency_request)
 validator.validate(resource_request)
+validator.validate(log_request)
+for field in ("binding", "kind", "namespace", "name", "action"):
+    invalid = copy.deepcopy(log_request)
+    del invalid["action"]["log_admit"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("definition", "connection", "operation", "object", "expected", "action"):
     invalid = copy.deepcopy(resource_request)
     del invalid["action"]["resource_operation"]["binding"][field]
@@ -243,6 +265,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",
+        (json.dumps(log_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-filter-v1.json",
         (json.dumps(filter_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-projection-v1.json",

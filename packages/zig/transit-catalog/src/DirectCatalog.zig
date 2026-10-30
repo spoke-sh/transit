@@ -14,6 +14,7 @@ const IntentStore = @import("DirectCatalogIntent.zig");
 const N = c.DirectNamespace;
 const Dependency = c.DirectDependency;
 const Resource = c.DirectResource;
+const L = c.DirectLog;
 const P = s.TablePartition;
 const pages = s.TreeStore.pages;
 const Self = @This();
@@ -256,6 +257,420 @@ fn namedRecord(self: *Self, object: u64) !?Resource.Operation {
     return value;
 }
 
+fn logRecord(self: *Self, object: u64) !?L.Operation {
+    const target = try self.entry(object) orelse return null;
+    const value = try self.store.logRecord(target.log orelse return null);
+    if (value.binding.target.object != object or value.first_partition != target.partition) return error.InvalidDirectCatalogEntry;
+    return value;
+}
+
+fn logGuard(self: *Self, allocator: std.mem.Allocator, request: L.Request, policy: Policy, write: bool, acceptance: bool) !P.Guard {
+    if (request.binding.identity.principal != policy.subject.principal()) return error.CatalogDenied;
+    const known = try self.logRecord(request.binding.target.object);
+    if (known) |value| if (value.kind != request.intent.kind) return error.CatalogKindMismatch;
+    const definition = if (known) |value| value.resulting else null;
+    const namespace = try self.authorizationSchema(if (definition) |value| value.properties.namespace else request.intent.namespace);
+    // Verify the same database and schema registrations as every other direct
+    // object; the log target then selects its own immutable native domain.
+    _ = try self.requirements(policy, namespace, null, .schema);
+    var target: ?a.Table = null;
+    if (definition) |value| {
+        target = value.properties.target(request.binding.target.object);
+    } else if (try policy.registered(policy.context, L.authorityKind(request.intent.kind), request.binding.target.object)) |native| {
+        try a.validateObject(self.config().authority, self.config().scope, L.authorityKind(request.intent.kind), request.binding.target.object, a.reference(namespace.authorization), native);
+        target = .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
+    }
+    if (target) |value| try self.verifiedObject(policy, L.authorityKind(request.intent.kind), value.id, value.authorization, a.reference(namespace.authorization));
+    const access: c.LogAuthority.Access = if (request.binding.action == .create and (write or definition == null)) .create else if (write) .administer else .inspect;
+    var required = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, target, access);
+    if (access == .create) {
+        required.selectable = request.intent.action.create.owner;
+        if (target) |value| required.requirements[2] = .{ .object = a.reference(value.authorization), .access = .ownership };
+    }
+    if (acceptance and (request.intent.action == .create or request.intent.action == .alter)) {
+        const configuration = if (request.intent.action == .create) request.intent.action.create.configuration else request.intent.action.alter.configuration;
+        if (configuration.policy == .queue) if (configuration.policy.queue.dead_letter) |destination| {
+            const found = try self.dependencySource(destination.object, policy, c.LogAuthority.inspect | c.LogAuthority.append);
+            required = try required.merge(found.requirements);
+        };
+    }
+    return policy.make_guard(policy.context, allocator, required, if (acceptance) request.binding.prerequisite else null);
+}
+
+fn logReason(self: *Self, request: L.Request, current: P.Guard) !L.Reason {
+    const binding = request.binding;
+    const intent = request.intent;
+    if (try self.namespacePending(intent.namespace) != null) return .object_conflict;
+    _ = try self.schema(intent.namespace);
+    if (binding.action == .create) {
+        if (try self.entry(binding.target.object) != null) return .object_conflict;
+        if (!try self.available(intent.namespace, intent.name, binding.target.object, current)) return .name_conflict;
+        return .none;
+    }
+    const known = try self.logRecord(binding.target.object) orelse return .object_conflict;
+    if (known.phase != .complete or known.resulting.?.stored.retired or try self.pending(binding.target.object, current)) return .object_conflict;
+    const value = known.resulting.?;
+    if (!std.meta.eql(value.stored.declaration.interpretation, binding.expected_definition.?) or value.properties.namespace != intent.namespace or !std.meta.eql(value.properties.name, intent.name)) return .stale_definition;
+    if (binding.action == .drop and try self.hasDependents(binding.target.object)) return .dependency;
+    if (binding.action == .rename and !try self.available(intent.namespace, intent.action.rename, binding.target.object, current)) return .name_conflict;
+    if (binding.action == .alter) try value.stored.declaration.configuration.requireEvolution(intent.action.alter.configuration);
+    return .none;
+}
+
+/// Validate typed policies against the exact schema before any identity or
+/// partition reservation. DLQ publication joins the dependency/transaction owner.
+fn validateLogRequest(self: *Self, request: L.Request) !void {
+    try request.validate(self.allocator, self.config());
+    if (request.intent.action == .alter) {
+        const current = try self.logRecord(request.binding.target.object) orelse return error.CatalogKindMismatch;
+        if (current.resulting) |value| {
+            var stored = try s.LogDeclaration.load(self.allocator, self.data_objects, value.stored);
+            defer stored.deinit();
+            var next = stored.definition;
+            next.configuration = request.intent.action.alter.configuration;
+            next.limits = request.intent.action.alter.limits;
+            try next.validate();
+            try stored.definition.configuration.requireEvolution(next.configuration);
+        }
+    }
+    const configuration = switch (request.intent.action) {
+        .create => |value| value.configuration,
+        .alter => |value| value.configuration,
+        else => return,
+    };
+    if (configuration.policy == .queue) if (configuration.policy.queue.dead_letter) |destination| {
+        const target = try self.logRecord(destination.object.object) orelse return error.InvalidQueueDestination;
+        if (target.phase != .complete or target.kind != .queue or target.resulting.?.stored.retired or
+            !std.meta.eql(target.resulting.?.stored.declaration.interpretation, destination)) return error.QueueDestinationChanged;
+        var destination_schema = try s.LogDeclaration.load(self.allocator, self.data_objects, target.resulting.?.stored);
+        defer destination_schema.deinit();
+        var source_schema: ?s.LogDeclaration.Owned = null;
+        defer if (source_schema) |*value| value.deinit();
+        const expected = if (request.intent.action == .create) request.intent.action.create.schema else blk: {
+            const source = (try self.logRecord(request.binding.target.object)).?.resulting.?;
+            source_schema = try s.LogDeclaration.load(self.allocator, self.data_objects, source.stored);
+            break :blk source_schema.?.definition.schema;
+        };
+        var actual = destination_schema.definition.schema;
+        actual.object = expected.object;
+        actual.revision = expected.revision;
+        if (!std.mem.eql(u8, &try expected.fingerprint(), &try actual.fingerprint())) return error.QueueDestinationSchemaMismatch;
+    };
+}
+
+pub fn previewLog(self: *Self, request: L.Request, policy: Policy) !L.Preview {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    try request.validate(arena.allocator(), self.config());
+    const current = try self.logGuard(arena.allocator(), request, policy, true, true);
+    try check(current);
+    try self.validateLogRequest(request);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    const known = try self.logRecord(request.binding.target.object);
+    const result: L.Preview = .{ .binding = request.binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = if (known) |value| value.resulting else null, .reason = try self.logReason(request, current) };
+    try check(current);
+    return result;
+}
+
+fn recordLog(self: *Self, input: L.Operation, previous: ?L.Operation, current: P.Guard) !L.Operation {
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    var operation = input;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    operation.position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try operation.validate();
+    const id = try r.idKey(operation.binding.target.object);
+    if (operation.phase == .admitted and operation.binding.action == .create) {
+        if (operation.first_partition != next.next_partition) return error.InvalidLogCatalogOperation;
+        next.next_partition = try std.math.add(u64, next.next_partition, operation.partition_count);
+        var namespace = try self.schema(operation.namespace);
+        namespace.revision = try std.math.add(u64, namespace.revision, 1);
+        next.schemas = try self.store.tree().put(next.schemas, try r.idKey(namespace.id), try r.pageValue(namespace));
+    }
+    const updates_object = if (operation.binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
+    if (updates_object) {
+        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = operation.first_partition, .seed = null, .resource = null, .log = self.store.root.next_lsn };
+        next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
+    }
+    if (operation.phase == .admitted and (operation.binding.action == .create or operation.binding.action == .rename)) {
+        const name: r.Name = .{ .namespace = operation.namespace, .name = operation.name, .object = operation.binding.target.object, .reservation = operation.binding.identity };
+        next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));
+    }
+    if (operation.pending()) {
+        next.pending = try self.store.tree().put(next.pending, id, try r.pageValue(operation.binding.identity));
+    } else if (previous != null) next.pending = try self.store.tree().remove(next.pending, id);
+    if (operation.phase == .complete) if (try operation.resulting.?.deadLetterEdge()) |edge| {
+        const value = try r.pageValue(edge);
+        next.dependents = try self.store.tree().put(next.dependents, try edge.forwardKey(), value);
+        next.dependencies = try self.store.tree().put(next.dependencies, try edge.reverseKey(), value);
+    };
+    try self.store.receiptIdentity(&next, operation.binding.identity);
+    try self.store.publish(next, .{ .log = operation }, current);
+    return operation;
+}
+
+pub fn admitLog(self: *Self, request: L.Request, policy: Policy) !L.Operation {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    try request.validate(arena.allocator(), self.config());
+    const current = try self.logGuard(arena.allocator(), request, policy, true, true);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    if (try self.store.logOperation(request.binding)) |previous| {
+        try check(current);
+        return previous;
+    }
+    try self.validateLogRequest(request);
+    const reason = try self.logReason(request, current);
+    var operation: L.Operation = .{ .binding = request.binding, .intent = try L.IntentStore.stage(self.allocator, self.store.objects, self.config(), request), .kind = request.intent.kind, .namespace = request.intent.namespace, .name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name, .owner = if (request.intent.action == .create) request.intent.action.create.owner else null, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = if (reason == .none) .admitted else .rejected, .reason = reason, .first_partition = 0, .partition_count = 0, .initialized = 0, .resulting = null };
+    if (reason == .none) {
+        if (request.intent.action == .create) {
+            operation.first_partition = self.store.root.next_partition;
+            operation.partition_count = request.intent.action.create.configuration.partitioning.count;
+        } else {
+            const known = (try self.logRecord(request.binding.target.object)).?.resulting.?;
+            operation.first_partition = known.first_partition;
+            operation.partition_count = known.count();
+        }
+    }
+    try operation.validate();
+    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
+    return self.recordLog(operation, null, current);
+}
+
+fn logRequest(self: *Self, binding: d.Binding) !?L.IntentStore.Owned {
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, binding.identity)) |known| try known.requireSame(binding);
+    const operation = try self.store.logOperation(binding) orelse return null;
+    var request = try L.IntentStore.load(self.allocator, self.store.objects, self.config(), operation.intent);
+    errdefer request.deinit();
+    try request.value.binding.requireSame(binding);
+    return request;
+}
+
+pub fn logRegistration(self: *Self, binding: d.Binding, policy: Policy) !?Registration {
+    const status_value = try self.logOperation(binding, .inspect, policy);
+    if (status_value != .operation or !status_value.operation.pending() or binding.action != .create) return null;
+    const operation = status_value.operation;
+    var request = (try self.logRequest(binding)).?;
+    defer request.deinit();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const guard_value = try self.logGuard(arena.allocator(), request.value, policy, true, true);
+    const fence = try guard_value.acquire(guard_value.context);
+    defer guard_value.release(guard_value.context);
+    if (try policy.registered(policy.context, L.authorityKind(operation.kind), binding.target.object) != null) return null;
+    const namespace = try self.schema(operation.namespace);
+    return .{ .action = .{ .domain = self.config().authority.domain(L.authorityKind(operation.kind)), .owner = operation.owner.?, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, L.authorityKind(operation.kind), binding.target.object) }, .authorization_revision = fence.policy_epoch - 1 };
+}
+
+fn prepareLogDefinition(self: *Self, request: L.Request, operation: L.Operation, policy: Policy) !L.Definition {
+    if (request.intent.action == .create) {
+        const namespace = try self.schema(operation.namespace);
+        const native = try policy.registered(policy.context, L.authorityKind(operation.kind), request.binding.target.object) orelse return error.CatalogRegistrationRequired;
+        try a.validateObject(self.config().authority, self.config().scope, L.authorityKind(operation.kind), request.binding.target.object, a.reference(namespace.authorization), native);
+        if (native.owner != operation.owner.?) return error.CatalogIdentityConflict;
+        const properties: Properties = .{ .namespace = operation.namespace, .authorization = native.reference.id, .name = operation.name };
+        var bytes: [s.LogDeclaration.max_properties_bytes]u8 = undefined;
+        const proposed = request.intent.action.create;
+        var candidate_value = try s.LogDeclaration.prepare(self.allocator, .{ .object = request.binding.target, .revision = 1, .schema = proposed.schema, .configuration = proposed.configuration, .limits = proposed.limits, .properties = try properties.encode(&bytes) });
+        defer candidate_value.deinit();
+        const stored = try s.LogDeclaration.stage(self.data_objects, &candidate_value);
+        return .{ .stored = stored, .seed = stored, .properties = properties, .initialization = request.binding.identity, .first_partition = operation.first_partition };
+    }
+    const known = (try self.logRecord(request.binding.target.object) orelse return error.InvalidLogCatalogOperation).resulting.?;
+    if (!std.meta.eql(known.stored.declaration.interpretation, request.binding.expected_definition.?)) return error.DataIdentityConflict;
+    var previous_declaration = try s.LogDeclaration.load(self.allocator, self.data_objects, known.stored);
+    defer previous_declaration.deinit();
+    var result = known;
+    var next = previous_declaration.definition;
+    next.revision = try std.math.add(u64, next.revision, 1);
+    switch (request.intent.action) {
+        .create => unreachable,
+        .rename => |name| result.properties.name = name,
+        .drop => next.retired = true,
+        .alter => |value| {
+            try next.configuration.requireEvolution(value.configuration);
+            next.configuration = value.configuration;
+            next.limits = value.limits;
+        },
+    }
+    var bytes: [s.LogDeclaration.max_properties_bytes]u8 = undefined;
+    next.properties = try result.properties.encode(&bytes);
+    var candidate_value = try s.LogDeclaration.prepare(self.allocator, next);
+    defer candidate_value.deinit();
+    result.stored = try s.LogDeclaration.stage(self.data_objects, &candidate_value);
+    try known.stored.declaration.requireSuccessor(result.stored.declaration);
+    return result;
+}
+
+/// One execute initializes at most one partition, with verified readback before
+/// recording progress. Lost replies recover the same allocation and genesis.
+pub fn logOperation(self: *Self, binding: d.Binding, command: L.Command, policy: Policy) !L.Observation {
+    if (command == .admit) return error.LogCatalogRequestRequired;
+    try self.requireInitialized();
+    try binding.validate();
+    if (binding.identity.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const initial = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(initial);
+    var request = (try self.logRequest(binding)) orelse {
+        try check(initial);
+        return .not_observed;
+    };
+    defer request.deinit();
+    const previous = (try self.store.logOperation(binding)).?;
+    const current = try self.logGuard(arena.allocator(), request.value, policy, command != .inspect and previous.pending(), command == .execute and previous.pending());
+    try check(current);
+    if (!previous.pending() or command == .inspect) {
+        try check(current);
+        return .{ .operation = previous };
+    }
+    var next = previous;
+    if (command == .cancel) {
+        next.phase = .cancelled;
+    } else {
+        try self.validateLogRequest(request.value);
+        if (binding.action == .drop and try self.hasDependents(binding.target.object)) {
+            next.phase = .rejected;
+            next.reason = .dependency;
+        } else {
+            if (next.resulting == null) next.resulting = try self.prepareLogDefinition(request.value, next, policy);
+            if (binding.action == .create) {
+                _ = try s.LogInitialization.initialize(self.allocator, self.data_log, self.data_objects, try next.resulting.?.genesis(next.initialized), current);
+                next.initialized += 1;
+                next.phase = if (next.initialized == next.partition_count) .complete else .initializing;
+            } else next.phase = .complete;
+        }
+    }
+    return .{ .operation = try self.recordLog(next, previous, current) };
+}
+
+fn inspectLogDefinition(self: *Self, allocator: std.mem.Allocator, definition: L.Definition, policy: Policy) !p.Authorization.Guard {
+    try definition.validate();
+    const namespace = try self.authorizationSchema(definition.properties.namespace);
+    _ = try self.requirements(policy, namespace, null, .schema);
+    try self.verifiedObject(policy, L.authorityKind(definition.kind()), definition.stored.declaration.interpretation.object.object, definition.properties.authorization, a.reference(namespace.authorization));
+    const requirements_value = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, definition.properties.target(definition.stored.declaration.interpretation.object.object), .inspect);
+    try check(try policy.make_guard(policy.context, allocator, requirements_value, null));
+    var loaded = try s.LogDeclaration.load(allocator, self.data_objects, definition.stored);
+    defer loaded.deinit();
+    if (!std.meta.eql(definition.properties, try Properties.decode(allocator, loaded.definition.properties))) return error.InvalidLogCatalogDefinition;
+    return requirements_value;
+}
+
+pub fn resolveLog(self: *Self, namespace_id: u64, name: a.Name, policy: Policy) !?L.Definition {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(namespace_id);
+    var required = try self.requirements(policy, namespace, null, .schema);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    var result: ?L.Definition = null;
+    if (try self.candidate(namespace_id, name)) |candidate_name| {
+        if (try self.logRecord(candidate_name.object)) |known| {
+            if (known.phase == .complete and !known.resulting.?.stored.retired) {
+                const value = known.resulting.?;
+                if (value.properties.namespace == namespace_id and std.meta.eql(value.properties.name, name)) {
+                    required = try required.merge(try self.inspectLogDefinition(arena.allocator(), value, policy));
+                    result = value;
+                }
+            }
+        }
+    }
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    return result;
+}
+
+pub fn listLogs(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !L.Page {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(namespace_id);
+    var required = try self.requirements(policy, namespace, null, .schema);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    const batch = try self.store.tree().scan(self.store.root.objects, after);
+    var result: L.Page = .{ .next = batch.next, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var count: usize = 0;
+    for (batch.entries) |slot| if (slot) |item| {
+        const target = try r.fromValue(r.Entry, self.allocator, item.value);
+        try target.validate(self.config());
+        if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        const known = try self.store.logRecord(target.log orelse continue);
+        if (known.binding.target.object != target.object) return error.InvalidDirectCatalogEntry;
+        if (known.phase != .complete or known.resulting.?.stored.retired) continue;
+        const value = known.resulting.?;
+        if (value.properties.namespace != namespace_id) continue;
+        const checked = self.inspectLogDefinition(arena.allocator(), value, policy) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        required = try required.merge(checked);
+        result.entries[count] = value;
+        count += 1;
+    };
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    return result;
+}
+
+/// Discover only this caller's accepted pending log declarations. A scanned
+/// shared-directory page remains bounded even when every entry is filtered.
+pub fn pendingLogs(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !L.PendingPage {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const initial = try self.guard(arena.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(initial);
+    const batch = try self.store.tree().scan(self.store.root.pending, after);
+    var result: L.PendingPage = .{ .next = batch.next, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var guards: [pages.page_entries]?P.Guard = @splat(null);
+    var count: usize = 0;
+    for (batch.entries) |slot| if (slot) |item| {
+        if (item.key.len != 8) return error.InvalidDirectCatalogEntry;
+        const identity = try r.fromValue(d.Operation, self.allocator, item.value);
+        if (identity.principal != policy.subject.principal()) continue;
+        const object = std.mem.readInt(u64, item.key.data[0..8], .big);
+        const target = try self.entry(object) orelse return error.InvalidDirectCatalogEntry;
+        if (target.log == null) continue;
+        const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, identity) orelse return error.InvalidLogCatalogOperation;
+        const operation = try self.store.logOperation(binding) orelse return error.InvalidLogCatalogOperation;
+        if (operation.binding.target.object != object or !operation.pending()) return error.InvalidLogCatalogOperation;
+        if (operation.namespace != namespace_id) continue;
+        var request = (try self.logRequest(binding)).?;
+        defer request.deinit();
+        const current = try self.logGuard(arena.allocator(), request.value, policy, false, false);
+        check(current) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        guards[count] = current;
+        result.entries[count] = operation;
+        count += 1;
+    };
+    try check(initial);
+    for (guards) |slot| if (slot) |current| try check(current);
+    return result;
+}
+
+/// Open schema bytes for a currently observed descriptor under the same native
+/// metadata rights. The caller owns this allocation and must recheck its request
+/// guard after buffering any response derived from it.
+pub fn logDefinition(self: *Self, allocator: std.mem.Allocator, definition: L.Definition, policy: Policy) !s.LogDeclaration.Owned {
+    try self.requireInitialized();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const required = try self.inspectLogDefinition(arena.allocator(), definition, policy);
+    const known = try self.logRecord(definition.stored.declaration.interpretation.object.object) orelse return error.InvalidLogCatalogDefinition;
+    if (known.phase != .complete or !std.meta.eql(known.resulting, @as(?L.Definition, definition))) return error.LogDeclarationConflict;
+    var result = try s.LogDeclaration.load(allocator, self.data_objects, definition.stored);
+    errdefer result.deinit();
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    return result;
+}
+
 fn resourceRequirements(self: *Self, policy: Policy, binding: Resource.Binding, value: ?Resource.Definition, write: bool) !p.Authorization.Guard {
     const namespace = try self.authorizationSchema(if (value) |known| known.namespace else if (binding.action == .create) binding.action.create.namespace else return error.CatalogDenied);
     const target: ?a.Table = if (value) |known| .{ .id = known.object.object, .schema = known.namespace, .authorization = known.authorization } else null;
@@ -295,7 +710,7 @@ fn recordResource(self: *Self, operation_input: Resource.Operation, previous: ?R
     const id = try r.idKey(binding.object.object);
     const updates_object = if (binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
     if (updates_object) {
-        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn };
+        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn, .log = null };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
     }
     if (operation.phase == .admitted and binding.action != .drop) {
@@ -1176,7 +1591,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
         .explicit_tables => |ids| for (ids) |id| {
             _ = scratch.reset(.retain_capacity);
             const target = try self.entry(id) orelse return error.CatalogDenied;
-            if (target.resource != null) return error.UnsupportedTransactionParticipant;
+            if (target.resource != null or target.log != null) return error.UnsupportedTransactionParticipant;
             if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
         },
         .authorized_catalog_tables => {
@@ -1188,7 +1603,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
                     const target = try r.fromValue(r.Entry, self.allocator, item.value);
                     try target.validate(self.config());
                     if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
-                    if (target.resource != null) continue;
+                    if (target.resource != null or target.log != null) continue;
                     _ = try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), true);
                 };
                 cursor = page.next orelse break;
@@ -2059,7 +2474,7 @@ fn entry(self: *Self, object: u64) !?r.Entry {
     const value = try self.store.tree().get(self.store.root.objects, try r.idKey(object)) orelse return null;
     const result = try r.fromValue(r.Entry, self.allocator, value);
     try result.validate(self.config());
-    if (result.object != object or result.partition >= self.store.root.next_partition or (result.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    if (result.object != object or result.partition >= self.store.root.next_partition or (result.resource orelse 0) >= self.store.root.next_lsn or (result.log orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
     return result;
 }
 
@@ -2068,7 +2483,7 @@ fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: boo
 }
 
 fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool, transaction_control: bool) !View {
-    if (target.resource != null) return error.CatalogKindMismatch;
+    if (target.resource != null or target.log != null) return error.CatalogKindMismatch;
     const resident = if (control or transaction_control or self.transaction_read != null) null else self.options.table_owner;
     const original_seed = target.seed orelse return error.CatalogRegistrationRequired;
     if (resident) |slot| if (slot.*) |cached| {
@@ -2349,6 +2764,11 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.log) |at| {
+            const named = try self.store.logRecord(at);
+            if (named.namespace == namespace_id and (named.pending() or (named.phase == .complete and !named.resulting.?.stored.retired))) return .{ .blocked = true, .after = null };
+            continue;
+        }
         if (target.resource) |at| {
             const named = try self.store.resourceRecord(at);
             const named_namespace = if (named.resulting) |value| value.namespace else named.binding.action.create.namespace;
@@ -2485,6 +2905,10 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     const value = try self.store.tree().get(self.store.root.pending, try r.idKey(object)) orelse return false;
     const operation = try r.fromValue(d.Operation, self.allocator, value);
     const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
+    if (target.log != null) {
+        const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
+        return (try self.store.logOperation(binding) orelse return error.InvalidDirectCatalogOperation).pending();
+    }
     if (target.resource != null) {
         const binding = try c.OperationBinding.lookupResource(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
         return (try self.store.resourceOperation(binding) orelse return error.InvalidDirectCatalogOperation).pending();
@@ -2501,6 +2925,15 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
 fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.Guard) !bool {
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
+    if (target.log) |at| {
+        const named = try self.store.logRecord(at);
+        if (named.phase == .complete and !named.resulting.?.stored.retired) {
+            const value = named.resulting.?;
+            if (value.properties.namespace == namespace and std.meta.eql(value.properties.name, name)) return proposed.object == object;
+        }
+        const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, proposed.reservation) orelse return error.InvalidDirectCatalogOperation;
+        return !(try self.store.logOperation(binding) orelse return error.InvalidDirectCatalogOperation).pending();
+    }
     if (target.resource) |at| {
         const named = try self.store.resourceRecord(at);
         if (named.phase == .complete and !named.retired) {
@@ -2626,7 +3059,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
         }
@@ -2807,6 +3240,13 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
     try object.validate();
     if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
     if (std.meta.eql(object.scope, self.config().scope)) {
+        if (try self.logRecord(object.object)) |known| {
+            const value = known.resulting orelse return error.CatalogDenied;
+            const namespace = try self.authorizationSchema(value.properties.namespace);
+            _ = try self.requirements(policy, namespace, null, .schema);
+            try self.verifiedObject(policy, L.authorityKind(value.kind()), object.object, value.properties.authorization, a.reference(namespace.authorization));
+            return c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, value.properties.target(object.object), if (write) .administer else .inspect);
+        }
         const known = try self.namedRecord(object.object) orelse return error.CatalogDenied;
         const value = known.resulting orelse return error.CatalogDenied;
         return self.requirements(policy, try self.authorizationSchema(value.namespace), .{ .id = object.object, .schema = value.namespace, .authorization = value.authorization }, if (write) .alter else .inspect);
@@ -2824,6 +3264,12 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
     if (dependent.kind == .captured or dependent.kind == .maintained)
         return !std.meta.eql(object.scope, self.config().scope);
     if (!std.meta.eql(object.scope, self.config().scope)) return false;
+    if (dependent.kind == .stream or dependent.kind == .queue) {
+        const known = try self.logRecord(object.object) orelse return false;
+        const value = known.resulting orelse return false;
+        return known.phase == .complete and !value.stored.retired and
+            (dependent.kind == .queue) == (value.kind() == .queue) and std.meta.eql(dependent.interpretation, value.stored.declaration.interpretation);
+    }
     const known = try self.namedRecord(object.object) orelse return false;
     if ((known.phase != .allocated and known.phase != .complete) or known.retired) return false;
     const value = known.resulting.?;
@@ -2850,6 +3296,17 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
     try object.validate();
     if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
     const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.log) |at| {
+        const known = try self.store.logRecord(at);
+        const value = known.resulting orelse return error.CatalogDenied;
+        const namespace = try self.authorizationSchema(value.properties.namespace);
+        _ = try self.requirements(policy, namespace, null, .schema);
+        try self.verifiedObject(policy, L.authorityKind(value.kind()), object.object, value.properties.authorization, a.reference(namespace.authorization));
+        var required = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, value.properties.target(object.object), .inspect);
+        if (privileges & ~c.LogAuthority.all_privileges != 0) return error.InvalidCatalogDependency;
+        if (privileges != 0) required.requirements[2].?.privileges = privileges;
+        return .{ .interpretation = value.stored.declaration.interpretation, .live = known.phase == .complete and !value.stored.retired, .requirements = required };
+    }
     if (target.resource) |at| {
         const known = try self.store.resourceRecord(at);
         const value = known.resulting orelse return error.CatalogDenied;
@@ -2867,6 +3324,7 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
         return .{ .interpretation = try value.interpretation(self.allocator), .live = known.phase == .complete and !known.retired, .requirements = required };
     }
     if (target.seed == null) return error.CatalogDenied;
+    if (privileges & ~a.table_actions != 0) return error.InvalidCatalogDependency;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
     var requested = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .inspect);
@@ -2910,6 +3368,9 @@ pub fn dependencyState(self: *Self, edge: Dependency.Edge, policy: Policy) !Depe
 pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: Dependency.Command, policy: Policy) !Dependency.Observation {
     try self.requireInitialized();
     try binding.validate();
+    // Queue declaration edges also retain historical routing. Removing one
+    // requires the Queue's closure/retention proof, not generic graph editing.
+    if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();

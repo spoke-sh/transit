@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "transit_bitmap", .module = b.dependency("transit_bitmap", .{ .target = target, .optimize = optimize }).module("transit_bitmap") },
             .{ .name = "transit_document", .module = document.module("transit_document") },
             .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
             .{ .name = "transit_core", .module = core.module("transit_core") },

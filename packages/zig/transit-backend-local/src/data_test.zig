@@ -350,6 +350,83 @@ test "direct data candidates share physical quota and reserve control space with
     try t.expectEqual(@as(u64, 1), try data.log().tail(17));
 }
 
+test "direct Stream settlement release and recovery preserve control reserve under native quota and revocation" {
+    const f = @import("transit_fuze");
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+    const setup = try provision(&engine);
+    var authority: backend.DataAuthority = .{ .engine = &engine, .request = setup.guard, .audience = 100, .resource = setup.resource };
+    var data: backend.DataStore = .{ .backend = &owner };
+    var control: backend.DataStore = .{ .backend = &owner, .control = true };
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = setup.resource, .catalog = 3 };
+    var declaration = try storage.LogDeclaration.prepare(t.allocator, .{
+        .object = .{ .scope = scope, .branch = 1, .object = 7 },
+        .revision = 1,
+        .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }} },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 16, .append_bytes = 8192, .claim_rows = 16, .read_rows = 16, .read_bytes = 8192, .active_leases = 16, .waiters = 16, .timer_steps = 16 },
+        .properties = "",
+    });
+    defer declaration.deinit();
+    const initialized: storage.LogInitialization.Request = .{ .definition = g.current_definition, .declared = try storage.LogDeclaration.stage(data.objects(), &declaration), .operation = .{ .scope = scope, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 17 };
+    _ = try storage.LogInitialization.initialize(t.allocator, data.log(), data.objects(), initialized, authority.guard());
+    const options: storage.StreamPartition.Options = .{ .resident_pages = 1, .control = .{ .log = control.log(), .objects = control.objects() } };
+    var stream = try storage.StreamPartition.open(t.allocator, data.log(), data.objects(), initialized, authority.guard(), options);
+    defer stream.deinit() catch unreachable;
+    _ = try stream.recoverStep(authority.guard(), 1);
+    const assignment: p.StreamQueue.GroupAssignment = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 2 }, .cut = try stream.observe(initialized.declared, authority.guard()), .expected = null, .group = .{ .id = 7, .generation = 1, .principal = 1 }, .next = 0 };
+    _ = try stream.assign(initialized.declared, assignment, authority.guard());
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 3 };
+    var buffer: [8192]u8 = undefined;
+    const payload = try storage.LogBatch.encode(declaration.definition.schema, operation, .stream, &.{.{ .cells = &.{cell} }}, &buffer);
+    const append: p.StreamQueue.Append = .{ .target = initialized.target(), .operation = operation, .kind = .stream, .producer = null, .rows = 1, .payload = storage.LogBatch.content(payload) };
+    const accepted = try stream.append(initialized.declared, append, payload, authority.guard());
+    const pin = try stream.beginRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = scope, .principal = 1, .operation = 4 }, .group = assignment.group, .from = 0, .until = null, .timestamp = null }, authority.guard());
+    const signing = try storage.LogRead.Authority.init(@splat(7));
+    var read = try stream.readPage(try stream.readCursor(pin.handle(), signing, authority.guard()), signing, .{ .rows = 1, .encoded_bytes = 8192 }, t.allocator, authority.guard());
+    defer read.deinit();
+    const before = stream.root;
+    owner.limits.bytes = owner.allocated;
+    var refused = append;
+    refused.operation.operation = 7;
+    const refused_payload = try storage.LogBatch.encode(declaration.definition.schema, refused.operation, .stream, &.{.{ .cells = &.{cell} }}, &buffer);
+    refused.payload = storage.LogBatch.content(refused_payload);
+    try t.expectError(error.StorageQuota, stream.append(initialized.declared, refused, refused_payload, authority.guard()));
+    try t.expectEqualDeep(before, stream.root);
+    const commit: p.StreamQueue.OffsetCommit = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 5 }, .group = assignment.group, .coverage = read.cursor.coverage, .expected_next = 0, .next = 1 };
+    const progress = try stream.commitOffset(initialized.declared, commit, read.cursor, signing, authority.guard());
+    try t.expectError(error.StorageQuota, stream.append(initialized.declared, refused, refused_payload, authority.guard()));
+    owner.limits = .{};
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = 0 } });
+    owner.limits.bytes = owner.allocated;
+    const release: p.StreamRead.Release = .{ .target = initialized.target(), .operation = .{ .scope = scope, .principal = 1, .operation = 6 }, .read = pin.handle() };
+    try t.expectError(error.Forbidden, stream.releaseRead(initialized.declared, release, authority.guard()));
+    try t.expectError(error.Forbidden, stream.operation(commit.operation, authority.guard()));
+    owner.limits = .{};
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = p.State.all_permissions } });
+    owner.limits.bytes = owner.allocated;
+    const released = try stream.releaseRead(initialized.declared, release, authority.guard());
+    const cut = stream.root.position();
+    while (!(try stream.archive(cut, .{ .frames = 2 }, authority.guard())).complete) {}
+    _ = try stream.checkpoint(cut, authority.guard());
+    try t.expectEqual(cut.next_lsn, try stream.trimArchived(authority.guard()));
+    try t.expectError(error.StreamReadReleased, stream.readCursor(pin.handle(), signing, authority.guard()));
+    try stream.deinit();
+    stream = try storage.StreamPartition.open(t.allocator, data.log(), data.objects(), initialized, authority.guard(), options);
+    try t.expect((try stream.recoverStep(authority.guard(), 1)).complete);
+    try t.expectEqualDeep(progress, (try stream.operation(commit.operation, authority.guard())).?.outcome.offset.receipt);
+    try t.expectEqualDeep(released, (try stream.operation(release.operation, authority.guard())).?.outcome.release);
+    try t.expectEqualDeep(accepted, (try stream.operation(operation, authority.guard())).?.outcome.append);
+    try t.expectEqual(@as(u64, 1), stream.root.next_offset);
+}
+
 test "direct Table archive uses control reserve and trims only accepted coverage under current authority" {
     const f = @import("transit_fuze");
     var tmp = t.tmpDir(.{});

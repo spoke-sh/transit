@@ -7,6 +7,121 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`Tack` binds a queue segment's available, acquired, acked and archived state
+sets to its exact interpretation, offset range and accepted WAL frontier. The
+488-byte envelope references immutable paged `BitmapDirectory` roots and uses
+the same Roaring codec as Fuze's `.tdel`. `Audit.page` validates bounded pages;
+only a completed audit establishes disjoint, complete range coverage. Missing
+containers, overlaps, incorrect counts and foreign bindings reject. State edits
+stage private roots; lease metadata, receipts and publication remain the owning
+partition's responsibility. Terminal cardinality is a reclamation eligibility
+hint and supplies no authority to delete retained payloads.
+
+`LogTail` reserves aligned payload slabs and borrow handles under an explicit
+resident byte budget. It verifies content once on admission, returns pinned
+slices without copying, and keeps 64 trailing zero bytes for internal vector
+reads. A pin prevents eviction and destruction; stale or copied released handles
+cannot release a later borrow. All cache operations reuse initialization storage.
+Cache pressure may refuse admission without affecting the durable log. Callers
+serialize access, retain the owner through release, and check current rights
+before disclosing buffered bytes. A cache pin is not a durable retention pin.
+
+`LogDeclaration` validates schema-bound partition/FIFO/compaction keys and stores
+immutable schema, policy, limits and catalog property bytes. `LogInitialization`
+accepts an exact original initialization only at an empty physical partition,
+after reading back its staged declaration and rechecking the service's current
+publication guard. Retrying a lost receipt observes the same genesis; different
+operations or ordinals cannot reuse it. Disk reopen and current-policy readback
+retain the original evidence. Missing or trimmed initialization blocks observation
+unless an exact accepted `LogRecovery` checkpoint preserves it. These foundations
+do not publish catalog names or expose append/claim APIs.
+
+`LogBatch` encodes bounded schema-bound rows with original operation identities,
+queue visibility times and explicit stream tombstones. Validation binds the
+complete payload to its immutable declaration and checks collation-aware routing
+for every row. A reusable scratch arena is reset between rows; decoded retained
+output uses a separate allocator. Its iterator borrows encoded bytes until the
+caller decodes them, and rejects trailing or truncated data before claiming
+completion. Batch validation provides no append acceptance or read authority.
+
+`StreamPartition` accepts one schema-bound batch per WAL record with its logical
+offset range, producer sequence/epoch and original receipt. Paged indexes keep
+backlog cardinality independent of resident page and tail caches. Original
+receipts survive later producer epochs and declaration changes; conflicting
+retries reject. `LogEvidence` stores bounded immutable outcomes, while
+`LogPartitionRecord` binds their published indexes and payload to the previous
+accepted record. Uncertain append invalidates resident readiness and requires
+recovery under the original identity. `recoverStep` checks at most 256 records;
+it must complete before the owner serves payloads or accepts more work.
+
+The storage owner also persists explicit group assignments and generations.
+Current batch reads return borrowed verified slabs and an observed cut; that cut
+does not pin history or prove completed consumption. `beginRead` separately
+publishes a finite read pin over an exact immutable `LogRead` basis. Bounded
+`readPage` windows retain their output independently of cache and scratch and
+carry authenticated cumulative coverage over that same cut. Later appends never
+extend it. Group progress advances only through `commitOffset` with completed,
+owner-authenticated coverage, current generation and expected checkpoint. Release
+closes a pin without advancing group progress; early close is not completion.
+Original offset and release receipts remain recoverable after further progress,
+key rotation, pin closure and restart. Missing read/evidence objects block replay.
+
+The adapter supplies the private read-authentication key, serializes catalog
+changes, enforces current grants and binds global operation identity across
+objects. Every read, including terminal metadata, rechecks current authority after
+buffering. This component is not yet composed into payload service APIs.
+Notification waits and key compaction remain unfinished.
+`flush` seals one accepted batch per call through a fixed physical cut, preserving
+its original receipt and offsets. Shared `.tseg` columns and a separate immutable
+delivery-metadata sidecar must reproduce the original payload digest before their
+paged placement index is published. Existing read pins keep their old placements;
+new reads can traverse sealed batches and the hot tail through the same iterator.
+An optional declared UTC timestamp column supports finite half-open microsecond
+bounds. Verified zone maps prune nonmatching sealed groups without assuming time
+follows offset order. Returned-row and scanned-offset budgets are separate;
+filtered empty pages keep exact continuation and completion evidence.
+Build and cold-read work have a separate 64 MiB default allocation budget, with
+at most 1,024 rows per segment group. These finite operation bounds do not cap
+the durable segment directory. Missing sidecars reject without falling back to
+different history. The retained graph protects both objects and allows obsolete
+WAL copies to be collected once pins and recovery no longer need them.
+`LogHistory` shares the immutable TWAL archive codec with Tables, staging at most
+eight frames per unit. `checkpoint` publishes an exact `LogRecovery` baseline;
+`trimArchived` requires both accepted archival coverage and that checkpoint,
+preserving the publishing record. Cold recovery verifies the publication and
+replays bounded successors. Pinned reads and original receipts remain usable
+through physical WAL trim; missing checkpoints or required archive bytes block
+recovery or reads. `LogStorageRoots` enumerates the selected checkpoint and
+hash-linked replay in bounded steps. The native adapter admits only qualified
+trim floors; the catalog retained graph keeps live pins, original receipts and
+required archive frames through physical collection. Service payload maintenance
+still requires its authorization and scheduling composition.
+
+An optional control store must address the same physical namespace and current
+authority with the deployment's reserved capacity. Offset settlement, read
+release, reassignment, expiry, archive and checkpoint use it; fresh append, read-pin and
+group admission use ordinary capacity. Native disk tests fill ordinary quota,
+complete progress and closure, and verify that revocation still refuses both
+mutation and original-outcome disclosure. Reserved capacity grants no expiry or
+permission, and remains finite.
+
+`LogTime.Source` supplies trusted UTC milliseconds when timing is configured or
+required by retention. Append persists its pre-staging observation and rechecks
+time under the publication guard. Missing/regressing clocks and an already
+elapsed retention window refuse fresh publication. Accepted clock floors survive
+restart; original receipts and recovery do not depend on current clock
+availability. Explicitly untimed unlimited history cannot be assigned a synthetic
+time by a later policy change.
+
+`expireHistory` advances the logical retained boundary by at most one sealed
+batch through a fixed physical cut. It requires a declared age and trusted time,
+and cannot cross the oldest consumer checkpoint. A paged offset index finds that
+checkpoint without loading all groups. Ineligible work reports whether it is
+unsealed, untimed, not due or protected by a consumer. Existing pins retain their
+original bytes; new reads below the boundary report `LogHistoryUnavailable`.
+Original outcomes, producer fences and logical offset allocation survive expiry.
+Physical collection separately waits for pins and recovery dependencies to close.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
@@ -17,6 +132,15 @@ and the catalog's retained dependency graph.
 
 ## Modules
 
+- `BitmapDirectory.zig`: Immutable paged directories of shared Roaring containers
+  spanning unsigned 64-bit offsets. One cached container and caller-owned 8 KiB
+  mutation scratch remain independent of durable cardinality. Container objects
+  bind their high offset prefix and current definition; reads verify content
+  before cache admission. Borrowed views last until the owner's next cache miss.
+  A bounded edit stages its container and directory path under the caller's
+  `TreeStore` work budget. Only an owning WAL may publish the returned root;
+  retention traversal must retain both its directory pages and container objects.
+  No accepted root or authorization is stored by this component.
 - `DocumentIndex.zig`: Private Document candidates backed by bounded `.tseg`
   record batches and paged data indexes, independent of Station. Its
   [storage and integration guide](docs/document-index.md) specifies workspace

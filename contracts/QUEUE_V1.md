@@ -9,12 +9,35 @@ or commit state. No installed `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK`
 or `EXTEND LEASE` operation is enabled by these types. Queue transaction
 participants continue to reject before acceptance.
 
+The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+publishes Queue declarations separately from payload execution. It verifies
+partition initialization, native ownership, compatible DLQ schemas and exact
+destination definitions, and publishes retained dependency edges atomically.
+
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
 [fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 are generated/checked through the existing public contract workflow.
 
 ## Lease identity and time
+
+The declaration's Queue policy selects `unordered` or `key_fifo`. FIFO requires
+a stable key column; with multiple partitions that column also supplies routing,
+so equal canonical keys share a partition. Default and maximum lease durations
+are positive, the default does not exceed the maximum, and maximum attempts is
+nonzero. Deadline calculation rejects unsigned overflow and requested durations
+outside the maximum.
+
+Retry backoff records initial/maximum milliseconds and a positive multiplier.
+Attempt one uses the initial delay; later delays multiply with saturation and
+clamp at the maximum. Calculation work is bounded by integer width even for a
+full-width attempt count. Zero initial delay and multiplier one are explicit
+constant-delay policies. Exhaustion does not itself discard a message.
+
+An optional DLQ binds an exact destination definition in the same catalog and
+branch and cannot point back to its source object. Catalog publication must
+also check destination kind/schema, dependencies and current permissions.
+Pure configuration validation does not establish any of those facts.
 
 `Lease` binds the current definition through its target, the exact Queue
 interpretation/partition, original claim operation, logical message offset,
@@ -39,6 +62,33 @@ The owner must supply trusted time and serialize its validation with publication
 An in-memory timer, local caller clock or delayed wakeup is insufficient.
 Clock rollback and restart require the owner's persisted time/fencing contract;
 these validators do not establish that contract from an arbitrary integer.
+
+`LogClock` records the last accepted authoritative time floor. The owner
+obtains trusted time under the decision guard and persists its nondecreasing
+floor with lease-affecting outcomes. A missing clock returns
+`LogTimeUnavailable`; a value below the persisted floor returns
+`LogTimeRegression`. Neither restart nor delayed timer processing resets the
+floor. Supplying an integer to this pure check does not establish a trusted
+clock source.
+
+## Claim selection and original results
+
+`Claim` freezes the exact target, original operation, positive maximum row count
+and positive lease duration. The owner applies declaration limits and current
+rights at publication. `ClaimReceipt` records the original claim, accepted WAL
+position, observed authoritative time, checked expiry, returned row count and
+immutable content reference for the exact leased selection. Every selected
+lease must bind that claim, target and expiry; epochs and attempts come from
+the accepted per-message state. Selection cannot exceed the requested maximum.
+Expiry equals observed time plus requested duration without overflow.
+
+An empty accepted claim has zero rows and no selection content. Its original
+retry remains empty even if messages become available later. A changed maximum,
+duration or target under the same operation conflicts. A new selection requires
+a new operation identity. A nonempty receipt retains its selection and payload
+dependencies across disconnect and restart. Receipt disclosure needs current
+rights, and later execution still needs the current live lease. These neutral
+receipt types perform neither selection nor durable acceptance.
 
 ## Settlement and original outcomes
 

@@ -26,7 +26,7 @@ pub const Record = struct {
     position: u64 = 0,
     genesis_observed: bool = false,
     provision: [14]?u64 = @splat(null),
-    authorization_steps: [10]?u64 = @splat(null),
+    authorization_steps: [12]?u64 = @splat(null),
     authorization_change: ?u64 = null,
     initialized: [2]bool = .{ false, false },
     default_table_complete: bool,
@@ -160,6 +160,8 @@ pub fn directCatalog(self: *Self) q.catalog.DirectCatalog.Configuration {
             .database_domain = authority[3].?,
             .schema_domain = authority[4].?,
             .table_domain = authority[5].?,
+            .stream_domain = authority[10].?,
+            .queue_domain = authority[11].?,
             .database = authority[6].?,
             .initial_schema = 1,
             .initial_schema_authority = authority[7].?,
@@ -232,6 +234,7 @@ fn provisionAuthorization(self: *Self) !void {
                 7 => .{ .register_object = .{ .domain = done[4].?, .owner = done[0].?, .schema = tables.reference(done[6].?), .binding = try tables.binding(scope, .schema, 1) } },
                 8 => .{ .register_domain = .{ .registrar = 0, .actions = q.settings.Contract.all_privileges } },
                 9 => .{ .register_object = .{ .domain = done[8].?, .owner = done[0].?, .binding = q.settings.Contract.Binding.identity(self.record.installation) } },
+                10, 11 => .{ .register_domain = .{ .registrar = table_registrar, .lifetime_resource = scope.resource, .actions = tables.actions(if (index == 10) .stream else .queue) } },
                 else => unreachable,
             };
             const observation = try self.query(.{ .authorization = .{ .kind = if (self.record.authorization_change) |id| .{ .change = id } else .identity } });

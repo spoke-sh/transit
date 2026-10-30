@@ -72,6 +72,15 @@ release. The paged lease directory bounds the oldest-lease check independently
 of pin count. This operation does not reclaim physical objects; the installed
 service has no automatic Table history-expiry policy.
 
+The Stream storage component can expire one sealed prefix batch per call under
+an explicitly declared age. Trusted append time establishes eligibility; payload
+timestamps do not. A paged consumer watermark index prevents expiry beyond the
+slowest checkpoint. Existing finite read pins preserve their original data;
+new reads below the retained boundary report a gap. Original receipts and
+producer fences remain retained. Physical collection separately requires pins
+and recovery dependencies to close. Stream payload APIs and automatic expiry
+scheduling are not yet exposed by the installed service.
+
 Logical deletion precedes physical reclamation. Cleanup is fenced, resumable and
 dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or

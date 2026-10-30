@@ -33,6 +33,8 @@ plane-separation analysis.
 | [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured direct catalog owns names and immutable definitions; each Table has its own acceptance partition. Use SQL or typed direct callers. |
 | [Key-value resource](state.md) | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
 | [Document](documents.md) | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
+| [Stream declaration](streams.md#declarative-streams-and-queues) | Schema-bound partitioned event history with retention and optional key compaction policy | Typed direct callers publish and inspect declarations; payload production/consumption and SQL verbs are not yet enabled. |
+| [Queue declaration](streams.md#declarative-streams-and-queues) | Schema-bound work with ordering, lease, retry and DLQ policy | Typed direct callers publish and inspect declarations; enqueue, claim and settlement execution are not yet enabled. |
 
 Choose the representation for the meaning of the data. A Document field can be
 missing or conflicted; an ordinary Table cell is a typed value or SQL NULL; a

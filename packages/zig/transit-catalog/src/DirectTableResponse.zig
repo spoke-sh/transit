@@ -156,6 +156,12 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .resource_operation => .resource_operation,
         .resource_lookup => .resource_lookup,
         .resource_list => .resource_list,
+        .log_preview => .log_preview,
+        .log_admit => .log_admitted,
+        .log_operation => .log_operation,
+        .log_lookup => .log_lookup,
+        .log_list => .log_list,
+        .log_pending => .log_pending,
         .check, .check_set => .checked,
         .list => .list,
         .lookup => .lookup,
@@ -269,6 +275,68 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 try current.validate();
                 if (!std.meta.eql(current.object, value.binding.object)) return error.InvalidTableResponse;
             }
+        },
+        .log_preview => |value| {
+            try request.action.log_preview.binding.requireSame(value.binding);
+            try value.position.validate();
+            if (value.position.next_lsn == 0) return error.InvalidTableResponse;
+            if (value.current) |current| {
+                try current.validate();
+                if (!std.meta.eql(current.stored.declaration.interpretation.object, value.binding.target)) return error.InvalidTableResponse;
+            }
+        },
+        .log_admitted => |value| {
+            try value.validate();
+            try request.action.log_admit.binding.requireSame(value.binding);
+        },
+        .log_operation => |value| switch (value) {
+            .not_observed => {},
+            .operation => |operation| {
+                try operation.validate();
+                try request.action.log_operation.binding.requireSame(operation.binding);
+            },
+        },
+        .log_lookup => |maybe| if (maybe) |value| {
+            try c.DirectLogProtocol.validateMetadata(allocator, request.connection, value);
+            const input = request.action.log_lookup;
+            if (value.declaration.stored.retired or value.declaration.properties.namespace != input.namespace or !std.mem.eql(u8, value.declaration.properties.name.slice(), input.name)) return error.InvalidTableResponse;
+        },
+        .log_list => |page| {
+            try page.position.validate();
+            if (page.position.next_lsn == 0) return error.InvalidTableResponse;
+            const input = request.action.log_list;
+            var previous = input.after orelse 0;
+            var gap = false;
+            for (page.entries) |slot| {
+                const value = slot orelse {
+                    gap = true;
+                    continue;
+                };
+                try value.validate();
+                try request.connection.object(value.stored.declaration.interpretation.object);
+                if (gap or value.stored.retired or value.properties.namespace != input.namespace or value.stored.declaration.interpretation.object.object <= previous) return error.InvalidTableResponse;
+                previous = value.stored.declaration.interpretation.object.object;
+            }
+            if (page.next) |next| if (next <= (input.after orelse 0) or next < previous) return error.InvalidTableResponse;
+        },
+        .log_pending => |page| {
+            try page.position.validate();
+            if (page.position.next_lsn == 0) return error.InvalidTableResponse;
+            const input = request.action.log_pending;
+            var previous = input.after orelse 0;
+            var gap = false;
+            for (page.entries) |slot| {
+                const value = slot orelse {
+                    gap = true;
+                    continue;
+                };
+                try value.validate();
+                try request.connection.binding(value.binding);
+                if (gap or !value.pending() or value.namespace != input.namespace or value.binding.target.object <= previous or
+                    value.position.partition != page.position.partition or value.position.next_lsn > page.position.next_lsn) return error.InvalidTableResponse;
+                previous = value.binding.target.object;
+            }
+            if (page.next) |next| if (next <= (input.after orelse 0) or next < previous) return error.InvalidTableResponse;
         },
         .resource_operation => |value| switch (value) {
             .not_observed => if (request.action.resource_operation.command != .inspect and request.action.resource_operation.command != .execute) return error.InvalidTableResponse,

@@ -1,8 +1,120 @@
 {
+  "declaration": {
+    "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+    "interpretation": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "object": 43
+      },
+      "revision": 2,
+      "digest": [
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29,
+        29
+      ]
+    },
+    "schema": {
+      "bytes": 128,
+      "sha256": [
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37,
+        37
+      ]
+    },
+    "configuration": {
+      "partitioning": {
+        "count": 4,
+        "key_column": 9,
+        "hash": "sha256_64"
+      },
+      "retention": {
+        "max_age_ms": null
+      },
+      "policy": {
+        "stream": {
+          "compact_key_column": null,
+          "timestamp_column": null
+        }
+      }
+    },
+    "limits": {
+      "append_rows": 4096,
+      "append_bytes": 1048576,
+      "claim_rows": 64,
+      "read_rows": 4096,
+      "read_bytes": 1048576,
+      "active_leases": 1024,
+      "waiters": 64,
+      "timer_steps": 256
+    }
+  },
   "append": {
     "append": {
       "target": {
-        "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
         "interpretation": {
           "object": {
             "scope": {
@@ -127,7 +239,196 @@
     "accepted": {
       "partition": 91,
       "next_lsn": 12
+    },
+    "observed_ms": 500
+  },
+  "producer": {
+    "target": {
+      "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 43
+        },
+        "revision": 2,
+        "digest": [
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29
+        ]
+      },
+      "partition": 0
+    },
+    "principal": 17,
+    "producer": {
+      "id": [
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13
+      ],
+      "epoch": 5,
+      "sequence": 18446744073709551615
+    },
+    "discarded_through": 18446744073709551609
+  },
+  "claim": {
+    "claim": {
+      "target": {
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551613
+      },
+      "maximum": 16,
+      "lease_ms": 500
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 12
+    },
+    "observed_ms": 500,
+    "expires_ms": 1000,
+    "rows": 2,
+    "leases": {
+      "bytes": 512,
+      "sha256": [
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41,
+        41
+      ]
     }
+  },
+  "clock": {
+    "floor_ms": 500
   },
   "offset_commit": {
     "operation": {
@@ -147,7 +448,7 @@
     "coverage": {
       "cut": {
         "target": {
-          "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
           "interpretation": {
             "object": {
               "scope": {
@@ -225,7 +526,7 @@
       },
       "lease": {
         "target": {
-          "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
           "interpretation": {
             "object": {
               "scope": {
@@ -295,6 +596,727 @@
     "accepted": {
       "partition": 91,
       "next_lsn": 13
+    }
+  },
+  "group_progress": {
+    "target": {
+      "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 43
+        },
+        "revision": 2,
+        "digest": [
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29
+        ]
+      },
+      "partition": 0
+    },
+    "group": {
+      "id": 42,
+      "generation": 7,
+      "principal": 17
+    },
+    "next": 18446744073709551611
+  },
+  "group_assignment": {
+    "assignment": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 18446744073709551608
+      },
+      "cut": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "accepted": {
+          "partition": 91,
+          "next_lsn": 12
+        },
+        "retained_from": 18446744073709551607,
+        "next": 18446744073709551615
+      },
+      "expected": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17
+        },
+        "next": 18446744073709551611
+      },
+      "group": {
+        "id": 42,
+        "generation": 8,
+        "principal": 19
+      },
+      "next": 18446744073709551611
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
+  },
+  "offset_receipt": {
+    "commit": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 102
+      },
+      "group": {
+        "id": 42,
+        "generation": 7,
+        "principal": 17
+      },
+      "coverage": {
+        "cut": {
+          "target": {
+            "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": 18446744073709551615
+                },
+                "branch": 1,
+                "object": 43
+              },
+              "revision": 2,
+              "digest": [
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29,
+                29
+              ]
+            },
+            "partition": 0
+          },
+          "accepted": {
+            "partition": 91,
+            "next_lsn": 12
+          },
+          "retained_from": 18446744073709551607,
+          "next": 18446744073709551615
+        },
+        "from": 18446744073709551611,
+        "until": 18446744073709551615,
+        "through": 18446744073709551615,
+        "rows": 2,
+        "complete": true
+      },
+      "expected_next": 18446744073709551611,
+      "next": 18446744073709551615
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
+  },
+  "read": {
+    "request": {
+      "target": {
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551604
+      },
+      "group": {
+        "id": 42,
+        "generation": 7,
+        "principal": 17
+      },
+      "from": 18446744073709551611,
+      "until": null,
+      "timestamp": null
+    },
+    "cut": {
+      "target": {
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 12
+      },
+      "retained_from": 18446744073709551607,
+      "next": 18446744073709551615
+    },
+    "until": 18446744073709551615,
+    "source": {
+      "bytes": 1024,
+      "sha256": [
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        43
+      ]
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 13
+    }
+  },
+  "read_cursor": {
+    "read": {
+      "owner": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551604
+      },
+      "source": {
+        "bytes": 1024,
+        "sha256": [
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43
+        ]
+      }
+    },
+    "coverage": {
+      "cut": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "accepted": {
+          "partition": 91,
+          "next_lsn": 12
+        },
+        "retained_from": 18446744073709551607,
+        "next": 18446744073709551615
+      },
+      "from": 18446744073709551611,
+      "until": 18446744073709551615,
+      "through": 18446744073709551615,
+      "rows": 2,
+      "complete": true
+    },
+    "authentication": [
+      216,
+      225,
+      88,
+      105,
+      128,
+      16,
+      128,
+      24,
+      191,
+      139,
+      85,
+      24,
+      64,
+      1,
+      98,
+      212,
+      88,
+      170,
+      124,
+      33,
+      222,
+      120,
+      23,
+      113,
+      245,
+      211,
+      110,
+      180,
+      105,
+      26,
+      93,
+      248
+    ]
+  },
+  "read_release": {
+    "release": {
+      "target": {
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551603
+      },
+      "read": {
+        "owner": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551604
+        },
+        "source": {
+          "bytes": 1024,
+          "sha256": [
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43,
+            43
+          ]
+        }
+      }
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 14
     }
   }
 }

@@ -9,6 +9,67 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Typed Stream and Queue catalog lifecycle — 2026-10-29
+
+Source `58197ac42` implements the typed declaration lifecycle on the local native
+owner. The current contract definition is
+`bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e`.
+The [public lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+and [Streams reference](../../handbook/reference/streams.md#declarative-streams-and-queues)
+own current behavior and limits.
+
+The pinned-shell `zig build test-direct-table-service -Doptimize=ReleaseSafe -- tables`
+passed **2,031 typed HTTP calls** against a disk-backed local node. The public
+`transit-data-client.Catalog.callLog` caller saved original work before admission,
+created a two-partition Stream, discovered its pending operation, recovered both
+corrupted admission/publication responses, renamed it, changed retention,
+created/dropped a Queue and recovered the original Stream receipt after node
+replacement. Lookup schemas survived subsequent requests and client destruction.
+The same run retained the existing Table CRUD/DDL, pressure/control-reserve,
+retained history, collation, projection, restart and authorization assertions.
+The proxy observed no database actor commands; native changes were authorization
+operations, with the existing explicit unrelated-process denial fixture separate.
+
+The executed ReleaseSafe binary SHA-256 values were:
+
+| Binary | SHA-256 |
+| --- | --- |
+| `transit-node` | `99c40ba11a191404d2ae61185092d3f1832d6586a104f5fddef1da62de99f3a0` |
+| `transit-direct-table-proof` | `8a486235bacd1fcd3409a9f7921f462bf9b4770a02ba031f019250eaf4943823` |
+
+The first HTTP run failed during initialization with `NativeFenceRequired`:
+the storage helper tried to install a fence instead of using the native owner's
+publication guard. Commit `e5e8beaeb` corrected that boundary without weakening
+append epoch or empty-partition checks. The repeated HTTP run above passed.
+
+Other executed checks passed:
+
+- Full `transit-catalog` package tests, followed by focused `catalog log` and
+  `direct log` checks after pending discovery and independent signing fixtures.
+  These cover actual disk reopen, lost catalog publication, unchanged allocation,
+  shared-name conflicts, immutable routing, nineteen declarations with one
+  resident index page, cancellation, revoked metadata and exact DLQ definition/
+  schema dependencies. The graph walk retains declarations, original intents
+  and initialized partitions through retirement.
+- `zig build test-local-catalog -Dlocal-catalog-filter='log privileges'` exercises
+  actual native registration and signed dispatch. Ownership transfer after
+  buffering denies lookup, listing and original receipts; subsequent listings
+  filter the inaccessible object. Separate grants exercise all five log actions.
+- Focused storage `log initialization` tests verify missing dependencies, stale
+  writers, post-buffer revocation and original genesis recovery. The independent
+  data-client package tests and TypeScript Station type check passed.
+- `zig build check-contracts` passed all eighteen gates after regeneration;
+  independent signed log intent fixtures include full-width operation IDs and
+  saved-work missing/foreign-definition rejection. Documentation validation
+  checked 8,270 local links across 682 files.
+
+These runs qualify declaration publication and its local recovery boundary.
+They do not qualify payload append/consume/claim, timers, generalized transactions,
+SQL Stream/Queue verbs, distributed provider behavior or power-loss durability.
+Queue dependency removal remains conservatively refused pending its closure
+owner. Combined committed-source CI, installed language migration and later
+milestone gates require their own executions.
+
 ## Finite retained Table count ranges — 2026-10-26
 
 The pinned-shell `just test::table-count-ranges` passes the focused query suite

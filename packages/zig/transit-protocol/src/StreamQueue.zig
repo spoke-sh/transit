@@ -73,6 +73,9 @@ pub const AppendReceipt = struct {
     first: u64,
     next: u64,
     accepted: d.Position,
+    /// Trusted owner observation before staging, rechecked at publication.
+    /// Null retains an explicitly untimed append; event time is independent.
+    observed_ms: ?u64,
 
     pub fn validate(self: AppendReceipt) !void {
         try self.append.validate();
@@ -84,6 +87,55 @@ pub const AppendReceipt = struct {
     pub fn requireAppend(self: AppendReceipt, append: Append) !void {
         try self.validate();
         try self.append.requireSame(append);
+    }
+};
+
+/// Persistent producer fencing survives detailed receipt expiry. This value is
+/// a private candidate until accepted with the append and its original receipt.
+pub const ProducerState = struct {
+    target: Partition,
+    principal: u64,
+    producer: Producer,
+    discarded_through: u64,
+
+    pub fn validate(self: ProducerState) !void {
+        try self.target.validate();
+        try self.producer.validate();
+        if (self.principal > p.max_counter or self.discarded_through > self.producer.sequence) return error.InvalidLogProducerState;
+    }
+
+    pub fn initial(append: Append) !ProducerState {
+        try append.validate();
+        const producer = append.producer orelse return error.LogProducerRequired;
+        if (producer.sequence != 1) return error.LogProducerSequenceGap;
+        return .{ .target = append.target, .principal = append.operation.principal, .producer = producer, .discarded_through = 0 };
+    }
+
+    /// Original operation lookup precedes this check. A retry classification
+    /// still requires the exact accepted receipt; it never admits new payload.
+    pub fn check(self: ProducerState, append: Append) !enum { append, advance_epoch, retry } {
+        try self.validate();
+        try append.validate();
+        if (self.target.partition != append.target.partition or !std.meta.eql(self.target.interpretation.object, append.target.interpretation.object)) return error.LogPartitionConflict;
+        const producer = append.producer orelse return error.LogProducerRequired;
+        if (!std.mem.eql(u8, &self.producer.id, &producer.id) or self.principal != append.operation.principal) return error.LogProducerConflict;
+        if (producer.epoch < self.producer.epoch) return error.LogProducerFenced;
+        if (producer.epoch > self.producer.epoch) {
+            if (producer.sequence != 1) return error.LogProducerSequenceGap;
+            return .advance_epoch;
+        }
+        if (producer.sequence <= self.discarded_through) return error.LogProducerReceiptExpired;
+        if (producer.sequence <= self.producer.sequence) return .retry;
+        if (producer.sequence - self.producer.sequence != 1) return error.LogProducerSequenceGap;
+        return .append;
+    }
+
+    pub fn forgetThrough(self: ProducerState, sequence: u64) !ProducerState {
+        try self.validate();
+        if (sequence < self.discarded_through or sequence > self.producer.sequence) return error.InvalidLogProducerFloor;
+        var result = self;
+        result.discarded_through = sequence;
+        return result;
     }
 };
 
@@ -140,6 +192,89 @@ pub const Group = struct {
     }
 };
 
+/// Durable assignment and exclusive checkpoint for one object/partition/group.
+/// Its definition attributes the last accepted transition, not an implicit grant.
+pub const GroupProgress = struct {
+    target: Partition,
+    group: Group,
+    next: u64,
+
+    pub fn validate(self: GroupProgress) !void {
+        try self.target.validate();
+        try self.group.validate();
+    }
+
+    /// The owner must additionally verify its own issued coverage and current
+    /// authority. A definition edit preserves the logical group identity.
+    pub fn advance(self: GroupProgress, commit: OffsetCommit) !GroupProgress {
+        try self.validate();
+        try commit.requireCurrent(self.group, self.next);
+        const target = commit.coverage.cut.target;
+        if (target.partition != self.target.partition or !std.meta.eql(target.interpretation.object, self.target.interpretation.object)) return error.LogPartitionConflict;
+        return .{ .target = target, .group = self.group, .next = commit.next };
+    }
+};
+
+/// Explicit local assignment: an object administrator selects one principal for
+/// one group/partition. There is no inferred membership or automatic rebalance.
+pub const GroupAssignment = struct {
+    operation: d.Operation,
+    cut: Cut,
+    expected: ?GroupProgress,
+    group: Group,
+    next: u64,
+
+    pub fn validate(self: GroupAssignment) !void {
+        try self.cut.target.requireOperation(self.operation);
+        try self.cut.requireOffset(self.next);
+        try self.group.validate();
+        if (self.cut.accepted.next_lsn == 0) return error.InvalidLogGroupAssignment;
+        if (self.expected) |previous| {
+            try previous.validate();
+            if (previous.target.partition != self.cut.target.partition or
+                !std.meta.eql(previous.target.interpretation.object, self.cut.target.interpretation.object)) return error.LogPartitionConflict;
+            const generation = std.math.add(u64, previous.group.generation, 1) catch return error.LogGroupGenerationExhausted;
+            if (self.group.id != previous.group.id or self.group.generation != generation or self.next != previous.next) return error.InvalidLogGroupAssignment;
+        } else if (self.group.generation != 1) return error.InvalidLogGroupAssignment;
+    }
+
+    /// Original receipt lookup precedes this fresh-publication check. The owner
+    /// supplies its current assignment and verified current cut under one guard.
+    /// Appends may extend the observed cut; reclamation may not skip its checkpoint.
+    pub fn requireCurrent(self: GroupAssignment, current: ?GroupProgress, cut: Cut) !void {
+        try self.validate();
+        try self.cut.target.requireSame(cut.target);
+        try cut.requireOffset(self.next);
+        if (cut.accepted.partition != self.cut.accepted.partition or cut.accepted.next_lsn < self.cut.accepted.next_lsn or cut.next < self.cut.next) return error.LogPartitionConflict;
+        if (current) |value| try value.validate();
+        if (!std.meta.eql(self.expected, current)) return error.LogGroupAssignmentConflict;
+    }
+
+    pub fn resulting(self: GroupAssignment) !GroupProgress {
+        try self.validate();
+        return .{ .target = self.cut.target, .group = self.group, .next = self.next };
+    }
+    pub fn requireSame(self: GroupAssignment, other: GroupAssignment) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.LogGroupAssignmentConflict;
+    }
+};
+
+pub const GroupAssignmentReceipt = struct {
+    assignment: GroupAssignment,
+    accepted: d.Position,
+    pub fn validate(self: GroupAssignmentReceipt) !void {
+        try self.assignment.validate();
+        try self.accepted.validate();
+        if (self.accepted.partition != self.assignment.cut.accepted.partition or self.accepted.next_lsn <= self.assignment.cut.accepted.next_lsn) return error.InvalidLogGroupAssignment;
+    }
+    pub fn requireAssignment(self: GroupAssignmentReceipt, assignment: GroupAssignment) !void {
+        try self.validate();
+        try self.assignment.requireSame(assignment);
+    }
+};
+
 pub const OffsetCommit = struct {
     operation: d.Operation,
     group: Group,
@@ -164,6 +299,22 @@ pub const OffsetCommit = struct {
         try group.validate();
         if (!std.meta.eql(self.group, group)) return error.LogGroupFenced;
         if (self.expected_next != next) return error.LogOffsetConflict;
+    }
+};
+
+/// The original result remains recoverable after further progress/reassignment.
+pub const OffsetReceipt = struct {
+    commit: OffsetCommit,
+    accepted: d.Position,
+    pub fn validate(self: OffsetReceipt) !void {
+        try self.commit.validate();
+        try self.accepted.validate();
+        if (self.accepted.partition != self.commit.coverage.cut.accepted.partition or self.accepted.next_lsn <= self.commit.coverage.cut.accepted.next_lsn) return error.InvalidOffsetReceipt;
+    }
+    pub fn requireCommit(self: OffsetReceipt, commit: OffsetCommit) !void {
+        try self.validate();
+        try commit.validate();
+        if (!std.meta.eql(self.commit, commit)) return error.LogOffsetConflict;
     }
 };
 
@@ -192,6 +343,57 @@ pub const Lease = struct {
         if (!std.meta.eql(self, current)) return error.QueueLeaseFenced;
         const now = now_ms orelse return error.QueueTimeUnavailable;
         if (now >= self.expires_ms) return error.QueueLeaseExpired;
+    }
+};
+
+/// Trusted time is supplied by the owner under its decision guard. Persist the
+/// accepted floor with outcomes; restart must not reset it to a caller clock.
+pub const LogClock = struct {
+    floor_ms: u64,
+    pub fn observe(self: LogClock, trusted_now_ms: ?u64) !u64 {
+        const now = trusted_now_ms orelse return error.LogTimeUnavailable;
+        if (now < self.floor_ms) return error.LogTimeRegression;
+        return now;
+    }
+};
+
+/// A claim has its own frozen identity. An accepted empty selection remains
+/// empty on retry; another selection needs another operation, never a restart.
+pub const Claim = struct {
+    target: Partition,
+    operation: d.Operation,
+    maximum: u32,
+    lease_ms: u64,
+    pub fn validate(self: Claim) !void {
+        try self.target.requireOperation(self.operation);
+        if (self.maximum == 0 or self.lease_ms == 0) return error.InvalidQueueClaim;
+    }
+    pub fn requireSame(self: Claim, other: Claim) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.QueueClaimConflict;
+    }
+};
+
+pub const ClaimReceipt = struct {
+    claim: Claim,
+    accepted: d.Position,
+    observed_ms: u64,
+    expires_ms: u64,
+    rows: u32,
+    /// Immutable exact selection and per-message lease epochs/attempts. The
+    /// owner verifies every lease against the claim and retains payload access.
+    leases: ?d.Content,
+    pub fn validate(self: ClaimReceipt) !void {
+        try self.claim.validate();
+        try self.accepted.validate();
+        const expires = std.math.add(u64, self.observed_ms, self.claim.lease_ms) catch return error.QueueLeaseDeadlineOverflow;
+        if (self.accepted.next_lsn == 0 or self.rows > self.claim.maximum or (self.rows == 0) != (self.leases == null) or self.expires_ms != expires) return error.InvalidQueueClaimReceipt;
+        if (self.leases) |leases| try leases.validate();
+    }
+    pub fn requireClaim(self: ClaimReceipt, claim: Claim) !void {
+        try self.validate();
+        try self.claim.requireSame(claim);
     }
 };
 
@@ -246,8 +448,18 @@ pub const SettlementReceipt = struct {
 };
 
 pub const SchemaTypes = struct {
+    declaration: p.StreamQueueDeclaration.Declaration,
     append: AppendReceipt,
+    producer: ProducerState,
     offset_commit: OffsetCommit,
+    group_progress: GroupProgress,
+    group_assignment: GroupAssignmentReceipt,
+    offset_receipt: OffsetReceipt,
+    read: p.StreamRead.Receipt,
+    read_cursor: p.StreamRead.Cursor,
+    read_release: p.StreamRead.ReleaseReceipt,
+    claim: ClaimReceipt,
+    clock: LogClock,
     settlement: SettlementReceipt,
 };
 

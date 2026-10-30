@@ -8,6 +8,16 @@ default launcher and shared SQL runtime use this direct owner. Captured and
 maintained query owners retain its sources through original-caller grants.
 This owner has no automatic execution scheduler.
 
+Stream/Queue declarations use the same names, stable object IDs, original
+operation bindings and dependency graph. Their typed `DirectLogClient`
+lifecycle reserves partitions privately and publishes one catalog definition
+after native registration and every partition's genesis are verified. Original
+intents, declaration revisions and initialized partitions remain reachable
+through `DirectStorageGraph`, including cancelled prefixes and retired names.
+See the [Stream/Queue lifecycle contract](../../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+for ALTER limits, pending discovery, DLQ dependencies and current privileges.
+These declarations do not yet expose payload execution or Stream/Queue SQL.
+
 The internal `maintenanceNext` traversal inspects one current object entry per
 step under a host-supplied native maintenance guard. A pass fixes the largest
 accepted object ID at its start; later insertions beyond that boundary wait for

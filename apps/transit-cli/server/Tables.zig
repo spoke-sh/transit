@@ -8,7 +8,7 @@ pub const Node = struct {
     registrar: struct { principal: u64, seed_file: []const u8 },
 };
 pub fn configured(installation: *Installation) bool {
-    return installation.record.authorization_steps[7] != null and installation.record.table_registrar_receipt != null;
+    return installation.record.authorization_steps[11] != null and installation.record.table_registrar_receipt != null;
 }
 pub fn node(installation: *Installation) !?Node {
     if (!configured(installation)) return null;

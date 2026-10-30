@@ -1197,8 +1197,20 @@ there is no fallback decoder or implicit stored-data migration.
 
 - **`.tdel` deletion vectors**: Begin with `"TDEL"` + `0x01`, mandatory 32-byte
   shared contract definition, `segment_id` (`u64`),
-  `total_rows` (`u32`), `deleted_count` (`u32`), strictly ascending `u32` deleted
-  row offsets, and a trailing 32-byte SHA-256 digest.
+  `total_rows` (`u32`), `deleted_count` (`u32`), `container_count` (`u32`),
+  strictly ascending high-16-bit container records, and a trailing 32-byte
+  SHA-256 digest over all preceding bytes. Integers are little-endian. Each
+  record is a high prefix (`u16`), encoded container length (`u16`), and one
+  canonical nonempty `RBC1` container from `transit-bitmap`, addressing the low
+  16 bits of each row offset. Array, bitmap and run containers share the codec
+  used by the paged bitmap directory. Prefixes are unique, every offset is below
+  `total_rows`, and container cardinalities sum exactly to `deleted_count`.
+  The complete sidecar remains bounded to 512 KiB. Mutation workspaces reserve
+  an explicit byte budget, independent of the segment's logical row count;
+  exhaustion refuses a mutation without dropping existing deletion bits.
+  This replaces the former sorted-offset encoding under the new shared
+  definition. Readers reject that earlier definition before interpreting the
+  body; there is no fallback decoder.
 - **`TMAN` v1 table manifests**: Begin with `"TMAN"` + `0x01`, mandatory 32-byte
   shared contract definition, `catalog_id` (`u64`),
   `object_id` (`u64`), `manifest_version` (`u64`), `schema_revision` (`u64`),
@@ -1213,3 +1225,370 @@ before index pruning, including a key miss. Deletion vectors must match the
 segment identity and row count. Retained Table reads use the accepted roots and
 durable pins owned by `TablePartition`; segment artifacts alone do not establish
 a retained snapshot.
+
+## `.tack` queue state manifests
+
+The implemented `Tack` artifact is a storage foundation; it does not itself
+provide queue admission, lease authority or a public queue API. It binds one
+immutable payload segment and four paged sets of global logical offsets, in
+order: available, acquired, acked and archived. Archived includes a completed
+DLQ transfer; selecting a destination or staging an append cannot establish it.
+Durable lease, attempt, delay and original-operation records are separate from
+these sets and must share the owning partition's acceptance decision.
+
+The canonical 488-byte envelope contains, in order:
+
+- `TACK0001` (8 bytes) and the mandatory current definition (32 bytes).
+- Realm, resource, catalog, branch, object and definition revision (six `u64`),
+  definition digest (32 bytes), and logical partition ordinal (`u32`).
+- Segment ID, first offset, exclusive next offset, physical WAL partition and
+  accepted exclusive WAL frontier (five `u64`).
+- Four root records: presence (`u8`, zero or one), page digest (32 bytes), page
+  location (32 bytes), and total cardinality (`u64`). An absent root requires
+  zero reference bytes and zero cardinality; a present root is nonempty.
+- SHA-256 over the preceding 456 bytes (32 bytes).
+
+All integers are big-endian. The nonempty half-open offset range contains at
+most `u32` rows, independent of its full-width logical starting offset. Root
+cardinalities sum to that range length. Envelope validation alone does not prove
+coverage: a completed bounded audit also verifies referenced containers,
+actual cardinalities, in-range offsets and pairwise disjointness. Each page
+checks at most eight containers and their corresponding state peers. A partial
+or failed audit cannot establish valid complete state.
+
+Private transitions remove the old bit and add the new bit before returning a
+candidate root set. Publication failure leaves the original roots authoritative.
+Terminal states cannot transition back into available/acquired state. The owner
+must separately validate current rights, authoritative time and lease generation
+and commit corresponding lease metadata and original receipts. A bitmap is not
+a lease capability. The accepted frontier in a sealed envelope binds the
+specific state represented, rather than a later observation of the queue.
+
+Terminal cardinality permits constant-time eligibility inspection. Physical
+reclamation still requires the owning retained-graph checks for payloads,
+receipts, snapshots, replay and pending transactions; terminal state does not
+authorize deletion.
+
+## Declared log initialization
+
+`LogDeclaration` stores a Stream or Queue schema independently of Station.
+The `LDECL001` envelope is 104 bytes before its variable body: magic (8 bytes),
+current definition (32 bytes), realm/resource/catalog/branch/object/revision
+(six big-endian `u64`), retired flag (`u8`, zero or one), policy/properties/schema
+lengths (three big-endian `u32`), and three zero reserved bytes. The body contains
+canonical JSON `{configuration, limits}`, exact catalog-owned property bytes,
+and the shared canonical `TableSchema` encoding. Policy and properties each
+have a 4096-byte limit; schema retains its 65536-byte bound. SHA-256 of the entire
+artifact binds the immutable definition and object-store content reference;
+the descriptor separately commits the schema bytes and policies.
+
+Canonical JSON uses the shared codec: fixed byte arrays remain numeric arrays,
+including digests or producer IDs whose bytes happen to be valid UTF-8. Reading
+does not reinterpret strings as those arrays.
+
+Log schemas have no relational primary key: offsets establish append identity.
+Declared routing, FIFO and compaction keys must resolve to existing nonnullable
+columns with supported key types and collations. The schema owner validates
+logical types, physical encodings and collations together without conflating
+their roles. Loading verifies content, exact identity, canonical policy, schema
+and every supplied descriptor field before exposing the declaration.
+
+`LogInitialization` writes one `genesis` frame at physical LSN zero. Its payload
+is `LINIT001`, the mandatory shared definition, and canonical JSON for the
+required `Request` fields: definition, stored declaration, original operation,
+logical ordinal and physical partition. The entire payload is at most 8192
+bytes. Its original operation shares the declaration's scope, its ordinal is
+within the fixed partition count, and the definition is live revision one.
+`TWAL1` supplies frame integrity and writer/policy epoch fencing.
+
+Initialization checks current authority before reading the staged declaration,
+verifies that complete dependency, then reacquires and holds the publication
+guard while checking the WAL, fencing and appending. A nonempty partition can
+only return the exact matching original genesis; foreign or missing history
+never authorizes a reset. Append success is followed by verified readback.
+Lost or malformed append/readback results remain `LogInitializationUncertain`
+and resolve under the original request. A retry cannot allocate a new identity
+to conceal that uncertainty. The initialization descriptor does not itself grant
+catalog membership or execution rights.
+
+Observation checks current rights before loading and again after buffering.
+The accepted initialization position remains the exclusive frontier one, even
+when later records exist. Its payload digest commits the exact original
+evidence. If physical trimming removed the genesis, the exact accepted
+`LogRecovery` baseline and its publishing WAL record must preserve the original
+request. A staged object or copied reference cannot establish initialization.
+Missing required evidence rejects. Catalog publication and native authorization
+registration remain separate owning operations.
+
+### Declared log payload batches
+
+`LOGBAT01` payloads begin with that eight-byte magic, the 32-byte shared
+definition, the 32-byte schema layout fingerprint, kind (`u8`: one for Stream,
+two for Queue), and nonzero row count (`u32`, big-endian). Each row contains its
+encoded length (`u32`, big-endian), visibility time (`u64`, big-endian), tombstone
+flag (`u8`, zero or one), and canonical `FTR1` bytes. The row's internal codec
+identity is `(principal + 1, original operation, zero-based batch ordinal)`;
+neither its origin nor ordinal is a physical WAL LSN or allocated Stream offset.
+The whole batch is the append request's payload commitment.
+
+Stream rows have zero visibility time; a tombstone requires declared key
+compaction. Queue rows may have delayed visibility and cannot carry stream
+tombstones. The declaration's row/byte limits apply to each append. Every routing
+key is encoded with the shared logical type and declared collation's canonical
+sort-key codec before applying the declared partition hash. A row routed to a
+different partition refuses the entire candidate batch.
+
+Validation uses a caller-owned reusable row scratch arena; no row can escape
+after that arena is reset. Iteration borrows the complete immutable batch, while
+decoding into a separate retained allocator detaches values from it. Consumers
+must preserve the batch borrow until decode finishes. Exhaustion verifies the
+declared count and exact byte end; truncated rows, extra bytes, foreign schema
+layouts and different original row identities reject. These codec checks do not
+establish durable append acceptance or complete Stream read coverage.
+
+## Stream partition acceptance
+
+`StreamPartition` is a serialized storage owner over an exact `LogInitialization`.
+Its adapter owns current catalog interpretation, current authorization and the
+global operation-identity directory. A validated descriptor or an acquired cache
+borrow cannot supply those authorities. Fresh appends require the current live
+declaration and preserve the seed's schema, partition routing and compaction key.
+
+Each `LOGPART1` payload contains its eight-byte magic, shared definition, metadata
+length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` bytes.
+Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
+the complete new paged root and operation or physical-maintenance action. The root records the original
+initialization, declaration, physical WAL frontier, independent logical offset
+frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/group-offset/pin
+directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
+fields reject. Append records use `row_delta`; assignment, read pin/release,
+offset, expiry, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
+payload. All advance the
+WAL frontier, while only append allocates logical offsets.
+
+Original outcomes are immutable `log-evidence/{sha256}.data` objects: `LOGEVID1`,
+the shared definition and canonical JSON for the exact declaration and receipt.
+The entire object is bounded to 16 KiB. Directory values encode its byte length
+as big-endian `u64` followed by its SHA-256. Operation keys are the original
+principal and operation as big-endian `u64` values, scoped by the partition's
+catalog. Batch keys are exclusive logical end offsets, so a bounded ordered
+lookup finds the batch containing any retained offset. Producer keys include
+the original principal and 16-byte producer ID; sequence receipts additionally
+include epoch and sequence. No directory is materialized in its entirety.
+
+Append validates the complete payload, schema, collation-aware routing, limits
+and producer transition before staging private indexes. It rechecks and holds
+the publication guard while appending with the exact expected WAL frontier and
+writer/policy epochs. One WAL acceptance publishes payload, offset range,
+producer progress and original receipt together. Exact retries inspect original
+outcomes before fresh producer/declaration checks, while still requiring current
+permission. Conflict and uncertainty never allocate a replacement identity.
+
+The trusted adapter optionally supplies `LogTime.Source`. Fresh append samples
+it after validation and records that nullable observation in its receipt. A
+configured source must return an authoritative nonregressing UTC millisecond
+value. A positive retention age requires it; a partition with an accepted time
+floor cannot later accept untimed work. Under the final publication guard the
+owner samples again, refuses regression/unavailability, and refuses an opted-in
+age window already elapsed since the first observation. Private staged objects
+from a refusal establish no acceptance. Replay checks the persisted monotonic
+floor without consulting current time. Original-receipt lookup precedes clock
+checks. Neither producer event timestamps nor a WAL header's incidental clock
+field can supply this capability.
+
+`Options.control`, when supplied, is a trusted adapter capability for the same
+physical namespace and authorization owner using reserved deployment capacity.
+Offset commits, read release, existing-group reassignment, expiry, archive and checkpoint
+stage and publish through it. Fresh append, initial group assignment and read-pin
+admission use ordinary capacity. Every operation retains its current-policy
+checks and normal uncertainty semantics. Restoring ordinary I/O after each
+control operation prevents subsequent admission from consuming that reserve.
+The reserve is finite; exhausting it is an explicit failure, never permission
+to expire payloads, discard progress or forge an outcome.
+
+`expireHistory(declared, cut, guard)` requires an explicit positive retention age
+and advances the logical retained boundary by at most one complete sealed batch
+within the fixed physical cut. Its trusted observation must be at least the
+accepted append observation plus the declared age. Untimed accepted history
+cannot acquire an invented timestamp after a policy change. The owner reports
+`consumer`, `unsealed`, `untimed` or `not_due` without advancing the boundary;
+`progress` and `complete` describe the selected cut, not later appends.
+
+Group assignments and offset commits atomically update both the group-ID index
+and a second index keyed by big-endian `(next_offset, group_id)`. The latter
+stores the same complete progress value and bounds the oldest-checkpoint lookup
+independently of group count. Expiry cannot cross that checkpoint. No group
+means the current append frontier protects no additional unread prefix.
+
+An accepted expiry record binds its previous root, declaration, exact original
+append receipt, fixed cut, trusted time and protected checkpoint. It removes that
+batch and segment from the current placement roots while preserving original
+receipts, producer fencing and the next logical offset. Replay verifies these
+facts without current time. Publication rechecks current authority and time under
+the guard; uncertainty requires recovery. Existing read pins retain their old
+placements and remain readable under current authorization. Fresh reads below
+the new boundary report `LogHistoryUnavailable`. Physical collection can remove
+bytes only after their pins and recovery dependencies also close.
+
+An unknown or malformed append result marks the resident owner unready. Recovery
+reads at most the requested 1–256 records, verifies the hash chain, declaration
+and index/outcome agreement, and advances only through validated history. Reads
+and appends refuse until recovery reaches the current physical frontier. Missing
+dependencies reject; recovery neither stages replacement indexes nor resets the
+partition. Required payloads remain retained in the WAL, immutable archives or
+published columnar segments.
+
+Current batch reads return an original append receipt, an observed cut and a
+pinned `LogTail` borrow. Cache hits reuse verified bytes. A miss verifies the
+accepted WAL record or reconstructs the exact published segment batch before
+admitting its payload; pinned cache pressure is an
+explicit refusal. Read authorization is checked again after buffering, including
+empty terminal observations. A borrow survives other appends and prevents owner
+destruction, but does not pin durable history or prove finite traversal coverage.
+Explicit assignment preserves group progress across generation changes.
+
+### Stream columnar placement
+
+`flush` takes a fixed physical cut and seals at most one complete accepted append
+per call. It reports the exclusive sealed logical offset, rows handled and whether
+all appends through that cut are sealed. Appends accepted later cannot extend the
+obligation. Publication advances only the physical WAL frontier; logical offsets,
+producer state and original receipts do not change. Unknown publication follows
+normal partition recovery before retry.
+
+`LogSegment.Descriptor` binds the original evidence, `.tseg` content and delivery
+metadata content. The paged segment directory is keyed by the original exclusive
+batch end. Its value stores those three contents in order, each as big-endian
+`u64` byte length followed by SHA-256, totaling 120 bytes. Segment IDs are the
+original append's exclusive physical frontier. User columns preserve the declared
+schema, codecs and collations. Row identities preserve principal/operation/ordinal
+order within that append; no Table primary-key uniqueness semantics are added.
+
+`log-segments/{sha256}.tseg` uses the shared segment format.
+`log-segment-metadata/{sha256}.data` contains `LBMETA01`, the shared definition,
+original evidence SHA-256, big-endian `u32` row count, then one big-endian `u64`
+visibility time and one tombstone byte per original row. Only zero and one are
+valid tombstone bytes; Stream/Queue metadata rules remain unchanged. The metadata
+bound is 76 bytes plus the maximum WAL payload size. Neither object establishes
+acceptance. The owner reads back both, validates identities and reconstructs the
+original `LOGBAT01` digest before publishing their locator. A missing object,
+foreign receipt, changed payload or unsupported lossless reconstruction refuses.
+
+Build and cold reconstruction share an explicit simultaneous allocation budget
+(64 MiB by default, configurable up to 1 GiB). Segment row groups default to 1,024
+rows and cannot exceed 1,024 for this owner. A refusal leaves the original WAL
+placement usable and any private objects collectible. Each finite read base
+retains both its batch and segment directories. The bounded read iterator keeps
+the original cut and returns owned rows across WAL and segment boundaries; cache
+admission verifies the complete original batch. Physical copies may be reclaimed
+only after the retained graph no longer needs their placement, independently of
+logical payload retention.
+
+### Retained Stream reads and offset settlement
+
+`beginRead` stages a `log-reads/{sha256}.data` object, then atomically publishes
+its pin and original receipt. The object is `LREAD001`, the current definition
+and canonical JSON for the exact request, declaration, cut, resolved end and
+batch and segment directory roots, bounded to 16 KiB. It contains no earlier pin or receipt
+directories. A null requested end is resolved once at acceptance. The pin
+directory maps original read identity to a released flag (`u8`), source byte
+length (`u64`, big-endian) and source SHA-256. Original read receipts do not
+themselves establish a live retention pin.
+
+The reader authenticates cumulative coverage with HMAC-SHA-256 over
+`transit.stream.read.coverage.v1\0`, the 32-byte shared definition, and canonical
+JSON `{read, coverage}`. Its private nonzero 32-byte service key is supplied by
+the adapter, never a public request. Comparison is constant time. A rotated key
+invalidates old cursors, while the same retained read can start again under its
+original immutable cut. Cursor authentication supplies no current access rights.
+The independent Python fixture verifies this byte-level domain and MAC.
+
+`readCursor` issues only the initial zero-row frontier. `readPage` authenticates
+that cursor, verifies its live pin and exact source/range, and traverses the
+retained batch directory. Group reads additionally require the current assignment
+generation/principal. Each window has explicit returned-row, scanned-row and encoded-byte budgets,
+bounded by the declaration and owner. Owner defaults are 4096 rows and 4 MiB;
+configuration refuses more than 65536 rows or 64 MiB. The independent scan budget
+defaults to 4096 offsets and cannot exceed 65536. Output owns copied encoded
+rows in the caller's allocator, separately from reusable scratch and cache.
+Allocation or budget failure cannot return fabricated completion. A budget too
+small for even the next row refuses explicitly. Metadata storage is bounded by
+the row budget, separately from encoded row bytes.
+
+An optional frozen UTC microsecond range filters the declared timestamp column.
+For sealed data, the reader checks the exact segment/evidence binding, schema and
+verified footer before excluding a bounded group range with its zone map. A
+possible match uses the exact row predicate. Skipped group coordinates must map
+to the original append identities and offsets. Event time can move backward
+between adjacent offsets. Scanned offsets advance `through` and the window's
+`examined` count; only matching rows advance cumulative `rows`. An empty window
+at its scan budget remains incomplete unless it reached the original end.
+
+Coverage accumulates across physical batches and stops at the original exclusive
+end, including an empty end. Later appends never enter the result. Repeated
+continuations preserve source identity. Current rights are rechecked after
+buffering, including empty terminal windows. Early release removes retention
+ownership and rejects later traversal without changing a consumer checkpoint.
+Release publishes its original receipt with the released pin marker.
+
+`commitOffset` requires the current definition, live read pin, owner-authenticated
+complete coverage, the same group as that read, current group generation and
+expected checkpoint. An intervening definition edit requires a read binding to
+the new definition before a fresh offset commit. One WAL record publishes the
+new group checkpoint and original offset receipt, including the exact submitted
+cursor. Partial or altered coverage cannot advance progress. Lost replies recover
+under the original operation before fresh pin/group/key checks; accepted results
+survive pin release, reassignment, key rotation and restart. Recovery validates
+their original read and group transition without treating a changed signing key
+as revocation of accepted work. Required read bases and accepted archive objects
+remain retained; physical trimming does not expire logical payload history.
+
+### Stream archive and recovery checkpoints
+
+`LogHistory` uses the shared immutable TWAL object codec and existing
+`table-history/{sha256}.twal` namespace. Each object contains one complete frame
+with verified header, checksum, payload digest, partition and LSN. Its coverage
+records a physical half-open `[from, through)` range and paged directory. The
+current owner starts at zero and exposes no archive-prefix expiry operation.
+Archiving stages at most eight frames under byte and index-work budgets, then
+publishes the extended coverage in one control record. Its fixed requested cut
+is distinct from that record's newer frontier. Retrying after a lost reply
+observes accepted progress and never extends the requested obligation.
+
+`LogRecovery` stages `log-checkpoints/{sha256}.data`: `LCHECK01`, the shared
+definition and canonical JSON for the complete prior root and its accepted
+payload commitment. The bound is 40 bytes plus 32 KiB. A reference records that
+root's exclusive WAL frontier and immutable content. Only a checkpoint control
+record at that frontier publishes it: the record must retain every prior root
+field except its own successor frontier and new recovery reference, and its
+previous commitment must equal the baseline's. Staging alone supplies no recovery
+or trim authority.
+
+Cold recovery selects the latest accepted reference, verifies the publishing
+record, then replays bounded successors with the normal transition checks.
+Top-level index roots are verified before readiness. A superseded reference
+inside a baseline is structural history, not another checkpoint to recursively
+open. Missing required baselines, publishing records or archive bytes reject;
+the owner never silently restarts from an incompatible or incomplete prefix.
+
+`trimArchived` holds the current publication guard and trims no farther than
+the smaller of accepted archive coverage and the checkpoint's publishing LSN.
+That record and all later WAL history remain present. Reads use current accepted
+archive coverage to resolve old pinned WAL coordinates, preserving their original
+cut, payload and receipt. Initialization after trim verifies the checkpoint's
+publication and original request before returning its original frontier one.
+Physical trimming grants no logical expiry or object-deletion authority. Native
+`DataStore.trimUnit` verifies these bounds against the latest accepted record.
+Installed Stream payload maintenance still needs service composition.
+
+`LogStorageRoots` enumerates the current root, selected immutable baseline and
+hash-linked successors. Its final root and commitment must exactly equal the
+selected cut. `DirectStorageGraph` retains the directories, declarations,
+original evidence, live read bases and payload frames of those roots. Replay
+also retains every newly archived frame needed to verify an archive transition.
+An archive directory is a weak index, not ownership of every referenced object;
+required payload and replay frames have explicit graph edges. Superseded
+checkpoint references inside a baseline are not recursively followed. Released
+read bases remain protected while required by replay, then become collectible
+after a newer checkpoint. Missing or inconsistent dependencies prevent graph
+completion and therefore prevent deletion.
