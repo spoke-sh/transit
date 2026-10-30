@@ -32584,6 +32584,37 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/QueueTimeDirectory.zig": {
+      "errors": {
+        "InvalidQueueTimeDirectory": 12,
+        "QueueTimeRunCardinalityOverflow": 2,
+        "QueueTimeRunOverlap": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Entry.decode()": "<inferred>",
+        "Entry.encode()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "audit()": "<inferred>",
+        "eventKey()": "<inferred>",
+        "find()": "<inferred>",
+        "requireChunk()": "<inferred>",
+        "requireRoot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 2
+      },
+      "imports": [
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/QueueTimeRun.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -34016,6 +34047,7 @@
         "QueuePartition.zig",
         "QueueSelection.zig",
         "QueueTimeBuffer.zig",
+        "QueueTimeDirectory.zig",
         "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "S3ObjectStore.zig",

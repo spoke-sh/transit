@@ -192,6 +192,13 @@ slices can seal into `QueueTimeRun` chunks. This bounds one operation buffer;
 publishing active/pending references and retiring earlier buffers still belong
 to the Queue scheduling owner and are not yet integrated.
 
+`QueueTimeDirectory` indexes a sorted run through paged chunk-boundary entries.
+Runs can exceed chunk and cache capacity while earlier roots remain immutable.
+Exclusive upper-key lookup locates a containing or following chunk. Its bounded
+directory audit requires contiguous row counts, ordered bounds and actual
+exhaustion; payload verification remains with `QueueTimeRun.load`. These private
+roots do not grant a read, retain a snapshot or publish a Queue schedule.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current

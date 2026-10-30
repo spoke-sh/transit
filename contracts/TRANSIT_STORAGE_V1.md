@@ -1327,6 +1327,33 @@ The buffer codec does not publish pending work or retire a previous buffer.
 Accepted scheduling state must own the active reference, any sealed chunks,
 merge inputs and output before their physical reclamation becomes eligible.
 
+### Paged timer-run directories
+
+`QueueTimeDirectory` indexes one sorted logical run within one seed/kind/time
+bucket. Its root contains a nullable chunk-directory reference, total row and
+chunk counts, and nullable first/last event bounds. All are absent/zero together
+for an empty run. Nonempty roots require compatible ordered bounds and counts
+consistent with one through 1,024 rows per chunk. Counts use checked `u64`
+arithmetic; directory size is independent of the configured page cache.
+
+Each key is a chunk's last `(time, offset, epoch)` as three big-endian `u64`
+values. Its 248-byte value contains the first row ordinal within the logical
+run (big-endian `u64`) followed by the canonical 240-byte chunk descriptor.
+Appending checks exact seed/kind/bucket, strict non-overlap and cardinality
+overflow before staging private copy-on-write pages. Only chunk boundaries enter
+this directory. The caller must have staged the referenced chunk and must
+separately accept the resulting root.
+
+An exclusive event-key lookup finds the first chunk whose upper key exceeds the
+cursor, including a chunk containing that cursor. Lookup alone proves neither
+earlier coverage nor chunk-body validity. A bounded audit carries one immutable
+root, an exclusive upper-key cursor, and exact visited row/chunk counts. It
+requires contiguous first-row ordinals and non-overlapping bounds, and reports
+completion only after actual directory exhaustion with matching totals. Errors
+leave its cursor unchanged. Chunk bodies require the separate `QueueTimeRun`
+verification. Holding a root or audit cursor does not create a retention pin or
+grant access to Queue data.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.

@@ -9,6 +9,29 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Paged Queue timer-run directories — 2026-10-30
+
+`QueueTimeDirectory` passes its focused disk schedule on dirty parent `6cc0f57ec`.
+Forty-nine `.tseg` chunks contain 3,136 ordered events, exceeding both the physical
+chunk bound and the one-page cache. Cold reopen verifies every event under the
+current root and an earlier 21-chunk root. Exclusive lookup finds both containing
+and following chunks. Private index-budget refusal leaves the staged next chunk
+outside the selected root, and overlap refuses before publication.
+
+Directory audit completion requires actual exhaustion after contiguous counts.
+Negative cases cover wrong owner/bucket, reduced total rows, a missing first
+entry, an extra entry beyond declared bounds and foreign descriptor definitions.
+Failures preserve the preceding audit cursor and do not mark it complete.
+Chunk bodies are separately loaded and verified in the disk schedule; directory
+audit alone does not qualify their contents.
+
+Evidence is `/var/tmp/transit-queue-time-directory-first.log`. All 48 fast checks
+and all 18 contract checks pass in
+`/var/tmp/transit-queue-time-directory-fast.log` and
+`/var/tmp/transit-queue-time-directory-contracts.log`. These are workspace checks
+for private run directories, not accepted Queue schedule publication, merge
+recovery, retained graph integration or a clean lane.
+
 ## Queue pending timer buffers — 2026-10-30
 
 The `QueueTimeBuffer` codec passes focused checks on dirty parent `1d62204ed`.
