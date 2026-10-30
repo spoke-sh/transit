@@ -10,8 +10,6 @@ You declare **data** (Tables, Key-Value maps, collaborative Documents, Streams, 
 
 **From score to landscape.** Declared structure becomes activity, with history visible as the landscape evolves.
 
-Start with the data your application needs, what you want to compute from it, and the policies governing its use. The [published handbook](https://spoke-sh.github.io/transit/) connects those declarations to their public interfaces and observable outcomes, and [Internals](docs/handbook/internals/README.md) formalizes the underlying storage, query, state, and execution models.
-
 ## Documentation and Handbook
 
 Read the [published handbook](https://spoke-sh.github.io/transit/), organized into seven pillars:
