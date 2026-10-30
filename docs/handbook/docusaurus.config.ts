@@ -90,7 +90,21 @@ const config: Config = {
     ],
   ],
   themeConfig: {
-    image: "img/transit.svg",
+    image: "img/refraction-social.jpg",
+    metadata: [
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      {
+        property: "og:image:alt",
+        content:
+          "A measured score becomes waves, branching upward into graphite terrain and downward into translucent planes, joined by a vermilion thread.",
+      },
+      {
+        name: "twitter:image:alt",
+        content:
+          "A measured score becomes waves, branching upward into graphite terrain and downward into translucent planes, joined by a vermilion thread.",
+      },
+    ],
     navbar: {
       title: "TRANSIT",
       logo: { alt: "", src: "img/transit.svg", width: 28, height: 28 },
