@@ -967,7 +967,7 @@ contracts over the native resource boundary, not three unrelated storage engines
 | Relational dataflow | Table or explicitly decoded KV relation | Richer row schemas, joins and maintained-query progress |
 | Document analysis | Relation projected from an accepted Document basis | Explicit path expansion, stable row identity and conflict handling |
 | Property graph | Vertex and edge relations plus a graph mapping | Element identity, endpoint mappings, labels, paths and graph operators |
-| Geospatial and spatio-temporal | Typed geometry/geography/cell/trajectory columns, topological arc tables and cell coverings | CRS/SRID manifold ($\kappa_{\text{spatial}}$: planar vs. geodesic), snap-rounding precision grid, Shewchuk exact predicates, 2D/3D zone maps and incremental Z-set half-edge/cell operators |
+| Geospatial, 3D volumetric and spatio-temporal | Typed 2D/3D geometry/geography/mesh/solid/scene/point-cloud/cell/trajectory columns, cellular chain complexes ($C_0..C_3$) and cell/octree coverings | CRS/SRID and vertical-datum manifold ($\kappa_{\text{spatial}}$: planar vs. geodesic), 2D/3D snap-rounding precision grid, Shewchuk exact `orient2d`/`orient3d` predicates, `<2 bpt` Edgebreaker mesh connectivity, 2D/3D zone maps and incremental Z-set half-edge/face/octree operators |
 | Time-series analysis | Relation with declared event-time column and change contract | Timestamp/interval rules, windows, watermarks and late-data policy |
 | Image/audio/video processing | Metadata relation referencing immutable captured/publication bytes | Media types, bounded decoding, provenance and recorded model/tool outcomes |
 | Vector search | Typed vector values/projections and derived index | Dimension, metric, exact/approximate result contract and index basis |
@@ -981,17 +981,22 @@ an explicitly requested SQL-value conversion may reject unresolved states or
 apply a declared policy, never silently select a conflict winner. Such conversion
 is a future typed operator, not a second permissive decoder for old data.
 
-The same principle applies to graph properties, geospatial features and vector inputs.
-In geospatial workloads, planar subdivisions (shared boundary chains between
-polygons), discrete global grids (`S2`, `H3`) and spatial intersection joins are
-dual to graphs, while coordinate interpretation additionally requires an explicit
-spatial reference and precision descriptor $\kappa_{\text{spatial}}$ (CRS/SRID,
-planar versus geodesic manifold, snap-rounding grid scale and exact orientation
+The same principle applies to graph properties, 2D/3D geospatial and volumetric features and vector inputs.
+In geospatial and 3D modeling workloads, cellular chain complexes ($C_0, C_1, C_2, C_3$
+spanning 2D shared boundary arcs and 3D shared polyhedral faces with
+$\partial_{k-1} \circ \partial_k = 0$), discrete global grids and octrees
+(`S2`, `H3`, `OCT_CELL`), instanced scene-graph DAGs and spatial/clash
+intersection joins are dual to graphs, while coordinate interpretation
+additionally requires an explicit spatial reference and precision descriptor
+$\kappa_{\text{spatial}}$ (CRS/SRID, vertical datum/axes, planar versus geodesic
+manifold, 2D/3D snap-rounding grid scale and exact `orient2d`/`orient3d`
 predicates) orthogonal to logical type $\tau$ and physical `.tseg` codecs
-$\epsilon$ (`.geoarrow` Struct-of-Arrays, quantized delta-varints, shared
-topological boundary chains and Roaring-compressed `INTERIOR`/`BOUNDARY` cell
-coverings that turn incremental `ST_Union` and spatial joins into linear/bilinear
-Z-set operations). Binary data
+$\epsilon$ (`.geoarrow` Struct-of-Arrays, quantized delta-varints, $<2\text{ bpt}$
+Edgebreaker mesh connectivity with progressive wavelet LODs, shared topological
+boundary arcs/faces, instanced `SE(3)` scene DAGs and Roaring-compressed
+`INTERIOR`/`BOUNDARY` 2D cell and 3D octree coverings that turn incremental
+`ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem volume aggregates and
+2D/3D spatial/clash joins into linear/bilinear Z-set operations). Binary data
 can be referenced through bounded immutable publication; placing a URI in a row
 does not retain the object or authorize fetching it. Embeddings and remote model
 responses require recorded provenance and outcomes. A model name or a seed does

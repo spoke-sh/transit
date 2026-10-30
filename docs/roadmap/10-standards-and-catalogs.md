@@ -90,10 +90,12 @@ over those contracts, rather than introducing a second snapshot representation.
      digest ($\kappa_{\text{tz}}$, e.g. `tzdb_2026a`) recorded in `manifest/v{N}`
      so `FOR SYSTEM_TIME AS OF` queries remain bit-for-bit reproducible across
      future timezone database updates.
-   - **Spatial Reference & Precision Descriptors ($\kappa_{\text{spatial}}$):**
-     reserve the catalog descriptor bindings (`SRID`, `PLANAR` vs. `GEODESIC`
-     manifold, snap-rounding grid scale $\delta_{\text{grid}}$, and space-filling
-     curve order) consumed by
+   - **Spatial & 3D Volumetric Reference & Precision Descriptors ($\kappa_{\text{spatial}}$):**
+     reserve the catalog descriptor bindings (`SRID`, vertical datum / unit
+     scale / axis orientation `RightHanded_ZUp` vs. `YUp`, `PLANAR` vs.
+     `GEODESIC` manifold, 2D/3D snap-rounding grid scale $\delta_{\text{grid}}$,
+     Shewchuk exact `orient2d`/`orient3d`/`incircle`/`insphere` predicates, and
+     `S2_HILBERT` / `H3` / `HILBERT_3D` space-filling curve order) consumed by
      [Milestone 17](17-geospatial-and-spatio-temporal-computing.md).
 7. **Expose historical inspection and explicit projections through shared operations:**
    distinguish metadata permission from row/segment access and report exact

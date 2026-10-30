@@ -46,8 +46,8 @@ remains a gate for every preceding milestone.
   pointer-swizzled variable size-class buffer slabs (with admission-only SHA-256
   verification), CedarDB-style ~10-instruction directory-tagged join hash tables
   and Worst-Case Optimal Joins (WCOJ), 16-byte collation-prefixed Umbra/German
-  strings, 16-byte inline spatial headers, `.geoarrow`/`.twkb_delta`/`.topo_arc`/`.s2_roaring`
-  spatial codecs and DBSP Z-set incremental `ST_Union` and spatial joins, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
+  strings, 16-byte inline 2D/3D spatial headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker`/`.topo_arc`/`.topo_face`/`.s2_roaring`/`.octree_roaring`/`.scene_dag`/`.pcloud_hilbert`
+  2D/3D spatial codecs and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem linear 3D volume aggregates and 2D/3D spatial/clash joins, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
   perfect hashing, vectorized 256-doc Block-Max BM25 and hybrid search, HyPer-style
   data-centric push pipeline fusion, per-row-group dense non-null specialization,
   Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT-compiled queries/views,

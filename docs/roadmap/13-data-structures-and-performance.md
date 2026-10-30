@@ -82,8 +82,8 @@ prerequisites and later phases remain outstanding.
    bitmaps) and **Multi-Dimensional Clustering Keys** (`CLUSTER BY` linear sort
    keys and space-filling Z-order / Hilbert curves over columns such as
    `(event_time, symbol, venue)` or [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
-   2D/3D spatial `HILBERT(geom)` / `S2_CELL(geom)` keys decoupled from the primary-key uniqueness
-   constraint) so analytical, time-series and spatial scans prune `.tseg` segments across
+   2D/3D spatial `HILBERT(geom)` / `S2_CELL(geom)` / `HILBERT3D(geom3d)` keys decoupled from the primary-key uniqueness
+   constraint) so analytical, time-series and 2D/3D spatial scans prune `.tseg` segments across
    multiple predicate dimensions. Cost scans versus index probes, segment/partition
    pruning, join order/strategy—including `DPhyp` / adaptive join-graph ordering,
    universal `D-Join` subquery unnesting, `FOREIGN KEY` join elimination,

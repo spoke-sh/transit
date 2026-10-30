@@ -390,13 +390,19 @@ operator, or AOT query compiler already exists in current builds.
   bitpacked posting blocks with block-max BM25 impact weights (`MAXSCORE` /
   Block-Max WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
   materialization) first without locking text or code search into a
-  bag-of-words model. Mirror the 16-byte string header for geospatial vectors in
+  bag-of-words model. Mirror the 16-byte string header for 2D/3D geospatial and
+  volumetric vectors in
   [Milestone 17](docs/roadmap/17-geospatial-and-spatio-temporal-computing.md)
-  with a 16-byte inline spatial header (`[subtype_and_flags: u16][srid_id: u16][s2_hilbert_prefix: u32][quantized_mbr_or_inline_xy: 8B]`),
-  and pair `.tseg` topological shared-arc (`.topo_arc`), `INTERIOR`/`BOUNDARY`
-  `S2`/`H3` Roaring cell-covering and 4D kinematic trajectory compression with
-  DBSP Z-set incremental `ST_Union` (oriented half-edge cancellation
-  $(+\vec{e}) + (-\vec{e}) = 0$) and `INTERIOR`-short-circuited spatial joins.
+  with a 16-byte inline spatial header (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`),
+  and pair `.tseg` topological shared-arc/face (`.topo_arc`, `.topo_face`),
+  `<2 bpt` Edgebreaker mesh (`.mesh_edgebreaker`), `INTERIOR`/`BOUNDARY`
+  `S2`/`H3`/`OCT_CELL` Roaring coverings (`.s2_roaring`, `.octree_roaring`),
+  instanced `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF kinematic trajectory
+  compression with DBSP Z-set incremental `ST_Union` ($\partial_2$ half-edge
+  cancellation $(+\vec{e}) + (-\vec{e}) = 0$), `ST_3DUnion` ($\partial_3$ face
+  cancellation $(+\vec{f}) + (-\vec{f}) = 0$), Discrete Divergence Theorem
+  linear 3D volume/inertia aggregates and `INTERIOR`-short-circuited 2D/3D
+  spatial and clash joins.
 - **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD comparisons:**
   Use pure-Zig `comptime` perfect hash maps (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
   for closed compile-time keyword, header and directive sets instead of linear
