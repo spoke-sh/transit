@@ -178,7 +178,7 @@ def generated():
                              configuration=dict(
                                  partitioning=dict(count=4, key_column=9, hash='sha256_64'),
                                  retention=dict(max_age_ms=None),
-                                 policy=dict(stream=dict(compact_key_column=None))),
+                                 policy=dict(stream=dict(compact_key_column=None, timestamp_column=None))),
                              limits=dict(append_rows=4096, append_bytes=1048576,
                                          claim_rows=64, read_rows=4096, read_bytes=1048576,
                                          active_leases=1024, waiters=64, timer_steps=256)),
@@ -213,7 +213,7 @@ def generated():
         stream_queue['read'] = dict(
             request=dict(target=log_target, operation=read_operation,
                          group=stream_queue['offset_commit']['group'],
-                         **{'from': coverage['from']}, until=None),
+                         **{'from': coverage['from']}, until=None, timestamp=None),
             cut=coverage['cut'], until=coverage['until'], source=read_source,
             accepted=dict(partition=91, next_lsn=13))
         read_handle = dict(owner=read_operation, source=read_source)

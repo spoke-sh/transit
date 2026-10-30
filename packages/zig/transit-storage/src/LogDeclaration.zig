@@ -32,7 +32,13 @@ pub const Definition = struct {
         if (self.schema.primary_key.len != 0) return error.UnsupportedLogPrimaryKey;
         if (self.configuration.partitioning.key_column) |column| try self.requireKey(column);
         switch (self.configuration.policy) {
-            .stream => |stream| if (stream.compact_key_column) |column| try self.requireKey(column),
+            .stream => |stream| {
+                if (stream.compact_key_column) |column| try self.requireKey(column);
+                if (stream.timestamp_column) |id| {
+                    const column = self.schema.columns[try self.schema.index(id)];
+                    if (column.nullable or column.type != .timestamp or column.type.timestamp != .utc) return error.InvalidStreamTimestampColumn;
+                }
+            },
             .queue => |queue| {
                 if (queue.key_column) |column| try self.requireKey(column);
                 if (queue.dead_letter) |destination| {

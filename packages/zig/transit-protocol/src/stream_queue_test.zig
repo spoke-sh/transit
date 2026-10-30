@@ -20,6 +20,14 @@ test "stream finite read attribution freezes its original cut range source and c
     request.until = receipt.until;
     try t.expectError(error.StreamReadConflict, receipt.requireRequest(request));
     request = receipt.request;
+    request.timestamp = .{ .from_us = -10, .until_us = 20 };
+    try request.validate();
+    try t.expectError(error.StreamReadConflict, receipt.requireRequest(request));
+    try t.expect(request.timestamp.?.matches(-10));
+    try t.expect(!request.timestamp.?.matches(20));
+    request.timestamp = .{ .from_us = 20, .until_us = -10 };
+    try t.expectError(error.InvalidStreamTimestampRange, request.validate());
+    request = receipt.request;
     request.operation.principal += 1;
     try t.expectError(error.LogGroupFenced, request.validate());
     var changed = receipt;

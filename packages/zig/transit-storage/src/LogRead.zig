@@ -21,6 +21,7 @@ pub const Basis = struct {
     pub fn validate(self: Basis) !void {
         try self.request.validate();
         try self.declared.validate();
+        if (self.request.timestamp != null and (self.declared.declaration.configuration.policy != .stream or self.declared.declaration.configuration.policy.stream.timestamp_column == null)) return error.StreamTimestampNotDeclared;
         try self.request.target.requireSame(self.cut.target);
         try self.cut.requireOffset(self.request.from);
         try self.cut.requireOffset(self.until);

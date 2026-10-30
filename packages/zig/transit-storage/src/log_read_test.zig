@@ -23,7 +23,7 @@ test "log read bases survive disk reopen and authenticate exact finite coverage"
     const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 };
     const basis: R.Basis = .{
-        .request = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 0, .operation = std.math.maxInt(u64) }, .group = null, .from = 0, .until = null },
+        .request = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 0, .operation = std.math.maxInt(u64) }, .group = null, .from = 0, .until = null, .timestamp = null },
         .declared = declared,
         .cut = .{ .target = target, .accepted = .{ .partition = 91, .next_lsn = 4 }, .retained_from = 0, .next = 0 },
         .until = 0,

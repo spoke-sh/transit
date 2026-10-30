@@ -51,7 +51,7 @@ pub const Root = struct {
             !std.meta.eql(value.schema, seed.schema) or !std.meta.eql(value.configuration.partitioning, seed.configuration.partitioning) or
             std.meta.activeTag(value.configuration.policy) != std.meta.activeTag(seed.configuration.policy)) return error.LogDeclarationConflict;
         switch (value.configuration.policy) {
-            .stream => |stream| if (stream.compact_key_column != seed.configuration.policy.stream.compact_key_column) return error.LogDeclarationConflict,
+            .stream => |stream| if (stream.compact_key_column != seed.configuration.policy.stream.compact_key_column or stream.timestamp_column != seed.configuration.policy.stream.timestamp_column) return error.LogDeclarationConflict,
             .queue => |queue| if (queue.ordering != seed.configuration.policy.queue.ordering or queue.key_column != seed.configuration.policy.queue.key_column) return error.LogDeclarationConflict,
         }
     }

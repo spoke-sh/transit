@@ -129,7 +129,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
         .configuration = .{
             .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
             .retention = .{ .max_age_ms = null },
-            .policy = .{ .stream = .{ .compact_key_column = null } },
+            .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } },
         },
         .limits = .{ .append_rows = 128, .append_bytes = 8192, .claim_rows = 16, .read_rows = 128, .read_bytes = 8192, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
         .properties = "",
@@ -152,7 +152,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     const payload = try s.LogBatch.encode(definition.definition.schema, op, .stream, &.{.{ .cells = &.{cell} }}, &buffer);
     const request: p.StreamQueue.Append = .{ .target = initialized.target(), .operation = op, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) };
     const accepted = try stream.append(initialized.declared, request, payload, fixture.guard());
-    const read = try stream.beginRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .group = null, .from = 0, .until = null }, fixture.guard());
+    const read = try stream.beginRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard());
     const authority = try s.LogRead.Authority.init(@splat(7));
     const cursor = try stream.readCursor(read.handle(), authority, fixture.guard());
     try t.expect((try stream.flush(stream.root.position(), fixture.guard())).complete);
@@ -169,7 +169,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     const replay_cut = stream.root.position();
     while (!(try stream.archive(replay_cut, .{ .frames = 1 }, fixture.guard())).complete) {}
     const orphan = try s.LogRead.stage(fixture.data.objects(), .{
-        .request = .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 999 }, .group = null, .from = 0, .until = null },
+        .request = .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 999 }, .group = null, .from = 0, .until = null, .timestamp = null },
         .declared = initialized.declared,
         .cut = try stream.observe(initialized.declared, fixture.guard()),
         .until = 1,

@@ -424,7 +424,7 @@ test "stream partition pins finite cuts and atomically commits authenticated con
         const request = try appendRequest(&declaration, id, null, &buffer);
         _ = try owner.append(initial.declared, request.request, request.payload, policy.guard());
     }
-    const selection: p.StreamRead.Request = .{ .target = initial.target(), .operation = operation(5), .group = assignment.group, .from = 0, .until = null };
+    const selection: p.StreamRead.Request = .{ .target = initial.target(), .operation = operation(5), .group = assignment.group, .from = 0, .until = null, .timestamp = null };
     const read = try owner.beginRead(initial.declared, selection, policy.guard());
     try t.expectEqual(@as(u64, 4), read.cut.next);
     const later = try appendRequest(&declaration, 6, null, &buffer);
@@ -523,7 +523,7 @@ test "stream partition finite readers enforce budgets early release empty comple
     var buffer: [8192]u8 = undefined;
     const request = try appendRequest(&declaration, 2, null, &buffer);
     _ = try owner.append(initial.declared, request.request, request.payload, policy.guard());
-    const selection: p.StreamRead.Request = .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 1, .until = null };
+    const selection: p.StreamRead.Request = .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 1, .until = null, .timestamp = null };
     const retained = try owner.beginRead(initial.declared, selection, policy.guard());
     const authority = try s.LogRead.Authority.init(@splat(7));
     const start = try owner.readCursor(retained.handle(), authority, policy.guard());
@@ -583,7 +583,7 @@ test "stream partition checkpoint and archive retain exact pins receipts and ini
     var buffer: [8192]u8 = undefined;
     const request = try appendRequest(&declaration, 2, null, &buffer);
     const accepted = try owner.append(initial.declared, request.request, request.payload, policy.guard());
-    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null }, policy.guard());
+    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
     const authority = try s.LogRead.Authority.init(@splat(7));
     const cursor = try owner.readCursor(pin.handle(), authority, policy.guard());
     const cut = owner.root.position();
@@ -660,7 +660,7 @@ test "stream partition sealed batches preserve finite reads and resume lost flus
     var buffer: [8192]u8 = undefined;
     const first = try appendRequest(&declaration, 2, null, &buffer);
     const accepted = try owner.append(initial.declared, first.request, first.payload, policy.guard());
-    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null }, policy.guard());
+    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
     const authority = try s.LogRead.Authority.init(@splat(7));
     const cursor = try owner.readCursor(pin.handle(), authority, policy.guard());
     const cut = owner.root.position();
@@ -682,7 +682,7 @@ test "stream partition sealed batches preserve finite reads and resume lost flus
     _ = try owner.append(initial.declared, second.request, second.payload, policy.guard());
     try t.expect((try owner.flush(cut, policy.guard())).complete);
     try t.expectEqual(@as(u64, 2), owner.root.sealed_through);
-    const mixed = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = null, .from = 0, .until = null }, policy.guard());
+    const mixed = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
     const mixed_cursor = try owner.readCursor(mixed.handle(), authority, policy.guard());
     const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.store };
     const segment = try s.LogSegment.Descriptor.decode((try tree.get(owner.root.segments, try s.LogPartitionRecord.integerKey(2))).?);
@@ -727,6 +727,96 @@ test "stream partition sealed batches preserve finite reads and resume lost flus
     try t.expect((try owner.recoverStep(policy.guard(), 256)).complete);
     try t.expect((try owner.flush(owner.root.position(), policy.guard())).complete);
     try t.expectEqual(@as(u64, 4), owner.root.sealed_through);
+}
+
+test "stream partition timestamp bounds preserve scanned coverage across nonmonotonic hot and sealed groups" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    var columns = definition.schema.columns[0..2].*;
+    columns[1].type = .{ .timestamp = .utc };
+    definition.schema.columns = &columns;
+    definition.configuration.policy.stream.timestamp_column = 2;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const assignment: q.GroupAssignment = .{ .operation = operation(2), .cut = try owner.observe(initial.declared, policy.guard()), .expected = null, .group = .{ .id = 7, .generation = 1, .principal = 0 }, .next = 0 };
+    _ = try owner.assign(initial.declared, assignment, policy.guard());
+    var values: [4][2]f.Types.Values.Cell = undefined;
+    var rows: [4]s.LogBatch.Row = undefined;
+    for ([_]i64{ 30, 5, 20, 10 }, &values, &rows) |time, *value, *row| {
+        value.* = .{ cells[0], .{ .value = .{ .atom = .{ .timestamp = time } } } };
+        row.* = .{ .cells = value };
+    }
+    var buffer: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(declaration.definition.schema, operation(3), .stream, &rows, &buffer);
+    _ = try owner.append(initial.declared, .{ .target = initial.target(), .operation = operation(3), .kind = .stream, .producer = null, .rows = 4, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    var selection: p.StreamRead.Request = .{ .target = initial.target(), .operation = operation(4), .group = assignment.group, .from = 0, .until = null, .timestamp = .{ .from_us = 10, .until_us = 30 } };
+    const hot = try owner.beginRead(initial.declared, selection, policy.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const hot_cursor = try owner.readCursor(hot.handle(), authority, policy.guard());
+    var hot_page = try owner.readPage(hot_cursor, authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer hot_page.deinit();
+    try t.expectEqual(@as(u32, 4), hot_page.examined);
+    try t.expectEqual(@as(u32, 2), hot_page.count);
+    try t.expectEqual(@as(u64, 2), hot_page.rows()[0].offset);
+    try t.expectEqual(@as(u64, 3), hot_page.rows()[1].offset);
+    try t.expect(hot_page.cursor.coverage.complete);
+    owner.options.segment_rows_per_group = 1;
+    try t.expect((try owner.flush(owner.root.position(), policy.guard())).complete);
+    selection.operation = operation(5);
+    const sealed = try owner.beginRead(initial.declared, selection, policy.guard());
+    const sealed_cursor = try owner.readCursor(sealed.handle(), authority, policy.guard());
+    _ = try owner.checkpoint(owner.root.position(), policy.guard());
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    var empty = try owner.readPage(sealed_cursor, authority, .{ .rows = 4, .encoded_bytes = 8192, .scanned_rows = 1 }, t.allocator, policy.guard());
+    defer empty.deinit();
+    try t.expectEqual(@as(u32, 0), empty.count);
+    try t.expectEqual(@as(u32, 1), empty.examined);
+    try t.expectEqual(@as(u64, 1), empty.cursor.coverage.through);
+    try t.expect(!empty.cursor.coverage.complete);
+    // The first nonmatching group was pruned from verified zone metadata;
+    // no reconstructed batch entered the tail cache.
+    try t.expectEqual(@as(u64, 0), owner.cache.verified);
+    var middle = try owner.readPage(empty.cursor, authority, .{ .rows = 4, .encoded_bytes = 8192, .scanned_rows = 2 }, t.allocator, policy.guard());
+    defer middle.deinit();
+    try t.expectEqual(@as(u32, 1), middle.count);
+    try t.expectEqual(@as(u32, 2), middle.examined);
+    try t.expectEqual(@as(u64, 2), middle.rows()[0].offset);
+    var end = try owner.readPage(middle.cursor, authority, .{ .rows = 4, .encoded_bytes = 8192, .scanned_rows = 1 }, t.allocator, policy.guard());
+    defer end.deinit();
+    try t.expectEqual(@as(u32, 1), end.count);
+    try t.expectEqual(@as(u64, 3), end.rows()[0].offset);
+    try t.expectEqual(@as(u64, 2), end.cursor.coverage.rows);
+    try t.expectEqual(@as(u64, 4), end.cursor.coverage.through);
+    try t.expect(end.cursor.coverage.complete);
+    const commit: q.OffsetCommit = .{ .operation = operation(6), .group = assignment.group, .coverage = end.cursor.coverage, .expected_next = 0, .next = 4 };
+    _ = try owner.commitOffset(initial.declared, commit, end.cursor, authority, policy.guard());
+    try t.expectEqual(@as(u64, 4), (try owner.group(7, policy.guard())).?.next);
+    selection.operation = operation(7);
+    selection.group = null;
+    selection.timestamp = .{ .from_us = 30, .until_us = 30 };
+    const none = try owner.beginRead(initial.declared, selection, policy.guard());
+    const none_cursor = try owner.readCursor(none.handle(), authority, policy.guard());
+    var none_page = try owner.readPage(none_cursor, authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer none_page.deinit();
+    try t.expect(none_page.count == 0 and none_page.examined == 4 and none_page.cursor.coverage.complete);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readPage(none_cursor, authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard()));
 }
 
 test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {

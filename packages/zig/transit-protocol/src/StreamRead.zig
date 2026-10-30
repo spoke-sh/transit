@@ -5,6 +5,17 @@ const p = @import("root.zig");
 const d = p.DataLifecycle;
 const q = p.StreamQueue;
 
+pub const TimestampRange = struct {
+    from_us: i64,
+    until_us: i64,
+    pub fn validate(self: TimestampRange) !void {
+        if (self.until_us < self.from_us) return error.InvalidStreamTimestampRange;
+    }
+    pub fn matches(self: TimestampRange, value_us: i64) bool {
+        return value_us >= self.from_us and value_us < self.until_us;
+    }
+};
+
 pub const Request = struct {
     target: q.Partition,
     operation: d.Operation,
@@ -12,9 +23,11 @@ pub const Request = struct {
     from: u64,
     /// Null chooses the observed upper frontier once, at original acceptance.
     until: ?u64,
+    timestamp: ?TimestampRange,
     pub fn validate(self: Request) !void {
         try self.target.requireOperation(self.operation);
         if (self.until) |until| if (until < self.from) return error.InvalidStreamRead;
+        if (self.timestamp) |range| try range.validate();
         if (self.group) |group| {
             try group.validate();
             if (group.principal != self.operation.principal) return error.LogGroupFenced;

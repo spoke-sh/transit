@@ -26,8 +26,9 @@ publishes paged producer and original-result indexes atomically with each
 payload, and persists explicit group assignment generations. It also publishes
 finite read pins, authenticates cumulative traversal coverage and atomically
 settles group offsets with original receipts. These storage paths are exercised
-across disk reopen, including lost accepted replies. Service payload APIs and
-segment maintenance are not enabled by that component. See the
+across disk reopen, including lost accepted replies. It seals batches into the
+shared `.tseg` format, retains pinned placements through collection and supports
+bounded timestamp-filtered traversal. Service payload APIs remain uncomposed. See the
 [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append
@@ -46,9 +47,12 @@ count. Callers without a partition key select an ordinal explicitly. Neither
 hash equality nor partition equality establishes complete key equality.
 
 Retention has a nullable positive `max_age_ms`; null retains unlimited history.
-Key compaction separately names a stable key column. Definition successors retain
+Key compaction separately names a stable key column. An optional `timestamp_column`
+names a non-null UTC timestamp column; its values are exact microseconds and may
+be out of offset order. This is event time, not an authority clock for leases or
+retention. Definition successors retain
 object identity, advance exactly one revision and preserve kind, routing and key
-selection. Schema evolution requires its owner's additional compatibility checks.
+selection, including the timestamp column. Schema evolution requires its owner's additional compatibility checks.
 Changing those fixed properties requires a separately defined migration; the
 validator refuses it rather than reinterpreting accepted operations.
 
@@ -127,13 +131,24 @@ including empty results, repeated batches and terminal metadata. The owning
 [SQL result lifecycle](SQL_RESULTS_V1.md) remains responsible for result delivery.
 
 `StreamRead.Request` freezes the original operation, exact target, optional
-group assignment, explicit start and nullable end. A null end selects the
+group assignment, explicit start, nullable end and nullable timestamp range.
+`TimestampRange` uses a half-open `[from_us, until_us)` interval of signed UTC
+microseconds. Equal endpoints select no rows; reversed endpoints reject. A
+timestamp selection requires the declared timestamp column before admission.
+A null end selects the
 observed upper frontier once during acceptance. Group reads bind their assigned
 principal; the runtime must also compare the current generation and checkpoint.
 `StreamRead.Receipt` retains that original request, exact cut, resolved end,
 immutable source commitment and the next physical publication frontier. Retrying
 after later appends cannot extend its cut. Its initial coverage starts at the
 requested offset with zero rows, including a complete empty interval.
+
+Filtering advances scanned coverage for each verified excluded offset, while
+incrementing returned rows only for matches. A separate finite scan budget can
+produce an empty, incomplete window with a continuation. It cannot silently scan
+an unbounded history to fill a row limit. Sealed groups may be excluded using
+their verified timestamp zone maps; overlapping groups still apply the exact
+row predicate. No timestamp monotonicity or seek-to-next-event assumption is made.
 
 A `StreamRead.Handle` contains the original read operation and exact source
 commitment. The runtime must find its live durable pin before traversing it.

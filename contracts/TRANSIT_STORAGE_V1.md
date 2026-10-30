@@ -1443,7 +1443,7 @@ logical payload retention.
 `beginRead` stages a `log-reads/{sha256}.data` object, then atomically publishes
 its pin and original receipt. The object is `LREAD001`, the current definition
 and canonical JSON for the exact request, declaration, cut, resolved end and
-batch-directory root, bounded to 16 KiB. It contains no earlier pin or receipt
+batch and segment directory roots, bounded to 16 KiB. It contains no earlier pin or receipt
 directories. A null requested end is resolved once at acceptance. The pin
 directory maps original read identity to a released flag (`u8`), source byte
 length (`u64`, big-endian) and source SHA-256. Original read receipts do not
@@ -1460,13 +1460,23 @@ The independent Python fixture verifies this byte-level domain and MAC.
 `readCursor` issues only the initial zero-row frontier. `readPage` authenticates
 that cursor, verifies its live pin and exact source/range, and traverses the
 retained batch directory. Group reads additionally require the current assignment
-generation/principal. Each window has explicit row and encoded-byte budgets,
+generation/principal. Each window has explicit returned-row, scanned-row and encoded-byte budgets,
 bounded by the declaration and owner. Owner defaults are 4096 rows and 4 MiB;
-configuration refuses more than 65536 rows or 64 MiB. Output owns copied encoded
+configuration refuses more than 65536 rows or 64 MiB. The independent scan budget
+defaults to 4096 offsets and cannot exceed 65536. Output owns copied encoded
 rows in the caller's allocator, separately from reusable scratch and cache.
 Allocation or budget failure cannot return fabricated completion. A budget too
 small for even the next row refuses explicitly. Metadata storage is bounded by
 the row budget, separately from encoded row bytes.
+
+An optional frozen UTC microsecond range filters the declared timestamp column.
+For sealed data, the reader checks the exact segment/evidence binding, schema and
+verified footer before excluding a bounded group range with its zone map. A
+possible match uses the exact row predicate. Skipped group coordinates must map
+to the original append identities and offsets. Event time can move backward
+between adjacent offsets. Scanned offsets advance `through` and the window's
+`examined` count; only matching rows advance cumulative `rows`. An empty window
+at its scan budget remains incomplete unless it reached the original end.
 
 Coverage accumulates across physical batches and stops at the original exclusive
 end, including an empty end. Later appends never enter the result. Repeated

@@ -178,3 +178,44 @@ pub fn materialize(allocator: std.mem.Allocator, objects: Objects.ObjectStore, d
     if (!std.meta.eql(append.payload, Batch.content(original))) return error.LogPayloadConflict;
     return original;
 }
+
+/// A verified zone map can exclude a bounded suffix of one physical group.
+/// Event times are never assumed to follow offsets. A possible match returns
+/// zero so the owner applies the exact row predicate on its normal read path.
+pub fn skipTimestamp(allocator: std.mem.Allocator, objects: Objects.ObjectStore, descriptor: Descriptor, declaration: *const Declaration.Owned, evidence: Evidence.Record, range: p.StreamRead.TimestampRange, ordinal: u32, maximum: u32) !u32 {
+    try range.validate();
+    try descriptor.validate();
+    try evidence.validate();
+    if (evidence.outcome != .append or evidence.outcome.append.append.kind != .stream or !std.meta.eql(evidence.declared, try declaration.stored()) or !std.meta.eql(descriptor.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogSegment;
+    const receipt = evidence.outcome.append;
+    const append = receipt.append;
+    if (ordinal >= append.rows or maximum == 0 or append.rows > (max_metadata_bytes - metadata_header) / metadata_row or descriptor.metadata.bytes != metadata_header + append.rows * metadata_row) return error.InvalidLogSegment;
+    var name: [96]u8 = undefined;
+    try verifyHead(objects, try metadataKey(descriptor.metadata, &name), descriptor.metadata);
+    var source: Source = .{ .objects = objects, .content = descriptor.segment };
+    try source.verify();
+    var reader = try f.TSegReader.open(allocator, source.source(), descriptor.segment.bytes, f.TSeg.max_segment_bytes);
+    defer reader.deinit();
+    const footer = reader.footer;
+    const schema = declaration.definition.schema;
+    if (footer.segment_id != receipt.accepted.next_lsn or footer.total_rows != append.rows or footer.pk_index.len != append.rows or footer.object_id != schema.object or footer.schema_revision != schema.revision or !std.mem.eql(u8, &footer.layout_fingerprint, &try schema.layoutFingerprint())) return error.InvalidLogSegment;
+    const column = declaration.definition.configuration.policy.stream.timestamp_column orelse return error.StreamTimestampNotDeclared;
+    const ci = try schema.index(column);
+    const entry = footer.pk_index[ordinal];
+    if (entry.row_group >= footer.row_groups.len) return error.InvalidLogSegment;
+    const group = footer.row_groups[entry.row_group];
+    if (ci >= group.zone_maps.len or ordinal < group.start_row_offset or ordinal - group.start_row_offset >= group.row_count) return error.InvalidLogSegment;
+    var lower: [32]u8 = undefined;
+    var upper: [32]u8 = undefined;
+    const lower_key = try f.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .timestamp = range.from_us } } }, .{ .timestamp = .utc }, .none, &lower);
+    const upper_key = try f.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .timestamp = range.until_us } } }, .{ .timestamp = .utc }, .none, &upper);
+    const zone = group.zone_maps[ci];
+    if (range.from_us != range.until_us and zone.mayMatch(.ge, lower_key) and zone.mayMatch(.lt, upper_key)) return 0;
+    const count = @min(maximum, group.row_count - (ordinal - group.start_row_offset));
+    for (ordinal..ordinal + count) |position| {
+        const item = footer.pk_index[position];
+        const identity: f.TableRow.Identity = .{ .origin = append.operation.principal + 1, .operation = append.operation.operation, .ordinal = @intCast(position) };
+        if (!std.meta.eql(item.identity, identity) or item.global_row_offset != position or item.row_group != entry.row_group or item.row_in_group != position - group.start_row_offset) return error.InvalidLogSegment;
+    }
+    return count;
+}

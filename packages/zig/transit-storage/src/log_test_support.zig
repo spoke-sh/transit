@@ -14,7 +14,7 @@ pub fn definition(kind: p.StreamQueueDeclaration.Kind) Declaration.Definition {
             .partitioning = .{ .count = 2, .key_column = 1, .hash = .sha256_64 },
             .retention = .{ .max_age_ms = null },
             .policy = switch (kind) {
-                .stream => .{ .stream = .{ .compact_key_column = null } },
+                .stream => .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } },
                 .queue => .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 1, .maximum_ms = 100, .multiplier = 2 }, .dead_letter = null } },
             },
         },

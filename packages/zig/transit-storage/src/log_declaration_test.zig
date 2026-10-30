@@ -51,6 +51,21 @@ test "log declarations reject undefined nullable keys relational uniqueness and 
     definition = support.definition(.queue);
     definition.configuration.policy.queue.dead_letter = .{ .object = definition.object, .revision = 1, .digest = @splat(1) };
     try t.expectError(error.InvalidQueueDestination, definition.validate());
+    definition = support.definition(.stream);
+    definition.configuration.policy.stream.timestamp_column = 2;
+    try t.expectError(error.InvalidStreamTimestampColumn, definition.validate());
+    columns = definition.schema.columns[0..2].*;
+    definition.schema.columns = &columns;
+    columns[1].type = .{ .timestamp = .civil };
+    try t.expectError(error.InvalidStreamTimestampColumn, definition.validate());
+    columns[1].type = .{ .timestamp = .utc };
+    columns[1].nullable = true;
+    try t.expectError(error.InvalidStreamTimestampColumn, definition.validate());
+    columns[1].nullable = false;
+    try definition.validate();
+    var changed = definition.configuration;
+    changed.policy.stream.timestamp_column = null;
+    try t.expectError(error.UnsupportedLogTimestampChange, definition.configuration.requireEvolution(changed));
 }
 
 test "log declarations preserve fixed byte arrays for textual DLQ digests" {

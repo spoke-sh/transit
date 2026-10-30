@@ -223,7 +223,7 @@ fn logWrite(init: std.process.Init, client: c.DirectTableClient, profile: *Profi
     var intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("typed_stream"), .action = .{ .create = .{
         .owner = profile.role,
         .schema = .{ .object = 620001, .revision = 1, .next_column = 2, .columns = columns[0..1], .primary_key = &.{} },
-        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null } } },
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
     var request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 620001 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 620001 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };

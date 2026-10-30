@@ -5581,15 +5581,20 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "compact_key_column"
+            "compact_key_column",
+            "timestamp_column"
           ],
           "properties": {
             "compact_key_column": {
               "$ref": "#/$defs/Request/$defs/T5"
+            },
+            "timestamp_column": {
+              "$ref": "#/$defs/Request/$defs/T5"
             }
           },
           "required": [
-            "compact_key_column"
+            "compact_key_column",
+            "timestamp_column"
           ],
           "x-transit-defaults": {}
         },
@@ -11858,15 +11863,20 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
-            "compact_key_column"
+            "compact_key_column",
+            "timestamp_column"
           ],
           "properties": {
             "compact_key_column": {
               "$ref": "#/$defs/Response/$defs/T47"
+            },
+            "timestamp_column": {
+              "$ref": "#/$defs/Response/$defs/T47"
             }
           },
           "required": [
-            "compact_key_column"
+            "compact_key_column",
+            "timestamp_column"
           ],
           "x-transit-defaults": {}
         },

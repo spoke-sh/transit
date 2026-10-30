@@ -15601,12 +15601,13 @@
         "InvalidQueueLeaseDuration": 1,
         "InvalidQueuePartitionKey": 1,
         "InvalidQueuePolicy": 2,
-        "InvalidStreamPolicy": 1,
+        "InvalidStreamPolicy": 2,
         "LogDeclarationConflict": 1,
         "LogPartitionKeyRequired": 1,
         "QueueLeaseDeadlineOverflow": 1,
         "UnsupportedLogKeyChange": 2,
         "UnsupportedLogRepartition": 1,
+        "UnsupportedLogTimestampChange": 1,
         "UnsupportedTransactionDomain": 1
       },
       "outcomes": {
@@ -15657,6 +15658,7 @@
         "InvalidStreamCursor": 1,
         "InvalidStreamRead": 3,
         "InvalidStreamRelease": 2,
+        "InvalidStreamTimestampRange": 1,
         "LogGroupFenced": 1,
         "StreamReadConflict": 3
       },
@@ -15673,11 +15675,12 @@
         "ReleaseReceipt.requireRelease()": "<inferred>",
         "ReleaseReceipt.validate()": "<inferred>",
         "Request.requireSame()": "<inferred>",
-        "Request.validate()": "<inferred>"
+        "Request.validate()": "<inferred>",
+        "TimestampRange.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 1
       },
       "imports": [
@@ -28322,6 +28325,7 @@
         "InvalidLogDeclaration": 10,
         "InvalidLogKeyColumn": 1,
         "InvalidQueueDestination": 1,
+        "InvalidStreamTimestampColumn": 1,
         "LogDeclarationMissing": 1,
         "LogDeclarationTooLarge": 2,
         "UnsupportedLogPrimaryKey": 1
@@ -28341,7 +28345,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 45,
         "catch": 0
       },
       "imports": [
@@ -28526,7 +28530,8 @@
         "StreamCursorUnauthenticated": 1,
         "StreamReadConflict": 1,
         "StreamReadMissing": 1,
-        "StreamReadTooLarge": 1
+        "StreamReadTooLarge": 1,
+        "StreamTimestampNotDeclared": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -28592,9 +28597,10 @@
       "errors": {
         "BufferTooSmall": 1,
         "IncompatibleDefinition": 1,
-        "InvalidLogSegment": 16,
+        "InvalidLogSegment": 22,
         "LogPayloadConflict": 2,
         "LogSegmentMissing": 1,
+        "StreamTimestampNotDeclared": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -28609,12 +28615,13 @@
         "metadataKey()": "<inferred>",
         "put()": "<inferred>",
         "segmentKey()": "<inferred>",
+        "skipTimestamp()": "<inferred>",
         "stage()": "<inferred>",
         "verifyHead()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 57,
         "catch": 1
       },
       "imports": [
@@ -28841,19 +28848,20 @@
       "errors": {
         "InvalidLogArchive": 3,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 22,
+        "InvalidLogHistory": 24,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 3,
-        "InvalidStreamBudget": 2,
-        "InvalidStreamReadBudget": 1,
+        "InvalidStreamBudget": 3,
+        "InvalidStreamReadBudget": 2,
+        "InvalidStreamTimestampColumn": 1,
         "InvalidWalEpoch": 1,
         "LogAppendLimitExceeded": 1,
         "LogAppendUncertain": 2,
         "LogCheckpointRequired": 1,
         "LogGroupFenced": 3,
         "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 10,
+        "LogHistoryUnavailable": 11,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
         "LogOperationConflict": 6,
@@ -28863,7 +28871,7 @@
         "LogProducerConflict": 1,
         "LogRecoveryMissing": 1,
         "LogRecoveryRequired": 2,
-        "LogSegmentBudgetExceeded": 2,
+        "LogSegmentBudgetExceeded": 3,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamReadByteBudgetTooSmall": 1,
@@ -28919,14 +28927,17 @@
         "requireTarget()": "<inferred>",
         "retainedRead()": "<inferred>",
         "selectCheckpoint()": "<inferred>",
+        "skipTimestamp()": "<inferred>",
+        "skipTimestampWithinBudget()": "<inferred>",
+        "timestampMatches()": "<inferred>",
         "trimArchived()": "<inferred>",
         "verifyTransition()": "<inferred>",
         "verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 319,
-        "catch": 10
+        "try": 331,
+        "catch": 11
       },
       "imports": [
         "LogBatch.zig",

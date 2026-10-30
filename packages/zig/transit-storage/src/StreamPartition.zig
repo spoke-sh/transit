@@ -29,6 +29,7 @@ pub const Options = struct {
     index_work_bytes: usize = 8 * 1024 * 1024,
     batch_bytes: u32 = 1024 * 1024,
     read_rows: u32 = 4096,
+    read_scan_rows: u32 = 4096,
     read_bytes: u32 = 4 * 1024 * 1024,
     key_bytes: u32 = 64 * 1024,
     segment_work_bytes: usize = 64 * 1024 * 1024,
@@ -53,6 +54,7 @@ ready: bool = false,
 /// a caller cannot serve reads or accept writes until recoverStep completes.
 pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
     if (request.declared.declaration.configuration.policy != .stream) return error.LogPartitionConflict;
+    if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
     if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
     if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
     const initial = try Initialization.observe(allocator, log, objects, request, guard);
@@ -701,7 +703,7 @@ pub fn readCursor(self: *Self, handle: read.Handle, authority: Read.Authority, g
     try authorize(guard);
     return cursor;
 }
-pub const ReadLimits = struct { rows: u32, encoded_bytes: u32 };
+pub const ReadLimits = struct { rows: u32, encoded_bytes: u32, scanned_rows: u32 = 4096 };
 pub const ReadRow = struct {
     offset: u64,
     operation: d.Operation,
@@ -712,6 +714,7 @@ pub const ReadPage = struct {
     storage: []ReadRow,
     count: u32,
     encoded_bytes: u32,
+    examined: u32 = 0,
     cursor: read.Cursor,
     pub fn rows(self: ReadPage) []const ReadRow {
         return self.storage[0..self.count];
@@ -735,13 +738,24 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
     try cursor.requireReceipt(retained.receipt);
     if (retained.receipt.request.group) |selected| _ = try self.requireGroup(selected, null);
     const declared_limits = retained.basis.declared.declaration.limits;
+    if (limits.scanned_rows == 0 or limits.scanned_rows > self.options.read_scan_rows) return error.InvalidStreamReadBudget;
     if (limits.rows == 0 or limits.rows > @min(declared_limits.read_rows, self.options.read_rows) or limits.encoded_bytes == 0 or limits.encoded_bytes > @min(declared_limits.read_bytes, self.options.read_bytes)) return error.InvalidStreamReadBudget;
     var declaration = try Declaration.load(self.allocator, self.objects, retained.basis.declared);
     defer declaration.deinit();
     var result: ReadPage = .{ .allocator = output, .storage = try output.alloc(ReadRow, if (cursor.coverage.complete) 0 else limits.rows), .count = 0, .encoded_bytes = 0, .cursor = cursor };
     errdefer result.deinit();
     var coverage = cursor.coverage;
-    outer: while (!coverage.complete and result.count < limits.rows) {
+    outer: while (!coverage.complete and result.count < limits.rows and result.examined < limits.scanned_rows) {
+        if (retained.basis.request.timestamp) |range| {
+            const maximum: u32 = @intCast(@min(coverage.until - coverage.through, limits.scanned_rows - result.examined));
+            const skipped = try self.skipTimestamp(retained.basis, range, coverage.through, maximum);
+            if (skipped != 0) {
+                coverage.through += skipped;
+                result.examined += skipped;
+                coverage.complete = coverage.through == coverage.until;
+                continue;
+            }
+        }
         var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, retained.basis.segments, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
         defer batch.deinit();
         var iterator = try Batch.Iterator.init(try batch.payload.bytes(), declaration.definition.schema, .stream, batch.receipt.append.rows);
@@ -750,6 +764,17 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
             const offset = try std.math.add(u64, batch.receipt.first, row.ordinal);
             if (offset < coverage.through) continue;
             if (offset != coverage.through) return error.LogHistoryUnavailable;
+            if (retained.basis.request.timestamp) |range| {
+                const ci = try declaration.definition.schema.index(declaration.definition.configuration.policy.stream.timestamp_column.?);
+                if (!try self.timestampMatches(row, declaration.definition.schema, batch.receipt.append.operation, ci, range)) {
+                    coverage.through += 1;
+                    result.examined += 1;
+                    coverage.complete = coverage.through == coverage.until;
+                    advanced = true;
+                    if (coverage.complete or result.examined == limits.scanned_rows) break :outer;
+                    continue;
+                }
+            }
             const bytes = row.bytes.len + Batch.row_header_bytes;
             if (bytes > limits.encoded_bytes - result.encoded_bytes) {
                 if (result.count == 0) return error.StreamReadByteBudgetTooSmall;
@@ -761,14 +786,41 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
             result.count += 1;
             result.encoded_bytes += @intCast(bytes);
             coverage.through += 1;
+            result.examined += 1;
             coverage.rows += 1;
             coverage.complete = coverage.through == coverage.until;
             advanced = true;
-            if (coverage.complete or result.count == limits.rows) break :outer;
+            if (coverage.complete or result.count == limits.rows or result.examined == limits.scanned_rows) break :outer;
         }
         if (!advanced) return error.LogHistoryUnavailable;
     }
     result.cursor = try authority.issue(cursor.read, coverage);
     try authorize(guard);
     return result;
+}
+
+fn timestampMatches(self: *Self, row: Batch.EncodedRow, schema: f.TableSchema.Schema, operation_value: d.Operation, ci: usize, range: read.TimestampRange) !bool {
+    defer _ = self.scratch.reset(.retain_capacity);
+    const decoded = try row.decode(self.scratch.allocator(), schema, operation_value);
+    const cell = decoded.cells[ci];
+    if (cell != .value or cell.value != .atom or cell.value.atom != .timestamp) return error.InvalidStreamTimestampColumn;
+    return range.matches(cell.value.atom.timestamp);
+}
+fn skipTimestamp(self: *Self, basis: Read.Basis, range: read.TimestampRange, offset: u64, maximum: u32) !u32 {
+    if (basis.segments == null) return 0;
+    const page = try self.tree().scanFrom(basis.batches, try r.integerKey(offset + 1));
+    const entry = page.entries[0] orelse return error.LogHistoryUnavailable;
+    const evidence = try self.loadEvidence(entry.value);
+    if (evidence.outcome != .append) return error.InvalidLogHistory;
+    const receipt = evidence.outcome.append;
+    try self.requireTarget(receipt.append.target);
+    if (receipt.first > offset or receipt.next <= offset or receipt.next > basis.cut.next or receipt.accepted.partition != basis.cut.accepted.partition or receipt.accepted.next_lsn > basis.cut.accepted.next_lsn or !std.meta.eql(entry.key, try r.integerKey(receipt.next))) return error.InvalidLogHistory;
+    const value = try self.tree().get(basis.segments, entry.key) orelse return 0;
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    return self.skipTimestampWithinBudget(memory.allocator(), try Segment.Descriptor.decode(value), evidence, range, @intCast(offset - receipt.first), maximum) catch |err| return if (memory.exhausted) error.LogSegmentBudgetExceeded else err;
+}
+fn skipTimestampWithinBudget(self: *Self, allocator: std.mem.Allocator, descriptor: Segment.Descriptor, evidence: Evidence.Record, range: read.TimestampRange, ordinal: u32, maximum: u32) !u32 {
+    var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
+    defer declaration.deinit();
+    return Segment.skipTimestamp(allocator, self.objects, descriptor, &declaration, evidence, range, ordinal, maximum);
 }

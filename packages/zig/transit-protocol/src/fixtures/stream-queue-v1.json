@@ -95,7 +95,8 @@
       },
       "policy": {
         "stream": {
-          "compact_key_column": null
+          "compact_key_column": null,
+          "timestamp_column": null
         }
       }
     },
@@ -949,7 +950,8 @@
         "principal": 17
       },
       "from": 18446744073709551611,
-      "until": null
+      "until": null,
+      "timestamp": null
     },
     "cut": {
       "target": {

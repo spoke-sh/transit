@@ -76,6 +76,10 @@ its original receipt and offsets. Shared `.tseg` columns and a separate immutabl
 delivery-metadata sidecar must reproduce the original payload digest before their
 paged placement index is published. Existing read pins keep their old placements;
 new reads can traverse sealed batches and the hot tail through the same iterator.
+An optional declared UTC timestamp column supports finite half-open microsecond
+bounds. Verified zone maps prune nonmatching sealed groups without assuming time
+follows offset order. Returned-row and scanned-offset budgets are separate;
+filtered empty pages keep exact continuation and completion evidence.
 Build and cold-read work have a separate 64 MiB default allocation budget, with
 at most 1,024 rows per segment group. These finite operation bounds do not cap
 the durable segment directory. Missing sidecars reject without falling back to

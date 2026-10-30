@@ -85,8 +85,11 @@ pub const Stream = struct {
     /// A stable key is required for opted-in key compaction. Tombstones are
     /// retained until the owning history/dependency contract permits removal.
     compact_key_column: ?u64,
+    /// Optional non-null UTC timestamp column; bounds use exact microseconds.
+    timestamp_column: ?u64,
     pub fn validate(self: Stream) !void {
         if (self.compact_key_column) |column| if (column == 0) return error.InvalidStreamPolicy;
+        if (self.timestamp_column) |column| if (column == 0) return error.InvalidStreamPolicy;
     }
 };
 
@@ -114,8 +117,10 @@ pub const Configuration = struct {
         if (std.meta.activeTag(self.policy) != std.meta.activeTag(next.policy) or
             !std.meta.eql(self.partitioning, next.partitioning)) return error.UnsupportedLogRepartition;
         switch (self.policy) {
-            .stream => |value| if (value.compact_key_column != next.policy.stream.compact_key_column)
-                return error.UnsupportedLogKeyChange,
+            .stream => |value| {
+                if (value.compact_key_column != next.policy.stream.compact_key_column) return error.UnsupportedLogKeyChange;
+                if (value.timestamp_column != next.policy.stream.timestamp_column) return error.UnsupportedLogTimestampChange;
+            },
             .queue => |value| if (value.ordering != next.policy.queue.ordering or value.key_column != next.policy.queue.key_column)
                 return error.UnsupportedLogKeyChange,
         }
