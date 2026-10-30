@@ -351,6 +351,10 @@
       "shell": "default",
       "prepare": [
         [
+          "just",
+          "ci::dependencies"
+        ],
+        [
           "vp",
           "install",
           "--frozen-lockfile",
@@ -363,15 +367,29 @@
     },
     "storage-query": {
       "shell": "default",
-      "prepare": []
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ]
+      ]
     },
     "interfaces": {
       "shell": "default",
-      "prepare": []
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ]
+      ]
     },
     "installation-ui": {
       "shell": "ci-experience",
       "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ],
         [
           "just",
           "transit-board::install"
@@ -383,6 +401,10 @@
       "prepare": [
         [
           "just",
+          "ci::dependencies"
+        ],
+        [
+          "just",
           "transit-board::install"
         ]
       ]
@@ -390,6 +412,10 @@
     "sdks-conformance": {
       "shell": "ci-bindings",
       "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ],
         [
           "vp",
           "install",
@@ -405,6 +431,10 @@
       "shell": "ci-bindings",
       "prepare": [
         [
+          "just",
+          "ci::dependencies"
+        ],
+        [
           "vp",
           "install",
           "--frozen-lockfile",
@@ -418,6 +448,10 @@
     "sdks-systems": {
       "shell": "ci-bindings",
       "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ],
         [
           "vp",
           "install",
@@ -433,6 +467,10 @@
       "shell": "ci-bindings",
       "prepare": [
         [
+          "just",
+          "ci::dependencies"
+        ],
+        [
           "vp",
           "install",
           "--frozen-lockfile",
@@ -446,6 +484,10 @@
     "browser": {
       "shell": "ci-experience",
       "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ],
         [
           "just",
           "transit-board::install"

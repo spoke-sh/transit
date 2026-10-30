@@ -1,6 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set working-directory := ".."
 
+# Fetch pinned Zig packages without compiling or retrying checks.
+dependencies:
+    python3 -B tests/runner/zig_dependencies.py
+
 # List CI commands; running this default does not qualify any checks.
 [default]
 _default:

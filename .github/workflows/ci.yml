@@ -92,6 +92,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
+      ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/.cache/ci-zig/p
       TRANSIT_CI_SELECTION_PATH: .cache/ci/selection.json
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -164,10 +165,14 @@ jobs:
             .cache/ci-zig/o
             .cache/ci-zig/h
             .cache/ci-zig/p
-          key: zig-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('**/build.zig.zon') }}
+          key: zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('**/build.zig.zon') }}
           restore-keys: |
+            zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
             zig-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
             zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+      - name: Fetch pinned Zig dependencies
+        if: matrix.lane != 'formal'
+        run: nix develop .#${{ matrix.shell }} --command just ci::dependencies
       - name: Install locked Board frontend dependencies
         if: matrix.lane == 'installation-ui' || matrix.lane == 'launchers'
         run: nix develop .#${{ matrix.shell }} --command just transit-board::install

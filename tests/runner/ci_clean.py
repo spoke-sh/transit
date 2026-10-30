@@ -23,7 +23,7 @@ def profile(suite, selection):
         return suite["environments"][selection]
     # The complete sequential inventory still needs every language and frontend.
     # A single lane uses its hosted environment, with no unrelated preparation.
-    return {"shell": "bindings", "prepare": [["just", "transit-board::install"]]}
+    return {"shell": "bindings", "prepare": [["just", "ci::dependencies"], ["just", "transit-board::install"]]}
 
 
 def check_profile(scope):
@@ -35,6 +35,8 @@ def check_profile(scope):
         prepare = [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]
     else:
         prepare = []
+    if scope != "fast":
+        prepare.insert(0, ["just", "ci::dependencies"])
     return {"shell": "default", "prepare": prepare}
 
 
@@ -101,6 +103,9 @@ def main():
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
+        # Zig 0.17 keeps fetched packages separately from its compiler cache.
+        # Share one owned package directory across this clone's nested builds.
+        env["ZIG_LOCAL_PKG_DIR"] = str(checkout / ".cache/ci-zig/p")
         # A concurrent package build can retain a read lock on the same flake's
         # evaluation database until compilation finishes. This isolated preflight
         # must not wait behind that unrelated build. Store/substitute and compiler

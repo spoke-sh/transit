@@ -38,7 +38,8 @@ for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board'):
 for executable in (runtime / 'bin/transit', gateway / 'bin/transit-sql-gateway'):
     subprocess.run([str(executable), '--help'], cwd=source, check=True, stdout=subprocess.DEVNULL)
 with tempfile.TemporaryDirectory(prefix='transit-runtime-build-boundary-') as directory:
-    command = ['zig', 'build', '--system', sources['zig'], '--cache-dir', directory]
+    # The explicit offline source must override CI's shared package directory.
+    command = ['zig', 'build', '--system', sources['zig'], '--pkg-dir', sources['zig'], '--cache-dir', directory]
     # Explicitly disabled registration cannot expose a successful test target.
     disabled = subprocess.run([*command, 'diagnostic-grammar', '-Dchecks=false'],
                               cwd=source, capture_output=True, text=True)
