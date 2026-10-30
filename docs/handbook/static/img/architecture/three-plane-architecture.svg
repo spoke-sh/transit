@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1030" viewBox="0 0 1280 1030" role="img" aria-labelledby="title description">
+  <title id="title">Transit three-plane architecture</title>
+  <desc id="description">Applications, clients and gateways access three distinct responsibilities. The Control and Policy Plane owns definitions, authorization and lifecycle policies, governing both the Direct Data Plane and the Process and Effect Plane. The Direct Data Plane contains direct Table storage and Fuze query execution over authorized sources. Table reads and writes do not pass through Station actor turns. The Process and Effect Plane contains Station durable processes and connectors with recorded effects. Solid arrows show public operations; dashed arrows show policy applying to both execution planes.</desc>
+  <defs>
+    <marker id="operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#ad3326" stroke-width="1.5"/></marker>
+    <marker id="policy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 1 L 9 5 L 0 9" fill="none" stroke="#6c7068" stroke-width="1.5"/></marker>
+    <style>
+      text { fill: #282b29; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .eyebrow { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 16px; letter-spacing: 2px; }
+      .title { font-family: Georgia, "Times New Roman", serif; font-size: 42px; }
+      .plane-title { font-family: Georgia, "Times New Roman", serif; font-size: 32px; }
+      .label { font-size: 23px; font-weight: 600; }
+      .body { font-size: 21px; }
+      .note { font-size: 18px; fill: #62645f; }
+      .accent { fill: #ad3326; }
+      .face { fill: #fbf9f3; stroke: #bbbcb3; stroke-width: 1.25; }
+      .edge { fill: #eae7de; stroke: #bbbcb3; stroke-width: 1.25; }
+      .rule { stroke: #d8d5cd; stroke-width: 1; }
+    </style>
+  </defs>
+  <rect width="1280" height="1030" fill="#f7f4ed"/>
+  <text class="eyebrow accent" x="84" y="53">TRANSIT / RESPONSIBILITY MAP</text>
+  <text class="title" x="84" y="108">Three planes. Distinct responsibilities.</text>
+
+  <rect x="84" y="158" width="1112" height="92" fill="#eeebe3" stroke="#d8d5cd"/>
+  <text class="eyebrow" x="112" y="190">APPLICATIONS, CLIENTS &amp; GATEWAYS</text>
+  <text class="body" x="112" y="225">SQL · CLI · SDKs · HTTP · Flight · Board</text>
+
+  <g fill="none" stroke="#ad3326" stroke-width="2" marker-end="url(#operation)">
+    <path d="M 112 250 H 44 V 730 H 82"/>
+    <path d="M 1168 250 H 1236 V 730 H 1198"/>
+    <path d="M 640 250 V 326"/>
+  </g>
+  <text class="note" x="658" y="295">Definitions &amp; policies</text>
+  <text class="note" x="30" y="592" transform="rotate(-90 30 592)">Data operations</text>
+  <text class="note" x="1253" y="426" transform="rotate(90 1253 426)">Process operations</text>
+
+  <path class="edge" d="M 84 350 L 108 326 H 1220 L 1196 350 Z"/>
+  <rect class="face" x="84" y="350" width="1112" height="180"/>
+  <rect x="84" y="350" width="4" height="180" fill="#ad3326"/>
+  <text class="eyebrow accent" x="112" y="381">01</text>
+  <text class="plane-title" x="160" y="393">Control &amp; Policy Plane</text>
+  <path class="rule" d="M 459 424 V 500 M 827 424 V 500"/>
+  <text class="label" x="112" y="448">Definitions</text>
+  <text class="body" x="112" y="485">Catalog · schemas · identities</text>
+  <text class="label" x="488" y="448">Authorization</text>
+  <text class="body" x="488" y="485">Current permissions</text>
+  <text class="label" x="856" y="448">Lifecycle</text>
+  <text class="body" x="856" y="485">Retention · budgets</text>
+
+  <g fill="none" stroke="#6c7068" stroke-width="1.5" stroke-dasharray="5 6" marker-end="url(#policy)">
+    <path d="M 410 530 V 646"/>
+    <path d="M 1010 530 V 646"/>
+  </g>
+  <text class="note" x="430" y="593">governs</text>
+  <text class="note" x="1030" y="593">governs</text>
+
+  <path class="edge" d="M 84 670 L 108 646 H 788 L 764 670 Z"/>
+  <rect class="face" x="84" y="670" width="680" height="240"/>
+  <text class="eyebrow accent" x="112" y="701">02</text>
+  <text class="plane-title" x="160" y="713">Direct Data Plane</text>
+  <path class="rule" d="M 436 748 V 846 M 112 852 H 736"/>
+  <text class="label" x="112" y="770">Storage</text>
+  <text class="body" x="112" y="805">Direct Tables · snapshots</text>
+  <text class="body" x="112" y="838">TransitLog · .tseg</text>
+  <text class="label" x="464" y="770">Fuze</text>
+  <text class="body" x="464" y="805">Authorized source reads</text>
+  <text class="body" x="464" y="838">Queries · derived results</text>
+  <text class="note" x="112" y="887">Table reads and writes bypass actor turns.</text>
+
+  <path class="edge" d="M 844 670 L 868 646 H 1220 L 1196 670 Z"/>
+  <rect class="face" x="844" y="670" width="352" height="240"/>
+  <text class="eyebrow accent" x="872" y="701">03</text>
+  <text x="872" y="735" style="font-family: Georgia, 'Times New Roman', serif; font-size: 27px">Process &amp; Effect Plane</text>
+  <text class="label" x="872" y="778">Station</text>
+  <text class="body" x="872" y="810">Durable processes</text>
+  <text class="label" x="872" y="852">Connectors</text>
+  <text class="body" x="872" y="884">Recorded effects</text>
+
+  <path d="M 84 968 H 134" fill="none" stroke="#ad3326" stroke-width="2" marker-end="url(#operation)"/>
+  <text class="note" x="151" y="974">Public operations</text>
+  <path d="M 410 968 H 460" fill="none" stroke="#6c7068" stroke-width="1.5" stroke-dasharray="5 6" marker-end="url(#policy)"/>
+  <text class="note" x="477" y="974">Policy applies to both execution planes</text>
+</svg>

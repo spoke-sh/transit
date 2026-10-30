@@ -67,7 +67,7 @@ test("production navigation, search, generated references and exact downloads", 
   await page.goto(baseURL!);
   await expect(
     page.getByRole("heading", {
-      name: "Declarative database, query engine & durable runtime.",
+      name: "Give structure to change.",
     }),
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("desktop.png"), fullPage: true });
@@ -92,7 +92,9 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(page.locator("#declarations-and-current-interfaces")).toBeVisible();
   await page.goto(baseURL!);
   await page
-    .getByRole("link", { name: "SQL & Fuze Syntax, 5-state types and query profiles" })
+    .getByRole("link", {
+      name: "Query engine & SQL Compute answers and understand their source basis.",
+    })
     .click();
   await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Grammar only", exact: true }).first()).toBeVisible();
@@ -262,7 +264,7 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await page.goto(baseURL!);
   await expect(
     page.getByRole("heading", {
-      name: "Declarative database, query engine & durable runtime.",
+      name: "Give structure to change.",
     }),
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("mobile.png"), fullPage: true });
@@ -276,6 +278,9 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
     .getByRole("link", { name: "Documentation", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "What is Transit?", exact: true })).toBeVisible();
+  const planes = page.getByRole("img", { name: /^Transit three-plane architecture:/ });
+  await expect(planes).toBeVisible();
+  expect(await planes.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1280);
   await page.getByRole("button", { name: "Toggle navigation bar" }).click();
   await page.getByRole("button", { name: "← Back to main menu", exact: true }).click();
   await page
@@ -367,4 +372,53 @@ test("workload examples link to measured performance and interactive sessions", 
       exact: true,
     }),
   ).toBeVisible();
+});
+
+test("homepage artwork follows scroll and respects reduced motion", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
+  await page.goto(baseURL!);
+  const artwork = page.getByRole("img", { name: /^A measured score becomes waves/ });
+  await expect(artwork).toBeVisible();
+  expect(await artwork.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1774);
+  const story = page.locator(".refraction-story");
+  const terrain = page.locator(".refraction-terrain");
+  await expect(story).toHaveAttribute("data-motion", "enabled");
+  const initial = await terrain.evaluate((element) => getComputedStyle(element).transform);
+  await page.locator("#activity-title").scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => terrain.evaluate((element) => getComputedStyle(element).transform))
+    .not.toBe(initial);
+  await expect(page.locator(".refraction-visual")).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("refraction-scroll.png") });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(story).not.toHaveAttribute("data-motion");
+  await expect(terrain).toHaveCSS("transform", "none");
+  await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
+  await page.getByRole("link", { name: "Go to the handbook" }).click();
+  await expect(page.locator("#handbook-title")).toBeInViewport();
+  await page.getByRole("link", { name: "Follow the quickstart", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
+});
+
+test("homepage content and navigation work without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    viewport: { width: 1280, height: 800 },
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(baseURL!);
+    await expect(page.getByRole("heading", { name: "Give structure to change." })).toBeVisible();
+    await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
+    await page.getByRole("link", { name: "Go to the handbook" }).click();
+    await expect(page.locator("#handbook-title")).toBeInViewport();
+    await page.getByRole("link", { name: "Follow the quickstart", exact: true }).click();
+    await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
+  } finally {
+    await context.close();
+  }
 });

@@ -1,147 +1,124 @@
 import type { ReactElement } from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
+import refraction from "../../../design/transit-artwork/images/d1-refraction-graphite.jpg";
+import RefractionStory from "../components/RefractionStory";
+import "../css/home.css";
 
-const concepts = [
+const chapters = [
   [
-    "Declare data & types (τ ⊥ κ ⊥ ε)",
-    "Tables, Documents, KV, Streams, physical codecs, collations and 5-state cell provenance",
+    "Overview & quickstart",
+    "From your first dataset to a working application.",
+    "/guides/introduction",
+  ],
+  [
+    "Data model & types",
+    "Represent data. Define its structure and meaning.",
     "/reference/data-model",
   ],
+  ["Query engine & SQL", "Compute answers and understand their source basis.", "/reference/sql"],
   [
-    "Query & maintain with Fuze",
-    "Vectorized SQL, point-in-time snapshots, recoverable jobs and incremental views",
-    "/reference/queries",
+    "Durable execution & apps",
+    "Coordinate stateful work and recorded effects.",
+    "/reference/station",
   ],
   [
-    "Govern & activate with Station",
-    "Scoped policy_epoch permissions, unlimited-by-default retention, workflows and connectors",
-    "/reference/architecture",
+    "Clients & interfaces",
+    "Connect through SQL, protocols, the CLI and SDKs.",
+    "/guides/choose-interface",
   ],
-] as const;
-
-const references = [
-  ["Architecture", "Three-plane system model and boundaries", "/reference/architecture"],
-  ["SQL & Fuze", "Syntax, 5-state types and query profiles", "/reference/sql"],
-  ["Transit CLI", "Serve, install, query and recover", "/reference/cli"],
-  ["SQL sessions", "Local and remote HTTP/TLS clients", "/reference/sql-sessions"],
-  ["PostgreSQL and MySQL", "Wire-compatible database gateways", "/reference/database-protocols"],
-  ["Flight SQL & ADBC", "Zero-copy Arrow interchange", "/reference/flight"],
-  ["OpenAPI & AsyncAPI", "HTTP serving and reactive watches", "/reference/openapi"],
-  ["Language SDKs", "Native types, turns and ownership", "/reference/sdks"],
-  ["Internals", "Storage (.tseg), Fuze, DBSP and formal proofs", "/internals"],
+  [
+    "Security & operations",
+    "Set boundaries. Inspect progress. Operate the system.",
+    "/reference/security",
+  ],
+  [
+    "Internals & verification",
+    "Explore the mechanisms and the evidence behind them.",
+    "/internals",
+  ],
 ] as const;
 
 export default function Home(): ReactElement {
   return (
     <Layout
-      title="Documentation"
-      description="Transit is a declarative, versioned multi-model database, vectorized/incremental query engine (Fuze), and durable execution runtime (Station) written in Zig."
+      title="Data, computation and policies"
+      description="Transit is a declarative, versioned multi-model database, vectorized/incremental query engine, and durable execution runtime, written in Zig."
     >
-      <main className="docs-home">
-        <section className="docs-hero" aria-labelledby="hero-title">
-          <div>
-            <p className="eyebrow">TRANSIT HANDBOOK</p>
-            <h1 id="hero-title">Declarative database, query engine & durable runtime.</h1>
-            <p className="hero-description">
-              Declare Tables, Key-Value state, collaborative Documents and Streams with orthogonal
-              types, encodings and collations. Query with <code>Fuze</code> across five-state cells
-              and versioned snapshots, and coordinate stateful workflows and recorded external
-              effects with <code>Station</code>.
-            </p>
-            <div className="hero-actions">
-              <Link className="button button--primary button--lg" to="/guides/quickstart">
-                Create your first dataset →
-              </Link>
-              <Link
-                className="button button--outline button--secondary button--lg"
-                to="/reference/data-model"
-              >
-                Explore the data model
-              </Link>
+      <main className="transit-home">
+        <section className="transit-hero" aria-labelledby="hero-title">
+          <div className="transit-hero-copy">
+            <p className="transit-kicker">DATA · COMPUTATION · POLICY</p>
+            <h1 id="hero-title">
+              Give structure
+              <br />
+              to change.
+            </h1>
+            <div className="transit-hero-introduction">
+              <p>
+                Transit is a declarative, versioned multi-model database, vectorized/incremental
+                query engine, and durable execution runtime.
+              </p>
+              <p className="transit-implementation">
+                Written in Zig. SDKs for a wide range of languages.
+              </p>
+              <div className="transit-actions">
+                <Link className="button button--primary" to="/guides/quickstart">
+                  Create your first dataset <span aria-hidden="true">↗</span>
+                </Link>
+                <Link className="transit-text-link" to="/reference/data-model">
+                  Explore the data model <span aria-hidden="true">↗</span>
+                </Link>
+              </div>
             </div>
-            <p className="profile-note">
-              Control & Policy Plane · Direct Data & Fuze Query Plane · Station Process & Effect
-              Plane
-            </p>
           </div>
-          <div
-            className="model-diagram"
-            aria-label="Control and Policy Plane governs the Direct Data and Fuze Query Plane and the Station Process and Effect Plane."
-          >
-            <div className="model-node">
-              CONTROL & POLICY PLANE
-              <span>Versioned catalog · τ ⊥ κ ⊥ ε · policy_epoch · retention</span>
-            </div>
-            <div className="model-connector">validate, fence & bind ↓</div>
-            <div className="model-node model-authority">
-              DIRECT DATA & FUZE QUERY PLANE
-              <span>TransitLog (TWAL1) · .tseg segments · 5-state vectorized SQL</span>
-            </div>
-            <div className="model-connector">activate deltas & inspect ↓</div>
-            <div className="model-node">
-              PROCESS, EFFECT & GATEWAY PLANE
-              <span>Station turns · recorded connectors · sans-I/O gateways</span>
-            </div>
+          <figure className="transit-hero-art">
+            <img
+              src={refraction}
+              alt="A measured score becomes waves, branching upward into graphite terrain and downward into translucent planes, joined by a vermilion thread."
+              width={1774}
+              height={887}
+              fetchPriority="high"
+            />
+          </figure>
+          <div className="transit-hero-foot">
+            <span>One system. Many ways to work with data.</span>
+            <a href="#handbook">
+              Go to the handbook <span aria-hidden="true">↓</span>
+            </a>
           </div>
         </section>
-        <section className="reference-section" aria-labelledby="data-title">
-          <div className="section-heading">
-            <h2 id="data-title">Start with your data.</h2>
-            <Link to="/guides/introduction">What is Transit? →</Link>
-          </div>
-          <p>
-            Describe the data, computation and policies you need, then inspect whether Transit is
-            fulfilling that declaration. Each interface defines which lifecycle operations it
-            supports.
-          </p>
-          <div className="reference-grid">
-            {concepts.map(([title, description, to]) => (
-              <Link key={title} className="reference-card" to={to}>
-                <h3>{title}</h3>
-                <p>{description}</p>
-              </Link>
-            ))}
-          </div>
-        </section>
-        <section className="journey-grid" aria-label="Documentation paths">
-          <div>
-            <p className="eyebrow">DEFINE AND QUERY</p>
-            <h2>From a schema to attributable answers.</h2>
+        <RefractionStory />
+        <section id="handbook" className="transit-directory" aria-labelledby="handbook-title">
+          <div className="transit-directory-heading">
+            <p className="transit-kicker">THE HANDBOOK</p>
+            <h2 id="handbook-title">Find your way in.</h2>
             <p>
-              Create a Table, write records, compute an answer and evolve its schema. Read the same
-              versioned data from independent sessions.
+              Start with a dataset, explore an interface, or follow the system down to its
+              foundations.
             </p>
-            <Link to="/guides/quickstart">Follow the quickstart →</Link>
-          </div>
-          <div>
-            <p className="eyebrow">OBSERVE AND EXTEND</p>
-            <h2>Know what your declaration produced.</h2>
-            <p>
-              Inspect published definitions, complete five-state results and recorded progress. Add
-              custom Station workers and connectors when your data needs stateful workflows.
-            </p>
-            <Link to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled">
-              Understand the lifecycle →
+            <Link className="transit-text-link" to="/guides/quickstart">
+              Follow the quickstart <span aria-hidden="true">↗</span>
             </Link>
           </div>
-        </section>
-        <section className="reference-section" aria-labelledby="reference-title">
-          <div className="section-heading">
-            <h2 id="reference-title">Explore the seven handbook pillars</h2>
-            <Link to="/guides/choose-interface">Compare interfaces →</Link>
-          </div>
-          <div className="reference-grid">
-            {references.map(([title, description, to]) => (
-              <Link key={title} className="reference-card" to={to}>
-                <h3>
-                  {title}
-                  <span aria-hidden="true">↗</span>
-                </h3>
-                <p>{description}</p>
-              </Link>
+          <ol className="transit-chapters">
+            {chapters.map(([title, description, to], index) => (
+              <li key={to}>
+                <Link to={to}>
+                  <span className="transit-chapter-number" aria-hidden="true">
+                    0{index + 1}
+                  </span>
+                  <div>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                  </div>
+                  <span className="transit-chapter-arrow" aria-hidden="true">
+                    ↗
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
       </main>
     </Layout>
