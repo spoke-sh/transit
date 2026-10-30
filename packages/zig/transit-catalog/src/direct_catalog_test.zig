@@ -19,6 +19,7 @@ const Access = struct {
     missing_schema: bool = false,
     denied_resource: ?u64 = null,
     denied_metadata: ?u64 = null,
+    denied_privileges: ?struct { id: u64, mask: u64 } = null,
     deny_create: bool = false,
     epoch_change_at: usize = std.math.maxInt(usize),
     allocation_binding: ?c.DirectResource.Binding = null,
@@ -46,6 +47,7 @@ const Access = struct {
             if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
+            if (value.access.denied_privileges) |denied| if (std.meta.eql(requirement.object, a.reference(denied.id)) and requirement.privileges & denied.mask != 0) return error.CatalogDenied;
         };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
         return .{ .writer_epoch = 1, .policy_epoch = if (value.access.calls >= value.access.epoch_change_at) 2 else 1 };
@@ -4480,4 +4482,141 @@ test "catalog log DLQ definitions guard publication and retain dependency and st
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     try t.expect((try catalog.dependencyState(edge, access.policy())).present);
+}
+
+fn streamCall(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, request: c.DirectStream.Request, steps: u16) !c.DirectStream.Result {
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    return c.DirectStream.apply(scratch.allocator(), t.allocator, catalog, cached, .{
+        .resident_pages = 1,
+        .batch_bytes = 8192,
+        .key_bytes = 256,
+        .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 },
+    }, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = steps }, request, access.policy());
+}
+
+test "direct Stream composition preserves original work pins and group rights across catalog edits and reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const creation_request = try logCreation(.stream, 10, 1, "composed", 2);
+    _ = try catalog.admitLog(creation_request, access.policy());
+    _ = try catalog.logOperation(creation_request.binding, .execute, access.policy());
+    const declaration = (try catalog.logOperation(creation_request.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(creation_request.intent.action.create.schema, identity, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &bytes);
+    const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(encoded.base64);
+    const append: c.DirectStreamMutation.Request = .{ .append = .{ .target = target, .operation = identity, .kind = .stream, .producer = null, .rows = 2, .payload = s.LogBatch.content(payload) } };
+    const produce: c.DirectStream.Request = .{ .mutate = .{ .work = append, .payload = encoded } };
+    access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = c.LogAuthority.append };
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, produce, 256));
+    try t.expect(cached == null);
+    try t.expect((try c.OperationBinding.lookupStream(t.allocator, objects.objectStore(), identity)) == null);
+    access.denied_privileges = null;
+    const accepted = (try streamCall(&catalog, &access, &cached, produce, 256)).operation.?.append;
+    try t.expectEqual(@as(u64, 2), accepted.next);
+    var changed = produce;
+    changed.mutate.work.append.target.partition = 1;
+    try t.expectError(error.DataIdentityConflict, streamCall(&catalog, &access, &cached, changed, 256));
+    const read_request: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .group = null, .from = 0, .until = null, .timestamp = null };
+    const pinned = (try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .consume = read_request }, .payload = null } }, 256)).operation.?.consume;
+    const positional = (try streamCall(&catalog, &access, &cached, .{ .cursor = .{ .target = target, .read = pinned.handle() } }, 256)).cursor;
+    const cut = (try streamCall(&catalog, &access, &cached, .{ .observe = target }, 256)).cut;
+    const group: p.StreamQueue.Group = .{ .id = 7, .generation = 1, .principal = 1 };
+    const assigned: c.DirectStreamMutation.Request = .{ .assign = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 102 }, .cut = cut, .expected = null, .group = group, .next = 0 } };
+    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = assigned, .payload = null } }, 256);
+    var group_request = read_request;
+    group_request.operation.operation = 103;
+    group_request.group = group;
+    const group_read = (try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .consume = group_request }, .payload = null } }, 256)).operation.?.consume;
+    const group_cursor = (try streamCall(&catalog, &access, &cached, .{ .cursor = .{ .target = target, .read = group_read.handle() } }, 256)).cursor;
+    const page_request: c.DirectStream.Request = .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } };
+    access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = c.LogAuthority.acquire };
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, page_request, 256));
+    // Positional reads never need group acquire rights; their owned row bytes
+    // survive the request scratch arena destroyed by streamCall.
+    const page = try streamCall(&catalog, &access, &cached, .{ .page = .{ .cursor = positional, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } }, 256);
+    defer page.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 2), page.page.rows.len);
+    const row_bytes = try page.page.rows[0].encoded.decode(t.allocator, 8192);
+    defer t.allocator.free(row_bytes);
+    var decoded = try c.fuze.TableRow.decode(t.allocator, creation_request.intent.action.create.schema, row_bytes);
+    defer decoded.deinit();
+    try t.expectEqual(@as(i128, 42), decoded.row().cells[0].value.atom.signed);
+    access.denied_privileges = null;
+    const before_disclosure = access.calls;
+    const consumed = try streamCall(&catalog, &access, &cached, page_request, 256);
+    defer consumed.deinit(t.allocator);
+    const disclosure_checks = access.calls - before_disclosure;
+    access.deny_at = access.calls + disclosure_checks;
+    // Revoke on the same final check after output rows have been copied. The
+    // error path must free owned output as well as the transient read page.
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, page_request, 256));
+    try t.expectEqual(access.deny_at, access.calls);
+    access.deny_at = std.math.maxInt(usize);
+    // Policy revisions cannot reinterpret an accepted read or invalidate the
+    // original append's larger payload. Fresh appends use the new limits.
+    var smaller = creation_request.intent.action.create.limits;
+    smaller.append_bytes = 1;
+    const alter = try logEdit(declaration, 150, .{ .alter = .{ .configuration = declaration.stored.declaration.configuration, .limits = smaller } });
+    _ = try catalog.admitLog(alter, access.policy());
+    const revised = (try catalog.logOperation(alter.binding, .execute, access.policy())).operation.resulting.?;
+    try t.expectEqualDeep(accepted, (try streamCall(&catalog, &access, &cached, produce, 256)).operation.?.append);
+    const offset: c.DirectStreamMutation.Request = .{ .offset = .{
+        .commit = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 104 }, .group = group, .coverage = consumed.page.cursor.coverage, .expected_next = 0, .next = 2 },
+        .cursor = consumed.page.cursor,
+    } };
+    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = offset, .payload = null } }, 256);
+    try t.expectEqual(@as(u64, 2), (try streamCall(&catalog, &access, &cached, .{ .group = .{ .target = target, .id = group.id } }, 256)).group.?.next);
+    const dropped = try logEdit(revised, 105, .drop);
+    _ = try catalog.admitLog(dropped, access.policy());
+    _ = try catalog.logOperation(dropped.binding, .execute, access.policy());
+    try t.expectEqualDeep(accepted, (try streamCall(&catalog, &access, &cached, produce, 256)).operation.?.append);
+    const after_drop = try streamCall(&catalog, &access, &cached, .{ .page = .{ .cursor = positional, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } }, 256);
+    defer after_drop.deinit(t.allocator);
+    try t.expect(after_drop.page.cursor.coverage.complete);
+    const release: c.DirectStreamMutation.Request = .{ .release = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 106 }, .read = group_read.handle() } };
+    const released = (try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = release, .payload = null } }, 256)).operation.?.release;
+    try t.expect(cached.?.owner.root.declared.retired);
+    try t.expectError(error.StreamReadReleased, streamCall(&catalog, &access, &cached, page_request, 256));
+    // A closed declaration admits only settlement/closure of accepted work.
+    var fresh = read_request;
+    fresh.operation.operation = 107;
+    try t.expectError(error.LogDeclarationConflict, streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .consume = fresh }, .payload = null } }, 256));
+    cached.?.deinit();
+    cached = null;
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    var incomplete: usize = 0;
+    for (0..16) |_| {
+        const result = try streamCall(&catalog, &access, &cached, .{ .operation = append }, 1);
+        if (result == .recovering) {
+            try t.expect(!result.recovering.complete and result.recovering.examined <= 1);
+            incomplete += 1;
+        } else {
+            try t.expectEqualDeep(accepted, result.operation.?.append);
+            break;
+        }
+    } else return error.FixtureBudget;
+    try t.expect(incomplete > 0);
+    try t.expectEqualDeep(released, (try streamCall(&catalog, &access, &cached, .{ .operation = release }, 256)).operation.?.release);
+    access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, .{ .cursor = .{ .target = target, .read = pinned.handle() } }, 256));
 }

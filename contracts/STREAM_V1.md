@@ -182,11 +182,19 @@ authorization, and must not sign caller-invented progress. Filters or delivery
 limits cannot manufacture a complete cursor.
 
 `StreamRead.Release` is a separate original operation by the read's principal,
-with its exact handle and current target. Release changes retention ownership,
+with its exact handle and original read target. Release changes retention ownership,
 not group progress, and does not cancel accepted mutations. Its original receipt
 survives pin closure. The storage `StreamPartition` implements these transitions
 with `LogRead` bases and authenticated coverage; these neutral types alone do
 not enable installed read/settlement APIs.
+
+Release and offset settlement preserve their accepted read's interpretation
+through later declaration revisions or DROP. Their publication records the
+current catalog declaration and checks current native rights; the request's
+historical target must match the retained pin. A retired declaration admits
+closure and settlement only. It cannot acquire another read, append new data,
+or be replaced with a live declaration in that partition. Original receipt
+inspection remains available under the operation's current privilege.
 
 ## Consumer settlement
 

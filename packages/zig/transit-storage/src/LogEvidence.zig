@@ -55,8 +55,13 @@ pub const Record = struct {
             inline else => |value| try value.validate(),
         }
         const selected = self.target();
-        if (self.declared.retired or !std.meta.eql(selected.interpretation, self.declared.declaration.interpretation) or
-            selected.partition >= self.declared.declaration.configuration.partitioning.count) return error.InvalidLogEvidence;
+        const control = self.outcome == .offset or self.outcome == .release;
+        if (selected.partition >= self.declared.declaration.configuration.partitioning.count) return error.InvalidLogEvidence;
+        if (control) {
+            if (!std.meta.eql(selected.interpretation.object, self.declared.declaration.interpretation.object) or
+                selected.interpretation.revision > self.declared.declaration.interpretation.revision or
+                (selected.interpretation.revision == self.declared.declaration.interpretation.revision and !std.meta.eql(selected.interpretation, self.declared.declaration.interpretation))) return error.InvalidLogEvidence;
+        } else if (self.declared.retired or !std.meta.eql(selected.interpretation, self.declared.declaration.interpretation)) return error.InvalidLogEvidence;
         const kind = std.meta.activeTag(self.declared.declaration.configuration.policy);
         switch (self.outcome) {
             .append => |value| if (!std.mem.eql(u8, @tagName(value.append.kind), @tagName(kind)) or

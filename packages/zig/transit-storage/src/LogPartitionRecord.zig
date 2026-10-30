@@ -42,7 +42,7 @@ pub const Root = struct {
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
-        try self.requireDeclaration(self.declared);
+        try self.requireControlDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
         try self.hidden.validate();
@@ -66,10 +66,16 @@ pub const Root = struct {
         if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from) != (self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
+        try self.requireControlDeclaration(declared);
+        if (declared.retired) return error.LogDeclarationConflict;
+    }
+    /// Closure and settlement preserve the interpretation of accepted reads.
+    /// Their publication still records the current declaration, even after DROP.
+    pub fn requireControlDeclaration(self: Root, declared: Declaration.Stored) !void {
         try declared.validate();
         const seed = self.initialization.declared.declaration;
         const value = declared.declaration;
-        if (declared.retired or !std.meta.eql(value.interpretation.object, seed.interpretation.object) or
+        if ((self.declared.retired and !std.meta.eql(declared, self.declared)) or !std.meta.eql(value.interpretation.object, seed.interpretation.object) or
             value.interpretation.revision < self.declared.declaration.interpretation.revision or
             (value.interpretation.revision == self.declared.declaration.interpretation.revision and !std.meta.eql(declared, self.declared)) or
             !std.meta.eql(value.schema, seed.schema) or !std.meta.eql(value.configuration.partitioning, seed.configuration.partitioning) or

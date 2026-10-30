@@ -20,6 +20,17 @@ owns roles, grants, current credentials and resource lifetime.
 
 ## Lifecycle owner
 
+`DirectStream.apply` composes Stream append, original-operation inspection,
+finite reads, consumer assignment and offset settlement with the current catalog
+declaration and native grants. The embedding host supplies a serialized owner
+slot, private cursor authority and trusted time source. Bounded recovery returns
+explicit incomplete progress before any new mutation executes. Request proofs,
+scratch allocations and time callbacks never remain in the cached owner;
+returned pages own their encoded rows and expose deterministic cleanup.
+Group reads recheck acquire rights on every cursor/page disclosure, and original
+read closure survives later policy revisions and DROP. This package component
+is not yet wired to the signed payload service or SQL execution.
+
 `DirectCatalog` composes paged metadata directories with independent Table logs.
 DDL admission reserves its original name and intent. A Table acceptance record
 makes a definition visible; catalog settlement records completion without

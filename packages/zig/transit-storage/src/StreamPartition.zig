@@ -299,8 +299,9 @@ pub fn releaseRead(self: *Self, declared: Declaration.Stored, request: read.Rele
         try authorize(guard);
         return record.outcome.release;
     }
-    try request.target.requireSame((try self.root.cut(declared)).target);
-    _ = try self.retainedRead(request.read);
+    try self.root.requireControlDeclaration(declared);
+    const retained = try self.retainedRead(request.read);
+    try request.target.requireSame(retained.receipt.request.target);
     const receipt: read.ReleaseReceipt = .{ .release = request, .accepted = try self.nextPosition() };
     try self.publish(.{ .declared = declared, .outcome = .{ .release = receipt } }, &.{}, guard);
     return receipt;
@@ -327,7 +328,7 @@ pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetC
         try authorize(guard);
         return record.outcome.offset.receipt;
     }
-    try commit.coverage.cut.target.requireSame((try self.root.cut(declared)).target);
+    try self.root.requireControlDeclaration(declared);
     try authority.verify(cursor);
     _ = try self.advanceGroup(commit, cursor);
     const receipt: q.OffsetReceipt = .{ .commit = commit, .accepted = try self.nextPosition() };
@@ -370,7 +371,10 @@ fn protectedOffset(self: *Self) !u64 {
 }
 fn candidate(self: *Self, evidence: Evidence.Record) !Root {
     try evidence.validate();
-    try self.root.requireDeclaration(evidence.declared);
+    if (evidence.outcome == .offset or evidence.outcome == .release)
+        try self.root.requireControlDeclaration(evidence.declared)
+    else
+        try self.root.requireDeclaration(evidence.declared);
     try self.requireTarget(evidence.target());
     if (!std.meta.eql(evidence.accepted(), try self.nextPosition()) or try self.original(evidence.operation()) != null) return error.InvalidLogHistory;
     const reference = try Evidence.stage(self.objects, evidence);
@@ -400,7 +404,8 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
             result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.request.operation), try (Read.Pin{ .source = receipt.source, .released = false }).encode());
         },
         .release => |receipt| {
-            _ = try self.retainedRead(receipt.release.read);
+            const retained = try self.retainedRead(receipt.release.read);
+            try receipt.release.target.requireSame(retained.receipt.request.target);
             result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
         },
         .offset => |value| {
@@ -927,7 +932,10 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
         return;
     }
     const evidence = record.action.operation;
-    try self.root.requireDeclaration(evidence.declared);
+    if (evidence.outcome == .offset or evidence.outcome == .release)
+        try self.root.requireControlDeclaration(evidence.declared)
+    else
+        try self.root.requireDeclaration(evidence.declared);
     try self.root.initialization.requireSame(next.initialization);
     if (next.retained_from != self.root.retained_from or try self.original(evidence.operation()) != null) return error.InvalidLogHistory;
     const reference = try Evidence.expectedReference(evidence);
@@ -967,7 +975,8 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
             try self.verifyValue(next.pins, try Evidence.operationKey(receipt.request.operation), try (Read.Pin{ .source = receipt.source, .released = false }).encode());
         },
         .release => |receipt| {
-            _ = try self.retainedRead(receipt.release.read);
+            const retained = try self.retainedRead(receipt.release.read);
+            try receipt.release.target.requireSame(retained.receipt.request.target);
             expected.pins = next.pins;
             try self.verifyValue(next.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
         },

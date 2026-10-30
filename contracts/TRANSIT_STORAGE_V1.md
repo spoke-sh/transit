@@ -1484,6 +1484,16 @@ admission verifies the complete original batch. Physical copies may be reclaimed
 only after the retained graph no longer needs their placement, independently of
 logical payload retention.
 
+### Retained Stream settlement and closure
+
+Stream read closure and offset settlement may publish a current retired
+declaration while keeping the request bound to its original retained read.
+`LogEvidence` permits an older interpretation only for those two controls;
+acceptance and replay compare it with the exact retained pin. Other outcomes
+require a live, exact declaration. A partition that records retirement cannot
+revert to a live declaration. Read pins and original receipts remain independent
+of that retirement, and later release still closes the original pin.
+
 ### Stream key compaction
 
 `compactStep(declared, cut, maximum, guard)` selects the exact current physical
