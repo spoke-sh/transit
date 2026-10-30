@@ -563,3 +563,116 @@ test "stream partition finite readers enforce budgets early release empty comple
     policy.deny_at = policy.calls + 2;
     try t.expectError(error.PermissionDenied, owner.readPage(empty_cursor, authority, .{ .rows = 1, .encoded_bytes = 8192 }, t.allocator, policy.guard()));
 }
+
+test "stream partition checkpoint and archive retain exact pins receipts and initialization through physical trim" {
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, temporary.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, temporary.dir, "objects");
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    const initialized = try s.LogInitialization.observe(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard());
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const request = try appendRequest(&declaration, 2, null, &buffer);
+    const accepted = try owner.append(initial.declared, request.request, request.payload, policy.guard());
+    const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(3), .group = null, .from = 0, .until = null }, policy.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const cursor = try owner.readCursor(pin.handle(), authority, policy.guard());
+    const cut = owner.root.position();
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.archive(cut, .{ .frames = 1 }, policy.guard()));
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(@as(u64, 1), owner.root.archive.through);
+    try t.expectError(error.LogCheckpointRequired, owner.trimArchived(policy.guard()));
+    while (!(try owner.archive(cut, .{ .frames = 1 }, policy.guard())).complete) {}
+    const writes = wal.appends;
+    try t.expectEqual(@as(u8, 0), (try owner.archive(cut, .{ .frames = 1 }, policy.guard())).frames);
+    try t.expectEqual(writes, wal.appends);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.checkpoint(cut, policy.guard()));
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    const checkpoint = try owner.checkpoint(cut, policy.guard());
+    try t.expectEqual(cut.next_lsn, try owner.trimArchived(policy.guard()));
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 91, 0, 1));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, temporary.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, temporary.dir, "objects");
+    fault.underlying = wal.log();
+    policy.epoch = 2;
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    const recovered = try owner.recoverStep(policy.guard(), 1);
+    try t.expect(recovered.complete);
+    try t.expectEqual(@as(u16, 1), recovered.examined);
+    try t.expectEqualDeep(initialized, try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard()));
+    try t.expectEqualDeep(accepted, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    var page = try owner.readPage(cursor, authority, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer page.deinit();
+    try t.expectEqual(@as(u32, 2), page.count);
+    try t.expect(page.cursor.coverage.complete);
+    try t.expectEqual(@as(u64, 0), wal.appends);
+    const later = try appendRequest(&declaration, 4, null, &buffer);
+    _ = try owner.append(initial.declared, later.request, later.payload, policy.guard());
+    const newer_cut = owner.root.position();
+    const newer = try owner.checkpoint(newer_cut, policy.guard());
+    try t.expect(newer.next_lsn > checkpoint.next_lsn);
+    while (!(try owner.archive(newer_cut, .{ .frames = 3 }, policy.guard())).complete) {}
+    try t.expectEqual(newer_cut.next_lsn, try owner.trimArchived(policy.guard()));
+    // The superseded reference inside the new baseline is structural metadata;
+    // recovery may not recursively retain or open every earlier checkpoint.
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.LogRecovery.key(checkpoint.content, &name));
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    try t.expect((try owner.recoverStep(policy.guard(), 3)).complete);
+    var replay = try owner.readPage(cursor, authority, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer replay.deinit();
+    try t.expectEqualDeep(page.cursor, replay.cursor);
+    try t.expectEqualDeep(accepted, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    try objects.objectStore().delete(try s.LogRecovery.key(newer.content, &name));
+    try t.expectError(error.LogRecoveryMissing, reopen(wal.log(), objects.objectStore(), initial, &policy));
+}
+
+test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const request = try appendRequest(&declaration, 2, null, &buffer);
+    _ = try owner.append(initial.declared, request.request, request.payload, policy.guard());
+    _ = try owner.archive(owner.root.position(), .{}, policy.guard());
+    const basis: s.LogRecovery.Basis = .{ .root = owner.root, .commitment = owner.commitment };
+    const staged = try s.LogRecovery.stage(objects.objectStore(), basis);
+    try t.expectError(error.LogCheckpointRequired, owner.trimArchived(policy.guard()));
+    var candidate = owner.root;
+    candidate.next_lsn += 1;
+    candidate.recovery = staged;
+    var record: s.LogPartitionRecord.Record = .{ .definition = p.Growth.current_definition, .root = candidate, .previous = owner.commitment, .action = .checkpoint };
+    try s.LogRecovery.requirePublication(basis, staged, record);
+    record.root.next_offset += 1;
+    try t.expectError(error.InvalidLogRecovery, s.LogRecovery.requirePublication(basis, staged, record));
+    record.root = candidate;
+    record.previous[0] ^= 1;
+    try t.expectError(error.InvalidLogRecovery, s.LogRecovery.requirePublication(basis, staged, record));
+    // Force a forbidden raw-storage trim to prove that even a correctly staged
+    // baseline cannot be inferred as an accepted checkpoint on reopen.
+    try wal.log().trim(91, 1);
+    try t.expectError(error.WalHistoryTrimmed, reopen(wal.log(), objects.objectStore(), initial, &policy));
+}

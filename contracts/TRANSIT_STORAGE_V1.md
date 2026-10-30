@@ -1314,10 +1314,11 @@ catalog membership or execution rights.
 Observation checks current rights before loading and again after buffering.
 The accepted initialization position remains the exclusive frontier one, even
 when later records exist. Its payload digest commits the exact original
-evidence. The genesis must remain reachable until an executable checkpoint/
-retention owner preserves equivalent evidence; trimmed history rejects instead
-of establishing initialization by inference. Catalog publication and native
-authorization registration remain separate owning operations.
+evidence. If physical trimming removed the genesis, the exact accepted
+`LogRecovery` baseline and its publishing WAL record must preserve the original
+request. A staged object or copied reference cannot establish initialization.
+Missing required evidence rejects. Catalog publication and native authorization
+registration remain separate owning operations.
 
 ### Declared log payload batches
 
@@ -1356,11 +1357,12 @@ declaration and preserve the seed's schema, partition routing and compaction key
 Each `LOGPART1` payload contains its eight-byte magic, shared definition, metadata
 length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` bytes.
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
-the complete new paged root and original outcome. The root records the original
+the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
-frontier, retained boundary, and batch/receipt/producer/producer-receipt/group/pin
-directories. Missing fields reject. Append records use `row_delta`; assignment,
-read pin/release and offset records use `manifest_checkpoint` and contain no row
+frontier, retained boundary, batch/receipt/producer/producer-receipt/group/pin
+directories, accepted archive coverage and nullable recovery reference. Missing
+fields reject. Append records use `row_delta`; assignment, read pin/release,
+offset, archival and checkpoint records use `manifest_checkpoint` and contain no row
 payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
@@ -1387,7 +1389,7 @@ reads at most the requested 1–256 records, verifies the hash chain, declaratio
 and index/outcome agreement, and advances only through validated history. Reads
 and appends refuse until recovery reaches the current physical frontier. Missing
 dependencies reject; recovery neither stages replacement indexes nor resets the
-partition. The genesis and required WAL payloads remain retained in this profile.
+partition. Required payloads remain retained in the WAL or immutable archives.
 
 Current batch reads return an original append receipt, an observed cut and a
 pinned `LogTail` borrow. Cache hits reuse verified bytes. A miss verifies the
@@ -1443,5 +1445,43 @@ cursor. Partial or altered coverage cannot advance progress. Lost replies recove
 under the original operation before fresh pin/group/key checks; accepted results
 survive pin release, reassignment, key rotation and restart. Recovery validates
 their original read and group transition without treating a changed signing key
-as revocation of accepted work. This profile retains required read bases and WAL
-history until a qualified checkpoint and physical retention owner is integrated.
+as revocation of accepted work. Required read bases and accepted archive objects
+remain retained; physical trimming does not expire logical payload history.
+
+### Stream archive and recovery checkpoints
+
+`LogHistory` uses the shared immutable TWAL object codec and existing
+`table-history/{sha256}.twal` namespace. Each object contains one complete frame
+with verified header, checksum, payload digest, partition and LSN. Its coverage
+records a physical half-open `[from, through)` range and paged directory. The
+current owner starts at zero and exposes no archive-prefix expiry operation.
+Archiving stages at most eight frames under byte and index-work budgets, then
+publishes the extended coverage in one control record. Its fixed requested cut
+is distinct from that record's newer frontier. Retrying after a lost reply
+observes accepted progress and never extends the requested obligation.
+
+`LogRecovery` stages `log-checkpoints/{sha256}.data`: `LCHECK01`, the shared
+definition and canonical JSON for the complete prior root and its accepted
+payload commitment. The bound is 40 bytes plus 32 KiB. A reference records that
+root's exclusive WAL frontier and immutable content. Only a checkpoint control
+record at that frontier publishes it: the record must retain every prior root
+field except its own successor frontier and new recovery reference, and its
+previous commitment must equal the baseline's. Staging alone supplies no recovery
+or trim authority.
+
+Cold recovery selects the latest accepted reference, verifies the publishing
+record, then replays bounded successors with the normal transition checks.
+Top-level index roots are verified before readiness. A superseded reference
+inside a baseline is structural history, not another checkpoint to recursively
+open. Missing required baselines, publishing records or archive bytes reject;
+the owner never silently restarts from an incompatible or incomplete prefix.
+
+`trimArchived` holds the current publication guard and trims no farther than
+the smaller of accepted archive coverage and the checkpoint's publishing LSN.
+That record and all later WAL history remain present. Reads use current accepted
+archive coverage to resolve old pinned WAL coordinates, preserving their original
+cut, payload and receipt. Initialization after trim verifies the checkpoint's
+publication and original request before returning its original frontier one.
+Physical trimming grants no logical expiry or object-deletion authority. Native
+trim admission and the retained-object graph must separately compose these owners
+before enabling installed Stream payload maintenance.

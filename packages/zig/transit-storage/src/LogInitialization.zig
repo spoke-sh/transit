@@ -63,8 +63,11 @@ pub fn decode(allocator: std.mem.Allocator, frame: Log.Frame) !Evidence {
     return .{ .request = parsed.value, .accepted = .{ .partition = parsed.value.partition, .next_lsn = 1 }, .record = .{ .bytes = bytes.len, .sha256 = digest } };
 }
 
-fn read(allocator: std.mem.Allocator, log: Log.Log, request: Request) !Evidence {
-    var batch = try log.read(allocator, request.partition, 0, 1);
+fn read(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
+    var batch = log.read(allocator, request.partition, 0, 1) catch |err| switch (err) {
+        error.WalHistoryTrimmed => return retained(allocator, log, objects, request),
+        else => return err,
+    };
     defer batch.deinit();
     if (batch.frames.len != 1) return error.LogInitializationMissing;
     const evidence = try decode(allocator, batch.frames[0]);
@@ -72,9 +75,32 @@ fn read(allocator: std.mem.Allocator, log: Log.Log, request: Request) !Evidence 
     return evidence;
 }
 
+/// After physical trimming, only an accepted checkpoint publication can supply
+/// the original initialization. Arbitrary staged objects cannot replace it.
+fn retained(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
+    const Records = @import("LogPartitionRecord.zig");
+    const Recovery = @import("LogRecovery.zig");
+    const end = try log.tail(request.partition);
+    if (end <= 1) return error.WalHistoryTrimmed;
+    var latest = try log.read(allocator, request.partition, end - 1, 1);
+    defer latest.deinit();
+    if (latest.frames.len != 1) return error.LogRecoveryMissing;
+    const record = (try Records.decode(allocator, latest.frames[0], request.partition, end - 1)).record;
+    try request.requireSame(record.root.initialization);
+    const reference = record.root.recovery orelse return error.WalHistoryTrimmed;
+    const basis = try Recovery.load(allocator, objects, reference, end, request);
+    var publication = try log.read(allocator, request.partition, reference.next_lsn, 1);
+    defer publication.deinit();
+    if (publication.frames.len != 1) return error.LogRecoveryMissing;
+    try Recovery.requirePublication(basis, reference, (try Records.decode(allocator, publication.frames[0], request.partition, reference.next_lsn)).record);
+    var buffer: [max_bytes]u8 = undefined;
+    const bytes = try encode(request, &buffer);
+    return .{ .request = request, .accepted = .{ .partition = request.partition, .next_lsn = 1 }, .record = .{ .bytes = bytes.len, .sha256 = @import("LogEvidence.zig").hash(bytes) } };
+}
+
 /// Verify the exact original initialization under current read authority. The
-/// first WAL record must remain reachable until a qualified recovery owner
-/// supplies equivalent retained evidence; a trimmed/missing frame rejects.
+/// first WAL record or an exact accepted checkpoint publication supplies the
+/// original evidence. Missing required storage never authorizes initialization.
 pub fn observe(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request, guard: Guard) !Evidence {
     try request.validate();
     {
@@ -83,7 +109,7 @@ pub fn observe(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.Obje
     }
     var declaration = try Declaration.load(allocator, objects, request.declared);
     defer declaration.deinit();
-    const evidence = try read(allocator, log, request);
+    const evidence = try read(allocator, log, objects, request);
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     return evidence;
@@ -107,15 +133,15 @@ pub fn initialize(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.O
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidWalEpoch;
-    if (try log.tail(request.partition) != 0) return read(allocator, log, request);
+    if (try log.tail(request.partition) != 0) return read(allocator, log, objects, request);
     // The publication guard owns fencing. Native data adapters reject direct
     // fence installation because only native authority may advance those epochs.
     // Append checks the guarded epochs and the exact empty-partition expectation.
     const receipt = log.append(request.partition, 0, fence.writer_epoch, fence.policy_epoch, .genesis, bytes) catch |err| switch (err) {
         error.StaleWriterEpoch, error.StalePolicyEpoch => return err,
-        error.WalLsnConflict => return read(allocator, log, request),
+        error.WalLsnConflict => return read(allocator, log, objects, request),
         else => return error.LogInitializationUncertain,
     };
     if (receipt.partition_id != request.partition or receipt.lsn != 0 or receipt.next_lsn != 1 or receipt.writer_epoch != fence.writer_epoch or receipt.policy_epoch != fence.policy_epoch) return error.LogInitializationUncertain;
-    return read(allocator, log, request) catch return error.LogInitializationUncertain;
+    return read(allocator, log, objects, request) catch return error.LogInitializationUncertain;
 }

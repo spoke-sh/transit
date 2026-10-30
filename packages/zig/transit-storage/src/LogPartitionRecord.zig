@@ -25,14 +25,18 @@ pub const Root = struct {
     producer_receipts: ?pages.Reference,
     groups: ?pages.Reference,
     pins: ?pages.Reference,
+    archive: @import("LogHistory.zig").Coverage,
+    recovery: ?@import("LogRecovery.zig").Reference,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireDeclaration(self.declared);
+        try self.archive.validate(self.next_lsn);
+        if (self.recovery) |reference| try reference.validate(self.next_lsn);
         if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != 0) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
@@ -62,24 +66,44 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    evidence: Evidence.Record,
+    action: union(enum) {
+        operation: Evidence.Record,
+        archive: struct { cut: d.Position, from_lsn: u64 },
+        checkpoint,
+    },
+
+    pub fn frameKind(self: Record) Log.FrameKind {
+        return if (self.action == .operation and self.action.operation.outcome == .append) .row_delta else .manifest_checkpoint;
+    }
 
     pub fn validate(self: Record, lsn: u64) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.root.validate();
-        try self.evidence.validate();
         if (lsn == 0 or self.root.next_lsn != try std.math.add(u64, lsn, 1) or
-            std.mem.allEqual(u8, &self.previous, 0) or !std.meta.eql(self.evidence.declared, self.root.declared) or
-            !std.meta.eql(self.evidence.accepted(), self.root.position()) or
-            self.evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
-        if (self.evidence.outcome == .append and self.evidence.outcome.append.next != self.root.next_offset) return error.InvalidLogHistory;
+            std.mem.allEqual(u8, &self.previous, 0)) return error.InvalidLogHistory;
+        switch (self.action) {
+            .operation => |evidence| {
+                try evidence.validate();
+                if (!std.meta.eql(evidence.declared, self.root.declared) or !std.meta.eql(evidence.accepted(), self.root.position()) or
+                    evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
+                if (evidence.outcome == .append and evidence.outcome.append.next != self.root.next_offset) return error.InvalidLogHistory;
+            },
+            .archive => |value| {
+                try value.cut.validate();
+                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.from_lsn >= self.root.archive.through or self.root.archive.through > value.cut.next_lsn or self.root.archive.through - value.from_lsn > @import("TableArchive.zig").max_frames) return error.InvalidLogArchive;
+            },
+            .checkpoint => {
+                const reference = self.root.recovery orelse return error.InvalidLogRecovery;
+                if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
+            },
+        }
     }
 };
 
 pub fn encode(record: Record, payload: []const u8, output: []u8) ![]const u8 {
     if (record.root.next_lsn < 2) return error.InvalidLogHistory;
     try record.validate(record.root.next_lsn - 1);
-    try verifyPayload(record.evidence, payload);
+    try verifyPayload(record, payload);
     if (output.len < header_bytes) return error.LogRecordTooLarge;
     var writer: std.Io.Writer = .fixed(output[header_bytes..][0..@min(output.len - header_bytes, max_metadata_bytes)]);
     var encoder: std.json.Stringify = .{ .writer = &writer };
@@ -92,11 +116,12 @@ pub fn encode(record: Record, payload: []const u8, output: []u8) ![]const u8 {
     @memcpy(output[header_bytes + length ..][0..payload.len], payload);
     return output[0 .. header_bytes + length + payload.len];
 }
-fn verifyPayload(evidence: Evidence.Record, payload: []const u8) !void {
+fn verifyPayload(record: Record, payload: []const u8) !void {
     if (payload.len > max_batch_bytes) return error.LogRecordTooLarge;
-    switch (evidence.outcome) {
-        .append => |value| if (!std.meta.eql(value.append.payload, @import("LogBatch.zig").content(payload))) return error.LogPayloadConflict,
-        else => if (payload.len != 0) return error.InvalidLogHistory,
+    if (record.action == .operation and record.action.operation.outcome == .append) {
+        if (!std.meta.eql(record.action.operation.outcome.append.append.payload, @import("LogBatch.zig").content(payload))) return error.LogPayloadConflict;
+    } else {
+        if (payload.len != 0) return error.InvalidLogHistory;
     }
 }
 pub const Decoded = struct { record: Record, payload: []const u8 };
@@ -111,9 +136,9 @@ pub fn decode(allocator: std.mem.Allocator, frame: Log.Frame, partition: u64, ls
     const value = parsed.value;
     try value.validate(lsn);
     if (frame.header.partition_id != partition or frame.header.lsn != lsn or value.root.initialization.partition != partition or frame.header.writer_epoch == 0 or frame.header.policy_epoch == 0 or
-        frame.header.kind != @as(Log.FrameKind, if (value.evidence.outcome == .append) .row_delta else .manifest_checkpoint)) return error.InvalidLogHistory;
+        frame.header.kind != value.frameKind()) return error.InvalidLogHistory;
     const payload = bytes[header_bytes + length ..];
-    try verifyPayload(value.evidence, payload);
+    try verifyPayload(value, payload);
     return .{ .record = value, .payload = payload };
 }
 

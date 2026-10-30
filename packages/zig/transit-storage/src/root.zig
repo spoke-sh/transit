@@ -19,6 +19,8 @@ pub const LogInitialization = @import("LogInitialization.zig");
 pub const LogBatch = @import("LogBatch.zig");
 pub const LogEvidence = @import("LogEvidence.zig");
 pub const LogRead = @import("LogRead.zig");
+pub const LogHistory = @import("LogHistory.zig");
+pub const LogRecovery = @import("LogRecovery.zig");
 pub const LogPartitionRecord = @import("LogPartitionRecord.zig");
 pub const StreamPartition = @import("StreamPartition.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
@@ -60,6 +62,7 @@ test {
     _ = @import("log_batch_test.zig");
     _ = @import("log_evidence_test.zig");
     _ = @import("log_read_test.zig");
+    _ = @import("log_history_test.zig");
     _ = @import("stream_partition_test.zig");
     _ = @import("ordered_key_index_test.zig");
     _ = @import("document_index_test.zig");

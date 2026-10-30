@@ -28369,6 +28369,32 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/LogHistory.zig": {
+      "errors": {
+        "InvalidLogArchive": 3,
+        "LogHistoryUnavailable": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Coverage.validate()": "<inferred>",
+        "read()": "<inferred>",
+        "stage()": "<inferred>",
+        "verifyExtension()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "TableArchive.zig",
+        "TransitLog.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LogInitialization.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -28377,8 +28403,10 @@
         "LogInitializationConflict": 1,
         "LogInitializationMissing": 1,
         "LogInitializationUncertain": 3,
+        "LogRecoveryMissing": 2,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
+        "WalHistoryTrimmed": 3,
         "WalLsnConflict": 1
       },
       "outcomes": {},
@@ -28390,15 +28418,19 @@
         "encode()": "<inferred>",
         "initialize()": "<inferred>",
         "observe()": "<inferred>",
-        "read()": "<inferred>"
+        "read()": "<inferred>",
+        "retained()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
-        "catch": 2
+        "try": 31,
+        "catch": 3
       },
       "imports": [
         "LogDeclaration.zig",
+        "LogEvidence.zig",
+        "LogPartitionRecord.zig",
+        "LogRecovery.zig",
         "PublicationGuard.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
@@ -28409,14 +28441,22 @@
     "packages/zig/transit-storage/src/LogPartitionRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidLogHistory": 7,
+        "InvalidLogArchive": 1,
+        "InvalidLogHistory": 8,
+        "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
         "LogDeclarationConflict": 3,
         "LogPayloadConflict": 1,
         "LogProducerRequired": 1,
         "LogRecordTooLarge": 3
       },
-      "outcomes": {},
+      "outcomes": {
+        "Record.action": [
+          "operation",
+          "archive",
+          "checkpoint"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Record.validate()": "<inferred>",
@@ -28434,14 +28474,17 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 21,
         "catch": 0
       },
       "imports": [
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
+        "LogHistory.zig",
         "LogInitialization.zig",
+        "LogRecovery.zig",
+        "TableArchive.zig",
         "TransitLog.zig",
         "TreeStore.zig",
         "std",
@@ -28484,6 +28527,36 @@
         "LogDeclaration.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogRecovery.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogRecovery": 8,
+        "LogRecoveryMissing": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Basis.validate()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "requirePublication()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 0
+      },
+      "imports": [
+        "LogEvidence.zig",
+        "LogInitialization.zig",
+        "LogPartitionRecord.zig",
+        "TransitObjectStore.zig",
         "std",
         "transit_protocol"
       ]
@@ -28656,17 +28729,20 @@
     },
     "packages/zig/transit-storage/src/StreamPartition.zig": {
       "errors": {
+        "InvalidLogArchive": 3,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 18,
+        "InvalidLogHistory": 20,
+        "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidStreamBudget": 1,
         "InvalidStreamReadBudget": 1,
         "InvalidWalEpoch": 1,
         "LogAppendLimitExceeded": 1,
         "LogAppendUncertain": 2,
+        "LogCheckpointRequired": 1,
         "LogGroupFenced": 3,
         "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 7,
+        "LogHistoryUnavailable": 8,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
         "LogOperationConflict": 6,
@@ -28674,6 +28750,7 @@
         "LogPayloadConflict": 1,
         "LogPositionExhausted": 1,
         "LogProducerConflict": 1,
+        "LogRecoveryMissing": 1,
         "LogRecoveryRequired": 2,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
@@ -28688,16 +28765,20 @@
         "activePin()": "<inferred>",
         "advanceGroup()": "<inferred>",
         "append()": "<inferred>",
+        "archive()": "<inferred>",
+        "archivedThrough()": "<inferred>",
         "assign()": "<inferred>",
         "authorize()": "<inferred>",
         "beginRead()": "<inferred>",
         "borrowAt()": "<inferred>",
         "candidate()": "<inferred>",
+        "checkpoint()": "<inferred>",
         "commitOffset()": "<inferred>",
         "decodeFrame()": "<inferred>",
         "decodeValue()": "<inferred>",
         "deinit()": "<inferred>",
         "group()": "<inferred>",
+        "historyFrame()": "<inferred>",
         "loadEvidence()": "<inferred>",
         "loadRead()": "<inferred>",
         "nextPosition()": "<inferred>",
@@ -28709,6 +28790,7 @@
         "producerState()": "<inferred>",
         "progress()": "<inferred>",
         "publish()": "<inferred>",
+        "publishRecord()": "<inferred>",
         "readBasis()": "<inferred>",
         "readBatch()": "<inferred>",
         "readCursor()": "<inferred>",
@@ -28719,21 +28801,25 @@
         "requireReady()": "<inferred>",
         "requireTarget()": "<inferred>",
         "retainedRead()": "<inferred>",
+        "selectCheckpoint()": "<inferred>",
+        "trimArchived()": "<inferred>",
         "verifyTransition()": "<inferred>",
         "verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 248,
-        "catch": 7
+        "try": 287,
+        "catch": 8
       },
       "imports": [
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
+        "LogHistory.zig",
         "LogInitialization.zig",
         "LogPartitionRecord.zig",
         "LogRead.zig",
+        "LogRecovery.zig",
         "LogTail.zig",
         "PublicationGuard.zig",
         "TransitLog.zig",
@@ -28758,6 +28844,7 @@
         "key()": "<inferred>",
         "objectKey()": "<inferred>",
         "read()": "<inferred>",
+        "readReference()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -29950,9 +30037,11 @@
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
+        "LogHistory.zig",
         "LogInitialization.zig",
         "LogPartitionRecord.zig",
         "LogRead.zig",
+        "LogRecovery.zig",
         "LogTail.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",

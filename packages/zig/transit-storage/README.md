@@ -33,7 +33,7 @@ after reading back its staged declaration and rechecking the service's current
 publication guard. Retrying a lost receipt observes the same genesis; different
 operations or ordinals cannot reuse it. Disk reopen and current-policy readback
 retain the original evidence. Missing or trimmed initialization blocks observation
-until a qualified recovery owner provides retained evidence. These foundations
+unless an exact accepted `LogRecovery` checkpoint preserves it. These foundations
 do not publish catalog names or expose append/claim APIs.
 
 `LogBatch` encodes bounded schema-bound rows with original operation identities,
@@ -70,8 +70,15 @@ The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
 buffering. This component is not yet composed into payload service APIs. Segment
-maintenance, notification waits and physical payload retention remain unfinished;
-the current component retains its genesis and required WAL history.
+maintenance, notification waits and logical payload expiry remain unfinished.
+`LogHistory` shares the immutable TWAL archive codec with Tables, staging at most
+eight frames per unit. `checkpoint` publishes an exact `LogRecovery` baseline;
+`trimArchived` requires both accepted archival coverage and that checkpoint,
+preserving the publishing record. Cold recovery verifies the publication and
+replays bounded successors. Pinned reads and original receipts remain usable
+through physical WAL trim; missing checkpoints or required archive bytes block
+recovery or reads. The native adapter and retained graph must compose these
+owners before enabling service payload maintenance.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
