@@ -17,6 +17,15 @@ stage private roots; lease metadata, receipts and publication remain the owning
 partition's responsibility. Terminal cardinality is a reclamation eligibility
 hint and supplies no authority to delete retained payloads.
 
+`LogTail` reserves aligned payload slabs and borrow handles under an explicit
+resident byte budget. It verifies content once on admission, returns pinned
+slices without copying, and keeps 64 trailing zero bytes for internal vector
+reads. A pin prevents eviction and destruction; stale or copied released handles
+cannot release a later borrow. All cache operations reuse initialization storage.
+Cache pressure may refuse admission without affecting the durable log. Callers
+serialize access, retain the owner through release, and check current rights
+before disclosing buffered bytes. A cache pin is not a durable retention pin.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

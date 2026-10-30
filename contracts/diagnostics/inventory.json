@@ -27927,6 +27927,42 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/LogTail.zig": {
+      "errors": {
+        "InvalidTailBinding": 1,
+        "InvalidTailBorrow": 3,
+        "InvalidTailBudget": 3,
+        "InvalidTailContent": 2,
+        "OutstandingTailBorrows": 1,
+        "TailBorrowIdentityExhausted": 1,
+        "TailBorrowLimitExceeded": 1,
+        "TailCachePinned": 1,
+        "TailContentConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Borrow.bytes()": "<inferred>",
+        "Borrow.current()": "<inferred>",
+        "Borrow.release()": "<inferred>",
+        "admit()": "<inferred>",
+        "borrow()": "<inferred>",
+        "deinit()": "<inferred>",
+        "find()": "<inferred>",
+        "init()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
+        "TransitLog.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/NvmeCache.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -29231,6 +29267,7 @@
         "DocumentIndex.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
+        "LogTail.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",
