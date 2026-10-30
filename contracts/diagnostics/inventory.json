@@ -5184,6 +5184,41 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectStreamMutation.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidStreamOperationBinding": 1,
+        "StreamReadConflict": 1
+      },
+      "outcomes": {
+        "Request": [
+          "append",
+          "assign",
+          "consume",
+          "release",
+          "offset"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Request.binding()": "<inferred>",
+        "Request.offset.validate()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
@@ -5360,12 +5395,13 @@
         "Execution.namespace()": "anyerror",
         "Execution.resource()": "anyerror",
         "apply()": "anyerror",
+        "applySelected()": "anyerror",
         "encodeDefinition()": "<inferred>",
         "historySource()": "<inferred>",
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
         "try": 178,
         "catch": 0
@@ -6750,7 +6786,7 @@
     },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
-        "DataIdentityConflict": 6,
+        "DataIdentityConflict": 7,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
@@ -6768,7 +6804,8 @@
           "name_assertion",
           "namespace",
           "dependency",
-          "resource"
+          "resource",
+          "stream"
         ]
       },
       "error_sets": {},
@@ -6783,6 +6820,7 @@
         "claimNamespace()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
+        "claimStream()": "<inferred>",
         "claimTransaction()": "<inferred>",
         "claimTransactionAttempt()": "<inferred>",
         "claimTransactionCall()": "<inferred>",
@@ -6794,11 +6832,12 @@
         "lookupDependency()": "<inferred>",
         "lookupNamespace()": "<inferred>",
         "lookupResource()": "<inferred>",
-        "lookupStored()": "<inferred>"
+        "lookupStored()": "<inferred>",
+        "lookupStream()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 22,
         "catch": 1
       },
       "imports": [
@@ -7263,6 +7302,7 @@
         "DirectResource.zig",
         "DirectResourceClient.zig",
         "DirectStorageGraph.zig",
+        "DirectStreamMutation.zig",
         "DirectTableBinding.zig",
         "DirectTableBridge.zig",
         "DirectTableClient.zig",

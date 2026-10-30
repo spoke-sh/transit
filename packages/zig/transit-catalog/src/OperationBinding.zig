@@ -27,6 +27,7 @@ const Stored = union(enum) {
     namespace: c.DirectNamespace.Binding,
     dependency: c.DirectDependency.Binding,
     resource: c.DirectResource.Binding,
+    stream: c.DirectStreamMutation.Binding,
     fn validate(self: Stored) !void {
         switch (self) {
             inline else => |value| try value.validate(),
@@ -45,6 +46,7 @@ const Stored = union(enum) {
             .namespace => |value| value.identity(),
             .dependency => |value| value.identity(),
             .resource => |value| value.identity(),
+            .stream => |value| value.operation,
         };
     }
     fn requireSame(self: Stored, other: Stored) !void {
@@ -96,6 +98,16 @@ pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding
 pub fn claimExternal(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectIntent.External) !void {
     return claimStored(allocator, objects, .{ .external = binding });
 }
+pub fn claimStream(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectStreamMutation.Binding) !void {
+    return claimStored(allocator, objects, .{ .stream = binding });
+}
+pub fn lookupStream(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.DirectStreamMutation.Binding {
+    const stored = try lookupStored(allocator, objects, operation) orelse return null;
+    return switch (stored) {
+        .stream => |value| value,
+        .external, .data, .name_assertion, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+    };
+}
 pub fn claimTransactionStatement(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionWorkspace.Request) !void {
     return claimStored(allocator, objects, .{ .transaction_statement = request });
 }
@@ -115,7 +127,7 @@ pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operat
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .data => |value| value,
-        .external, .name_assertion, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+        .stream, .external, .name_assertion, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
@@ -125,7 +137,7 @@ pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .name_assertion => |value| value,
-        .external, .data, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+        .stream, .external, .data, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectNamespace.Binding) !void {
@@ -135,7 +147,7 @@ pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .namespace => |value| value,
-        .external, .data, .name_assertion, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+        .stream, .external, .data, .name_assertion, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimDependency(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectDependency.Binding) !void {
@@ -145,7 +157,7 @@ pub fn lookupDependency(allocator: std.mem.Allocator, objects: Objects.ObjectSto
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .dependency => |value| value,
-        .external, .data, .name_assertion, .namespace, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+        .stream, .external, .data, .name_assertion, .namespace, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectResource.Binding) !void {
@@ -155,7 +167,7 @@ pub fn lookupResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .resource => |value| value,
-        .external, .data, .name_assertion, .namespace, .dependency, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
+        .stream, .external, .data, .name_assertion, .namespace, .dependency, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: Stored) !void {
@@ -229,4 +241,48 @@ test "catalog operation claims reject damaged and foreign bytes even under their
     stored.sha256 = hash(stored.bytes);
     try t.expectError(error.IncompatibleDefinition, lookup(t.allocator, objects.objectStore(), binding.identity));
     try t.expectError(error.IncompatibleDefinition, claim(t.allocator, objects.objectStore(), binding));
+}
+
+test "stream mutation reservations share original catalog identity across kinds and restart" {
+    const t = std.testing;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = std.math.maxInt(u64) };
+    const mutation: c.DirectStreamMutation.Request = .{ .consume = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 2 },
+        .operation = .{ .scope = scope, .principal = 0, .operation = std.math.maxInt(u64) },
+        .from = 0,
+        .until = null,
+        .group = null,
+        .timestamp = null,
+    } };
+    const binding = try mutation.binding(t.allocator);
+    {
+        var objects = try c.storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        try t.expect((try lookupStream(t.allocator, objects.objectStore(), binding.operation)) == null);
+        try claimStream(t.allocator, objects.objectStore(), binding);
+    }
+    var objects = try c.storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    try claimStream(t.allocator, objects.objectStore(), binding);
+    try t.expectEqualDeep(binding, (try lookupStream(t.allocator, objects.objectStore(), binding.operation)).?);
+    var changed = mutation;
+    changed.consume.target.partition += 1;
+    try t.expectError(error.DataIdentityConflict, claimStream(t.allocator, objects.objectStore(), try changed.binding(t.allocator)));
+    changed = mutation;
+    changed.consume.until = 0;
+    try t.expectError(error.DataIdentityConflict, claimStream(t.allocator, objects.objectStore(), try changed.binding(t.allocator)));
+    var table: d.Binding = .{ .definition = p.Growth.current_definition, .identity = binding.operation, .target = binding.target.interpretation.object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(3) };
+    try t.expectError(error.DataIdentityConflict, claim(t.allocator, objects.objectStore(), table));
+    try t.expectError(error.DataIdentityConflict, lookup(t.allocator, objects.objectStore(), binding.operation));
+    table.identity.operation -= 1;
+    try claim(t.allocator, objects.objectStore(), table);
+    changed = mutation;
+    changed.consume.operation = table.identity;
+    try t.expectError(error.DataIdentityConflict, claimStream(t.allocator, objects.objectStore(), try changed.binding(t.allocator)));
+    try t.expectError(error.DataIdentityConflict, lookupStream(t.allocator, objects.objectStore(), table.identity));
+    // A reservation retains the original input even before its actual read
+    // acceptance. Replaying it cannot substitute another upper-bound choice.
+    try t.expectEqualDeep(binding, (try lookupStream(t.allocator, objects.objectStore(), binding.operation)).?);
 }

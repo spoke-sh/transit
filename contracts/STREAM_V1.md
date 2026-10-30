@@ -109,6 +109,16 @@ Neither a WAL LSN nor its partition ID is the logical offset or ordinal.
 `requireAppend` compares every frozen field; retry cannot substitute a new
 producer, payload, interpretation, operation or partition.
 
+`DirectStreamMutation` binds append, assignment, finite-read acquisition,
+release and offset settlement in the catalog's shared operation namespace.
+Its immutable reservation contains the original operation, exact partition,
+mutation kind and a domain-separated digest of every frozen request field.
+Append includes its payload commitment; offset settlement includes the exact
+authenticated cursor. A reserved identity conflicts with Table/catalog work
+under that same principal and operation. Reservation alone is not acceptance
+and does not create a read pin or append payloads. The service must check current
+rights before reserving and retain the original storage outcome independently.
+
 The receipt's mandatory nullable `observed_ms` is the trusted owner's UTC
 observation before private staging, rechecked under the publication guard. It is
 separate from event timestamps and the physical WAL header. A configured clock
