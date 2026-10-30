@@ -116,3 +116,37 @@ and external-editor schedule with no executable discovery through `PATH`. After
 a clean retained restart, it accepts another row, kills the supervisor, joins
 all owned children and checks the retained rows and replacement generation.
 The same schedule applies to native x86_64 and ARM64 downloads.
+
+### Public registry setup and retry
+
+GHCR package visibility is separate from the public repository and the workflow's
+`packages: write` permission. GitHub initially creates organization packages as
+private. After the first upload, a package administrator must open each package's
+**Package settings**, choose **Change visibility**, and select **Public**.
+GitHub makes this visibility change permanent. See its
+[package visibility guide](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-an-organization).
+
+The current release set contains `transit`, `transit-admin`, `transit-node`,
+`transit-query-host`, `transit-board`, `transit-delivery`,
+`transit-station-controller`, and the separate `transit/charts/transit` Helm
+package in [spoke-sh's package list](https://github.com/orgs/spoke-sh/packages).
+The image inventory is owned by [package_release.py](../tasks/package_release.py).
+Adding a new image also requires configuring its package visibility; subsequent
+versions of an existing public package retain that setting.
+
+The `published` jobs deliberately use empty registry credential stores. An
+`unauthorized` response after successful upload requires checking public package
+access; logging into the verification job would hide the installation failure.
+The public GitHub Release can already exist while these checks fail, and the
+nightly channel does not advance. After correcting access,
+[retry the failed jobs](https://cli.github.com/manual/gh_run_rerun) of that same run:
+
+```sh
+gh run rerun RUN_ID --repo spoke-sh/transit --failed
+```
+
+This reuses the captured source and published artifacts. Both architectures must
+pass the anonymous download checks before nightly promotion. Preserve immutable
+tags and versioned bytes; do not replace the release to repair its access settings.
+See the [distribution contract](../docs/handbook/reference/distribution.md#publication-and-retries)
+for publication and retry guarantees.
