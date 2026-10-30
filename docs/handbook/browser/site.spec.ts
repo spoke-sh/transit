@@ -446,7 +446,7 @@ test("homepage artwork follows scroll and respects reduced motion", async ({
   await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
 });
 
-test("context fabric reveals pockets through native scroll without hiding content", async ({
+test("context reveals the oblique pocket, holds it briefly and releases it on scroll", async ({
   page,
   baseURL,
 }, testInfo) => {
@@ -477,17 +477,39 @@ test("context fabric reveals pockets through native scroll without hiding conten
   expect(ending.y + ending.height * 0.82).toBeCloseTo(550, 0);
   await page.screenshot({ path: testInfo.outputPath("context-pocket.png") });
 
+  const pocketScroll = await page.evaluate(() => window.scrollY);
+  await page.evaluate(() => window.scrollBy(0, 80));
+  const held = (await fabric.boundingBox())!;
+  await expect(fabric).toHaveCSS("position", "sticky");
+  await page.evaluate(() => window.scrollBy(0, 180));
+  expect(await page.evaluate(() => window.scrollY)).toBeCloseTo(pocketScroll + 260, 0);
+  expect((await fabric.boundingBox())!.y).toBeCloseTo(held.y, 0);
+  expect(held.y + held.height * 0.82).toBeGreaterThan(80);
+  expect(held.y + held.height * 0.82).toBeLessThan(900);
+  await expect(page.locator("#context-title")).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath("context-pocket-held.png") });
+
+  await page.evaluate(() => window.scrollBy(0, 700));
+  expect((await fabric.boundingBox())!.y).toBeLessThan(held.y - 100);
+  await expect(page.locator(".transit-directory")).toBeInViewport();
+  // Reversing scroll restores the earlier composition without a timed transition.
+  await page.evaluate((y) => window.scrollTo(0, y), pocketScroll);
+  expect((await fabric.boundingBox())!.y).toBeCloseTo(ending.y, 0);
+
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
   await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
   await expect(fabric).toHaveCSS("transform", "none");
+  await expect(fabric).toHaveCSS("position", "static");
   expect((await fabric.boundingBox())!.height).toBe(beginning.height);
+  expect((await page.locator(".context-track").boundingBox())!.height).toBe(beginning.height);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await fabric.scrollIntoViewIfNeeded();
   await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
   await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await expect(fabric).toHaveCSS("position", "static");
   const mobile = (await fabric.boundingBox())!;
   expect(mobile.height / mobile.width).toBeCloseTo(3, 2);
   expect(mobile.x).toBeGreaterThanOrEqual(0);
@@ -500,6 +522,7 @@ test("context fabric reveals pockets through native scroll without hiding conten
   await expect(page.locator(".refraction-story")).toHaveAttribute("data-motion", "enabled");
   // Short screens keep the copy in flow so its links remain reachable.
   await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await expect(fabric).toHaveCSS("position", "static");
   await page.getByRole("link", { name: "Follow a declaration to its outcome" }).click();
   await expect(page.locator("#inspect-whether-a-declaration-is-being-fulfilled")).toBeInViewport();
 });
@@ -518,6 +541,7 @@ test("homepage content and navigation work without JavaScript", async ({ browser
     await contextScene.scrollIntoViewIfNeeded();
     await expect(contextScene).toBeVisible();
     await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
+    await expect(contextScene).toHaveCSS("position", "static");
     await expect
       .poll(() => contextScene.evaluate((image: HTMLImageElement) => image.naturalWidth))
       .toBe(724);

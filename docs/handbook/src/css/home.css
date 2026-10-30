@@ -234,6 +234,20 @@
     position: sticky;
     top: calc(var(--ifm-navbar-height) + 2vh);
   }
+  @supports (height: 1cqw) {
+    .refraction-story[data-motion="enabled"] .context-visual {
+      container-type: inline-size;
+    }
+    .refraction-story[data-motion="enabled"] .context-track {
+      /* The selected fabric is 1:3; reserve a short passage at its final pocket. */
+      height: calc(300cqw + 45vh);
+    }
+    .refraction-story[data-motion="enabled"] .context-fabric {
+      position: sticky;
+      /* Scroll the whole drawing first, then hold its lower edge within view. */
+      top: calc(100vh - 300cqw - 2rem);
+    }
+  }
 }
 @media (max-width: 996px) {
   .transit-hero,

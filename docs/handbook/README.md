@@ -153,19 +153,25 @@ longer Context illustration, preserving the selected R1 view.
 [`ContextFabric`](src/components/ContextFabric.tsx) continues below the resonance
 zones with a [single tall drawing](../design/handbook-theme/images/d5-fabric-pockets.jpg).
 The fabric straightens, forms small pockets, and ends in an angled opening with
-an indistinct form behind its rim. The complete 1:3 image stays in normal document
-flow. Native scrolling reveals it in sequence; there is no scroll-controlled
-crop, transform or independent animation. A soft mask blends its ends into the
-page. On tall desktop screens the accompanying copy stays alongside the drawing;
-short screens keep the copy in flow so its links remain reachable. The image is
-an abstract metaphor, not a display of data or a runtime guarantee.
+an indistinct form behind its rim. Native scrolling reveals the complete 1:3
+image in sequence. On tall desktop screens, CSS sticky positioning briefly
+holds the final pocket in view before it leaves with the page. The track reserves
+45vh of additional scroll distance; the image's lower edge rests two rem above
+the viewport bottom. Container-relative units derive its height from the selected
+1:3 aspect ratio. The accompanying copy stays alongside the drawing. Reversing
+scroll restores the earlier view immediately; no animation loop, scroll lock,
+crop or image transform is involved. A soft mask blends the image's ends into
+the page. The imagery is an abstract metaphor, not a display of data or a runtime
+guarantee.
 
 Activity uses a passive scroll listener and one pending animation frame while
 the story is visible. Media changes and unmount cleanup cancel pending work and
 remove its motion property. Narrow layouts, reduced-motion preference and
-no-JavaScript rendering show the complete illustrations in normal flow, with
-Context's text before its fabric on narrow screens. All narrative and handbook
-links are server-rendered; motion never gates navigation or access to content.
+no-JavaScript rendering show the complete illustrations in normal flow. Short
+screens also omit the Context hold; browsers without container-relative units
+keep its image in flow. Context's text precedes its fabric on narrow screens.
+All narrative and handbook links are server-rendered; motion never gates
+navigation or access to content.
 
 The introduction's [three-plane map](static/img/architecture/three-plane-architecture.svg),
 Architecture's [responsibility map](static/img/architecture/system-responsibilities.svg),
