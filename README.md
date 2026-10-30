@@ -6,7 +6,17 @@
 
 You declare **data** (Tables, Key-Value maps, collaborative Documents, Streams, Queues, Property Graphs, and 2D/3D Spatial models), **computations** (point-in-time SQL queries, recoverable captured jobs, maintained incremental views, and stateful dataflows), and **policies** (scoped `policy_epoch` authorization, security-barrier Row-Level Security, unlimited-by-default retention, and resource budgets). Transit's runtime **activates** that data across a four-tier storage hierarchy (`TransitLog` write-ahead delta logs and immutable `.tseg` columnar segments), executes queries with five-state cell provenance (`value`, `null`, `missing`, `type_error`, `conflict`), and coordinates stateful processes (`Station`) and recorded external connector effects.
 
-![Transit](docs/handbook/static/img/architecture/transit-machine.jpg)
+![Blue and ochre strands form a flowing weave above faint impressions of earlier patterns.](docs/handbook/static/img/architecture/transit-living-weave.jpg)
+
+**A living weave.** Connected data takes shape while its history remains traceable.
+
+![Layered blue and ochre contours form an evolving landscape with a continuous path through it.](docs/handbook/static/img/architecture/transit-evolving-landscape.jpg)
+
+**An evolving landscape.** Changing state, remembered contours and a path through the evidence.
+
+![Measured marks on parallel lines unfold into overlapping blue and ochre waves.](docs/handbook/static/img/architecture/transit-score-to-wave.jpg)
+
+**A score becoming a wave.** Declared structure becomes coordinated activity.
 
 Start with the data your application needs, what you want to compute from it, and the policies governing its use. The [published handbook](https://spoke-sh.github.io/transit/) connects those declarations to their public interfaces and observable outcomes, and [Internals](docs/handbook/internals/README.md) formalizes the underlying storage, query, state, and execution models.
 
