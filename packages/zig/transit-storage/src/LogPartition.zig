@@ -27,6 +27,8 @@ const TreeStore = @import("TreeStore.zig");
 const Guard = @import("PublicationGuard.zig");
 const r = @import("LogPartitionRecord.zig");
 const pages = TreeStore.pages;
+const CandidateObjects = @import("CandidateObjects.zig");
+const QueueIndex = @import("QueueIndex.zig");
 pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
     return struct {
         const Self = @This();
@@ -41,6 +43,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             key_bytes: u32 = 64 * 1024,
             segment_work_bytes: usize = 64 * 1024 * 1024,
             segment_rows_per_group: u32 = 1024,
+            queue_candidate_objects: u32 = 4096,
+            queue_candidate_resident_bytes: usize = 16 * 1024 * 1024,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
@@ -60,13 +64,12 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         root: Root,
         commitment: [32]u8,
         ready: bool = false,
+        candidate_objects: if (kind == .queue) CandidateObjects else void,
+        queue_container: if (kind == .queue) Bitmap.Container else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
         pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
-            // Queue publication requires its scheduling/lease participant before this
-            // shared payload owner may be instantiated for Queue declarations.
-            if (kind != .stream) return error.UnsupportedQueueExecution;
             if (std.meta.activeTag(request.declared.declaration.configuration.policy) != kind) return error.LogPartitionConflict;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
@@ -79,12 +82,18 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const encoded = try allocator.alloc(u8, @as(usize, options.batch_bytes) + r.header_bytes + r.max_metadata_bytes);
             errdefer allocator.free(encoded);
             const key_buffer = try allocator.alloc(u8, options.key_bytes);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256 };
+            errdefer allocator.free(key_buffer);
+            var candidates: if (kind == .queue) CandidateObjects else void = if (kind == .queue)
+                try CandidateObjects.init(allocator, objects, .{ .bytes = options.index_work_bytes, .objects = options.queue_candidate_objects, .resident_bytes = options.queue_candidate_resident_bytes })
+            else {};
+            errdefer if (kind == .queue) candidates.deinit();
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {} };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
             self.store.deinit();
             self.scratch.deinit();
+            if (kind == .queue) self.candidate_objects.deinit();
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
             self.* = undefined;
@@ -380,7 +389,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (self.root.groups != null) return error.InvalidLogHistory;
             return self.root.next_offset;
         }
-        fn candidate(self: *Self, evidence: Evidence.Record) !Root {
+        fn candidate(self: *Self, evidence: Evidence.Record, payload: []const u8) !Root {
             try evidence.validate();
             if (evidence.outcome == .offset or evidence.outcome == .release)
                 try self.root.requireControlDeclaration(evidence.declared)
@@ -402,6 +411,13 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     if (try self.nextProducer(receipt.append)) |producer| {
                         result.producers = try self.tree().put(result.producers, try r.producerKey(receipt.append, false), try r.valueEncode(producer));
                         result.producer_receipts = try self.tree().put(result.producer_receipts, try r.producerKey(receipt.append, true), reference);
+                    }
+                    if (kind == .queue) {
+                        var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
+                        defer declaration.deinit();
+                        var bitmap: Bitmap = .{ .store = &self.store, .objects = self.objects };
+                        const index: QueueIndex = .{ .store = &self.store, .scratch = &self.scratch, .bitmap = &bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer };
+                        result.queue = try index.enqueue(self.root.queue.?, &declaration, receipt, payload);
                     }
                 },
                 .assignment => |receipt| {
@@ -435,10 +451,18 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             };
             const ordinary = self.enterControl(reserve);
             defer self.leaveControl(ordinary);
+            if (kind == .queue) {
+                try self.candidate_objects.reset(self.objects);
+                self.objects = self.candidate_objects.objectStore();
+                self.store.store = self.objects;
+                self.store.clearCache();
+            }
+            defer if (kind == .queue) self.store.clearCache();
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
-            const next = try self.candidate(evidence);
+            const next = try self.candidate(evidence, payload);
             const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .operation = evidence } };
+            if (kind == .queue) try self.candidate_objects.persist();
             try self.publishRecord(record, payload, guard);
             // Cache admission is optional after acceptance. Pressure cannot turn an
             // accepted append into rejection; reads can load its verified WAL payload.
@@ -1063,13 +1087,16 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 const frame = batch.frames[0];
                 const decoded = try self.decodeFrame(frame, self.root.initialization.partition, self.root.next_lsn);
                 if (!std.mem.eql(u8, &decoded.record.previous, &self.commitment)) return error.InvalidLogHistory;
-                try self.verifyTransition(decoded.record, guard);
+                try self.verifyTransition(decoded.record, decoded.payload, guard);
                 const next_commitment = Evidence.hash(frame.payload);
                 try authorize(guard);
                 self.root = decoded.record.root;
                 self.commitment = next_commitment;
             }
             for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.hidden.containers, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+                _ = try self.store.load(value);
+            };
+            if (self.root.queue) |queue| for ([_]?pages.Reference{ queue.items, queue.sidecars, queue.keys, queue.eligible, queue.deadlines }) |reference| if (reference) |value| {
                 _ = try self.store.load(value);
             };
             if (self.root.compaction) |work| for ([_]?pages.Reference{ work.source.batches, work.source.segments, work.latest, work.candidate.containers }) |reference| if (reference) |value| {
@@ -1083,9 +1110,24 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const found = try self.tree().get(root, key) orelse return error.InvalidLogHistory;
             if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
         }
-        fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
+        fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             const next = record.root;
             try self.root.initialization.requireSame(next.initialization);
+            if (kind == .queue and record.action == .operation) {
+                const ordinary = self.enterControl(true);
+                defer self.leaveControl(ordinary);
+                try self.candidate_objects.reset(self.objects);
+                self.objects = self.candidate_objects.objectStore();
+                self.store.store = self.objects;
+                self.store.clearCache();
+                defer self.store.clearCache();
+                try self.store.begin(self.options.index_work_bytes);
+                defer self.store.end();
+                var expected = try self.candidate(record.action.operation, payload);
+                expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
+                if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
+                return;
+            }
             if (record.action != .operation) {
                 var expected = self.root;
                 expected.next_lsn = next.next_lsn;

@@ -27,6 +27,9 @@ pub const LogRecovery = @import("LogRecovery.zig");
 pub const LogStorageRoots = @import("LogStorageRoots.zig");
 pub const LogPartitionRecord = @import("LogPartitionRecord.zig");
 pub const StreamPartition = @import("StreamPartition.zig").Owner;
+pub const QueuePartition = @import("QueuePartition.zig");
+pub const QueueIndex = @import("QueueIndex.zig");
+pub const QueueItem = @import("QueueItem.zig");
 pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");
@@ -72,6 +75,7 @@ test {
     _ = @import("tack_test.zig");
     _ = @import("queue_item_test.zig");
     _ = @import("queue_index_test.zig");
+    _ = @import("queue_partition_test.zig");
     _ = @import("queue_selection_test.zig");
     _ = @import("candidate_objects_test.zig");
     _ = @import("log_tail_test.zig");

@@ -37,16 +37,23 @@ pub const Root = struct {
     archive: @import("LogHistory.zig").Coverage,
     recovery: ?@import("LogRecovery.zig").Reference,
     maintenance: Maintenance,
+    queue: ?@import("QueueIndex.zig").Root,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null, .maintenance = .empty };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null, .maintenance = .empty, .queue = if (request.declared.declaration.configuration.policy == .queue) .empty else null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireControlDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         try self.maintenance.validate(self);
+        if ((self.declared.declaration.configuration.policy == .queue) != (self.queue != null)) return error.InvalidQueueRoot;
+        if (self.queue) |queue| {
+            try queue.validate();
+            if (queue.next_offset != self.next_offset or self.retained_from != 0 or self.groups != null or self.group_offsets != null or self.pins != null or
+                self.maintenance.compaction_source_lsn != 0 or self.maintenance.rewrite_source_lsn != 0 or self.maintenance.rewrite_target != null) return error.InvalidQueueRoot;
+        }
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
         try self.hidden.validate();
         if (self.hidden.cardinality > self.next_offset) return error.InvalidStreamCompaction;

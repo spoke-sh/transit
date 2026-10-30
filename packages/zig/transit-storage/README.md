@@ -25,9 +25,10 @@ retry block its successors while other keys can advance. ACK moves that head;
 exhaustion retains an available but blocked source. Its DLQ reason retains the
 exact destination definition; it does not publish that destination or make the
 source terminal. Old roots remain independently readable.
-The enclosing owner must bind these changes to payloads, original receipts,
-current authorization and one accepted WAL record. These candidate components
-do not yet enable Queue execution, timing-wheel scheduling or DLQ transfer.
+`QueuePartition.enqueue` binds initial scheduling state, payloads and original
+producer receipts to one fenced WAL record. Lease and settlement changes still
+remain private candidates; timing-wheel scheduling and DLQ transfer are not
+enabled by these components.
 
 `QueueSelection` retains a nonempty claim's exact leases and payload placement
 cut in a bounded immutable artifact. It keeps original offsets, epochs and
@@ -90,7 +91,25 @@ owner and pass it to `recoverStepSince`. Reuse verifies its exact accepted
 boundary, yields to newer checkpoints and preserves current-policy checks.
 These disposable hints are not persisted recovery authority.
 Its publication and recovery implementation lives in the internal `LogPartition`
-owner. Queue instantiation remains refused until Queue state joins that boundary.
+owner, shared with `QueuePartition`.
+
+`QueuePartition` publishes enqueue payloads, FIFO links, eligibility entries and
+`.tack` availability roots together with producer deduplication. It derives
+immutable state in `CandidateObjects`, persists those bytes, then rechecks the
+publication guard before appending the accepted root. A lost reply requires
+recovery before further operations. Replay privately reconstructs the complete
+candidate and compares its root without writing objects; collected intermediate
+pages are not replay dependencies. Sealing, archive/checkpoint and WAL trimming
+preserve original payloads and outcomes. The direct retained graph marks Queue
+metadata, nested full-key directories and all sidecar bitmap containers before
+reclamation. Recorded DLQ destinations conservatively stop collection until
+their historical dependency closure is implemented.
+
+The Queue wrapper exposes enqueue, observation, original outcome recovery and
+physical maintenance. It has no Stream consumption, group or age-expiry API.
+The service must still compose this storage boundary with the shared catalog
+operation namespace and current grants; installed Queue execution and durable
+claim/settlement publication remain open.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

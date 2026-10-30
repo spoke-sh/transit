@@ -14,6 +14,14 @@ publishes Queue declarations separately from payload execution. It verifies
 partition initialization, native ownership, compatible DLQ schemas and exact
 destination definitions, and publishes retained dependency edges atomically.
 
+The internal `transit-storage.QueuePartition` accepts enqueue payloads and their
+initial FIFO/eligibility/`.tack` state in the same WAL record as producer
+deduplication and the original receipt. It shares physical sealing, archives,
+checkpoints and bounded recovery with the Stream owner. Replay reconstructs the
+complete Queue candidate without object writes. This is a storage composition
+boundary: the installed service does not yet admit Queue payload operations, and
+claim/settlement publication remains unimplemented.
+
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
 [fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)

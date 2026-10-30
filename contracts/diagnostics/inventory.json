@@ -5080,13 +5080,14 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 24,
+        "InvalidLogStorageGraph": 31,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
-        "TableSegmentMissing": 1
+        "TableSegmentMissing": 1,
+        "UnsupportedQueueDeadLetterCollection": 1
       },
       "outcomes": {
         "DocumentIndexKind": [
@@ -5107,7 +5108,12 @@
           "group_offsets",
           "pins",
           "bitmap",
-          "ordered_keys"
+          "ordered_keys",
+          "queue_items",
+          "queue_sidecars",
+          "queue_keys",
+          "queue_eligible",
+          "queue_deadlines"
         ],
         "Role": [
           "current",
@@ -5137,6 +5143,7 @@
           "log_root",
           "log_index",
           "log_compaction",
+          "queue_sidecar",
           "log_read",
           "log_segment",
           "log_wal",
@@ -5179,7 +5186,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 354,
+        "try": 368,
         "catch": 1
       },
       "imports": [
@@ -31453,7 +31460,7 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 10,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 30,
+        "InvalidLogHistory": 31,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
@@ -31494,8 +31501,7 @@
         "StreamReadByteBudgetTooSmall": 1,
         "StreamReadConflict": 3,
         "StreamReadMissing": 2,
-        "StreamReadReleased": 1,
-        "UnsupportedQueueExecution": 1
+        "StreamReadReleased": 1
       },
       "outcomes": {
         "Owner().<return>.ExpirationStatus": [
@@ -31589,11 +31595,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 514,
+        "try": 524,
         "catch": 15
       },
       "imports": [
         "BitmapDirectory.zig",
+        "CandidateObjects.zig",
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
@@ -31608,6 +31615,7 @@
         "LogView.zig",
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
+        "QueueIndex.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
         "TransitLog.zig",
@@ -31627,6 +31635,7 @@
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
         "InvalidLogSegment": 3,
+        "InvalidQueueRoot": 2,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
@@ -31667,7 +31676,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 36,
         "catch": 0
       },
       "imports": [
@@ -31679,6 +31688,7 @@
         "LogInitialization.zig",
         "LogRecovery.zig",
         "LogSegment.zig",
+        "QueueIndex.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
         "TableArchive.zig",
@@ -32155,6 +32165,43 @@
       "imports": [
         "LogTime.zig",
         "Tack.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueuePartition.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "archive()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "deinit()": "<inferred>",
+        "enqueue()": "<inferred>",
+        "flush()": "<inferred>",
+        "observe()": "<inferred>",
+        "open()": "<inferred>",
+        "operation()": "<inferred>",
+        "recoverStep()": "<inferred>",
+        "recoverStepSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
+        "trimArchived()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "LogDeclaration.zig",
+        "LogEvidence.zig",
+        "LogHistory.zig",
+        "LogInitialization.zig",
+        "LogPartition.zig",
+        "LogRecovery.zig",
+        "PublicationGuard.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
         "std",
         "transit_protocol"
       ]
@@ -33540,6 +33587,9 @@
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",
         "PublicationGuard.zig",
+        "QueueIndex.zig",
+        "QueueItem.zig",
+        "QueuePartition.zig",
         "S3ObjectStore.zig",
         "StreamCompaction.zig",
         "StreamPartition.zig",

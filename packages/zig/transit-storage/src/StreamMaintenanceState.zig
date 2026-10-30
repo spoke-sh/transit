@@ -111,10 +111,14 @@ pub fn transition(before: anytype, after: anytype, action: anytype) !Self {
             next.archive_source_lsn = after.next_lsn;
             switch (action) {
                 .operation => |record| switch (record.outcome) {
-                    .append, .assignment, .offset => next.compaction_source_lsn = after.next_lsn,
+                    .append, .assignment, .offset => if (after.declared.declaration.configuration.policy == .stream) {
+                        next.compaction_source_lsn = after.next_lsn;
+                    },
                     .read, .release => {},
                 },
-                .flush, .expire => next.compaction_source_lsn = after.next_lsn,
+                .flush, .expire => if (after.declared.declaration.configuration.policy == .stream) {
+                    next.compaction_source_lsn = after.next_lsn;
+                },
                 .compaction_publish => |cut| {
                     next.compacted_through_lsn = cut.next_lsn;
                     next.rewrite_source_lsn = after.next_lsn;

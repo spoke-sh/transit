@@ -29,6 +29,100 @@ pub const Workspace = struct {
     }
 };
 
+test "direct graph retains Queue scheduling bitmaps and full FIFO keys after collecting private candidates" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    var declaration = try s.LogDeclaration.prepare(t.allocator, .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 8 },
+        .revision = 1,
+        .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .ascii_ci }} },
+        .configuration = .{
+            .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
+            .retention = .{ .max_age_ms = null },
+            .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 1, .maximum_ms = 100, .multiplier = 2 }, .dead_letter = null } },
+        },
+        .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "queue-graph",
+    });
+    defer declaration.deinit();
+    const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
+    const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
+    _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 16384, .key_bytes = 1024, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 16384, .resident_bytes = 32768 } };
+    var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(guard, 1);
+    const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
+    var bytes: [16384]u8 = undefined;
+    var encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, operation, .queue, 24, &bytes);
+    var long_key: [300]u8 = @splat('a');
+    for (0..24) |i| {
+        long_key[299] = @intCast('A' + i);
+        try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }}, .visible_ms = i });
+    }
+    const payload = try encoder.finish();
+    const request: c.protocol.StreamQueue.Append = .{ .target = initial.target(), .operation = operation, .kind = .queue, .producer = null, .rows = 24, .payload = s.LogBatch.content(payload) };
+    const receipt = try owner.enqueue(declared, request, payload, guard);
+    const root = owner.owner.root;
+    var latest = try wal.log().read(t.allocator, 92, 1, 1);
+    defer latest.deinit();
+    var workspace: Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest.frames[0]));
+    var job: usize = 0;
+    var steps: usize = 0;
+    while (job < workspace.jobs.items.len) : (job += 1) {
+        var work = workspace.jobs.items[job];
+        while (true) {
+            const queued = workspace.jobs.items.len;
+            const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - queued <= 3);
+            steps += 1;
+            if (steps > 10000) return error.FixtureBudget;
+            if (complete) break;
+        }
+    }
+    var name: [96]u8 = undefined;
+    for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys, root.queue.?.eligible }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
+    var removed: usize = 0;
+    var at: usize = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (Graph.collectible(item.key) and !workspace.marks.contains(item.key)) {
+            try objects.objectStore().delete(item.key);
+            removed += 1;
+        } else at += 1;
+    }
+    try t.expect(removed > 24);
+    try owner.deinit();
+    owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(guard, 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(root, owner.owner.root);
+    try t.expectEqualDeep(receipt, (try owner.operation(operation, guard)).?.outcome.append);
+    var bitmap: s.BitmapDirectory = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
+    const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer };
+    var canonical: [1024]u8 = undefined;
+    for (0..24) |i| {
+        long_key[299] = @intCast('a' + i);
+        const key = try c.fuze.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = &long_key } } }, .utf8, .ascii_ci, &canonical);
+        try t.expectEqualDeep(s.QueueIndex.Head{ .first = i, .last = i }, (try queue.head(root.queue.?, key)).?);
+        try t.expectEqual(s.Tack.State.available, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
+    }
+}
+
 test "direct graph retains physical and ADD interpretations without receipt or history roots" {
     const Fixture = struct {
         fn acquire(_: *anyopaque) !P.Guard.Fence {

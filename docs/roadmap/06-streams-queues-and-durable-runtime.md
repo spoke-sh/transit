@@ -410,8 +410,13 @@ The current progress slice delivers:
   eligibility, exact lease metadata, retries and blocked destinations. Immutable
   claim-selection artifacts preserve original leases and placement cuts. Their
   [disk and format checks](../history/qualification/catalog.md#queue-index-and-original-selection-candidates--2026-10-30)
-  pass, but accepted Queue WAL transitions, installed execution, timer-wheel and
-  affinity scheduling, and atomic DLQ transfer remain outstanding.
+  pass. The storage Queue owner now accepts enqueue payloads, producer outcomes
+  and initial scheduling state in one WAL record; bounded replay reconstructs
+  the complete root without object writes. Disk restart, lost replies,
+  archive/checkpoint/trim, candidate pressure, revocation and retained-graph
+  reclamation pass focused tests. Durable claim/settlement publication, installed
+  execution, timer-wheel and affinity scheduling, and atomic DLQ transfer remain
+  outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
