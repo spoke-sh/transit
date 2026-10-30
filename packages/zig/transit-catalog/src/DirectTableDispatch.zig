@@ -71,54 +71,113 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
     } };
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
-    switch (action) {
-        .transaction => |request| return .{ .transaction = switch (request) {
-            .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
-            .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
-            .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
-            .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
-            .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
-            .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
-            .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
-            .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
-            .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
-            .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
-            .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
-            .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
-        } },
-        .record => |value| return .{ .record = try catalog.directRecord(allocator, value, policy) },
-        .client_progress => |value| return .{ .client_progress = try catalog.clientProgress(value, policy) },
-        .client_token => |value| return .{ .client_token = try catalog.clientToken(value, policy) },
+    // Isolate each action's frame. A runtime switch reserves debug-build
+    // temporaries for every unrelated arm, including large page results.
+    switch (std.meta.activeTag(action)) {
+        inline else => |tag| return applySelected(tag, allocator, catalog, policy, &action, delegation, execution),
+    }
+}
+
+fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
+    switch (action_tag) {
+        .transaction => {
+            const request = @field(action.*, @tagName(action_tag));
+            return .{ .transaction = switch (request) {
+                .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
+                .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
+                .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
+                .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
+                .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
+                .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
+                .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
+                .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
+                .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
+                .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
+                .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
+                .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
+            } };
+        },
+        .record => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .record = try catalog.directRecord(allocator, value, policy) };
+        },
+        .client_progress => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .client_progress = try catalog.clientProgress(value, policy) };
+        },
+        .client_token => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .client_token = try catalog.clientToken(value, policy) };
+        },
         .initialize => {
             try catalog.initialize(policy);
             return .initialized;
         },
         .describe => return .{ .description = catalog.store.root.configuration },
-        .storage => |value| return .{ .storage = try catalog.inspectStorage(value.object, value.pending_limit, policy) },
-        .flush => |value| return .{ .flush = try catalog.flushStorage(value, policy) },
-        .read_authority => |object| return .{ .read_authority = try catalog.currentReadAuthority(object, policy) },
-        .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
-        .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },
-        .dependency_operation => |value| return .{ .dependency_operation = try catalog.dependencyOperation(value.binding, value.command, policy) },
-        .dependency_state => |edge| return .{ .dependency_state = try catalog.dependencyState(edge, policy) },
-        .dependencies => |value| return .{ .dependencies = try catalog.dependencyPage(value.selection, value.cursor, value.authority, policy) },
-        .resource_preview => |binding| return .{ .resource_preview = try catalog.previewResource(binding, policy) },
-        .log_preview => |value| return .{ .log_preview = try catalog.previewLog(try value.request(allocator), policy) },
-        .log_admit => |value| return .{ .log_admitted = try catalog.admitLog(try value.request(allocator), policy) },
-        .log_operation => |value| {
+        .storage => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .storage = try catalog.inspectStorage(value.object, value.pending_limit, policy) };
+        },
+        .flush => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .flush = try catalog.flushStorage(value, policy) };
+        },
+        .read_authority => {
+            const object = @field(action.*, @tagName(action_tag));
+            return .{ .read_authority = try catalog.currentReadAuthority(object, policy) };
+        },
+        .name_assertion => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) };
+        },
+        .namespace => {
+            const id = @field(action.*, @tagName(action_tag));
+            return .{ .namespace = try catalog.inspectNamespace(id, policy) };
+        },
+        .dependency_operation => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .dependency_operation = try catalog.dependencyOperation(value.binding, value.command, policy) };
+        },
+        .dependency_state => {
+            const edge = @field(action.*, @tagName(action_tag));
+            return .{ .dependency_state = try catalog.dependencyState(edge, policy) };
+        },
+        .dependencies => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .dependencies = try catalog.dependencyPage(value.selection, value.cursor, value.authority, policy) };
+        },
+        .resource_preview => {
+            const binding = @field(action.*, @tagName(action_tag));
+            return .{ .resource_preview = try catalog.previewResource(binding, policy) };
+        },
+        .log_preview => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .log_preview = try catalog.previewLog(try value.request(allocator), policy) };
+        },
+        .log_admit => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .log_admitted = try catalog.admitLog(try value.request(allocator), policy) };
+        },
+        .log_operation => {
+            const value = @field(action.*, @tagName(action_tag));
+
             if (value.command == .execute) {
                 const run = execution.log orelse return error.LogCatalogExecutionUnavailable;
                 return .{ .log_operation = try run(execution.context, catalog, value.binding, policy, value.steps) };
             }
             return .{ .log_operation = try catalog.logOperation(value.binding, if (value.command == .inspect) .inspect else .cancel, policy) };
         },
-        .log_lookup => |value| {
+        .log_lookup => {
+            const value = @field(action.*, @tagName(action_tag));
+
             const found = try catalog.resolveLog(value.namespace, try .init(value.name), policy) orelse return .{ .log_lookup = null };
             var declaration = try catalog.logDefinition(catalog.allocator, found, policy);
             defer declaration.deinit();
             return .{ .log_lookup = .{ .declaration = found, .schema = try schema(allocator, catalog.allocator, declaration.definition.schema) } };
         },
-        .log_list => |value| {
+        .log_list => {
+            const value = @field(action.*, @tagName(action_tag));
+
             const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
             const page = try catalog.listLogs(value.namespace, after, policy);
             const next = if (page.next) |cursor| blk: {
@@ -127,7 +186,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .log_list = .{ .entries = page.entries, .next = next, .position = page.position } };
         },
-        .log_pending => |value| {
+        .log_pending => {
+            const value = @field(action.*, @tagName(action_tag));
+
             const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
             const page = try catalog.pendingLogs(value.namespace, after, policy);
             const next = if (page.next) |cursor| blk: {
@@ -136,13 +197,20 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .log_pending = .{ .entries = page.entries, .next = next, .position = page.position } };
         },
-        .resource_operation => |value| {
+        .resource_operation => {
+            const value = @field(action.*, @tagName(action_tag));
+
             if (value.command == .inspect or value.command == .admit) return .{ .resource_operation = try catalog.resourceOperation(value.binding, value.command, policy) };
             const run = execution.resource orelse return error.NamedResourceNativeUnavailable;
             return .{ .resource_operation = try run(execution.context, catalog, value.binding, policy, value.command, value.steps, value.signed_allocation) };
         },
-        .resource_lookup => |value| return .{ .resource_lookup = try catalog.resolveResource(value.namespace, try .init(value.name), policy) },
-        .resource_list => |value| {
+        .resource_lookup => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .resource_lookup = try catalog.resolveResource(value.namespace, try .init(value.name), policy) };
+        },
+        .resource_list => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var bytes: [8]u8 = undefined;
             const after = if (value.after) |id| blk: {
                 std.mem.writeInt(u64, &bytes, id, .big);
@@ -155,12 +223,19 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .resource_list = .{ .entries = page.entries, .next = next, .position = page.position } };
         },
-        .namespace_preview => |binding| return .{ .namespace_preview = try catalog.previewNamespace(binding, policy) },
-        .namespace_operation => |value| {
+        .namespace_preview => {
+            const binding = @field(action.*, @tagName(action_tag));
+            return .{ .namespace_preview = try catalog.previewNamespace(binding, policy) };
+        },
+        .namespace_operation => {
+            const value = @field(action.*, @tagName(action_tag));
+
             if (value.command != .execute) return .{ .namespace_operation = try catalog.namespaceOperation(value.binding, value.command, policy) };
             return .{ .namespace_operation = try execution.namespace(execution.context, catalog, value.binding, policy, value.steps) };
         },
-        .namespaces => |value| {
+        .namespaces => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var bytes: [8]u8 = undefined;
             const after = if (value.after) |id| blk: {
                 std.mem.writeInt(u64, &bytes, id, .big);
@@ -173,11 +248,15 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .namespaces = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position } };
         },
-        .check => |value| {
+        .check => {
+            const value = @field(action.*, @tagName(action_tag));
+
             try catalog.checkAccess(value, policy);
             return .checked;
         },
-        .check_set => |values| {
+        .check_set => {
+            const values = @field(action.*, @tagName(action_tag));
+
             for (values) |value| switch (value) {
                 .access => |access| try catalog.checkAccess(access, policy),
                 .snapshot => |snapshot| {
@@ -190,12 +269,16 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             // requirements and rechecks their union after buffering.
             return .checked;
         },
-        .lookup => |value| {
+        .lookup => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var view = (try catalog.resolve(catalog.allocator, value.namespace, try .init(value.name), policy)) orelse return .{ .lookup = null };
             defer view.deinit();
             return .{ .lookup = try encodeDefinition(allocator, catalog.allocator, &view) };
         },
-        .observe => |value| {
+        .observe => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var current = try catalog.observe(catalog.allocator, value.namespace, value.interpretation, value.rows, policy);
             defer current.deinit();
             const page: ?w.CurrentPage = if (current.page) |*found| blk: {
@@ -207,7 +290,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .observation = .{ .definition = try encodeDefinition(allocator, catalog.allocator, &current.view), .authority = current.authority, .page = page } };
         },
-        .read_current => |value| {
+        .read_current => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var found = try catalog.readCurrent(catalog.allocator, value, policy);
             defer found.deinit();
             const declared = found.current.view.table.declaration.schema.schema;
@@ -223,7 +308,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             };
             return .{ .current_read = .{ .definition = try encodeDefinition(allocator, catalog.allocator, &found.current.view), .authority = found.current.authority, .selection = selection } };
         },
-        .list => |value| {
+        .list => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var bytes: [8]u8 = undefined;
             const after = if (value.after) |id| blk: {
                 std.mem.writeInt(u64, &bytes, id, .big);
@@ -236,10 +323,21 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .list = .{ .entries = page.entries, .next = next, .directory_position = page.directory_position, .consistency = .independent } };
         },
-        .preview => |value| return .{ .preview = try catalog.preview(try value.native(allocator, catalog.store.root.configuration), policy) },
-        .name_preview => |value| return .{ .name_preview = try catalog.previewName(value, policy) },
-        inline .preview_rows, .preview_statement => |value| return .{ .row_preview = try catalog.previewRows(try value.native(allocator), policy) },
-        .stage => |value| {
+        .preview => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .preview = try catalog.preview(try value.native(allocator, catalog.store.root.configuration), policy) };
+        },
+        .name_preview => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .name_preview = try catalog.previewName(value, policy) };
+        },
+        .preview_rows, .preview_statement => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .row_preview = try catalog.previewRows(try value.native(allocator), policy) };
+        },
+        .stage => {
+            const value = @field(action.*, @tagName(action_tag));
+
             try catalog.checkOperation(value.intent.work.binding(), value.namespace, policy);
             // CREATE additionally checks selection of its frozen owner role;
             // preview also validates the exact DDL shape without admission.
@@ -248,7 +346,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             defer intent.deinit();
             return .{ .staged = try c.DirectTableIntentStore.stage(catalog.data_objects, &intent, value.namespace) };
         },
-        .commit_saved => |reference| {
+        .commit_saved => {
+            const reference = @field(action.*, @tagName(action_tag));
+
             if (reference.binding.action != .insert and reference.binding.action != .update and reference.binding.action != .delete) return error.UnsupportedTableAction;
             try catalog.checkOperation(reference.binding, reference.namespace, policy);
             var intent = try c.DirectTableIntentStore.load(catalog.allocator, catalog.data_objects, reference);
@@ -258,34 +358,58 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 .ddl => return error.UnsupportedTableAction,
             }, policy) };
         },
-        .admit_saved => |reference| {
+        .admit_saved => {
+            const reference = @field(action.*, @tagName(action_tag));
+
             try catalog.checkOperation(reference.binding, reference.namespace, policy);
             var intent = try c.DirectTableIntentStore.load(catalog.allocator, catalog.data_objects, reference);
             defer intent.deinit();
             return apply(allocator, catalog, policy, intent.parsed.value.work.action(), delegation, execution);
         },
-        .admit_ddl => |value| {
+        .admit_ddl => {
+            const value = @field(action.*, @tagName(action_tag));
+
             _ = try catalog.admit(try value.native(allocator, catalog.store.root.configuration), policy);
             return .{ .ddl = try catalog.status(value.binding, policy) };
         },
-        inline .admit_rows, .admit_statement => |value| return .{ .rows = try catalog.admitRows(try value.native(allocator), policy) },
-        .operation => |value| switch (value.binding.action) {
-            .create, .alter, .rename, .drop => return .{ .ddl = switch (value.command) {
-                .inspect => try catalog.status(value.binding, policy),
-                .cancel => try catalog.cancel(value.binding, policy),
-                .execute => try execution.ddl(execution.context, catalog, value.binding, policy, value.steps),
-            } },
-            .insert, .update, .delete => return .{ .rows = switch (value.command) {
-                .inspect => try catalog.rowStatus(value.binding, policy),
-                .cancel => try catalog.cancelRows(value.binding, policy),
-                .execute => try catalog.performRows(value.binding, policy),
-            } },
+        .admit_rows, .admit_statement => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .rows = try catalog.admitRows(try value.native(allocator), policy) };
         },
-        .pin => |value| return .{ .pin = if (delegation) |grant| (if (value.selection == .current) try catalog.captureRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy)) else try catalog.pinRows(value.object, value.owner, value.expected, policy) },
-        .retain_history => |value| return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else null, policy) },
-        .history_start => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.handle, null) },
-        .history_source => |value| return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.point.lease, value.point) },
-        .history => |value| {
+        .operation => {
+            const value = @field(action.*, @tagName(action_tag));
+            switch (value.binding.action) {
+                .create, .alter, .rename, .drop => return .{ .ddl = switch (value.command) {
+                    .inspect => try catalog.status(value.binding, policy),
+                    .cancel => try catalog.cancel(value.binding, policy),
+                    .execute => try execution.ddl(execution.context, catalog, value.binding, policy, value.steps),
+                } },
+                .insert, .update, .delete => return .{ .rows = switch (value.command) {
+                    .inspect => try catalog.rowStatus(value.binding, policy),
+                    .cancel => try catalog.cancelRows(value.binding, policy),
+                    .execute => try catalog.performRows(value.binding, policy),
+                } },
+            }
+        },
+        .pin => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .pin = if (delegation) |grant| (if (value.selection == .current) try catalog.captureRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy)) else try catalog.pinRows(value.object, value.owner, value.expected, policy) };
+        },
+        .retain_history => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else null, policy) };
+        },
+        .history_start => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.handle, null) };
+        },
+        .history_source => {
+            const value = @field(action.*, @tagName(action_tag));
+            return .{ .history_source = try historySource(allocator, catalog, policy, delegation, value.object, value.point.lease, value.point) };
+        },
+        .history => {
+            const value = @field(action.*, @tagName(action_tag));
+
             if (delegation != null) {
                 var original = try catalog.snapshotDefinition(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
                 defer original.deinit();
@@ -301,7 +425,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             }
             return .{ .history = .{ .snapshot = value.snapshot, .through = found.through, .next = found.next, .scanned = found.scanned, .entries = entries } };
         },
-        .history_scan => |value| {
+        .history_scan => {
+            const value = @field(action.*, @tagName(action_tag));
+
             const source = try historySource(allocator, catalog, policy, delegation, value.source.object, value.source.point.lease, value.source.point);
             var declaration = try catalog.historyDefinition(catalog.allocator, value.source.object, value.source.point.lease, value.source.point, policy);
             defer declaration.deinit();
@@ -314,7 +440,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(declaration.declaration.schema.schema, scratch));
             return .{ .history_page = .{ .point = found.point, .page = .{ .snapshot = source.source.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } } };
         },
-        .pin_status => |value| {
+        .pin_status => {
+            const value = @field(action.*, @tagName(action_tag));
+
             const state = try catalog.pinState(value.object, value.owner, policy);
             if (delegation != null and !state.released) if (state.handle) |handle| {
                 var source = try catalog.snapshotDefinition(catalog.allocator, value.object, handle, policy);
@@ -323,7 +451,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             };
             return .{ .pin_state = .{ .interpretation = state.interpretation, .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
         },
-        .snapshot => |value| {
+        .snapshot => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var read = try catalog.snapshotRead(catalog.allocator, value.object, value.handle, policy);
             defer read.deinit();
             const found = &read.definition;
@@ -339,7 +469,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 .authority = read.authority,
             } };
         },
-        .read_key => |value| {
+        .read_key => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var definition = try catalog.snapshotDefinition(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
             try requireSource(delegation, definition);
@@ -354,7 +486,10 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = definition.position(), .changed_lsn = definition.changedLsn(), .total_rows = definition.root.live_rows, .row = encoded } };
         },
-        inline .scan, .column_scan => |value, tag| {
+        .scan, .column_scan => {
+            const value = @field(action.*, @tagName(action_tag));
+            const tag = action_tag;
+
             var definition = try catalog.snapshotDefinition(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
             try requireSource(delegation, definition);
@@ -369,7 +504,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
-        .filter_scan => |value| {
+        .filter_scan => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var read = try catalog.snapshotRead(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer read.deinit();
             const definition = &read.definition;
@@ -410,7 +547,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 } else null,
             } };
         },
-        .key_range => |value| {
+        .key_range => {
+            const value = @field(action.*, @tagName(action_tag));
+
             var definition = try catalog.snapshotDefinition(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
             try requireSource(delegation, definition);
@@ -426,7 +565,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(definition.schema.schema, scratch));
             return .{ .key_range = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = if (page.next) |cursor| try w.KeyCursor.encode(allocator, cursor) else null } };
         },
-        .release => |value| {
+        .release => {
+            const value = @field(action.*, @tagName(action_tag));
+
             if (delegation != null) {
                 const state = try catalog.pinState(value.object, value.handle.owner, policy);
                 if (!state.released) {
