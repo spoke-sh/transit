@@ -21289,6 +21289,8 @@
               "database_domain",
               "schema_domain",
               "table_domain",
+              "stream_domain",
+              "queue_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -21301,6 +21303,12 @@
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
               "table_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "stream_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "queue_domain": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
               "database": {
@@ -21317,6 +21325,8 @@
               "database_domain",
               "schema_domain",
               "table_domain",
+              "stream_domain",
+              "queue_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -25171,6 +25181,8 @@
               "database_domain",
               "schema_domain",
               "table_domain",
+              "stream_domain",
+              "queue_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -25183,6 +25195,12 @@
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
               "table_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
+              "stream_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
+              "queue_domain": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
               "database": {
@@ -25199,6 +25217,8 @@
               "database_domain",
               "schema_domain",
               "table_domain",
+              "stream_domain",
+              "queue_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"

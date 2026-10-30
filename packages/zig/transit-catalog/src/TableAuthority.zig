@@ -12,23 +12,31 @@ pub const insert: u64 = 2;
 pub const update: u64 = 4;
 pub const delete: u64 = 8;
 pub const table_actions: u64 = select | insert | update | delete;
-pub const Kind = enum(u8) { database = 1, schema = 2, table = 3 };
+pub const Kind = enum(u8) { database = 1, schema = 2, table = 3, stream = 4, queue = 5 };
 pub const Profile = struct {
     database_domain: u64,
     schema_domain: u64,
     table_domain: u64,
+    stream_domain: u64,
+    queue_domain: u64,
     database: u64,
     initial_schema: u64,
     initial_schema_authority: u64,
     pub fn validate(self: Profile) !void {
         inline for (@typeInfo(Profile).@"struct".field_names) |field| try c.Model.nativeId(@field(self, field));
-        if (self.database_domain == self.schema_domain or self.database_domain == self.table_domain or self.schema_domain == self.table_domain or self.database == self.initial_schema_authority) return error.InvalidCatalogConfiguration;
+        const domains = [_]u64{ self.database_domain, self.schema_domain, self.table_domain, self.stream_domain, self.queue_domain };
+        for (domains, 0..) |domain_id, i| for (domains[0..i]) |previous| {
+            if (domain_id == previous) return error.InvalidCatalogConfiguration;
+        };
+        if (self.database == self.initial_schema_authority) return error.InvalidCatalogConfiguration;
     }
     pub fn domain(self: Profile, kind: Kind) u64 {
         return switch (kind) {
             .database => self.database_domain,
             .schema => self.schema_domain,
             .table => self.table_domain,
+            .stream => self.stream_domain,
+            .queue => self.queue_domain,
         };
     }
 };
@@ -203,6 +211,7 @@ pub fn actions(kind: Kind) u64 {
         .database => connect,
         .schema => usage | create,
         .table => table_actions,
+        .stream, .queue => c.LogAuthority.all_privileges,
     };
 }
 /// Full identities are hashed, never truncated numeric IDs or reusable names.
@@ -261,7 +270,7 @@ pub fn guard(subject: a.Subject, profile: Profile, schema: ?Schema, table: ?Tabl
 
 test "Table requirements distinguish namespace access, data and ownership" {
     const t = std.testing;
-    const profile: Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+    const profile: Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
     const scope: c.Model.Scope = .{ .realm = 1, .resource = 7, .catalog = 9 };
     const schema: Schema = .{ .scope = scope, .id = 1, .authorization = 5, .name = try Name.init("public"), .revision = 1 };
     const table: Table = .{ .id = 11, .schema = 1, .authorization = 6 };

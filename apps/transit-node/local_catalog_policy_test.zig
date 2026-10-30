@@ -1380,10 +1380,12 @@ fn catalogSchedule() !void {
     const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
     const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
     const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     const request_digest: [32]u8 = @splat(5);
     var signed = try proof(&engine, request_digest);
     try t.expectError(error.InvalidAuthorizationCredential, Policy.init(&engine, config, signed, @splat(6), null));
@@ -1818,10 +1820,12 @@ fn transactionSchedule() !void {
     const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
     const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
     const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
-    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
     var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
     const initialized = try dispatch(&service, .initialize);
     initialized.deinit();
@@ -1840,4 +1844,59 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     const unavailable = failure.table(error.InjectedStorageUnavailable);
     try t.expectEqual(std.http.Status.service_unavailable, unavailable.status);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, unavailable.code);
+}
+
+test "log privileges enforce separate native domains and current disclosure rights" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 });
+    const pid = try command(&engine, .{ .spawn = .{} });
+    const resource = try command(&engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
+    const role = (try change(&engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
+    _ = try change(&engine, .{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
+    const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
+    const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+    const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
+    const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
+    const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const alloc = scratch.allocator();
+    const namespace_record: c.TableAuthority.Schema = .{ .scope = scope, .id = 1, .authorization = namespace, .name = config.initial_schema_name, .revision = 1 };
+    for ([_]c.TableAuthority.Kind{ .stream, .queue }, 0..) |kind, i| {
+        const object_id: u64 = 200 + i;
+        const native_id = (try change(&engine, .{ .register_object = .{ .domain = config.authority.domain(kind), .owner = 0, .schema = c.TableAuthority.reference(namespace), .binding = try c.TableAuthority.binding(scope, kind, object_id) } })).?;
+        const target: c.TableAuthority.Table = .{ .id = object_id, .schema = 1, .authorization = native_id };
+        const context: [32]u8 = @splat(9);
+        var policy = try Policy.init(&engine, config, try proof(&engine, context), context, null);
+        const registered = (try policy.policy().registered(&policy, kind, object_id)).?;
+        try c.TableAuthority.validateObject(config.authority, scope, kind, object_id, c.TableAuthority.reference(namespace), registered);
+        try t.expectError(error.InvalidCatalogConfiguration, c.TableAuthority.validateObject(config.authority, scope, if (kind == .stream) .queue else .stream, object_id, c.TableAuthority.reference(namespace), registered));
+        const masks = [_]u64{ c.LogAuthority.inspect, c.LogAuthority.read, c.LogAuthority.append, c.LogAuthority.read | c.LogAuthority.acquire, c.LogAuthority.settle };
+        for ([_]c.LogAuthority.Access{ .inspect, .read, .append, .acquire, .settle }, masks) |access, mask| {
+            _ = scratch.reset(.retain_capacity);
+            policy = try Policy.init(&engine, config, try proof(&engine, context), context, null);
+            const requirements = try c.LogAuthority.requirements(config.authority, policy.policy().subject, namespace_record, target, access);
+            const guard = try policy.policy().make_guard(&policy, alloc, requirements, null);
+            try t.expectError(error.Forbidden, guard.acquire(guard.context));
+            _ = try change(&engine, .{ .grant = .{ .object = registered.reference, .grantee = role, .privileges = mask } });
+            _ = try guard.acquire(guard.context);
+            guard.release(guard.context);
+            _ = try policy.check();
+            _ = try change(&engine, .{ .revoke_privileges = .{ .object = registered.reference, .grantee = role, .privileges = mask, .behavior = .cascade } });
+            // Both the original operation guard and already-buffered response
+            // must fail after revocation; a saved signed proof grants no rights.
+            try t.expectError(error.Forbidden, guard.acquire(guard.context));
+            try t.expectError(error.Forbidden, policy.check());
+        }
+    }
 }

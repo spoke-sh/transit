@@ -88,8 +88,10 @@ domain always includes the field, including an explicit `null` for an unbound
 domain. It grants no resource privileges or associations. A successful `Guard`
 also checks each required domain's bound resource and its lifetime dependencies.
 Privilege `decision` inspection remains an authority decision, not a resource
-usability check. Direct Table database, schema and Table domains must all bind
-the configured catalog resource.
+usability check. Direct catalog database, schema, Table, Stream and Queue domains
+must all bind the configured catalog resource. Their five domain IDs are mandatory,
+nonzero and pairwise distinct in the current-v1 configuration; missing domains
+are not defaulted when reading saved configurations.
 An expired or absent bound resource denies the guard. Storage or clock failures
 remain unavailable observations. A turn rejected by this guard after exact-retry
 lookup uses `AuthorizationSubjectDenied`, permitting the worker to reconsider
@@ -111,6 +113,15 @@ candidate with a new reserved identity; retirement never permits binding reuse.
 
 The SQL profile maps CONNECT to databases, USAGE/CREATE to schemas and
 SELECT/INSERT/UPDATE/DELETE to Tables. Lifecycle control follows logical ownership.
+The Stream/Queue foundation defines separate native action masks: metadata
+inspection `1`, payload read `2`, append/enqueue `4`, consumption/claim `8`, and
+offset/lease settlement `16`. Selection requires both payload read and
+consumption/claim; settlement does not itself grant payload disclosure. Every
+operation also requires database CONNECT and schema USAGE. CREATE additionally
+requires schema CREATE; ALTER, RENAME and DROP require native object ownership.
+An accepted claim or group membership confers none of these rights. These masks
+and registered domains do not by themselves expose executable Stream/Queue SQL
+or catalog operations; those require their corresponding lifecycle owners.
 Catalogs map explicitly to databases; schemas are catalog metadata namespaces.
 Configuration includes the database name and stable native database identity.
 The catalog owns bounded schema name lookup, rename and DROP RESTRICT. Every

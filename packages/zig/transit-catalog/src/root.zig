@@ -40,6 +40,7 @@ pub const DirectResource = @import("DirectResource.zig");
 pub const DirectResourceClient = @import("DirectResourceClient.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
+pub const LogAuthority = @import("LogAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
 pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
 pub const TableValues = @import("TableValues.zig");
@@ -69,6 +70,7 @@ test {
     _ = @import("direct_storage_graph_test.zig");
     _ = AuthorizationLowering;
     _ = TableAuthority;
+    _ = LogAuthority;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

@@ -5750,6 +5750,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/LogAuthority.zig": {
+      "errors": {
+        "InvalidCatalogIdentity": 2
+      },
+      "outcomes": {
+        "Access": [
+          "create",
+          "inspect",
+          "read",
+          "append",
+          "acquire",
+          "settle",
+          "administer"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "requirements()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-catalog/src/Model.zig": {
       "errors": {
         "InvalidCatalogIdentity": 1
@@ -5927,7 +5955,7 @@
         "AccessDenied": 3,
         "CatalogDenied": 8,
         "Conflict": 1,
-        "InvalidCatalogConfiguration": 4,
+        "InvalidCatalogConfiguration": 5,
         "InvalidCatalogIdentity": 3,
         "InvalidCatalogName": 3,
         "QueryPageBudget": 1,
@@ -5950,7 +5978,9 @@
         "Kind": [
           "database",
           "schema",
-          "table"
+          "table",
+          "stream",
+          "queue"
         ]
       },
       "error_sets": {},
@@ -6185,6 +6215,7 @@
         "DirectTransactionSavepoint.zig",
         "DirectTransactionWorkspace.zig",
         "Inspection.zig",
+        "LogAuthority.zig",
         "Model.zig",
         "NameAssertion.zig",
         "OperationBinding.zig",

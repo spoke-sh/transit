@@ -63,6 +63,13 @@ operation identity through retries and name reuse.
 
 ## Callers and policy
 
+`LogAuthority` defines the Stream/Queue action masks over separate native
+domains: inspect, read, append, acquire and settle. It shares database CONNECT,
+schema USAGE/CREATE and ownership checks with `TableAuthority`; it stores no
+grants. The current configuration requires all five domain identities, including
+Stream and Queue. The helper and domain bootstrap are foundations for their
+lifecycle owners, not executable catalog declarations by themselves.
+
 `DirectTableClient` signs typed requests with the caller's current credential and
 selected role. The node checks database CONNECT, schema USAGE, the required
 Table action or ownership, and its resource lifetime. It checks accumulated
