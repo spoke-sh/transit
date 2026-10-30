@@ -17,6 +17,7 @@ export default function RefractionStory(): ReactElement {
     return () => observer.disconnect();
   }, []);
   const story = useRef<HTMLElement>(null);
+  const track = useRef<HTMLDivElement>(null);
   const activity = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const artwork = useRef<HTMLImageElement>(null);
@@ -82,8 +83,8 @@ export default function RefractionStory(): ReactElement {
         <p className="transit-kicker">A DIFFERENT WAY TO SEE</p>
         <h2>Through the surface.</h2>
       </div>
-      <div className="refraction-track">
-        <Radiograph />
+      <div ref={track} className="refraction-track">
+        <Radiograph dark={dark} track={track} />
         <div ref={activity} className="refraction-activity">
           <div className="refraction-visual">
             <div ref={viewport} className="refraction-window">

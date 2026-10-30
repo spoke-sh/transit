@@ -94,3 +94,85 @@
     margin-bottom: 1.5rem;
   }
 }
+
+.radiograph-camera {
+  display: none;
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(var(--camera-z, 0px));
+}
+.radiograph-plane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.radiograph-near {
+  transform: translateZ(80px);
+  opacity: 0.64;
+}
+.radiograph-middle {
+  transform: translateZ(-240px);
+  opacity: 0.65;
+}
+.radiograph-far {
+  transform: translateZ(-650px);
+  opacity: 0.85;
+  mask-image: radial-gradient(ellipse closest-side, #000 30%, transparent 100%);
+}
+.radiograph-volume::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      var(--ifm-background-color),
+      transparent 6%,
+      transparent 94%,
+      var(--ifm-background-color)
+    ),
+    linear-gradient(
+      0deg,
+      var(--ifm-background-color),
+      transparent 8%,
+      transparent 92%,
+      var(--ifm-background-color)
+    );
+}
+.radiograph-controls button {
+  color: var(--ifm-font-color-base);
+  background: transparent;
+  border: 1px solid var(--docs-line);
+  padding: 0.35rem 0.65rem;
+  font: inherit;
+  cursor: pointer;
+}
+@media (min-width: 997px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-visual {
+    position: sticky;
+    top: calc(var(--ifm-navbar-height) + 2vh);
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-volume {
+    height: calc(85vh - var(--ifm-navbar-height));
+    aspect-ratio: auto;
+    perspective: 900px;
+    perspective-origin: 61% 50%;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-poster {
+    visibility: hidden;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-camera {
+    display: block;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .refraction-chapter {
+    min-height: 110vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
