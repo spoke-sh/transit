@@ -173,7 +173,17 @@ cannot establish an empty claim. Each selected event still validates its current
 durable item and `.tack` state; current authority and time remain separate checks.
 Warm checks before a known future prefix need no object reads or backing allocation.
 Durable eligibility and deadline directories still use paged indexes;
-time-bucketed immutable runs are not implemented.
+time-bucketed immutable runs are not integrated into accepted scheduling state.
+
+`QueueTimeRun` stages bounded sorted `.tseg` chunks for visibility/retry and lease
+metadata. Each chunk holds at most 1,024 `(time, offset, epoch)` entries from one
+time bucket, with an exact genesis interpretation and physical serial. Loading
+verifies full content, typed row identities and descriptor bounds into caller-owned
+scalar output. The caller supplies reusable scratch and an encoded output buffer;
+neither staging nor loading schedules work. Accepted run directories, bounded
+merge progress, stale-event filtering and their retained dependencies remain
+separate integration work. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#queue-time-run-chunks)
+defines the exact descriptor and physical bounds.
 
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch

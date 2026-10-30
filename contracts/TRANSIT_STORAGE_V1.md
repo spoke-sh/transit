@@ -1269,6 +1269,42 @@ reclamation still requires the owning retained-graph checks for payloads,
 receipts, snapshots, replay and pending transactions; terminal state does not
 authorize deletion.
 
+## Queue time-run chunks
+
+`QueueTimeRun` stages and verifies sorted scheduling chunks through the shared
+`.tseg` engine. A chunk contains at most 1,024 entries and 512 KiB. Its four
+non-null internal columns are kind (`uint8`), millisecond time, logical offset
+and lease epoch (three `uint64` values), with 64 rows per physical group. Kind
+one denotes visibility/retry and kind two denotes a lease deadline. Entries are
+strictly ordered by `(time, offset, epoch)` and share the time bucket
+`time >> 20`. An offset cannot equal the maximum `u64`; lease entries additionally
+require a nonzero epoch and deadline. Visibility entries may carry epoch zero.
+
+The canonical 240-byte descriptor contains, in order:
+
+- `QTIMRUN1` (8 bytes), mandatory current definition (32 bytes).
+- Realm, resource, catalog, branch, object and genesis definition revision
+  (six big-endian `u64` values), definition digest (32 bytes), and logical
+  partition ordinal (big-endian `u32`). The genesis revision is one.
+- Kind (`u8`), bucket and nonzero run serial (two big-endian `u64` values), and
+  nonzero row count (big-endian `u32`).
+- First and last `(time, offset, epoch)` triples (six big-endian `u64` values).
+- Segment byte length (big-endian `u64`), SHA-256 (32 bytes), seven zero bytes.
+
+The object key is `queue-time-runs/<sha256>.tseg`. The internal physical schema
+uses the Queue's stable object ID and revision one. The footer segment ID is the
+run serial; physical row identities are `(partition ordinal + 1, run serial,
+row ordinal)`. Loading checks the complete content digest, physical schema,
+identities, timer kind, ordering, bucket and exact descriptor bounds before
+returning the complete copied scalar output. Scratch does not escape. Partial
+output after a failed decode establishes neither valid events nor coverage.
+
+These operations define an immutable storage artifact. They do not publish a
+schedule, establish current time/authority, filter stale epochs or expire a lease.
+The owning Queue must validate the exact genesis and publish reachability with
+its accepted scheduling state. The current Queue scheduling directories have
+not yet adopted time-run chunks or resumable multi-chunk merging.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.

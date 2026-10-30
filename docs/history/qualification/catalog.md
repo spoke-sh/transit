@@ -9,6 +9,29 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded Queue time-run codec — 2026-10-30
+
+The physical `QueueTimeRun` codec passes focused storage checks on dirty parent
+`dc8a70400`. A 1,024-entry sorted chunk spans multiple row groups, preserves
+full-width scalar metadata across disk reopen, and verifies its exact descriptor
+and physical identities. It encodes to 100,608 bytes and peaks at 592,088 bytes
+of codec allocation under an explicit 4 MiB budget. Five repeated loads reuse
+a warmed scratch arena with a sealed backing allocator; this excludes provider
+I/O allocations and is not a claim about whole-Queue steady-state allocation.
+
+Negative cases reject duplicate/reordered entries, mixed buckets, a changed
+partition or object, mismatched kind or bounds, missing objects, corrupted payload
+bytes, foreign descriptor definitions, nonzero reserved bytes, truncation and
+insufficient output. The largest unsigned deadline and epoch round-trip exactly.
+Retained scalar output survives scratch disposal and later loads.
+
+Evidence is `/var/tmp/transit-queue-time-run-final.log`. All 48 fast checks pass
+in `/var/tmp/transit-queue-time-run-fast.log`; all 18 contract checks pass in
+`/var/tmp/transit-queue-time-run-contracts.log`. These workspace checks cover the
+codec, not accepted Queue publication, run directories, resumable merge,
+stale-entry filtering, retained run collection or a new clean lane. Runtime
+scheduling still uses the previously qualified paged directories and caches.
+
 ## Bounded Queue visibility wheel — 2026-10-30
 
 `a90c1f1bc490953e2fc9b0d7e41f186b29f81fad` adds the eight-level radix wheel

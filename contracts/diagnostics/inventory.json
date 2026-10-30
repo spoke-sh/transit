@@ -32551,6 +32551,45 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/QueueTimeRun.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueTimeRun": 16,
+        "QueueTimeRunBudget": 1,
+        "QueueTimeRunMissing": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "visible",
+          "lease"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.decode()": "<inferred>",
+        "Descriptor.encode()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Event.validate()": "<inferred>",
+        "MemorySource.read()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/QueueTimingWheel.zig": {
       "errors": {
         "InvalidQueueTimerBudget": 2,
@@ -33943,6 +33982,7 @@
         "QueueLeaseHeap.zig",
         "QueuePartition.zig",
         "QueueSelection.zig",
+        "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "S3ObjectStore.zig",
         "StreamCompaction.zig",

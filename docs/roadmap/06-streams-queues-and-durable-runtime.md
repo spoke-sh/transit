@@ -443,7 +443,9 @@ The current progress slice delivers:
   destinations. A hierarchical visibility/retry wheel now accelerates a bounded
   earliest eligibility prefix; incomplete advancement or prefix exhaustion
   consults the durable directory and never establishes an empty claim. Lease
-  expiry remains owned separately by the fenced heap. Durable time-bucketed runs,
+  expiry remains owned separately by the fenced heap. Bounded sorted `.tseg`
+  timer chunks now have a physical codec; accepted run directories, resumable
+  merging and stale-event filtering are not integrated. Durable time-bucketed runs,
   affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
