@@ -192,7 +192,7 @@ fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receip
 pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, slot: *?Cached, options: Stream.Options, environment: Environment, request: Request, policy: c.DirectCatalog.Policy) !Result {
     try request.validate(policy.subject.principal(), catalog.store.root.configuration.scope);
     if (environment.recovery_steps == 0 or environment.recovery_steps > 256) return error.InvalidLogRecoveryBudget;
-    var current = try catalog.streamAuthorization(scratch, request.target(), request.access(), policy);
+    var current = try catalog.logAuthorization(scratch, .stream, request.target(), request.access(), policy);
     const binding: ?Mutation.Binding = switch (request) {
         .mutate => |value| try value.work.binding(scratch),
         .operation => |value| try value.binding(scratch),
@@ -230,7 +230,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         const original = try owner.operation(retained.owner, current.guard) orelse return error.StreamReadMissing;
         if (original.outcome != .read or !std.meta.eql(original.outcome.read.handle(), retained)) return error.StreamReadConflict;
         if (original.outcome.read.request.group != null)
-            current = try catalog.streamAuthorization(scratch, request.target(), .acquire, policy);
+            current = try catalog.logAuthorization(scratch, .stream, request.target(), .acquire, policy);
     }
     var selected = request;
     if (request == .wait) {

@@ -746,24 +746,27 @@ pub fn logDefinition(self: *Self, allocator: std.mem.Allocator, definition: L.De
     return result;
 }
 
-pub const StreamAuthorization = struct { definition: L.Definition, guard: P.Guard };
+pub const LogAuthorization = struct { definition: L.Definition, guard: P.Guard };
 /// Resolve stable identity under current native rights, independently of the
 /// original request's definition. Storage checks that frozen definition for new
 /// acceptance; old outcomes and retained reads remain observable after ALTER
 /// or DROP. The caller holds the directory/partition locks through disclosure.
 /// Guard context belongs to scratch and must never enter a cached owner.
-pub fn streamAuthorization(self: *Self, scratch: std.mem.Allocator, target: p.StreamQueue.Partition, access: c.LogAuthority.Access, policy: Policy) !StreamAuthorization {
+pub fn logAuthorization(self: *Self, scratch: std.mem.Allocator, kind: p.StreamQueueDeclaration.Kind, target: p.StreamQueue.Partition, access: c.LogAuthority.Access, policy: Policy) !LogAuthorization {
     try self.requireInitialized();
     try target.validate();
     if (access == .create or !std.meta.eql(target.interpretation.object.scope, self.config().scope) or target.interpretation.object.branch != self.config().branch) return error.CatalogDenied;
     const known = try self.logRecord(target.interpretation.object.object) orelse return error.LogDeclarationConflict;
     if (known.phase != .complete) return error.LogDeclarationConflict;
     const definition = known.resulting.?;
-    if (definition.kind() != .stream) return error.CatalogKindMismatch;
+    if (definition.kind() != kind) return error.CatalogKindMismatch;
     _ = try definition.partition(target.partition);
     const namespace = try self.authorizationSchema(definition.properties.namespace);
     _ = try self.requirements(policy, namespace, null, .schema);
-    try self.verifiedObject(policy, .stream, target.interpretation.object.object, definition.properties.authorization, a.reference(namespace.authorization));
+    try self.verifiedObject(policy, switch (kind) {
+        .stream => .stream,
+        .queue => .queue,
+    }, target.interpretation.object.object, definition.properties.authorization, a.reference(namespace.authorization));
     const required = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, definition.properties.target(target.interpretation.object.object), access);
     const current = try policy.make_guard(policy.context, scratch, required, null);
     try check(current);

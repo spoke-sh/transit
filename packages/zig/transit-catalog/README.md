@@ -20,6 +20,18 @@ owns roles, grants, current credentials and resource lifetime.
 
 ## Lifecycle owner
 
+`DirectQueue.apply` composes durable enqueue, exact original claims, fenced
+settlements and bounded claim pages with current catalog declarations and native
+grants. Its host supplies one serialized, bounded resident slot and trusted time;
+neither the time capability nor request authorization is retained. Queue work
+uses the common operation namespace, so an identity cannot be reused for another
+partition, intent or data kind. Claim receipt inspection and pages require
+current read and acquire privileges; settlements require settle privileges.
+Pages retain the original schema and payload while reporting current lease state
+separately. `DirectQueueResponse` validates that attribution, observation basis,
+row identities, byte budgets and exact cursor advance. This internal composition
+is not yet exposed by the native service or SQL.
+
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
 original source declaration, including after a later ALTER or DROP.

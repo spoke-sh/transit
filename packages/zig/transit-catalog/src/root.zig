@@ -47,6 +47,9 @@ pub const DirectStreamMutation = @import("DirectStreamMutation.zig");
 pub const DirectStream = @import("DirectStream.zig");
 pub const DirectStreamResponse = @import("DirectStreamResponse.zig");
 pub const DirectStreamClient = @import("DirectStreamClient.zig");
+pub const DirectQueueMutation = @import("DirectQueueMutation.zig");
+pub const DirectQueue = @import("DirectQueue.zig");
+pub const DirectQueueResponse = @import("DirectQueueResponse.zig");
 pub const LogAuthority = @import("LogAuthority.zig");
 pub const DocumentAuthority = @import("DocumentAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
@@ -106,6 +109,8 @@ test {
     _ = DirectLog;
     _ = DirectStreamMutation;
     _ = DirectStream;
+    _ = DirectQueueMutation;
+    _ = DirectQueue;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

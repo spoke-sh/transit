@@ -3825,6 +3825,7 @@
         "listNamespaces()": "<inferred>",
         "listResources()": "<inferred>",
         "loadRequest()": "<inferred>",
+        "logAuthorization()": "<inferred>",
         "logDefinition()": "<inferred>",
         "logGuard()": "<inferred>",
         "logOperation()": "<inferred>",
@@ -3920,7 +3921,6 @@
         "storageAccess()": "<inferred>",
         "storageState()": "<inferred>",
         "storedSchema()": "<inferred>",
-        "streamAuthorization()": "<inferred>",
         "streamMaintenanceDefinition()": "<inferred>",
         "streamMaintenanceNext()": "<inferred>",
         "terminal()": "<inferred>",
@@ -4836,6 +4836,102 @@
       "propagation": {
         "try": 18,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueue.zig": {
+      "errors": {
+        "CatalogDenied": 2,
+        "InvalidLogRecoveryBudget": 1,
+        "InvalidQueuePayload": 1,
+        "InvalidQueueReadBudget": 1,
+        "LogOperationConflict": 1,
+        "LogPayloadConflict": 1
+      },
+      "outcomes": {
+        "Receipt": [
+          "enqueue",
+          "claim",
+          "settle"
+        ],
+        "Request": [
+          "observe",
+          "mutate",
+          "operation",
+          "page"
+        ],
+        "Result": [
+          "recovering",
+          "cut",
+          "operation",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "authorize()": "<inferred>",
+        "originalReceipt()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 35,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueueMutation.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidQueueOperationBinding": 1
+      },
+      "outcomes": {
+        "Request": [
+          "enqueue",
+          "claim",
+          "settle"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Request.binding()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectQueueResponse.zig": {
+      "errors": {
+        "InvalidQueueResponse": 12
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "requireReceipt()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -6936,7 +7032,7 @@
     },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
-        "DataIdentityConflict": 7,
+        "DataIdentityConflict": 8,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
@@ -6955,7 +7051,8 @@
           "namespace",
           "dependency",
           "resource",
-          "stream"
+          "stream",
+          "queue"
         ]
       },
       "error_sets": {},
@@ -6968,6 +7065,7 @@
         "claimDependency()": "<inferred>",
         "claimExternal()": "<inferred>",
         "claimNamespace()": "<inferred>",
+        "claimQueue()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
         "claimStream()": "<inferred>",
@@ -6981,13 +7079,14 @@
         "lookupAssertion()": "<inferred>",
         "lookupDependency()": "<inferred>",
         "lookupNamespace()": "<inferred>",
+        "lookupQueue()": "<inferred>",
         "lookupResource()": "<inferred>",
         "lookupStored()": "<inferred>",
         "lookupStream()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 1
       },
       "imports": [
@@ -7446,6 +7545,9 @@
         "DirectLogClient.zig",
         "DirectLogProtocol.zig",
         "DirectNamespace.zig",
+        "DirectQueue.zig",
+        "DirectQueueMutation.zig",
+        "DirectQueueResponse.zig",
         "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
         "DirectRecord.zig",

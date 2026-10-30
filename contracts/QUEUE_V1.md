@@ -25,7 +25,12 @@ requires a new operation. Capacity exhaustion refuses instead of publishing a
 false empty result. ACK, NACK, renewal and bounded expiry also publish complete
 successor roots with current authorization and conservative deadline checks.
 Bounded original-claim reads return owned payload rows and separately observed
-lease status. This is a storage composition boundary: the installed service does
+lease status. The internal catalog adapter `DirectQueue.apply` binds those
+operations to current native Queue grants and the shared operation namespace.
+Claim receipt inspection and payload pages require read and acquire privileges;
+settlement requires settle privileges. It rechecks authority after buffering,
+preserves original outcomes through compatible ALTER/DROP, and reports bounded
+incomplete recovery before accepting fresh work. This is a composition boundary: the installed service does
 not yet admit Queue payload operations, and automatic deadline scheduling
 remains unimplemented.
 
