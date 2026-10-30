@@ -224,6 +224,16 @@
         ]
       },
       {
+        "id": "standards_ledger",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/standards_ledger.py"
+        ]
+      },
+      {
         "id": "table_schema",
         "phase": "static",
         "command": [
@@ -271,6 +281,16 @@
           "-B",
           "tests/runner/launch.py",
           "tests/catalog/tables/table_catalog.py"
+        ]
+      },
+      {
+        "id": "historical_catalog",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/historical_catalog.py"
         ]
       },
       {
