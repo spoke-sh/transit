@@ -284,9 +284,9 @@ def run(binary):
                 assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
                 assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
                 assert metadata(directory / "wal")["floor"] == 0
-    # Three removed per-content directory boundaries (two object paths and one
-    # checkpoint), plus four new unsynced-link crash cuts across both put kinds.
-    assert schedules == 150, schedules
+    # The original 150 schedules plus all eight batch syncs, four content links,
+    # two descriptor replacements and the grouped acknowledgement.
+    assert schedules == 165, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
           "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "
