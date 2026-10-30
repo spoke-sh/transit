@@ -31,10 +31,12 @@ const Access = struct {
             .database => 4,
             .schema => 5,
             .table => 1000 + id,
+            .stream, .queue => return null,
         }), .owner = 0, .registrar = principal, .actions = c.TableAuthority.actions(kind), .domain = profile.domain(kind), .binding = try c.TableAuthority.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => c.TableAuthority.reference(4),
             .table => c.TableAuthority.reference(5),
+            .stream, .queue => return null,
         }, .revision = 1 };
     }
 };
