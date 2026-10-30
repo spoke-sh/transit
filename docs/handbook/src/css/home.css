@@ -94,7 +94,6 @@
   margin-left: 1rem;
 }
 .refraction-story {
-  --scene-progress: 0.5;
   display: grid;
   grid-template-columns: 0.8fr 1.4fr;
   column-gap: 4%;
@@ -126,55 +125,13 @@
   display: inline-block;
   margin-top: 1rem;
 }
-.refraction-scene {
+.refraction-window {
+  overflow: hidden;
+}
+.refraction-artwork {
   display: block;
   width: 100%;
   height: auto;
-  overflow: visible;
-  fill: none;
-  stroke: var(--ifm-font-color-base);
-  stroke-width: 0.8;
-}
-.refraction-registration {
-  stroke: var(--docs-line);
-}
-.refraction-score {
-  stroke-opacity: 0.5;
-}
-.refraction-score rect {
-  fill: var(--ifm-font-color-base);
-  fill-opacity: 0.65;
-  stroke: none;
-}
-.refraction-waves,
-.refraction-terrain {
-  stroke-opacity: 0.32;
-}
-.refraction-terrain,
-.refraction-planes {
-  transform-origin: 505px 300px;
-}
-.refraction-history {
-  stroke-dasharray: 5 6;
-  stroke-opacity: 0.2;
-}
-.refraction-plane {
-  fill: var(--ifm-font-color-base);
-  fill-opacity: 0.025;
-  stroke-opacity: 0.18;
-}
-.refraction-scene .refraction-thread {
-  stroke: var(--ifm-color-primary);
-  stroke-width: 2.6;
-  stroke-opacity: 1;
-}
-.refraction-legend {
-  display: flex;
-  justify-content: space-between;
-  padding-inline: 2%;
-  color: var(--docs-muted);
-  font: 0.65rem/1.5 var(--ifm-font-family-monospace);
-  letter-spacing: 0.1em;
 }
 .transit-directory {
   display: grid;
@@ -248,14 +205,11 @@
     flex-direction: column;
     justify-content: center;
   }
-  .refraction-story[data-motion="enabled"] .refraction-terrain {
-    transform: scaleY(calc(0.65 + var(--scene-progress) * 0.6));
+  .refraction-story[data-motion="enabled"] .refraction-window {
+    max-height: 70vh;
   }
-  .refraction-story[data-motion="enabled"] .refraction-planes {
-    transform: scaleY(calc(0.7 + var(--scene-progress) * 0.55));
-  }
-  .refraction-story[data-motion="enabled"] .refraction-history {
-    transform: translateY(calc(var(--scene-progress) * -35px));
+  .refraction-story[data-motion="enabled"] .refraction-artwork {
+    transform: translateY(var(--scene-shift, 0px));
   }
 }
 @media (max-width: 996px) {
@@ -330,8 +284,5 @@
   .transit-chapters a {
     grid-template-columns: 1.5rem 1fr auto;
     gap: 0.6rem;
-  }
-  .refraction-legend {
-    font-size: 0.6rem;
   }
 }

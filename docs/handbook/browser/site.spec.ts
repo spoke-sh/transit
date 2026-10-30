@@ -385,18 +385,22 @@ test("homepage artwork follows scroll and respects reduced motion", async ({
   await expect(artwork).toBeVisible();
   expect(await artwork.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1774);
   const story = page.locator(".refraction-story");
-  const terrain = page.locator(".refraction-terrain");
+  const scene = page.getByRole("img", { name: /^Vertical graphite currents/ });
   await expect(story).toHaveAttribute("data-motion", "enabled");
-  const initial = await terrain.evaluate((element) => getComputedStyle(element).transform);
+  await expect(scene).toBeVisible();
+  const initial = await scene.evaluate((element) => getComputedStyle(element).transform);
   await page.locator("#activity-title").scrollIntoViewIfNeeded();
   await expect
-    .poll(() => terrain.evaluate((element) => getComputedStyle(element).transform))
+    .poll(() => scene.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1024);
+  await expect
+    .poll(() => scene.evaluate((element) => getComputedStyle(element).transform))
     .not.toBe(initial);
   await expect(page.locator(".refraction-visual")).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("refraction-scroll.png") });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(story).not.toHaveAttribute("data-motion");
-  await expect(terrain).toHaveCSS("transform", "none");
+  await expect(scene).toHaveCSS("transform", "none");
   await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
   await page.getByRole("link", { name: "Go to the handbook" }).click();
   await expect(page.locator("#handbook-title")).toBeInViewport();

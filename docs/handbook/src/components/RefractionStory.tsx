@@ -1,74 +1,12 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
 
-// Deterministic decorative geometry keeps server and client renders identical.
-const contours = Array.from({ length: 29 }, (_, index) => (index - 14) * 6);
-const rules = Array.from({ length: 7 }, (_, index) => 246 + index * 18);
-
-function terrain(offset: number): string {
-  return `M 505 ${300 + offset * 0.18} C 570 ${300 + offset * 0.3}, 580 ${155 + offset}, 652 ${177 + offset}
-    S 737 ${218 + offset * 0.7}, 775 ${119 + offset * 0.7}
-    S 850 ${108 + offset * 0.8}, 920 ${143 + offset * 0.8}`;
-}
-function wave(offset: number): string {
-  return `M 230 ${300 + offset * 0.65} C 284 ${300 + offset * 0.65}, 300 ${220 + offset * 0.8}, 350 ${267 + offset * 0.7}
-    S 414 ${373 + offset * 0.6}, 457 ${319 + offset * 0.4}
-    S 487 ${300 + offset * 0.18}, 505 ${300 + offset * 0.18}`;
-}
-function RefractionScene(): ReactElement {
-  return (
-    <svg className="refraction-scene" viewBox="0 0 940 630" aria-hidden="true" focusable="false">
-      <g className="refraction-registration">
-        <path d="M 25 32 H 915 M 25 598 H 915 M 25 28 V 36 M 915 28 V 36 M 25 594 V 602 M 915 594 V 602" />
-        <path d="M 505 52 V 578" strokeDasharray="2 9" />
-      </g>
-      <g className="refraction-history">
-        {[-115, -95, 110, 130].map((offset) => (
-          <path key={offset} d={terrain(offset)} />
-        ))}
-      </g>
-      <g className="refraction-score">
-        {rules.map((y, row) => (
-          <g key={y}>
-            <path d={`M 20 ${y} H 230`} />
-            {[0, 1, 2, 3, 4].map((mark) => (
-              <rect key={mark} x={36 + mark * 39 + (row % 2) * 12} y={y - 3} width="4" height="6" />
-            ))}
-          </g>
-        ))}
-        <path className="refraction-thread" d="M 20 300 H 230" />
-      </g>
-      <g className="refraction-waves">
-        {contours.map((offset) => (
-          <path key={offset} d={wave(offset)} />
-        ))}
-        <path className="refraction-thread" d={wave(0)} />
-      </g>
-      <g className="refraction-terrain">
-        {contours.map((offset) => (
-          <path key={offset} d={terrain(offset)} />
-        ))}
-        <path className="refraction-thread" d={terrain(0)} />
-      </g>
-      <g className="refraction-planes">
-        {Array.from({ length: 12 }, (_, i) => (
-          <path
-            key={i}
-            className="refraction-plane"
-            d={`M 505 300 L ${640 + i * 12} ${370 + i * 9} L 920 ${344 + i * 20} Z`}
-          />
-        ))}
-        <path
-          className="refraction-thread"
-          d="M 505 300 C 575 315, 627 396, 696 423 S 817 451, 920 524"
-        />
-      </g>
-    </svg>
-  );
-}
+import verticalRefraction from "../../../design/handbook-theme/images/d2-vertical-refraction.jpg";
 
 export default function RefractionStory(): ReactElement {
   const story = useRef<HTMLElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const artwork = useRef<HTMLImageElement>(null);
   useEffect(() => {
     const element = story.current;
     if (!element) return;
@@ -85,7 +23,11 @@ export default function RefractionStory(): ReactElement {
         1,
         Math.max(0, -bounds.top / Math.max(1, bounds.height - window.innerHeight)),
       );
-      element.style.setProperty("--scene-progress", progress.toFixed(4));
+      const travel = Math.max(
+        0,
+        (artwork.current?.offsetHeight ?? 0) - (viewport.current?.clientHeight ?? 0),
+      );
+      element.style.setProperty("--scene-shift", `${(-progress * travel).toFixed(2)}px`);
     };
     const schedule = () => {
       if (media.matches && visible && !frame) frame = window.requestAnimationFrame(paint);
@@ -93,7 +35,7 @@ export default function RefractionStory(): ReactElement {
     const configure = () => {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
-      element.style.removeProperty("--scene-progress");
+      element.style.removeProperty("--scene-shift");
       if (media.matches) element.dataset.motion = "enabled";
       else delete element.dataset.motion;
       schedule();
@@ -113,18 +55,24 @@ export default function RefractionStory(): ReactElement {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       if (frame) window.cancelAnimationFrame(frame);
-      element.style.removeProperty("--scene-progress");
+      element.style.removeProperty("--scene-shift");
       delete element.dataset.motion;
     };
   }, []);
   return (
     <section ref={story} className="refraction-story" aria-label="From structure to change">
       <div className="refraction-visual">
-        <RefractionScene />
-        <div className="refraction-legend" aria-hidden="true">
-          <span>STRUCTURE</span>
-          <span>ACTIVITY</span>
-          <span>CONTEXT</span>
+        <div ref={viewport} className="refraction-window">
+          <img
+            ref={artwork}
+            className="refraction-artwork"
+            src={verticalRefraction}
+            alt="Vertical graphite currents unfold into overlapping terrain and translucent planes, traced by a vermilion thread."
+            width={1024}
+            height={1536}
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       </div>
       <div className="refraction-narrative">

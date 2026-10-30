@@ -138,14 +138,18 @@ its URL follows the configured publication base path. The root README continues
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
-[`RefractionStory`](src/components/RefractionStory.tsx) renders a decorative SVG
-interpretation of the artwork, with terrain, refraction and history layers.
-On desktop with no reduced-motion preference, a sticky scene responds to native
-scrolling. Updates use a passive scroll listener and a single pending animation
+[`RefractionStory`](src/components/RefractionStory.tsx) presents a
+[portrait companion](../design/handbook-theme/images/d2-vertical-refraction.jpg)
+to the original artwork. Graphite currents flow downward into overlapping terrain
+and translucent surfaces, with depth carried by the illustration itself.
+On desktop with no reduced-motion preference, a sticky viewport travels vertically
+through the portrait in response to native scrolling. The travel distance comes
+from the rendered image and viewport heights, so the first and last positions
+stay within the artwork. Updates use a passive scroll listener and a single pending animation
 frame while the scene is visible; cleanup removes listeners and pending work.
 There is no continuous animation loop or animation-library dependency.
 
-Narrow layouts and reduced-motion preference show a static composition. The
+Narrow layouts and reduced-motion preference show the complete static portrait. The
 server-rendered page also provides all narrative and handbook links without
 JavaScript. Motion never gates navigation or access to content. Artwork describes
 a visual metaphor, not execution state or additional runtime guarantees.

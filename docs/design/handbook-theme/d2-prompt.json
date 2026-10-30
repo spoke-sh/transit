@@ -1,0 +1,19 @@
+{
+  "tool": "Built-in image_gen",
+  "use_case": "stylized-concept",
+  "input_image": {
+    "path": "../transit-artwork/images/d1-refraction-graphite.jpg",
+    "role": "Style and material reference; original unchanged"
+  },
+  "prompt": "Use case: stylized-concept.\nAsset type: portrait companion artwork for a long-scrolling Transit handbook homepage.\nInput image 1 is the style and material reference: the selected graphite Refraction artwork. Preserve its warm ivory paper, fine graphite contours, translucent gray folds, faint historical traces and slender vermilion thread. Create a new VERTICAL composition, not a rotation of the existing horizontal image.\nPrimary request: the movement should be predominantly top to bottom, with a subtle Z-axis depth. It should feel like data flowing vertically through an evolving landscape. A few measured parallel filaments and understated rectangular score marks enter from the top; they become organic waves down the center, then open into layered terrain and translucent refracted surfaces through the lower portion. Use gentle oblique perspective, overlaps, occlusion and soft graphite shading so some surfaces come toward the viewer and others recede. Keep one fine continuous vermilion thread visually linking the changing structure. Allow it to follow the surface folds in depth.\nStyle: richly detailed editorial fine-art graphite and translucent vellum, matching the tactile, airy richness of the reference. Thin imperfect linework, delicate contour density, extremely restrained warm gray shading, ivory negative space. The composition should have real spatial richness without becoming a technical schematic.\nComposition: tall portrait, approximately 2:3 aspect ratio. Keep the main vertical flow legible across the whole height. Curves and planes can spread sideways, but vertical movement dominates. Reserve modest quiet margins. All art, no interface or typography.\nConstraints: no labels, diagrams, legend, grid, axes, arrows, boxes, diagram cards, literal machinery, servers, nodes, lettering, or watermark. Do not depict a letter Z. Z means understated depth. No glossy plastic, heavy shadows, bright multicolor, dark background or hard-edged wireframe simplification. Keep the background opaque warm ivory.",
+  "asset": "images/d2-vertical-refraction.jpg",
+  "generated_original": "exec-57a10d83-2c84-4299-8491-f46220121b91.png",
+  "encoding": {
+    "width": 1024,
+    "height": 1536,
+    "format": "JPEG",
+    "quality": 90,
+    "sampling": "4:4:4",
+    "composition_changed_during_encoding": false
+  }
+}
