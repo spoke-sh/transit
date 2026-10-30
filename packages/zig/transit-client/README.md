@@ -282,6 +282,10 @@ Selected local routes never retry remotely after a refusal or timeout. Explicit
 route selection supports a client whose configuration operations have a separate
 owner.
 
+`Invocation.requestPtr(T)` borrows type-checked immutable input for the duration
+of dispatch, avoiding a copy of large envelopes. The host joins work before
+returning and never retains that pointer in its response or resident state.
+
 `callOwned` returns the same owned arena on either placement. Local materialized
 variable data is bounded by `response_bytes`; request domain limits are checked
 by the owning service, while encoded HTTP byte limits apply to remote transport.

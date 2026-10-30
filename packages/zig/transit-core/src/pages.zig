@@ -87,13 +87,13 @@ pub const Page = struct {
         if (self.version != version) return error.UnsupportedPageVersion;
         if (self.height > max_height or self.count == 0) return error.InvalidPage;
         switch (self.body) {
-            .leaf => |entries| {
+            .leaf => |*entries| {
                 if (self.height != 0 or self.count > leaf_entries) return error.InvalidPage;
-                for (entries, 0..) |slot, i| {
+                for (entries, 0..) |*slot, i| {
                     if (i >= self.count) {
-                        if (slot != null) return error.InvalidPage;
+                        if (slot.* != null) return error.InvalidPage;
                     } else {
-                        const entry = slot orelse return error.InvalidPage;
+                        const entry = if (slot.*) |*entry| entry else return error.InvalidPage;
                         try entry.key.validate();
                         try entry.value.validate();
                         if (entry.key.len == 0) return error.InvalidPage;
@@ -101,13 +101,13 @@ pub const Page = struct {
                     }
                 }
             },
-            .branch => |children| {
+            .branch => |*children| {
                 if (self.height == 0 or self.count > branch_children) return error.InvalidPage;
-                for (children, 0..) |slot, i| {
+                for (children, 0..) |*slot, i| {
                     if (i >= self.count) {
-                        if (slot != null) return error.InvalidPage;
+                        if (slot.* != null) return error.InvalidPage;
                     } else {
-                        const child = slot orelse return error.InvalidPage;
+                        const child = if (slot.*) |*child| child else return error.InvalidPage;
                         try child.minimum.validate();
                         if (child.minimum.len == 0) return error.InvalidPage;
                         if (i > 0 and order(&children[i - 1].?.minimum, &child.minimum) != .lt) return error.InvalidPage;

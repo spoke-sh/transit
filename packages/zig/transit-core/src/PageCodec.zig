@@ -7,15 +7,15 @@ pub fn encode(page: anytype, bytes: []u8) ![]const u8 {
     try out.writeByte(page.height);
     try out.writeByte(page.count);
     switch (page.body) {
-        .leaf => |entries| for (entries[0..page.count]) |slot| {
-            const entry = slot.?;
+        .leaf => |*entries| for (entries[0..page.count]) |*slot| {
+            const entry = &slot.*.?;
             try out.writeByte(@intCast(entry.key.len));
             try out.writeInt(u16, entry.value.len, .little);
             try out.writeAll(entry.key.slice());
             try out.writeAll(entry.value.slice());
         },
-        .branch => |children| for (children[0..page.count]) |slot| {
-            const child = slot.?;
+        .branch => |*children| for (children[0..page.count]) |*slot| {
+            const child = &slot.*.?;
             try out.writeByte(@intCast(child.minimum.len));
             try out.writeAll(child.minimum.slice());
             try out.writeAll(&child.reference.digest);

@@ -138,9 +138,9 @@ pub fn decode(comptime T: type, value: *const pages.Value) !T {
     // A bounded record cannot grow parser memory with total catalog cardinality.
     var workspace: [parser_bytes]u8 = undefined;
     var fixed = std.heap.FixedBufferAllocator.init(&workspace);
-    const parsed = try std.json.parseFromSlice(T, fixed.allocator(), value.slice(), .{});
-    defer parsed.deinit();
-    return parsed.value;
+    // Records own all fields. Parser scratch dies here, so an additional arena
+    // and its cleanup cannot extend any returned value's lifetime.
+    return std.json.parseFromSliceLeaky(T, fixed.allocator(), value.slice(), .{});
 }
 pub fn Batch(comptime T: type) type {
     return struct {
@@ -268,13 +268,13 @@ pub fn Catalog(comptime Store: type) type {
             return result;
         }
         fn getBytes(self: *const Self, address: pages.Key) !?pages.Value {
-            if (self.pending) |pending| for (pending.mutations[0..pending.len]) |mutation| {
+            if (self.pending) |pending| for (pending.mutations[0..pending.len]) |*mutation| {
                 if (std.mem.eql(u8, mutation.key.slice(), address.slice())) return mutation.value;
             };
             const cache = if (RecordCache.eligible(address)) self.record_cache else null;
             if (cache) |records| {
                 records.select(self.snapshot.root);
-                for (records.entries) |slot| if (slot) |cached| {
+                for (&records.entries) |*slot| if (slot.*) |*cached| {
                     if (std.mem.eql(u8, cached.key.slice(), address.slice())) {
                         records.hits +|= 1;
                         return cached.value;

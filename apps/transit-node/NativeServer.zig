@@ -571,10 +571,10 @@ pub fn Host(comptime Provider: type) type {
                     return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
                 }
                 if (std.mem.eql(u8, invocation.path, "/v1/command")) {
-                    const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.request(g.CommandEnvelope) else null;
+                    const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.requestPtr(g.CommandEnvelope) else null;
                     const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
                     g.validate(request.request) catch return error.InvalidLocalRequest;
-                    const position = try server.submitCommand(request, if (envelope) |*value| if (value.blocks) |*blocks| blocks else null else null);
+                    const position = try server.submitCommand(request, if (envelope) |value| if (value.blocks) |*blocks| blocks else null else null);
                     self.mutex.lockUncancelable(io);
                     defer self.mutex.unlock(io);
                     self.position = @max(self.position, lane.engine.head.position);
