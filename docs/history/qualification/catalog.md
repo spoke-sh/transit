@@ -9,6 +9,48 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded Queue visibility wheel — 2026-10-30
+
+`a90c1f1bc490953e2fc9b0d7e41f186b29f81fad` adds the eight-level radix wheel
+and its bounded eligibility prefix to real claim selection. Standalone checks
+cover every level through the largest unsigned millisecond value, one-unit
+resumable cascades, cancellation/reuse, backward-time refusal and permanently
+retired generations. A 3,000-step finite reference compares interleaved insert,
+cancel, clear and clock-jump outcomes. The first standalone compile rejected an
+untyped left-shift operand; the corrected fixed-width operand passes.
+
+The disk Queue schedule uses one cached entry with two eligible heads and a
+one-unit declared timer budget. A cursor beyond that prefix finds the other head
+through durable storage. Incomplete cascading also finds due work through the
+directory. Twenty warm future-head observations perform no object range reads
+and pass the sealed backing allocator. Original empty claims, uncertain claim
+acceptance and cold replay remain exact. All Queue/Stream partition tests pass in
+`/var/tmp/transit-queue-wheel-integration-final.log`; all 48 fast checks pass in
+`/var/tmp/transit-queue-wheel-fast.log`. Initial standalone failure/success logs
+are `/var/tmp/transit-queue-wheel-first.log` and
+`/var/tmp/transit-queue-wheel-second.log`.
+
+The ReleaseSafe native schedule passes with 157 Stream units and 220 physical
+Queue units. Peak private allocations are 6,867,364 and 18,317,753 bytes,
+respectively, under the shared 32 MiB budget. Its log is
+`/var/tmp/transit-queue-wheel-native.log`, compiled from dirty parent `a8aa8331c`
+with the code subsequently committed as `a90c1f1bc`.
+
+The installed Queue schedule passes on that committed revision with `dirty:
+false`: 280 signed HTTP calls, three uncertain replies and 60 expiry probes.
+Retirement, expiry while flushing is disabled, later physical tiering and repeated
+SIGKILL/restarts preserve original claims and payloads. Evidence is
+`/var/tmp/transit-queue-wheel-installed.log`; the successful private installation
+`/var/tmp/transit-table-queues-2daltg0t` was removed by the harness. SHA-256 values:
+
+- Node: `28fd08936a0d94c7f47bdf9d218c08999c6f94f32b0a832adb4948b81f6d0488`.
+- Caller: `4524956758305051c2c49c2aadc6dc6b9e6753518974d6d4241935d799e336ce`.
+
+The wheel owns only visibility/retry wakeups. Exact lease expiry remains with
+the separate fenced heap and durable transition. These workspace checks do not
+qualify time-bucketed immutable runs, lock-free affinity, terminal cleanup, DLQ
+transfer, mixed transactions, whole-claim zero allocation or new clean lanes.
+
 ## Historical Queue destination closure — 2026-10-30
 
 The exact-definition resolver and retained graph extension pass focused storage
