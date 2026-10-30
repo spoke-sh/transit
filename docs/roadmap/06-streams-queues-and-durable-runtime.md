@@ -454,16 +454,18 @@ The current progress slice delivers:
   [disk recovery and collection schedules](../history/qualification/catalog.md#accepted-queue-timer-schedules--2026-10-30)
   preserve original work through lost replies, retirement and physical deletion.
   Native maintenance passes trusted-time expiry, reserved capacity, recovery and
-  the unchanged 32-MiB shared budget; installed qualification remains open.
+  the unchanged 32-MiB shared budget; the subsequent installed closure schedule
+  also passes with accepted timer scheduling enabled.
   A bounded full-key FIFO affinity cache now binds entries to immutable key
   roots, pins generations during concurrent reads and retires exhausted slots.
   Collisions, long keys and saturation fall back to paged lookup. Focused cache,
-  owner, disk warm-hit and retained-graph checks pass; native/installed regression
-  qualification remains open. Explicit original-claim payload-read closure now
+  owner, disk warm-hit, retained-graph, native and installed regression checks pass. Explicit original-claim payload-read closure now
   records its own recoverable operation without settling or cancelling leases.
   Retained traversal uses closure only from its own accepted cut; older replay
   roots keep their payload dependencies. Focused disk, signed-contract and
-  catalog checks pass. Terminal cleanup and atomic DLQ transfer remain outstanding.
+  catalog checks pass; the [installed closure schedule](../history/qualification/catalog.md#explicit-queue-claim-payload-read-closure--2026-10-30)
+  passes four uncertain replies and repeated node restarts. Terminal cleanup and
+  atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

@@ -41,6 +41,26 @@ for the combined cache/closure changes remain pending. All 50 fast checks and
 `/var/tmp/transit-queue-read-release-contracts.log`; the independent fixtures and
 reflected schemas were regenerated before those checks.
 
+The installed Queue schedule then passes on committed `faf56425d` with
+`dirty: false`: **297 requests**, four uncertain replies (enqueue, claim, ACK,
+read release), automatic retired-lease expiry, physical tiering and repeated
+SIGKILL/restarts. The saved release bytes remain unchanged; both original and
+terminal payload pages refuse after closure while the other claim stays
+readable. Raw output is `/var/tmp/transit-queue-read-release-installed.log`;
+the fixture directory is `/var/tmp/transit-table-queues-xh6e0vtw`. Node and caller
+SHA-256 values are respectively
+`835569427f70f347186fff4fe12e8ae85ba6be66e0f9aab01aa2a5c5f68ddbc2` and
+`4bb20363d3962cbb8b059d0cd9dc4691711bb6a0ec9df47749b8217cc31f8d3a`.
+
+The `ReleaseSafe` native log-privilege/maintenance schedule also passes for that
+source: Stream maintenance takes 157 units with 7,014,736 peak bytes; Queue
+maintenance takes 223 physical units with **18,601,227 peak bytes**, below the
+unchanged shared 32-MiB budget. Trusted expiry, reserved capacity, bounded replay
+and original claims survive WAL trimming. Raw output is
+`/var/tmp/transit-queue-read-release-native.log`. These results close the pending
+cache/closure native and installed checks above; they are not a final clean
+lane or proof of terminal payload deletion, DLQ transfer or mixed transactions.
+
 ## Bounded FIFO affinity cache — 2026-10-30
 
 On dirty parent `d2d54bb67`, the Queue owner adds a disposable full-canonical-key
