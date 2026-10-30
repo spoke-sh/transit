@@ -146,14 +146,34 @@ and shading carry the depth; the horizontal transformation is part of the artwor
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions
-stay within the artwork. Updates use a passive scroll listener and a single pending animation
-frame while the scene is visible; cleanup removes listeners and pending work.
-There is no continuous animation loop or animation-library dependency.
+stay within the artwork. Structure and Activity share this portrait; Context has
+its own scene below them, alongside its copy.
 
-Narrow layouts and reduced-motion preference show the complete static portrait. The
-server-rendered page also provides all narrative and handbook links without
-JavaScript. Motion never gates navigation or access to content. Artwork describes
-a visual metaphor, not execution state or additional runtime guarantees.
+[`ContextEchoes`](src/components/ContextEchoes.tsx) renders a
+[transparent wavefront](../design/handbook-theme/images/d4-context-wavefront.webp)
+as a foreground result trace and two quieter grayscale echoes. Each layer uses
+the same lossless WebP asset; depth comes from separate scale and translation,
+not regenerated frames. As Context crosses the viewport, the layers separate at
+different rates while all three remain visible. The imagery suggests retained
+history; it does not display live results or imply stored historical versions.
+
+Both scenes share a passive scroll listener and one pending animation frame while
+the story is visible. Media changes and unmount cleanup cancel pending work and
+remove the motion properties. There is no continuous animation loop or animation
+dependency. Narrow layouts, reduced-motion preference and no-JavaScript rendering
+show the complete static illustrations. Context retains its separated layers and
+appears with its text. All narrative and handbook links are server-rendered;
+motion never gates navigation or access to content.
+
+The introduction's [three-plane map](static/img/architecture/three-plane-architecture.svg),
+Architecture's [responsibility map](static/img/architecture/system-responsibilities.svg),
+and Internals' [storage and activation map](static/img/architecture/storage-and-activation.svg)
+are editable SVGs in the same paper, graphite and vermilion palette. Their text,
+arrows and line styles carry meaning independently of color. The Internals map
+labels the target composition explicitly and links to its owning storage account;
+it is not an inventory of installed capabilities.
+Relative links to static assets resolve to full-size files under the configured
+publication base path, while the same Markdown links remain usable in GitHub.
 
 For structural changes beyond CSS, wrap the specific Docusaurus theme component
 in `src/theme/` before considering a larger theme replacement. Keep the shared
