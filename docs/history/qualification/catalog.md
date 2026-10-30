@@ -44,7 +44,17 @@ or writing provider objects. Both pass in
 `/var/tmp/transit-queue-schedule-replay-bound.log`. All 50 fast checks pass in
 `/var/tmp/transit-queue-schedule-accepted-fast.log`; all 18 contract checks pass
 in `/var/tmp/transit-queue-schedule-accepted-contracts.log`. Native maintenance
-and collection regressions are still running at this record's creation.
+and collection regressions were still running when the storage slice was committed.
+
+The native log-privilege/maintenance regression subsequently passes in
+`/var/tmp/transit-queue-schedule-native.log`, against the timer-integration source
+committed as `b74fee887` (before later affinity work). Stream maintenance completes
+157 units with a 7,010,576-byte peak; Queue physical maintenance completes 223
+units with a 19,215,663-byte peak, below the unchanged shared 32-MiB limit. Clock
+refusal permits preceding physical timer cleanup but no lease settlement;
+trusted lower-bound expiry, reserved control capacity, restart and original
+claim payloads after trimming pass. Native collection and a new installed
+timer-integration run remain separate qualifications.
 
 Initial fixture attempts refused undersized payload/tail buffers and exhausted
 the previous smaller graph traversal allowance. Those test bounds were adjusted

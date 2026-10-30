@@ -453,8 +453,9 @@ The current progress slice delivers:
   traversal owns frozen inputs, partial output and Queue-state bases; the
   [disk recovery and collection schedules](../history/qualification/catalog.md#accepted-queue-timer-schedules--2026-10-30)
   preserve original work through lost replies, retirement and physical deletion.
-  Native maintenance integration is implemented; its integrated qualification
-  remains open. Lock-free affinity scheduling, terminal cleanup and atomic DLQ
+  Native maintenance passes trusted-time expiry, reserved capacity, recovery and
+  the unchanged 32-MiB shared budget; installed qualification remains open.
+  Lock-free affinity scheduling, terminal cleanup and atomic DLQ
   transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
