@@ -233,3 +233,27 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
         },
     };
 }
+
+/// Derive operator traits and effect bounds for a Block-Max WAND or single-snapshot
+/// hybrid search query with bounded `top_k` and `resident_bytes`.
+pub fn forSearchQuery(top_k: u64, resident_bytes: u64, active_collations: u8) Summary {
+    return .{
+        .effects = EffectSet.read_only,
+        .deterministic = true,
+        .fallible = true,
+        .five_state_rule = .filters_to_true_only,
+        .collation_rule = if (active_collations > 0) .column_bound else .none,
+        .active_collations = active_collations,
+        .change_mode = .snapshot_finite,
+        .work_bound = .{
+            .max_source_pins = 1,
+            .max_output_rows = top_k,
+            .max_resident_bytes = resident_bytes,
+            .max_spill_bytes = 0,
+            .max_work_steps = null,
+            .acquires_data_pins = true,
+            .reads_storage_segments = true,
+            .mutates_durable_state = false,
+        },
+    };
+}

@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "contract_id": "transit.sql.vectorized-strings-and-search.v1",
+  "norm_dl_vectors": [
+    {
+      "doc_len": 0,
+      "norm_u8": 0,
+      "dequantized_len": 0
+    },
+    {
+      "doc_len": 1,
+      "norm_u8": 1,
+      "dequantized_len": 1
+    },
+    {
+      "doc_len": 7,
+      "norm_u8": 7,
+      "dequantized_len": 7
+    },
+    {
+      "doc_len": 15,
+      "norm_u8": 15,
+      "dequantized_len": 15
+    },
+    {
+      "doc_len": 16,
+      "norm_u8": 16,
+      "dequantized_len": 16
+    },
+    {
+      "doc_len": 17,
+      "norm_u8": 17,
+      "dequantized_len": 17
+    },
+    {
+      "doc_len": 31,
+      "norm_u8": 31,
+      "dequantized_len": 31
+    },
+    {
+      "doc_len": 32,
+      "norm_u8": 32,
+      "dequantized_len": 32
+    },
+    {
+      "doc_len": 64,
+      "norm_u8": 48,
+      "dequantized_len": 64
+    },
+    {
+      "doc_len": 127,
+      "norm_u8": 63,
+      "dequantized_len": 124
+    },
+    {
+      "doc_len": 128,
+      "norm_u8": 64,
+      "dequantized_len": 128
+    },
+    {
+      "doc_len": 255,
+      "norm_u8": 79,
+      "dequantized_len": 248
+    },
+    {
+      "doc_len": 256,
+      "norm_u8": 80,
+      "dequantized_len": 256
+    },
+    {
+      "doc_len": 511,
+      "norm_u8": 95,
+      "dequantized_len": 496
+    },
+    {
+      "doc_len": 512,
+      "norm_u8": 96,
+      "dequantized_len": 512
+    },
+    {
+      "doc_len": 1024,
+      "norm_u8": 112,
+      "dequantized_len": 1024
+    },
+    {
+      "doc_len": 4096,
+      "norm_u8": 144,
+      "dequantized_len": 4096
+    }
+  ],
+  "impact_vectors": [
+    {
+      "total_docs": 600,
+      "doc_freq": 12,
+      "max_tf": 4,
+      "min_norm_dl": 8,
+      "avg_doc_len": 10.5,
+      "idf": 3.872866290227,
+      "exact_score": 6.835775457822,
+      "impact_q16": 7000,
+      "upper_bound": 6.8359375
+    },
+    {
+      "total_docs": 600,
+      "doc_freq": 300,
+      "max_tf": 1,
+      "min_norm_dl": 12,
+      "avg_doc_len": 10.5,
+      "idf": 0.69314718056,
+      "exact_score": 0.654875250345,
+      "impact_q16": 671,
+      "upper_bound": 0.6552734375
+    },
+    {
+      "total_docs": 10000,
+      "doc_freq": 25,
+      "max_tf": 6,
+      "min_norm_dl": 16,
+      "avg_doc_len": 24.0,
+      "idf": 5.971761914812,
+      "exact_score": 11.424240184858,
+      "impact_q16": 11699,
+      "upper_bound": 11.4248046875
+    }
+  ],
+  "segmenter_digests": [
+    {
+      "segmenter": "unicode_word_v1",
+      "collation": "utf8_binary",
+      "stop_words": [],
+      "sha256": "be46bba494b63ca63ff94596514606683343214ea629de9892d9c8ccd2ee6e0c"
+    },
+    {
+      "segmenter": "ascii_fold_v1",
+      "collation": "utf8_binary",
+      "stop_words": [
+        "a",
+        "the"
+      ],
+      "sha256": "77e409e08335e7bc97e74d3dce28c9958c171154098ef612b4ed535c434403a7"
+    }
+  ],
+  "german_string_vectors": [
+    {
+      "input": "transit",
+      "collation": "utf8_binary",
+      "canonical_len": 7,
+      "is_inline": true,
+      "prefix_hex": "7472616e"
+    },
+    {
+      "input": "TRANSIT",
+      "collation": "ascii_ci",
+      "canonical_len": 7,
+      "is_inline": true,
+      "prefix_hex": "7472616e"
+    },
+    {
+      "input": "A1   ",
+      "collation": "ebcdic_037_pad",
+      "canonical_len": 2,
+      "is_inline": true,
+      "prefix_hex": "c1f10000"
+    },
+    {
+      "input": "vectorized_search_execution_engine",
+      "collation": "utf8_binary",
+      "canonical_len": 34,
+      "is_inline": false,
+      "prefix_hex": "76656374"
+    }
+  ]
+}

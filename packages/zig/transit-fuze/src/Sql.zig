@@ -259,10 +259,7 @@ pub fn literalCell(literal: Literal) !m.Cell {
 /// Case-insensitive reserved words shared by parsing and local presentation.
 /// Contextual words such as VALUE and UPDATE remain valid identifiers.
 pub fn isReserved(word: []const u8) bool {
-    inline for (.{ "SELECT", "WHERE", "LIMIT", "COUNT", "SUM", "IS", "AND", "OR", "TRUE", "FALSE", "BYTEA", "CREATE", "CONNECTION", "CONNECTIONS", "SOURCE", "SOURCES", "SINK", "SINKS", "TABLE", "TABLES", "DOCUMENT", "KV", "TO", "FROM", "INTO", "WITH", "GRANT", "REVOKE", "ON", "SHOW", "DESCRIBE", "NOT", "NULL", "SECRET", "AS", "OF", "FOR", "SYSTEM_TIME", "INT64", "BOOL", "UTF8", "BINARY" }) |keyword| {
-        if (std.ascii.eqlIgnoreCase(word, keyword)) return true;
-    }
-    return false;
+    return @import("PerfectHash.zig").ReservedSqlKeywordMap.contains(word);
 }
 
 pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };

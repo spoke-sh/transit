@@ -301,17 +301,25 @@
       "id": "strings_search",
       "owner": "packages/zig/transit-fuze",
       "phase": "H",
-      "gate": "pending",
+      "gate": "executable",
       "cases": [
         "collations",
         "padding",
         "hashing",
         "dictionary",
         "fsst",
-        "bm25"
+        "bm25",
+        "hybrid_rrf",
+        "late_materialization"
       ],
+      "checks": [
+        "packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig",
+        "packages/zig/transit-fuze/src/german_string_and_codecs_test.zig",
+        "packages/zig/transit-fuze/src/vectorized_search_test.zig"
+      ],
+      "backing": "64-byte-padded StringArena, stack/frozen PerfectHash directories, compressed-domain .dictionary/.fsst bitmasks, and 256-doc Block-Max WAND / hybrid search scratch buffers verified under sealed AllocationProbe.",
       "gaps": [
-        "Prerequisite codec, collation, index and search implementations and their admitted workspaces."
+        "Composed gateway-to-storage OS mappings remain Phase J whole-system qualification."
       ]
     },
     {

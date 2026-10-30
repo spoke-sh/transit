@@ -217,6 +217,51 @@ fn Compare(comptime T: type, comptime op: finite.Comparison) type {
                 }
                 return;
             }
+            if (T == void and (self.kind == .utf8 or self.kind == .binary)) {
+                const GermanString = @import("GermanString.zig").GermanString;
+                const profile = Collation.Profile.fromCollation(self.collation);
+                const lit_bytes = self.literal.bytes;
+                const lit_prefix = Collation.computeSortPrefix4BProfile(lit_bytes, profile) catch unreachable;
+                const lit_prefix_u32 = std.mem.readInt(u32, &lit_prefix, .big);
+                const lit_len = Collation.canonicalByteLenProfile(lit_bytes, profile) catch unreachable;
+                const lit_inline_gs: ?GermanString = if (lit_len <= 12) (GermanString.init(lit_bytes, profile, null) catch null) else null;
+
+                for (output, start..) |*out, i| {
+                    out.* = switch (column.state(i)) {
+                        .null, .missing => .{ .truth = .unknown },
+                        .type_error => .type_error,
+                        .conflict => .conflict,
+                        .value => value: {
+                            const row_bytes = column.atom(i).bytes;
+                            const row_len = Collation.canonicalByteLenProfile(row_bytes, profile) catch unreachable;
+                            if (op == .eq and row_len != lit_len) {
+                                break :value .{ .truth = .false_value };
+                            }
+                            if (op == .ne and row_len != lit_len) {
+                                break :value .{ .truth = .true_value };
+                            }
+                            const row_prefix = Collation.computeSortPrefix4BProfile(row_bytes, profile) catch unreachable;
+                            const row_prefix_u32 = std.mem.readInt(u32, &row_prefix, .big);
+                            const order: std.math.Order = if (row_prefix_u32 != lit_prefix_u32)
+                                std.math.order(row_prefix_u32, lit_prefix_u32)
+                            else if (row_len <= 12 and lit_inline_gs != null) blk_inline: {
+                                const row_gs = GermanString.init(row_bytes, profile, null) catch unreachable;
+                                break :blk_inline row_gs.order(lit_inline_gs.?, profile, null) catch unreachable;
+                            } else Collation.compareBytesProfile(row_bytes, lit_bytes, profile) catch unreachable;
+
+                            break :value .{ .truth = finite.Truth.fromBool(switch (op) {
+                                .eq => order == .eq,
+                                .ne => order != .eq,
+                                .lt => order == .lt,
+                                .le => order != .gt,
+                                .gt => order == .gt,
+                                .ge => order != .lt,
+                            }) };
+                        },
+                    };
+                }
+                return;
+            }
             for (output, start..) |*out, i| {
                 out.* = switch (column.state(i)) {
                     .null, .missing => .{ .truth = .unknown },

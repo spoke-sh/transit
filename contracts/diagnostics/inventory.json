@@ -9136,11 +9136,12 @@
     },
     "packages/zig/transit-fuze/src/Collation.zig": {
       "errors": {
+        "ColumnPageTooLarge": 1,
         "InvalidColumnCount": 1,
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
         "UnorderedType": 4,
-        "UnsupportedColumnCollation": 4
+        "UnsupportedColumnCollation": 5
       },
       "outcomes": {
         "Profile": [
@@ -9157,10 +9158,14 @@
       "error_returns": {
         "appendSortKey()": "<inferred>",
         "appendSortKeyProfile()": "<inferred>",
+        "canonicalByteLen()": "<inferred>",
+        "canonicalByteLenProfile()": "<inferred>",
         "compareAtom()": "<inferred>",
         "compareBytes()": "<inferred>",
         "compareBytesProfile()": "<inferred>",
         "compareCell()": "<inferred>",
+        "computeSortPrefix4B()": "<inferred>",
+        "computeSortPrefix4BProfile()": "<inferred>",
         "encodePrimaryKeySortKey()": "<inferred>",
         "encodeSortKey()": "<inferred>",
         "encodeSortKeyProfile()": "<inferred>",
@@ -9173,7 +9178,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 69,
         "catch": 0
       },
       "imports": [
@@ -9191,7 +9196,7 @@
         "QueryConflict": 1,
         "QueryTypeError": 1,
         "UnknownColumn": 3,
-        "UnsupportedComparison": 3,
+        "UnsupportedComparison": 10,
         "WriteFailed": 1
       },
       "outcomes": {
@@ -9206,7 +9211,11 @@
           "all",
           "state",
           "compare",
-          "null_compare"
+          "null_compare",
+          "in_set",
+          "starts_with",
+          "contains",
+          "like"
         ]
       },
       "error_sets": {},
@@ -9226,8 +9235,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
-        "catch": 1
+        "try": 21,
+        "catch": 3
       },
       "imports": [
         "Collation.zig",
@@ -9235,6 +9244,7 @@
         "LogicalPredicate.zig",
         "LogicalQuery.zig",
         "PredicateMachine.zig",
+        "SearchOracle.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
@@ -9720,6 +9730,108 @@
       "imports": [
         "PredicateTruth.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/GermanString.zig": {
+      "errors": {
+        "InvalidStringArenaOffset": 1,
+        "InvalidUtf8": 2,
+        "MissingStringArena": 7,
+        "StaleStringArenaHandle": 1,
+        "StringArenaExhausted": 2,
+        "StringTooLarge": 6,
+        "UnsupportedColumnCollation": 4
+      },
+      "outcomes": {
+        "filterSliceMask64().op": [
+          "eq",
+          "ne",
+          "lt",
+          "le",
+          "gt",
+          "ge"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "StringArenaExhausted",
+          "StringTooLarge",
+          "StaleStringArenaHandle",
+          "InvalidStringArenaOffset",
+          "MissingStringArena",
+          "UnsupportedColumnCollation",
+          "UnrepresentableEbcdic037",
+          "UnrepresentableEbcdic1047",
+          "InvalidUtf8"
+        ]
+      },
+      "error_returns": {
+        "<struct>#2.eql()": "Error",
+        "<struct>#2.hash64()": "Error",
+        "<struct>#2.init()": "Error",
+        "<struct>#2.order()": "Error",
+        "GermanCell.fromCell()": "Error",
+        "GermanCell.order()": "Error",
+        "StringArena.append()": "Error",
+        "StringArena.init()": "Error",
+        "StringArena.resolve()": "Error",
+        "StringArena.resolvePaddedPtr()": "Error",
+        "decodeInlineToSlice()": "Error",
+        "filterSliceMask64()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 4
+      },
+      "imports": [
+        "Collation.zig",
+        "Ebcdic037.zig",
+        "Ebcdic1047.zig",
+        "PerfectHash.zig",
+        "Types.zig",
+        "Values.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/HybridSearch.zig": {
+      "errors": {
+        "MissingStringArena": 1,
+        "PolicyEpochRevoked": 1,
+        "ScratchBufferTooSmall": 2,
+        "SnapshotDocCountMismatch": 1,
+        "SourceTextOutOfBounds": 1,
+        "VectorDimensionMismatch": 1,
+        "VectorSlabSizeMismatch": 1
+      },
+      "outcomes": {
+        "FusionMode": [
+          "rrf",
+          "linear"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "SnapshotBinding.verifyDisclosure()": "<inferred>",
+        "VectorSlab.validate()": "<inferred>",
+        "executeHybridSearch()": "<inferred>",
+        "scoreVectorSlabCandidates()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "GermanString.zig",
+        "SearchOracle.zig",
+        "TSearchSegment.zig",
+        "VectorMetric.zig",
+        "VectorizedSearch.zig",
+        "std",
+        "transit_bitmap",
+        "transit_memory"
       ]
     },
     "packages/zig/transit-fuze/src/IbmHfp.zig": {
@@ -10368,25 +10480,98 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/PerfectHash.zig": {
+      "errors": {
+        "DuplicatePerfectHashKey": 1,
+        "TooManyPerfectHashKeys": 1
+      },
+      "outcomes": {
+        "DdlOptionTag": [
+          "encoding_plain",
+          "encoding_bitpacked",
+          "encoding_rle",
+          "encoding_dictionary",
+          "encoding_fsst",
+          "encoding_comp",
+          "encoding_comp_3",
+          "encoding_zoned",
+          "encoding_ibm_hfp",
+          "encoding_ebcdic",
+          "collation_utf8_binary",
+          "collation_ascii_ci",
+          "collation_ebcdic_cp037",
+          "collation_icu_root",
+          "index_block_max_bm25",
+          "index_trigram_bitmap",
+          "index_vector_ann"
+        ],
+        "Mode": [
+          "perfect_hash",
+          "sorted_fallback"
+        ],
+        "WireHeaderTag": [
+          "content_type",
+          "content_length",
+          "authorization",
+          "accept",
+          "transfer_encoding",
+          "connection",
+          "x_transit_account",
+          "x_transit_token",
+          "x_transit_snapshot",
+          "x_transit_branch",
+          "client_encoding",
+          "application_name",
+          "TimeZone",
+          "search_path"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "DuplicatePerfectHashKey",
+          "TooManyPerfectHashKeys",
+          "PerfectHashBufferTooSmall",
+          "UnsupportedColumnCollation",
+          "UnrepresentableEbcdic037",
+          "UnrepresentableEbcdic1047",
+          "InvalidUtf8"
+        ]
+      },
+      "error_returns": {
+        "FrozenDirectory.contains()": "Error",
+        "FrozenDirectory.init()": "Error",
+        "FrozenDirectory.lookup()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
-        "BufferTooSmall": 1,
-        "ColumnEncodingMismatch": 1,
-        "ColumnPageRowLimitExceeded": 2,
+        "BufferTooSmall": 2,
+        "ColumnEncodingMismatch": 5,
+        "ColumnPageRowLimitExceeded": 4,
         "Comp3Overflow": 2,
         "Comp4Overflow": 3,
         "IncompatibleColumnEncoding": 3,
-        "IncompatibleDefinition": 1,
+        "IncompatibleDefinition": 3,
         "InvalidBitpackedPage": 3,
-        "InvalidColumnPage": 12,
-        "InvalidColumnSelection": 1,
+        "InvalidColumnPage": 30,
+        "InvalidColumnSelection": 2,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
-        "InvalidDictionaryCode": 2,
-        "InvalidFsstStream": 5,
-        "InvalidFsstTable": 2,
+        "InvalidDictionaryCode": 6,
+        "InvalidFsstStream": 7,
+        "InvalidFsstTable": 6,
         "InvalidRlePage": 3,
         "InvalidZonedLength": 1,
+        "UnsupportedComparison": 3,
         "UnsupportedPlainColumn": 1,
         "ZonedOverflow": 2
       },
@@ -10411,6 +10596,7 @@
         "decodeColumnPageBorrowingBytes()": "<inferred>",
         "decodeColumnPageSelected()": "<inferred>",
         "decodeDictionaryValues()": "<inferred>",
+        "decodeFsstTokenStream()": "<inferred>",
         "decodeFsstValues()": "<inferred>",
         "decodeInto()": "<inferred>",
         "decodePage()": "<inferred>",
@@ -10424,20 +10610,27 @@
         "encodeRleValues()": "<inferred>",
         "encodeZoned()": "<inferred>",
         "evaluateColumnPage()": "<inferred>",
+        "evaluateCompressedStringPage()": "<inferred>",
+        "lateMaterializeSelectedGermanStrings()": "<inferred>",
+        "readCanonicalBytesSlice()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
+        "tryFsstCompressedShortCircuit()": "<inferred>",
         "u64ToScalarCell()": "<inferred>",
         "validateValue()": "<inferred>",
         "writeCanonicalValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 141,
+        "try": 205,
         "catch": 10
       },
       "imports": [
+        "Collation.zig",
         "ColumnPredicate.zig",
         "Ebcdic037.zig",
+        "GermanString.zig",
         "IbmHfp.zig",
+        "PerfectHash.zig",
         "PlainColumnBuffers.zig",
         "TableSchema.zig",
         "Types.zig",
@@ -11300,6 +11493,86 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/SearchOracle.zig": {
+      "errors": {
+        "InvalidBm25Parameters": 2,
+        "InvalidHybridParameters": 2,
+        "InvalidLikePattern": 2,
+        "InvalidSearchQuery": 3,
+        "InvalidUtf8": 5,
+        "SearchScratchExhausted": 8
+      },
+      "outcomes": {
+        "FiveStateMatch": [
+          "missing",
+          "null",
+          "type_error",
+          "value",
+          "conflict"
+        ],
+        "MatchMode": [
+          "conjunctive_and",
+          "disjunctive_or"
+        ],
+        "NormMode": [
+          "min_max",
+          "theoretical_bounds"
+        ],
+        "SegmenterProfile": [
+          "unicode_word_v1",
+          "ascii_fold_v1",
+          "code_identifier_v1",
+          "ngram_3_v1",
+          "raw_bytes_v1"
+        ],
+        "evaluatePatternCell().kind": [
+          "starts_with",
+          "contains",
+          "like"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "InvalidUtf8",
+          "InvalidLikePattern",
+          "InvalidSearchQuery",
+          "InvalidProximityDistance",
+          "InvalidBm25Parameters",
+          "InvalidHybridParameters",
+          "SearchScratchExhausted",
+          "UnsupportedColumnCollation",
+          "UnrepresentableEbcdic037",
+          "UnrepresentableEbcdic1047",
+          "EncounteredTypeErrorCell",
+          "EncounteredConflictCell",
+          "EncounteredMissingCell"
+        ]
+      },
+      "error_returns": {
+        "Bm25Params.validate()": "Error",
+        "containsBytes()": "Error",
+        "evaluatePatternCell()": "Error",
+        "fuseLinear()": "Error",
+        "fuseRrf()": "Error",
+        "likeBytes()": "Error",
+        "likeMatchRecursive()": "Error",
+        "matchTokens()": "Error",
+        "nearTokens()": "Error",
+        "segmentText()": "Error",
+        "startsWithBytes()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 6
+      },
+      "imports": [
+        "Collation.zig",
+        "Types.zig",
+        "Values.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SourceCodec.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -11482,6 +11755,7 @@
         "catch": 13
       },
       "imports": [
+        "PerfectHash.zig",
         "SqlBinding.zig",
         "SqlPredicate.zig",
         "root.zig",
@@ -12237,6 +12511,76 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/TSearchSegment.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidSearchSegment": 2,
+        "RequiredSearchIndexUnavailable": 1,
+        "SearchScratchExhausted": 12,
+        "SearchSegmentChecksumMismatch": 1,
+        "SearchSegmentRowLimitExceeded": 1,
+        "SearchSegmentTermLimitExceeded": 1
+      },
+      "outcomes": {
+        "AccessPathSelection": [
+          "index",
+          "scalar_oracle_fallback"
+        ],
+        "FallbackReason": [
+          "no_matching_column",
+          "index_not_ready",
+          "segmenter_digest_mismatch",
+          "collation_mismatch",
+          "positions_not_indexed"
+        ],
+        "IndexProfile": [
+          "block_max_bm25_v1",
+          "trigram_bitmap_v1",
+          "vector_ann_v1"
+        ],
+        "LifecycleState": [
+          "building",
+          "backfilling",
+          "catching_up",
+          "ready",
+          "failed",
+          "dropped"
+        ]
+      },
+      "error_sets": {
+        "<error>": [
+          "InvalidSearchSegment",
+          "IncompatibleDefinition",
+          "SearchSegmentChecksumMismatch",
+          "SearchSegmentRowLimitExceeded",
+          "SearchSegmentTermLimitExceeded",
+          "RequiredSearchIndexUnavailable",
+          "OutOfMemory"
+        ]
+      },
+      "error_returns": {
+        "Segment.build()": "Error",
+        "Segment.encodeHeaderEnvelope()": "Error",
+        "Segment.findTerm()": "Error",
+        "Segment.validateHeaderEnvelope()": "Error",
+        "selectSearchAccessPath()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 12
+      },
+      "imports": [
+        "Collation.zig",
+        "PerfectHash.zig",
+        "SearchOracle.zig",
+        "Types.zig",
+        "Values.zig",
+        "std",
+        "transit_bitmap",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/TSeg.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -12760,13 +13104,13 @@
       "errors": {
         "CharacterLimitExceeded": 1,
         "DuplicateAssignment": 1,
-        "DuplicateColumn": 1,
+        "DuplicateColumn": 2,
         "DuplicateColumnIdentity": 1,
         "DuplicatePrimaryKeyColumn": 1,
         "IncompatibleColumnCollation": 1,
         "IncompatibleColumnEncoding": 1,
         "InvalidCharacterLimit": 2,
-        "InvalidColumnCount": 2,
+        "InvalidColumnCount": 3,
         "InvalidColumnIdentity": 1,
         "InvalidKeyWidth": 1,
         "InvalidPrimaryKey": 2,
@@ -12780,7 +13124,7 @@
         "TableConflict": 1,
         "TableSchemaTooLarge": 4,
         "TableTypeError": 1,
-        "UnknownColumn": 2,
+        "UnknownColumn": 4,
         "UnsupportedColumnCollation": 1,
         "UnsupportedPrimaryKeyType": 1,
         "UnsupportedTableSchemaDefinition": 1,
@@ -12815,7 +13159,9 @@
       "error_returns": {
         "Column.validateCell()": "<inferred>",
         "Column.validateEncodingAndCollation()": "<inferred>",
+        "Schema.NameDirectory.resolve()": "<inferred>",
         "Schema.assign()": "<inferred>",
+        "Schema.buildNameDirectory()": "<inferred>",
         "Schema.clone()": "<inferred>",
         "Schema.encode()": "<inferred>",
         "Schema.fingerprint()": "<inferred>",
@@ -12839,12 +13185,13 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 97,
-        "catch": 2
+        "catch": 4
       },
       "imports": [
         "Collation.zig",
         "Ebcdic037.zig",
         "IbmHfp.zig",
+        "PerfectHash.zig",
         "Types.zig",
         "std"
       ]
@@ -13738,12 +14085,13 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 5,
-        "catch": 1
+        "catch": 9
       },
       "imports": [
         "Collation.zig",
         "ColumnRows.zig",
         "Finite.zig",
+        "GermanString.zig",
         "LogicalQuery.zig",
         "Scalar.zig",
         "Types.zig",
@@ -13816,6 +14164,36 @@
         "Unified.zig",
         "VectorKernel.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/VectorizedSearch.zig": {
+      "errors": {
+        "InvalidSearchQuery": 2,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "SearchScratchExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "<error>": [
+          "InvalidSearchQuery",
+          "QueryTypeError",
+          "QueryConflict"
+        ]
+      },
+      "error_returns": {
+        "executeBlockMaxSearch()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "SearchOracle.zig",
+        "TSearchSegment.zig",
+        "std",
+        "transit_bitmap"
       ]
     },
     "packages/zig/transit-fuze/src/execute.zig": {
@@ -13917,6 +14295,8 @@
         "Ebcdic1047.zig",
         "FileQuery.zig",
         "FileSource.zig",
+        "GermanString.zig",
+        "HybridSearch.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
         "LogicalDisplay.zig",
@@ -13930,6 +14310,7 @@
         "LogicalStream.zig",
         "NeutralEncoding.zig",
         "OperatorTraits.zig",
+        "PerfectHash.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -13945,6 +14326,7 @@
         "RelationalOutput.zig",
         "RelationalSql.zig",
         "RelationalValues.zig",
+        "SearchOracle.zig",
         "SourceCodec.zig",
         "Sql.zig",
         "SqlDiagnostic.zig",
@@ -13953,6 +14335,7 @@
         "SqlTypes.zig",
         "StandardsLedger.zig",
         "TDel.zig",
+        "TSearchSegment.zig",
         "TSeg.zig",
         "TSegReader.zig",
         "TableConstraints.zig",
@@ -13971,6 +14354,7 @@
         "Types.zig",
         "Unified.zig",
         "VectorMetric.zig",
+        "VectorizedSearch.zig",
         "execute.zig",
         "model.zig",
         "std",
