@@ -35,6 +35,7 @@ const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
 const QueueTimingWheel = @import("QueueTimingWheel.zig");
 const QueueVisibilityCache = @import("QueueVisibilityCache.zig");
 const QueueSchedule = @import("QueueSchedule.zig");
+const QueueAffinity = @import("QueueAffinity.zig");
 const DeadlineCache = struct {
     root: ?pages.Reference = null,
     valid: bool = false,
@@ -67,6 +68,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             queue_deadline_rows: u32 = 64,
             /// Cached visibility prefix; remaining work stays in paged storage.
             queue_visibility_rows: u32 = 64,
+            /// Full canonical FIFO keys cached independently of durable key count.
+            queue_affinity_rows: u32 = 64,
             /// Bounded scheduling source scans; independent of the wheel capacity.
             queue_timer_read_work: u32 = 4096,
             /// Same physical namespace and authority, with deployment control reserve.
@@ -95,6 +98,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         queue_deadlines: if (kind == .queue) DeadlineCache else void,
         queue_visibility: if (kind == .queue) QueueVisibilityCache else void,
         queue_timers: if (kind == .queue) *QueueSchedule.Workspace else void,
+        queue_affinity: if (kind == .queue) QueueAffinity else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
@@ -103,6 +107,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (kind == .queue and (options.queue_deadline_rows == 0 or options.queue_deadline_rows > 4096 or options.queue_visibility_rows == 0 or options.queue_visibility_rows > 4096)) return error.InvalidQueueScheduleBudget;
             if (kind == .queue and (options.queue_claim_rows == 0 or options.queue_claim_rows > QueueSelection.max_rows)) return error.InvalidQueueClaimBudget;
             if (kind == .queue and (options.queue_timer_read_work == 0 or options.queue_timer_read_work > 65536)) return error.InvalidQueueScheduleBudget;
+            if (kind == .queue and (options.queue_affinity_rows == 0 or options.queue_affinity_rows > 4096)) return error.InvalidQueueAffinityBudget;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
             if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
@@ -129,7 +134,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             errdefer if (kind == .queue) allocator.free(visibility_entries);
             const queue_timers = if (kind == .queue) try allocator.create(QueueSchedule.Workspace) else {};
             errdefer if (kind == .queue) allocator.destroy(queue_timers);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {}, .queue_timers = queue_timers };
+            const affinity_buckets = if (kind == .queue) try allocator.alloc(QueueAffinity.Atomic, options.queue_affinity_rows) else {};
+            errdefer if (kind == .queue) allocator.free(affinity_buckets);
+            const affinity_slots = if (kind == .queue) try allocator.alloc(QueueAffinity.Slot, options.queue_affinity_rows * 2) else {};
+            errdefer if (kind == .queue) allocator.free(affinity_slots);
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {}, .queue_timers = queue_timers, .queue_affinity = if (kind == .queue) try QueueAffinity.init(affinity_buckets, affinity_slots) else {} };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
@@ -142,6 +151,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.allocator.free(self.queue_deadlines.heap.entries);
                 self.allocator.free(self.queue_visibility.wheel.entries);
                 self.allocator.destroy(self.queue_timers);
+                self.allocator.free(self.queue_affinity.buckets);
+                self.allocator.free(self.queue_affinity.slots);
             }
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
@@ -285,7 +296,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn queueIndex(self: *Self, bitmap: *Bitmap) QueueIndex {
             bitmap.* = .{ .store = &self.store, .objects = self.objects };
-            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility, .timer_workspace = self.queue_timers, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = self.root.initialization.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .timer_read_work = self.options.queue_timer_read_work };
+            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility, .affinity = &self.queue_affinity, .timer_workspace = self.queue_timers, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = self.root.initialization.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .timer_read_work = self.options.queue_timer_read_work };
         }
         fn persistQueue(self: *Self, next: Root) !void {
             try self.candidate_objects.persistSelected(try QueueSchedule.Buffers.init(next.queue.?.eligible, next.queue.?.deadlines));

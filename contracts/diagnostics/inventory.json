@@ -31682,6 +31682,7 @@
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
+        "InvalidQueueAffinityBudget": 1,
         "InvalidQueueClaimBudget": 1,
         "InvalidQueueExpiration": 2,
         "InvalidQueueHead": 1,
@@ -31841,7 +31842,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 642,
+        "try": 645,
         "catch": 18
       },
       "imports": [
@@ -31861,6 +31862,7 @@
         "LogView.zig",
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
+        "QueueAffinity.zig",
         "QueueClaims.zig",
         "QueueIndex.zig",
         "QueueItem.zig",
@@ -32326,6 +32328,25 @@
       },
       "imports": []
     },
+    "packages/zig/transit-storage/src/QueueAffinity.zig": {
+      "errors": {
+        "InvalidQueueAffinityBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "TreeStore.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/QueueClaims.zig": {
       "errors": {
         "InvalidQueueRoot": 1,
@@ -32422,6 +32443,7 @@
         "LogPartitionRecord.zig",
         "LogTime.zig",
         "OrderedKeyIndex.zig",
+        "QueueAffinity.zig",
         "QueueItem.zig",
         "QueueSchedule.zig",
         "QueueTimeMerge.zig",
@@ -34154,6 +34176,7 @@
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",
         "PublicationGuard.zig",
+        "QueueAffinity.zig",
         "QueueIndex.zig",
         "QueueItem.zig",
         "QueueLeaseHeap.zig",

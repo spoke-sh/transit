@@ -9,6 +9,29 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded FIFO affinity cache — 2026-10-30
+
+On dirty parent `d2d54bb67`, the Queue owner adds a disposable full-canonical-key
+cache bound to each immutable FIFO key root. Focused checks pass forced hash
+collisions, changed roots, oversized-key fallback, bounded saturation, a pinned
+reader across replacement, stale handles after reuse and permanent generation
+exhaustion. Four concurrent readers each perform 20,000 lookups while one writer
+performs 20,000 publications and periodic invalidation. Every hit must match its
+requested root and full key; completion releases every pin. This exercises the
+cache's reader/writer protocol, not concurrent Queue publication.
+
+The cache checks pass in `/var/tmp/transit-queue-affinity-third.log`; selected
+Queue private-memory and malformed-replay checks pass in
+`/var/tmp/transit-queue-affinity-owner-memory.log`. The expanded memory-provider
+retained graph passes in `/var/tmp/transit-queue-affinity-graph.log`, including
+300-byte canonical keys that bypass the cache. All 50 fast checks pass in
+`/var/tmp/transit-queue-affinity-fast.log`. Initial compile failures in the tests
+were corrected before these successful executions.
+
+Disk reopen/warm-hit allocation checks, the native shared-memory ceiling and
+installed-service regression have not yet run for this change. The preceding
+timer-integration native result below does not qualify this additional cache.
+
 ## Queue foundation clean core failure — 2026-10-30
 
 The committed-source core lane at pre-rebase

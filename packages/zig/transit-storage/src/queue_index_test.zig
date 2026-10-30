@@ -32,12 +32,16 @@ fn enqueue(index: Index, before: Index.Root, declaration: *const s.LogDeclaratio
 test "queue index paged FIFO heads survive reopen delays and unrelated key claims" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
-    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    var probe: f.memory.AllocationProbe = .{ .parent = t.allocator };
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(probe.allocator(), t.io, tmp.dir, "objects");
     defer objects.deinit();
-    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    var store = try s.TreeStore.init(probe.allocator(), objects.objectStore(), 1);
     defer store.deinit();
-    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    var scratch: std.heap.ArenaAllocator = .init(probe.allocator());
     defer scratch.deinit();
+    var affinity_buckets: [1]s.QueueAffinity.Atomic = undefined;
+    var affinity_slots: [2]s.QueueAffinity.Slot = undefined;
+    var affinity = try s.QueueAffinity.init(&affinity_buckets, &affinity_slots);
     var bitmap: s.BitmapDirectory = .{ .store = &store, .objects = objects.objectStore() };
     var container: s.BitmapDirectory.Container = .{};
     var key_buffer: [8192]u8 = undefined;
@@ -48,6 +52,7 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     const timer_workspace = try t.allocator.create(s.QueueSchedule.Workspace);
     defer t.allocator.destroy(timer_workspace);
     var index: Index = .{ .store = &store, .scratch = &scratch, .bitmap = &bitmap, .container = &container, .key_buffer = &key_buffer, .timer_workspace = timer_workspace, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = (try declaration.stored()).declaration.interpretation, .partition = 0 } };
+    index.affinity = &affinity;
     const policy = definition.configuration.policy.queue;
     try store.begin(8 * 1024 * 1024);
     const first = try enqueue(index, .empty, &declaration, 1, 2, &.{ "Alpha", "Beta", "aLPHa" }, &.{ 1000, 0, 0 });
@@ -79,14 +84,22 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     // root. This tests the index, not WAL acceptance or process-death recovery.
     store.deinit();
     objects.deinit();
-    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
-    store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(probe.allocator(), t.io, tmp.dir, "objects");
+    store = try s.TreeStore.init(probe.allocator(), objects.objectStore(), 1);
+    affinity.clear();
     bitmap = .{ .store = &store, .objects = objects.objectStore() };
     index.store = &store;
     index.bitmap = &bitmap;
     var canonical: [8192]u8 = undefined;
     const alpha = (try index.head(root, try key(&declaration, "alpha", &canonical))).?;
     try t.expectEqualDeep(Index.Head{ .first = 0, .last = 3 }, alpha);
+    store.clearCache();
+    const reads = objects.range_reads;
+    probe.begin(true);
+    for (0..100) |_| try t.expectEqualDeep(alpha, (try index.head(root, try key(&declaration, "ALPHA", &canonical))).?);
+    try probe.verify();
+    try t.expectEqual(reads, objects.range_reads);
+    probe.begin(false);
     try t.expectEqual(@as(?u64, 2), (try index.item(root, 0)).next_key);
     try t.expectEqual(@as(?u64, 3), (try index.item(root, 2)).next_key);
     try t.expectEqual(@as(u64, 0), (try index.firstEligible(root, 1000)).?.offset);

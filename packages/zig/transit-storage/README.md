@@ -25,6 +25,24 @@ retry block its successors while other keys can advance. ACK moves that head;
 exhaustion retains an available but blocked source. Its DLQ reason retains the
 exact destination definition; it does not publish that destination or make the
 source terminal. Old roots remain independently readable.
+
+`QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
+and full canonical key. The Queue owner preallocates 64 hash buckets by default
+(`Options.queue_affinity_rows`, 1–4,096) and twice as many replacement slots.
+Each slot holds at most 256 canonical key bytes and the encoded head. Hash
+collisions compare full keys; longer keys, misses and saturated caches use the
+paged owner. Cache capacity never limits the durable key population.
+
+The cache supports one serialized writer and concurrent readers. Atomic handles
+bind a slot and generation; readers pin that exact generation, recheck its bucket
+and copy the value before releasing the pin. A writer can reuse only an unmapped
+slot with no readers. Exhausted generations permanently retire their slots,
+preventing ABA reuse. Readers attempt at most four pin exchanges; publication
+examines at most the bounded slot population. Contention returns a miss without
+waiting, allocating or changing accepted work. Initialization and destruction
+require quiescence. This cache does not make the surrounding serialized Queue
+owner concurrent, and a hit provides no lease, retention pin or current-grant authority.
+
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
 producer receipts to one fenced WAL record. Claims publish acquired state,
 exact leases and deadlines together; settlement and expiry publish their full

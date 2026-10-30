@@ -31,6 +31,7 @@ pub const QueuePartition = @import("QueuePartition.zig");
 pub const QueueIndex = @import("QueueIndex.zig");
 pub const QueueItem = @import("QueueItem.zig");
 pub const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
+pub const QueueAffinity = @import("QueueAffinity.zig");
 pub const QueueTimingWheel = @import("QueueTimingWheel.zig");
 pub const QueueTimeRun = @import("QueueTimeRun.zig");
 pub const QueueTimeBuffer = @import("QueueTimeBuffer.zig");
@@ -83,6 +84,7 @@ test {
     _ = @import("tack_test.zig");
     _ = @import("queue_item_test.zig");
     _ = QueueLeaseHeap;
+    _ = QueueAffinity;
     _ = QueueTimingWheel;
     _ = @import("queue_time_run_test.zig");
     _ = @import("queue_time_buffer_test.zig");

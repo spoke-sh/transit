@@ -70,6 +70,7 @@ timer_workspace: *Schedule.Workspace,
 timer_seed: q.Partition,
 timer_read_work: u32 = 4096,
 visibility: ?*@import("QueueVisibilityCache.zig") = null,
+affinity: ?*@import("QueueAffinity.zig") = null,
 
 fn tree(self: Self) pages.Tree(Store) {
     return .{ .store = self.store };
@@ -152,9 +153,13 @@ fn putSidecar(self: Self, root: *Root, value: Tack) !void {
     root.sidecars = try self.tree().put(root.sidecars, try Records.integerKey(value.next), try pages.Value.init(try value.encode(&buffer)));
 }
 pub fn head(self: Self, root: Root, key: []const u8) !?Head {
-    const encoded = try self.keys().get(root.keys, key) orelse return null;
+    const cached = if (self.affinity) |cache| cache.get(root.keys, key) else null;
+    const encoded = cached orelse ((try self.keys().get(root.keys, key)) orelse return null);
     const value = try Head.decode(encoded);
     if (value.last >= root.next_offset) return error.InvalidQueueHead;
+    if (cached == null) if (self.affinity) |cache| {
+        _ = cache.put(root.keys, key, encoded);
+    };
     return value;
 }
 fn schedule(self: Self, root: *Root, value: Item) !void {
