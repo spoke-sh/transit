@@ -74,6 +74,12 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     pathname.startsWith("/datasets/") ||
     (pathname === "/" && !current?.published);
   const workbookPage = pathname === "/workbook";
+  const workbenchPage =
+    (dataPage || workbookPage) &&
+    !(current?.published && definition?.screens.some((screen) => screen.path === pathname));
+  const application = current?.published
+    ? definition?.screens.find((screen) => screen.area === "workspace")
+    : undefined;
   const operations = definition?.screens.find((screen) => screen.renderer === "operations");
   useEffect(() => {
     const screen = definition?.screens.find((candidate) => candidate.path === pathname);
@@ -85,8 +91,8 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     )
       setArea("workspace");
     else if (screen) setArea(current?.published ? screen.area : "operations");
-    setNavigation(!dataPage && !workbookPage && window.matchMedia("(min-width: 761px)").matches);
-  }, [pathname, definition, current?.published, dataPage, workbookPage]);
+    setNavigation(!workbenchPage && window.matchMedia("(min-width: 761px)").matches);
+  }, [pathname, definition, current?.published, workbenchPage]);
   const tokens = density ?? (definition ? presentation(definition).density : "comfortable");
   return (
     <Interface.Provider value={current}>
@@ -94,7 +100,7 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
         className="transit-shell"
         data-density={tokens}
         data-interface-generation={current?.identity ?? "unavailable"}
-        data-navigation={navigation}
+        data-navigation={navigation && !workbenchPage}
       >
         <header className="shell-header">
           <Link
@@ -122,34 +128,35 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
                 Operations
               </Link>
             )}
-            {current?.published && (
-              <button
-                aria-pressed={area === "workspace" && !dataPage && !workbookPage}
-                onClick={() => {
-                  setArea("workspace");
-                  setNavigation(true);
-                }}
+            {application && (
+              <Link
+                to={application.path}
+                aria-current={
+                  area === "workspace" && !dataPage && !workbookPage ? "page" : undefined
+                }
               >
                 Application
-              </button>
+              </Link>
             )}
           </nav>
           <span className="shell-realm">Realm {scope.realm}</span>
           <Link className="shell-recovery-link" to="/recovery/definition">
             Definition recovery
           </Link>
-          <button
-            className="shell-menu"
-            aria-expanded={navigation}
-            aria-controls="shell-navigation"
-            onClick={() => setNavigation(!navigation)}
-          >
-            Navigation
-          </button>
+          {!workbenchPage && (
+            <button
+              className="shell-menu"
+              aria-expanded={navigation}
+              aria-controls="shell-navigation"
+              onClick={() => setNavigation(!navigation)}
+            >
+              Navigation
+            </button>
+          )}
         </header>
         <aside
           id="shell-navigation"
-          className={`shell-navigation ${navigation ? "open" : ""}`}
+          className={`shell-navigation ${navigation && !workbenchPage ? "open" : ""}`}
           aria-label="Workspace navigation"
         >
           <p className="eyebrow">{area}</p>

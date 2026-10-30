@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Link, useBlocker } from "@tanstack/react-router";
 import {
   DataCatalog,
@@ -12,6 +12,13 @@ import { describeReads, logicalTypeText } from "@transit/query-client";
 import { ResultPanel, useStatement } from "./workbench-result";
 import { useInterface } from "./interface";
 import { DeclaredView } from "./declared";
+import {
+  Workbench,
+  WorkbenchBody,
+  NavigatorToggle,
+  InspectorPanel,
+  useInspector,
+} from "./workbench-layout";
 import "./workbench.css";
 
 const catalog = new DataCatalog();
@@ -295,7 +302,7 @@ export function CatalogPage() {
 
 export function DatasetPage({ object, search }: { object: string; search: DatasetSearch }) {
   const [tab, setTab] = useState<"preview" | "schema" | "dependencies">("preview");
-  const [inspector, setInspector] = useState(false);
+  const owner = useId();
   const [relationshipCursors, setRelationshipCursors] = useState<
     Record<"dependencies" | "dependents", CatalogDependencies["next"]>
   >({ dependencies: null, dependents: null });
@@ -330,7 +337,7 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
   }, [state.error]);
   const table = state.value?.table;
   return (
-    <main className="data-workbench">
+    <Workbench available={Boolean(table)}>
       <Link to="/catalog">← Catalog</Link>
       <div className="page-heading">
         <div>
@@ -338,38 +345,59 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
           <h1>{table?.metadata.binding.name ?? "Dataset"}</h1>
           <p>Definition, typed rows and their observation basis.</p>
         </div>
-        <button aria-expanded={inspector} onClick={() => setInspector(!inspector)}>
-          Dataset details
-        </button>
+        <div className="workbench-toolbar">
+          <NavigatorToggle label="Dataset navigation" />
+          {table && <DatasetDetailsButton owner={owner} />}
+        </div>
       </div>
       {!table ? (
         <Unavailable error={state.error} retry={state.retry} />
       ) : (
         <>
           <div className="workbench-scope">
+            <span>Branch {table.metadata.binding.interpretation.interpretation.object.branch}</span>
             <span>Object {table.metadata.schema.object}</span>
             <span>Definition {table.metadata.schema.revision}</span>
             <span>{table.metadata.row_count} rows at metadata observation</span>
             <span>Namespace {table.metadata.binding.namespace}</span>
           </div>
-          <div className="workbench-tabs" role="tablist" aria-label="Dataset views">
-            {(["preview", "schema", "dependencies"] as const).map((name) => (
-              <button
-                key={name}
-                role="tab"
-                aria-selected={tab === name}
-                aria-controls="dataset-panel"
-                onClick={() => setTab(name)}
-              >
-                {name === "dependencies"
-                  ? "Relationships"
-                  : name === "schema"
-                    ? "Schema"
-                    : "Preview"}
-              </button>
-            ))}
-          </div>
-          <div className={`dataset-layout ${inspector ? "inspector-open" : ""}`}>
+          <WorkbenchBody
+            navigator={
+              <>
+                <p className="eyebrow">THIS DATASET</p>
+                <strong>{table.metadata.binding.name}</strong>
+                <Link to="/catalog">Browse catalog</Link>
+                <p>Columns · declared schema</p>
+                {table.metadata.schema.columns.map((field, column) => (
+                  <SchemaColumnButton
+                    key={field.id}
+                    owner={owner}
+                    column={column}
+                    name={field.name}
+                  />
+                ))}
+                <Link to="/operations">Operational evidence</Link>
+              </>
+            }
+          >
+            <div className="workbench-tabs" role="tablist" aria-label="Dataset views">
+              {(["preview", "schema", "dependencies"] as const).map((name) => (
+                <button
+                  key={name}
+                  role="tab"
+                  aria-selected={tab === name}
+                  aria-controls="dataset-panel"
+                  onClick={() => setTab(name)}
+                >
+                  {name === "dependencies"
+                    ? "Relationships"
+                    : name === "schema"
+                      ? "Schema"
+                      : "Preview"}
+                </button>
+              ))}
+            </div>
+
             <section id="dataset-panel" role="tabpanel" aria-label={tab}>
               {tab === "preview" && (
                 <>
@@ -388,7 +416,7 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
                       Explicit read · bounded window · no automatic query
                     </span>
                   </div>
-                  <ResultPanel state={statement} preview />
+                  <ResultPanel state={statement} preview parent={table.metadata.binding.name} />
                   {!statement.view && !statement.error && !statement.busy && (
                     <div className="workbench-empty">
                       <h2>Explore this dataset</h2>
@@ -400,7 +428,7 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
                   )}
                 </>
               )}
-              {tab === "schema" && <Schema table={table} />}
+              {tab === "schema" && <Schema table={table} owner={owner} />}
               {tab === "dependencies" && (
                 <div className="workbench-relationships">
                   <h2>Registered relationships</h2>
@@ -465,47 +493,123 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
                 </div>
               )}
             </section>
-            {inspector && (
-              <aside className="workbench-profile">
-                <p className="eyebrow">DATASET DETAILS</p>
-                <h2>{table.metadata.binding.name}</h2>
-                <dl>
-                  <div>
-                    <dt>Definition digest</dt>
-                    <dd>
-                      <code>{table.metadata.binding.interpretation.interpretation.digest}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Schema fingerprint</dt>
-                    <dd>
-                      <code>{table.metadata.binding.interpretation.schema_fingerprint}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Authorization resource</dt>
-                    <dd>{table.metadata.authorization}</dd>
-                  </div>
-                  <div>
-                    <dt>Metadata position</dt>
-                    <dd>
-                      Partition {table.metadata.position.partition} / LSN{" "}
-                      {table.metadata.position.next_lsn}
-                    </dd>
-                  </div>
-                </dl>
-                <p>Metadata and preview rows have separately reported observation bases.</p>
-                <Link to="/operations">Operations →</Link>
-              </aside>
-            )}
-          </div>
+          </WorkbenchBody>
+          <DatasetInspection table={table} owner={owner} />
         </>
       )}
-    </main>
+    </Workbench>
   );
 }
 
-function Schema({ table }: { table: CatalogTable }) {
+function DatasetDetailsButton({ owner }: { owner: string }) {
+  const inspector = useInspector();
+  return (
+    <button
+      aria-pressed={inspector.selection?.owner === owner && inspector.selection.kind === "dataset"}
+      onClick={(event) =>
+        inspector.select({ owner, kind: "dataset", dimension: "definition" }, event.currentTarget)
+      }
+    >
+      Dataset details
+    </button>
+  );
+}
+
+function SchemaColumnButton({
+  owner,
+  column,
+  name,
+}: {
+  owner: string;
+  column: number;
+  name: string;
+}) {
+  const inspector = useInspector();
+  return (
+    <button
+      className="column-select"
+      aria-pressed={inspector.selection?.owner === owner && inspector.selection.column === column}
+      onClick={(event) =>
+        inspector.select(
+          { owner, kind: "column", dimension: "definition", column },
+          event.currentTarget,
+        )
+      }
+    >
+      {name}
+    </button>
+  );
+}
+
+function DatasetInspection({ table, owner }: { table: CatalogTable; owner: string }) {
+  const { selection, release } = useInspector();
+  useEffect(() => () => release(owner), [release, owner]);
+  if (selection?.owner !== owner) return null;
+  const field =
+    selection.kind === "column" ? table.metadata.schema.columns[selection.column ?? -1] : null;
+  return (
+    <InspectorPanel
+      owner={owner}
+      title={field?.name ?? table.metadata.binding.name}
+      subtitle={field ? `Column / ${table.metadata.binding.name}` : "Table / Dataset"}
+      dimensions={[{ id: "definition", label: "Definition" }]}
+      summary={<p>Current authorized metadata · separate from any preview result.</p>}
+    >
+      <dl>
+        {field && (
+          <>
+            <div>
+              <dt>Logical type</dt>
+              <dd>{logicalTypeText(field.type)}</dd>
+            </div>
+            <div>
+              <dt>Nullable</dt>
+              <dd>{field.nullable ? "Yes" : "No"}</dd>
+            </div>
+            <div>
+              <dt>Physical codec</dt>
+              <dd>
+                <code>{JSON.stringify(field.encoding)}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Collation</dt>
+              <dd>
+                <code>{JSON.stringify(field.collation)}</code>
+              </dd>
+            </div>
+          </>
+        )}
+        <div>
+          <dt>Definition digest</dt>
+          <dd>
+            <code>{table.metadata.binding.interpretation.interpretation.digest}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Schema fingerprint</dt>
+          <dd>
+            <code>{table.metadata.binding.interpretation.schema_fingerprint}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Authorization resource</dt>
+          <dd>{table.metadata.authorization}</dd>
+        </div>
+        <div>
+          <dt>Metadata position</dt>
+          <dd>
+            Partition {table.metadata.position.partition} / LSN {table.metadata.position.next_lsn}
+          </dd>
+        </div>
+      </dl>
+      <p>Metadata and preview rows have separately reported observation bases.</p>
+      <Link to="/operations">Operations →</Link>
+    </InspectorPanel>
+  );
+}
+
+function Schema({ table, owner }: { table: CatalogTable; owner: string }) {
   return (
     <div className="workbench-grid">
       <table>
@@ -520,9 +624,11 @@ function Schema({ table }: { table: CatalogTable }) {
           </tr>
         </thead>
         <tbody>
-          {table.metadata.schema.columns.map((field) => (
+          {table.metadata.schema.columns.map((field, column) => (
             <tr key={field.id}>
-              <th scope="row">{field.name}</th>
+              <th scope="row">
+                <SchemaColumnButton owner={owner} column={column} name={field.name} />
+              </th>
               <td>{logicalTypeText(field.type)}</td>
               <td>{field.nullable ? "Yes" : "No"}</td>
               <td>{JSON.stringify(field.encoding)}</td>
@@ -550,14 +656,17 @@ export function WorkbookPage() {
     if (connection.value) setConnected(true);
   }, [connection.value]);
   return (
-    <main className="data-workbench workbook">
+    <Workbench className="workbook" available={Boolean(connection.value)}>
       <div className="page-heading">
         <div>
           <p className="eyebrow">SESSION WORKBOOK · UNSAVED</p>
           <h1>Workbook</h1>
           <p>Narrative, SQL and observed results in one place.</p>
         </div>
-        <Link to="/catalog">Browse catalog →</Link>
+        <div className="workbench-toolbar">
+          <NavigatorToggle label="Cells" />
+          <Link to="/catalog">Browse catalog →</Link>
+        </div>
       </div>
       <p className="workbench-notice">
         Temporary session. Leaving this page discards its cells and closes its result views. Each
@@ -572,51 +681,83 @@ export function WorkbookPage() {
             <span>Read-only statements</span>
             <span>Up to {connection.value?.window_rows} rows per window</span>
           </div>
-          <label className="workbook-title">
-            Investigation title
-            <input
-              value={title}
-              maxLength={160}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                setDirty(true);
-              }}
-            />
-          </label>
-          {cells.map((id, index) => (
-            <WorkbookCell
-              key={id}
-              index={index}
-              edited={() => setDirty(true)}
-              remove={() => {
-                setDirty(true);
-                setCells((previous) => previous.filter((value) => value !== id));
-              }}
-            />
-          ))}
-          <button
-            disabled={cells.length >= 4}
-            onClick={() => {
-              setDirty(true);
-              setCells((previous) => [...previous, crypto.randomUUID()]);
-            }}
+          <WorkbenchBody
+            navigator={
+              <>
+                <p className="eyebrow">THIS WORKBOOK</p>
+                <strong>{title}</strong>
+                {cells.map((id, index) => (
+                  <CellNavigation key={id} id={id} index={index} />
+                ))}
+                <p>Temporary session · up to four cells</p>
+              </>
+            }
           >
-            Add SQL cell
-          </button>
-          <p className="muted">
-            Four active result readers are shared by this Board deployment. Close results when
-            finished.
-          </p>
+            <label className="workbook-title">
+              Investigation title
+              <input
+                value={title}
+                maxLength={160}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  setDirty(true);
+                }}
+              />
+            </label>
+            {cells.map((id, index) => (
+              <WorkbookCell
+                key={id}
+                id={id}
+                index={index}
+                edited={() => setDirty(true)}
+                remove={() => {
+                  setDirty(true);
+                  setCells((previous) => previous.filter((value) => value !== id));
+                }}
+              />
+            ))}
+            <button
+              disabled={cells.length >= 4}
+              onClick={() => {
+                setDirty(true);
+                setCells((previous) => [...previous, crypto.randomUUID()]);
+              }}
+            >
+              Add SQL cell
+            </button>
+            <p className="muted">
+              Four active result readers are shared by this Board deployment. Close results when
+              finished.
+            </p>
+          </WorkbenchBody>
         </div>
       )}
-    </main>
+    </Workbench>
   );
 }
+function CellNavigation({ id, index }: { id: string; index: number }) {
+  const { toggleNavigation } = useInspector();
+  return (
+    <button
+      onClick={() => {
+        toggleNavigation();
+        requestAnimationFrame(() =>
+          document.getElementById(`cell-${id}`)?.querySelector("textarea")?.focus(),
+        );
+      }}
+    >
+      Cell {index + 1}
+    </button>
+  );
+}
+
 function WorkbookCell({
+  id,
   index,
   remove,
   edited,
 }: {
+  id: string;
   index: number;
   remove: () => void;
   edited: () => void;
@@ -628,7 +769,7 @@ function WorkbookCell({
     setNote("");
   });
   return (
-    <section className="workbook-cell" aria-label={`SQL cell ${index + 1}`}>
+    <section id={`cell-${id}`} className="workbook-cell" aria-label={`SQL cell ${index + 1}`}>
       <div className="workbench-toolbar">
         <h2>Cell {index + 1}</h2>
         <span className="muted">Explicit Run</span>
@@ -676,7 +817,7 @@ function WorkbookCell({
         </button>
         <span className="muted">Ctrl / ⌘ Enter · SELECT, SHOW, DESCRIBE, EXPLAIN</span>
       </div>
-      <ResultPanel state={statement} draft={sql} />
+      <ResultPanel state={statement} draft={sql} parent={`Cell ${index + 1}`} />
     </section>
   );
 }
