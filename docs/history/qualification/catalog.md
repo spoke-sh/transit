@@ -9,6 +9,32 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded active-lease cache — 2026-10-30
+
+`140be1469` adds the exact-lease heap and binds each cached prefix to its durable
+deadline-directory root. The storage test uses a one-entry cache with two active
+leases, then a larger cache with a one-entry declared refill budget. Renewal
+invalidates the old deadline; expiry, an uncertain publication, cold recovery,
+retirement, physical sealing and WAL trim preserve original claims. Twenty warm
+idle checks make no new object range reads and pass a sealed backing allocator.
+Current authority denial and unavailable time still refuse on that warm path.
+
+The focused heap and all Queue/Stream partition tests pass, as do all 48 fast
+checks. The ReleaseSafe native `log privileges` schedule passes with 157 Stream
+maintenance units and 220 physical Queue units; measured peak private allocation
+is 6,867,364 and 17,799,533 bytes respectively under the shared 32 MiB budget.
+Its log is `/var/tmp/transit-queue-heap-native.log`, compiled from dirty parent
+`5bf910f71` with the code subsequently committed as `140be1469`.
+The storage log is `/var/tmp/transit-queue-lease-heap-final.log`; a repeat of the
+same focused command also returns zero. Fast-check timings are retained in this
+worktree's `.cache/checks/fast.json`.
+
+The no-allocation claim covers a retained storage owner after warmup. The native
+driver disposes ready workspaces between units and therefore discards this cache.
+These checks do not establish allocation-free background maintenance, a timing
+wheel, time-bucketed runs or lock-free FIFO affinity. They are workspace checks,
+not new clean-lane qualification.
+
 ## Automatic local Queue maintenance — 2026-10-30
 
 `9c1c5f0169737ecca5a6981a251d5ada2b30a0f1` shares bounded catalog maintenance
