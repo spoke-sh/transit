@@ -332,8 +332,8 @@ isomorphism over raw strings would be too strong for case-insensitive equality.
 Prove one-sided pruning soundness for selected zone maps and index routing:
 discarded regions contain no qualifying values under the same comparison
 semantics (including [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
-2D/3D bounding-box and `S2` / Hilbert covering pruning under both `PLANAR` and
-geodesic edge-inflation bounds). For abbreviated/SIMD prefixes, equal prefixes
+2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2` / `OCT_CELL` Hilbert covering pruning under both `PLANAR` and
+geodesic edge-inflation and $SE(3)$ rigid-body bounding-box transformation bounds). For abbreviated/SIMD prefixes, equal prefixes
 require full-key or otherwise proved resolution; prefixes alone do not establish
 strict order.
 Keep format/codec, collation identity and query support separate. This provides
@@ -348,8 +348,11 @@ Distinguish linear operators from bilinear joins and nonlinear operators.
 For a bilinear join, with `A` and `B` denoting the old inputs, include all three
 terms `dA join B + A join dB + dA join dB` (including
 [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `INTERIOR` /
-`BOUNDARY` cell-covering spatial joins and oriented topological half-edge
-`ST_Union` boundary cancellation $\partial(A \cup B) = \partial A + \partial B$).
+`BOUNDARY` `S2` and `OCT_CELL` covering joins, oriented 2D half-edge `ST_Union`
+($\partial_2(A \cup B) = \partial_2 A + \partial_2 B$), 3D oriented face
+`ST_3DUnion` ($\partial_3(V_1 \cup V_2) = \partial_3 V_1 + \partial_3 V_2$,
+$\partial_2 \circ \partial_3 = 0$), and Discrete Divergence Theorem linear 3D
+volume/centroid/inertia aggregates).
 
 Left joins need match-count/zero-crossing reasoning, and grouping/deletion need
 their own state and multiplicity laws. Ordered checked SUM is not automatically
@@ -469,7 +472,7 @@ inherit a proof whose assumptions the new profile violates.
 | Owner | Candidate extension and boundary |
 | --- | --- |
 | [Managed computations and dataflows](12-sql-and-dataflows.md) | T5/T8 and A3: 5-state dataflow lifecycle (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`), phased DDL interaction, `on_resume` watermark handoff and incremental delta equivalence |
-| [Geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md) | A2/A3/A5: 2D/3D MBR and `S2`/Hilbert covering pruning soundness, Shewchuk exact orientation sign invariance, and DBSP Z-set equivalence for topological half-edge `ST_Union` and `INTERIOR`/`BOUNDARY` spatial joins |
+| [Geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md) | A2/A3/A5: 2D/3D MBR and `S2`/`OCT_CELL` Hilbert covering pruning soundness, Shewchuk exact `orient2d`/`orient3d` sign invariance, `.mesh_edgebreaker` (`BP`/`CLERS`) and Roaring octree codec round-trips, and DBSP Z-set equivalence for topological half-edge `ST_Union`, 3D face `ST_3DUnion` ($\partial_2 \circ \partial_3 = 0$), Discrete Divergence Theorem volume aggregates and `INTERIOR`/`BOUNDARY` 2D/3D spatial/clash joins |
 | [Providers and concurrent writers](22-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
 | [Replication and failover](23-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion, stale-writer fencing and remote/local incremental mirror boundaries |
 | [Operations and recovery](24-operations-and-recovery.md) | T1/T4/T7/T8: retained backup/PITR roots, consistent decisions, online DDL recovery and authority-safe restore/upgrade boundaries |

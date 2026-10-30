@@ -60,7 +60,7 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | Phase | Milestones | Exit outcome |
 | --- | --- | --- |
 | [I: Local data and application foundations](#phase-i-local-data-and-application-foundations) | 1–11 | Applications declare and query local Tables, KV, Documents (backed by `.tseg` succinct trees and shredded subcolumns in `DocumentPartition` with `Station` decoupled), Streams (`PRODUCE INTO` / `CONSUME ... FROM`) and Queues (`ENQUEUE INTO` / `CLAIM ... FROM`), consume complete statement outcomes, compose supported transactions, run `Station` behaviors over database primitives with the database decoupled from actor turns, connect through a formalized event-driven, sans-I/O gateway boundary co-hosted with the Direct Data Plane without `/table/v1` polling cascades, and use shared clients with exact historical interpretation and maintained indexes |
-| [II: Data composition, performance and interface coverage](#phase-ii-data-composition-performance-and-interface-coverage) | 12–21 | Applications maintain derived data, meet measured local database/runtime, string/search and data-centric compilation performance targets, use the multi-format Document Type Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`, `PDF`, `DOCX`, `XLSX`, `ODF`) and unified gateway/connector exchange lifecycle, store and query geospatial and spatio-temporal data (`GEOMETRY`, `GEOGRAPHY`, `S2_CELL`, `H3_CELL`, `TRAJECTORY`) with topological/cell-covering compression and incremental DBSP evaluation, compose native and foreign models, work across branches and use the qualified service/SDK matrix with selected formal models and implementation correspondence |
+| [II: Data composition, performance and interface coverage](#phase-ii-data-composition-performance-and-interface-coverage) | 12–21 | Applications maintain derived data, meet measured local database/runtime, string/search and data-centric compilation performance targets, use the multi-format Document Type Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`, `PDF`, `DOCX`, `XLSX`, `ODF`) and unified gateway/connector exchange lifecycle, store and query 2D/3D geospatial, volumetric 3D model and spatio-temporal data (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `POINTCLOUD`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`) with topological/Edgebreaker/octree compression and incremental DBSP evaluation, compose native and foreign models, work across branches and use the qualified service/SDK matrix with selected formal models and implementation correspondence |
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 22–25 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 26–29 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
 | [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 30–33 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
@@ -100,8 +100,8 @@ combines that evidence at one revision.
 | 14 | [First-class strings, perfect hashing and vectorized search execution](14-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons, and declarative search/proximity contracts over swappable `.tseg` index profiles (qualifying vectorized 256-doc Block-Max BM25 and hybrid search first) |
 | 15 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](15-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
 | 16 | [Document type library, protocol grammars and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) | Planned | Declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`/`SDP`, `AMQP`, `MQTT`, `NTP`) and compound container/layout formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, plus transport-decoupled gateway/connector exchange capture (`STATION_EXCHANGE_V1` $\to$ `DocumentPartition`) and causal lineage |
-| 17 | [Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries](17-geospatial-and-spatio-temporal-computing.md) | Planned | Orthogonal $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ types (`GEOMETRY`, `GEOGRAPHY`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `TRAJECTORY`), Shewchuk exact predicates & snap-rounding grids, 16B inline MBR vector headers, `.geoarrow`/`.twkb_delta` codecs, logical topological shared-arc (`.topo_arc`), `INTERIOR`/`BOUNDARY` `S2`/`H3` Roaring cell-covering and 4D trajectory compression, 2D/3D zone maps, `RTREE`/`S2` indexes, 2D spatial SSI and DBSP Z-set incremental `ST_Union` and spatial joins |
-| 18 | [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md) | Planned | Document/graph/spatial-network projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector/geospatial hybrid search composition, foreign formats (`Parquet`/`GeoParquet`, `FlatGeobuf`, `CSV`/`JSONL`, mainframe `FB`/`VB`), streaming CDC ingress and typed COPY/import/export |
+| 17 | [Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries](17-geospatial-and-spatio-temporal-computing.md) | Planned | Orthogonal $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ 2D/3D types (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact `orient2d`/`3d` predicates & snap-rounding grids, 16B inline 2D/3D MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face`), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring coverings (`.s2_roaring`, `.octree_roaring`), instanced `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem volume aggregates and spatial/3D clash joins |
+| 18 | [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md) | Planned | Document/graph/2D-spatial/3D-coboundary projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector/2D-3D-spatial hybrid search composition, foreign formats (`Parquet`/`GeoParquet`, `FlatGeobuf`, `glTF`/`GLB`, `OpenUSD`, `IFC`/`STEP`, `3D Tiles`, `LAS`/`LAZ`/`COPC`, `CSV`/`JSONL`, mainframe `FB`/`VB`), streaming CDC ingress and typed COPY/import/export |
 | 19 | [Branches, merges and restore](19-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, 2-way/3-way `DIFF` & `DIFF_SCHEMA` over `.tseg` segment/spatial skipping and 5-state `IS CONFLICT` cells, Git-like remote $\leftrightarrow$ local incremental mirroring (`REMOTE`/`FETCH`/`MIRROR`), logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 20 | [Service and SDK coverage](20-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 21 | [Formal semantics and implementation correspondence](21-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models (including `T8` DDL evolution and 5-state dataflow lifecycle) and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
@@ -176,8 +176,8 @@ evidence rather than assuming every preceding number is a technical dependency.
 | II | Deliver first-class strings, perfect hashing and vectorized search | 14 | Qualify 16B collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and declarative text/proximity search contracts over swappable `.tseg` index profiles (starting with vectorized 256-doc Block-Max BM25 and hybrid search) |
 | II | Deliver data-centric compilation, AOT queries and specialization | 15 | Qualify HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up and `transit-app` AOT Zig query/view compilation against HyPer/Umbra/CedarDB (VLDB 2018, JOB and CH-benCHmark) baselines |
 | II | Deliver the Document Type Library and gateway exchange lifecycle | 16 | Qualify declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`) and compound formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, and cut `STATION_EXCHANGE_V1` connector/gateway capture over to `DocumentPartition` with causal lineage and transport decoupling |
-| II | Deliver geospatial types, topological compression and incremental spatio-temporal queries | 17 | Qualify $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ (`GEOMETRY`, `GEOGRAPHY`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `TRAJECTORY`), Shewchuk exact predicates and snap-rounding grids, 16B inline MBR vector headers, `.geoarrow`/`.twkb_delta` codecs, logical topological shared-arc (`.topo_arc`), `INTERIOR`/`BOUNDARY` `S2`/`H3` Roaring cell-covering and 4D trajectory compression, 2D/3D zone maps, `RTREE`/`S2` indexes, 2D spatial SSI and DBSP Z-set incremental `ST_Union` and spatial joins |
-| II | Compose data models and history | 18–19 | Qualify foreign COPY/projections (including `GeoParquet` and `FlatGeobuf`), streaming CDC ingress, multi-model lexical/structural/vector/geospatial search composition, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
+| II | Deliver geospatial types, topological compression and incremental spatio-temporal queries | 17 | Qualify $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact 2D/3D predicates and snap-rounding grids, 16B inline MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face`), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring cell/octree coverings, `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, linear volume aggregates and 2D/3D clash joins |
+| II | Compose data models and history | 18–19 | Qualify foreign COPY/projections (including `GeoParquet`, `FlatGeobuf`, `glTF`/`OpenUSD`/`IFC`/`STEP`/`3D Tiles`/`COPC`), streaming CDC ingress, multi-model lexical/structural/vector/2D-3D-spatial search composition, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 20 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | II | Establish formal semantics and correspondence | 21 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
 | III | Qualify distributed infrastructure | 22–25 | Real providers, KMS/BYOK envelope encryption at rest and writer fencing/fine-grained distributed SSI, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
@@ -195,9 +195,10 @@ this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
 
-## Geospatial computing, logical topological compression and companion data-type formalization review — 2026-10-29
+## Geospatial computing, 3D volumetric models, logical topological compression and companion data-type formalization review — 2026-10-29
 
-An architectural review of geospatial and spatio-temporal computing across
+An architectural review of 2D/3D geospatial, volumetric 3D model and
+spatio-temporal computing across
 [`types.md`](../handbook/reference/sql/types.md),
 [`query-engine.md`](../handbook/internals/query-engine.md),
 [Milestone 10](10-standards-and-catalogs.md),
@@ -206,27 +207,37 @@ An architectural review of geospatial and spatio-temporal computing across
 [Milestone 13](13-data-structures-and-performance.md),
 [Milestone 14](14-vectorized-strings-and-search.md) and
 [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)
-identifies why geospatial data feels like graph data (planar subdivisions as
-Doubly-Connected Edge Lists `G = (V, E, F)`, discrete global grids `S2`/`H3` as
-hierarchical trees and $k$-regular neighbor graphs, and spatial joins as
-bipartite intersection graphs) while requiring explicit manifold, metric and
+identifies why 2D/3D spatial data behaves like a graded **Cellular Chain Complex
+($C_0, C_1, C_2, C_3$)** with boundary operators $\partial_k: C_k \to C_{k-1}$
+satisfying $\partial_{k-1} \circ \partial_k = 0$ (planar subdivisions as DCELs
+over $(C_0, C_1, C_2)$, 3D manifold meshes and B-Rep solids over
+$(C_0, C_1, C_2, C_3)$ with coboundary $\delta_2 = \partial_3^\top$ room/part
+adjacency graphs, discrete grids/octrees `S2`/`H3`/`OCT_CELL` as hierarchical
+trees and $k$-regular neighbor graphs, and spatial/3D clash joins as bipartite
+intersection graphs) while requiring explicit manifold, metric and
 topological-robustness guarantees. Inserting
 [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) in Phase II
 (after [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)
 and before [Milestone 18](18-multi-model-and-foreign-relations.md)) shifts the
 sequence to `1–37` and establishes four architectural commitments:
 
-1. **Formalize Geospatial ($\tau \perp \kappa_{\text{spatial}} \perp \epsilon$) alongside companion Range, Dense Vector, Decimal Arithmetic and Pinned-TZ Timestamp types ([Milestone 10](10-standards-and-catalogs.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md)):**
-   Separate logical spatial types ($\tau$: `GEOMETRY(subtype, srid, dim)`,
-   `GEOGRAPHY(subtype, srid, dim)`, `BBOX2D`/`BBOX3D`, `S2_CELL`, `H3_CELL`,
-   `TRAJECTORY`) from the **Spatial Reference, Manifold & Precision Descriptor
-   $\kappa_{\text{spatial}}$** (catalog-bound `SRID`, `PLANAR` vs. WGS84
-   `GEODESIC` edge interpolation, deterministic Snap-Rounding Grid
-   $\delta_{\text{grid}}$ backed by Shewchuk adaptive-precision `orient2d` /
-   `incircle` predicates, and `S2_HILBERT` / `H3` space-filling curve ordering)
-   and `.tseg` physical codecs ($\epsilon$: `.geoarrow` Struct-of-Arrays,
-   `.twkb_delta` quantized varints, `.topo_arc` shared chains and `.s2_roaring`
-   cell coverings). Formalize companion type families in the same
+1. **Formalize 2D & 3D Spatial Types ($\tau \perp \kappa_{\text{spatial}} \perp \epsilon$) alongside companion Range, Dense Vector, Decimal Arithmetic and Pinned-TZ Timestamp types ([Milestone 10](10-standards-and-catalogs.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md)):**
+   Separate logical 2D/3D spatial types ($\tau$: `GEOMETRY(subtype, srid, dim)`,
+   `GEOGRAPHY(subtype, srid, dim)`, `MESH3D`, `SOLID3D`, `SCENE3D`,
+   `TRANSFORM3D`, `POINTCLOUD`, `BBOX2D`/`BBOX3D`, `S2_CELL`, `H3_CELL`,
+   `OCT_CELL`, `TRAJECTORY`) from the **Spatial Reference, Manifold & Precision
+   Descriptor $\kappa_{\text{spatial}}$** (catalog-bound `SRID`, vertical
+   datum / unit scale / axis convention `RightHanded_ZUp` vs. `YUp`, `PLANAR`
+   vs. WGS84 `GEODESIC` edge interpolation, deterministic 2D/3D Snap-Rounding
+   Grid $\delta_{\text{grid}}$ backed by Shewchuk adaptive-precision
+   `orient2d` / `orient3d` / `incircle` / `insphere` predicates, and
+   `S2_HILBERT` / `H3` / `HILBERT_3D` space-filling curve ordering) and `.tseg`
+   physical codecs ($\epsilon$: `.geoarrow` Struct-of-Arrays, `.twkb_delta`
+   quantized varints, `.mesh_edgebreaker` $<2\text{ bpt}$ `BP`/`CLERS` + wavelet
+   LOD pages, `.topo_arc` shared 1-chains, `.topo_face` shared 2-faces,
+   `.s2_roaring` / `.octree_roaring` coverings, `.scene_dag` prototype
+   dictionaries + `SE(3)` instances and `.pcloud_hilbert` blocks). Formalize
+   companion type families in the same
    [`FUZE_TYPES_V1.md`](../../contracts/FUZE_TYPES_V1.md) /
    [`TABLE_SCHEMA_V1.md`](../../contracts/TABLE_SCHEMA_V1.md) cutover:
    canonical **`RANGE<T>` and `MULTIRANGE<T>`** (the 1D base case of `BBOX` and
@@ -236,56 +247,72 @@ sequence to `1–37` and establishes four architectural commitments:
    deterministic **`DECIMAL(p, s)` arithmetic scale/rounding rules**
    ($\kappa_{\text{numeric}}$), and **`TIMESTAMPTZ` bound to a manifest-pinned
    IANA `tzdb` version digest** ($\kappa_{\text{tz}}$).
-2. **Logical compression in concert with the DBSP / Z-set incremental engine ([Milestone 12](12-sql-and-dataflows.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md), [Milestone 21 A3](21-formal-semantics-and-correspondence.md#a3-incremental-dataflow-equivalence)):**
-   Instead of storing isolated WKB vertex blobs that duplicate shared borders
-   and force $O(V \log V)$ full-recomputation on polygon dissolve or streaming
-   joins, combine three logical compression structures with DBSP Z-sets:
-   - **Topological Shared-Arc Decomposition (`.topo_arc`) $\implies$ Linear Z-Set `ST_Union`:**
-     store shared boundary chains between topological junctions once and encode
-     polygons as signed chain references (`[+e_1, +e_2, -e_7]`). Because
-     adjacent faces traverse shared internal arcs in opposite orientations
-     ($+\vec{e}$ and $-\vec{e}$), incremental `GROUP BY ... ST_Union(geom)` and
-     `-row` retractions evaluate as linear Z-set sums over oriented half-edges
-     ($\partial(F_1 \cup F_2) = \partial F_1 \oplus \partial F_2$ where
-     $(+\vec{e}) + (-\vec{e}) = 0$) in $O(1)$ per arc without re-clipping
-     unchanged interiors.
-   - **Hierarchical `INTERIOR` / `BOUNDARY` Cell Coverings (`.s2_roaring` / `.h3_roaring`) $\implies$ $O(1)$ Short-Circuit Spatial Joins:**
-     partition multi-resolution `S2`/`H3` coverings into **`INTERIOR` cells**
-     (100% contained inside the geometry, compressed into `.tseg` Roaring
-     bitmaps with zero vertex storage) and **`BOUNDARY` cells** (storing only
-     the clipped edge slice inside that cell). In finite and incremental
-     bilinear spatial joins ($dA \bowtie B + A \bowtie dB + dA \bowtie dB$),
-     any match on an `INTERIOR` cell immediately returns `TRUE` in $O(1)$ with
-     zero narrow-phase floating-point math, and local polygon edits emit Z-set
-     deltas (`+cell`/`-cell`) only for modified boundary cells.
-   - **Spatio-Temporal Dead-Reckoning Trajectory Tubes $\implies$ Semantic Delta Suppression:**
-     compress colinear constant-velocity runs in `StreamPartition` within
-     $\varepsilon_{\text{meters}}$ into 4D `TRAJECTORY` segments
-     (`[x0, y0, t0] -> [x1, y1, t1]`, $\varepsilon$), waking downstream
-     continuous geofence dataflows only on cell-boundary crossings or kinematic
-     deflections.
-3. **16-byte inline spatial headers in `Batch.zig`, 2D/3D zone maps and 2D spatial SSI ([Milestone 11](11-indexing-and-access-paths.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md)):**
+2. **Logical 2D & 3D compression in concert with the DBSP / Z-set incremental engine ([Milestone 12](12-sql-and-dataflows.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md), [Milestone 21 A3](21-formal-semantics-and-correspondence.md#a3-incremental-dataflow-equivalence)):**
+   Instead of storing isolated WKB or STL/OBJ triangle blobs that duplicate
+   shared borders/faces and force $O(V \log V)$ or $O(F^2)$ full-recomputation
+   on polygon/solid dissolve or streaming joins, combine five logical
+   compression structures with DBSP Z-sets:
+   - **Topological Shared-Arc (`.topo_arc`) & Shared-Face (`.topo_face`) Decomposition + Discrete Divergence Theorem $\implies$ Linear Z-Set `ST_Union`, `ST_3DUnion` & 3D Volume Aggregates:**
+     store shared 1-chains (`[+e_1, -e_7]`) and shared oriented 2-faces
+     (`[+f_1, -f_9]`) once per segment. Because adjacent 2D faces and 3D solids
+     traverse shared internal boundaries in opposite orientations
+     ($(+\vec{e}) + (-\vec{e}) = 0$, $(+\vec{f}) + (-\vec{f}) = 0$), incremental
+     `ST_Union(geom)`, `ST_3DUnion(solid)` and `-row` retractions evaluate as
+     linear Z-set sums over oriented boundaries, while `ST_Volume`,
+     `ST_3DCentroid` and `ST_InertiaTensor` reduce to linear Abelian Z-set sums
+     over boundary triangles via the Discrete Divergence Theorem
+     ($\text{Volume}(V) = \frac{1}{6}\sum \text{orient3d}(0, p_1, p_2, p_3)$).
+   - **Succinct Edgebreaker Mesh Connectivity & Wavelet LOD (`.mesh_edgebreaker`) $\implies$ $<2\text{ Bits/Triangle}$ + Progressive Streaming:**
+     encode manifold 3D meshes via Rossignac Edgebreaker (`CLERS`) +
+     [Milestone 7's](07-document-storage-and-station-decoupling.md) $2N$-bit
+     `BP` succinct trees, parallelogram vertex prediction, octahedral normals
+     and progressive `LOD_0..LOD_k` page prefixes.
+   - **Hierarchical `INTERIOR` / `BOUNDARY` 2D Cell (`.s2_roaring`) & 3D Octree (`.octree_roaring`) Coverings $\implies$ $O(1)$ Short-Circuit Spatial Joins & 3D Clash Detection:**
+     partition multi-resolution `S2`/`H3` and 64-bit `OCT_CELL` coverings into
+     **`INTERIOR` cells/octants** (100% inside the polygon/solid, compressed
+     into `.tseg` Roaring bitmaps with zero vertex/triangle storage) and
+     **`BOUNDARY` cells/octants** (storing only the clipped local edge/triangle
+     patch or quantized Dual-Contouring `SDF`). In finite and incremental
+     bilinear spatial and 3D clash joins ($dA \bowtie B + A \bowtie dB + dA \bowtie dB$),
+     any match on an `INTERIOR` cell/octant immediately returns `TRUE` in $O(1)$
+     with zero narrow-phase floating-point math.
+   - **Instanced Scene-Graph DAGs (`.scene_dag`) & Lie Group $SE(3)/\text{Sim}(3)$ Action $\implies$ Zero-Copy Kinematic Updates:**
+     store canonical `MESH3D`/`SOLID3D` part prototypes once in a `.tseg`
+     dictionary and represent assemblies as `(node_id, parent_id, prototype_id, transform_se3, world_bbox3d)`
+     rows so articulating a part updates only its 48-byte `TRANSFORM3D` in
+     `TWAL1` without copying mesh triangles.
+   - **3D Hilbert Point Clouds (`.pcloud_hilbert`) & Dead-Reckoning Trajectory Tubes $\implies$ Sub-Byte Point Clouds & Semantic Delta Suppression:**
+     cluster `POINTCLOUD` blocks by `HILBERT3D` with `BBOX3D` Frame-of-Reference
+     (`FOR`) delta bitpacking, and compress colinear constant-velocity runs in
+     `StreamPartition` within $\varepsilon$ into 4D/6-DoF `TRAJECTORY` segments,
+     waking downstream continuous geofence and 3D zone dataflows only on
+     cell/octant-boundary crossings or kinematic deflections.
+3. **16-byte inline spatial headers in `Batch.zig`, 2D/3D zone maps and 2D/3D spatial SSI ([Milestone 11](11-indexing-and-access-paths.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md)):**
    Equip `Fuze` vectors with a **16-byte Inline Spatial Header**
-   (`[subtype_and_flags: u16][srid_id: u16][s2_hilbert_prefix: u32][quantized_mbr_or_inline_xy: 8B]`)
-   so 2D points stay inline and polylines/polygons reject $>95\%$ of
-   non-intersecting candidates in SIMD registers before touching `.geoarrow`
-   coordinate arrays; add 2D/3D `.tseg` bounding-box zone maps, static Hilbert
-   R-trees (`USING RTREE`), inverted `S2`/`H3` Roaring indexes (`USING S2` /
-   `USING H3`), and **2D bounding-box / Hilbert-interval Serializable Snapshot
-   Isolation (SSI)** conflict tracking.
-4. **Diffuse spatial and type guarantees across multi-model foreign formats, branches, security-barrier RLS, Board and formal proofs ([Milestones 16–34](16-document-profiles-and-gateway-exchange-lifecycle.md)):**
+   (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`)
+   so 2D points stay inline and 2D/3D polylines, polygons, meshes and solids
+   reject $>95\%$ of non-intersecting candidates in SIMD registers before
+   touching `.geoarrow` or `.mesh_edgebreaker` buffers; add 2D/3D `.tseg`
+   bounding-box zone maps (`BBOX2D`/`BBOX3D`), static 2D/3D Hilbert R-trees
+   (`USING RTREE`), inverted `S2`/`H3`/`OCT_CELL` Roaring indexes (`USING S2` /
+   `USING H3` / `USING OCTREE`), and **2D/3D bounding-box / Hilbert-interval
+   Serializable Snapshot Isolation (SSI)** conflict tracking.
+4. **Diffuse 2D/3D spatial and type guarantees across multi-model foreign formats, branches, security-barrier RLS, Board and formal proofs ([Milestones 16–34](16-document-profiles-and-gateway-exchange-lifecycle.md)):**
    Unify [Milestone 16's](16-document-profiles-and-gateway-exchange-lifecycle.md)
    `PDF` `(page_no, bbox, span)` layout boxes, `GeoJSON` and `GML`/`KML` with
-   `BBOX2D` / `GEOMETRY`; add `GeoParquet` v1.1, `FlatGeobuf`, `GeoArrow`,
-   `PMTiles`/`MVT` and Geo-Filtered Hybrid Search in
-   [Milestone 18](18-multi-model-and-foreign-relations.md); add 2D segment
-   skipping and topological `IS CONFLICT` cells in
-   [Milestone 19](19-branches-merges-and-restore.md); extend Lean 4 pruning and
-   DBSP delta proofs (`A2`/`A3`) in
-   [Milestone 21](21-formal-semantics-and-correspondence.md); enforce Spatial
-   RLS in [Milestone 26](26-control-and-policy-plane.md); render read-only map
-   and `DIFF` layers in [Milestone 29](29-board-reimplementation.md); and audit
-   ISO SQL/MM Spatial (`ST_*`) in
+   `BBOX2D` / `GEOMETRY`; add 2D (`GeoParquet` v1.1, `FlatGeobuf`, `GeoArrow`,
+   `PMTiles`/`MVT`) and 3D (`glTF`/`GLB`, `OpenUSD`, `IFC`, `STEP`, `CityJSON`,
+   `OGC 3D Tiles 1.1`, `LAS`/`LAZ`/`COPC`) foreign adapters, 3D coboundary dual
+   graphs and Geo-/3D-Filtered Hybrid Search in
+   [Milestone 18](18-multi-model-and-foreign-relations.md); add 2D/3D segment
+   skipping and topological/clash `IS CONFLICT` cells in
+   [Milestone 19](19-branches-merges-and-restore.md); extend Lean 4 pruning,
+   codec and DBSP delta proofs (`A2`/`A3`/`A5`) in
+   [Milestone 21](21-formal-semantics-and-correspondence.md); enforce 2D/3D
+   Spatial RLS in [Milestone 26](26-control-and-policy-plane.md); render
+   read-only 2D map, progressive-LOD 3D scene/mesh/point-cloud and `DIFF`/clash
+   layers in [Milestone 29](29-board-reimplementation.md); and audit ISO SQL/MM
+   Spatial (`ST_*` / `ST_3D*`) in
    [Milestone 34](34-sql-grammar-and-dialect-ergonomics.md).
 
 ## SQL grammar, standards comparison, dialect ergonomics and dataflow lifecycle review — 2026-10-29

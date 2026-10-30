@@ -88,11 +88,11 @@ authority/process evidence separate from branchable application state.
      row/cell conflicts explicitly, and commit the merged Manifest via
      conditional CAS (`Multi-Writer OCC`), rejecting stale target heads.
      Schema-only promotion preserves target rows unless explicitly migrated.
-4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), geospatial coverages ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) and qualified graph mappings:**
+4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), 2D/3D geospatial & volumetric models ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
-   replica state-vector convergence, use `.tseg` 2D bounding-box and `S2`/Hilbert
-   zone maps for $O(1)$ spatial segment skipping during viewport-scoped diffs
-   and surface conflicting edits to shared `.topo_arc` boundary chains as
+   replica state-vector convergence, use `.tseg` 2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert
+   zone maps for $O(1)$ spatial and volumetric segment skipping during viewport-scoped diffs
+   and surface conflicting edits to shared `.topo_arc` / `.topo_face` boundary chains/faces or 3D assembly clash collisions as
    five-state `IS CONFLICT` cells, preserving causal/tombstone semantics,
    fresh replica identities and valid graph endpoints; incompatible histories
    refuse and derived views rebuild or verify against the merged manifest.
