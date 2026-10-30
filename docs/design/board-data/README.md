@@ -5,10 +5,12 @@
 This design item reimagines Board around data, derived computations and
 governing policies. Its current proposal connects a searchable catalog to
 focused dataset inspection, schema relationships, SQL workbooks, directed
-lineage and change review. Write-ahead change streams (`TransitLog`), durable
-processes (`Station`) and connectors explain how those declarations are
-activated. D2 reviews a crisp monochrome visual system, restrained impact color
-and spacious desktop layouts with a laptop companion.
+lineage and change review. D3 develops horizontal activity navigation and one
+selection-driven Inspector, with persistent branch/time context. Write-ahead
+change streams (`TransitLog`), durable processes (`Station`) and connectors
+explain how those declarations are
+activated. D2 supplies the retained monochrome baseline; D3 reviews topology
+through dataset, workbook and branch-comparison studies.
 
 Earlier items remain intact with their recorded outcomes:
 [board-atlas](../board-atlas/README.md) owns the process/resource relief studies,
@@ -19,12 +21,13 @@ declaration profile. [Inspect with Board](../../handbook/guides/inspect-board.md
 and the [data model](../../handbook/reference/data-model.md) own current
 implemented behavior and public contracts.
 
-**Current review:** [D2 — A focused data workbench, with monochrome visual styling](D2.md).
+**Current review:** [D3 — Horizontal workbench and one contextual Inspector](D3.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
 | [D1](D1.md) | Entity-relationship canvas, five-state profiles, SQL workbooks, data-gravity lineage and branch/DDL comparison | Reviewed | Data-first direction retained; reviewer requested a different theme, greater fidelity and larger screens. D2 develops that feedback. |
 | [D2](D2.md) | Focused catalog, dataset, relationship, workbook, lineage and change views; monochrome styling and eight browser-rendered screenshots | In review | Selected monochrome direction is reflected in the artifacts; review the catalog-first default, contextual detail and separate change workflows. |
+| [D3](D3.md) | Horizontal activities, optional object navigation, one Inspector and persistent branch/time context across three workflows | Accepted in part | Reviewer endorsed the topology direction; six new browser figures, exact dimensions and responsive behavior remain under review. Theme retained; no installed behavior changed. |
 
 Review status tracks the design conversation. The studies and local prototype
 do not establish implemented browser routes, arbitrary joins, whole-dataset
@@ -36,9 +39,14 @@ contracts; design acceptance alone does not complete that work.
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
 [template](../TEMPLATE.md) when adding subsequent reviews; the next review in
-this item is `D3.md`.
+this item is `D4.md`.
 
 ## Supporting material
+
+- [D3 topology studies and figures](D3.md#visual-studies),
+  [interactive prototype](d3.html), [interaction source](d3.js),
+  [styles](d3.css), [synthetic fixture](d3-fixture.js) and
+  [capture/check script](d3-render.mjs).
 
 - [D2 visual studies and full-resolution screenshots](D2.md#visual-studies),
   [local prototype](d2.html), [screen source](d2.js), [styles](d2.css),
