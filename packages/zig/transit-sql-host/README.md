@@ -7,6 +7,11 @@ listeners. It owns bounded connection memory, TLS lifetimes, recovery wakeups,
 listener shutdown and joined worker tasks. It does not own catalog authority or
 storage.
 
+Native SQL request slots retain their scratch workspaces across requests. Slot
+reassignment clears the used high-water range, including freed allocations and
+failed requests, without repeatedly clearing untouched reserve capacity. Data
+and control admission remain separate, and every borrower joins before release.
+
 The installed `transit server` places this host inside `transit-node`. Signed
 Table and native calls use `transit-client.LocalEndpoint` and the node's shared
 request lanes, storage owners and current policy checks. Result storage belongs
