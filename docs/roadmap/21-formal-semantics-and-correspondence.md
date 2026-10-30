@@ -416,9 +416,12 @@ from rows or columns excluded by the caller's policy at `policy_epoch`. Define
 monotonicity only for specified inputs/orderings; revocation and explicit
 restrictions do not make the whole policy evaluator monotone.
 
-Prove that delegated agents cannot borrow human-only approval authority and that
+Prove that delegated agents cannot borrow human-only approval authority, that
 protected destinations cannot be changed through an equivalent direct-write
-adapter. Do not invent deny precedence or a new grant authority. A relational
+adapter, and that declarative `SECRET` resolution (`USAGE ON SECRET` $\wedge$
+`SCOPE` match) and OAuth 2.1 + PKCE challenge-response dataflow state machines
+reject challenge replays, unverified PKCE commitments and stale `rotation_epoch`
+or `policy_epoch` leases. Do not invent deny precedence or a new grant authority. A relational
 model may help find graph counterexamples; temporal revocation and approval races
 still need temporal checks. This family belongs to the later identity and review
 owners, with shared evaluation across SQL, SDK, MCP and browser callers.
