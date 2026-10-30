@@ -158,9 +158,9 @@ test "local payload creation sync uncertainty resolves by verification without r
             if (failure == 0) {
                 try store.createPayloadOnce(value, "payload");
                 schedules = Fault.calls;
-                // Marker file + directory, payload + checksums + their shared
+                // Marker file + directory, single-chunk payload + objects
                 // directory, then descriptor file + directory.
-                try t.expectEqual(@as(usize, 7), schedules);
+                try t.expectEqual(@as(usize, 6), schedules);
             } else try t.expectError(error.InputOutput, store.createPayloadOnce(value, "payload"));
         }
         var reopened: Fixture = .{};
@@ -307,8 +307,8 @@ test "local payload verification propagates every recovery barrier without publi
     const puts = f.owner.objects.puts;
     Fault.calls = 0;
     try store.verifyPayload(value);
-    try t.expectEqual(@as(usize, 7), Fault.calls);
-    for (1..8) |failure| {
+    try t.expectEqual(@as(usize, 6), Fault.calls);
+    for (1..7) |failure| {
         Fault.calls = 0;
         Fault.remaining = failure;
         try t.expectError(error.InputOutput, store.verifyPayload(value));

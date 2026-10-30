@@ -213,7 +213,7 @@ test "object write errors leave private partial files unpublished and exact retr
     var io = t.io;
     io.vtable = &vtable;
     for ([_]bool{ false, true }) |immutable| {
-        for (1..4) |failure| {
+        for (1..3) |failure| {
             for ([_]usize{ 0, 1, std.math.maxInt(usize) }) |prefix| {
                 var tmp = t.tmpDir(.{});
                 defer tmp.cleanup();
@@ -222,7 +222,7 @@ test "object write errors leave private partial files unpublished and exact retr
                 try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "before"));
                 const key = if (immutable) "new" else "head";
                 Fault.prefix = prefix;
-                Fault.remaining = failure; // raw payload, checksum file, descriptor
+                Fault.remaining = failure; // raw payload, descriptor
                 if (immutable) {
                     try t.expectError(error.NoSpaceLeft, owner.objectStore().putImmutable(key, "after", hash("after")));
                 } else {
@@ -332,7 +332,7 @@ test "object publication sync failures leave a complete old or complete new desc
     var io = t.io;
     io.vtable = &vtable;
     for ([_]bool{ false, true }) |immutable| {
-        for (1..6) |failure| {
+        for (1..5) |failure| {
             var tmp = t.tmpDir(.{});
             defer tmp.cleanup();
             var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
@@ -349,7 +349,7 @@ test "object publication sync failures leave a complete old or complete new desc
             defer reopened.deinit();
             if (immutable) {
                 const observed = try reopened.objectStore().head("new");
-                if (failure == 5) {
+                if (failure == 4) {
                     try t.expectEqualDeep(hash("after"), observed.?.sha256);
                 } else try t.expectEqual(null, observed);
                 _ = try reopened.objectStore().putImmutable("new", "after", hash("after"));
@@ -358,7 +358,7 @@ test "object publication sync failures leave a complete old or complete new desc
                 try t.expectError(error.ImmutableObjectConflict, reopened.objectStore().putImmutable("new", "different", hash("different")));
                 continue;
             }
-            const expected: []const u8 = if (failure == 5) "after" else "before";
+            const expected: []const u8 = if (failure == 4) "after" else "before";
             var bytes: [16]u8 = undefined;
             try t.expectEqualStrings(expected, try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
             try t.expectEqualDeep(hash(expected), (try owner.objectStore().head("head")).?.sha256);
@@ -440,9 +440,9 @@ test "immutable confirmation verifies content and syncs observed publications wi
     const puts = owner.puts;
     Fault.calls = 0;
     try owner.confirmImmutableObject("observed", meta);
-    try t.expectEqual(@as(usize, 5), Fault.calls);
-    try t.expectEqualSlices(bool, &.{ false, false, true, false, true }, Fault.kinds[0..5]);
-    for (1..6) |failure| {
+    try t.expectEqual(@as(usize, 4), Fault.calls);
+    try t.expectEqualSlices(bool, &.{ false, true, false, true }, Fault.kinds[0..4]);
+    for (1..5) |failure| {
         Fault.calls = 0;
         Fault.remaining = failure;
         try t.expectError(error.InputOutput, owner.confirmImmutableObject("observed", meta));
@@ -505,7 +505,7 @@ test "immutable object batches share directory barriers and retain exact per-obj
         defer Probe.enabled = false;
         try owner.objectStore().putImmutableBatch(batch[0..count], output[0..count]);
         Probe.enabled = false;
-        try t.expectEqual(3 * count, Probe.files);
+        try t.expectEqual(2 * count, Probe.files);
         try t.expectEqual(@as(usize, 2), Probe.directories);
         try t.expectEqual(count, owner.puts);
         var reader = try open(tmp.dir);
@@ -563,7 +563,7 @@ test "immutable object batch failure never returns partial output and exact retr
     };
     const sentinel: Objects.ObjectMeta = .{ .size = 999, .sha256 = @splat(9) };
     for ([_]bool{ false, true }) |write_failure| {
-        for (1..(if (write_failure) @as(usize, 7) else 9)) |failure| {
+        for (1..(if (write_failure) @as(usize, 5) else 7)) |failure| {
             var tmp = t.tmpDir(.{});
             defer tmp.cleanup();
             var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
