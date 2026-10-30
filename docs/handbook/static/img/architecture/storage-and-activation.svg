@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1540" viewBox="0 0 1280 1540" role="img" aria-labelledby="title description">
+  <title id="title">Transit storage and activation — target architecture</title>
+  <desc id="description">Definitions and policies govern Fuze queries and Station processes. Four storage tiers separate volatile RAM, the durable TransitLog, local NVMe cache and spill, and immutable TransitObjectStore segments and manifests. Committed log deltas feed Fuze and activate Station. Memtables flush into immutable storage; object range reads fill the cache. The tiers describe responsibilities, not four sequential write stages. This is the target architecture; the linked Internals accounts distinguish implemented mechanisms from proposed composition.</desc>
+  <defs>
+    <marker id="change" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#ad3326" stroke-width="1.5"/></marker>
+    <marker id="flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#62645f" stroke-width="1.5"/></marker>
+    <pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M 0 8 L 8 0" stroke="#777970" stroke-width=".5" opacity=".2"/></pattern>
+    <style>
+      text { fill: #282b29; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .eyebrow { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 19px; letter-spacing: 1.5px; }
+      .title { font-family: Georgia, "Times New Roman", serif; font-size: 48px; }
+      .heading { font-family: Georgia, "Times New Roman", serif; font-size: 36px; }
+      .body { font-size: 25px; }
+      .note { font-size: 22px; fill: #62645f; }
+      .accent { fill: #ad3326; }
+      .face { fill: #fbf9f3; stroke: #bbbcb3; stroke-width: 1.25; }
+      .edge { fill: #eae7de; stroke: #bbbcb3; stroke-width: 1.25; }
+      .rule { stroke: #d8d5cd; stroke-width: 1; }
+      .flow { fill: none; stroke: #62645f; stroke-width: 1.75; marker-end: url(#flow); }
+      .change { fill: none; stroke: #ad3326; stroke-width: 2.5; marker-end: url(#change); }
+    </style>
+  </defs>
+  <rect width="1280" height="1540" fill="#f7f4ed"/>
+  <text class="eyebrow accent" x="80" y="56">TRANSIT / STORAGE &amp; ACTIVATION</text>
+  <text class="title" x="80" y="117">Durable data. Useful work.</text>
+  <text class="note" x="80" y="156">Target architecture · four tiers, two storage primitives</text>
+
+  <path class="edge" d="M 80 214 L 100 194 H 1220 L 1200 214 Z"/>
+  <rect class="face" x="80" y="214" width="1120" height="136"/>
+  <rect x="80" y="214" width="4" height="136" fill="#ad3326"/>
+  <text class="eyebrow" x="108" y="248">CONTROL &amp; POLICY PLANE</text>
+  <text class="heading" x="108" y="291">Definitions, interpretation and permission</text>
+  <text class="body" x="108" y="330">Versioned catalog · types / collations / codecs · grants / policy_epoch · retention</text>
+
+  <path class="flow" stroke-dasharray="5 7" d="M 360 350 V 432"/>
+  <path class="flow" stroke-dasharray="5 7" d="M 1010 350 V 432"/>
+  <text class="note" x="386" y="395">Definitions &amp; policy apply to both</text>
+
+  <path class="edge" d="M 80 456 L 100 436 H 780 L 760 456 Z"/>
+  <rect class="face" x="80" y="456" width="680" height="176"/>
+  <text class="eyebrow" x="108" y="491">DIRECT DATA &amp; QUERY PLANE</text>
+  <text class="heading" x="108" y="538">Fuze</text>
+  <text class="body" x="108" y="578">Vectorized queries · incremental views</text>
+  <text class="note" x="108" y="610">value · null · missing · type_error · conflict</text>
+
+  <path class="edge" d="M 820 456 L 840 436 H 1220 L 1200 456 Z"/>
+  <rect class="face" x="820" y="456" width="380" height="176"/>
+  <text class="eyebrow" x="848" y="491">PROCESS &amp; EFFECT PLANE</text>
+  <text class="heading" x="848" y="538">Station</text>
+  <text class="body" x="848" y="578">Durable processes</text>
+  <text class="note" x="848" y="610">Connectors · recorded effects</text>
+
+  <text class="eyebrow" x="200" y="714">FOUR-TIER STORAGE / DIRECT DATA PLANE</text>
+
+  <g>
+    <text class="eyebrow" x="80" y="806">TIER</text>
+    <text class="heading" x="80" y="849">0</text>
+    <path class="edge" d="M 200 782 L 220 762 H 1100 L 1080 782 Z"/>
+    <path d="M 200 782 L 220 762 H 1100 L 1080 782 Z" fill="url(#grain)"/>
+    <rect class="face" x="200" y="782" width="880" height="110"/>
+    <text class="heading" x="228" y="825">RAM</text>
+    <text class="body" x="228" y="864">Memtables / delta buffers · verified buffer pool</text>
+    <text class="eyebrow" x="880" y="819">VOLATILE</text>
+  </g>
+  <g>
+    <text class="eyebrow" x="80" y="968">TIER</text>
+    <text class="heading" x="80" y="1011">1</text>
+    <path class="edge" d="M 200 944 L 220 924 H 1100 L 1080 944 Z"/>
+    <path d="M 200 944 L 220 924 H 1100 L 1080 944 Z" fill="url(#grain)"/>
+    <rect class="face" x="200" y="944" width="880" height="110"/>
+    <rect x="200" y="944" width="4" height="110" fill="#ad3326"/>
+    <text class="heading" x="228" y="987">TransitLog</text>
+    <text class="body" x="228" y="1026">Ordered TWAL1 commits · live +row / −row deltas</text>
+    <text class="eyebrow accent" x="880" y="981">DURABLE</text>
+  </g>
+  <g>
+    <text class="eyebrow" x="80" y="1130">TIER</text>
+    <text class="heading" x="80" y="1173">2</text>
+    <path class="edge" d="M 200 1106 L 220 1086 H 1100 L 1080 1106 Z"/>
+    <path d="M 200 1106 L 220 1086 H 1100 L 1080 1106 Z" fill="url(#grain)"/>
+    <rect class="face" x="200" y="1106" width="880" height="110"/>
+    <text class="heading" x="228" y="1149">Local disk / NVMe</text>
+    <text class="body" x="228" y="1188">Verified read-through cache · bounded query spill</text>
+  </g>
+  <g>
+    <text class="eyebrow" x="80" y="1292">TIER</text>
+    <text class="heading" x="80" y="1335">3</text>
+    <path class="edge" d="M 200 1268 L 220 1248 H 1100 L 1080 1268 Z"/>
+    <path d="M 200 1268 L 220 1248 H 1100 L 1080 1268 Z" fill="url(#grain)"/>
+    <rect class="face" x="200" y="1268" width="880" height="110"/>
+    <text class="heading" x="228" y="1311">TransitObjectStore</text>
+    <text class="body" x="228" y="1350">Immutable .tseg segments · .tdel vectors · manifests</text>
+  </g>
+
+  <path class="flow" d="M 200 862 H 170 V 1350 H 198"/>
+  <text class="eyebrow" x="156" y="1260" transform="rotate(-90 156 1260)">FLUSH</text>
+  <path d="M 200 1038 H 44 V 552 H 78" fill="none" stroke="#f7f4ed" stroke-width="8"/>
+  <path class="change" d="M 200 1038 H 44 V 552 H 78"/>
+  <text class="eyebrow accent" x="30" y="915" transform="rotate(-90 30 915)">COMMITTED DELTAS</text>
+  <path class="change" d="M 1080 998 H 1236 V 552 H 1202"/>
+  <text class="eyebrow accent" x="1256" y="692" transform="rotate(90 1256 692)">ACTIVATION</text>
+  <path class="flow" d="M 1080 1320 H 1144 V 1158 H 1082"/>
+  <text class="eyebrow" x="1170" y="1114" transform="rotate(90 1170 1114)">RANGE FILL</text>
+
+  <path class="rule" d="M 80 1420 H 1200"/>
+  <text class="note" x="80" y="1458">Tier 2 shows the cloud cache role. Local deployments also host the WAL and objects.</text>
+  <text class="note" x="80" y="1495">The linked accounts separate implemented mechanisms from proposed composition.</text>
+</svg>

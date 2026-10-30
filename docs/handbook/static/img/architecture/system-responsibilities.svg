@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1420" viewBox="0 0 1280 1420" role="img" aria-labelledby="title description">
+  <title id="title">Transit responsibilities and authority boundaries</title>
+  <desc id="description">Applications use public interfaces through clients and protocol adapters. The protocol and core own identity, ordering, current grants, fencing and native commit decisions. Direct Tables own definitions, row acceptance and retained cuts; Fuze executes typed queries over authorized sources. Station provides durable behavior above the client, and connectors record authorized external attempts and captured outcomes. Direct Table operations do not pass through Station turns. Storage and runtime supply persistence and placement, not permission or execution authority. Solid arrows represent public operations; dashed lines represent infrastructure support, not dependency imports or a mandatory call sequence.</desc>
+  <defs>
+    <marker id="operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#ad3326" stroke-width="1.5"/></marker>
+    <style>
+      text { fill: #282b29; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .eyebrow { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 19px; letter-spacing: 1.5px; }
+      .title { font-family: Georgia, "Times New Roman", serif; font-size: 48px; }
+      .heading { font-family: Georgia, "Times New Roman", serif; font-size: 34px; }
+      .label { font-size: 27px; font-weight: 600; }
+      .body { font-size: 24px; }
+      .note { font-size: 22px; fill: #62645f; }
+      .accent { fill: #ad3326; }
+      .face { fill: #fbf9f3; stroke: #bbbcb3; stroke-width: 1.25; }
+      .edge { fill: #eae7de; stroke: #bbbcb3; stroke-width: 1.25; }
+      .rule { stroke: #d8d5cd; stroke-width: 1; }
+      .operation { fill: none; stroke: #ad3326; stroke-width: 2.25; marker-end: url(#operation); }
+      .support { fill: none; stroke: #62645f; stroke-width: 1.5; stroke-dasharray: 5 7; }
+    </style>
+  </defs>
+  <rect width="1280" height="1420" fill="#f7f4ed"/>
+  <text class="eyebrow accent" x="80" y="56">TRANSIT / RESPONSIBILITY MAP</text>
+  <text class="title" x="80" y="117">Responsibilities stay distinct.</text>
+  <text class="note" x="80" y="156">Public operations · accepted history · inspectable outcomes</text>
+
+  <rect x="80" y="198" width="1120" height="112" fill="#eeebe3" stroke="#d8d5cd"/>
+  <text class="eyebrow" x="108" y="233">APPLICATIONS &amp; PUBLIC INTERFACES</text>
+  <text class="body" x="108" y="271">SQL / CLI · SDKs · HTTP / Flight · Board</text>
+  <text class="note" x="700" y="271">Domain rules remain with applications.</text>
+  <path class="operation" d="M 640 310 V 362"/>
+
+  <path class="edge" d="M 80 386 L 100 366 H 1220 L 1200 386 Z"/>
+  <rect class="face" x="80" y="386" width="1120" height="150"/>
+  <text class="eyebrow" x="108" y="420">CLIENT / GATEWAY BOUNDARY</text>
+  <text class="heading" x="108" y="465">Requests, sessions and scoped admission</text>
+  <text class="body" x="108" y="503">Client: signatures · bounded reads · private proposals · exact retry</text>
+  <text class="note" x="80" y="576">The shared SQL service separates logical sessions from durable operation history.</text>
+
+  <path class="operation" d="M 250 598 V 636"/>
+  <path class="operation" d="M 640 598 V 636"/>
+  <path class="operation" d="M 1030 598 V 636"/>
+
+  <path class="edge" d="M 80 660 L 100 640 H 440 L 420 660 Z"/>
+  <rect class="face" x="80" y="660" width="340" height="414"/>
+  <rect x="80" y="660" width="4" height="414" fill="#ad3326"/>
+  <text class="eyebrow" x="106" y="697">CONTROL &amp; AUTHORITY</text>
+  <text class="heading" x="106" y="750">Protocol &amp; core</text>
+  <text class="body" x="106" y="795">Identity · ordering</text>
+  <text class="body" x="106" y="832">Current grants · fencing</text>
+  <text class="body" x="106" y="869">Native commit decisions</text>
+  <path class="rule" d="M 106 903 H 394"/>
+  <text class="note" x="106" y="946">No application handlers</text>
+  <text class="note" x="106" y="983">No query execution</text>
+  <text class="note" x="106" y="1020">No provider types</text>
+
+  <path class="edge" d="M 470 660 L 490 640 H 830 L 810 660 Z"/>
+  <rect class="face" x="470" y="660" width="340" height="414"/>
+  <text class="eyebrow" x="496" y="697">DIRECT DATA &amp; QUERY</text>
+  <text class="heading" x="496" y="750">Direct Tables</text>
+  <text class="body" x="496" y="795">Names · definitions</text>
+  <text class="body" x="496" y="832">Rows · retained cuts</text>
+  <path class="rule" d="M 496 866 H 784"/>
+  <text class="heading" x="496" y="914">Fuze</text>
+  <text class="note" x="496" y="955">Typed plans · adapters</text>
+  <text class="note" x="496" y="992">Bounded execution · Arrow</text>
+  <text class="note" x="496" y="1029">No kernel authority</text>
+
+  <path class="edge" d="M 860 660 L 880 640 H 1220 L 1200 660 Z"/>
+  <rect class="face" x="860" y="660" width="340" height="414"/>
+  <text class="eyebrow" x="886" y="697">PROCESSES &amp; EFFECTS</text>
+  <text class="heading" x="886" y="750">Station</text>
+  <text class="body" x="886" y="795">Behaviors · durable calls</text>
+  <text class="body" x="886" y="832">Names · supervision</text>
+  <path class="rule" d="M 886 866 H 1174"/>
+  <text class="heading" x="886" y="914">Connectors</text>
+  <text class="note" x="886" y="955">Authorized attempts</text>
+  <text class="note" x="886" y="992">Captured outcomes</text>
+  <text class="note" x="886" y="1029">Replay does not redispatch</text>
+
+  <path class="support" d="M 250 1074 V 1164 M 640 1074 V 1164 M 1030 1074 V 1164"/>
+  <rect x="292" y="1100" width="696" height="40" fill="#f7f4ed"/>
+  <text class="note" x="315" y="1127">Direct Table reads and writes bypass Station actor turns.</text>
+
+  <path class="edge" d="M 80 1188 L 100 1168 H 1220 L 1200 1188 Z"/>
+  <rect class="face" x="80" y="1188" width="1120" height="134"/>
+  <text class="heading" x="108" y="1234">Storage &amp; runtime</text>
+  <text class="body" x="108" y="1274">Durable persistence · physical placement</text>
+  <text class="note" x="108" y="1305">Provider state cannot grant ownership or revive a retired process.</text>
+
+  <path class="operation" d="M 80 1374 H 126"/>
+  <text class="note" x="142" y="1381">Public operations</text>
+  <path class="support" d="M 390 1374 H 436"/>
+  <text class="note" x="452" y="1381">Infrastructure support, not execution authority</text>
+</svg>

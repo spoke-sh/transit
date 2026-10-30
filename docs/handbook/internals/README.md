@@ -12,7 +12,14 @@ derived computations are the primary declarative model; durable processes
 mechanisms that activate data, maintain derived views and coordinate external
 effects.**
 
-![Four-Tier Storage Hierarchy, .tseg Segments and WAL-Driven DBSP Activation](../static/img/architecture/four-tier-storage-hierarchy.jpg)
+[![Target storage and activation architecture: definitions and policies govern Fuze and Station; four tiers separate RAM, the durable TransitLog, local cache and spill, and immutable TransitObjectStore segments. Committed deltas activate computation and processes.](../static/img/architecture/storage-and-activation.svg)](../static/img/architecture/storage-and-activation.svg)
+
+The diagram summarizes the [target four-tier storage and activation design](storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ).
+It separates volatile memory, durable log history, local cache/spill and immutable
+segments; the tiers are responsibilities, not four sequential write stages.
+The [storage account](storage-runtime.md) distinguishes implemented mechanisms
+from proposed composition, including memtable recovery and remote cache tiering.
+Open the diagram for its full-size labels.
 
 These nine accounts explain those mechanisms across Transit's three architectural
 planes. The [guides and reference](../../README.md) own usage and supported
