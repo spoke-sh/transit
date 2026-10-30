@@ -55,6 +55,8 @@ pub const DisclosurePolicy = @import("DisclosurePolicy.zig");
 pub const InvestigationBasis = @import("InvestigationBasis.zig");
 pub const Attribution = @import("Attribution.zig");
 pub const PublishedProjection = @import("PublishedProjection.zig");
+pub const BranchLifecycle = @import("BranchLifecycle.zig");
+pub const BranchMergeRestore = @import("BranchMergeRestore.zig");
 test {
     // Keep hash contracts discoverable even when a test filter removes their
     // indirect callers in the catalog lifecycle suite.
@@ -80,12 +82,16 @@ test {
     _ = @import("direct_storage_graph_test.zig");
     _ = @import("historical_catalog_test.zig");
     _ = @import("published_resource_test.zig");
+    _ = @import("branch_lifecycle_test.zig");
+    _ = @import("branch_merge_restore_test.zig");
     _ = HistoricalCatalog;
     _ = PublishedResource;
     _ = DisclosurePolicy;
     _ = InvestigationBasis;
     _ = Attribution;
     _ = PublishedProjection;
+    _ = BranchLifecycle;
+    _ = BranchMergeRestore;
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;
