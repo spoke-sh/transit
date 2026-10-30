@@ -13104,17 +13104,14 @@
       "errors": {
         "CharacterLimitExceeded": 1,
         "DuplicateAssignment": 1,
-        "DuplicateColumn": 1,
+        "DuplicateColumn": 2,
         "DuplicateColumnIdentity": 1,
-        "DuplicateColumnName": 1,
-        "DuplicatePerfectHashKey": 1,
         "DuplicatePrimaryKeyColumn": 1,
         "IncompatibleColumnCollation": 1,
         "IncompatibleColumnEncoding": 1,
         "InvalidCharacterLimit": 2,
         "InvalidColumnCount": 3,
         "InvalidColumnIdentity": 1,
-        "InvalidColumnName": 1,
         "InvalidKeyWidth": 1,
         "InvalidPrimaryKey": 2,
         "InvalidRowWidth": 2,
@@ -13127,7 +13124,7 @@
         "TableConflict": 1,
         "TableSchemaTooLarge": 4,
         "TableTypeError": 1,
-        "UnknownColumn": 3,
+        "UnknownColumn": 4,
         "UnsupportedColumnCollation": 1,
         "UnsupportedPrimaryKeyType": 1,
         "UnsupportedTableSchemaDefinition": 1,
@@ -13187,8 +13184,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 98,
-        "catch": 3
+        "try": 97,
+        "catch": 4
       },
       "imports": [
         "Collation.zig",

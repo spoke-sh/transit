@@ -294,6 +294,16 @@
         ]
       },
       {
+        "id": "vectorized_strings_and_search",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/vectorized_strings_and_search.py"
+        ]
+      },
+      {
         "id": "sdk_layout",
         "phase": "static",
         "command": [

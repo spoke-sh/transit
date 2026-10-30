@@ -122,8 +122,8 @@ pub const Schema = struct {
         directory: @import("PerfectHash.zig").FrozenDirectory = .{},
 
         pub fn resolve(self: *const NameDirectory, name: []const u8) !usize {
-            const idx = (try self.directory.lookup(self.keys[0..self.len], name)) orelse return error.UnknownColumn;
-            return idx;
+            const found = self.directory.lookup(self.keys[0..self.len], name) catch return error.UnknownColumn;
+            return found orelse error.UnknownColumn;
         }
     };
 
@@ -134,10 +134,7 @@ pub const Schema = struct {
         out.directory = @import("PerfectHash.zig").FrozenDirectory.init(
             out.keys[0..self.columns.len],
             .utf8_binary,
-        ) catch |err| switch (err) {
-            error.DuplicatePerfectHashKey => return error.DuplicateColumnName,
-            else => return error.InvalidColumnName,
-        };
+        ) catch return error.DuplicateColumn;
         return out;
     }
     pub fn rowType(self: Schema, output: *[max_columns]t.Field) !t.Type {

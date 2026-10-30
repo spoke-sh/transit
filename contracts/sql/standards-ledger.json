@@ -568,6 +568,54 @@
       }
     },
     {
+      "id": "X004-GERMAN-STRING",
+      "standard": "transit_extension_v1",
+      "edition_clause": "FUZE_TYPES_V1 §GERMAN_STRING",
+      "title": "16B collation-prefixed GermanString vectors, comptime/frozen PerfectHash, and compressed-domain .dictionary/.fsst predicates",
+      "owner": "packages/zig/transit-fuze/src/GermanString.zig",
+      "dependencies": [
+        "E021-E051",
+        "UCS_BASIC",
+        "ASCII_CI",
+        "EBCDIC_037_NOPAD",
+        "DICTIONARY",
+        "FSST"
+      ],
+      "deviations": "Inline <=12B collation weights; >12B payloads use generation-checked handles into 64B-padded StringArena.",
+      "corpus_sources": [
+        "contracts/sql/corpus/statements.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
+      "id": "X005-SEARCH-WAND",
+      "standard": "transit_extension_v1",
+      "edition_clause": "TRANSIT_SQL_V1 §SEARCH",
+      "title": "Declarative text/span search (TSearchSegment), 256-doc Block-Max BM25 / WAND execution, and single-snapshot hybrid search",
+      "owner": "packages/zig/transit-fuze/src/VectorizedSearch.zig",
+      "dependencies": [
+        "X004-GERMAN-STRING",
+        "X002-VECTOR"
+      ],
+      "deviations": "Intersects 256-doc posting blocks with .tdel and visibility Roaring bitmasks before scoring; enforces 5-state eager failure frontier.",
+      "corpus_sources": [
+        "contracts/sql/corpus/statements.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
       "id": "X006-EXPLAIN",
       "standard": "transit_extension_v1",
       "edition_clause": "TRANSIT_SQL_V1 §EXPLAIN",
@@ -589,5 +637,5 @@
       }
     }
   ],
-  "sha256": "1f458d3238be065f33b3b8945efa40c510513121a1a77e6da4645b201bf884a3"
+  "sha256": "a9d8a01679f6113b633c3414745bb694445eaa8c84b20d334ce8e4eed6e6a248"
 }
