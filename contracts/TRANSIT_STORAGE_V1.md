@@ -1354,6 +1354,42 @@ leave its cursor unchanged. Chunk bodies require the separate `QueueTimeRun`
 verification. Holding a root or audit cursor does not create a retention pin or
 grant access to Queue data.
 
+### Private resumable timer merges
+
+`QueueTimeMerge` merges two immutable logical runs from the same exact genesis,
+kind and time bucket. Its scalar state retains both source roots, a frozen
+Queue item/sidecar basis and offset frontier, two input positions, the private
+output root, discarded-row count, last examined event and completion flag.
+Each position records consumed rows, completed chunks, an exclusive event cursor
+and verified exhaustion. Counts are checked `u64` values; the combined input
+cardinality must fit without wrapping. Output rows plus discarded rows exactly
+equal consumed input rows.
+
+One step examines at most 1–1,024 input rows and stages at most one output chunk.
+Duplicates and stale events consume that same budget. Equal events across both
+sources produce one output, including when their processing spans steps. Source
+reads verify complete bounded chunks, contiguous row ordinals, cursor identity
+and chunk counts. Completion additionally requires actual directory exhaustion
+with exact totals on both inputs. A budget boundary or an empty output chunk is
+not completion. Failure returns no successor state; private staged artifacts do
+not replace the caller's earlier roots.
+
+The filter receives the frozen basis explicitly. `QueueIndex.TimerFilter` checks
+the corresponding item and `.tack` state before discarding older epochs, settled
+leases, superseded deadlines, or blocked visibility entries. A future epoch,
+missing state or inconsistent bitmap refuses the step rather than discarding
+unexplained work. A matching event grants neither FIFO eligibility nor current
+time, access or settlement rights. Publishing and retaining the frozen basis,
+inputs, progress and output remains the Queue owner's responsibility.
+
+The workspace holds two 1,024-entry input arrays, one 1,024-entry output array
+and one 512-KiB encoding buffer, independently of logical-run size. The caller
+provides reusable scratch, a bounded private page candidate and a nonzero output
+serial. Identical input state, serial, budget and deterministic filter produce
+identical output content and roots; `CandidateObjects` can derive them during
+replay without writing the underlying provider. These private merge operations
+are not yet wired into accepted Queue scheduling or maintenance.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.

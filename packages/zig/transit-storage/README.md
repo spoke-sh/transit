@@ -199,6 +199,16 @@ directory audit requires contiguous row counts, ordered bounds and actual
 exhaustion; payload verification remains with `QueueTimeRun.load`. These private
 roots do not grant a read, retain a snapshot or publish a Queue schedule.
 
+`QueueTimeMerge` resumes a two-run merge from scalar input positions and a private
+output root. A step consumes at most 1,024 input entries, counting duplicates and
+filtered entries, and stages at most one output chunk. Exact directory exhaustion
+is required for completion. Its frozen Queue item/sidecar basis keeps filtering
+stable while newer operations change current state. `QueueIndex.TimerFilter`
+checks that basis and refuses missing or inconsistent state and future epochs.
+The caller owns reusable chunk arrays and scratch; identical private transitions
+can be rederived without provider writes. Accepted scheduling, retention graph
+edges and background publication of merge progress are still integration work.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current

@@ -77,11 +77,14 @@ pub fn timedKey(at_ms: u64, offset: u64) !pages.Key {
     return pages.Key.init(&bytes);
 }
 pub fn item(self: Self, root: Root, offset: u64) !Item {
-    if (offset >= root.next_offset) return error.QueueOffsetOutOfRange;
-    const value = try self.tree().get(root.items, try Records.integerKey(offset)) orelse return error.QueueItemMissing;
+    return self.itemAt(root.items, root.next_offset, offset);
+}
+fn itemAt(self: Self, items: ?pages.Reference, next_offset: u64, offset: u64) !Item {
+    if (offset >= next_offset) return error.QueueOffsetOutOfRange;
+    const value = try self.tree().get(items, try Records.integerKey(offset)) orelse return error.QueueItemMissing;
     defer _ = self.scratch.reset(.retain_capacity);
     const result = try Records.valueDecode(Item, self.scratch.allocator(), value);
-    if (result.offset != offset or result.batch_next > root.next_offset or (result.next_key != null and result.next_key.? >= root.next_offset)) return error.InvalidQueueItem;
+    if (result.offset != offset or result.batch_next > next_offset or (result.next_key != null and result.next_key.? >= next_offset)) return error.InvalidQueueItem;
     return result;
 }
 fn putItem(self: Self, root: *Root, value: Item) !void {
@@ -89,13 +92,19 @@ fn putItem(self: Self, root: *Root, value: Item) !void {
     root.items = try self.tree().put(root.items, try Records.integerKey(value.offset), try Records.valueEncode(value));
 }
 pub fn sidecar(self: Self, root: Root, value: Item) !Tack {
-    const encoded = try self.tree().get(root.sidecars, try Records.integerKey(value.batch_next)) orelse return error.QueueSidecarMissing;
+    return self.sidecarAt(root.sidecars, value);
+}
+fn sidecarAt(self: Self, sidecars: ?pages.Reference, value: Item) !Tack {
+    const encoded = try self.tree().get(sidecars, try Records.integerKey(value.batch_next)) orelse return error.QueueSidecarMissing;
     const result = try Tack.decode(encoded.data[0..encoded.len]);
     if (result.next != value.batch_next or result.first > value.offset or result.next <= value.offset) return error.QueueSidecarConflict;
     return result;
 }
 pub fn state(self: Self, root: Root, value: Item) !Tack.State {
-    const manifest = try self.sidecar(root, value);
+    return self.stateAt(root.sidecars, value);
+}
+fn stateAt(self: Self, sidecars: ?pages.Reference, value: Item) !Tack.State {
+    const manifest = try self.sidecarAt(sidecars, value);
     var found: ?Tack.State = null;
     for (manifest.states, 0..) |bitmap, index| if (try self.bitmap.contains(bitmap, value.offset)) {
         if (found != null) return error.QueueSidecarOverlap;
@@ -105,6 +114,28 @@ pub fn state(self: Self, root: Root, value: Item) !Tack.State {
     try value.requireState(result);
     return result;
 }
+
+pub fn timerBasis(root: Root) @import("QueueTimeMerge.zig").Basis {
+    return .{ .items = root.items, .sidecars = root.sidecars, .next_offset = root.next_offset };
+}
+pub const TimerFilter = struct {
+    index: Self,
+    /// A retained scheduling entry may become stale, but missing or inconsistent
+    /// frozen state is corruption, never permission to discard it. Matching a
+    /// timer establishes neither current authorization nor FIFO eligibility.
+    pub fn keep(self: @This(), basis: @import("QueueTimeMerge.zig").Basis, kind: @import("QueueTimeRun.zig").Kind, event: @import("QueueTimeRun.zig").Event) !bool {
+        try basis.validate();
+        try event.validate(kind);
+        const value = try self.index.itemAt(basis.items, basis.next_offset, event.offset);
+        const current = try self.index.stateAt(basis.sidecars, value);
+        if (event.epoch > value.epoch) return error.InvalidQueueSchedule;
+        if (event.epoch < value.epoch) return false;
+        return switch (kind) {
+            .visible => current == .available and value.blocked == .none and event.at_ms == value.visible_ms,
+            .lease => current == .acquired and event.at_ms == value.lease.?.expires_ms,
+        };
+    }
+};
 fn putSidecar(self: Self, root: *Root, value: Tack) !void {
     var buffer: [Tack.encoded_bytes]u8 = undefined;
     root.sidecars = try self.tree().put(root.sidecars, try Records.integerKey(value.next), try pages.Value.init(try value.encode(&buffer)));

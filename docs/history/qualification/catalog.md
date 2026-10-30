@@ -9,6 +9,41 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Resumable private Queue timer merges — 2026-10-30
+
+The two-run merge and frozen Queue-state filter pass workspace checks on dirty
+parent `52e8d40a8`. A disk schedule merges 2,000 input entries in 55 steps capped
+at 37 entries each, retaining 1,200 distinct selected events and accounting for
+800 duplicate/filtered entries. It uses a one-page cache, serializes scalar
+progress between steps, and reopens disk storage every eleven steps. Both an
+earlier output prefix and the completed output retain their exact ordered rows.
+Separate cases split duplicates across one-entry steps and prove empty filtered
+and empty-input completion.
+
+Private candidate replay derives identical roots with cold scratch and then
+passes a sealed backing-allocation check after warmup, without underlying object
+writes. This allocator claim covers merge scratch, not provider allocations.
+Explicit persistence makes the derived output reachable. Index-budget and filter
+failures preserve the old progress; missing directory entries, wrong ownership,
+invalid counters, zero work budgets and missing saved-position fields refuse.
+Frozen real Queue roots separately preserve earlier matches after disk reopen,
+ACK, expiry and renewal. Older epochs and blocked retries filter out; future
+epochs and inconsistent item/bitmap state refuse instead of disappearing.
+
+Evidence: `/var/tmp/transit-queue-time-merge-integrated.log` passes all selected
+Queue/Stream partition, timer and Queue-index tests;
+`/var/tmp/transit-queue-time-merge-final.log` repeats the affected merge/index
+checks after making saved progress fields mandatory. All 48 fast checks pass in
+`/var/tmp/transit-queue-time-merge-fast-final.log`, and all 18 contract checks
+pass in `/var/tmp/transit-queue-time-merge-contracts.log`. The first compile failed
+because the test referenced an unexported helper; its corrected direct import
+passes. The first fast run required recording the reviewed diagnostic inventory.
+
+These are private storage/transition checks, not accepted timer-run scheduling,
+WAL merge publication, retained graph integration or a new clean-lane result.
+The isolated core lane at committed `52e8d40a8` is still in progress when this
+record is written and does not include this merge implementation.
+
 ## Paged Queue timer-run directories — 2026-10-30
 
 `QueueTimeDirectory` passes its focused disk schedule on dirty parent `6cc0f57ec`.

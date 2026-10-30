@@ -32346,7 +32346,7 @@
         "InvalidQueueHead": 9,
         "InvalidQueueItem": 4,
         "InvalidQueueRoot": 2,
-        "InvalidQueueSchedule": 11,
+        "InvalidQueueSchedule": 12,
         "InvalidQueueTimerBudget": 1,
         "LogPartitionConflict": 1,
         "QueueItemMissing": 1,
@@ -32363,6 +32363,7 @@
         "Head.decode()": "<inferred>",
         "Head.encode()": "<inferred>",
         "Root.validate()": "<inferred>",
+        "TimerFilter.keep()": "<inferred>",
         "acquire()": "<inferred>",
         "addDeadline()": "<inferred>",
         "advanceHead()": "<inferred>",
@@ -32375,6 +32376,7 @@
         "firstExpired()": "<inferred>",
         "head()": "<inferred>",
         "item()": "<inferred>",
+        "itemAt()": "<inferred>",
         "prepareVisibility()": "<inferred>",
         "putItem()": "<inferred>",
         "putSidecar()": "<inferred>",
@@ -32384,13 +32386,15 @@
         "scheduledItem()": "<inferred>",
         "settle()": "<inferred>",
         "sidecar()": "<inferred>",
+        "sidecarAt()": "<inferred>",
         "state()": "<inferred>",
+        "stateAt()": "<inferred>",
         "timedKey()": "<inferred>",
         "unschedule()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 118,
+        "try": 122,
         "catch": 1
       },
       "imports": [
@@ -32401,6 +32405,8 @@
         "LogTime.zig",
         "OrderedKeyIndex.zig",
         "QueueItem.zig",
+        "QueueTimeMerge.zig",
+        "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "QueueVisibilityCache.zig",
         "Tack.zig",
@@ -32609,6 +32615,36 @@
         "catch": 2
       },
       "imports": [
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimeMerge.zig": {
+      "errors": {
+        "InvalidQueueTimeMerge": 18,
+        "InvalidQueueTimerBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Basis.validate()": "<inferred>",
+        "Position.validate()": "<inferred>",
+        "Reader.finish()": "<inferred>",
+        "Reader.peek()": "<inferred>",
+        "Reader.take()": "<inferred>",
+        "State.init()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 1
+      },
+      "imports": [
+        "QueueTimeDirectory.zig",
         "QueueTimeRun.zig",
         "TreeStore.zig",
         "std",
@@ -34048,6 +34084,7 @@
         "QueueSelection.zig",
         "QueueTimeBuffer.zig",
         "QueueTimeDirectory.zig",
+        "QueueTimeMerge.zig",
         "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "S3ObjectStore.zig",

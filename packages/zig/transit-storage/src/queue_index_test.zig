@@ -65,6 +65,14 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     store.end();
     try t.expectEqual(@as(u64, 2), root.active);
     try t.expect(try index.firstEligible(root, 999) == null);
+    const active = root;
+    const beta_visible: s.QueueTimeRun.Event = .{ .at_ms = 0, .offset = 1, .epoch = 0 };
+    const beta_deadline: s.QueueTimeRun.Event = .{ .at_ms = 110, .offset = 1, .epoch = 1 };
+    const filter: Index.TimerFilter = .{ .index = index };
+    try t.expect(try filter.keep(Index.timerBasis(first.root), .visible, beta_visible));
+    try t.expect(!try filter.keep(Index.timerBasis(active), .visible, beta_visible));
+    try t.expect(try filter.keep(Index.timerBasis(active), .lease, beta_deadline));
+    try t.expectError(error.InvalidQueueSchedule, filter.keep(Index.timerBasis(first.root), .lease, beta_deadline));
     // Replace all volatile pages and object handles, retaining only the candidate
     // root. This tests the index, not WAL acceptance or process-death recovery.
     store.deinit();
@@ -87,12 +95,22 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     store.end();
     try t.expect(try index.head(root, try key(&declaration, "beta", &canonical)) == null);
     try t.expectEqual(@as(u64, 1), root.terminal);
+    // Filtering still uses the retained frozen roots after disk reopen and ACK.
+    const reopened_filter: Index.TimerFilter = .{ .index = index };
+    try t.expect(try reopened_filter.keep(Index.timerBasis(active), .lease, beta_deadline));
+    try t.expect(!try reopened_filter.keep(Index.timerBasis(root), .lease, beta_deadline));
+    try t.expect(!try reopened_filter.keep(Index.timerBasis(root), .visible, .{ .at_ms = 0, .offset = 1, .epoch = 1 }));
+    var missing = Index.timerBasis(root);
+    missing.sidecars = null;
+    try t.expectError(error.InvalidQueueTimeMerge, reopened_filter.keep(missing, .lease, beta_deadline));
     try t.expect(try index.firstExpired(root, 109) == null);
     try t.expectEqual(@as(u64, 4), (try index.firstExpired(root, 110)).?.offset);
     try store.begin(8 * 1024 * 1024);
     root = try index.expire(root, 4, policy, .exact(500), .{ .partition = 91, .next_lsn = 6 });
     store.end();
     try t.expectEqual(@as(u64, 111), (try index.item(root, 4)).visible_ms);
+    try t.expect(!try reopened_filter.keep(Index.timerBasis(root), .lease, .{ .at_ms = 110, .offset = 4, .epoch = 1 }));
+    try t.expect(try reopened_filter.keep(Index.timerBasis(root), .visible, .{ .at_ms = 111, .offset = 4, .epoch = 1 }));
     try t.expectEqual(@as(u64, 4), (try index.firstEligible(root, 500)).?.offset);
     try store.begin(8 * 1024 * 1024);
     root = try index.acquire(root, 0, .{ .target = second.target, .operation = operation(5), .maximum = 1, .lease_ms = 100 }, policy, .exact(1000), .{ .partition = 91, .next_lsn = 7 });
@@ -163,4 +181,19 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     }
     // Exact unchanged original root still exposes every offset as available.
     for (0..4) |offset| try t.expectEqual(s.Tack.State.available, try index.state(appended.root, try index.item(appended.root, offset)));
+    const filter: Index.TimerFilter = .{ .index = index };
+    var inconsistent = Index.timerBasis(root);
+    inconsistent.sidecars = appended.root.sidecars;
+    try t.expectError(error.QueueStateConflict, filter.keep(inconsistent, .lease, .{ .at_ms = 110, .offset = 0, .epoch = 1 }));
+    const lease = (try index.item(root, 0)).lease.?;
+    try store.begin(8 * 1024 * 1024);
+    defer store.end();
+    const renewed = try index.settle(root, .{ .operation = operation(3), .lease = lease, .action = .{ .extend = .{ .expires_ms = 150 } } }, definition.configuration.policy.queue, .exact(20), .{ .partition = 91, .next_lsn = 4 }, null);
+    try t.expect(!try filter.keep(Index.timerBasis(renewed), .lease, .{ .at_ms = 110, .offset = 0, .epoch = 1 }));
+    try t.expect(try filter.keep(Index.timerBasis(renewed), .lease, .{ .at_ms = 150, .offset = 0, .epoch = 1 }));
+    var exhausted_policy = definition.configuration.policy.queue;
+    exhausted_policy.maximum_attempts = 1;
+    const blocked = try index.settle(renewed, .{ .operation = operation(4), .lease = (try index.item(renewed, 0)).lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } }, exhausted_policy, .exact(30), .{ .partition = 91, .next_lsn = 5 }, null);
+    try t.expect(!try filter.keep(Index.timerBasis(blocked), .visible, .{ .at_ms = 0, .offset = 0, .epoch = 1 }));
+    try t.expect(!try filter.keep(Index.timerBasis(blocked), .lease, .{ .at_ms = 150, .offset = 0, .epoch = 1 }));
 }

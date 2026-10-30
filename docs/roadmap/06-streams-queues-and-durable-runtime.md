@@ -445,8 +445,9 @@ The current progress slice delivers:
   consults the durable directory and never establishes an empty claim. Lease
   expiry remains owned separately by the fenced heap. Bounded sorted `.tseg`
   timer chunks, pending buffers and paged logical-run directories now have
-  storage codecs; accepted run publication, resumable merging and stale-event
-  filtering are not integrated. Durable time-bucketed runs,
+  storage codecs. Private two-run merging now resumes bounded input progress
+  with exact completion evidence and frozen Queue-state filtering; accepted
+  run/merge publication and retention edges are not integrated. Durable time-bucketed runs,
   affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
