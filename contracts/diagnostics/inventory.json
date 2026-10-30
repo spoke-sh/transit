@@ -2253,7 +2253,7 @@
         "ImmutableObjectConflict": 3,
         "IncompatibleDefinition": 2,
         "InvalidAllocationHistory": 4,
-        "InvalidDataAllocation": 5,
+        "InvalidDataAllocation": 6,
         "MissingAllocationHistory": 3,
         "StaleStorageEpoch": 2
       },
@@ -2274,7 +2274,9 @@
         "open()": "<inferred>",
         "record()": "<inferred>",
         "recordBatchTracked()": "<inferred>",
+        "recordBatchTrackedWithPrevious()": "<inferred>",
         "recordTracked()": "<inferred>",
+        "recordTrackedWithPrevious()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
@@ -2535,7 +2537,7 @@
         "FileNotFound": 1,
         "IncompatibleDefinition": 2,
         "InvalidAllocationHistory": 4,
-        "InvalidNativeAllocation": 10,
+        "InvalidNativeAllocation": 11,
         "MissingAllocationHistory": 3
       },
       "outcomes": {
@@ -2560,7 +2562,9 @@
         "read()": "<inferred>",
         "record()": "<inferred>",
         "recordBatchTracked()": "<inferred>",
+        "recordBatchTrackedWithExisting()": "<inferred>",
         "recordTracked()": "<inferred>",
+        "recordTrackedWithExisting()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
@@ -3525,18 +3529,19 @@
       "errors": {
         "CatalogIntentMissing": 1,
         "IncompatibleDefinition": 1,
-        "InvalidDirectCatalogIntent": 5
+        "InvalidDirectCatalogIntent": 7
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Codec().<return>.key()": "<inferred>",
         "Codec().<return>.load()": "<inferred>",
-        "Codec().<return>.stage()": "<inferred>"
+        "Codec().<return>.stage()": "<inferred>",
+        "Codec().<return>.stageInTree()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -3942,7 +3947,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1314,
+        "try": 1316,
         "catch": 20
       },
       "imports": [
@@ -4365,10 +4370,10 @@
         "CatalogRecoveryRequired": 1,
         "DataIdentityConflict": 14,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 5,
+        "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 16,
-        "InvalidDirectCatalogTransition": 107,
+        "InvalidDirectCatalogTransition": 109,
         "InvalidLogCatalogOperation": 2,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
@@ -4419,11 +4424,12 @@
         "resourceRecordAt()": "<inferred>",
         "resourceTransition()": "<inferred>",
         "successor()": "<inferred>",
+        "tokenFromIndexValue()": "<inferred>",
         "tokenRecord()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 210,
+        "try": 216,
         "catch": 1
       },
       "imports": [
@@ -7117,7 +7123,7 @@
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
-        "InvalidOperationBinding": 6
+        "InvalidOperationBinding": 9
       },
       "outcomes": {
         "Stored": [
@@ -7143,16 +7149,25 @@
         "Stored.validate()": "<inferred>",
         "claim()": "<inferred>",
         "claimAssertion()": "<inferred>",
+        "claimAssertionInTree()": "<inferred>",
         "claimDependency()": "<inferred>",
+        "claimDependencyInTree()": "<inferred>",
         "claimExternal()": "<inferred>",
+        "claimExternalInTree()": "<inferred>",
+        "claimInTree()": "<inferred>",
         "claimNamespace()": "<inferred>",
+        "claimNamespaceInTree()": "<inferred>",
         "claimQueue()": "<inferred>",
         "claimResource()": "<inferred>",
+        "claimResourceInTree()": "<inferred>",
         "claimStored()": "<inferred>",
+        "claimStoredInTree()": "<inferred>",
         "claimStream()": "<inferred>",
         "claimTransaction()": "<inferred>",
         "claimTransactionAttempt()": "<inferred>",
         "claimTransactionCall()": "<inferred>",
+        "claimTransactionCallInTree()": "<inferred>",
+        "claimTransactionInTree()": "<inferred>",
         "claimTransactionSavepoint()": "<inferred>",
         "claimTransactionStatement()": "<inferred>",
         "key()": "<inferred>",
@@ -7167,7 +7182,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 30,
         "catch": 1
       },
       "imports": [
@@ -30966,7 +30981,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 93,
+        "try": 92,
         "catch": 20
       },
       "imports": [
@@ -33211,6 +33226,9 @@
       "error_sets": {},
       "error_returns": {
         "Request.validate()": "<inferred>",
+        "encodeWithSchema()": "<inferred>",
+        "expectedContent()": "<inferred>",
+        "expectedContentWithSchema()": "<inferred>",
         "insertIdentity()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
@@ -33218,7 +33236,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 57,
         "catch": 0
       },
       "imports": [
@@ -33234,7 +33252,7 @@
     "packages/zig/transit-storage/src/TableEvidence.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableEvidence": 16,
+        "InvalidTableEvidence": 17,
         "TableEvidenceMissing": 1
       },
       "outcomes": {
@@ -33260,11 +33278,12 @@
         "load()": "<inferred>",
         "reference()": "<inferred>",
         "stage()": "<inferred>",
+        "stageInTree()": "<inferred>",
         "validateContent()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -33520,6 +33539,7 @@
         "compactionSparse()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
+        "expectedIntentContent()": "<inferred>",
         "expireHistory()": "<inferred>",
         "filteredCursorFingerprint()": "<inferred>",
         "filteredCursorSource()": "<inferred>",
@@ -33615,8 +33635,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 674,
-        "catch": 16
+        "try": 676,
+        "catch": 17
       },
       "imports": [
         "OrderedKeyIndex.zig",
@@ -33776,11 +33796,13 @@
         "historyOwner()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
-        "stage()": "<inferred>"
+        "stage()": "<inferred>",
+        "stageInTree()": "<inferred>",
+        "stageWith()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -34239,6 +34261,7 @@
     "packages/zig/transit-storage/src/TreeStore.zig": {
       "errors": {
         "ActiveStorageCandidate": 2,
+        "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidDataIndexObject": 7,
         "InvalidDataIndexReference": 2,
@@ -34247,6 +34270,7 @@
         "InvalidStorageBudget": 2,
         "MissingDataIndexObject": 1,
         "NoStorageCandidate": 3,
+        "ObjectDigestMismatch": 1,
         "StorageCandidateTooLarge": 2
       },
       "outcomes": {},
@@ -34259,11 +34283,12 @@
         "key()": "<inferred>",
         "load()": "<inferred>",
         "stage()": "<inferred>",
-        "stageMany()": "<inferred>"
+        "stageMany()": "<inferred>",
+        "stageObject()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 25,
         "catch": 0
       },
       "imports": [
