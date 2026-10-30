@@ -126,22 +126,25 @@ reload, but the index is built when configuration loads.
 
 The Refraction theme extends Docusaurus classic within this site.
 [`src/css/custom.css`](src/css/custom.css) owns shared paper/graphite/vermilion
-colors, dark-mode equivalents, typography, focus and documentation navigation
+colors, the charcoal/silver dark palette, typography, focus and documentation navigation
 styles. Use the theme's stable classes and Infima variables; do not target
 hashed upstream CSS-module names. Reading pages retain the existing sidebar,
 breadcrumbs, table of contents, search and source routes.
 
 [`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage and
-imports the selected [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
-from its existing owner. Docusaurus fingerprints the image with the page's assets;
-its URL follows the configured publication base path.
+imports the selected light [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
+and dark [radiograph](../design/handbook-theme/images/d6-radiograph.jpg) from their
+design owners. Docusaurus fingerprints the images with the page's assets; their
+URLs follow the configured publication base path. Both hero images are present in
+server HTML, and the native `data-theme` attribute selects the visible composition
+before hydration. Docusaurus still owns stored choices and system preferences.
 [`static/img/refraction-social.jpg`](static/img/refraction-social.jpg) scales the
-same artwork to a 1200×630 social card with paper padding for `og:image` and
+light Refraction artwork to a 1200×630 social card with paper padding for `og:image` and
 `twitter:image` previews. The root README continues
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
-[`RefractionStory`](src/components/RefractionStory.tsx) imports the selected
+In light mode, [`RefractionStory`](src/components/RefractionStory.tsx) imports the selected
 [lateral resonance portrait](../design/handbook-theme/images/d3-lateral-basin.jpg)
 directly from its design owner. Falling graphite waves widen sideways into
 overlapping resonance rings, connected by a vermilion thread. Translucent folds
@@ -167,7 +170,7 @@ crop or image transform is involved. A soft mask blends the image's ends into
 the page. The imagery is an abstract metaphor, not a display of data or a runtime
 guarantee.
 
-Activity uses a passive scroll listener and one pending animation frame while
+Light-mode Activity uses a passive scroll listener and one pending animation frame while
 the story is visible. Media changes and unmount cleanup cancel pending work and
 remove its motion property. Narrow layouts, reduced-motion preference and
 no-JavaScript rendering show the complete illustrations in normal flow. Short
@@ -175,6 +178,32 @@ screens also omit the Context hold; browsers without container-relative units
 keep its image in flow. Context's text precedes its fabric on narrow screens.
 All narrative and handbook links are server-rendered; motion never gates
 navigation or access to content.
+
+In dark mode, [`Radiograph`](src/components/Radiograph.tsx) replaces the two light
+illustrations with a single depth passage beside the same Structure, Activity and
+Context text. [`src/css/radiograph.css`](src/css/radiograph.css) owns its layout,
+translucency and perspective. Three distinct D6 image layers sit at z = 80, −240
+and −650px under a fixed 900px perspective. Scrolling down advances the shared
+camera transform from 0 to 650px; scrolling up retraces it immediately. Near
+surfaces enlarge faster than distant ones. Text remains at its reading scale.
+No wheel interception, camera tilt, timed easing or browser-zoom override is used.
+
+The camera runs only in dark mode at widths of at least 997px and heights of at
+least 700px, with no reduced-motion preference, and after all three images decode.
+Its three chapters each reserve 110vh; the art stays below the navbar. A visible
+pause button freezes the camera, resuming adopts the current scroll position,
+and a skip link goes directly to the handbook directory. This is perspective
+composition of planar artwork, not a reconstructed mesh or data visualization.
+
+Narrow/short layouts, reduced motion, image failure and the pre-hydration dark
+page show one static radiograph with ordinary text flow. Additional depth images
+are requested only when dark desktop motion is eligible. With all JavaScript
+disabled, the native theme bootstrap is also disabled: Docusaurus uses its default
+light layout, with complete static illustrations and working links. Theme and
+preference changes release the previous motion state; unmount cancels pending
+frames, observers and listeners. Painting is coalesced into one pending frame
+and stops when the track or tab is hidden. Resizing and returning to a visible tab
+recompute the camera from current document geometry.
 
 The introduction's [three-plane map](static/img/architecture/three-plane-architecture.svg),
 Architecture's [responsibility map](static/img/architecture/system-responsibilities.svg),
@@ -209,7 +238,8 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
-It checks homepage scroll motion, reduced-motion and no-JavaScript navigation,
+It checks light-mode scroll motion, dark-mode perspective and exact reversal,
+pause/resume, native theme changes, static fallbacks and no-JavaScript navigation,
 and the introduction’s vector architecture figure.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
