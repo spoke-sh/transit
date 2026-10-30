@@ -28,6 +28,13 @@ no index service operation or planner capability.
 
 ## Contract and generation
 
+[`StreamQueue`](src/StreamQueue.zig) supplies neutral Stream/Queue partition,
+append, finite coverage, group-checkpoint and lease/settlement bindings. The
+[Stream](../../../contracts/STREAM_V1.md) and
+[Queue](../../../contracts/QUEUE_V1.md) contracts separate pure shape/guard
+validation from authorized durable execution. These types add no installed
+Stream/Queue operations or executable transaction participants.
+
 The [native contract](../../../contracts/TRANSIT_V1.md),
 [service contract](../../../contracts/SERVICE_V1.md) and
 [state contract](../../../contracts/STATE_V1.md) specify behavior.

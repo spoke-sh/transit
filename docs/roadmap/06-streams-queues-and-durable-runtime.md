@@ -9,6 +9,11 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 `TransitLog` (`TWAL1`) and `.tseg` segments, and re-architect `Station` on top
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
+The [remaining implementation plan](#implementation-plan-for-remaining-work)
+sequences contracts, storage, callers, transaction participation and the Station
+cutover against the source baseline of 2026-10-29. The delivery-sequence SQL
+examples below are proposed syntax; they are not executable Stream/Queue APIs.
+
 ## Prerequisites and architectural rationale
 
 Follow the [declarative data lifecycle](01-declarative-data-lifecycle.md),
@@ -219,7 +224,7 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
        writers.
      - **`QueuePartition`:** Composes `StreamPartition`'s `TWAL1` + `.tseg`
        append-only payload storage with a **`.tack` Roaring-bitmap state vector**
-       (reusing the exact `.tdel` Roaring bitmap implementation in `transit-storage`
+       (sharing the Roaring bitmap foundation introduced for `.tdel` in R1
        to track per-offset `Available`, `Acquired`, `Acked` and `Archived/DLQ`
        states as compact `TWAL1` delta frames and sealed sidecars). Instead of
        mutating and vacuuming B-tree heap pages on every queue claim or
@@ -270,7 +275,9 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      executes one standard database commit that validates the inbox Queue's
      `_lease_epoch` and `policy_epoch`, `ACK`s the consumed inbox message,
      commits `TABLE`/`KV`/`DOCUMENT` state mutations, and `PRODUCE`s/`ENQUEUE`s
-     outbound actor messages and connector effect intents in **one round-trip**,
+     outbound actor messages and connector effect intents in **one client commit
+     round-trip** (participant preparation and physical WAL writes remain separate
+     costs unless a qualified common-log path combines them),
      eliminating external `courier` polling and unifying database and runtime
      durability.
    - **Inspectable via standard SQL and Board:** Because `Station` inboxes, dead-
@@ -278,6 +285,579 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      declared Queues, Streams and Tables, operators and agents inspect queue
      depth, stuck leases, retry history and state through standard SQL and
      [Board](29-board-reimplementation.md) under current `policy_epoch` grants.
+
+## Implementation plan for remaining work
+
+Deliver an application lifecycle in which a caller declares a Stream or Queue,
+publishes typed data, observes consumption or leased work, and recovers the same
+accepted operation after failure. Then make a Station turn atomically settle its
+input, change declared state and publish outbound intents through the database
+transaction owner. Keep the milestone **In Progress** until the installed caller,
+cutover and performance gates below pass.
+
+### Source baseline and remaining gaps
+
+Source baseline: `ba177f4acb52`, 2026-10-29. Earlier dated sections preserve the
+evidence and limitations of their individual slices; this inventory determines
+what to implement next.
+
+| Area | Delivered basis | Remaining obligation |
+| --- | --- | --- |
+| Database independence | `transit-sql`, `transit-catalog` and `transit-query-direct` reject transitive Station imports; `DatabaseRuntime`, direct tokens and Table commits replace the SQL actor ledger | Preserve the boundary through every new data kind and finish the combined token/commit and measured latency work |
+| SQL recovery | [Event-driven recovery](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29) replaces idle SQL polling | Reuse its bounded recovery ownership; Station/query-host delivery and Queue waits still need migration. Gateway placement and qualification remain owned by M8 |
+| Physical publication | [Shared content-directory barrier](../history/qualification/storage.md#shared-object-content-directory-barrier--2026-10-29) qualifies five sync calls for a new immutable object | Bounded publication batches and reconstructible coordination/index state remain open; do not repeat the delivered fixed-pair optimization |
+| Transactions | [M5 Table profile](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions), `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog` and `TableTransaction` | Generalize Table-specific cuts, guards, preparations and visibility. `Transaction.Participant.requireLocalTable` still rejects KV, Document, append and settlement participants |
+| Streams and Queues | The delivery direction and [finite Queue model](../../tests/verification/models/README.md#finite-queuepartition-lease-and-turn-commit-model) | Catalog kinds, public operations, grammar, `StreamPartition`, `QueuePartition`, `.tack`, group offsets, durable leases and installed execution |
+| Shared bitmaps | [`TDel.zig`](../../packages/zig/transit-fuze/src/TDel.zig) uses `DynamicBitSetUnmanaged` and encodes sorted deleted offsets | Implement the shared Roaring container foundation and migrate `.tdel`; no existing shared Roaring implementation can simply be imported |
+| KV and Document state | Native resource contracts and Station state helpers; independent Document candidates in `DocumentIndex` | Database-owned KV mutations and transaction participation belong here. Direct Document acceptance/participation remains gated by M7; candidate storage alone does not enable it |
+| Station and consumers | Native one-resource turns, private Table/Query helpers, durable calls, courier delivery and existing SDK/Board consumers | Replace their persistence and execution inputs together while preserving origin, recovery, retirement, cancellation and external-effect uncertainty |
+
+The existing Queue model explores two offsets for one key and checks five
+negative controls. It is a useful starting invariant set, not implementation
+correspondence or evidence for clock behavior, a timing wheel, durable DLQ
+transfer, retention, multiple-key progress or bounded memory.
+
+### Delivery profile and milestone boundaries
+
+Start with one catalog, branch one and a fenced local database authority using
+disk-backed `LocalWal` and `LocalSegmentStore`. Support multiple logical Stream
+and Queue partitions under that authority. Per-partition order is explicit;
+neither a returned vector of offsets nor several independent snapshots establishes
+a global order or atomic cut. Reuse M5's local decision domain for compositions
+that span those partitions. Distributed assignment, replication, remote atomic
+commit and provider throughput require the later provider/cluster milestones.
+
+Use typed Zig callers and the shared SQL service as the first executable
+surfaces. New cross-language API breadth belongs to M9/M19, but all existing
+affected ABI/SDK consumers must migrate in this milestone's hard cutover.
+Board receives inspection under current authorization through public reads; its broader
+workbench redesign stays in M28. Continuous Fuze dataflows stay in M12; bounded
+`CONSUME ... WAIT` and finite `STREAM_SLICE` do not imply continuous SQL.
+
+Direct KV and Table state must support the Station completion workload, including
+values above 256 bytes and more than four key changes under explicit byte/work
+budgets. Do not raise `STATE_V1` constants or hide a Table behind the old native
+turn protocol. M7 owns `DocumentPartition` and its participant. Implement the
+Table/KV turn first; expose Document turns only after that owner proves the same
+common-decision obligations. This sequencing does not waive M7 or claim that
+all Document paths are already independent of Station.
+
+The names `StreamPartition`, `QueuePartition`, `KVPartition`, `.tack` and the
+new primitive contracts below describe implementation deliverables. They are
+not capabilities of the baseline. Reuse existing packages unless an
+independent library boundary warrants its own manifest and checks.
+
+### Work packages and dependencies
+
+All R packages below retain remaining work. The
+[first foundation slice](#first-foundation-slice) delivers parts of R0/R1.
+Each package can contain several reviewable changes; it closes on its exit
+evidence, not on a parser or module landing.
+
+| Package | Outcome | Start gate | Exit evidence |
+| --- | --- | --- | --- |
+| R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
+| R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
+| R2 | Catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | Typed create/alter/drop/inspect/recovery, stable identities and dependency/policy checks |
+| R3 | Stream append, retained reads and consumer groups | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress |
+| R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
+| R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
+| R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
+| R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
+| R9 | Database write lifecycle and latency closure | Start after R0; coordinate M3, M8 and #211 | Original-token common envelope, bounded publication and matched installed latency evidence |
+| R10 | Installed qualification and current-v1 cutover closure | All applicable R packages | Complete caller/fault/resource matrix, generated-contract migration and common-revision evidence |
+
+The critical path is R0 → R1/R2 → R3 → R4 → R5 integration → R7 → R8 → R10.
+R5's coordinator/KV work can start after R0, and R6 can expose independently
+qualified operations as their owners land. R9 proceeds alongside the primitive
+work. M8 co-hosting is a dependency of its end-to-end latency evidence, not a
+reason to block standalone Stream/Queue storage. Document integration joins at
+R5/R7 only after M7's participant gate.
+
+### R0 Define contracts and executable invariants
+
+Extend the neutral types in `transit-protocol` before implementing adapters.
+Add exact current-v1 Stream and Queue contracts under `contracts/`; update
+[data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
+[direct ownership](../../contracts/DIRECT_TABLE_V1.md),
+[storage](../../contracts/TRANSIT_STORAGE_V1.md),
+[authorization](../../contracts/AUTHORIZATION_V1.md),
+[results](../../contracts/SQL_RESULTS_V1.md) and
+[Station](../../contracts/STATION_V1.md) at their affected boundaries. A shared
+operation must define its original identity, frozen inputs, policy checks,
+acceptance point, inspectable outcome and recovery material.
+
+Resolve these decisions in those owners before freezing persistent formats:
+
+| Contract decision | Required initial rule |
+| --- | --- |
+| Object and definition identity | Bind catalog/branch/object, immutable schema, partitioning/hash version, key collation and policy references. Rename preserves identity; drop/recreate never rebinds accepted work. Freeze partition count initially; reject online repartitioning until its migration contract exists |
+| Offsets and producer identity | Define a partition-local logical offset independently of physical WAL LSN. Bind producer ID/epoch/sequence, payload digest and original result; identical retries recover the same range, changed payloads conflict, and expired dedup evidence cannot admit an old sequence as fresh work |
+| Stream reads and group progress | Use an exclusive next-offset checkpoint, with exact conversion for any user syntax. A bounded consume selects an observed upper frontier and returns verified coverage plus continuation. Reading never implicitly commits progress. Group assignment/ownership generations fence offset commits; the initial local assignment protocol must be explicit |
+| Filtering, compaction and gaps | Separate scanned coverage from returned rows. Define key compaction's supersession evidence, tombstones, protected consumer/read cuts and explicit unavailable-history responses; no silent seek to the earliest surviving record |
+| Claim identity and receipts | A claim is a mutation with its own idempotency identity and exact leased result. Bind receipts to queue, partition, message, claimant, lease generation and expiry. Signature validity supplies neither current rights nor a live lease |
+| Lease expiry and retry | Check authoritative time and `_lease_epoch` at the decision boundary, including expiry before reassignment. Refuse when required time/authority cannot be established. Specify renewal/expiry races, attempt increments, capped backoff and original ACK/NACK outcome recovery |
+| FIFO and scheduling | For `key_fifo`, the earliest nonterminal item for a canonical key blocks later items for that key, including delay/retry. Different keys remain eligible. Define exact key equality, hash collision handling and the relationship to declared collation |
+| Retention and DLQ | Unlimited retention is the default. ACK/DLQ terminal state alone does not authorize physical deletion. Define separately what retains payloads, receipts, replay, snapshots and pending transactions; DLQ routing must preserve payload reachability and original destination |
+| State and settlement composition | Define retained KV bases, append reservations, claim/offset guards, savepoint behavior and one decision across all supported participants. Queue claim commits separately before a turn; the turn ACK is a participant. Rollback never implies that the earlier claim did not happen |
+| Runtime lifecycle | Preserve stable actor/call identities, authority-derived origins, recorded destinations, permanent retirement, current execution rights and effect-attempt evidence independently of process placement and Queue leases |
+
+Specify finite limits for schemas, encoded requests, append/claim batches,
+returned bytes, waiters, active leases, timer work, private transaction state and
+maintenance. Distinguish admission quotas from per-operation work limits and
+reserve capacity for ACK, revocation, decisions and recovery. Define typed errors
+for each refusal and uncertainty state; neither EOF nor timeout is success.
+
+Extend the Queue model for multiple keys/claimants, durable decisions, lease
+expiry without reassignment, restart, revocation, DLQ transfer and retention
+roots. Add Stream producer/offset and multi-participant schedules. Export
+transitions for replay against the eventual Zig owners, with guard-removal
+negative controls. Keep modeled safety, conditional progress and disk evidence
+separate; a set-based specification proves no timing-wheel complexity claim.
+
+**Exit gate:** shared fixtures cover successful and forbidden transitions,
+all decisions above have an owning contract, and unsupported variants reject
+before durable admission. No new public route advertises an unimplemented owner.
+
+### R1 Build shared bitmap and partition storage foundations
+
+Place the Roaring container implementation below both Fuze's `.tdel` reader and
+storage's `.tack` owner without adding a Fuze-to-storage dependency cycle.
+Use bounded array/bitmap/run containers, canonical encoding, checked cardinality,
+intersection/union and per-container iteration. Expose it through an actual
+package interface; do not copy container code between the two formats.
+
+Migrate `TDel` and all segment readers/writers/fixtures in the same definition
+cutover. Define `.tack` headers binding the exact queue, segment, offset range,
+definition and accepted state frontier. Its state sets must be disjoint, cover
+the known payload range according to the contract, and reject corrupt counts,
+overlaps, foreign owners and out-of-range offsets. Lease holders/deadlines and
+retry metadata need durable records beyond the bitmap itself.
+
+Reuse `TransitLog`, `TransitObjectStore`, `.tseg` codecs and immutable paged
+directories for partition manifests, original receipts and checkpoints. Supply
+fenced empty-partition initialization records and verified readback so R2 can
+publish a declaration before its append/claim execution slice is enabled. Add
+bounded reusable tail slabs and explicit borrowed/owned reader lifetimes; pin a
+borrowed slice until release and recheck rights before disclosure. Flush, sealed
+sidecar publication and checkpoint installation must preserve logical offsets
+and original reads. Publish durable dependencies before their accepted root;
+recover or collect abandoned staging only through the owning retained graph.
+
+**Exit gate:** independent bitmap fixtures and disk fault schedules cover
+partial publication, missing/corrupt sidecars and replay after trim. Growing
+segment and receipt directories exceed resident caches. Counting allocators
+verify no parent-heap allocations after warmup on the selected container/tail
+paths; broader buffer-pool optimization remains M13 work.
+
+### R2 Add declarative catalog and authorization lifecycles
+
+Extend `DirectCatalog`, its record/store/retention/walk owners, direct intents
+and `transit-data-client` with Stream/Queue kinds and typed lifecycle operations.
+Reuse stable object and definition identities, original-token binding, bounded
+pending discovery, preview, dependency registration and DROP RESTRICT.
+Declarations include schema/type/codec/collation, partitioning, retention and
+Queue scheduling/DLQ references. Allocate dependent partitions privately and
+publish only after their initialization evidence is complete.
+
+Add explicit privileges for metadata inspection, payload reads, append/enqueue,
+group progress, claim/settlement and administration within the existing policy
+graph. Definition lookup and receipts must filter or deny under current rights;
+an old lease, group membership or actor association cannot substitute for them.
+Bind a DLQ by object/definition identity and validate its schema and dependency;
+renaming the destination cannot retarget accepted retries.
+
+Define ALTER's first supported schema/policy transitions and reject unsupported
+changes before acceptance. Preserve old definitions for retained reads and
+frozen operations. Logical DROP hides the live name while retaining accepted
+operations, outstanding leases and required history under their selected closure
+contract. Definition retirement and physical reclamation remain separate.
+
+**Exit gate:** real typed callers create, preview, inspect, alter, rename and
+drop through the public owner; replacement recovers the original operation after
+lost allocation/publication replies. Denied reads, changed dependencies,
+concurrent declarations and catalogs larger than cache are covered.
+
+### R3 Implement streams and consumer progress
+
+Implement `StreamPartition` in `transit-storage`, with catalog/service composition
+above it. Allocate logical offsets at accepted append, retain schema and producer
+identity, and store payloads either in bounded WAL batches or durable `.tseg`
+candidates. Single-partition append atomically records its payload reference,
+assigned range, producer progress and receipt. Do not impose Table primary-key
+uniqueness work or actor frame limits on this path. Initially require each atomic
+append batch to target one partition; cross-partition atomic batches require R5.
+Define batch atomicity and partial refusal before enabling Arrow batch ingress.
+
+Build one bounded iterator across hot tail and sealed segments with an exact
+retained upper cut, exclusive continuation and explicit scanned coverage.
+Timestamp pruning must use verified zone maps without assuming event timestamps
+are monotonic. A finite `STREAM_SLICE` binds partitions, ranges and definitions
+without creating or advancing consumer-group state; Fuze owns relational
+execution over that source. Cross-source atomicity requires the common-cut
+contract, otherwise report an independent source vector.
+
+Persist group membership/assignment generations and committed next offsets in
+paged database-owned state. `CONSUME` may observe beyond the committed checkpoint;
+`COMMIT OFFSET` is a separate fenced, monotonic operation bounded by the selected
+consumption contract. Lost replies recover its original result. Empty/filtered
+pages carry coverage; missing completion cannot justify advancing a checkpoint.
+Implement bounded waits with register/recheck notification ordering and explicit
+timeout/cancel results, avoiding missed appends during registration.
+
+Add resumable flush, archive/checkpoint, key compaction and opted-in history
+expiry. Preserve producer deduplication floors and required group/read/transaction
+dependencies independently of payload cleanup. Missing required storage blocks
+recovery and never authorizes a watermark jump.
+
+**Exit gate:** typed callers exercise positional and group reads, producer
+fencing, exact batch retries, sparse offsets after compaction, timestamp bounds,
+empty terminal results and WAL-to-segment transitions across fresh-process
+restart. Retained history and current-policy checks hold after buffering and
+physical maintenance.
+
+### R4 Implement queue leasing and scheduling
+
+Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
+The Queue owns its internal payload log; reusing storage must not expose a Stream
+operation that bypasses Queue authorization or scheduling. Persist enqueue
+deduplication, claim identity, acquired state, receipt generation,
+deadline, attempts and terminal disposition before acknowledging them. Reopen
+must reconstruct the same accepted claims and fence stale owners; volatile heaps
+and affinity entries accelerate that durable state but never establish authority.
+Claim retries return the original leased selection, even when it has since
+expired, with its current status; they cannot silently claim different work.
+
+Implement competing claims and `key_fifo` selection using bounded active-key
+state plus paged durable backlog indexes. Full-key comparison resolves hash
+collisions. The affinity table's lock-free operations need a defined memory
+reclamation/ABA strategy and concurrent tests; do not place every retained key
+in RAM. A batched FIFO claim takes at most one active item per key. Saturation
+refuses or waits without dropping work or bypassing a blocked key's head.
+
+Use a hierarchical timing wheel for near-term visibility/retry deadlines, a
+fenced active-lease heap and durable time-bucketed runs for far-future work.
+Specify which owner handles each deadline so wheel and heap cannot make
+conflicting transitions. Bound tick advancement, bucket loading, expiry batches
+and recovery work; large clock jumps and a backlog larger than memory cannot
+force a whole-queue scan in one operation. Authoritative deadlines, not wakeup
+delivery, decide expiry. Test backward/unavailable time and restart downtime.
+
+ACK, NACK and renewal revalidate current authority, receipt and live epoch at
+publication. Original accepted settlement is still recoverable after later
+expiry. Retry exhaustion and NACK/DLQ transfer use one supported local transaction
+once R5 is available, or remain unavailable until then; never mark a source
+terminal before its destination payload is durably reachable. A denied or full
+DLQ produces inspectable blocked progress.
+
+Track per-segment terminal counts under accepted transitions. An O(1) terminal
+eligibility check is distinct from bounded dependency traversal and physical
+collection. Reclamation additionally requires explicit retention permission and
+absence of protected readers, replay, receipts and transaction dependencies.
+
+**Exit gate:** prove duplicate claim recovery, expired-but-unreassigned refusal,
+renewal/expiry/commit races, FIFO delay/retry order, unrelated-key progress,
+DLQ publication failure and bounded timer recovery on disk. Cancellation after
+claim acceptance preserves leases and original recovery evidence.
+
+### R5 Extend the transaction owner and deliver direct KV
+
+Generalize `Transaction.Begin`, cut directories, guards, prepared records,
+private workspaces, savepoints and common-decision readers beyond their current
+Table-specific fields. Keep one catalog/branch/local authority and ordered
+participant guards. Define explicit object selection for typed mixed transactions;
+existing Table-only SQL BEGIN must not silently widen its accepted cut. New
+objects cannot join an already accepted transaction without a defined selection
+contract. Preserve serializable conflict checks for absent-key and predicate
+reads, including queue eligibility and group-progress dependencies where used.
+
+Deliver a database-owned KV partition/read/mutation owner with paged keys,
+bounded large values, retained cuts, exact receipts and current policy guards.
+Reuse storage indexes and segments without routing writes through a PID or
+`STATE_V1`. Migrate named KV lifecycle bindings and direct callers as part of
+its cutover. The initial conservative conflict frontier can be resource-wide;
+it must separate logical changes from flush/checkpoint activity.
+
+For each executable participant implement these obligations:
+
+1. Retain its exact definition, read/conflict basis, payloads and private work
+   under paged catalog storage roots and explicit quotas.
+2. Prepare durably without public visibility. Append preparation defines reserved
+   offsets, aborted reservations and ordering; readers cannot cross an unresolved
+   reservation and later miss committed records. Settlement preparation binds
+   the original claim epoch or group generation and next offset.
+3. Under ordered publication guards, validate all participants and current policy
+   and lease deadlines, then append one original commit/abort decision. Expiry
+   cannot interleave between validation and the decision. Prepared/uncertain
+   work remains owned until that decision is resolved.
+4. Make reads, claims, consumer progress and recovery consult the common decision
+   before exposing any successor. Finalization is resumable bookkeeping, not a
+   second visibility decision. A committed ACK wins over later lease expiry;
+   abort leaves the input governed by its existing claim/expiry lifecycle.
+5. Release private roots, pins and reservations in bounded steps while preserving
+   retry outcomes. Savepoint rollback cannot retract a previously committed
+   claim, reuse statement identities or publish append/settlement candidates.
+
+One client COMMIT and one authoritative decision do not mean one physical WAL
+write for a multi-partition transaction. Measure preparation and finalization
+separately. Any single-log fast path must preserve the same semantics and prove
+its actual co-location; do not generalize the one-partition target to every turn.
+
+**Exit gate:** a real caller transaction commits Queue ACK or Stream offset,
+Table/KV state and Stream/Queue output together. Inject faults at each preparation,
+decision and finalization boundary, revoke each participant's rights, and expire
+the lease during commit. Fresh readers observe all or none; recovery observes
+the original decision without re-running a handler. Document remains rejected
+until M7 supplies the same obligations.
+
+### R6 Expose SQL and shared caller operations
+
+Extend the checked grammar and corpus, Zig compiler, typed direct client,
+`transit-sql.DatabaseRuntime`, shared SQL service and result contracts together.
+Implement the dedicated verbs from the delivery sequence only as their owner
+passes its gate. Preserve contextual identifiers and prepared parameter typing;
+do not classify commands by renderer-local SQL-text heuristics. The proposed
+DDL examples also need rejection tests for unsupported schema, partitioning,
+compaction and scheduling options.
+
+Use M4's result lifecycle for `PRODUCE`/`ENQUEUE ... RETURNING`, bounded `CONSUME`,
+`CLAIM` and metadata. A `CLAIM` result carries accepted mutation identity and
+recoverable leased rows; transport retry or refetch cannot execute another claim.
+Closing its result releases delivery buffers, not the accepted claim. Lost
+production/settlement responses retain original operations. Cancellation racing
+with completion cannot manufacture rejection or rollback.
+
+Encode observed per-partition upper cuts, retained lower boundaries, next offsets,
+group progress and lag as shared typed evidence. Keep fetched batches separate
+from one logical result. A wait timeout may complete an explicitly empty bounded
+observation; it does not complete an unbounded stream. Check current grants for
+buffered rows, repeated batches, metadata, receipts and terminal counts.
+
+Integrate finite `STREAM_SLICE` with the existing direct Fuze planner and source
+reader. Carry row/batch limits, source attribution and early-close cleanup through
+SQL native sessions, console, PostgreSQL and MySQL adapters. Select explicit
+transport/type capabilities; unsupported Arrow/Flight or language combinations
+must reject instead of silently narrowing data. SQL consumption and inspection
+use the same public operations as typed callers.
+
+**Exit gate:** shared corpus and actual service tests cover each supported verb,
+empty/multi-batch results, result-memory limits, scratch-buffer reuse, early close,
+revocation after buffering, disconnected claims and exact write recovery.
+
+### R7 Replace Station turn and service persistence
+
+Map behavior definitions and stable actor keys to declared inbox Queues, state
+objects, journal Streams and outbox Queues. Register exact dependencies and
+current grants explicitly. Idle actors need no permanently resident worker or
+per-actor mailbox tree; names, retirement facts and durable accepted identities
+still require paged persistence. Application handlers continue outside the node.
+
+The runner claims a `key_fifo` input, acquires its declared transaction basis,
+executes a detached handler and submits state changes, journal records, input
+ACK and output intents to R5. Preserve private proposal ownership and poisoned
+read/error handling. A handler exception or abandoned draft cannot leak writes;
+define the durable failed/blocked disposition before automatic retry policy.
+On uncertain commit, recover the original transaction before recomputation or
+claiming successor work. A new worker must prove its activation and claim fences.
+
+Move call correlations, original reply destinations, waits, durable timers,
+registry rebinding and supervisor intent to declared data. Preserve authenticated
+reply origins, late-reply closure, conditional stale cleanup, permanent retirement
+and suspension/lifetime rules. A name or physical restart cannot revive retired
+work or redirect an accepted call. Durable scheduling input must survive restart;
+local futures and handler fields remain volatile.
+
+Direct same-domain destination enqueue requires its current permission within
+the common decision. If the application records an outbox intent for later
+delivery, expose that separate admission boundary and blocked/denied destination
+outcome. Never describe two independent commits as atomic inbox-to-inbox delivery.
+
+**Exit gate:** real behaviors mutate Table and KV state beyond the native scalar
+ceilings, settle inputs and publish outputs atomically; lost replies, worker
+death, lease loss, handler failure, call timeout, registry replacement and
+supervision recovery preserve original identities and no partial state.
+
+### R8 Migrate effects and consumers and remove polling delivery
+
+Run connector workers as authorized Queue consumers. A committed intent permits
+only the connector's recorded attempt protocol; dispatch still requires current
+destination/credential policy. Persist attempt and outcome/unknown/closure
+evidence in declared state/journals. Replaying a journal never dispatches.
+Queue redelivery cannot by itself authorize repeating a remote call whose outcome
+is unknown. Preserve secret references and the current HTTP/gRPC capture and
+closure contracts; MCP expansion remains with its later owner.
+
+Replace query-host and delivery polling with bounded Queue waits and durable
+notification positions. Register/recheck around sleep, recover once on activation,
+and retain a durable discovery obligation if a bounded notification queue fills.
+Notifications are wakeup hints; accepted Queue state remains authoritative.
+Join waits on shutdown and test enqueue/commit races at registration, cancellation
+and replacement. Measure idle requests/CPU and first-work latency.
+
+Complete the inherited removal inventory across `transit-station`, private
+Table/Query helpers, `transit-station-bindings.TableBridge`, foreign turn actions,
+language SDKs, installed examples, controllers, launchers and Board interpretation.
+Move retained query source/result metadata with its reader and authorization
+checks; do not merely rename the private Table engine. Preserve the unrelated
+catalog `DirectTableBridge`. Bindings continue to call shared Zig semantics.
+
+Provide read-only public inspection of definitions, partition frontiers, group
+lag, Queue counts/leases/retries/DLQ, original operations, transaction outcomes
+and Station lifecycle. Counts carry their observation cut and exact/estimated
+meaning. Board uses those public reads under a read-only grant, without claiming,
+ACKing, decoding application values or exposing credentials.
+
+**Exit gate:** run migrated installed example binaries and affected SDK consumers;
+exercise connector unknown outcomes and replay with dispatch disabled. Remove
+superseded writable engines, routes, ABI actions and courier executables/config
+only when their consumers have moved. Ordinary database tests retain zero
+Station sends/turns and direct imports remain acyclic.
+
+### R9 Close the database write lifecycle and latency work
+
+Continue [#211](https://github.com/spoke-sh/transit/issues/211) from the delivered
+resident owners, foreground completion, five-sync object publication and
+event-driven recovery. Keep M3's installed recovery obligations and M8's
+[gateway plan](08-gateway-architecture-and-protocol-ingress.md#work-packages-and-delivery-sequence)
+as shared dependencies, with one owner per change.
+
+- **Publication:** implement explicit bounded multi-object batches only after
+  defining dependency inventories, partial/uncertain outcomes and recovery.
+  Extend physical models and disk fault tests before coalescing barriers. Evaluate
+  reconstructible indexes/accounting against accepted WAL evidence; never defer
+  the sole copy of an accepted identity or expose an uncommitted descriptor.
+- **Combined single-partition commit:** define the account-wide token routing and
+  uniqueness fence before combining token binding, mutation and outcome. Concurrent
+  use of the same token for another partition or operation kind must conflict or
+  return the original winner. Recover the token index from authoritative evidence;
+  preserve DDL/configuration/captured-operation identities that cannot join this
+  fast path. The current separate Catalog acceptance/settlement boundaries remain
+  until this replacement executes under a new definition.
+- **Read-after-write:** remove avoidable fresh-cut/control work while preserving
+  already-open results and exact uncertain pin acquisition. Use M8's co-hosted
+  public owner boundary; no raw storage path in SQL.
+- **TRUNCATE:** implement the [existing proposed contract](#proposed-truncate-contract-for-implementation)
+  through Table intent, reset/history, authoritative counts, shared result kinds
+  and grammar in one cutover. Cover empty Tables, retained predecessors, concurrent
+  writes and retry after a later INSERT. Do not make it a Stream/Queue primitive
+  or a prerequisite for R3/R4.
+
+Use the existing installed persistent-console driver and independent typed
+readback. Preserve the 190 ms then 19 ms INSERT objectives and 10–20 ms warm
+SELECT objective with their matched workload and baseline. The latest
+[event-driven measurements](../history/qualification/performance.md#event-driven-sql-recovery--2026-10-29)
+still miss them and include mutation regressions; reduced idle traffic does not
+close latency. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
+errors, startup and original-operation recovery separately. Attribute foreground
+requests, background traffic, staging, syncs and final decisions without adding
+instrumented timings into an invented end-to-end sample.
+
+For Streams, Queues and Station, establish workload-specific budgets before
+optimization: single/batch append, hot/cold consumption, contended claims,
+key skew, delayed backlog, transaction turns, wait wakeup and restart. Record
+latency distributions, offered/completed throughput, allocation counts, peak
+resident memory, bytes/IOPS and amplification under fixed correctness oracles.
+Do not claim global fastest, O(1) recovery or one-WAL-write multi-object turns
+from component timings.
+
+**Exit gate:** matched installed evidence meets the selected targets without
+weaker durability, raised deadlines, silent incomplete outcomes or reclassified
+failures. Any unmet original gate remains explicitly open in M6 and its owning
+tracker; completion requires an explicit scope change rather than a new label.
+
+### R10 Qualify and complete the current-v1 cutover
+
+Plan each incompatible merge as one current-v1 definition replacement. Inventory
+native messages, persistent roots, `.tseg`/`.tdel`/`.tack`, manifests, saved
+requests, Station journals, ABI/port messages, generated schemas, signing fixtures,
+configuration and installed examples. Regenerate from public types and migrate
+all affected consumers together. Missing/foreign definitions reject before
+execution; never default old artifacts to the current definition or reset them.
+Preserve incompatible installations with their matching build; any explicit
+offline migration needs its own contract and evidence, without a fallback decoder
+or parallel writable runtime in the new build.
+
+The acceptance matrix must include real callers as well as component tests:
+
+| Boundary | Required executable evidence |
+| --- | --- |
+| Declarations and policy | Create/alter/rename/drop, lost publication reply, dependency races, revoked metadata and payload reads, denied DLQ and fenced replacement |
+| Producer and consumer progress | Duplicate/conflicting sequences, racing producers, group reassignment, filtered coverage, compacted/expired gaps, and monotonic original checkpoint recovery |
+| Physical data | WAL-only tails, flush/sidecar/checkpoint/trim crossings, corrupt or missing accepted objects, process death and injected disk write/sync errors |
+| Queue authority | Duplicate claim selection, forged/foreign receipt, expiry without reassignment, renewal races, expired worker ACK/turn, FIFO delays, unrelated-key progress and blocked DLQ |
+| Transactions | Partial preparation, unknown decision, crash after commit before finalization, revocation, savepoints, append reservations and all-or-none state/input/output visibility |
+| Results and cancellation | Empty and multi-batch results, owned values across scratch reset, early close, incomplete prefixes, lost mutating result and revocation before terminal disclosure |
+| Runtime and effects | Detached handler failure, replacement, durable calls/timers/supervision, retirement, no replay dispatch and retained unknown external outcomes |
+| Resources and progress | Durable collections larger than every cache, active-work refusal, far-future timers, clock jumps, control reserve, bounded cleanup and zero missed wakeups under saturation |
+| Installed surfaces | Public Zig, shared SQL/console, PostgreSQL/MySQL, all affected existing ABI/SDK examples, Board read-only evidence and launcher restart without courier polling |
+| Compatibility | Foreign/missing definitions in peers, files and saved operations; no legacy route or writable private Table engine; no restored identity revival |
+
+Register new Stream/Queue/participant/Station suites in the existing test inventory
+as their code lands, with real failing assertions rather than placeholder tasks.
+Use the existing `queue-lease-transaction-model`, `local-storage-faults`,
+`storage-io-faults`, `sql-transactions`, `station` and `console-latency` tasks as
+regression owners. Add concrete model replay and independent oracles for the new
+owners. Run affected committed-source clean lanes for contracts/core, formal,
+growth, interfaces, runtime experience, bindings, browser and launchers; combined
+milestone qualification uses one committed revision and matching binaries.
+Local disk is the new primitive baseline. Existing supported Ursula and
+Kubernetes/Substrate authority/readiness/recovery profiles must still pass their
+applicable migration gates; new distributed Stream/Queue guarantees remain gated
+by their provider owners. Process kill is not proof of power-loss durability.
+
+Promote each delivered capability and its exact limits into the data model,
+streams, state, Station, SQL grammar inventory, callers, retention, security,
+storage and inspection owners. Put mechanisms in the corresponding Internals
+topics and component guides. Record commands, revision, configuration, raw
+evidence, failures and omissions in qualification history. Close the inherited
+checkboxes and link their evidence; change this milestone and the roadmap index
+to **Completed** only when R0–R10 and the applicable completion criteria agree.
+
+### First implementation changes
+
+1. Land R0's Stream/Queue and direct-KV contract fixtures, generalized transaction
+   selection/preparation design, precise lease/time rules and expanded negative
+   model controls. Preserve unsupported runtime refusals until owners exist.
+2. Land R1's shared bitmap library and coordinated `.tdel` format migration,
+   then R2's typed catalog lifecycle with recovery and policy evidence.
+3. Deliver the first complete R3 vertical slice: typed declaration, one-partition
+   idempotent append, bounded retained read, disk restart and original receipt.
+   Extend it to groups, partitions, compaction and SQL under the same contract.
+4. Continue R4/R5 through the first Queue claim + Table/KV mutation + outbound
+   append + ACK transaction proof before migrating a Station handler. Keep R9
+   progressing with the existing latency owners throughout these changes.
+
+### First foundation slice
+
+The first implementation PR supplies three independently usable foundations,
+with [scoped qualification](../history/qualification/verification.md#stream-and-queue-contract-and-bitmap-foundations--2026-10-29):
+
+- `transit-protocol.StreamQueue` and the [Stream](../../contracts/STREAM_V1.md)
+  and [Queue](../../contracts/QUEUE_V1.md) contracts define original append and
+  settlement identities, logical offsets separate from WAL positions, finite
+  filtered coverage, group checkpoint fencing and live-lease checks. Reflected
+  schemas and independent full-width fixtures move with those types. Exact
+  accepted settlement recovery remains distinct from fresh lease authorization.
+- The finite Queue model now covers two keys, authoritative time before
+  reassignment, revocation between preparation and decision, derived-cache
+  replacement, retained-history protection and DLQ payload reachability, with
+  nine negative controls. It assumes atomic accepted state and adds no runtime
+  correspondence or physical durability evidence.
+- [`transit-bitmap`](../../packages/zig/transit-bitmap/README.md) supplies bounded
+  Roaring array/bitmap/run containers, canonical validation, borrowed reads and
+  reusable allocation-free mutation scratch. Its standalone manifest and root
+  component checks qualify the library independently of a storage owner.
+
+R0 remains open for complete declarations, partition/hash/schema policy,
+producer/group/claim owner transitions, direct KV and generalized participant
+preparation. R1 remains open for the paged container directory, coordinated
+`.tdel` cutover, `.tack` envelopes, partition initialization, tail slabs and disk
+publication/recovery. Current `.tdel` bytes and native execution semantics are
+unchanged; the new container codec is not used to reinterpret stored data.
+Neither foundation enables Stream/Queue SQL, claims, transaction participants
+or a Station migration. The next change should complete the declaration and
+storage ownership contracts before that integration.
 
 ## Database dependency separation — 2026-10-27
 
@@ -490,7 +1070,9 @@ Require executable proof through real SQL and typed callers in the
   messages/connector intents in one atomic transaction commit; verify that crash
   or lease loss before commit rolls back state and outbox intents together and
   redelivers the inbox message under a higher `_lease_epoch` without duplicate
-  side effects or external `courier` polling.
+  committed output intents or external `courier` polling. External attempts retain
+  their connector-specific unknown-outcome and retry policy; Queue redelivery
+  does not establish exactly-once remote effects.
 
 ## Durable write lifecycle and interactive latency
 
@@ -522,8 +1104,8 @@ pin only after proving the original acquisition absent and unable to succeed;
 accepted or uncertain cuts never change identity.
 
 W3/W7 qualification remains open alongside W5/W6 publication batching and a
-combined single-partition commit. Background pending scans, separate Catalog
-acceptance/settlement, cold snapshot replacement and first-publication work still
+combined single-partition commit. Startup and recovery-triggered pending scans,
+separate Catalog acceptance/settlement, cold snapshot replacement and first-publication work still
 cost time. The 190 ms then 19 ms INSERT targets and 10–20 ms warm SELECT target
 are not met by these samples. No runtime TRUNCATE support is added.
 

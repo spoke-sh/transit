@@ -328,6 +328,7 @@ pub const SchemaTypes = struct {
     snapshot: Snapshot,
     observation: Observation,
     transaction: p.Transaction.SchemaTypes,
+    stream_queue: p.StreamQueue.SchemaTypes,
 };
 
 test {

@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Stream and Queue contract and bitmap foundations — 2026-10-29
+
+This slice asks whether neutral append/settlement identities can distinguish
+logical offsets, physical acceptance, traversal coverage and live-lease authority,
+and whether bounded reusable Roaring containers can reject malformed encodings
+without changing their caller's scratch state. The current owners are the
+[Stream contract](../../../contracts/STREAM_V1.md),
+[Queue contract](../../../contracts/QUEUE_V1.md) and
+[bitmap component](../../../packages/zig/transit-bitmap/README.md).
+
+At source `6d4e16c1a9cced2cea2d184dff9018cf6b2ab8e0`, rebased on
+`fb8ca1465b5763c7be44a021401403ba5802fa21`, the pinned Nix environment executes:
+
+| Check | Executed result and boundary |
+| --- | --- |
+| Clean-source fast checks | All 47 checks pass, including package versions, standalone package registration, diagnostic inventory and documentation links |
+| Clean-source contract checks | All 18 checks pass, including reflected lifecycle schemas, independent full-width fixtures and missing-definition rejection |
+| Queue finite model | 3,093 distinct states exhausted; nine intended guard removals produce the expected invariant violations |
+| Bitmap `zig build test -Doptimize=ReleaseSafe` | Passes independent array/run bytes, dense/full containers, membership/set algebra, malformed/noncanonical inputs, alias rejection and a 100,000-operation deterministic mutation corpus |
+| Bitmap `zig build check -Dtarget=aarch64-linux-musl -Doptimize=ReleaseSafe` | Compiles the test artifact; this is not ARM64 execution evidence |
+
+The fast and contract checks run inside the isolated clone created by
+`just ci clean --lane core`; their completed reports and logs are retained at
+`.cache/foundation-rebased/checks/fast.json` and
+`.cache/foundation-rebased/checks/contracts.json`. They qualify those completed
+subchecks, not an unfinished containing lane. The Queue model runs through
+`just ci clean --lane formal`; its driver records the revision, dirty flag,
+model/configuration/driver hashes, TLC version and completion. Local cache paths
+are not portable artifact links.
+
+The [model's finite scope](../../../tests/verification/models/README.md#finite-queuepartition-lease-and-turn-commit-model)
+is three offsets on two keys, two claim generations, time in `0..2` and one
+prepared turn/decision. It checks expiry before reassignment, revocation before
+commit, original decision recovery, retained history and DLQ payload reachability.
+It assumes atomic accepted state; dropping a derived cache models restart without
+proving disk recovery, scheduling fairness or correspondence with a Queue owner.
+
+The library supplies one low-16-bit container with fixed 8 KiB mutation scratch,
+not a total-cardinality limit or a complete durable directory. Its APIs take no
+allocator. These checks do not establish storage throughput, physical durability,
+`.tdel`/`.tack` integration, installed Stream/Queue operations or Station migration.
+The container codec does not replace an existing stored format. The initial
+workspace fast checks exposed missing standalone-package and diagnostic-inventory
+registration; those omissions were corrected before the clean-source passes.
+
 ## Expanded formal models, Zig trace replay and Lean 4 specifications — 2026-10-28
 
 On development source based on `e124b972c4b8`, the `formal` lane expands to

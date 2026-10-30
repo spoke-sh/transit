@@ -16,7 +16,10 @@ if sys.argv[1:] == ["--data-lifecycle"]:
     validator = jsonschema.Draft202012Validator(schema)
     fixture = json.loads((root / "packages/zig/transit-protocol/src/fixtures/data-lifecycle-v1.json").read_text())
     validator.validate(fixture)
-    for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",)):
+    for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",),
+                 ("stream_queue", "append", "append", "target"),
+                 ("stream_queue", "offset_commit", "coverage", "cut", "target"),
+                 ("stream_queue", "settlement", "settlement", "lease", "target")):
         changed = copy.deepcopy(fixture)
         item = changed
         for name in path:

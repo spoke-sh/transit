@@ -108,6 +108,12 @@ its validation does not acquire pins or establish a usable index.
 
 ## Identity and interpretation
 
+The neutral [Stream](STREAM_V1.md) and [Queue](QUEUE_V1.md) bindings reuse these
+identities for original append receipts, finite offset coverage, fenced consumer
+checkpoints and Queue settlement evidence. They are included in the reflected
+schema without enabling native operations or changing the Table-only participant
+gate described above.
+
 | Type | Meaning |
 | --- | --- |
 | `Scope` | Existing realm/resource/catalog identity; the resource identifies the logical catalog authority, independently of its persistence backend |

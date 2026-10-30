@@ -1,0 +1,158 @@
+const std = @import("std");
+const t = std.testing;
+const p = @import("root.zig");
+const q = p.StreamQueue;
+
+fn fixture() !std.json.Parsed(q.SchemaTypes) {
+    return p.Json.parseFromSlice(q.SchemaTypes, t.allocator, @embedFile("fixtures/stream-queue-v1.json"));
+}
+
+test "stream queue fixture keeps logical offsets separate from WAL and preserves wide identities" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const v = parsed.value;
+    try v.append.validate();
+    try v.offset_commit.validate();
+    try v.settlement.validate();
+    try t.expectEqual(std.math.maxInt(u64), v.append.next);
+    try t.expectEqual(@as(u32, 0), v.append.append.target.partition);
+    try t.expectEqual(@as(u64, 91), v.append.accepted.partition);
+    try t.expectEqual(@as(u64, 12), v.append.accepted.next_lsn);
+    try t.expectEqual(std.math.maxInt(u64), v.append.append.producer.?.sequence);
+    const encoded = try p.Json.valueAlloc(t.allocator, v);
+    defer t.allocator.free(encoded);
+    const roundtrip = try p.Json.parseFromSlice(q.SchemaTypes, t.allocator, encoded);
+    defer roundtrip.deinit();
+    try t.expectEqualDeep(v, roundtrip.value);
+}
+
+test "stream exact append retry refuses changed payload producer or original binding" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.append;
+    try receipt.requireAppend(receipt.append);
+    inline for (.{ "content", "producer", "operation", "partition", "kind", "schema" }) |field| {
+        var changed = receipt.append;
+        if (comptime std.mem.eql(u8, field, "content")) changed.payload.sha256[0] ^= 1;
+        if (comptime std.mem.eql(u8, field, "producer")) changed.producer.?.epoch += 1;
+        if (comptime std.mem.eql(u8, field, "operation")) changed.operation.operation -= 1;
+        if (comptime std.mem.eql(u8, field, "partition")) changed.target.partition += 1;
+        if (comptime std.mem.eql(u8, field, "kind")) changed.kind = .queue;
+        if (comptime std.mem.eql(u8, field, "schema")) changed.target.interpretation.digest[0] ^= 1;
+        try t.expectError(error.LogAppendConflict, receipt.requireAppend(changed));
+    }
+    var changed = receipt;
+    changed.first = changed.next;
+    try t.expectError(error.InvalidLogAppendReceipt, changed.validate());
+    changed = receipt;
+    changed.append.rows += 1;
+    try t.expectError(error.InvalidLogAppendReceipt, changed.validate());
+    changed = receipt;
+    changed.accepted.next_lsn = 0;
+    try t.expectError(error.InvalidLogAppendReceipt, changed.validate());
+}
+
+test "stream filtered coverage permits empty complete ranges but never silent history gaps" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var coverage = parsed.value.offset_commit.coverage;
+    coverage.rows = 0;
+    try coverage.validate();
+    coverage.from = coverage.until;
+    try coverage.validate();
+    coverage.complete = false;
+    try t.expectError(error.InvalidLogCoverage, coverage.validate());
+    coverage = parsed.value.offset_commit.coverage;
+    coverage.from = coverage.cut.retained_from - 1;
+    try t.expectError(error.LogHistoryUnavailable, coverage.validate());
+    coverage = parsed.value.offset_commit.coverage;
+    coverage.rows = 5;
+    try t.expectError(error.InvalidLogCoverage, coverage.validate());
+    coverage = parsed.value.offset_commit.coverage;
+    coverage.through -= 1;
+    try t.expectError(error.InvalidLogCoverage, coverage.validate());
+    coverage.complete = false;
+    try coverage.validate();
+}
+
+test "stream group settlement fences stale owners incomplete coverage and skipped checkpoints" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const commit = parsed.value.offset_commit;
+    try commit.requireCurrent(commit.group, commit.expected_next);
+    var group = commit.group;
+    group.generation += 1;
+    try t.expectError(error.LogGroupFenced, commit.requireCurrent(group, commit.expected_next));
+    group = commit.group;
+    group.principal += 1;
+    try t.expectError(error.LogGroupFenced, commit.requireCurrent(group, commit.expected_next));
+    try t.expectError(error.LogOffsetConflict, commit.requireCurrent(commit.group, commit.next));
+    var changed = commit;
+    changed.coverage.through -= 1;
+    changed.coverage.complete = false;
+    try t.expectError(error.InvalidOffsetCommit, changed.validate());
+    changed = commit;
+    changed.expected_next -= 1;
+    try t.expectError(error.InvalidOffsetCommit, changed.validate());
+    changed = commit;
+    changed.next -= 1;
+    try t.expectError(error.InvalidOffsetCommit, changed.validate());
+}
+
+test "queue expired unassigned lease fails without relying on a successor epoch" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const settlement = parsed.value.settlement.settlement;
+    const lease = settlement.lease;
+    try settlement.requireLive(lease, 999);
+    try t.expectError(error.QueueLeaseExpired, settlement.requireLive(lease, 1000));
+    try t.expectError(error.QueueLeaseExpired, settlement.requireLive(lease, 1001));
+    try t.expectError(error.QueueTimeUnavailable, settlement.requireLive(lease, null));
+    var reassigned = lease;
+    reassigned.epoch += 1;
+    try t.expectError(error.QueueLeaseFenced, settlement.requireLive(reassigned, 999));
+    var renewed = lease;
+    renewed.expires_ms += 1;
+    try t.expectError(error.QueueLeaseFenced, settlement.requireLive(renewed, 999));
+    var foreign = lease;
+    foreign.target.partition += 1;
+    try t.expectError(error.QueueLeaseFenced, settlement.requireLive(foreign, 999));
+}
+
+test "queue accepted original settlement survives later expiry without renewing execution authority" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.settlement;
+    try t.expectError(error.QueueLeaseExpired, receipt.settlement.requireLive(receipt.settlement.lease, 1000));
+    try receipt.requireSettlement(receipt.settlement);
+    var changed = receipt.settlement;
+    changed.action = .{ .nack = .{ .visible_ms = 2000 } };
+    try t.expectError(error.QueueSettlementConflict, receipt.requireSettlement(changed));
+    changed = receipt.settlement;
+    changed.operation.principal += 1;
+    try t.expectError(error.InvalidQueueSettlement, changed.validate());
+    changed = receipt.settlement;
+    changed.operation.operation = changed.lease.claim.operation;
+    try t.expectError(error.InvalidQueueSettlement, changed.validate());
+    changed = receipt.settlement;
+    changed.action = .{ .extend = .{ .expires_ms = changed.lease.expires_ms } };
+    try t.expectError(error.InvalidQueueSettlement, changed.validate());
+    changed.action.extend.expires_ms += 1;
+    try changed.validate();
+}
+
+test "stream queue persisted binding has no missing or foreign definition fallback" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const bytes = try p.Json.valueAlloc(t.allocator, parsed.value.append.append.target);
+    defer t.allocator.free(bytes);
+    const comma = std.mem.indexOfScalar(u8, bytes, ',').?;
+    const missing = try std.fmt.allocPrint(t.allocator, "{{{s}", .{bytes[comma + 1 ..]});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(q.Partition, t.allocator, missing));
+    const foreign = try t.allocator.dupe(u8, bytes);
+    defer t.allocator.free(foreign);
+    const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+    foreign[at] = if (foreign[at] == '0') '1' else '0';
+    try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(q.Partition, t.allocator, foreign));
+}

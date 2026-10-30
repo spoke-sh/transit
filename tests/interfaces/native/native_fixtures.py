@@ -154,6 +154,34 @@ def generated():
         transaction_definition(transaction)
         results[transaction_path] = transaction
         lifecycle['transaction'] = transaction
+        # Independent neutral Stream/Queue attribution fixture. Logical offsets,
+        # physical WAL positions and original operations deliberately differ.
+        log_scope = dict(realm=1, resource=7, catalog=2**64-1)
+        log_target = dict(definition=definition, interpretation=dict(
+            object=dict(scope=log_scope, branch=1, object=43), revision=2,
+            digest=[29]*32), partition=0)
+        append = dict(target=log_target,
+                      operation=dict(scope=log_scope, principal=17, operation=2**64-4),
+                      kind='stream', producer=dict(id=[13]*16, epoch=5, sequence=2**64-1),
+                      rows=4, payload=dict(bytes=1024, sha256=[31]*32))
+        coverage = dict(cut=dict(target=log_target, accepted=dict(partition=91, next_lsn=12),
+                                retained_from=2**64-9, next=2**64-1),
+                        **{'from': 2**64-5}, until=2**64-1, through=2**64-1,
+                        rows=2, complete=True)
+        lease = dict(target=log_target,
+                     claim=dict(scope=log_scope, principal=17, operation=2**64-3),
+                     offset=2**64-4, epoch=9, attempt=2, expires_ms=1000)
+        stream_queue = dict(
+            append=dict(append=append, first=2**64-5, next=2**64-1,
+                        accepted=dict(partition=91, next_lsn=12)),
+            offset_commit=dict(operation=dict(scope=log_scope, principal=17, operation=102),
+                               group=dict(id=42, generation=7, principal=17),
+                               coverage=coverage, expected_next=2**64-5, next=2**64-1),
+            settlement=dict(settlement=dict(
+                operation=dict(scope=log_scope, principal=17, operation=2**64-2),
+                lease=lease, action=dict(ack={})), accepted=dict(partition=91, next_lsn=13)))
+        results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
+        lifecycle['stream_queue'] = stream_queue
         results[lifecycle_path] = lifecycle
 
         serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'
