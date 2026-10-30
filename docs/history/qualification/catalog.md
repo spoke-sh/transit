@@ -9,6 +9,22 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Rebased Stream and Queue validation attempt — 2026-10-30
+
+At `b928941bb`, rebased on `84b7c8f18`, all 54 fast checks and 18 generated-contract
+checks pass in `/var/tmp/transit-m6-rebase-fast.log` and
+`/var/tmp/transit-m6-rebase-contracts.log`. The clean core checkout at
+`/var/tmp/transit-ci-ogg7jsma/src` reaches native component compilation and fails
+because the Table-watch test policy omits the new KV authority enum case.
+`/var/tmp/transit-m6-rebase-clean-core-b928941bb.log` retains that failure.
+The lane is interrupted after the compile failure; it is not a passing lane.
+
+The Table-only fixture now explicitly refuses KV registration, alongside Stream
+and Queue, in both object and parent selection. The installed SDK rerun is also
+interrupted to keep native source hashes consistent during this repair;
+`/var/tmp/transit-m6-rebase-sdk-84b7c8f18.log` is an incomplete run. New validation
+must qualify the corrected commit; earlier scoped successes do not close this gate.
+
 ## Direct KV authority and complete caller profiles — 2026-10-30
 
 On dirty parent `a729bf0ae`, the native catalog authority profile adds a mandatory,
@@ -44,7 +60,10 @@ in `/var/tmp/transit-direct-kv-policy-fast-final.log`.
 
 This evidence predates the rebase onto `84b7c8f18` and does not qualify that combined
 source, direct KV catalog/data integration, mixed transactions or the clean core
-lane. The full native catalog policy run is still pending at this record's source.
+lane. The broad catalog-filter run also passes in
+`/var/tmp/transit-direct-kv-policy-catalog-final.log`. The full native catalog
+policy run was stopped after the rebase to avoid duplicating the clean core lane
+on the older source; that run remains incomplete.
 
 ## Direct KV storage foundation — 2026-10-30
 
