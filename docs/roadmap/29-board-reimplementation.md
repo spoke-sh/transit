@@ -5,7 +5,9 @@
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
 dataset previews, relationships, SQL workbooks, directed lineage and change
-workflows developed in [board-data D2](../design/board-data/D2.md). Preserve
+workflows developed in [board-data D2](../design/board-data/D2.md), with the
+horizontal workbench and single-Inspector direction in
+[board-data D3](../design/board-data/D3.md). Preserve
 operational inspection and expose each capability through its owning public
 operation; the interface does not become another catalog, query engine or
 permission authority.
@@ -30,6 +32,9 @@ integration, accessibility and real browser acceptance. Backend algorithms,
 transaction truth, retention, authorization and reviewed-publication semantics
 remain with their existing owners. The D2 theme is the visual baseline; open
 interaction questions remain in the [design sequence](../design/board-data/README.md).
+D3 records the selected topology direction while leaving its new figures,
+dimensions and responsive choices under review. It changes no installed
+capability, initial-pass evidence or milestone status.
 
 ## Prerequisites and delivery position
 
@@ -466,6 +471,15 @@ workflows retain the completion gates below.
    where needed; catalog size must not determine resident memory or graph size.
    Reveal only capabilities available to the current configured scope. Keep
    query and administrative capabilities separate from read-only inspection.
+   Apply [D3's topology](../design/board-data/D3.md): horizontal activity navigation,
+   optional object navigation, one primary working surface and one shared
+   selection-driven Inspector. Definition, Profile, Storage, Lineage, History,
+   Execution and Policy dimensions appear only for relevant subjects and
+   qualified public evidence. Keep result coverage/completion and exact
+   comparison inputs outside collapsible detail. Context changes cannot
+   relabel or implicitly rerun existing results. Retain original Operations
+   and recovery paths; validate the proposed laptop/narrow behavior before
+   accepting exact dimensions.
 3. **Implement dataset previews, profiles and relationship exploration.** Open
    metadata without starting a scan; use an explicit bounded preview through
    the qualified query owner. Preserve lossless numbers, nested types and each

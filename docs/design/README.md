@@ -18,7 +18,7 @@ and links to supporting material.
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
 | [board-grammar](board-grammar/README.md) | Reactive Board composition, SQL-to-visual grammar, monochrome theme dimensions and application migration experience |
-| [board-data](board-data/README.md) | Data-first Board catalog, focused relationship and lineage views, five-state profiles, SQL workbooks and change review; monochrome desktop and laptop studies |
+| [board-data](board-data/README.md) | Data-first catalog, SQL workbooks and change review; horizontal activities, one contextual Inspector and branch/time context with monochrome desktop and laptop studies |
 | [world-simulator](world-simulator/README.md) | Enterprise world simulator and spatial Agentic OS: interdependent archipelagos, energy/night, transport, food, manufacturing and construction; inhabited miniatures and job modernization |
 
 ## Maintaining the sequence
