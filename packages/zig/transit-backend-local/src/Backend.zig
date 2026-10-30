@@ -187,18 +187,71 @@ pub fn putBatch(self: *Self, batch: []const storage.TransitObjectStore.Immutable
     defer self.data_creators.unlockShared(self.io);
     var pending: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
     var allocations: [Objects.max_put_batch]DataAllocations.Allocation = undefined;
-    var count: usize = 0;
-    for (batch) |item| if (try self.prepareDataPut(item, control, source)) |allocation| {
-        pending[count] = item;
-        allocations[count] = allocation;
-        count += 1;
-    };
+    const count = try self.prepareDataBatch(batch, &pending, &allocations, control, source);
     var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
     if (count != 0) try self.objects.objectStore().putImmutableBatch(pending[0..count], completed[0..count]);
     // Partial batch failure remembers no new durable publication. Exact retry
     // must re-establish the inventory and object barriers for every such item.
     if (count != 0) try self.confirmDataPuts(allocations[0..count]);
     for (batch, output) |item, *meta| meta.* = .{ .size = item.bytes.len, .sha256 = item.sha256 };
+}
+
+fn prepareDataBatch(
+    self: *Self,
+    batch: []const storage.TransitObjectStore.ImmutablePut,
+    pending: *[storage.TransitObjectStore.max_put_batch]storage.TransitObjectStore.ImmutablePut,
+    allocations: *[storage.TransitObjectStore.max_put_batch]DataAllocations.Allocation,
+    control: bool,
+    source: bool,
+) !usize {
+    const Objects = storage.TransitObjectStore;
+    const store = self.objects.objectStore();
+    var existing: [Objects.max_put_batch]?Objects.ObjectMeta = undefined;
+    for (batch, 0..) |item, i| {
+        try dataKey(item.key);
+        if (item.bytes.len > Objects.max_object_bytes) return error.ObjectTooLarge;
+        const meta: Objects.ObjectMeta = .{ .size = item.bytes.len, .sha256 = item.sha256 };
+        existing[i] = try store.head(item.key);
+        if (existing[i]) |known| if (!std.meta.eql(known, meta)) return error.ImmutableObjectConflict;
+    }
+    var count: usize = 0;
+    const epoch = blk: {
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        const epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
+        for (batch, existing[0..batch.len]) |item, known_object| {
+            const meta: Objects.ObjectMeta = .{ .size = item.bytes.len, .sha256 = item.sha256 };
+            const wanted = try DataAllocations.Allocation.init(epoch, item.key, meta);
+            if (known_object != null) {
+                const confirmed = for (self.confirmed_data) |slot| {
+                    if (slot) |known| if (std.meta.eql(known, wanted)) break true;
+                } else false;
+                if (confirmed) continue;
+            } else {
+                const checks = std.math.divCeil(usize, item.bytes.len, 64 * 1024) catch unreachable;
+                try self.reserve(item.bytes.len + checks * 32 + 1024, control);
+            }
+            pending[count] = item;
+            allocations[count] = wanted;
+            count += 1;
+        }
+        break :blk epoch;
+    };
+    if (count == 0) return 0;
+    {
+        try self.data_inventory.lock(self.io);
+        defer self.data_inventory.unlock(self.io);
+        for (allocations[0..count]) |allocation| {
+            const previous = try self.data_allocations.latest(allocation.name());
+            if (previous == null or previous.?.epoch < epoch) {
+                try self.mutex.lock(self.io);
+                defer self.mutex.unlock(self.io);
+                try self.reserve(DataAllocations.record_bytes + storage.TransitLog.alignedFrameSize(DataAllocations.queue_record_bytes) + 1024, control);
+            }
+        }
+        try self.data_allocations.recordBatchTracked(allocations[0..count], source);
+    }
+    return count;
 }
 
 /// Caller holds the shared creation fence through physical publication.
@@ -300,8 +353,32 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
     try Objects.validateBatch(items[0..batch.len], output[0..batch.len]);
     try self.native_creators.lockShared(self.io);
     defer self.native_creators.unlockShared(self.io);
-    for (allocations[0..batch.len]) |allocation| try self.prepareNativePut(allocation, @intCast(allocation.meta.size), control, source);
+    try self.prepareNativeBatch(allocations[0..batch.len], control, source);
     try self.objects.objectStore().putImmutableBatch(items[0..batch.len], output[0..batch.len]);
+}
+
+fn prepareNativeBatch(self: *Self, allocations: []const Allocations.Allocation, control: bool, source: bool) !void {
+    try self.native_inventory.lock(self.io);
+    defer self.native_inventory.unlock(self.io);
+    var missing: [storage.TransitObjectStore.max_put_batch]bool = undefined;
+    for (allocations, 0..) |allocation, i| {
+        missing[i] = try self.allocations.read(allocation.name()) == null;
+    }
+    {
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
+        for (allocations, missing[0..allocations.len]) |allocation, is_missing| {
+            // A storage-fence candidate stages in the next epoch before acceptance.
+            if (allocation.epoch < current_epoch or allocation.epoch - current_epoch > 1) return error.StaleStorageEpoch;
+            if (is_missing) {
+                const size: usize = @intCast(allocation.meta.size);
+                const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
+                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
+            }
+        }
+    }
+    try self.allocations.recordBatchTracked(allocations, source);
 }
 
 fn prepareNativePut(self: *Self, allocation: Allocations.Allocation, size: usize, control: bool, source: bool) !void {

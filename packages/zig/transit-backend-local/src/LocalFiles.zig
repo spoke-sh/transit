@@ -9,12 +9,16 @@ pub fn sync(io: std.Io, directory: std.Io.Dir) !void {
 }
 
 pub fn save(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const u8, replace: bool) !void {
+    try saveWithoutDirSync(io, directory, name, bytes, replace);
+    try sync(io, directory);
+}
+
+pub fn saveWithoutDirSync(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const u8, replace: bool) !void {
     var temporary = try directory.createFileAtomic(io, name, .{ .replace = replace, .permissions = .fromMode(0o600) });
     defer temporary.deinit(io);
     try temporary.file.writeStreamingAll(io, bytes);
     try temporary.file.sync(io);
     if (replace) try temporary.replace(io) else try temporary.link(io);
-    try sync(io, directory);
 }
 
 pub fn read(io: std.Io, directory: std.Io.Dir, name: []const u8, output: []u8) !?[]const u8 {

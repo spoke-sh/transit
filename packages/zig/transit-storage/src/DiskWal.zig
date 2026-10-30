@@ -428,22 +428,34 @@ pub fn nextPartition(self: *Self, after: ?u64) !?u64 {
 }
 
 pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64, kind: log.FrameKind, payload: []const u8) !log.AppendReceipt {
+    return self.appendFrames(id, expected_lsn, writer, policy, kind, &.{payload});
+}
+
+pub fn appendFrames(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64, kind: log.FrameKind, payloads: []const []const u8) !log.AppendReceipt {
+    if (payloads.len == 0 or payloads.len > self.options.batch_frames) return error.InvalidWalBatch;
     if (writer == 0 or policy == 0) return error.InvalidWalEpoch;
-    if (payload.len > log.max_payload_bytes) return error.WalPayloadTooLarge;
+    var total_bytes: usize = 0;
+    for (payloads) |payload| {
+        if (payload.len > log.max_payload_bytes) return error.WalPayloadTooLarge;
+        const frame_bytes = log.alignedFrameSize(payload.len);
+        if (frame_bytes > self.options.batch_bytes - total_bytes) return error.WalPayloadTooLarge;
+        total_bytes += frame_bytes;
+    }
     const state = try self.load(id);
     if (writer < state.writer) return error.StaleWriterEpoch;
     if (policy < state.policy) return error.StalePolicyEpoch;
     if (expected_lsn) |expected| if (expected != state.next) return error.WalLsnConflict;
-    const successor = std.math.add(u64, state.next, 1) catch return error.WalLsnExhausted;
-    const bytes = try self.allocator.alloc(u8, log.alignedFrameSize(payload.len));
+    const successor = std.math.add(u64, state.next, payloads.len) catch return error.WalLsnExhausted;
+    const bytes = try self.allocator.alloc(u8, total_bytes);
     defer self.allocator.free(bytes);
-    _ = try log.encodeFrame(id, writer, policy, state.next, 0, kind, payload, bytes);
+    var encoded_offset: usize = 0;
+    for (payloads, 0..) |payload, i| {
+        const frame_bytes = log.alignedFrameSize(payload.len);
+        _ = try log.encodeFrame(id, writer, policy, state.next + i, 0, kind, payload, bytes[encoded_offset .. encoded_offset + frame_bytes]);
+        encoded_offset += frame_bytes;
+    }
     if (try self.metadata(id) == null) try self.save(state.*);
     var next = state.*;
-    if (next.offset != 0 and (next.offset > self.options.segment_bytes or bytes.len > self.options.segment_bytes - next.offset)) {
-        next.segment = state.next;
-        next.offset = 0;
-    }
     // Opening and checking an existing segment changes no accepted bytes.
     // Cancellation there leaves this owner usable. Creation or the first write
     // can change disk state; every later error still requires recovery. Other
@@ -452,36 +464,57 @@ pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64
     errdefer if (poison_on_error) {
         self.poisoned = true;
     };
-    var name: [96]u8 = undefined;
-    const filename = segmentName(id, next.segment, &name);
-    const file = if (next.offset == 0)
-        try self.dir.createFile(self.io, filename, .{ .read = true, .truncate = false, .permissions = .fromMode(0o600) })
-    else
-        self.dir.openFile(self.io, filename, .{ .mode = .read_write, .follow_symlinks = false }) catch |err| {
-            if (err == error.Canceled) poison_on_error = false;
+    var frame_index: usize = 0;
+    var byte_offset: usize = 0;
+    while (frame_index < payloads.len) {
+        const first_frame_bytes = log.alignedFrameSize(payloads[frame_index].len);
+        if (next.offset != 0 and (next.offset > self.options.segment_bytes or first_frame_bytes > self.options.segment_bytes - next.offset)) {
+            next.segment = next.next;
+            next.offset = 0;
+        }
+        var chunk_bytes: usize = first_frame_bytes;
+        var chunk_frames: usize = 1;
+        var last_frame_bytes: usize = first_frame_bytes;
+        while (frame_index + chunk_frames < payloads.len) {
+            const candidate_bytes = log.alignedFrameSize(payloads[frame_index + chunk_frames].len);
+            if (next.offset + chunk_bytes > self.options.segment_bytes or candidate_bytes > self.options.segment_bytes - (next.offset + chunk_bytes)) break;
+            chunk_bytes += candidate_bytes;
+            last_frame_bytes = candidate_bytes;
+            chunk_frames += 1;
+        }
+        var name: [96]u8 = undefined;
+        const filename = segmentName(id, next.segment, &name);
+        const file = if (next.offset == 0)
+            try self.dir.createFile(self.io, filename, .{ .read = true, .truncate = false, .permissions = .fromMode(0o600) })
+        else
+            self.dir.openFile(self.io, filename, .{ .mode = .read_write, .follow_symlinks = false }) catch |err| {
+                if (err == error.Canceled and frame_index == 0) poison_on_error = false;
+                return err;
+            };
+        defer file.close(self.io);
+        const length = file.length(self.io) catch |err| {
+            if (next.offset != 0 and err == error.Canceled and frame_index == 0) poison_on_error = false;
             return err;
         };
-    defer file.close(self.io);
-    const length = file.length(self.io) catch |err| {
-        if (next.offset != 0 and err == error.Canceled) poison_on_error = false;
-        return err;
-    };
-    if (length != next.offset) return error.WalRecoveryRequired;
-    try file.writePositionalAll(self.io, bytes, next.offset);
-    try file.sync(self.io);
-    self.syncs += 1;
-    if (next.offset == 0) try self.syncDirectory();
-    next.offset += bytes.len;
-    next.next = successor;
+        if (length != next.offset) return error.WalRecoveryRequired;
+        try file.writePositionalAll(self.io, bytes[byte_offset .. byte_offset + chunk_bytes], next.offset);
+        try file.sync(self.io);
+        self.syncs += 1;
+        if (next.offset == 0) try self.syncDirectory();
+        next.offset += chunk_bytes;
+        next.next += chunk_frames;
+        next.latest = .{ .lsn = next.next - 1, .segment = next.segment, .offset = next.offset - last_frame_bytes };
+        byte_offset += chunk_bytes;
+        frame_index += chunk_frames;
+    }
     next.writer = writer;
     next.policy = policy;
     // The durable frontier detects missing acknowledged tail files on restart,
     // including the last segment. Complete unacknowledged frames may also be
     // recovered; callers must reconcile their original operation identity.
     try self.save(next);
-    next.latest = .{ .lsn = state.next, .segment = next.segment, .offset = next.offset - bytes.len };
     state.* = next;
-    return .{ .partition_id = id, .lsn = successor - 1, .next_lsn = successor, .writer_epoch = writer, .policy_epoch = policy, .frame_bytes = bytes.len };
+    return .{ .partition_id = id, .lsn = successor - 1, .next_lsn = successor, .writer_epoch = writer, .policy_epoch = policy, .frame_bytes = total_bytes };
 }
 
 pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, requested: usize) !log.Log.OwnedBatch {
