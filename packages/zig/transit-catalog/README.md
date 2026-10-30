@@ -20,6 +20,10 @@ owns roles, grants, current credentials and resource lifetime.
 
 ## Lifecycle owner
 
+`DirectStreamResponse` validates exact operation attribution, pinned schemas,
+ordered row identities, byte budgets and finite coverage. Pages carry the
+original source declaration, including after a later ALTER or DROP.
+
 `DirectStream.apply` composes Stream append, original-operation inspection,
 finite reads, consumer assignment and offset settlement with the current catalog
 declaration and native grants. The embedding host supplies a serialized owner

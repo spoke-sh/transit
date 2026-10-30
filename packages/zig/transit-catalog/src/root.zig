@@ -45,6 +45,7 @@ pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
 pub const DirectStreamMutation = @import("DirectStreamMutation.zig");
 pub const DirectStream = @import("DirectStream.zig");
+pub const DirectStreamResponse = @import("DirectStreamResponse.zig");
 pub const LogAuthority = @import("LogAuthority.zig");
 pub const DocumentAuthority = @import("DocumentAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");

@@ -4560,6 +4560,14 @@ test "direct Stream composition preserves original work pins and group rights ac
     const before_disclosure = access.calls;
     const consumed = try streamCall(&catalog, &access, &cached, page_request, 256);
     defer consumed.deinit(t.allocator);
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    try c.DirectStreamResponse.validate(t.allocator, connection, page_request, consumed);
+    var changed_page = consumed;
+    changed_page.page.rows = changed_page.page.rows[0..1];
+    try t.expectError(error.InvalidStreamResponse, c.DirectStreamResponse.validate(t.allocator, connection, page_request, changed_page));
+    changed_page = consumed;
+    changed_page.page.examined += 1;
+    try t.expectError(error.InvalidStreamResponse, c.DirectStreamResponse.validate(t.allocator, connection, page_request, changed_page));
     const disclosure_checks = access.calls - before_disclosure;
     access.deny_at = access.calls + disclosure_checks;
     // Revoke on the same final check after output rows have been copied. The
@@ -4588,6 +4596,7 @@ test "direct Stream composition preserves original work pins and group rights ac
     const after_drop = try streamCall(&catalog, &access, &cached, .{ .page = .{ .cursor = positional, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } }, 256);
     defer after_drop.deinit(t.allocator);
     try t.expect(after_drop.page.cursor.coverage.complete);
+    try c.DirectStreamResponse.validate(t.allocator, connection, .{ .page = .{ .cursor = positional, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } }, after_drop);
     const release: c.DirectStreamMutation.Request = .{ .release = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 106 }, .read = group_read.handle() } };
     const released = (try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = release, .payload = null } }, 256)).operation.?.release;
     try t.expect(cached.?.owner.root.declared.retired);

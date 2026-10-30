@@ -85,7 +85,7 @@ pub const Row = struct {
     tombstone: bool,
     encoded: w.Binary,
 };
-pub const Page = struct { rows: []const Row, cursor: read.Cursor, examined: u32, encoded_bytes: u32 };
+pub const Page = struct { source: c.DirectLogProtocol.Definition, rows: []const Row, cursor: read.Cursor, examined: u32, encoded_bytes: u32 };
 pub const Result = union(enum) {
     /// Bounded replay has not reached the current accepted frontier. This
     /// result accepts no new mutation and supplies no complete data coverage.
@@ -97,6 +97,7 @@ pub const Result = union(enum) {
     page: Page,
     pub fn deinit(self: Result, allocator: std.mem.Allocator) void {
         if (self == .page) {
+            allocator.free(self.page.source.schema.base64);
             for (self.page.rows) |row| allocator.free(row.encoded.base64);
             allocator.free(self.page.rows);
         }
@@ -208,6 +209,16 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .page => |value| blk: {
             var page = try owner.readPage(value.cursor, environment.authority, value.limits, catalog.allocator, current.guard);
             defer page.deinit();
+            const original = (try owner.operation(value.cursor.read.owner, current.guard)).?;
+            var declaration = try s.LogDeclaration.load(catalog.allocator, catalog.data_objects, original.declared);
+            defer declaration.deinit();
+            var definition = current.definition;
+            definition.stored = original.declared;
+            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.definition.properties);
+            const schema_buffer = try catalog.allocator.alloc(u8, c.fuze.TableSchema.max_bytes);
+            defer catalog.allocator.free(schema_buffer);
+            const schema = try w.Binary.encode(output, try declaration.definition.schema.encode(schema_buffer));
+            errdefer output.free(schema.base64);
             const rows = try output.alloc(Row, page.count);
             errdefer output.free(rows);
             var copied: usize = 0;
@@ -222,7 +233,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
                 };
                 copied += 1;
             }
-            break :blk .{ .page = .{ .rows = rows, .cursor = page.cursor, .examined = page.examined, .encoded_bytes = page.encoded_bytes } };
+            break :blk .{ .page = .{ .source = .{ .declaration = definition, .schema = schema }, .rows = rows, .cursor = page.cursor, .examined = page.examined, .encoded_bytes = page.encoded_bytes } };
         },
         .mutate => |value| blk: {
             // A smaller successor declaration cannot invalidate an already
