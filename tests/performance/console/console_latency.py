@@ -58,10 +58,10 @@ def representation_sample(batch, historical=False):
     return result
 
 
-def override(fixture, role, fields, probe_gate=None):
+def override(fixture, role, fields, probe_gate=None, stderr_path=None):
     """Change only this owned fixture's generated child configuration."""
     fields = {key: value for key, value in fields.items() if value is not None}
-    if not fields:
+    if not fields and stderr_path is None:
         return
     executable = fixture.config['executables'][role]
     wrapper = fixture.root / (role + '-control')
@@ -82,10 +82,42 @@ if gate:
     while not Path(gate + '.ready').exists():
         if time.monotonic() > deadline: raise TimeoutError('measurement proxy not ready')
         time.sleep(0.01)
+diagnostic_path = {str(stderr_path) if stderr_path else None!r}
+if diagnostic_path:
+    with open(diagnostic_path, 'ab', buffering=0) as diagnostic:
+        os.dup2(diagnostic.fileno(), 2)
 os.execv({executable!r}, [{executable!r}] + sys.argv[1:])
 ''')
     wrapper.chmod(0o700)
     fixture.config['executables'][role] = str(wrapper)
+
+
+def local_trace(path):
+    """Export only reviewed bounded fields; whole debug logs stay private."""
+    retained = 0
+    omitted = 0
+    losses = dict(dropped=0, suppressed=0, sink_errors=0)
+    with path.open('rb') as source:
+        for line in source:
+            if len(line) > 2048:
+                raise ValueError('local trace record exceeds telemetry bound')
+            record = json.loads(line)
+            event = record.get('event', {})
+            if record.get('name') == 'telemetry.loss':
+                for key in losses:
+                    losses[key] = max(losses[key], record.get('measurement', {}).get(key, 0))
+            if event.get('name') not in ('transit.local.request', 'transit.client.request'):
+                continue
+            if retained == 8192:
+                omitted += 1
+                continue
+            retained += 1
+            print(json.dumps(dict(phase='local_trace', **{key: record.get(key) for key in
+                ('time_unix_ms', 'duration_ns', 'trace_id', 'span_id', 'parent_span_id')},
+                event={key: event.get(key) for key in
+                       ('name', 'operation', 'route', 'outcome', 'error_type', 'wait_ns', 'work_ns')})), flush=True)
+    print(json.dumps(dict(phase='local_trace_summary', retained=retained, omitted=omitted,
+                          losses=losses)), flush=True)
 
 
 def measured_run(args, cwd, timeout=420, node=None):
@@ -163,6 +195,8 @@ def main():
     parser.add_argument('--remote-sql', action='store_true', help='historical installed gateway placement for matched controls')
     parser.add_argument('--instrument', action='store_true',
                         help='count typed local attempts, or HTTP attempts/work with --remote-sql; adds diagnostic overhead')
+    parser.add_argument('--local-trace', action='store_true',
+                        help='separate debug run with bounded local-owner/client duration records')
     parser.add_argument('--owner-metrics', action=argparse.BooleanOptionalAction, default=True,
                         help='also enable optional native owner-work response diagnostics')
     parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',
@@ -175,6 +209,8 @@ def main():
     args = parser.parse_args()
     if args.resources and not args.statements:
         parser.error('--resources requires --statements')
+    if args.local_trace and (not args.instrument or args.remote_sql):
+        parser.error('--local-trace requires --instrument with co-hosted SQL')
     if args.statements and (args.rows or args.single or args.age_queries or args.representations or args.historical_result_profile):
         parser.error('--statements uses its own fixed workload; select only repetitions and instrumentation/owner overrides')
     if args.historical_result_profile and not args.binary_revision:
@@ -197,7 +233,10 @@ def main():
             if args.owner_metrics:
                 node_fields['request_metrics'] = True
             override(fixture, 'sql_gateway', {'native_url': probes['native'].url})
-        override(fixture, 'node', node_fields)
+        trace_path = fixture.root / 'local-trace.jsonl' if args.local_trace else None
+        if trace_path is not None:
+            fixture.config['logging'] = dict(level='debug', format='json')
+        override(fixture, 'node', node_fields, stderr_path=trace_path)
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                                        'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
         fixture.path.write_text(json.dumps(fixture.config))
@@ -215,6 +254,7 @@ def main():
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
               'resource_snapshots': args.resources,
+              'local_trace': args.local_trace,
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'probe_scope': ('SQL gateway HTTP upstream only' if args.remote_sql else 'co-hosted SQL typed attempts; no per-operation HTTP trace') if args.instrument else None,
               'owner_metrics': args.instrument and args.remote_sql and args.owner_metrics,
@@ -262,7 +302,8 @@ def main():
             from performance.console.statements import run
             from performance.console.resources import snapshot
             run(fixture, args.repeat, probes,
-                resource_observer=(lambda pid: snapshot(fixture.process.pid, pid)) if args.resources else None)
+                resource_observer=(lambda pid: snapshot(fixture.process.pid, pid)) if args.resources else None,
+                cpu_observer=cpu)
             idle_sample('idle_after_statements')
             success = True
             return
@@ -364,12 +405,19 @@ def main():
         success = True
     finally:
         fixture.cleanup()
-        for probe in probes.values():
-            probe.close()
-        if success:
-            shutil.rmtree(fixture.root)
-        else:
-            print(f'Latency fixture retained at {fixture.root}', file=sys.stderr)
+        try:
+            if args.local_trace and (success or (fixture.root / 'local-trace.jsonl').exists()):
+                local_trace(fixture.root / 'local-trace.jsonl')
+        except BaseException:
+            success = False
+            raise
+        finally:
+            for probe in probes.values():
+                probe.close()
+            if success:
+                shutil.rmtree(fixture.root)
+            else:
+                print(f'Latency fixture retained at {fixture.root}', file=sys.stderr)
 
 
 if __name__ == '__main__':

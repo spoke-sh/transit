@@ -505,7 +505,27 @@ pub fn Host(comptime Provider: type) type {
                     .snapshot_read => |read| read.finish,
                     else => false,
                 } else false;
+                // Debug attribution uses the same bounded sink as HTTP. Only
+                // closed protocol tags are labels; no caller values or SQL.
+                const observed = self.diagnostics.config.level == .debug;
+                var span = telemetry.begin(if (observed) self.diagnostics else null, .server, invocation.client.call_context);
+                var event: telemetry.Event = .{ .name = "transit.local.request", .level = .debug };
+                if (std.mem.eql(u8, invocation.path, "/table/v1")) {
+                    event.route = "/table/v1";
+                    event.operation = (try invocation.request(Provider.TableHost.Protocol.Request)).transport().operation;
+                } else if (std.mem.eql(u8, invocation.path, "/v1/query")) {
+                    event.route = "/v1/query";
+                    event.operation = @tagName((try invocation.request(g.SignedQuery)).query.kind);
+                }
+                const started = if (observed) std.Io.Clock.awake.now(io) else null;
+                defer span.finish(event);
+                errdefer event.outcome = .failed;
                 const lane = try self.acquire(io, if (control) .control else if (invocation.client.wait_hint != null) .wait else .data);
+                if (started) |before| event.wait_ns = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
+                defer if (started) |before| {
+                    const total: u64 = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
+                    event.work_ns = total -| (event.wait_ns orelse 0);
+                };
                 defer self.release(io, lane);
                 var server = self.server.*;
                 server.io = io;

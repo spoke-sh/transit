@@ -1,12 +1,15 @@
 """Independent byte expectations and a broken-codec control for payload reports."""
 import hashlib
+import io
+import json
+from contextlib import redirect_stdout
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 import pyarrow as pa
-from performance.console.console_latency import representation_sample
+from performance.console.console_latency import representation_sample, local_trace
 from performance.console import resources
 
 
@@ -54,6 +57,41 @@ class Resources(unittest.TestCase):
              patch.object(resources, 'process', return_value={}):
             with self.assertRaisesRegex(ValueError, 'tree changed'):
                 resources.snapshot(1, 2)
+
+
+class LocalTrace(unittest.TestCase):
+    def export(self, records):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'trace.jsonl'
+            path.write_text(''.join(json.dumps(record) + '\n' for record in records))
+            output = io.StringIO()
+            with redirect_stdout(output):
+                local_trace(path)
+            return [json.loads(line) for line in output.getvalue().splitlines()]
+
+    def test_only_reviewed_fields_and_cumulative_loss_are_exported(self):
+        result = self.export([
+            dict(name='telemetry.loss', measurement=dict(dropped=3, suppressed=2)),
+            dict(name='telemetry.loss', measurement=dict(dropped=7, suppressed=2)),
+            dict(event=dict(name='unrelated', payload='private')),
+            dict(duration_ns=42, service_instance_id='private',
+                 event=dict(name='transit.local.request', route='/table/v1',
+                            operation='read', payload='private')),
+        ])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['duration_ns'], 42)
+        self.assertNotIn('private', json.dumps(result))
+        self.assertEqual(result[-1], dict(phase='local_trace_summary', retained=1,
+            omitted=0, losses=dict(dropped=7, suppressed=2, sink_errors=0)))
+
+    def test_overflow_is_visible(self):
+        result = self.export([dict(event=dict(name='transit.client.request'))] * 8193)
+        self.assertEqual(result[-1]['retained'], 8192)
+        self.assertEqual(result[-1]['omitted'], 1)
+
+    def test_malformed_and_oversized_records_fail(self):
+        with self.assertRaisesRegex(ValueError, 'bound'):
+            self.export([dict(payload='x' * 2048)])
 
 
 class Representations(unittest.TestCase):

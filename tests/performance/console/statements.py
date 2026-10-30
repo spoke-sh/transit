@@ -2,6 +2,7 @@
 from collections import defaultdict
 import json
 import re
+import time
 
 from performance.mutations.mutation_latency import Console, distribution
 
@@ -26,7 +27,7 @@ def phases(timing):
     return int(match[1]), result
 
 
-def run(fixture, repeat, probes, *, config=None, resource_observer=None):
+def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_observer=None):
     shell = Console(fixture, mode='table', config=config)
     samples = defaultdict(list)
     expected = []
@@ -34,9 +35,13 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
         def call(case, sql):
             before = {name: probe.snapshot() for name, probe in probes.items()}
             starts = {name: probe.trace()['completed'] for name, probe in probes.items() if hasattr(probe, 'trace')}
+            before_cpu = cpu_observer() if cpu_observer is not None else None
+            started_unix_ns = time.time_ns()
             try:
                 value, measurement = shell.call(sql)
             finally:
+                finished_unix_ns = time.time_ns()
+                node_cpu_seconds = cpu_observer() - before_cpu if before_cpu is not None else None
                 # Preserve bounded operation/work diagnostics even when the
                 # statement fails. No native payloads or credentials are kept.
                 for name, probe in probes.items():
@@ -61,7 +66,9 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None):
             samples[case].append(total * 1_000_000)
             print(json.dumps(dict(phase='statement', case=case, sql=sql,
                                   **measurement, timer_ms=total, phases=measured_phases,
-                                  attempts=attempts, stdout=value)), flush=True)
+                                  attempts=attempts, node_cpu_seconds=node_cpu_seconds,
+                                  started_unix_ns=started_unix_ns, finished_unix_ns=finished_unix_ns,
+                                  stdout=value)), flush=True)
             if resource_observer is not None:
                 print(json.dumps(dict(phase='client_resources', case=case,
                                       **resource_observer(shell.process.pid))), flush=True)

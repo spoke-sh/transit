@@ -18,6 +18,8 @@ recovery_reserve: mem.Slab,
 challenges: [16]?Challenge = @splat(null),
 authenticating: std.atomic.Value(u16) = .init(0),
 recovery: *g.SessionRecovery,
+/// Borrowed for the registry lifetime; diagnostic attempts grant no authority.
+observer: ?*g.wire.observability.telemetry.Runtime = null,
 pub const Peer = struct { uid: ?u32 = null, loopback: bool = false, tls: bool = false };
 const Challenge = struct { id: api.Id, account: usize, database: []const u8, source: ?[]const u8, credential: g.Configuration.Credential, scram: g.Authentication.Scram, started: std.Io.Timestamp };
 const Statement = struct { id: api.Id, prepared: *g.Session.Prepared };
@@ -155,6 +157,7 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
     slot.cancellation.store(false, .release);
     slot.active.store(false, .release);
     slot.host = try g.Session.init(slot.memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, dialect, &slot.cancellation, &slot.active);
+    slot.host.?.wire.observer = self.observer;
     slot.host.?.native_profile = native;
     slot.last = std.Io.Clock.awake.now(self.io);
     self.mutex.lockUncancelable(self.io);
