@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/spoke-sh/transit/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/spoke-sh/transit/actions/workflows/ci.yml)
 
-**Transit is a declarative, versioned multi-model database, vectorized/incremental query engine (`Fuze`), and durable execution runtime (`Station`) written in Zig.**
-
-You declare **data** (Tables, Key-Value maps, collaborative Documents, Streams, Queues, Property Graphs, and 2D/3D Spatial models), **computations** (point-in-time SQL queries, recoverable captured jobs, maintained incremental views, and stateful dataflows), and **policies** (scoped `policy_epoch` authorization, security-barrier Row-Level Security, unlimited-by-default retention, and resource budgets). Transit's runtime **activates** that data across a four-tier storage hierarchy (`TransitLog` write-ahead delta logs and immutable `.tseg` columnar segments), executes queries with five-state cell provenance (`value`, `null`, `missing`, `type_error`, `conflict`), and coordinates stateful processes (`Station`) and recorded external connector effects.
+**Transit is a declarative, versioned multi-model database, vectorized/incremental
+query engine, and durable execution runtime.** It's written in Zig and provides
+[SDKs for a wide range of languages](docs/handbook/reference/sdks.md).
 
 ![Measured marks on parallel lines become flowing blue and ochre waves, then a layered landscape with a continuous path and faint earlier contours.](docs/handbook/static/img/architecture/transit-score-wave-landscape.jpg)
 
