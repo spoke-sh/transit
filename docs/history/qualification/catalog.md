@@ -52,6 +52,27 @@ rebase and accepted timer integration. Isolated reproduction and final-candidate
 clean qualification remain open; concurrent disk work is an observation, not
 an established explanation of the failure.
 
+An isolated rerun with those same built binaries and diagnostic-only driver
+changes passes the exact two-identical-bodies assertion, then fails later while
+uploading a query. Its ledger head is a delayed `UQN1` self-wake at position 298;
+the new query has namespace 299. The fixture pumps only the requester and leaves
+that earlier ledger input unprocessed. Its 200-ms quiet check cannot exclude
+later courier delivery. This second failure is recorded in
+`/var/tmp/transit-queue-station-isolated.log`; it does not explain the first
+retry-count failure.
+
+The corrected driver advances an observed non-query head, then stops at the
+exact requester resource and query namespace before capture. It also leaves a
+valid non-query predecessor deliberately, so this progression is exercised on
+every run. No assertion or deadline is weakened. Against the same original
+binaries, the complete Station run passes the exact retry assertion, captured
+query policy/native-grant revocation, worker/node recovery, framework services
+and lifetime checks. The driver SHA-256 is
+`65bc06531418948a29d9fcc7db37683582bc0b52c04846a189afa70ce9415fb7`;
+raw output is `/var/tmp/transit-queue-station-exact-head.log`. This is an isolated
+fixture regression, not a completed clean core lane or qualification of later
+Queue code.
+
 ## Accepted Queue timer schedules — 2026-10-30
 
 On dirty parent `e387a41ca`, accepted Queue roots replace per-event visibility

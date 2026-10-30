@@ -228,14 +228,30 @@ def run(node, cli, worker, courier):
                     observed = None if incoming is None else dict(
                         position=incoming['position'], origin=incoming['origin'],
                         kind=encoded[4], tag=encoded[13:17].hex())
-                    return incoming is not None and encoded[13:17] == b'SPF1'
+                    if incoming is None:
+                        return False
+                    if encoded[13:17] == b'SPF1':
+                        # Stop at this request's exact publication, before its
+                        # capture. A different pending call is not completion.
+                        assert len(encoded) == 85 and encoded[4] == 2, observed
+                        assert incoming['origin']['process']['pid'] == requester, observed
+                        assert struct.unpack_from('<Q', encoded, 17)[0] == requester_resource, observed
+                        assert struct.unpack_from('<Q', encoded, 29)[0] == namespace, observed
+                        return True
+                    # A quiet mailbox does not exclude a delayed self-wake.
+                    # Only this fixture advances the ledger; the courier can
+                    # append but cannot replace this observed non-query head.
+                    # Execute just that head, never pump the ledger after an
+                    # empty observation where the new call could arrive.
+                    once(current)
+                    return False
                 try:
                     pump_until(queued, [requester_config])
                 except AssertionError as error:
                     raise AssertionError(('Query upload did not reach capture', namespace, observed)) from error
                 return namespace
-            # Drain leftover application self-wakes before sending a query. A
-            # pending query call itself is captured only by the explicit step.
+            # Drain currently delivered application work. upload_query also
+            # advances late self-wakes, stopping before the exact query call.
             def drain_ledger():
                 idle_since = time.monotonic()
                 deadline = idle_since + 60
@@ -255,6 +271,10 @@ def run(node, cli, worker, courier):
                     raise AssertionError(('Query terminated before completion', observed, value(requester_resource, b'answer'), struct.unpack_from('<HBB', failure, 4), failure[8:12].hex()))
                 return observed == 4
             drain_ledger()
+            # Deliberately leave a valid non-query head ahead of the upload.
+            # Query admission must progress without relying on a quiet period.
+            s.command({'send': {'pid': ledger, 'value': frame(b'deny-query')}})
+            assert s.native_query({'process': ledger})['body']['process']['input'] is not None
             denied = upload_query()
             once(current)
             pump_until(lambda: phase(denied) == 6, [current, requester_config])
