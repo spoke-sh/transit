@@ -120,7 +120,7 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 26 | [Enterprise identity and the Control & Policy Plane](26-control-and-policy-plane.md) | Planned | Trusted enterprise identity, security-barrier RLS (including spatial RLS), dynamic column masking, GDPR crypto-shredding/purge, Hierarchical Workload Management (WLM) and shared branch/publication policy |
-| 27 | [Published business resources and consistent investigations](27-published-resources-and-investigations.md) | Planned ([implementation plan](27-published-resources-and-investigations.md#implementation-plan--2026-10-30)) | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
+| 27 | [Published business resources and consistent investigations](27-published-resources-and-investigations.md) | In Progress ([implementation plan](27-published-resources-and-investigations.md#implementation-plan--2026-10-30); [delivered evidence](27-published-resources-and-investigations.md#delivered-implementation-evidence--2026-10-30)) | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
 | 28 | [Versioned proposals and reviewed publication](28-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
 | 29 | [Board reimplementation and data-first workbench](29-board-reimplementation.md#initial-pass-implementation-plan) | In Progress | Initial implementation: catalog, bounded previews and session workbooks over public Transit/result APIs; full scope adds durable workbooks, spatial/map and layout layer inspection, lineage and governed changes with preserved operational inspection |
 
