@@ -57,16 +57,20 @@ public static partial class Catalog
         public ulong DatabaseDomain { get; }
         public ulong SchemaDomain { get; }
         public ulong TableDomain { get; }
+        public ulong StreamDomain { get; }
+        public ulong QueueDomain { get; }
         public ulong Database { get; }
         public ulong InitialSchema { get; }
         public ulong InitialSchemaAuthority { get; }
-        public AuthorityProfile(ulong databaseDomain, ulong schemaDomain, ulong tableDomain, ulong database, ulong initialSchema, ulong initialSchemaAuthority) {
+        public AuthorityProfile(ulong databaseDomain, ulong schemaDomain, ulong tableDomain, ulong streamDomain, ulong queueDomain, ulong database, ulong initialSchema, ulong initialSchemaAuthority) {
             DatabaseDomain = V.Counter(databaseDomain); SchemaDomain = V.Counter(schemaDomain); TableDomain = V.Counter(tableDomain);
+            StreamDomain = V.Counter(streamDomain); QueueDomain = V.Counter(queueDomain);
             Database = V.Counter(database); InitialSchema = V.Counter(initialSchema); InitialSchemaAuthority = V.Counter(initialSchemaAuthority);
-            if (databaseDomain == schemaDomain || databaseDomain == tableDomain || schemaDomain == tableDomain || database == initialSchemaAuthority)
+            if (new[] {databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain}.Distinct().Count() != 5 || database == initialSchemaAuthority)
                 throw new ArgumentException("Distinct native authorization bindings are required");
         }
         internal JsonObject Wire() => V.Obj(("database_domain", DatabaseDomain), ("schema_domain", SchemaDomain), ("table_domain", TableDomain),
+            ("stream_domain", StreamDomain), ("queue_domain", QueueDomain),
             ("database", Database), ("initial_schema", InitialSchema), ("initial_schema_authority", InitialSchemaAuthority));
     }
     /// <summary>An observed authenticated subject; it grants no authority.</summary>

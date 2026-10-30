@@ -189,6 +189,8 @@ pub struct AuthorityProfile {
     pub database_domain: u64,
     pub schema_domain: u64,
     pub table_domain: u64,
+    pub stream_domain: u64,
+    pub queue_domain: u64,
     pub database: u64,
     pub initial_schema: u64,
     pub initial_schema_authority: u64,
@@ -199,22 +201,33 @@ impl AuthorityProfile {
             self.database_domain,
             self.schema_domain,
             self.table_domain,
+            self.stream_domain,
+            self.queue_domain,
             self.database,
             self.initial_schema,
             self.initial_schema_authority,
         ] {
             native(value, false)?;
         }
-        if self.database_domain == self.schema_domain
-            || self.database_domain == self.table_domain
-            || self.schema_domain == self.table_domain
+        let domains = [
+            self.database_domain,
+            self.schema_domain,
+            self.table_domain,
+            self.stream_domain,
+            self.queue_domain,
+        ];
+        if domains
+            .iter()
+            .enumerate()
+            .any(|(i, domain)| domains[..i].contains(domain))
             || self.database == self.initial_schema_authority
         {
             return Err(invalid());
         }
         Ok(
             json!({"database_domain":self.database_domain,"schema_domain":self.schema_domain,
-            "table_domain":self.table_domain,"database":self.database,"initial_schema":self.initial_schema,
+            "table_domain":self.table_domain,"stream_domain":self.stream_domain,"queue_domain":self.queue_domain,
+            "database":self.database,"initial_schema":self.initial_schema,
             "initial_schema_authority":self.initial_schema_authority}),
         )
     }
@@ -225,6 +238,8 @@ impl AuthorityProfile {
                 "database_domain",
                 "schema_domain",
                 "table_domain",
+                "stream_domain",
+                "queue_domain",
                 "database",
                 "initial_schema",
                 "initial_schema_authority",
@@ -234,6 +249,8 @@ impl AuthorityProfile {
             database_domain: n(&v["database_domain"], false)?,
             schema_domain: n(&v["schema_domain"], false)?,
             table_domain: n(&v["table_domain"], false)?,
+            stream_domain: n(&v["stream_domain"], false)?,
+            queue_domain: n(&v["queue_domain"], false)?,
             database: n(&v["database"], false)?,
             initial_schema: n(&v["initial_schema"], false)?,
             initial_schema_authority: n(&v["initial_schema_authority"], false)?,
@@ -242,6 +259,37 @@ impl AuthorityProfile {
         Ok(out)
     }
 }
+#[cfg(test)]
+mod authority_tests {
+    use super::*;
+
+    #[test]
+    fn current_authority_domains_are_required_distinct_native_counters() {
+        let value = json!({"database_domain":1,"schema_domain":2,"table_domain":3,
+            "stream_domain":31,"queue_domain":32,"database":4,"initial_schema":1,"initial_schema_authority":5});
+        let profile = AuthorityProfile::parse(&value).unwrap();
+        assert_eq!((profile.stream_domain, profile.queue_domain), (31, 32));
+        assert_eq!(profile.wire().unwrap(), value);
+        for field in ["stream_domain", "queue_domain"] {
+            let mut missing = value.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(AuthorityProfile::parse(&missing).is_err());
+            for invalid in [
+                0u64,
+                1,
+                2,
+                3,
+                if field == "stream_domain" { 32 } else { 31 },
+                1 << 53,
+            ] {
+                let mut bad = value.clone();
+                bad[field] = json!(invalid);
+                assert!(AuthorityProfile::parse(&bad).is_err());
+            }
+        }
+    }
+}
+
 /// An observed subject, not a capability that can authorize another request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Subject {

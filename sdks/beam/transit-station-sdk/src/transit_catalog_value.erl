@@ -44,9 +44,9 @@ kinds() -> [create,alter,rename,drop,insert,update,delete].
 
 scope(#transit_catalog_scope{resource=#transit_resource{realm=Realm,resource=Resource},catalog=Catalog}) ->
     #{<<"realm">>=>counter(Realm),<<"resource">>=>counter(Resource),<<"catalog">>=>decimal(Catalog)}.
-authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_domain=T,database=DO,initial_schema_authority=SO,initial_schema=NS}) ->
-    check(D=/=S andalso D=/=T andalso S=/=T andalso DO=/=SO),
-    #{<<"database_domain">>=>counter(D),<<"schema_domain">>=>counter(S),<<"table_domain">>=>counter(T),<<"database">>=>counter(DO),<<"initial_schema_authority">>=>counter(SO),<<"initial_schema">>=>counter(NS)}.
+authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_domain=T,stream_domain=ST,queue_domain=Q,database=DO,initial_schema_authority=SO,initial_schema=NS}) ->
+    check(length(lists:usort([D,S,T,ST,Q]))=:=5 andalso DO=/=SO),
+    #{<<"database_domain">>=>counter(D),<<"schema_domain">>=>counter(S),<<"table_domain">>=>counter(T),<<"stream_domain">>=>counter(ST),<<"queue_domain">>=>counter(Q),<<"database">>=>counter(DO),<<"initial_schema_authority">>=>counter(SO),<<"initial_schema">>=>counter(NS)}.
 column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation) ->
     #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>collation(Collation)}.
 column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max,encoding=Encoding,collation=Collation}) ->
@@ -88,8 +88,8 @@ change({type,Column,Type,Max}) -> #{<<"type">>=>#{<<"column">>=>decimal(Column),
 parse_scope(V) ->
     fields(V,[<<"realm">>,<<"resource">>,<<"catalog">>]),#transit_catalog_scope{resource=#transit_resource{realm=counter(maps:get(<<"realm">>,V)),resource=counter(maps:get(<<"resource">>,V))},catalog=wide(maps:get(<<"catalog">>,V))}.
 parse_authority(V) ->
-    fields(V,[<<"database_domain">>,<<"schema_domain">>,<<"table_domain">>,<<"database">>,<<"initial_schema_authority">>,<<"initial_schema">>]),
-    A=#transit_catalog_authority{database_domain=counter(maps:get(<<"database_domain">>,V)),schema_domain=counter(maps:get(<<"schema_domain">>,V)),table_domain=counter(maps:get(<<"table_domain">>,V)),database=counter(maps:get(<<"database">>,V)),initial_schema_authority=counter(maps:get(<<"initial_schema_authority">>,V)),initial_schema=counter(maps:get(<<"initial_schema">>,V))},authority(A),A.
+    fields(V,[<<"database_domain">>,<<"schema_domain">>,<<"table_domain">>,<<"stream_domain">>,<<"queue_domain">>,<<"database">>,<<"initial_schema_authority">>,<<"initial_schema">>]),
+    A=#transit_catalog_authority{database_domain=counter(maps:get(<<"database_domain">>,V)),schema_domain=counter(maps:get(<<"schema_domain">>,V)),table_domain=counter(maps:get(<<"table_domain">>,V)),stream_domain=counter(maps:get(<<"stream_domain">>,V)),queue_domain=counter(maps:get(<<"queue_domain">>,V)),database=counter(maps:get(<<"database">>,V)),initial_schema_authority=counter(maps:get(<<"initial_schema_authority">>,V)),initial_schema=counter(maps:get(<<"initial_schema">>,V))},authority(A),A.
 parse_subject(V) ->
     fields(V,[<<"principal">>,<<"login_role">>,<<"role">>,<<"credential_epoch">>,<<"audience">>,<<"context">>]),
     #transit_catalog_subject{principal=zero(maps:get(<<"principal">>,V)),login_role=zero(maps:get(<<"login_role">>,V)),role=zero(maps:get(<<"role">>,V)),credential_epoch=counter(maps:get(<<"credential_epoch">>,V)),audience=counter(maps:get(<<"audience">>,V)),context=transit_station_value:digest(maps:get(<<"context">>,V))}.

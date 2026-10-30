@@ -52,15 +52,15 @@ public final class Catalog {
         JsonObject wire() { return obj("record_bytes", recordBytes, "staging_bytes", stagingBytes.toString(), "staging_records", stagingRecords); }
     }
     /** Stable IDs allocated through explicit native provisioning. */
-    public record AuthorityProfile(long databaseDomain, long schemaDomain, long tableDomain,
+    public record AuthorityProfile(long databaseDomain, long schemaDomain, long tableDomain, long streamDomain, long queueDomain,
         long database, long initialSchema, long initialSchemaAuthority) {
         public AuthorityProfile {
-            for (long value : new long[]{databaseDomain, schemaDomain, tableDomain, database, initialSchema, initialSchemaAuthority}) counter(value, 1);
-            if (databaseDomain == schemaDomain || databaseDomain == tableDomain || schemaDomain == tableDomain || database == initialSchemaAuthority)
+            for (long value : new long[]{databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, database, initialSchema, initialSchemaAuthority}) counter(value, 1);
+            if (java.util.stream.LongStream.of(databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain).distinct().count() != 5 || database == initialSchemaAuthority)
                 throw new IllegalArgumentException("Distinct native authorization bindings are required");
         }
         JsonObject wire() { return obj("database_domain", databaseDomain, "schema_domain", schemaDomain, "table_domain", tableDomain,
-            "database", database, "initial_schema", initialSchema, "initial_schema_authority", initialSchemaAuthority); }
+            "stream_domain", streamDomain, "queue_domain", queueDomain, "database", database, "initial_schema", initialSchema, "initial_schema_authority", initialSchemaAuthority); }
     }
     /** An observed authenticated subject; the observation grants no authority. */
     public record Subject(long principal, long loginRole, long role, long credentialEpoch, long audience, Bytes context) {

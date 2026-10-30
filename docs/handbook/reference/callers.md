@@ -27,6 +27,12 @@ remain explicit; this interface does not supply automatic recovery or a shared
 SQL session. Existing foreign-language Catalog APIs retain their current
 Station package entry points.
 
+Catalog descriptions carry five authorization domain identifiers: database,
+schema, table, stream and queue. Each must be a positive native counter, and all
+five must be distinct. The current definition requires all five domains; missing
+fields do not acquire defaults for an older profile. These observed bindings grant
+no access and do not enable unsupported Stream or Queue operations.
+
 The Zig SDK also exports `transit_query_direct` for finite retained-Table queries,
 relational sessions and history readers, and `transit_fuze.QueryValues` for pure
 neutral value/plan conversion. These modules do not depend on Station. Callers

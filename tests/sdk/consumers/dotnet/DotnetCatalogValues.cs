@@ -70,10 +70,20 @@ internal static class CatalogValues
         List<IReadOnlyList<C.Assignment>> rows = Enumerable.Repeat<IReadOnlyList<C.Assignment>>([new C.Assignment(1,large)],9).ToList(); rows.Add([new C.Assignment(1,invalid)]);
         Check(Reject<ArgumentException>(() => Wire(new C.Insert(rows))).Message == "Table wire budget exceeded");
         JsonArray context = new(); for (int i=0;i<32;i++) context.Add(1);
-        var description = Obj(("configuration",Obj(("scope",Wire(Scope())),("branch","1"),("partition",ulong.MaxValue.ToString()),("audience",3),("authority",Wire(new C.AuthorityProfile(10,11,12,20,1,21))),("database_name","ledger"),("initial_schema_name","public"))),
+        C.AuthorityProfile authority = new(10,11,12,13,14,20,1,21);
+        var description = Obj(("configuration",Obj(("scope",Wire(Scope())),("branch","1"),("partition",ulong.MaxValue.ToString()),("audience",3),("authority",Wire(authority)),("database_name","ledger"),("initial_schema_name","public"))),
             ("subject",Obj(("principal",17),("login_role",17),("role",17),("credential_epoch",1),("audience",3),("context",context))),("policy_revision",2));
         Invoke(typeof(C),"ValidateResponse",Obj(("catalog",Obj(("description",description)))));
         Check(((C.Description)Decode("ParseDescription",description,Connection(),17ul)!).Configuration.Partition == ulong.MaxValue);
+        Check(((C.Description)Decode("ParseDescription",description,Connection(),17ul)!).Configuration.Authority == authority);
+        foreach (string field in new[] {"stream_domain","queue_domain"}) {
+            var missing = description.DeepClone(); missing["configuration"]!["authority"]!.AsObject().Remove(field);
+            Reject<TransitException>(() => Invoke(typeof(C),"ValidateResponse",Obj(("catalog",Obj(("description",missing))))));
+            foreach (ulong value in new ulong[] {0,10,11,12,field == "stream_domain" ? 14ul : 13ul,9007199254740992}) {
+                var bad = description.DeepClone(); bad["configuration"]!["authority"]![field] = value;
+                Reject<TransitException>(() => Decode("ParseDescription",bad,Connection(),17ul));
+            }
+        }
         foreach (string field in new[] {"principal","audience","credential_epoch"}) {
             var bad = description.DeepClone(); bad["subject"]![field] = field == "credential_epoch" ? 0 : 18; Reject<TransitException>(() => Decode("ParseDescription",bad,Connection(),17ul));
         }
