@@ -148,10 +148,14 @@ test("complete definition editing and exact operator recovery", async ({ page, c
     { timeout: 15000 },
   );
   await expect(oldClient.locator(".transit-shell")).toHaveAttribute("data-density", "compact");
-  await expect(oldClient.getByRole("link", { name: "My atlas", exact: true })).toBeVisible();
   await expect(oldClient.getByRole("heading", { name: "Screen unavailable" })).toBeVisible();
-  await oldClient.getByRole("link", { name: "My atlas", exact: true }).click();
+  const applicationEntry = oldClient
+    .getByRole("navigation", { name: "Activities" })
+    .getByRole("link", { name: "Application", exact: true });
+  await expect(applicationEntry).toHaveAttribute("href", "/neighborhood");
+  await applicationEntry.click();
   await expect(oldClient).toHaveURL(/\/neighborhood$/);
+  await expect(oldClient.getByRole("link", { name: "My atlas", exact: true })).toBeVisible();
   await oldClient.reload();
   await expect(oldClient.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
   await oldClient.emulateMedia({ reducedMotion: "reduce" });
