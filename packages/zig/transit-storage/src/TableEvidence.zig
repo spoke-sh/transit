@@ -140,6 +140,16 @@ pub fn stage(objects: Objects.ObjectStore, record: Record) !pages.Value {
     return reference(address);
 }
 
+pub fn stageInTree(tree: *@import("TreeStore.zig"), record: Record) !pages.Value {
+    var buffer: [max_bytes]u8 = undefined;
+    const bytes = try encode(record, &buffer);
+    const address: d.Content = .{ .bytes = bytes.len, .sha256 = r.hash(bytes) };
+    var name: [96]u8 = undefined;
+    const stored = try tree.stageObject(try key(address, &name), bytes, address.sha256);
+    if (stored.size != address.bytes or !std.mem.eql(u8, &stored.sha256, &address.sha256)) return error.InvalidTableEvidence;
+    return reference(address);
+}
+
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: pages.Value) !Record {
     const address = try decodeReference(value);
     var name: [96]u8 = undefined;

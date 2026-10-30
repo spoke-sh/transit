@@ -278,17 +278,23 @@ the result and move that owner earlier; do not claim cache work closed the targe
 
 The bounded publication slice is implemented: native and direct index-page groups
 of up to eight objects share their two directory barriers, using `3n + 2`
-object-publication sync calls instead of `5n`, and commits `9cfe38b9c`,
-`00fca46d4`, and `4d0a98b6b` batch per-group allocation inventory persistence
+object-publication sync calls instead of `5n`, commits `9cfe38b9c`, `00fca46d4`,
+and `4d0a98b6b` batch per-group allocation inventory persistence
 (`DiskWal.appendFrames` + single `head.json` directory barrier), coalesce
 candidate B-tree page staging across trees (`TreeStore.Batch`), and trim
-duplicate per-statement validation and token lookups. The
+duplicate per-statement validation and token lookups, and commits `461a76332`,
+`ff8f404cc`, and `2d6ceaf0d` elide redundant direct-commit `Dml.stage` objects,
+coalesce auxiliary receipts/operations/segments/pins and operation bindings into
+`TreeStore` batches, eliminate duplicate per-key allocation inventory reads and
+directory reopens, and deduplicate unchanged `client_operations` and
+`client_pending` B-tree updates. The
 [qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
 records finite models, disk failures, retries and process-death schedules, and
-the [updated console and native gateway results](../history/qualification/performance.md#batched-allocation-inventory-cross-tree-index-staging-and-sql-validation-trimming--2026-10-30)
-record passing `test-sql-gateway` execution (104.20 s, 1,041 Table requests) and
-five-cycle persistent console medians (warm `SELECT` 36–40 ms, `INSERT` 175 ms,
-changed `UPDATE` 221 ms, unchanged `UPDATE` 174 ms, `DELETE` 194 ms). Reconstructible bookkeeping
+the [updated console and native gateway results](../history/qualification/performance.md#batched-auxiliary-staging-deduplicated-allocation-reads-and-client-token-index-deduplication--2026-10-30)
+record passing `test-sql-gateway` execution (28.17 s, 967 Table requests, down
+from 104.20 s at `4d0a98b6b`) and five-cycle persistent console medians (warm
+`SELECT` 38–41 ms, `INSERT` 148 ms, `SELECT` after `INSERT` 145 ms, changed
+`UPDATE` 206 ms, unchanged `UPDATE` 153 ms, `DELETE` 177 ms). Reconstructible bookkeeping
 (W5b), the account-wide token/commit envelope (W6), and the third delivery's
 end-to-end latency/recovery exit remain open.
 

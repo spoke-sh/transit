@@ -3,4 +3,5 @@ const Codec = @import("CatalogIntentCodec.zig").Codec(@import("DirectCatalogReco
 pub const Owned = Codec.Owned;
 pub const key = Codec.key;
 pub const stage = Codec.stage;
+pub const stageInTree = Codec.stageInTree;
 pub const load = Codec.load;

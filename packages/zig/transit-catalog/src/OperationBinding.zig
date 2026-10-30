@@ -97,8 +97,14 @@ fn lookupStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, oper
 pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: d.Binding) !void {
     return claimStored(allocator, objects, .{ .data = binding });
 }
+pub fn claimInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: d.Binding) !void {
+    return claimStoredInTree(allocator, index, .{ .data = binding });
+}
 pub fn claimExternal(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectIntent.External) !void {
     return claimStored(allocator, objects, .{ .external = binding });
+}
+pub fn claimExternalInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: c.DirectIntent.External) !void {
+    return claimStoredInTree(allocator, index, .{ .external = binding });
 }
 pub fn claimStream(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectStreamMutation.Binding) !void {
     return claimStored(allocator, objects, .{ .stream = binding });
@@ -126,6 +132,9 @@ pub fn claimTransactionStatement(allocator: std.mem.Allocator, objects: Objects.
 pub fn claimTransactionCall(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionCall) !void {
     return claimStored(allocator, objects, .{ .transaction_call = request });
 }
+pub fn claimTransactionCallInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, request: c.DirectTransactionCall) !void {
+    return claimStoredInTree(allocator, index, .{ .transaction_call = request });
+}
 pub fn claimTransactionSavepoint(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionSavepoint.Request) !void {
     return claimStored(allocator, objects, .{ .transaction_savepoint = request });
 }
@@ -134,6 +143,9 @@ pub fn claimTransactionAttempt(allocator: std.mem.Allocator, objects: Objects.Ob
 }
 pub fn claimTransaction(allocator: std.mem.Allocator, objects: Objects.ObjectStore, reference: c.DirectTransaction.Reference, token: [32]u8) !void {
     return claimStored(allocator, objects, .{ .transaction = .{ .reference = reference, .token = token } });
+}
+pub fn claimTransactionInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, reference: c.DirectTransaction.Reference, token: [32]u8) !void {
+    return claimStoredInTree(allocator, index, .{ .transaction = .{ .reference = reference, .token = token } });
 }
 pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?d.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
@@ -145,6 +157,9 @@ pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operat
 pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
     return claimStored(allocator, objects, .{ .name_assertion = binding });
 }
+pub fn claimAssertionInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: c.NameAssertion.Binding) !void {
+    return claimStoredInTree(allocator, index, .{ .name_assertion = binding });
+}
 pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.NameAssertion.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
@@ -154,6 +169,9 @@ pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStor
 }
 pub fn claimNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectNamespace.Binding) !void {
     return claimStored(allocator, objects, .{ .namespace = binding });
+}
+pub fn claimNamespaceInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: c.DirectNamespace.Binding) !void {
+    return claimStoredInTree(allocator, index, .{ .namespace = binding });
 }
 pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.DirectNamespace.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
@@ -165,6 +183,9 @@ pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStor
 pub fn claimDependency(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectDependency.Binding) !void {
     return claimStored(allocator, objects, .{ .dependency = binding });
 }
+pub fn claimDependencyInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: c.DirectDependency.Binding) !void {
+    return claimStoredInTree(allocator, index, .{ .dependency = binding });
+}
 pub fn lookupDependency(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.DirectDependency.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
@@ -174,6 +195,9 @@ pub fn lookupDependency(allocator: std.mem.Allocator, objects: Objects.ObjectSto
 }
 pub fn claimResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectResource.Binding) !void {
     return claimStored(allocator, objects, .{ .resource = binding });
+}
+pub fn claimResourceInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: c.DirectResource.Binding) !void {
+    return claimStoredInTree(allocator, index, .{ .resource = binding });
 }
 pub fn lookupResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?c.DirectResource.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
@@ -198,6 +222,25 @@ fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, bindi
         try previous.requireSame(binding);
         return;
     };
+    if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &digest)) return error.InvalidOperationBinding;
+}
+fn claimStoredInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, binding: Stored) !void {
+    try binding.validate();
+    var bytes: [max_bytes]u8 = undefined;
+    bytes[0..8].* = "TOPBIND1".*;
+    bytes[8..40].* = p.Growth.definition_bytes;
+    var writer: std.Io.Writer = .fixed(bytes[header_bytes..]);
+    try std.json.Stringify.value(binding, .{}, &writer);
+    const encoded = bytes[0 .. header_bytes + writer.end];
+    const digest = hash(encoded);
+    var name: [96]u8 = undefined;
+    const object_key = try key(binding.identity(), &name);
+    if (try index.store.head(object_key)) |existing| {
+        const previous = try lookupStored(allocator, index.store, binding.identity()) orelse return error.InvalidOperationBinding;
+        try previous.requireSame(binding);
+        if (existing.size != encoded.len or !std.mem.eql(u8, &existing.sha256, &digest)) return error.InvalidOperationBinding;
+    }
+    const accepted = try index.stageObject(object_key, encoded, digest);
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &digest)) return error.InvalidOperationBinding;
 }
 

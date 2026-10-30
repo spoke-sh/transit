@@ -9,6 +9,76 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Batched auxiliary staging, deduplicated allocation reads, and client-token index deduplication — 2026-10-30
+
+Building on `54e176fd0` (`f9a46d2a3`), commits `461a76332`, `ff8f404cc`, and
+`2d6ceaf0d` eliminate redundant object staging, duplicate allocation inventory
+reads, and unchanged client-token B-tree index rewrites across the storage,
+local backend, and catalog layers:
+
+- **Direct-commit `Dml.stage` elision and batched auxiliary object staging (`461a76332`):**
+  [`TableDmlIntent`](../../../packages/zig/transit-storage/src/TableDmlIntent.zig)
+  exposes `expectedContentWithSchema` so [`TablePartition.commit`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+  computes the deterministic `"TDMLREQ1"` digest against the resident
+  `self.declaration.schema.schema` without staging an unreferenced
+  `table-intents/<sha>.data` object on committed direct DML (while preserving
+  `Dml.stage` on rejection paths before `writeOperation`).
+  [`TreeStore`](../../../packages/zig/transit-storage/src/TreeStore.zig)
+  generalizes `TreeStore.Batch` via `stageObject` to coalesce auxiliary
+  immutable objects (`TableEvidence` receipts and operations, `TableSnapshot`
+  pins, and `.tseg` segments `<= 24,616` bytes) into the same
+  `putImmutableBatch` group as candidate B-tree pages.
+- **Deduplicated allocation inventory reads and directory syncs (`ff8f404cc`):**
+  [`DiskWal`](../../../packages/zig/transit-storage/src/DiskWal.zig) syncs
+  `self.dir.handle` directly instead of reopening `"."` on every directory
+  barrier and tracks `has_metadata` per partition state so `appendFrames` does
+  not reopen, stat, read, and hash `part-N.meta` on every append after metadata
+  creation.
+  [`DataAllocations`](../../../packages/zig/transit-backend-local/src/DataAllocations.zig),
+  [`NativeAllocations`](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig),
+  and [`Backend`](../../../packages/zig/transit-backend-local/src/Backend.zig)
+  pass already-loaded `previous`/`existing` allocation records into
+  `recordTrackedWithPrevious` / `recordBatchTrackedWithPrevious` and
+  `recordTrackedWithExisting` / `recordBatchTrackedWithExisting`, eliminating
+  the second per-key disk read and SHA-256 verification under the inventory lock.
+- **Client-token B-tree deduplication and batched operation bindings (`2d6ceaf0d`):**
+  [`DirectCatalogStore`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig)
+  stores the immutable 32-byte `key.digest()` in `client_operations` and
+  `client_pending` (resolved through `client_tokens` on `clientOperation` and
+  `clientPage`), so `clientIndices` never rewrites `client_operations` on
+  progress updates (`prior != null`) and only updates `client_pending` when
+  `prior.?.pending != state.pending`.
+  [`OperationBinding`](../../../packages/zig/transit-catalog/src/OperationBinding.zig)
+  and [`CatalogIntentCodec`](../../../packages/zig/transit-catalog/src/CatalogIntentCodec.zig)
+  add `claim*InTree` and `stageInTree` so [`DirectCatalog`](../../../packages/zig/transit-catalog/src/DirectCatalog.zig)
+  flushes control-plane operation bindings and DDL intents in the same
+  `TreeStore` batch as catalog B-tree pages.
+
+At `2d6ceaf0d`:
+
+- `just test::storage-io-faults` passes **11/11**.
+- `zig build test-sql-gateway -Doptimize=ReleaseSafe` passes completely in
+  **28.17 seconds** (down from **104.20 seconds** at `4d0a98b6b` and `>300 s`
+  before `9cfe38b9c`, a **3.7×** additional speedup and **>10.6×** cumulative
+  speedup) with **967** Table requests (`exact_token_recovery: true`).
+- `python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host --statements --repeat 5 --resources`
+  and `--statements --repeat 1 --warm-reads 50` pass all statements on the
+  shared Linux x86_64 host (`ReleaseSafe`, pinned Zig
+  `0.17.0-dev.2267+48abf1a34`):
+
+| Statement | Samples | Min (ms) | Median p50 (ms) | Max (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Warm empty `SELECT` (`--warm-reads 50`) | 50 | 33.0 | 38.0 | 49.0 |
+| Warm one-row `SELECT` (`--warm-reads 50`) | 50 | 30.0 | 38.0 | 63.0 |
+| Warm `SELECT` (`--repeat 5 --resources`) | 6 | 40.0 | 41.0 | 56.0 |
+| `INSERT` | 5 | 143.0 | 148.0 | 164.0 |
+| `SELECT` after `INSERT` | 5 | 128.0 | 145.0 | 150.0 |
+| Changed `UPDATE` | 5 | 162.0 | 206.0 | 212.0 |
+| Unchanged `UPDATE` | 5 | 152.0 | 153.0 | 174.0 |
+| `SELECT` after `UPDATE` | 5 | 150.0 | 176.0 | 192.0 |
+| `DELETE` | 5 | 162.0 | 177.0 | 183.0 |
+| `SELECT` after `DELETE` | 5 | 177.0 | 212.0 | 214.0 |
+
 ## Batched allocation inventory, cross-tree index staging, and SQL validation trimming — 2026-10-30
 
 Commits `9cfe38b9c`, `00fca46d4`, and `4d0a98b6b` (on `main` `54e176fd0`) reduce

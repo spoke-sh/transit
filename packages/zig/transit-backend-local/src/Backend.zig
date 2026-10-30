@@ -241,15 +241,16 @@ fn prepareDataBatch(
     {
         try self.data_inventory.lock(self.io);
         defer self.data_inventory.unlock(self.io);
-        for (allocations[0..count]) |allocation| {
-            const previous = try self.data_allocations.latest(allocation.name());
-            if (previous == null or previous.?.epoch < epoch) {
+        var previous: [Objects.max_put_batch]?DataAllocations.Allocation = undefined;
+        for (allocations[0..count], previous[0..count]) |allocation, *prior| {
+            prior.* = try self.data_allocations.latest(allocation.name());
+            if (prior.* == null or prior.*.?.epoch < epoch) {
                 try self.mutex.lock(self.io);
                 defer self.mutex.unlock(self.io);
                 try self.reserve(DataAllocations.record_bytes + storage.TransitLog.alignedFrameSize(DataAllocations.queue_record_bytes) + 1024, control);
             }
         }
-        try self.data_allocations.recordBatchTracked(allocations[0..count], source);
+        try self.data_allocations.recordBatchTrackedWithPrevious(allocations[0..count], previous[0..count], source);
     }
     return count;
 }
@@ -297,7 +298,7 @@ fn prepareDataPut(self: *Self, item: storage.TransitObjectStore.ImmutablePut, co
         }
         // Persist a new epoch even for deduplicated content. The old allocation
         // cannot authorize deletion after this key is reused by newer work.
-        _ = try self.data_allocations.recordTracked(allocation, source);
+        _ = try self.data_allocations.recordTrackedWithPrevious(allocation, previous, source);
     }
     return allocation;
 }
@@ -360,25 +361,25 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
 fn prepareNativeBatch(self: *Self, allocations: []const Allocations.Allocation, control: bool, source: bool) !void {
     try self.native_inventory.lock(self.io);
     defer self.native_inventory.unlock(self.io);
-    var missing: [storage.TransitObjectStore.max_put_batch]bool = undefined;
+    var existing: [storage.TransitObjectStore.max_put_batch]?Allocations.Allocation = undefined;
     for (allocations, 0..) |allocation, i| {
-        missing[i] = try self.allocations.read(allocation.name()) == null;
+        existing[i] = try self.allocations.read(allocation.name());
     }
     {
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
-        for (allocations, missing[0..allocations.len]) |allocation, is_missing| {
+        for (allocations, existing[0..allocations.len]) |allocation, known| {
             // A storage-fence candidate stages in the next epoch before acceptance.
             if (allocation.epoch < current_epoch or allocation.epoch - current_epoch > 1) return error.StaleStorageEpoch;
-            if (is_missing) {
+            if (known == null) {
                 const size: usize = @intCast(allocation.meta.size);
                 const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
                 try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
             }
         }
     }
-    try self.allocations.recordBatchTracked(allocations, source);
+    try self.allocations.recordBatchTrackedWithExisting(allocations, existing[0..allocations.len], source);
 }
 
 fn prepareNativePut(self: *Self, allocation: Allocations.Allocation, size: usize, control: bool, source: bool) !void {
@@ -386,19 +387,19 @@ fn prepareNativePut(self: *Self, allocation: Allocations.Allocation, size: usize
     {
         try self.native_inventory.lock(self.io);
         defer self.native_inventory.unlock(self.io);
-        const missing = try self.allocations.read(allocation.name()) == null;
+        const existing = try self.allocations.read(allocation.name());
         {
             try self.mutex.lock(self.io);
             defer self.mutex.unlock(self.io);
             const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
             // A storage-fence candidate stages in the next epoch before acceptance.
             if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
-            if (missing) {
+            if (existing == null) {
                 const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
                 try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
             }
         }
-        _ = try self.allocations.recordTracked(allocation, source);
+        _ = try self.allocations.recordTrackedWithExisting(allocation, existing, source);
     }
 }
 
