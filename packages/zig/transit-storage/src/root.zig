@@ -16,6 +16,7 @@ pub const LogTail = @import("LogTail.zig");
 pub const LogDeclaration = @import("LogDeclaration.zig");
 pub const PublicationGuard = @import("PublicationGuard.zig");
 pub const LogInitialization = @import("LogInitialization.zig");
+pub const LogBatch = @import("LogBatch.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");
 pub const TableDeclaration = @import("TableDeclaration.zig");
@@ -52,6 +53,7 @@ test {
     _ = @import("log_tail_test.zig");
     _ = @import("log_declaration_test.zig");
     _ = @import("log_initialization_test.zig");
+    _ = @import("log_batch_test.zig");
     _ = @import("ordered_key_index_test.zig");
     _ = @import("document_index_test.zig");
     _ = @import("table_partition_test.zig");

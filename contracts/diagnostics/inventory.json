@@ -27953,6 +27953,43 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/LogBatch.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogBatch": 7,
+        "InvalidLogRowMetadata": 2,
+        "LogAppendLimitExceeded": 1,
+        "LogBatchKindConflict": 1,
+        "LogBatchTooLarge": 1,
+        "LogPartitionConflict": 1,
+        "LogPartitionKeyMismatch": 1,
+        "LogPayloadConflict": 1,
+        "LogRowIdentityConflict": 1,
+        "StreamCompactionNotDeclared": 1,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "EncodedRow.decode()": "<inferred>",
+        "Iterator.init()": "<inferred>",
+        "Iterator.next()": "<inferred>",
+        "encode()": "<inferred>",
+        "identity()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 0
+      },
+      "imports": [
+        "LogDeclaration.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LogDeclaration.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -29395,6 +29432,7 @@
         "DocumentIndex.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
+        "LogBatch.zig",
         "LogDeclaration.zig",
         "LogInitialization.zig",
         "LogTail.zig",

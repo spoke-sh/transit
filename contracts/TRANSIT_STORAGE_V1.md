@@ -1314,3 +1314,29 @@ evidence. The genesis must remain reachable until an executable checkpoint/
 retention owner preserves equivalent evidence; trimmed history rejects instead
 of establishing initialization by inference. Catalog publication and native
 authorization registration remain separate owning operations.
+
+### Declared log payload batches
+
+`LOGBAT01` payloads begin with that eight-byte magic, the 32-byte shared
+definition, the 32-byte schema layout fingerprint, kind (`u8`: one for Stream,
+two for Queue), and nonzero row count (`u32`, big-endian). Each row contains its
+encoded length (`u32`, big-endian), visibility time (`u64`, big-endian), tombstone
+flag (`u8`, zero or one), and canonical `FTR1` bytes. The row's internal codec
+identity is `(principal + 1, original operation, zero-based batch ordinal)`;
+neither its origin nor ordinal is a physical WAL LSN or allocated Stream offset.
+The whole batch is the append request's payload commitment.
+
+Stream rows have zero visibility time; a tombstone requires declared key
+compaction. Queue rows may have delayed visibility and cannot carry stream
+tombstones. The declaration's row/byte limits apply to each append. Every routing
+key is encoded with the shared logical type and declared collation's canonical
+sort-key codec before applying the declared partition hash. A row routed to a
+different partition refuses the entire candidate batch.
+
+Validation uses a caller-owned reusable row scratch arena; no row can escape
+after that arena is reset. Iteration borrows the complete immutable batch, while
+decoding into a separate retained allocator detaches values from it. Consumers
+must preserve the batch borrow until decode finishes. Exhaustion verifies the
+declared count and exact byte end; truncated rows, extra bytes, foreign schema
+layouts and different original row identities reject. These codec checks do not
+establish durable append acceptance or complete Stream read coverage.

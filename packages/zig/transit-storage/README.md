@@ -36,6 +36,14 @@ retain the original evidence. Missing or trimmed initialization blocks observati
 until a qualified recovery owner provides retained evidence. These foundations
 do not publish catalog names or expose append/claim APIs.
 
+`LogBatch` encodes bounded schema-bound rows with original operation identities,
+queue visibility times and explicit stream tombstones. Validation binds the
+complete payload to its immutable declaration and checks collation-aware routing
+for every row. A reusable scratch arena is reset between rows; decoded retained
+output uses a separate allocator. Its iterator borrows encoded bytes until the
+caller decodes them, and rejects trailing or truncated data before claiming
+completion. Batch validation provides no append acceptance or read authority.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
