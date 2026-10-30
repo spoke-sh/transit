@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "contracts": {
+    "published_resource": "transit.catalog.published-resource.v1",
+    "investigation_basis": "transit.catalog.investigation-basis.v1",
+    "attribution_receipt": "transit.catalog.attribution-receipt.v1"
+  },
+  "acceptance_scenarios": [
+    {
+      "id": "S1_headless_published_resource_pbr1",
+      "resource_object": 500,
+      "publication_revision": 1,
+      "canonical_name": "regional_delivery_assessment_without_any_21_byte_station_kv_cap",
+      "requires_screens": false,
+      "requires_themes": false,
+      "tzdb_version": "tzdb_2026a",
+      "definition_digest_hex": "a59664bcbd190ef6d473bc8da3727a91eb01c2b67542a84a7f0bcfec92516700"
+    },
+    {
+      "id": "S2_multi_actor_5_queries_and_report_on_one_basis",
+      "actors": [
+        {
+          "principal": 100,
+          "role": "employee_analyst",
+          "audience": "full_resource_and_drilldown"
+        },
+        {
+          "principal": 201,
+          "role": "agent_triage",
+          "audience": "summary_or_report_only"
+        },
+        {
+          "principal": 202,
+          "role": "agent_deep_dive",
+          "audience": "full_resource_and_drilldown"
+        }
+      ],
+      "investigation_id": 999,
+      "basis_revision": 1,
+      "basis_digest_hex": "f3825d34ded740da3f5d16cec521ec5cf141037cd54887ffdfcfad79fe40ba45",
+      "related_queries": 5,
+      "report_id": "joint_delivery_investigation_report",
+      "consistent_basis_retained": true
+    },
+    {
+      "id": "S3_explicit_successor_refresh_preserves_prior_attribution",
+      "investigation_id": 999,
+      "parent_basis_revision": 1,
+      "parent_basis_digest_hex": "f3825d34ded740da3f5d16cec521ec5cf141037cd54887ffdfcfad79fe40ba45",
+      "successor_basis_revision": 2,
+      "successor_basis_digest_hex": "e170a1c389f8520ef15aa4b9807937bb63ed47627cccfcdcd430c6b89ad68b2f",
+      "prior_report_reattachment_to_v2": "error.AttributionBasisMismatch"
+    },
+    {
+      "id": "S4_multi_source_vector_never_claims_global_atomicity",
+      "atomic_domain_cut_globally_atomic": true,
+      "multi_source_vector_globally_atomic": false,
+      "require_global_atomicity_on_vector": "error.NonAtomicBasisVector"
+    },
+    {
+      "id": "S5_schema_evolution_deletion_missing_capture_and_expiry",
+      "schema_evolution_projected": true,
+      "deleted_source_outcome": "error.InvestigationSourceDeleted",
+      "missing_external_capture_outcome": "error.MissingExternalCapture",
+      "expired_pin_or_reclaimed_history_outcome": "error.InvestigationBasisExpired"
+    },
+    {
+      "id": "S6_report_only_parameter_k_anonymity_and_drilldown_bounds",
+      "out_of_domain_parameter": "error.ParameterDomainViolation",
+      "injected_filter_pushdown": "error.UnexposedFilterPushdownRejected",
+      "small_group_below_k_anonymity_5": "missing",
+      "restricted_type_error_cell_scrubbed": "missing",
+      "raw_row_drilldown_by_report_only": "error.DisclosureBoundaryViolation"
+    },
+    {
+      "id": "S7_service_credential_non_amplification",
+      "service_transport_admin_rights": true,
+      "caller_lacks_source_rights": "error.ServiceCredentialAmplificationForbidden"
+    },
+    {
+      "id": "S8_mid_stream_revocation_and_publication_withdrawal",
+      "page_1_epoch_10": "disclosed",
+      "page_2_revoked_epoch_11": "error.AuthorizationRevokedMidStream",
+      "withdrawn_resource_outcome": "error.PublishedResourceWithdrawn",
+      "interrupted_completeness": "interrupted_prefix"
+    },
+    {
+      "id": "S9_cross_audience_cache_isolation",
+      "employee_audience_hash": "91b93a773f481dda8c477b6355371504a24b48de62327a7c72b950a0afbb9c09",
+      "agent_triage_audience_hash": "7cab763e205e38090441b779da770ed4a1304941065749f4e302c5554bfdab40",
+      "cross_audience_cache_reuse_permitted": false
+    },
+    {
+      "id": "S10_four_clock_freshness_and_non_oracle_narratives",
+      "clocks": [
+        "source_observation_cut_ms",
+        "domain_event_valid_time_ms",
+        "computation_completion_cut_ms",
+        "requested_freshness_sla_ms"
+      ],
+      "statuses": [
+        "fresh",
+        "stale_within_tolerance",
+        "stale_exceeded",
+        "unknown_freshness",
+        "source_conflict"
+      ],
+      "provenance_establishes_truth": false,
+      "claim_truth_inflation_outcome": "error.ProvenanceCannotClaimObjectiveTruth"
+    },
+    {
+      "id": "S11_cross_surface_parity_five_states_and_wide_numerics",
+      "surfaces": [
+        "sql_console",
+        "shared_sdk_client",
+        "board_workbook",
+        "mcp_resource_and_app"
+      ],
+      "cell_states": [
+        "value",
+        "null",
+        "missing",
+        "type_error",
+        "conflict"
+      ],
+      "wide_numerics": [
+        "int64_max",
+        "uint64_max",
+        "decimal128"
+      ],
+      "completeness_states": [
+        "complete",
+        "window_truncated",
+        "interrupted_prefix",
+        "budget_exceeded"
+      ]
+    },
+    {
+      "id": "S12_bounded_memory_and_deterministic_cleanup",
+      "steady_state_heap_allocations": 0,
+      "active_readers_after_close": 0,
+      "active_pin_leases_after_close": 0
+    }
+  ]
+}

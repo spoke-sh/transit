@@ -157,3 +157,17 @@ remain independent; callers use BEGIN for a common multi-Table cut.
 The service owns SQL controls and attachment in [SQL sessions](SQL_SESSION_V1.md).
 External effect completion and unsupported participant kinds remain separate
 from Table transaction decisions.
+
+## Published business resource and investigation attribution
+
+When a `ResultSet` is produced by evaluating a published business resource
+([`PUBLISHED_RESOURCE_V1`](PUBLISHED_RESOURCE_V1.md)) or a statement bound to a
+retained investigation basis ([`INVESTIGATION_V1`](INVESTIGATION_V1.md)), it
+uses the same `ResultSet`, `Batch`, `Window`, `Progress`, five-state cell tags,
+and lossless wide integer/decimal codecs without introducing a second result
+protocol. `Observation.PublishedResourceObservation` binds the result stream to
+`resource_object`, `publication_revision`, `definition_digest`,
+`disclosure_mode`, `audience_policy_hash`, `verified_policy_epoch`,
+`investigation_id`, `basis_revision`, `basis_digest`, `is_globally_atomic`, and
+`attribution_receipt_digest`, re-verifying disclosure and withdrawal status
+before each batch is released.

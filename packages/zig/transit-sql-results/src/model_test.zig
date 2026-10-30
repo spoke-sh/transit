@@ -83,3 +83,23 @@ test "bounded logical copies own nested scratch-backed values" {
     @memset(&scratch, 'x');
     try t.expectEqualStrings("hello", copied[0].value.structure[0].value.atom.bytes);
 }
+test "published resource observation binds attribution and halts mid-stream on withdrawal or revocation" {
+    const pub_obs: r.Observation.PublishedResourceObservation = .{
+        .resource_object = 500,
+        .definition_id = 9001,
+        .publication_revision = 1,
+        .definition_digest = @splat(0x11),
+        .disclosure_mode = .derived_publication,
+        .audience_policy_hash = @splat(0x22),
+        .verified_policy_epoch = 5,
+        .investigation_id = 700,
+        .basis_revision = 1,
+        .is_globally_atomic = false,
+        .basis_digest = @splat(0x33),
+        .attribution_receipt_digest = @splat(0x44),
+    };
+    try pub_obs.validate();
+    try pub_obs.validateBatchDisclosure(5, false, false);
+    try t.expectError(error.PublishedResourceWithdrawn, pub_obs.validateBatchDisclosure(6, true, false));
+    try t.expectError(error.AuthorizationRevokedMidStream, pub_obs.validateBatchDisclosure(6, false, true));
+}

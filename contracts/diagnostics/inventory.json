@@ -3178,6 +3178,60 @@
         "transit_station"
       ]
     },
+    "packages/zig/transit-catalog/src/Attribution.zig": {
+      "errors": {
+        "AttributionBasisMismatch": 2,
+        "InvalidAttributionReceipt": 1,
+        "InvalidAttributionReceiptDigest": 1,
+        "InvalidFourClockFreshness": 1,
+        "InvalidNarrativeClaim": 1,
+        "InvalidReportArtifact": 1,
+        "NarrativeClaimCitesUnknownReceipt": 1,
+        "NarrativeClaimRequiresAssumptionTags": 1,
+        "NarrativeClaimRequiresEvidenceCitations": 1,
+        "ProvenanceCannotClaimObjectiveTruth": 1,
+        "TooManyReportSections": 1
+      },
+      "outcomes": {
+        "AssumptionTag": [
+          "model_inference",
+          "extrapolation",
+          "external_unverified_claim",
+          "human_annotation"
+        ],
+        "CompletenessState": [
+          "complete",
+          "window_truncated",
+          "interrupted_prefix",
+          "budget_exceeded"
+        ],
+        "FreshnessStatus": [
+          "fresh",
+          "stale_within_tolerance",
+          "stale_exceeded",
+          "unknown_freshness",
+          "source_conflict"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "AttributionReceipt.receiptDigest()": "<inferred>",
+        "AttributionReceipt.validate()": "<inferred>",
+        "AttributionReceipt.verifyMatchesBasis()": "<inferred>",
+        "FourClockFreshness.evaluate()": "<inferred>",
+        "NarrativeClaim.validate()": "<inferred>",
+        "ReportArtifact.validateConsistentBasis()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/AuthorizationLowering.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -5996,6 +6050,66 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DisclosurePolicy.zig": {
+      "errors": {
+        "DelegatedResourceNotPermitted": 1,
+        "DelegationExpiredOrRevoked": 1,
+        "DerivedPublicationRequiresAttestation": 2,
+        "DerivedPublicationRequiresFilterBoundary": 1,
+        "DisclosureBoundaryViolation": 1,
+        "DrilldownActionNotWhitelisted": 1,
+        "DrilldownTargetIdentityMismatch": 1,
+        "InvalidDelegationPrincipal": 1,
+        "InvalidDisclosureRowArity": 1,
+        "InvalidMinimumGroupCardinality": 1,
+        "PublishedCopyIdentityMismatch": 1,
+        "PublishedCopyRetired": 1,
+        "PublishedResourceNotPublished": 1,
+        "PublishedResourceWithdrawn": 1,
+        "PublisherAttestationDigestMismatch": 1,
+        "PublisherAttestationEpochMismatch": 1,
+        "PublisherAttestationIdentityMismatch": 1,
+        "PublisherAttestationInvalid": 2,
+        "PublisherLacksPublishAuthority": 1,
+        "ResourceConsumePermissionDenied": 1,
+        "RetainedSnapshotRequiresCopyArtifact": 2,
+        "RowSelectPermissionDenied": 2,
+        "ServiceCredentialAmplificationForbidden": 3,
+        "StalePolicyEpoch": 2,
+        "UnexposedFilterPushdownRejected": 1
+      },
+      "outcomes": {
+        "ConsumerAudienceKind": [
+          "full_resource_and_drilldown",
+          "summary_or_report_only"
+        ],
+        "DisclosureMode": [
+          "caller_source_rights",
+          "derived_publication",
+          "retained_published_snapshot"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "CallerAccessContext.effectiveAudienceHash()": "<inferred>",
+        "CallerAccessContext.resolveAudienceKind()": "<inferred>",
+        "DisclosureBoundary.validate()": "<inferred>",
+        "DisclosurePolicy.validate()": "<inferred>",
+        "PublicationAttestation.validateAgainst()": "<inferred>",
+        "applyDisclosureRowFilter()": "<inferred>",
+        "authorizeDrilldown()": "<inferred>",
+        "authorizeEvaluation()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DocumentAuthority.zig": {
       "errors": {
         "InvalidCatalogIdentity": 3
@@ -6162,6 +6276,78 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/InvestigationBasis.zig": {
+      "errors": {
+        "AtomicDomainCutLsnMismatch": 1,
+        "AtomicDomainCutRequiresPinLeases": 1,
+        "DependencyMissingFromInvestigationBasis": 1,
+        "DuplicateSourceInBasisVector": 1,
+        "IncompatibleBasisKindOnRefresh": 5,
+        "IncompatibleInvestigationSchemaEvolution": 1,
+        "InvalidAtomicDomainCut": 1,
+        "InvalidCapturedExchangeDigest": 1,
+        "InvalidCapturedExchangePin": 1,
+        "InvalidForeignSourceDigest": 1,
+        "InvalidForeignSourcePin": 1,
+        "InvalidInvestigationIdentity": 1,
+        "InvalidInvestigationPinLease": 1,
+        "InvalidInvestigationPinLeaseWindow": 1,
+        "InvalidInvestigationRevisionLineage": 3,
+        "InvalidMultiSourceBasisVectorLength": 1,
+        "InvalidNativeSourceCut": 1,
+        "InvestigationBasisClosed": 2,
+        "InvestigationBasisExpired": 5,
+        "InvestigationSourceDeleted": 2,
+        "InvestigationSourceNotFound": 1,
+        "MissingExternalCapture": 2,
+        "NonAtomicBasisVector": 1,
+        "PinLeaseSourceMismatch": 1
+      },
+      "outcomes": {
+        "BasisKind": [
+          "atomic_domain_cut",
+          "multi_source_basis_vector"
+        ],
+        "BasisPayload": [
+          "atomic_domain_cut",
+          "multi_source_basis_vector"
+        ],
+        "InvestigationState": [
+          "active",
+          "refreshed",
+          "closed",
+          "expired"
+        ],
+        "SourceBasisEntry": [
+          "native_source",
+          "captured_exchange",
+          "foreign_source"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "AtomicDomainCut.validate()": "<inferred>",
+        "CapturedExchangePin.validate()": "<inferred>",
+        "ForeignSourcePin.validate()": "<inferred>",
+        "InvestigationBasis.basisDigest()": "<inferred>",
+        "InvestigationBasis.refreshSuccessor()": "<inferred>",
+        "InvestigationBasis.requireGlobalAtomicity()": "<inferred>",
+        "InvestigationBasis.validate()": "<inferred>",
+        "InvestigationBasis.verifyForResourceEvaluation()": "<inferred>",
+        "NativeSourceCut.validate()": "<inferred>",
+        "PinLease.validate()": "<inferred>",
+        "SourceBasisEntry.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/LogAuthority.zig": {
       "errors": {
         "InvalidCatalogIdentity": 2
@@ -6308,6 +6494,166 @@
       "propagation": {
         "try": 21,
         "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/PublishedProjection.zig": {
+      "errors": {
+        "AuthorizationRevokedMidStream": 1,
+        "CrossAudienceStreamContinuationForbidden": 1,
+        "CrossAudienceTicketReuseForbidden": 1,
+        "DelegationExpiredOrRevoked": 1,
+        "DiscoveryBufferTooSmall": 1,
+        "InvalidBatchRowLimit": 1,
+        "InvalidDiscoveryLimit": 1,
+        "PublishedResourceWithdrawn": 1,
+        "ReaderAlreadyClosed": 1,
+        "ResourceConsumePermissionDenied": 1,
+        "ResourceWorkBoundExceeded": 1,
+        "RowSelectPermissionDenied": 1,
+        "SearchQueryTooLong": 1,
+        "StalePolicyEpoch": 1,
+        "SteadyStateHeapAllocationDetected": 1,
+        "UnreleasedInvestigationOrReaderResources": 1
+      },
+      "outcomes": {
+        "ProjectedInterfaceKind": [
+          "sql_console",
+          "shared_sdk_client",
+          "openapi_serving",
+          "board_workbook",
+          "mcp_resource_and_app"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "AllocationProbe.assertCleanRelease()": "<inferred>",
+        "AllocationProbe.assertZeroSteadyStateHeapAllocations()": "<inferred>",
+        "DiscoveryRequest.validate()": "<inferred>",
+        "FlightResourceTicket.verifyForBatch()": "<inferred>",
+        "PublishedResourceStreamReader.close()": "<inferred>",
+        "PublishedResourceStreamReader.fetchNextBatch()": "<inferred>",
+        "PublishedResourceStreamReader.open()": "<inferred>",
+        "discoverPublishedResources()": "<inferred>",
+        "projectResourceSurface()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/PublishedResource.zig": {
+      "errors": {
+        "DuplicateParameterBinding": 1,
+        "InvalidChartSpec": 1,
+        "InvalidDrilldownParameterMapping": 1,
+        "InvalidDrilldownSpec": 1,
+        "InvalidFreshnessRequirement": 1,
+        "InvalidIso4217CurrencyCode": 1,
+        "InvalidMcpUiTemplateUri": 1,
+        "InvalidParameterDomainEnum": 2,
+        "InvalidParameterDomainRange": 4,
+        "InvalidParameterName": 1,
+        "InvalidParameterOrdinal": 1,
+        "InvalidPublishedResourceDependency": 1,
+        "InvalidPublishedResourceIdentity": 2,
+        "InvalidPublishedResourceName": 1,
+        "InvalidPublishedResourceRevisionLineage": 3,
+        "InvalidQuestionPromptTemplate": 1,
+        "InvalidQuestionTemplateId": 1,
+        "InvalidReportLayoutSpec": 1,
+        "InvalidResourceWorkBound": 1,
+        "InvalidSemanticUnitText": 1,
+        "InvalidSpatialLayerSpec": 1,
+        "InvalidSpatialSridUnit": 1,
+        "MissingPublishedResourceBackingPlan": 1,
+        "MissingPublishedResourceBusinessMeaning": 1,
+        "MissingPublishedResourceDependencies": 1,
+        "MissingRequiredParameter": 1,
+        "NonContiguousParameterOrdinals": 1,
+        "NonValueParameterCellRejected": 1,
+        "ParameterDomainViolation": 5,
+        "ParameterMustBeScalarValue": 1,
+        "ParameterTypeMismatch": 5,
+        "PublishedResourceSchemaIdentityMismatch": 1,
+        "QuestionReferencesUnknownParameter": 1,
+        "TooManyDrilldownSpecs": 1,
+        "TooManyPublishedResourceParameters": 1,
+        "TooManySupportedQuestions": 1,
+        "UnknownParameterOrdinal": 1,
+        "UnsupportedParameterAtomType": 1
+      },
+      "outcomes": {
+        "BackingKind": [
+          "compiled_sql_plan",
+          "managed_dataflow"
+        ],
+        "ChartMark": [
+          "bar",
+          "line",
+          "area",
+          "point",
+          "kpi_summary"
+        ],
+        "ParameterDomainConstraint": [
+          "unconstrained",
+          "signed_range",
+          "unsigned_range",
+          "decimal128_range",
+          "utf8_enum",
+          "max_temporal_window_ms"
+        ],
+        "ReportSectionKind": [
+          "executive_summary",
+          "kpi_table",
+          "chart_panel",
+          "evidence_narrative"
+        ],
+        "ResourceLifecycleState": [
+          "draft",
+          "published",
+          "withdrawn",
+          "retired"
+        ],
+        "SemanticUnit": [
+          "none",
+          "iso4217_currency",
+          "si_unit",
+          "basis_points",
+          "percentage",
+          "spatial_srid"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "ChartSpec.validate()": "<inferred>",
+        "DrilldownSpec.validate()": "<inferred>",
+        "FreshnessRequirement.validate()": "<inferred>",
+        "ParameterDomainConstraint.checkValue()": "<inferred>",
+        "ParameterDomainConstraint.validate()": "<inferred>",
+        "ParameterSpec.validate()": "<inferred>",
+        "PresentationBindings.validate()": "<inferred>",
+        "PublishedResourceDescriptor.definitionDigest()": "<inferred>",
+        "PublishedResourceDescriptor.validate()": "<inferred>",
+        "PublishedResourceDescriptor.validateAndDigestParameters()": "<inferred>",
+        "QuestionTemplate.validate()": "<inferred>",
+        "ReportLayoutSpec.validate()": "<inferred>",
+        "SemanticUnit.validate()": "<inferred>",
+        "SpatialLayerSpec.validate()": "<inferred>",
+        "WorkBound.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -6584,6 +6930,7 @@
         "catch": 0
       },
       "imports": [
+        "Attribution.zig",
         "AuthorizationLowering.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
@@ -6629,13 +6976,17 @@
         "DirectTransactionRequest.zig",
         "DirectTransactionSavepoint.zig",
         "DirectTransactionWorkspace.zig",
+        "DisclosurePolicy.zig",
         "DocumentAuthority.zig",
         "HistoricalCatalog.zig",
         "Inspection.zig",
+        "InvestigationBasis.zig",
         "LogAuthority.zig",
         "Model.zig",
         "NameAssertion.zig",
         "OperationBinding.zig",
+        "PublishedProjection.zig",
+        "PublishedResource.zig",
         "Records.zig",
         "SchemaCommand.zig",
         "TableAuthority.zig",
@@ -23106,7 +23457,10 @@
     },
     "packages/zig/transit-sql-results/src/Observation.zig": {
       "errors": {
-        "InvalidTransactionObservation": 2
+        "AuthorizationRevokedMidStream": 1,
+        "InvalidPublishedResourceObservation": 2,
+        "InvalidTransactionObservation": 2,
+        "PublishedResourceWithdrawn": 1
       },
       "outcomes": {
         "Data": [
@@ -23130,6 +23484,11 @@
           "plan",
           "probe"
         ],
+        "PublishedResourceObservation.disclosure_mode": [
+          "caller_source_rights",
+          "derived_publication",
+          "retained_published_snapshot"
+        ],
         "Value": [
           "data",
           "metadata"
@@ -23137,12 +23496,14 @@
       },
       "error_sets": {},
       "error_returns": {
+        "PublishedResourceObservation.validate()": "<inferred>",
+        "PublishedResourceObservation.validateBatchDisclosure()": "<inferred>",
         "fingerprint()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 7,
         "catch": 0
       },
       "imports": [

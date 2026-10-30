@@ -304,6 +304,16 @@
         ]
       },
       {
+        "id": "published_resources",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/published_resources.py"
+        ]
+      },
+      {
         "id": "sdk_layout",
         "phase": "static",
         "command": [
