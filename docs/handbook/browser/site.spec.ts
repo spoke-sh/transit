@@ -385,7 +385,7 @@ test("homepage artwork follows scroll and respects reduced motion", async ({
   await expect(artwork).toBeVisible();
   expect(await artwork.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1774);
   const story = page.locator(".refraction-story");
-  const scene = page.getByRole("img", { name: /^Vertical graphite currents/ });
+  const scene = page.getByRole("img", { name: /^Vertical graphite waves widen sideways/ });
   await expect(story).toHaveAttribute("data-motion", "enabled");
   await expect(scene).toBeVisible();
   const initial = await scene.evaluate((element) => getComputedStyle(element).transform);
