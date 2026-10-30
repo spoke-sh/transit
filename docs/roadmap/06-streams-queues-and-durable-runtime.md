@@ -357,8 +357,8 @@ wait composition, automatic local maintenance and sparse physical payload
 rewriting. Full exit qualification remains open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
-storage and catalog integration without enabling installed Queue operations or
-SQL verbs.
+storage and catalog integration, signed Stream/Queue callers and installed
+restart checks. Dedicated SQL verbs remain outstanding.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
 
@@ -367,14 +367,16 @@ The current progress slice delivers:
 - R0 declaration/routing/retention contracts, original producer outcomes,
   consumer assignment/progress, finite authenticated reads and trusted-time
   observations. Expanded Stream and mixed-participant model correspondence,
-  direct KV and complete Queue settlement contracts remain outstanding.
+  complete direct KV lifecycle contracts and common-decision settlement
+  correspondence remain outstanding.
 - R1 paged Roaring directories, the coordinated `.tdel` migration, `.tack`
   envelopes, fenced initialization, bounded pinned tail slabs, immutable log
-  archives/checkpoints and retained-graph integration. Queue-specific indexes,
-  scheduling and integrated resource qualification remain outstanding.
+  archives/checkpoints and retained-graph integration. Queue-specific indexes and bounded durable scheduling are now implemented;
+  final integrated resource qualification remains outstanding.
 - R2 typed create/alter/rename/drop/lookup/list/pending/recovery, shared names and
   operation identities, native grants and exact-definition DLQ dependencies.
-  Historical Queue dependency closure remains gated by its execution owner.
+  Historical Queue dependency closure uses exact recorded destinations; atomic
+  DLQ transfer still depends on R5.
 - R3 atomic single-partition append and producer deduplication, bounded retained
   reads and offset settlement, sealed `.tseg` placement, timestamp filtering,
   archive/checkpoint/trim, control reserve and explicit age-based prefix expiry.
@@ -493,7 +495,7 @@ not complete these gates.
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
-| R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; installed and full qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
+| R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
