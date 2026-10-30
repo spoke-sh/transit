@@ -566,6 +566,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_bitmap", .{ .target = target, .optimize = optimize }).module("transit_bitmap") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     components_step.dependOn(&b.addRunArtifact(tests).step);
