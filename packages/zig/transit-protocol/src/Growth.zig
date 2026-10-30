@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.interactive-table-transactions.2026-10-28.
+/// SHA-256 of transit.native.v1.declarative-streams-queues.2026-10-29.
 pub const Definition = enum {
-    a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6,
+    bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -761,7 +761,7 @@ test "signed wire envelopes require definitions and preserve strict JSON shapes"
         const saved = try std.fmt.allocPrint(t.allocator, "{{\"signed\":{s}}}", .{missing});
         defer t.allocator.free(saved);
         try t.expectError(error.MissingField, std.json.parseFromSlice(struct { signed: T }, t.allocator, saved, .{}));
-        for ([_][]const u8{ "0", "previous-v1-definition" }) |foreign| {
+        for ([_][]const u8{ "0", "previous-v1-definition", "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6" }) |foreign| {
             try body.object.put(arena, "definition", .{ .string = foreign });
             try t.expectError(error.UnexpectedToken, std.json.parseFromValue(T, t.allocator, tree.value, .{}));
         }

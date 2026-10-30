@@ -11375,9 +11375,10 @@
     "packages/zig/transit-fuze/src/TDel.zig": {
       "errors": {
         "CorruptDeletionVector": 1,
+        "DeletionVectorCapacityExceeded": 1,
         "IncompatibleDefinition": 1,
         "IncompatibleDeletionVector": 1,
-        "InvalidDeletionVector": 8,
+        "InvalidDeletionVector": 9,
         "RowOffsetOutOfBounds": 1
       },
       "outcomes": {},
@@ -11386,16 +11387,21 @@
         "DeletionVector.decode()": "<inferred>",
         "DeletionVector.encode()": "<inferred>",
         "DeletionVector.init()": "<inferred>",
+        "DeletionVector.initBounded()": "<inferred>",
         "DeletionVector.markDeleted()": "<inferred>",
+        "DeletionVector.merge()": "<inferred>",
+        "DeletionVector.replace()": "<inferred>",
+        "DeletionVector.requireSpace()": "<inferred>",
         "DeletionVector.unionWith()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 31,
         "catch": 0
       },
       "imports": [
         "std",
+        "transit_bitmap",
         "transit_protocol"
       ]
     },
@@ -14652,7 +14658,7 @@
           "deadline"
         ],
         "Definition": [
-          "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
+          "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
         ],
         "Effect.phase": [
           "pending",
@@ -27621,12 +27627,13 @@
         "BitmapBatchTooLarge": 1,
         "BitmapCardinalityOverflow": 1,
         "IncompatibleDefinition": 1,
+        "InvalidBitmapCardinality": 1,
         "InvalidBitmapContainer": 5,
         "InvalidBitmapPrefix": 3,
         "InvalidBitmapReference": 2,
         "InvalidBitmapRoot": 2,
         "MissingBitmapContainer": 1,
-        "NoStorageCandidate": 1,
+        "NoStorageCandidate": 2,
         "StorageCandidateTooLarge": 1
       },
       "outcomes": {},
@@ -27643,11 +27650,13 @@
         "prefixOf()": "<inferred>",
         "read()": "<inferred>",
         "reference()": "<inferred>",
-        "scan()": "<inferred>"
+        "replace()": "<inferred>",
+        "scan()": "<inferred>",
+        "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 36,
         "catch": 1
       },
       "imports": [
@@ -28923,6 +28932,48 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/Tack.zig": {
+      "errors": {
+        "CorruptQueueSidecar": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidQueueSidecar": 7,
+        "InvalidQueueStateTransition": 1,
+        "QueueSidecarConflict": 1,
+        "QueueSidecarOffsetOutOfRange": 2,
+        "QueueSidecarOverlap": 2,
+        "QueueStateConflict": 1
+      },
+      "outcomes": {
+        "State": [
+          "available",
+          "acquired",
+          "acked",
+          "archived"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Audit.init()": "<inferred>",
+        "Audit.page()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "requireBinding()": "<inferred>",
+        "terminal()": "<inferred>",
+        "transition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 49,
+        "catch": 0
+      },
+      "imports": [
+        "BitmapDirectory.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TransactionDecisionLog.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -29198,6 +29249,7 @@
         "TableStorageWalk.zig",
         "TableTransaction.zig",
         "TableWorkspace.zig",
+        "Tack.zig",
         "TransactionDecisionLog.zig",
         "TransactionDirectory.zig",
         "TransitLog.zig",

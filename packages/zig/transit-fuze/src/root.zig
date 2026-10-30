@@ -92,6 +92,7 @@ test {
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
+    _ = @import("tdel_test.zig");
     _ = @import("tseg_reader_test.zig");
     _ = @import("column_codec_test.zig");
     _ = @import("selected_column_test.zig");

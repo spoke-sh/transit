@@ -7,6 +7,16 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`Tack` binds a queue segment's available, acquired, acked and archived state
+sets to its exact interpretation, offset range and accepted WAL frontier. The
+488-byte envelope references immutable paged `BitmapDirectory` roots and uses
+the same Roaring codec as Fuze's `.tdel`. `Audit.page` validates bounded pages;
+only a completed audit establishes disjoint, complete range coverage. Missing
+containers, overlaps, incorrect counts and foreign bindings reject. State edits
+stage private roots; lease metadata, receipts and publication remain the owning
+partition's responsibility. Terminal cardinality is a reclamation eligibility
+hint and supplies no authority to delete retained payloads.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

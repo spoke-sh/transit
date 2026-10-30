@@ -129,10 +129,24 @@ pub fn edit(self: *Self, root: Root, prefix: u64, changes: []const Change, scrat
     for (changes) |change|
         changed = (if (change.present) scratch.set(change.offset) else scratch.unset(change.offset)) or changed;
     if (!changed) return root;
+    return self.stage(root, prefix, scratch, previous);
+}
+
+/// Replace one container using caller-owned reusable scratch. This stages only
+/// private objects; the enclosing owner must publish the returned root durably.
+pub fn replace(self: *Self, root: Root, prefix: u64, container: *const Container) !Root {
+    try root.validate();
+    _ = try key(prefix);
+    if (self.store.candidate == null) return error.NoStorageCandidate;
+    return self.stage(root, prefix, container, try self.reference(root, prefix));
+}
+
+fn stage(self: *Self, root: Root, prefix: u64, scratch: *const Container, previous: ?Reference) !Root {
     const old_count = if (previous) |ref| ref.cardinality else 0;
     if (root.cardinality < old_count) return error.InvalidBitmapRoot;
     const count = std.math.add(u64, root.cardinality - old_count, scratch.cardinality) catch return error.BitmapCardinalityOverflow;
     if (scratch.cardinality == 0) {
+        if (!std.mem.allEqual(u64, &scratch.words, 0)) return error.InvalidBitmapCardinality;
         const result: Root = .{ .containers = try self.tree().remove(root.containers, try key(prefix)), .cardinality = count };
         try result.validate();
         return result;

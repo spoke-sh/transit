@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{ .{ .name = "transit_protocol", .module = protocol }, .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
     module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
+    module.addImport("transit_bitmap", b.dependency("transit_bitmap", .{ .target = target, .optimize = optimize }).module("transit_bitmap"));
     var vector_object: ?*std.Build.Step.Compile = null;
     if (target.result.cpu.arch == .x86_64) {
         var query = target.query;

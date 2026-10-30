@@ -1197,8 +1197,20 @@ there is no fallback decoder or implicit stored-data migration.
 
 - **`.tdel` deletion vectors**: Begin with `"TDEL"` + `0x01`, mandatory 32-byte
   shared contract definition, `segment_id` (`u64`),
-  `total_rows` (`u32`), `deleted_count` (`u32`), strictly ascending `u32` deleted
-  row offsets, and a trailing 32-byte SHA-256 digest.
+  `total_rows` (`u32`), `deleted_count` (`u32`), `container_count` (`u32`),
+  strictly ascending high-16-bit container records, and a trailing 32-byte
+  SHA-256 digest over all preceding bytes. Integers are little-endian. Each
+  record is a high prefix (`u16`), encoded container length (`u16`), and one
+  canonical nonempty `RBC1` container from `transit-bitmap`, addressing the low
+  16 bits of each row offset. Array, bitmap and run containers share the codec
+  used by the paged bitmap directory. Prefixes are unique, every offset is below
+  `total_rows`, and container cardinalities sum exactly to `deleted_count`.
+  The complete sidecar remains bounded to 512 KiB. Mutation workspaces reserve
+  an explicit byte budget, independent of the segment's logical row count;
+  exhaustion refuses a mutation without dropping existing deletion bits.
+  This replaces the former sorted-offset encoding under the new shared
+  definition. Readers reject that earlier definition before interpreting the
+  body; there is no fallback decoder.
 - **`TMAN` v1 table manifests**: Begin with `"TMAN"` + `0x01`, mandatory 32-byte
   shared contract definition, `catalog_id` (`u64`),
   `object_id` (`u64`), `manifest_version` (`u64`), `schema_revision` (`u64`),
@@ -1213,3 +1225,46 @@ before index pruning, including a key miss. Deletion vectors must match the
 segment identity and row count. Retained Table reads use the accepted roots and
 durable pins owned by `TablePartition`; segment artifacts alone do not establish
 a retained snapshot.
+
+## `.tack` queue state manifests
+
+The implemented `Tack` artifact is a storage foundation; it does not itself
+provide queue admission, lease authority or a public queue API. It binds one
+immutable payload segment and four paged sets of global logical offsets, in
+order: available, acquired, acked and archived. Archived includes a completed
+DLQ transfer; selecting a destination or staging an append cannot establish it.
+Durable lease, attempt, delay and original-operation records are separate from
+these sets and must share the owning partition's acceptance decision.
+
+The canonical 488-byte envelope contains, in order:
+
+- `TACK0001` (8 bytes) and the mandatory current definition (32 bytes).
+- Realm, resource, catalog, branch, object and definition revision (six `u64`),
+  definition digest (32 bytes), and logical partition ordinal (`u32`).
+- Segment ID, first offset, exclusive next offset, physical WAL partition and
+  accepted exclusive WAL frontier (five `u64`).
+- Four root records: presence (`u8`, zero or one), page digest (32 bytes), page
+  location (32 bytes), and total cardinality (`u64`). An absent root requires
+  zero reference bytes and zero cardinality; a present root is nonempty.
+- SHA-256 over the preceding 456 bytes (32 bytes).
+
+All integers are big-endian. The nonempty half-open offset range contains at
+most `u32` rows, independent of its full-width logical starting offset. Root
+cardinalities sum to that range length. Envelope validation alone does not prove
+coverage: a completed bounded audit also verifies referenced containers,
+actual cardinalities, in-range offsets and pairwise disjointness. Each page
+checks at most eight containers and their corresponding state peers. A partial
+or failed audit cannot establish valid complete state.
+
+Private transitions remove the old bit and add the new bit before returning a
+candidate root set. Publication failure leaves the original roots authoritative.
+Terminal states cannot transition back into available/acquired state. The owner
+must separately validate current rights, authoritative time and lease generation
+and commit corresponding lease metadata and original receipts. A bitmap is not
+a lease capability. The accepted frontier in a sealed envelope binds the
+specific state represented, rather than a later observation of the queue.
+
+Terminal cardinality permits constant-time eligibility inspection. Physical
+reclamation still requires the owning retained-graph checks for payloads,
+receipts, snapshots, replay and pending transactions; terminal state does not
+authorize deletion.

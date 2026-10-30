@@ -38,6 +38,14 @@ using them. Its primary-key footer is a sorted resident directory, not a paged
 B-tree. The host must verify object identity/range integrity, retain the source
 and check current authorization; the reader supplies none of those authorities.
 
+`TDel.DeletionVector` stores a segment's deleted row offsets in canonical shared
+Roaring containers. A sorted sparse directory selects high-16-bit prefixes;
+point reads use validated container views. `initBounded` reserves a sidecar byte
+budget once, and mutations and unions perform no heap allocations. The default
+budget is 512 KiB; it bounds one artifact rather than the segment's row count.
+Capacity refusal preserves the previous vector. Serialized sidecars bind the
+segment, row count and current contract definition and carry a SHA-256 digest.
+
 `column` decodes into a caller-owned arena with a separate transient encoded
 page buffer. `group` additionally enforces a byte limit on actual arena backing
 allocations across the selected columns (64 MiB by default), and returns an

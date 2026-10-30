@@ -804,6 +804,13 @@ flowchart TB
    `.tseg` segment while writing updated rows into a new delta `.tseg` segment.
    Background compaction later merges `.tseg` + `.tdel` files asynchronously.
 
+The implemented `.tdel` codec uses the shared `transit-bitmap` array, bitmap and
+run containers. Its sparse prefix directory and mutation workspace are bounded
+by a 512 KiB sidecar allowance, independently of the segment's row count.
+Mutations and unions reuse reserved storage; capacity refusal preserves existing
+deletions. The definition-bound envelope rejects the previous sorted-offset
+encoding. This codec does not itself authorize reclamation or retain a snapshot.
+
 ### De-monolithing authority: partitioned logs, fenced leases and multi-writer OCC
 
 The question is how separate writers can preserve one acceptance boundary and

@@ -4,6 +4,7 @@
     .fingerprint = 0xe22d2ce923bd8bac,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_bitmap = .{ .path = "../transit-bitmap" },
         .transit_memory = .{ .path = "../transit-memory" },
         .transit_protocol = .{ .path = "../transit-protocol" },
         .zarrow = .{
