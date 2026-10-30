@@ -100,8 +100,8 @@ test "retained revoked grants do not consume the active decision budget" {
         try store.putGrant(.{ .id = id, .object = reference, .grantee = 1, .grantor = 0, .privileges = 0, .revision = 1 });
     }
     try store.putGrant(.{ .id = 101, .object = reference, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });
-    var scans: core.catalog.PolicyScanCache = .{};
-    store.catalog.policy_scan_cache = &scans;
+    var scans: core.catalog.ControlScanCache = .{};
+    store.catalog.control_scan_cache = &scans;
     var check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = 32 });
     const first = try check.evaluate(1, reference, 1);
     try t.expect(first.permits());

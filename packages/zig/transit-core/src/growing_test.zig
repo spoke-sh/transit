@@ -649,6 +649,9 @@ test "domain lifetime bindings fence independent native publication without raw 
     guard.requirements[0] = .{ .object = object, .privileges = 1 };
     try t.expectError(error.Forbidden, f.query(65536, .{ .resource = resource }));
     _ = try f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    const decoded_before = f.engine.authorization_cache.decoded_hits;
+    _ = try f.query(65536, .{ .authorization = .{ .kind = .{ .check = guard } } });
+    try t.expect(f.engine.authorization_cache.decoded_hits > decoded_before);
     const process = try f.engine.process(worker);
     const command: g.Command = .{ .turn = .{ .pid = worker, .generation = process.generation, .input = input, .expected_revision = process.revision, .authorization = guard } };
     const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);

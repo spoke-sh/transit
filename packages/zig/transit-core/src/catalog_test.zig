@@ -101,16 +101,69 @@ test "bounded control records survive data reads and invalidate on root changes"
     try t.expectEqual(@as(?u64, null), try catalog.get(u64, grant));
 }
 
-test "policy scan pages bind exact roots ranges and continuations with bounded residency" {
+test "decoded control records preserve type ownership roots and private candidates" {
+    const protocol = @import("root.zig").protocol;
+    const Role = protocol.Authorization.Role;
+    const Domain = protocol.Authorization.Domain;
     var store: Store = .{};
     defer store.deinit();
     var catalog = try c.Catalog(Store).open(&store, .{});
-    for (0..19) |i| try catalog.put(try c.key(.authorization_member, 7, i, ""), @as(u64, i));
-    try catalog.put(try c.key(.authorization_member, 8, 0, ""), @as(u64, 80));
+    var cache: c.RecordCache = .{};
+    catalog.record_cache = &cache;
+    const key = try c.key(.authorization_role, 7, 0, "");
+    var role: Role = .{ .id = 7, .name = try protocol.Value.init("reader"), .owner = 0, .revision = 1, .login = true };
+    try catalog.put(key, role);
+    var first = (try catalog.get(Role, key)).?;
+    first.name.data[0] = 'x';
+    try t.expectEqualDeep(role, (try catalog.get(Role, key)).?);
+    try t.expectEqual(1, cache.decoded_hits);
+    // A different requested type must parse independently and reject this record.
+    if (catalog.get(Domain, key)) |_| return error.WrongRecordTypeAccepted else |_| {}
+    try t.expectEqualDeep(role, (try catalog.get(Role, key)).?);
+    const old = catalog.snapshot;
+    role.enabled = false;
+    role.revision = 2;
+    try catalog.put(key, role);
+    try t.expectEqualDeep(role, (try catalog.get(Role, key)).?);
+    var retained = try c.Catalog(Store).open(&store, old);
+    retained.record_cache = &cache;
+    try t.expect((try retained.get(Role, key)).?.enabled);
+    var pending: c.Candidate = .{};
+    catalog.pending = &pending;
+    var draft = role;
+    draft.revision = 3;
+    draft.enabled = true;
+    try catalog.put(key, draft);
+    try t.expectEqualDeep(draft, (try catalog.get(Role, key)).?);
+    catalog.pending = null;
+    try t.expectEqualDeep(role, (try catalog.get(Role, key)).?);
+    const domain_key = try c.key(.authorization_domain, 9, 0, "");
+    const domain: Domain = .{ .id = 9, .registrar = 0, .actions = 1, .lifetime_resource = 42, .revision = 4 };
+    try catalog.put(domain_key, domain);
+    try t.expectEqualDeep(domain, (try catalog.get(Domain, domain_key)).?);
+    const before = cache.decoded_hits;
+    try t.expectEqualDeep(domain, (try catalog.get(Domain, domain_key)).?);
+    try t.expectEqual(before + 1, cache.decoded_hits);
+}
+
+test "policy scan pages bind exact roots ranges and continuations with bounded residency" {
+    try controlScanPages(.authorization_member);
+}
+
+test "dependency scan pages invalidate empty and retained ranges on exact root changes" {
+    try controlScanPages(.required_association);
+}
+
+fn controlScanPages(namespace: c.Namespace) !void {
+    var store: Store = .{};
+    defer store.deinit();
+    var catalog = try c.Catalog(Store).open(&store, .{});
+    for (0..19) |i| try catalog.put(try c.key(namespace, 7, i, ""), @as(u64, i));
+    try catalog.put(try c.key(namespace, 8, 0, ""), @as(u64, 80));
     try catalog.put(try c.key(.authorization_resource_grant, 7, 0, ""), @as(u64, 70));
-    var cache: c.PolicyScanCache = .{};
-    catalog.policy_scan_cache = &cache;
-    const range: c.Range = .{ .namespace = .authorization_member, .major = 7 };
+    var cache: c.ControlScanCache = .{};
+    catalog.control_scan_cache = &cache;
+    const range: c.Range = .{ .namespace = namespace, .major = 7 };
     var after: ?p.Key = null;
     var count: u64 = 0;
     while (true) {
@@ -126,27 +179,27 @@ test "policy scan pages bind exact roots ranges and continuations with bounded r
         if (after == null) break;
     }
     try t.expectEqual(@as(u64, 19), count);
-    try t.expectEqual(@as(u64, 80), (try catalog.scan(u64, .{ .namespace = .authorization_member, .major = 8 }, null)).records[0].?.value);
+    try t.expectEqual(@as(u64, 80), (try catalog.scan(u64, .{ .namespace = namespace, .major = 8 }, null)).records[0].?.value);
     try t.expectEqual(@as(u64, 70), (try catalog.scan(u64, .{ .namespace = .authorization_resource_grant, .major = 7 }, null)).records[0].?.value);
-    try t.expectEqual(@as(u64, 3), (try catalog.scan(u64, .{ .namespace = .authorization_member, .major = 7, .minor = 3 }, null)).records[0].?.value);
-    try t.expectError(error.InvalidCatalogCursor, catalog.scan(u64, range, try c.key(.authorization_member, 8, 0, "")));
+    try t.expectEqual(@as(u64, 3), (try catalog.scan(u64, .{ .namespace = namespace, .major = 7, .minor = 3 }, null)).records[0].?.value);
+    try t.expectError(error.InvalidCatalogCursor, catalog.scan(u64, range, try c.key(namespace, 8, 0, "")));
 
     const old = catalog.snapshot;
-    const empty: c.Range = .{ .namespace = .authorization_member, .major = 9 };
+    const empty: c.Range = .{ .namespace = namespace, .major = 9 };
     try t.expectEqual(null, (try catalog.scan(u64, empty, null)).records[0]);
     const before = store.reads;
     try t.expectEqual(null, (try catalog.scan(u64, empty, null)).records[0]);
     try t.expectEqual(before, store.reads);
-    try catalog.put(try c.key(.authorization_member, 9, 0, ""), @as(u64, 90));
+    try catalog.put(try c.key(namespace, 9, 0, ""), @as(u64, 90));
     try t.expectEqual(@as(u64, 90), (try catalog.scan(u64, empty, null)).records[0].?.value);
     var retained = try c.Catalog(Store).open(&store, old);
-    retained.policy_scan_cache = &cache;
+    retained.control_scan_cache = &cache;
     try t.expectEqual(null, (try retained.scan(u64, empty, null)).records[0]);
     try t.expectEqual(@as(u64, 90), (try catalog.scan(u64, empty, null)).records[0].?.value);
-    try catalog.remove(try c.key(.authorization_member, 9, 0, ""));
+    try catalog.remove(try c.key(namespace, 9, 0, ""));
     try t.expectEqual(null, (try catalog.scan(u64, empty, null)).records[0]);
-    for (20..100) |i| _ = try catalog.scan(u64, .{ .namespace = .authorization_member, .major = i }, null);
-    try t.expect(@sizeOf(c.PolicyScanCache) < 140 * 1024);
+    for (20..100) |i| _ = try catalog.scan(u64, .{ .namespace = namespace, .major = i }, null);
+    try t.expect(@sizeOf(c.ControlScanCache) < 140 * 1024);
     try t.expectEqual(null, (try catalog.scan(u64, empty, null)).records[0]);
 }
 
@@ -156,8 +209,8 @@ test "policy scan cache excludes data and preserves failed reads and candidate f
     var catalog = try c.Catalog(Store).open(&store, .{});
     try catalog.put(try c.key(.authorization_member, 7, 0, ""), @as(u64, 7));
     for (0..32) |i| try catalog.put(try c.key(.entry, 1, i, ""), @as(u64, i));
-    var cache: c.PolicyScanCache = .{};
-    catalog.policy_scan_cache = &cache;
+    var cache: c.ControlScanCache = .{};
+    catalog.control_scan_cache = &cache;
     const range: c.Range = .{ .namespace = .authorization_member, .major = 7 };
     store.missing = true;
     try t.expectError(error.PageUnavailable, catalog.scan(u64, range, null));

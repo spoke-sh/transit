@@ -2,6 +2,7 @@
 //! candidate; only an authority journal decision may publish its Snapshot.
 const std = @import("std");
 const pages = @import("pages.zig");
+const p = @import("root.zig").protocol;
 pub const version = 1;
 pub const record_bytes = 2048;
 pub const parser_bytes = 64 * 1024;
@@ -155,12 +156,42 @@ pub fn Batch(comptime T: type) type {
 /// never a cached permission decision or a substitute for an authority barrier.
 pub const RecordCache = struct {
     const capacity = 16;
-    const Cached = struct { key: pages.Key, value: ?pages.Value };
+    // Only owned declarative records are decoded here. Evaluator decisions,
+    // credential verification and time-dependent usability are never cached.
+    const Decoded = union(enum) {
+        role: p.Authorization.Role,
+        credential: p.Authorization.Credential,
+        object: p.Authorization.Object,
+        domain: p.Authorization.Domain,
+        grant: p.Authorization.Grant,
+        process: p.Growth.Process,
+        resource: p.Growth.Resource,
+        association: p.Growth.Association,
+    };
+    const Cached = struct { key: pages.Key, value: ?pages.Value, decoded: ?Decoded = null };
     root: ?pages.Reference = null,
     entries: [capacity]?Cached = @splat(null),
     next: usize = 0,
     hits: u64 = 0,
     misses: u64 = 0,
+    decoded_hits: u64 = 0,
+    fn read(self: *RecordCache, comptime T: type, entry: *Cached) !?T {
+        const value = if (entry.value) |*bytes| bytes else return null;
+        inline for (@typeInfo(Decoded).@"union".field_names, @typeInfo(Decoded).@"union".field_types) |name, Value| {
+            if (comptime T == Value) {
+                if (entry.decoded) |*previous| {
+                    if (std.meta.activeTag(previous.*) == @field(std.meta.Tag(Decoded), name)) {
+                        self.decoded_hits +|= 1;
+                        return @field(previous, name);
+                    }
+                }
+                const result = try decode(T, value);
+                entry.decoded = @unionInit(Decoded, name, result);
+                return result;
+            }
+        }
+        return try decode(T, value);
+    }
     fn select(self: *RecordCache, root: ?pages.Reference) void {
         if (!std.meta.eql(root, self.root)) {
             self.entries = @splat(null);
@@ -172,16 +203,16 @@ pub const RecordCache = struct {
         const namespace: Namespace = @fromBackingInt(@intCast(key_value.data[0]));
         return switch (namespace) {
             .principal, .process, .resource, .association, .associated_resource, .required_association, .required_resource_users, .owner_required_users => true,
-            .authorization_role, .authorization_credential, .authorization_object, .authorization_grant => true,
+            .authorization_role, .authorization_credential, .authorization_object, .authorization_domain, .authorization_grant => true,
             else => false,
         };
     }
 };
 
-/// Bounded verified policy pages, including empty pages and continuation keys.
+/// Bounded verified policy/dependency pages, including empty pages and cursors.
 /// Identity is the complete immutable root, namespace range and exact cursor.
 /// Evaluation still charges and validates every record on every request.
-pub const PolicyScanCache = struct {
+pub const ControlScanCache = struct {
     pub const capacity = 8;
     const Cached = struct { range: Range, after: ?pages.Key, page: pages.Slice };
     root: ?pages.Reference = null,
@@ -190,7 +221,7 @@ pub const PolicyScanCache = struct {
     hits: u64 = 0,
     misses: u64 = 0,
 
-    fn select(self: *PolicyScanCache, root: ?pages.Reference) void {
+    fn select(self: *ControlScanCache, root: ?pages.Reference) void {
         if (!std.meta.eql(root, self.root)) {
             self.entries = @splat(null);
             self.root = root;
@@ -204,6 +235,7 @@ pub const PolicyScanCache = struct {
             .authorization_process_grant,
             .authorization_resource_grant,
             .authorization_domain_grant,
+            .required_association,
             => true,
             else => false,
         };
@@ -238,7 +270,7 @@ pub fn Catalog(comptime Store: type) type {
         tree: pages.Tree(Store),
         snapshot: Snapshot,
         record_cache: ?*RecordCache = null,
-        policy_scan_cache: ?*PolicyScanCache = null,
+        control_scan_cache: ?*ControlScanCache = null,
         pending: ?*Candidate = null,
 
         pub fn open(store: *Store, snapshot: Snapshot) !Self {
@@ -247,8 +279,7 @@ pub fn Catalog(comptime Store: type) type {
         }
         pub fn get(self: *const Self, comptime T: type, address: pages.Key) !?T {
             try validateKey(&address);
-            const value = (try self.getBytes(address)) orelse return null;
-            return try decode(T, &value);
+            return self.getValue(T, address);
         }
         /// Bounded data reads at this root, without caching permission decisions.
         pub fn getMany(self: *const Self, comptime T: type, addresses: []const pages.Key) ![pages.page_entries]?T {
@@ -267,9 +298,11 @@ pub fn Catalog(comptime Store: type) type {
             };
             return result;
         }
-        fn getBytes(self: *const Self, address: pages.Key) !?pages.Value {
+        fn getValue(self: *const Self, comptime T: type, address: pages.Key) !?T {
             if (self.pending) |pending| for (pending.mutations[0..pending.len]) |*mutation| {
-                if (std.mem.eql(u8, mutation.key.slice(), address.slice())) return mutation.value;
+                if (std.mem.eql(u8, mutation.key.slice(), address.slice())) {
+                    return if (mutation.value) |*value| try decode(T, value) else null;
+                }
             };
             const cache = if (RecordCache.eligible(address)) self.record_cache else null;
             if (cache) |records| {
@@ -277,17 +310,19 @@ pub fn Catalog(comptime Store: type) type {
                 for (&records.entries) |*slot| if (slot.*) |*cached| {
                     if (std.mem.eql(u8, cached.key.slice(), address.slice())) {
                         records.hits +|= 1;
-                        return cached.value;
+                        return records.read(T, cached);
                     }
                 };
                 records.misses +|= 1;
             }
             const value = try self.tree.get(self.snapshot.root, address);
             if (cache) |records| {
-                records.entries[records.next] = .{ .key = address, .value = value };
+                const slot = &records.entries[records.next];
+                slot.* = .{ .key = address, .value = value };
                 records.next = (records.next + 1) % RecordCache.capacity;
+                return records.read(T, &slot.*.?);
             }
-            return value;
+            return if (value) |*bytes| try decode(T, bytes) else null;
         }
         pub fn put(self: *Self, address: pages.Key, value: anytype) !void {
             comptime owned(@TypeOf(value));
@@ -380,7 +415,7 @@ pub fn Catalog(comptime Store: type) type {
             return result;
         }
         fn scanBytes(self: *const Self, range: Range, after: ?pages.Key) !pages.Slice {
-            const cache = if (PolicyScanCache.eligible(range)) self.policy_scan_cache else null;
+            const cache = if (ControlScanCache.eligible(range)) self.control_scan_cache else null;
             if (cache) |scans| {
                 scans.select(self.snapshot.root);
                 for (&scans.entries) |*slot| if (slot.*) |*cached| {
@@ -394,7 +429,7 @@ pub fn Catalog(comptime Store: type) type {
             const page = try self.tree.scanRange(self.snapshot.root, after orelse range.prefix(), after == null, range.end());
             if (cache) |scans| {
                 scans.entries[scans.next] = .{ .range = range, .after = after, .page = page };
-                scans.next = (scans.next + 1) % PolicyScanCache.capacity;
+                scans.next = (scans.next + 1) % ControlScanCache.capacity;
             }
             return page;
         }
