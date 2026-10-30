@@ -406,6 +406,12 @@ The current progress slice delivers:
   installed signed-caller schedule also passes: new reads converge to compacted
   rows while old read pins and original producer outcomes survive SIGKILL and
   restart. Full clean-lane evidence remains open.
+- R4 private candidate transitions and paged Queue indexes now cover FIFO heads,
+  eligibility, exact lease metadata, retries and blocked destinations. Immutable
+  claim-selection artifacts preserve original leases and placement cuts. Their
+  [disk and format checks](../history/qualification/catalog.md#queue-index-and-original-selection-candidates--2026-10-30)
+  pass, but accepted Queue WAL transitions, installed execution, timer-wheel and
+  affinity scheduling, and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

@@ -9,6 +9,39 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue index and original-selection candidates — 2026-10-30
+
+`fcb583b66` and `aefa35c4c` pass the pinned-shell Queue item, index and selection
+suites. Disk-backed candidate indexes use one resident page, span forty offsets,
+and preserve earlier roots. The schedules cover collation-equivalent FIFO keys,
+delayed heads, unrelated-key claims, multiple claims from one batch, head
+advancement across batches, disjoint bitmap audits, exact terminal counts,
+expiry backoff and staging-budget refusal. Foreign claim targets reject.
+
+Pure transitions check renewal fencing, expired-but-unreassigned refusal,
+uncertain clock intervals, checked deadline/counter overflow and exhausted work
+remaining blocked. A DLQ block retains its exact destination definition across
+later policy edits. Selection artifacts reopen with original leases and placement
+metadata, reject changed row selections under an original receipt, and reject
+duplicates, truncation, foreign/missing definitions and alternate JSON array
+shapes. Empty claims have no selection artifact.
+
+The first selection test exceeded its 64 KiB parsing scratch buffer while the
+shared JSON parser built a dynamic tree before typed decoding. The final reader
+decodes fixed fields and checks the public encoder's canonical bytes; the same
+scratch bound now passes. Its combined Queue test executable SHA-256 is
+`bbacc5c7961f68ab4cedc3c6a4cf2cd3b8b1388b75fa1a82e46c6f19858a305f`.
+Logs are `/var/tmp/transit-queue-index-fenced.log`,
+`/var/tmp/transit-queue-selection.log` (failed),
+`/var/tmp/transit-queue-candidates-final.log` and
+`/var/tmp/transit-queue-selection-fast.log` (all 48 fast checks passed).
+
+These are candidate/index/format checks. They establish neither accepted Queue
+WAL transitions nor installed claims, timer-wheel/affinity scheduling, DLQ
+transfer or mixed transaction execution. The shared log-owner refactor
+`a66ac8042` separately passes the Stream partition suite; Queue instantiation
+still rejects until its state joins publication and recovery.
+
 ## Automatic local Stream maintenance — 2026-10-30
 
 The installed signed-caller schedule committed as `5aeca56fe` passes in
