@@ -8,8 +8,6 @@ You declare **data** (Tables, Key-Value maps, collaborative Documents, Streams, 
 
 ![Measured marks on parallel lines become flowing blue and ochre waves, then a layered landscape with a continuous path and faint earlier contours.](docs/handbook/static/img/architecture/transit-score-wave-landscape.jpg)
 
-**From score to landscape.** Declared structure becomes activity, with history visible as the landscape evolves.
-
 ## Documentation and Handbook
 
 Read the [published handbook](https://spoke-sh.github.io/transit/), organized into seven pillars:
