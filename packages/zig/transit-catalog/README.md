@@ -214,3 +214,10 @@ and its head. The caller must keep that sequence immutable and alive. This helpe
 performs no WAL publication, synchronization or durable retention; those remain
 with `DirectCatalog` and the storage owner. Segment projection inspection reuses
 one segment's scratch workspace independently of segment count.
+
+Historical helper fetches keep a row cursor within each borrowed segment and
+write at most the caller's row capacity. A failed fetch leaves the cursor
+unchanged. Every fetch, including terminal observation, requires current grants;
+filter evaluation reports `QueryTypeError` and `QueryConflict` rather than
+silently excluding those cells. These borrowed fixtures do not establish disk
+paging, a SQL historical selector or runtime policy integration.

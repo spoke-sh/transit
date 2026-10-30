@@ -531,3 +531,51 @@ test "historical projection coverage exceeds one scratch page" {
     const summary = try binding.segmentProjectionSummary(schema, &.{});
     try std.testing.expectEqual(@as(u32, 129), summary.native_target_segments);
 }
+
+test "historical batches bound rows within a segment and preserve cursor on failure" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 77, .revision = 1, .next_column = 2, .columns = &cols };
+    const cells = [_]v.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const rows: [3]H.HistoricalRow = @splat(.{ .cells = &cells });
+    const segments = [_]H.HistoricalSegment{.{ .segment_id = 1, .min_lsn = 1, .max_lsn = 10, .physical_schema = schema, .rows = &rows }};
+    const tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 77, .revision = 1, .schema = schema, .segments = &segments }};
+    const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 10, .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture", @splat(1)), .tables = &tables };
+    const timeline = try H.HistoricalTimeline.init(&.{cut});
+    const grants: H.GrantSet = .{ .policy_epoch = 1, .select_objects = &.{77} };
+    var query = try H.admitHistoricalQuery(timeline, .{ .manifest_version = 1 }, 1, "t", .select_rows, grants, null, null);
+    try std.testing.expectError(error.HistoricalBatchBufferTooSmall, H.fetchNextHistoricalBatch(&query, grants, &.{}));
+    var out: [1][s.max_columns]v.Cell = undefined;
+    for (0..3) |i| {
+        const batch = (try H.fetchNextHistoricalBatch(&query, grants, &out)).?;
+        try std.testing.expectEqual(@as(usize, 1), batch.row_count);
+        try std.testing.expectEqual(i == 2, batch.is_terminal);
+        try std.testing.expectEqual(@as(i128, 42), out[0][0].value.atom.signed);
+        if (i == 0) {
+            try std.testing.expectError(error.AuthorizationRevokedMidStream, H.fetchNextHistoricalBatch(&query, .{ .policy_epoch = 2 }, &out));
+            try std.testing.expectEqual(@as(usize, 1), query.next_row_index);
+        }
+    }
+    try std.testing.expectEqual(@as(?H.HistoricalBatchResult, null), try H.fetchNextHistoricalBatch(&query, grants, &out));
+}
+
+test "historical filter errors and segments beyond the cut cannot silently disappear" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 77, .revision = 1, .next_column = 2, .columns = &cols };
+    const grants: H.GrantSet = .{ .policy_epoch = 1, .select_objects = &.{77} };
+    const errors = [_]v.Cell{ .{ .type_error = .int64 }, .{ .conflict = &.{} } };
+    for (errors, [_]anyerror{ error.QueryTypeError, error.QueryConflict }) |cell, expected| {
+        const rows = [_]H.HistoricalRow{.{ .cells = &.{cell} }};
+        const segments = [_]H.HistoricalSegment{.{ .segment_id = 1, .min_lsn = 1, .max_lsn = 10, .physical_schema = schema, .rows = &rows }};
+        const tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 77, .revision = 1, .schema = schema, .segments = &segments }};
+        const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 10, .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture", @splat(1)), .tables = &tables };
+        const timeline = try H.HistoricalTimeline.init(&.{cut});
+        var query = try H.admitHistoricalQuery(timeline, .{ .manifest_version = 1 }, 1, "t", .select_rows, grants, null, .{ .column = 1, .literal = .{ .signed = 42 } });
+        var out: [1][s.max_columns]v.Cell = undefined;
+        try std.testing.expectError(expected, H.fetchNextHistoricalBatch(&query, grants, &out));
+        try std.testing.expectEqual(@as(usize, 0), query.next_row_index);
+        try std.testing.expectEqual(@as(usize, 0), query.next_segment_index);
+        query.cut.commit_lsn = 5;
+        try std.testing.expectError(error.HistoricalSegmentBeyondCut, H.fetchNextHistoricalBatch(&query, grants, &out));
+        try std.testing.expect(!query.exhausted);
+    }
+}

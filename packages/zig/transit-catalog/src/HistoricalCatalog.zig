@@ -1,9 +1,7 @@
-//! Manifest-backed historical catalog cuts (`manifest/v{N}`), conditional branch
-//! head publication, historical `AS OF` name/definition resolution (`D1`),
-//! explicit `PROJECTING TO` schema projection (`D2`), current `policy_epoch`
-//! authorization with mid-stream batch revocation, retention expiry enforcement,
-//! and versioned multi-model catalog descriptors (`ViewDescriptor`,
-//! `PropertyGraphDescriptor`, and `ForeignTableDescriptor`).
+//! Pure helpers over borrowed, immutable historical catalog fixtures.
+//! Models cut selection, name/definition resolution, explicit projection and
+//! caller-supplied current grants. No SQL parsing, durable storage, policy
+//! lookup, WAL publication, synchronization or retention pin is provided.
 const std = @import("std");
 const c = @import("root.zig");
 const fuze = c.fuze;
@@ -46,12 +44,14 @@ pub fn filterInitialsForSegment(
     logical: s.Schema,
     origins: []const TableSchemaProjection.Initial,
     out_buf: *[s.max_columns]TableSchemaProjection.Initial,
-) []const TableSchemaProjection.Initial {
+) ![]const TableSchemaProjection.Initial {
     var count: usize = 0;
     for (origins) |init| {
         const in_logical = if (logical.index(init.column)) |_| true else |_| false;
         const in_physical = if (physical.index(init.column)) |_| true else |_| false;
         if (in_logical and !in_physical) {
+            if (count == out_buf.len) return error.IncompatibleSchemaProjection;
+            for (out_buf[0..count]) |prior| if (prior.column == init.column) return error.DuplicateSchemaInitialValue;
             out_buf[count] = init;
             count += 1;
         }
@@ -86,7 +86,7 @@ pub const HistoricalTableBinding = struct {
             if (seg.physical_schema.object != self.object) return error.HistoricalSegmentObjectMismatch;
             try seg.physical_schema.validate();
             var init_buf: [s.max_columns]TableSchemaProjection.Initial = undefined;
-            const seg_initials = filterInitialsForSegment(seg.physical_schema, self.schema, self.column_origins, &init_buf);
+            const seg_initials = try filterInitialsForSegment(seg.physical_schema, self.schema, self.column_origins, &init_buf);
             _ = try TableSchemaProjection.init(seg.physical_schema, self.schema, seg_initials);
             for (seg.rows) |row| {
                 if (row.cells.len != seg.physical_schema.columns.len) return error.InvalidHistoricalSegmentRowArity;
@@ -124,7 +124,7 @@ pub const HistoricalTableBinding = struct {
             const descriptor: TableConstraints.SegmentDescriptor = .{
                 .segment_id = seg.segment_id,
                 .physical_schema = seg.physical_schema,
-                .initials = filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &initials),
+                .initials = try filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &initials),
                 .row_count = seg.rows.len,
             };
             const part = try TableConstraints.inspectSegmentProjectionCoverage(&.{descriptor}, target_schema);
@@ -635,6 +635,7 @@ pub const AdmittedHistoricalQuery = struct {
     access: AccessKind,
     filter: ?EqualityFilter = null,
     next_segment_index: usize = 0,
+    next_row_index: usize = 0,
     exhausted: bool = false,
 };
 
@@ -705,7 +706,8 @@ pub const HistoricalBatchResult = struct {
     verified_policy_epoch: u64,
 };
 
-/// Fetch the next bounded segment batch from an `AdmittedHistoricalQuery`.
+/// Fetch a bounded batch, retaining a row cursor within each borrowed segment.
+/// Errors leave the cursor unchanged; output is disclosed only on success.
 /// Rechecks `live_grants` (`policy_epoch`) before disclosing each batch so
 /// mid-stream revocation after Batch 1 deterministically rejects Batch 2.
 pub fn fetchNextHistoricalBatch(
@@ -722,11 +724,15 @@ pub fn fetchNextHistoricalBatch(
 
     if (query.exhausted) return null;
 
-    while (query.next_segment_index < query.binding.segments.len) {
-        const seg_idx = query.next_segment_index;
-        query.next_segment_index += 1;
+    if (out_rows.len == 0) return error.HistoricalBatchBufferTooSmall;
+    var seg_idx = query.next_segment_index;
+    var row_idx = query.next_row_index;
+    while (seg_idx < query.binding.segments.len) : ({
+        seg_idx += 1;
+        row_idx = 0;
+    }) {
         const seg = query.binding.segments[seg_idx];
-        if (seg.max_lsn > query.cut.commit_lsn) continue;
+        if (seg.max_lsn > query.cut.commit_lsn) return error.HistoricalSegmentBeyondCut;
 
         // Collation-aware zone-map pruning under the historical column's declared kappa profile
         if (query.filter) |flt| {
@@ -736,7 +742,7 @@ pub fn fetchNextHistoricalBatch(
         }
 
         var init_buf: [s.max_columns]TableSchemaProjection.Initial = undefined;
-        const seg_initials = filterInitialsForSegment(
+        const seg_initials = try filterInitialsForSegment(
             seg.physical_schema,
             query.output_schema,
             query.output_initials,
@@ -749,13 +755,13 @@ pub fn fetchNextHistoricalBatch(
         );
 
         var written: usize = 0;
-        for (seg.rows) |phys_row| {
+        while (row_idx < seg.rows.len and written < out_rows.len) : (row_idx += 1) {
+            const phys_row = seg.rows[row_idx];
             if (query.filter) |flt| {
                 if (!try rowMatchesHistoricalFilter(query.binding, seg.physical_schema, phys_row.cells, flt)) {
                     continue;
                 }
             }
-            if (written >= out_rows.len) return error.HistoricalBatchBufferTooSmall;
             const projected = try projection.row(
                 phys_row.cells,
                 out_rows[written][0..query.output_schema.columns.len],
@@ -764,6 +770,12 @@ pub fn fetchNextHistoricalBatch(
             written += 1;
         }
 
+        query.next_segment_index = seg_idx;
+        query.next_row_index = row_idx;
+        if (row_idx == seg.rows.len) {
+            query.next_segment_index += 1;
+            query.next_row_index = 0;
+        }
         const is_last = (query.next_segment_index >= query.binding.segments.len);
         if (is_last) query.exhausted = true;
         return .{
@@ -838,6 +850,8 @@ fn rowMatchesHistoricalFilter(
             const ord = try compareAtomsWithProfile(val.atom, flt.literal, hist_col.type, profile);
             return ord == .eq;
         },
-        .null, .missing, .type_error, .conflict => return false,
+        .null, .missing => return false,
+        .type_error => return error.QueryTypeError,
+        .conflict => return error.QueryConflict,
     }
 }
