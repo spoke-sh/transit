@@ -12,30 +12,46 @@ pub const max_bytes = 16 * 1024;
 
 pub const Record = struct {
     declared: Declaration.Stored,
-    outcome: union(enum) { append: q.AppendReceipt, assignment: q.GroupAssignmentReceipt, offset: q.OffsetReceipt },
+    outcome: union(enum) {
+        append: q.AppendReceipt,
+        assignment: q.GroupAssignmentReceipt,
+        offset: struct { receipt: q.OffsetReceipt, cursor: p.StreamRead.Cursor },
+        read: p.StreamRead.Receipt,
+        release: p.StreamRead.ReleaseReceipt,
+    },
 
     pub fn operation(self: Record) d.Operation {
         return switch (self.outcome) {
             .append => |value| value.append.operation,
             .assignment => |value| value.assignment.operation,
-            .offset => |value| value.commit.operation,
+            .offset => |value| value.receipt.commit.operation,
+            .read => |value| value.request.operation,
+            .release => |value| value.release.operation,
         };
     }
     pub fn target(self: Record) q.Partition {
         return switch (self.outcome) {
             .append => |value| value.append.target,
             .assignment => |value| value.assignment.cut.target,
-            .offset => |value| value.commit.coverage.cut.target,
+            .offset => |value| value.receipt.commit.coverage.cut.target,
+            .read => |value| value.request.target,
+            .release => |value| value.release.target,
         };
     }
     pub fn accepted(self: Record) d.Position {
         return switch (self.outcome) {
+            .offset => |value| value.receipt.accepted,
             inline else => |value| value.accepted,
         };
     }
     pub fn validate(self: Record) !void {
         try self.declared.validate();
         switch (self.outcome) {
+            .offset => |value| {
+                try value.receipt.validate();
+                try value.cursor.validate();
+                if (!std.meta.eql(value.receipt.commit.coverage, value.cursor.coverage) or value.receipt.commit.operation.principal != value.cursor.read.owner.principal) return error.InvalidLogEvidence;
+            },
             inline else => |value| try value.validate(),
         }
         const selected = self.target();
@@ -45,7 +61,7 @@ pub const Record = struct {
         switch (self.outcome) {
             .append => |value| if (!std.mem.eql(u8, @tagName(value.append.kind), @tagName(kind)) or
                 value.append.rows > self.declared.declaration.limits.append_rows or value.append.payload.bytes > self.declared.declaration.limits.append_bytes) return error.InvalidLogEvidence,
-            .assignment, .offset => if (kind != .stream) return error.InvalidLogEvidence,
+            .assignment, .offset, .read, .release => if (kind != .stream) return error.InvalidLogEvidence,
         }
     }
 };

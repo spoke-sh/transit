@@ -7,6 +7,7 @@ This generator never decodes or converts a user's saved operations or state.
 from runner.paths import ROOT
 import argparse
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import tempfile
@@ -207,6 +208,22 @@ def generated():
                             next=stream_queue['group_progress']['next']),
             accepted=dict(partition=91, next_lsn=13))
         stream_queue['offset_receipt'] = dict(commit=stream_queue['offset_commit'], accepted=dict(partition=91, next_lsn=13))
+        read_operation = dict(scope=log_scope, principal=17, operation=2**64-12)
+        read_source = dict(bytes=1024, sha256=[43]*32)
+        stream_queue['read'] = dict(
+            request=dict(target=log_target, operation=read_operation,
+                         group=stream_queue['offset_commit']['group'],
+                         **{'from': coverage['from']}, until=None),
+            cut=coverage['cut'], until=coverage['until'], source=read_source,
+            accepted=dict(partition=91, next_lsn=13))
+        read_handle = dict(owner=read_operation, source=read_source)
+        coverage_body = b'transit.stream.read.coverage.v1\0' + bytes.fromhex(definition) + compact(dict(read=read_handle, coverage=coverage))
+        stream_queue['read_cursor'] = dict(read=read_handle, coverage=coverage,
+                                         authentication=list(hmac.digest(bytes([7]*32), coverage_body, 'sha256')))
+        results[ROOT / 'packages/zig/transit-storage/src/stream_read_fixture.json'] = stream_queue['read_cursor']
+        stream_queue['read_release'] = dict(
+            release=dict(target=log_target, operation=dict(scope=log_scope, principal=17, operation=2**64-13),
+                         read=read_handle), accepted=dict(partition=91, next_lsn=14))
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
         results[lifecycle_path] = lifecycle

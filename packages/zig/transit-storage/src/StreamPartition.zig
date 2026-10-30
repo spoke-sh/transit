@@ -10,6 +10,8 @@ const Objects = @import("TransitObjectStore.zig");
 const Declaration = @import("LogDeclaration.zig");
 const Initialization = @import("LogInitialization.zig");
 const Evidence = @import("LogEvidence.zig");
+const Read = @import("LogRead.zig");
+const read = p.StreamRead;
 const Batch = @import("LogBatch.zig");
 const Tail = @import("LogTail.zig");
 const TreeStore = @import("TreeStore.zig");
@@ -22,6 +24,8 @@ pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 8 * 1024 * 1024,
     batch_bytes: u32 = 1024 * 1024,
+    read_rows: u32 = 4096,
+    read_bytes: u32 = 4 * 1024 * 1024,
     key_bytes: u32 = 64 * 1024,
     tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
 };
@@ -43,7 +47,7 @@ ready: bool = false,
 /// a caller cannot serve reads or accept writes until recoverStep completes.
 pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
     if (request.declared.declaration.configuration.policy != .stream) return error.LogPartitionConflict;
-    if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes) return error.InvalidStreamBudget;
+    if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
     const initial = try Initialization.observe(allocator, log, objects, request, guard);
     var store = try TreeStore.init(allocator, objects, options.resident_pages);
     errdefer store.deinit();
@@ -95,6 +99,7 @@ fn requireTarget(self: *Self, target: q.Partition) !void {
 fn original(self: *Self, identity: d.Operation) !?Evidence.Record {
     try identity.validate();
     if (!std.meta.eql(identity.scope, self.root.initialization.operation.scope)) return error.LogPartitionConflict;
+    if (std.meta.eql(identity, self.root.initialization.operation)) return error.LogOperationConflict;
     const value = try self.tree().get(self.root.receipts, try Evidence.operationKey(identity)) orelse return null;
     const record = try self.loadEvidence(value);
     if (!std.meta.eql(record.operation(), identity) or record.accepted().partition != self.root.initialization.partition or record.accepted().next_lsn > self.root.next_lsn) return error.InvalidLogHistory;
@@ -189,6 +194,109 @@ pub fn assign(self: *Self, declared: Declaration.Stored, assignment: q.GroupAssi
     try self.publish(.{ .declared = declared, .outcome = .{ .assignment = receipt } }, &.{}, guard);
     return receipt;
 }
+
+fn requireGroup(self: *Self, selected: q.Group, checkpoint: ?u64) !q.GroupProgress {
+    const current = try self.progress(selected.id) orelse return error.LogGroupFenced;
+    if (!std.meta.eql(current.group, selected)) return error.LogGroupFenced;
+    if (checkpoint) |next| if (current.next != next) return error.LogOffsetConflict;
+    return current;
+}
+fn loadRead(self: *Self, handle: read.Handle) !Read.Basis {
+    defer _ = self.scratch.reset(.retain_capacity);
+    return Read.load(self.scratch.allocator(), self.objects, handle);
+}
+fn activePin(self: *Self, handle: read.Handle) !Read.Pin {
+    try handle.validate();
+    const value = try self.tree().get(self.root.pins, try Evidence.operationKey(handle.owner)) orelse return error.StreamReadMissing;
+    const pin = try Read.Pin.decode(value);
+    if (!std.meta.eql(pin.source, handle.source)) return error.StreamReadConflict;
+    if (pin.released) return error.StreamReadReleased;
+    return pin;
+}
+const RetainedRead = struct { receipt: read.Receipt, basis: Read.Basis };
+fn retainedRead(self: *Self, handle: read.Handle) !RetainedRead {
+    _ = try self.activePin(handle);
+    const original_read = try self.original(handle.owner) orelse return error.StreamReadMissing;
+    if (original_read.outcome != .read) return error.StreamReadConflict;
+    const receipt = original_read.outcome.read;
+    if (!std.meta.eql(receipt.handle(), handle)) return error.StreamReadConflict;
+    try self.requireTarget(receipt.cut.target);
+    const basis = try self.loadRead(handle);
+    if (!std.meta.eql(try basis.receipt(handle.source), receipt) or receipt.cut.accepted.partition != self.root.initialization.partition or receipt.accepted.next_lsn > self.root.next_lsn) return error.InvalidLogHistory;
+    return .{ .receipt = receipt, .basis = basis };
+}
+fn readBasis(self: *Self, declared: Declaration.Stored, request: read.Request) !Read.Basis {
+    try request.validate();
+    const cut = try self.root.cut(declared);
+    try request.target.requireSame(cut.target);
+    try cut.requireOffset(request.from);
+    if (request.group) |selected| _ = try self.requireGroup(selected, request.from);
+    const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches };
+    try basis.validate();
+    return basis;
+}
+pub fn beginRead(self: *Self, declared: Declaration.Stored, request: read.Request, guard: Guard) !read.Receipt {
+    try request.validate();
+    try self.requireTarget(request.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.original(request.operation)) |record| {
+        if (record.outcome != .read) return error.LogOperationConflict;
+        try record.outcome.read.requireRequest(request);
+        try authorize(guard);
+        return record.outcome.read;
+    }
+    const basis = try self.readBasis(declared, request);
+    const receipt = try Read.stage(self.objects, basis);
+    try self.publish(.{ .declared = declared, .outcome = .{ .read = receipt } }, &.{}, guard);
+    return receipt;
+}
+pub fn releaseRead(self: *Self, declared: Declaration.Stored, request: read.Release, guard: Guard) !read.ReleaseReceipt {
+    try request.validate();
+    try self.requireTarget(request.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.original(request.operation)) |record| {
+        if (record.outcome != .release) return error.LogOperationConflict;
+        try record.outcome.release.requireRelease(request);
+        try authorize(guard);
+        return record.outcome.release;
+    }
+    try request.target.requireSame((try self.root.cut(declared)).target);
+    _ = try self.retainedRead(request.read);
+    const receipt: read.ReleaseReceipt = .{ .release = request, .accepted = try self.nextPosition() };
+    try self.publish(.{ .declared = declared, .outcome = .{ .release = receipt } }, &.{}, guard);
+    return receipt;
+}
+fn advanceGroup(self: *Self, commit: q.OffsetCommit, cursor: read.Cursor) !q.GroupProgress {
+    try commit.validate();
+    const retained = try self.retainedRead(cursor.read);
+    try cursor.requireReceipt(retained.receipt);
+    if (!std.meta.eql(commit.coverage, cursor.coverage)) return error.LogOffsetConflict;
+    const selected = retained.receipt.request.group orelse return error.LogGroupRequired;
+    if (!std.meta.eql(selected, commit.group)) return error.LogGroupFenced;
+    return (try self.requireGroup(commit.group, commit.expected_next)).advance(commit);
+}
+pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetCommit, cursor: read.Cursor, authority: Read.Authority, guard: Guard) !q.OffsetReceipt {
+    try commit.validate();
+    try cursor.validate();
+    try self.requireTarget(commit.coverage.cut.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.original(commit.operation)) |record| {
+        if (record.outcome != .offset) return error.LogOperationConflict;
+        try record.outcome.offset.receipt.requireCommit(commit);
+        if (!std.meta.eql(record.outcome.offset.cursor, cursor)) return error.LogOffsetConflict;
+        try authorize(guard);
+        return record.outcome.offset.receipt;
+    }
+    try commit.coverage.cut.target.requireSame((try self.root.cut(declared)).target);
+    try authority.verify(cursor);
+    _ = try self.advanceGroup(commit, cursor);
+    const receipt: q.OffsetReceipt = .{ .commit = commit, .accepted = try self.nextPosition() };
+    try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .cursor = cursor } } }, &.{}, guard);
+    return receipt;
+}
 fn nextPosition(self: *Self) !d.Position {
     return .{ .partition = self.root.initialization.partition, .next_lsn = std.math.add(u64, self.root.next_lsn, 1) catch return error.LogPositionExhausted };
 }
@@ -217,9 +325,19 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
             try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(evidence.declared));
             result.groups = try self.tree().put(result.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
         },
-        // Offset acceptance additionally needs owner-issued read coverage. It
-        // cannot be enabled by presenting a caller-constructed descriptor.
-        .offset => return error.LogCoverageRequired,
+        .read => |receipt| {
+            const expected = try self.readBasis(evidence.declared, receipt.request);
+            if (!std.meta.eql(expected, try self.loadRead(receipt.handle())) or !std.meta.eql(try expected.receipt(receipt.source), receipt)) return error.InvalidLogHistory;
+            result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.request.operation), try (Read.Pin{ .source = receipt.source, .released = false }).encode());
+        },
+        .release => |receipt| {
+            _ = try self.retainedRead(receipt.release.read);
+            result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
+        },
+        .offset => |value| {
+            const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+            result.groups = try self.tree().put(result.groups, try r.integerKey(advanced.group.id), try r.valueEncode(advanced));
+        },
     }
     try result.validate();
     return result;
@@ -314,7 +432,24 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
             expected.groups = next.groups;
             try self.verifyValue(next.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
         },
-        .offset => return error.LogCoverageRequired,
+        .read => |receipt| {
+            const basis = try self.readBasis(evidence.declared, receipt.request);
+            if (!std.meta.eql(basis, try self.loadRead(receipt.handle())) or !std.meta.eql(try basis.receipt(receipt.source), receipt)) return error.InvalidLogHistory;
+            expected.pins = next.pins;
+            try self.verifyValue(next.pins, try Evidence.operationKey(receipt.request.operation), try (Read.Pin{ .source = receipt.source, .released = false }).encode());
+        },
+        .release => |receipt| {
+            _ = try self.retainedRead(receipt.release.read);
+            expected.pins = next.pins;
+            try self.verifyValue(next.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
+        },
+        .offset => |value| {
+            // Acceptance already authenticated coverage under the then-current
+            // key. Key rotation cannot revoke that accepted result on replay.
+            const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+            expected.groups = next.groups;
+            try self.verifyValue(next.groups, try r.integerKey(advanced.group.id), try r.valueEncode(advanced));
+        },
     }
     if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
 }
@@ -335,12 +470,15 @@ pub fn readBatch(self: *Self, declared: Declaration.Stored, offset: u64, guard: 
     try authorize(guard);
     try self.requireReady();
     const cut = try self.root.cut(declared);
+    return self.borrowAt(cut, self.root.batches, offset, guard);
+}
+fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, offset: u64, guard: Guard) !?BorrowedBatch {
     try cut.requireOffset(offset);
     if (offset == cut.next) {
         try authorize(guard);
         return null;
     }
-    const selected = try self.tree().scanFrom(self.root.batches, try r.integerKey(offset + 1));
+    const selected = try self.tree().scanFrom(batches, try r.integerKey(offset + 1));
     const entry = selected.entries[0] orelse return error.LogHistoryUnavailable;
     const evidence = try self.loadEvidence(entry.value);
     if (evidence.outcome != .append) return error.InvalidLogHistory;
@@ -362,4 +500,85 @@ pub fn readBatch(self: *Self, declared: Declaration.Stored, offset: u64, guard: 
     errdefer result.release() catch unreachable;
     try authorize(guard);
     return .{ .cut = cut, .receipt = receipt, .payload = result };
+}
+
+pub fn readCursor(self: *Self, handle: read.Handle, authority: Read.Authority, guard: Guard) !read.Cursor {
+    try authorize(guard);
+    try self.requireReady();
+    const retained = try self.retainedRead(handle);
+    if (retained.receipt.request.group) |selected| _ = try self.requireGroup(selected, null);
+    const cursor = try authority.issue(handle, try retained.receipt.initialCoverage());
+    try authorize(guard);
+    return cursor;
+}
+pub const ReadLimits = struct { rows: u32, encoded_bytes: u32 };
+pub const ReadRow = struct {
+    offset: u64,
+    operation: d.Operation,
+    encoded: Batch.EncodedRow,
+};
+pub const ReadPage = struct {
+    allocator: std.mem.Allocator,
+    storage: []ReadRow,
+    count: u32,
+    encoded_bytes: u32,
+    cursor: read.Cursor,
+    pub fn rows(self: ReadPage) []const ReadRow {
+        return self.storage[0..self.count];
+    }
+    pub fn deinit(self: *ReadPage) void {
+        for (self.rows()) |row| self.allocator.free(row.encoded.bytes);
+        self.allocator.free(self.storage);
+        self.* = undefined;
+    }
+};
+
+/// Copy a bounded window into caller-owned output, preserving the original
+/// snapshot and cumulative authenticated coverage across physical batches.
+/// Its raw rows decode with the pinned schema; no output points into cache or
+/// scratch. Early close does not imply traversal completion or group progress.
+pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, limits: ReadLimits, output: std.mem.Allocator, guard: Guard) !ReadPage {
+    try authorize(guard);
+    try self.requireReady();
+    try authority.verify(cursor);
+    const retained = try self.retainedRead(cursor.read);
+    try cursor.requireReceipt(retained.receipt);
+    if (retained.receipt.request.group) |selected| _ = try self.requireGroup(selected, null);
+    const declared_limits = retained.basis.declared.declaration.limits;
+    if (limits.rows == 0 or limits.rows > @min(declared_limits.read_rows, self.options.read_rows) or limits.encoded_bytes == 0 or limits.encoded_bytes > @min(declared_limits.read_bytes, self.options.read_bytes)) return error.InvalidStreamReadBudget;
+    var declaration = try Declaration.load(self.allocator, self.objects, retained.basis.declared);
+    defer declaration.deinit();
+    var result: ReadPage = .{ .allocator = output, .storage = try output.alloc(ReadRow, if (cursor.coverage.complete) 0 else limits.rows), .count = 0, .encoded_bytes = 0, .cursor = cursor };
+    errdefer result.deinit();
+    var coverage = cursor.coverage;
+    outer: while (!coverage.complete and result.count < limits.rows) {
+        var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
+        defer batch.deinit();
+        var iterator = try Batch.Iterator.init(try batch.payload.bytes(), declaration.definition.schema, .stream, batch.receipt.append.rows);
+        var advanced = false;
+        while (try iterator.next()) |row| {
+            const offset = try std.math.add(u64, batch.receipt.first, row.ordinal);
+            if (offset < coverage.through) continue;
+            if (offset != coverage.through) return error.LogHistoryUnavailable;
+            const bytes = row.bytes.len + Batch.row_header_bytes;
+            if (bytes > limits.encoded_bytes - result.encoded_bytes) {
+                if (result.count == 0) return error.StreamReadByteBudgetTooSmall;
+                break :outer;
+            }
+            var copied = row;
+            copied.bytes = try output.dupe(u8, row.bytes);
+            result.storage[result.count] = .{ .offset = offset, .operation = batch.receipt.append.operation, .encoded = copied };
+            result.count += 1;
+            result.encoded_bytes += @intCast(bytes);
+            coverage.through += 1;
+            coverage.rows += 1;
+            coverage.complete = coverage.through == coverage.until;
+            advanced = true;
+            if (coverage.complete or result.count == limits.rows) break :outer;
+        }
+        if (!advanced) return error.LogHistoryUnavailable;
+    }
+    result.cursor = try authority.issue(cursor.read, coverage);
+    try authorize(guard);
+    return result;
 }

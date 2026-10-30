@@ -7,6 +7,47 @@ fn fixture() !std.json.Parsed(q.SchemaTypes) {
     return p.Json.parseFromSlice(q.SchemaTypes, t.allocator, @embedFile("fixtures/stream-queue-v1.json"));
 }
 
+test "stream finite read attribution freezes its original cut range source and claimant" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.read;
+    try receipt.validate();
+    const initial = try receipt.initialCoverage();
+    try t.expect(!initial.complete);
+    try t.expectEqual(initial.from, initial.through);
+    try t.expectEqual(@as(u64, 0), initial.rows);
+    var request = receipt.request;
+    request.until = receipt.until;
+    try t.expectError(error.StreamReadConflict, receipt.requireRequest(request));
+    request = receipt.request;
+    request.operation.principal += 1;
+    try t.expectError(error.LogGroupFenced, request.validate());
+    var changed = receipt;
+    changed.cut.next -= 1;
+    try t.expectError(error.LogOffsetBeyondCut, changed.validate());
+    changed = receipt;
+    changed.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidStreamRead, changed.validate());
+    changed = receipt;
+    changed.request.from = receipt.until;
+    try t.expect((try changed.initialCoverage()).complete);
+    var cursor = parsed.value.read_cursor;
+    cursor.read.source.sha256[0] ^= 1;
+    try t.expectError(error.StreamReadConflict, cursor.requireReceipt(receipt));
+    cursor = parsed.value.read_cursor;
+    cursor.coverage.from -= 1;
+    try t.expectError(error.StreamReadConflict, cursor.requireReceipt(receipt));
+    cursor = parsed.value.read_cursor;
+    cursor.authentication = @splat(0);
+    try t.expectError(error.InvalidStreamCursor, cursor.validate());
+    var release = parsed.value.read_release.release;
+    release.operation = release.read.owner;
+    try t.expectError(error.InvalidStreamRelease, release.validate());
+    release = parsed.value.read_release.release;
+    release.operation.principal = 0;
+    try t.expectError(error.InvalidStreamRelease, release.validate());
+}
+
 test "stream queue fixture keeps logical offsets separate from WAL and preserves wide identities" {
     const parsed = try fixture();
     defer parsed.deinit();
@@ -19,6 +60,9 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     try v.group_progress.validate();
     try v.group_assignment.validate();
     try v.offset_receipt.validate();
+    try v.read.validate();
+    try v.read_cursor.requireReceipt(v.read);
+    try v.read_release.validate();
     try v.settlement.validate();
     try t.expectEqual(std.math.maxInt(u64), v.append.next);
     try t.expectEqual(@as(u32, 0), v.append.append.target.partition);

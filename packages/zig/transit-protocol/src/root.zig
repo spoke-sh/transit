@@ -19,6 +19,7 @@ pub const DataLifecycle = @import("DataLifecycle.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const IndexLifecycle = @import("IndexLifecycle.zig");
 pub const StreamQueue = @import("StreamQueue.zig");
+pub const StreamRead = @import("StreamRead.zig");
 pub const StreamQueueDeclaration = @import("StreamQueueDeclaration.zig");
 pub const max_effect_observations = 16;
 pub const max_payload_bytes = 64 * 1024;

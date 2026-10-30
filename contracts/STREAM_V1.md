@@ -23,10 +23,12 @@ formats use the current shared definition under the coordinated cutover policy.
 
 The storage-only `StreamPartition` additionally accepts schema-bound batches,
 publishes paged producer and original-result indexes atomically with each
-payload, and persists explicit group assignment generations. Its bounded recovery
-and borrowed current-batch reads are exercised on disk. Service payload APIs,
-pinned finite reads, offset settlement and segment maintenance are not enabled
-by that component. See the [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
+payload, and persists explicit group assignment generations. It also publishes
+finite read pins, authenticates cumulative traversal coverage and atomically
+settles group offsets with original receipts. These storage paths are exercised
+across disk reopen, including lost accepted replies. Service payload APIs and
+segment maintenance are not enabled by that component. See the
+[stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append
 
@@ -123,6 +125,31 @@ must verify storage continuity and compaction evidence, retain source identity
 across batches and recheck current authorization before every disclosure,
 including empty results, repeated batches and terminal metadata. The owning
 [SQL result lifecycle](SQL_RESULTS_V1.md) remains responsible for result delivery.
+
+`StreamRead.Request` freezes the original operation, exact target, optional
+group assignment, explicit start and nullable end. A null end selects the
+observed upper frontier once during acceptance. Group reads bind their assigned
+principal; the runtime must also compare the current generation and checkpoint.
+`StreamRead.Receipt` retains that original request, exact cut, resolved end,
+immutable source commitment and the next physical publication frontier. Retrying
+after later appends cannot extend its cut. Its initial coverage starts at the
+requested offset with zero rows, including a complete empty interval.
+
+A `StreamRead.Handle` contains the original read operation and exact source
+commitment. The runtime must find its live durable pin before traversing it.
+`StreamRead.Cursor` binds that handle, cumulative coverage and a 32-byte
+authentication value issued by the read owner. Shape validation checks exact
+source/range attribution; it does not authenticate the cursor. The runtime must
+authenticate continuation and completed coverage independently of current
+authorization, and must not sign caller-invented progress. Filters or delivery
+limits cannot manufacture a complete cursor.
+
+`StreamRead.Release` is a separate original operation by the read's principal,
+with its exact handle and current target. Release changes retention ownership,
+not group progress, and does not cancel accepted mutations. Its original receipt
+survives pin closure. The storage `StreamPartition` implements these transitions
+with `LogRead` bases and authenticated coverage; these neutral types alone do
+not enable installed read/settlement APIs.
 
 ## Consumer settlement
 

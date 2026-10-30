@@ -56,12 +56,22 @@ it must complete before the owner serves payloads or accepts more work.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut
-does not pin history or prove completed consumption. The caller releases borrows
-before destroying the owner and rechecks its authorization before disclosure.
-The adapter must serialize catalog changes, enforce current grants, and bind
-global operation identity across objects. This component is not yet composed
-into payload service APIs. Group offset commits, finite pinned traversal,
-segment maintenance and payload retention still require their execution owners.
+does not pin history or prove completed consumption. `beginRead` separately
+publishes a finite read pin over an exact immutable `LogRead` basis. Bounded
+`readPage` windows retain their output independently of cache and scratch and
+carry authenticated cumulative coverage over that same cut. Later appends never
+extend it. Group progress advances only through `commitOffset` with completed,
+owner-authenticated coverage, current generation and expected checkpoint. Release
+closes a pin without advancing group progress; early close is not completion.
+Original offset and release receipts remain recoverable after further progress,
+key rotation, pin closure and restart. Missing read/evidence objects block replay.
+
+The adapter supplies the private read-authentication key, serializes catalog
+changes, enforces current grants and binds global operation identity across
+objects. Every read, including terminal metadata, rechecks current authority after
+buffering. This component is not yet composed into payload service APIs. Segment
+maintenance, notification waits and physical payload retention remain unfinished;
+the current component retains its genesis and required WAL history.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an

@@ -1358,9 +1358,10 @@ length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` byte
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
 the complete new paged root and original outcome. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
-frontier, retained boundary, and batch/receipt/producer/producer-receipt/group
-directories. Missing fields reject. Append records use `row_delta`; assignment
-records use `manifest_checkpoint` and contain no row payload. Both advance the
+frontier, retained boundary, and batch/receipt/producer/producer-receipt/group/pin
+directories. Missing fields reject. Append records use `row_delta`; assignment,
+read pin/release and offset records use `manifest_checkpoint` and contain no row
+payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
 Original outcomes are immutable `log-evidence/{sha256}.data` objects: `LOGEVID1`,
@@ -1394,6 +1395,53 @@ accepted WAL record before admitting its payload; pinned cache pressure is an
 explicit refusal. Read authorization is checked again after buffering, including
 empty terminal observations. A borrow survives other appends and prevents owner
 destruction, but does not pin durable history or prove finite traversal coverage.
-Explicit assignment preserves group progress across generation changes. Offset
-settlement requires owner-issued coverage and remains disabled in this storage
-profile; callers cannot commit a constructed coverage descriptor.
+Explicit assignment preserves group progress across generation changes.
+
+### Retained Stream reads and offset settlement
+
+`beginRead` stages a `log-reads/{sha256}.data` object, then atomically publishes
+its pin and original receipt. The object is `LREAD001`, the current definition
+and canonical JSON for the exact request, declaration, cut, resolved end and
+batch-directory root, bounded to 16 KiB. It contains no earlier pin or receipt
+directories. A null requested end is resolved once at acceptance. The pin
+directory maps original read identity to a released flag (`u8`), source byte
+length (`u64`, big-endian) and source SHA-256. Original read receipts do not
+themselves establish a live retention pin.
+
+The reader authenticates cumulative coverage with HMAC-SHA-256 over
+`transit.stream.read.coverage.v1\0`, the 32-byte shared definition, and canonical
+JSON `{read, coverage}`. Its private nonzero 32-byte service key is supplied by
+the adapter, never a public request. Comparison is constant time. A rotated key
+invalidates old cursors, while the same retained read can start again under its
+original immutable cut. Cursor authentication supplies no current access rights.
+The independent Python fixture verifies this byte-level domain and MAC.
+
+`readCursor` issues only the initial zero-row frontier. `readPage` authenticates
+that cursor, verifies its live pin and exact source/range, and traverses the
+retained batch directory. Group reads additionally require the current assignment
+generation/principal. Each window has explicit row and encoded-byte budgets,
+bounded by the declaration and owner. Owner defaults are 4096 rows and 4 MiB;
+configuration refuses more than 65536 rows or 64 MiB. Output owns copied encoded
+rows in the caller's allocator, separately from reusable scratch and cache.
+Allocation or budget failure cannot return fabricated completion. A budget too
+small for even the next row refuses explicitly. Metadata storage is bounded by
+the row budget, separately from encoded row bytes.
+
+Coverage accumulates across physical batches and stops at the original exclusive
+end, including an empty end. Later appends never enter the result. Repeated
+continuations preserve source identity. Current rights are rechecked after
+buffering, including empty terminal windows. Early release removes retention
+ownership and rejects later traversal without changing a consumer checkpoint.
+Release publishes its original receipt with the released pin marker.
+
+`commitOffset` requires the current definition, live read pin, owner-authenticated
+complete coverage, the same group as that read, current group generation and
+expected checkpoint. An intervening definition edit requires a read binding to
+the new definition before a fresh offset commit. One WAL record publishes the
+new group checkpoint and original offset receipt, including the exact submitted
+cursor. Partial or altered coverage cannot advance progress. Lost replies recover
+under the original operation before fresh pin/group/key checks; accepted results
+survive pin release, reassignment, key rotation and restart. Recovery validates
+their original read and group transition without treating a changed signing key
+as revocation of accepted work. This profile retains required read bases and WAL
+history until a qualified checkpoint and physical retention owner is integrated.

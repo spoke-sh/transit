@@ -24,10 +24,11 @@ pub const Root = struct {
     producers: ?pages.Reference,
     producer_receipts: ?pages.Reference,
     groups: ?pages.Reference,
+    pins: ?pages.Reference,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
