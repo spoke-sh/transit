@@ -85,7 +85,8 @@ NACK backoff starts at its observed upper bound and honors a later requested
 visibility time. Backoff after lease expiry starts at the accepted deadline;
 restart downtime or delayed cleanup does not start that delay again. Exhaustion
 keeps the source available but blocked, with its FIFO successor still blocked.
-A configured DLQ changes the blocked reason, not the source's terminal state.
+A configured DLQ records its exact destination definition with the blocked
+reason, not the source's terminal state. Later policy edits cannot redirect it.
 The common transaction must establish destination durability before transfer.
 
 ## Claim selection and original results
@@ -106,6 +107,25 @@ a new operation identity. A nonempty receipt retains its selection and payload
 dependencies across disconnect and restart. Receipt disclosure needs current
 rights, and later execution still needs the current live lease. These neutral
 receipt types perform neither selection nor durable acceptance.
+
+### Stored nonempty claim selection
+
+The internal `QueueSelection` candidate artifact begins with `QCLAIM01`, the
+32-byte shared definition, a big-endian u32 metadata length and a big-endian u32
+row count. Canonical structured metadata follows, then three big-endian u64s per
+row: logical offset, lease epoch and attempt. Offsets are strictly increasing;
+the common target, original claim and expiry come from metadata. A changed
+selection cannot reuse an original receipt's content digest.
+
+Metadata retains its required definition, exact declaration, original claim,
+trusted time interval, expiry, accepted position and the preceding payload
+placement cut. The acceptance position is exactly one log record after that
+cut. Metadata is bounded to 16 KiB and a selection to 4,096 rows, additionally
+restricted by the declaration and eventual owner budgets. Missing or foreign
+definitions, noncanonical metadata, duplicate offsets, trailing bytes and
+truncation reject. An empty claim has no selection artifact; its receipt remains
+the original empty result. These storage candidates do not enable claims or
+replace the owner's publication, retention or current-authority checks.
 
 ## Settlement and original outcomes
 

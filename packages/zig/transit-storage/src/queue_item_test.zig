@@ -68,6 +68,10 @@ test "queue item retries preserve FIFO head delay and block DLQ without terminal
     linked.next_key = 7;
     const blocked = try linked.expire(.acquired, configured, .exact(1000));
     try t.expect(blocked.blocked == .dead_letter and blocked.next_key == 7 and blocked.lease == null);
+    try t.expectEqualDeep(configured.dead_letter.?, blocked.blocked.dead_letter);
+    configured.dead_letter.?.object.object = 6;
+    // Later declaration edits cannot redirect an already selected destination.
+    try t.expectEqual(@as(u64, 5), blocked.blocked.dead_letter.object.object);
     try blocked.requireState(.available);
     try t.expectError(error.QueueStateConflict, blocked.requireState(.archived));
     const retry = try first.settle(.acquired, settlement(first.lease.?, 2, .{ .nack = .{ .visible_ms = 900 } }), policy, .{ .earliest_ms = 110, .latest_ms = 120 });

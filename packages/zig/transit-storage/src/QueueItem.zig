@@ -16,7 +16,7 @@ visible_ms: u64,
 epoch: u64,
 attempts: u64,
 lease: ?q.Lease,
-blocked: enum { none, exhausted, dead_letter },
+blocked: union(enum) { none, exhausted, dead_letter: p.DataLifecycle.Definition },
 
 pub fn initial(offset: u64, batch_next: u64, visible_ms: u64) !Self {
     const result: Self = .{ .offset = offset, .batch_next = batch_next, .next_key = null, .visible_ms = visible_ms, .epoch = 0, .attempts = 0, .lease = null, .blocked = .none };
@@ -31,6 +31,7 @@ pub fn validate(self: Self) !void {
         if (lease.offset != self.offset or lease.epoch != self.epoch or lease.attempt != self.attempts or self.blocked != .none) return error.InvalidQueueItem;
     }
     if (self.blocked != .none and self.attempts == 0) return error.InvalidQueueItem;
+    if (self.blocked == .dead_letter) try self.blocked.dead_letter.validate();
 }
 pub fn requireState(self: Self, state: State) !void {
     try self.validate();
@@ -71,7 +72,7 @@ fn retry(self: Self, policy: Policy, anchor_ms: u64, requested_ms: u64) !Self {
     var next = self;
     next.lease = null;
     if (next.attempts >= policy.maximum_attempts) {
-        next.blocked = if (policy.dead_letter == null) .exhausted else .dead_letter;
+        next.blocked = if (policy.dead_letter) |destination| .{ .dead_letter = destination } else .exhausted;
     } else {
         const delay = try policy.backoff.delay(@intCast(next.attempts));
         const backoff_until = std.math.add(u64, anchor_ms, delay) catch return error.QueueRetryDeadlineOverflow;

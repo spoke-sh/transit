@@ -32116,12 +32116,52 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 25,
         "catch": 3
       },
       "imports": [
         "LogTime.zig",
         "Tack.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueSelection.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidQueueSelection": 13,
+        "QueueClaimConflict": 1,
+        "QueueSelectionBudgetExceeded": 1,
+        "QueueSelectionMissing": 1,
+        "QueueSelectionOffsetOutOfRange": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Metadata.receipt()": "<inferred>",
+        "Metadata.validate()": "<inferred>",
+        "View.lease()": "<inferred>",
+        "View.requireReceipt()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeVerified()": "<inferred>",
+        "encode()": "<inferred>",
+        "load()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "requireLease()": "<inferred>",
+        "stage()": "<inferred>",
+        "validateContent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogDeclaration.zig",
+        "LogTime.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
         "std",
         "transit_protocol"
       ]

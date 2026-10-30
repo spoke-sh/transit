@@ -72,6 +72,7 @@ test {
     _ = @import("tack_test.zig");
     _ = @import("queue_item_test.zig");
     _ = @import("queue_index_test.zig");
+    _ = @import("queue_selection_test.zig");
     _ = @import("log_tail_test.zig");
     _ = @import("log_declaration_test.zig");
     _ = @import("log_initialization_test.zig");

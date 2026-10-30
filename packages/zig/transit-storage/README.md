@@ -22,11 +22,20 @@ trusted time intervals. `QueueIndex` stages paged per-offset metadata, `.tack`
 roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
 Only the head of each FIFO key enters eligibility; its delay, active lease and
 retry block its successors while other keys can advance. ACK moves that head;
-exhaustion retains an available but blocked source. A DLQ flag does not publish a
-destination or make the source terminal. Old roots remain independently readable.
+exhaustion retains an available but blocked source. Its DLQ reason retains the
+exact destination definition; it does not publish that destination or make the
+source terminal. Old roots remain independently readable.
 The enclosing owner must bind these changes to payloads, original receipts,
 current authorization and one accepted WAL record. These candidate components
 do not yet enable Queue execution, timing-wheel scheduling or DLQ transfer.
+
+`QueueSelection` retains a nonempty claim's exact leases and payload placement
+cut in a bounded immutable artifact. It keeps original offsets, epochs and
+attempts in canonical order and binds them to the original receipt's content
+digest. Its decoder checks canonical metadata without building a dynamic JSON
+tree; decoded metadata is owned while lease bytes borrow the caller's buffer.
+This artifact does not establish current lease status or publish a claim. Empty
+claims have no selection artifact.
 
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
