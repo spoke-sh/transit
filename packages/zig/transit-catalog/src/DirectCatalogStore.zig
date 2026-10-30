@@ -51,8 +51,13 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 }
 
 pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
+    return self.recoverSinceOptions(prior, false);
+}
+
+fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !void {
     self.recovery_required = true;
-    self.index.clearCache();
+    if (!retain_cache) self.index.clearCache();
+    errdefer self.index.clearCache();
     const end = try self.log.tail(self.root.configuration.partition);
     if (end < self.root.next_lsn) return error.CatalogHistoryMissing;
     var next = try r.Root.empty(self.root.configuration);
@@ -98,7 +103,8 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
 
 pub fn refresh(self: *Self) !void {
     try self.ready();
-    if (try self.log.tail(self.root.configuration.partition) != self.root.next_lsn) try self.recoverSince(try self.recoveryState());
+    if (try self.log.tail(self.root.configuration.partition) != self.root.next_lsn)
+        try self.recoverSinceOptions(try self.recoveryState(), true);
 }
 
 fn successor(before: r.Root, after: r.Root) !void {

@@ -294,6 +294,12 @@ pub const RecoveryWork = struct { checkpoint_lsn: u64 = 0, reused_lsn: u64 = 0, 
 /// or reuse across physical storage owners. It contains no permissions or pin.
 pub const RecoveryState = struct { root: Root, chain: [32]u8 };
 
+const CachedSnapshot = struct {
+    handle: SnapshotHandle,
+    retention: Retention,
+    root: Root,
+};
+
 allocator: std.mem.Allocator,
 log: Log.Log,
 objects: Objects.ObjectStore,
@@ -303,6 +309,7 @@ root: Root,
 chain: [32]u8 = @splat(0),
 options: Options,
 segment_cache: ?CachedSegment = null,
+snapshot_cache: ?CachedSnapshot = null,
 segment_reads: u64 = 0,
 segment_range_reads: u64 = 0,
 segment_bytes_read: u64 = 0,
@@ -443,18 +450,33 @@ pub fn refresh(self: *Self) !void {
     if (self.workspace) return error.PrivateTableWorkspace;
     try self.ready();
     if (try self.log.tail(self.root.partition) != self.root.next_lsn)
-        try self.recoverSince(try self.recoveryState());
+        try self.recoverSinceOptions(try self.recoveryState(), true);
 }
 
 /// Revalidate a previously checked boundary, then replay only its successors.
 /// A newer accepted checkpoint supersedes an older hint. New storage owners
 /// always use recover(); neither this hint nor recovery authorizes disclosure.
 pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
+    return self.recoverSinceOptions(prior, false);
+}
+
+fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !void {
     if (self.workspace) return error.PrivateTableWorkspace;
+    const had_prior_root = self.root.next_lsn != 0;
+    const prior_declared = self.root.declared();
     self.recovery_required = true;
-    self.index.clearCache();
-    if (self.segment_cache) |*cached| cached.deinit(self.allocator);
-    self.segment_cache = null;
+    if (!retain_cache) {
+        self.index.clearCache();
+        if (self.segment_cache) |*cached| cached.deinit(self.allocator);
+        self.segment_cache = null;
+        self.snapshot_cache = null;
+    }
+    errdefer {
+        self.index.clearCache();
+        if (self.segment_cache) |*cached| cached.deinit(self.allocator);
+        self.segment_cache = null;
+        self.snapshot_cache = null;
+    }
     const end = try self.log.tail(self.root.partition);
     if (end < self.root.next_lsn) return error.TableHistoryMissing;
     var next = emptyRoot(try self.declaration.stored(), self.root.partition);
@@ -535,7 +557,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
     for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.physical_schemas, next.column_origins, next.receipts, next.pins, next.history_pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
-    if (end != 0) {
+    if (end != 0 and (!retain_cache or !had_prior_root or !std.meta.eql(next.declared(), prior_declared))) {
         const declaration = try Declaration.load(self.allocator, self.objects, next.declared());
         self.declaration.deinit();
         self.declaration = declaration;
@@ -867,7 +889,7 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
         };
         return self.writeOperation(operation, guard);
     };
-    return self.performPrepared(operation, guard);
+    return self.performPrepared(operation, request, guard);
 }
 
 /// Explicit execution uses only the retained intent; it never resolves a name
@@ -875,13 +897,13 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
 pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
     const state = try self.operationState(binding, guard);
     if (state != .admitted) return state;
-    return self.performPrepared(state.admitted, guard);
+    return self.performPrepared(state.admitted, null, guard);
 }
-fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationState {
+fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Request, guard: Guard) !OperationState {
     const binding = operation.binding;
     var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
     defer self.build_resident_peak = memory.peak;
-    const outcome = self.performWithinBudget(memory.allocator(), operation, guard) catch |cause| {
+    const outcome = self.performWithinBudget(memory.allocator(), operation, known_request, guard) catch |cause| {
         const err = buildFailure(&memory, cause);
         var rejected = operation;
         rejected.phase = .rejected;
@@ -899,14 +921,15 @@ fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationSt
     return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome, .transaction = null } };
 }
 
-fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, guard: Guard) !Outcome {
-    var intent = try Dml.load(allocator, self.objects, operation.intent);
-    defer intent.deinit();
-    try intent.request.binding.requireSame(operation.binding);
-    return if (intent.request.statement) |plan|
+fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, known_request: ?Dml.Request, guard: Guard) !Outcome {
+    var loaded = if (known_request == null) try Dml.load(allocator, self.objects, operation.intent) else null;
+    defer if (loaded) |*value| value.deinit();
+    const request = known_request orelse loaded.?.request;
+    try request.binding.requireSame(operation.binding);
+    return if (request.statement) |plan|
         self.applyStatement(allocator, operation, plan, guard)
     else
-        self.applyWithinBudget(allocator, operation.binding, intent.request.changes, intent.request.ingestion, guard);
+        self.applyWithinBudget(allocator, operation.binding, request.changes, request.ingestion, guard);
 }
 
 pub fn cancel(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
@@ -2653,6 +2676,17 @@ pub fn retainHistory(self: *Self, owner: d.Operation, expected: d.Position, guar
     return self.retain(owner, expected, .history, guard);
 }
 
+fn loadSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle) !SnapshotDefinition {
+    if (self.snapshot_cache) |cached| {
+        if (std.meta.eql(cached.handle, handle) and std.meta.eql(cached.root.declared(), self.root.declared())) {
+            return .{ .owner = handle.owner, .retention = cached.retention, .root = cached.root, .schema = try self.declaration.schema.schema.clone(allocator) };
+        }
+    }
+    const frozen = try Snapshot.load(allocator, self.objects, handle);
+    self.snapshot_cache = .{ .handle = handle, .retention = frozen.retention, .root = frozen.root };
+    return frozen;
+}
+
 fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Retention, guard: Guard) !SnapshotHandle {
     try self.ready();
     try self.scope(owner);
@@ -2663,7 +2697,7 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
             const existing = try Snapshot.Pin.decode(value);
             if (existing.released) return error.TableSnapshotReleased;
             const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
-            var frozen = try Snapshot.load(self.allocator, self.objects, handle);
+            var frozen = try self.loadSnapshot(self.allocator, handle);
             defer frozen.deinit();
             if (retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
             return handle;
@@ -2672,7 +2706,8 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
         if (self.root.next_lsn == 0) return error.TableNotCreated;
         if (expected.partition != self.root.partition or expected.next_lsn != self.root.next_lsn) return error.TableDataChanged;
     }
-    const handle = try Snapshot.stage(self.allocator, self.objects, owner, retention, self.root, self.declaration.schema.schema);
+    const basis = self.root;
+    const handle = try Snapshot.stage(self.allocator, self.objects, owner, retention, basis, self.declaration.schema.schema);
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
     var next = self.root;
@@ -2680,6 +2715,7 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
     next.pins = try self.tree().put(next.pins, try r.operationKey(owner), try (Snapshot.Pin{ .content = handle.content }).encode());
     if (retention == .history) next.history_pins = try self.tree().put(next.history_pins, try Snapshot.historyKey(owner, self.root.next_lsn), try (Snapshot.Pin{ .content = handle.content }).encode());
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin = .{ .owner = owner, .basis = handle.content } } }, &.{}, guard);
+    self.snapshot_cache = .{ .handle = handle, .retention = retention, .root = basis };
     try self.reply();
     return handle;
 }
@@ -2718,7 +2754,7 @@ pub fn releaseSnapshot(self: *Self, handle: SnapshotHandle, guard: Guard) !void 
         defer guard.release(guard.context);
         if ((try self.requirePin(handle)).released) return;
     }
-    var frozen = try Snapshot.load(self.allocator, self.objects, handle);
+    var frozen = try self.loadSnapshot(self.allocator, handle);
     defer frozen.deinit();
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
@@ -2736,7 +2772,7 @@ pub fn readSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     defer guard.release(guard.context);
     var frozen = if (self.workspace_read) |view| try self.privateSnapshot(self.allocator, handle, view) else blk: {
         if ((try self.requirePin(handle)).released) return error.TableSnapshotReleased;
-        break :blk try Snapshot.load(self.allocator, self.objects, handle);
+        break :blk try self.loadSnapshot(self.allocator, handle);
     };
     defer frozen.deinit();
     try self.requireBasis(frozen.root);
@@ -2772,7 +2808,7 @@ pub fn inspectSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapsh
         defer guard.release(guard.context);
         if ((try self.requirePin(handle)).released) return error.TableSnapshotReleased;
     }
-    var frozen = try Snapshot.load(allocator, self.objects, handle);
+    var frozen = try self.loadSnapshot(allocator, handle);
     errdefer frozen.deinit();
     try self.requireBasis(frozen.root);
     _ = try guard.acquire(guard.context);

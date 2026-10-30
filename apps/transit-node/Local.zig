@@ -105,6 +105,7 @@ fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: 
     engine.snapshot_epoch = snapshot_epoch;
     var table: ?TableHost = if (config.table) |configured| try TableHost.init(init.gpa, init.io, configured, &engine) else null;
     defer if (table) |*host| host.deinit();
+    if (table) |*host| try host.warm(&engine);
     const lanes = try init.gpa.alloc(Lane, TableHost.request_owners);
     defer init.gpa.free(lanes);
     var initialized: usize = 0;

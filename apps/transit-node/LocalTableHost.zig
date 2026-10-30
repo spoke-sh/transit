@@ -68,6 +68,15 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     try catalog.recover();
     return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = try catalog.recoveryState() };
 }
+pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
+    const owner = engine.journal.backend;
+    if (self.residents[0].value == null) {
+        self.residents[0].value = try Service.Resident.create(owner.allocator, self.resident_memory.request(owner.allocator, false), owner, self.configuration, self.options, self.recovery);
+    }
+    if (self.control_residents[0].value == null) {
+        self.control_residents[0].value = try Service.Resident.create(owner.allocator, self.resident_memory.request(owner.allocator, true), owner, self.configuration, self.options, self.recovery);
+    }
+}
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .transaction => true,

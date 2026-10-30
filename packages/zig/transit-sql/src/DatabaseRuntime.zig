@@ -105,7 +105,7 @@ fn activate(self: *Self) !void {
     if (state == null) {
         const body = try c.DirectRecord.stage(caller, key.account, activation_format, &configuration);
         const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = body } } });
-        state = try c.DirectClientToken.inspect(caller, receipt.binding.key);
+        state = c.DirectClientToken.Progress.initial(receipt);
     }
     var current = state orelse return error.MissingGatewayOperation;
     if (!std.mem.eql(u8, &configuration, &current.receipt.binding.fingerprint)) return error.GatewayConfigurationChanged;
@@ -215,7 +215,7 @@ pub fn tick(self: *Self) !bool {
     var cleanup_pending = false;
     if (self.read_pins) |*pins| {
         const route_count = self.execution.configuration.bindings.len + self.read_sources.len;
-        if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = 0;
+        if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = if (pins.cleanup_slot == 0) 1 else 0;
         // A dirty signal can arrive halfway through a route. Include one extra
         // wrap so a successful sweep covers the prefix already passed too.
         if (self.cleanup_swept_routes <= route_count or self.read_cleanup_failure.load(.acquire) != 0) {
@@ -228,14 +228,18 @@ pub fn tick(self: *Self) !bool {
                 route_clean = false;
                 break :blk null;
             }) |caller| {
-                const cleaned = pins.tick(caller) catch |err| blk: {
-                    if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
-                    self.read_cleanup_failure.store(@intFromError(err), .release);
-                    route_clean = false;
-                    break :blk false;
-                };
-                progressed = progressed or cleaned;
-                route_complete = previous_slot != pins.cleanup_slot and pins.cleanup_slot == 0;
+                while (true) {
+                    const slot_before = pins.cleanup_slot;
+                    const cleaned = pins.tick(caller) catch |err| blk: {
+                        if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
+                        self.read_cleanup_failure.store(@intFromError(err), .release);
+                        route_clean = false;
+                        break :blk false;
+                    };
+                    progressed = progressed or cleaned;
+                    route_complete = slot_before != pins.cleanup_slot and pins.cleanup_slot == 0;
+                    if (!route_clean or cleaned or route_complete or pins.cleanup_slot == slot_before) break;
+                }
             } else if (route_clean) {
                 // A disabled optional source has no cleanup connection.
                 pins.cleanup_slot = 0;
@@ -335,9 +339,12 @@ pub fn resumeOperation(self: *Self, observer: *g.Client, id: u64) !void {
     if (try self.recoverOne(&source, id)) self.notify();
 }
 pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?g.OperationRecords.Operation {
-    var source = try observer.source();
-    const state = (try source.lookup(nonce, fingerprint)) orelse return null;
+    const state = (try lookupState(observer, nonce, fingerprint)) orelse return null;
     return try self.execution.operationFromState(state);
+}
+fn lookupState(observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?c.DirectClientToken.Progress {
+    var source = try observer.source();
+    return source.lookup(nonce, fingerprint);
 }
 /// Repeat only observations or independently idempotent database requests with
 /// the same arguments. In particular, a token bind retains its frozen reference;
@@ -359,14 +366,16 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    return self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true);
+    return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool) !g.OperationRecords.Operation {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool) !c.DirectClientToken.Progress {
     try deadline.check(self.io);
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
-    if (try self.available(observer, deadline, Self.lookup, .{ self, observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
-        operation.* = previous.id;
+    if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
+        operation.* = previous.id();
+        _ = try self.execution.operationFromState(previous);
         return previous;
     }
     try statement.checkValues(allocator, values);
@@ -387,8 +396,9 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
         // A concurrent first submission may have won after the initial lookup.
         // Reconcile only the same token; never invent a new operation.
         if (observer.transport.contended(err)) {
-            if (try self.available(observer, deadline, Self.lookup, .{ self, observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
-                operation.* = previous.id;
+            if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
+                operation.* = previous.id();
+                _ = try self.execution.operationFromState(previous);
                 return previous;
             }
         }
@@ -396,7 +406,9 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     };
     operation.* = receipt.position.next_lsn;
     if (wake) self.notify();
-    return try self.execution.operationFromState(c.DirectClientToken.Progress.initial(receipt));
+    const state = c.DirectClientToken.Progress.initial(receipt);
+    _ = try self.execution.operationFromState(state);
+    return state;
 }
 /// Submit through the same durable token owner and attempt bounded foreground
 /// DML completion. Interrupted work remains pending under its original identity;
@@ -406,14 +418,12 @@ pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     errdefer self.notify();
-    const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false);
-    var source = try observer.source();
-    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false);
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal|
         return self.project(state, terminal, null);
     if (state.pending) self.notify();
-    return self.status(allocator, observer, table, statement.namespace, item.id);
+    return self.status(allocator, observer, table, statement.namespace, state.id());
 }
 fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient, namespace: u64) !void {
     const intent = state.receipt.binding.intent;
@@ -460,12 +470,10 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var claimed = true;
     defer if (claimed) selected.unlock(self.io);
     errdefer self.notify();
-    const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false);
-    var source = try observer.source();
-    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
-    if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
+    if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
     claimed = false;
     selected.unlock(self.io);
     self.notify();
@@ -473,7 +481,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
         try deadline.check(self.io);
         const response = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
         defer response.deinit();
-        if (try g.Terminal.fromReference(intent, response.value.result)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
+        if (try g.Terminal.fromReference(intent, response.value.result)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
         try self.waitProgress(2);
     }
 }

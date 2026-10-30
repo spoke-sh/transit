@@ -12,6 +12,7 @@ const Cached = struct { reference: pages.Reference, page: pages.Page };
 allocator: std.mem.Allocator,
 store: objects.ObjectStore,
 cache: []?Cached,
+used: [max_resident_pages / 64]u64 = @splat(0),
 next_slot: usize = 0,
 hits: u64 = 0,
 misses: u64 = 0,
@@ -70,7 +71,7 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &result.location)) return error.InvalidDataIndexObject;
     self.staged_pages +|= 1;
     self.staged_bytes +|= encoded.len;
-    self.remember(result, page.*);
+    self.remember(result, page.*, false);
     return result;
 }
 
@@ -80,9 +81,10 @@ pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Referen
 }
 
 pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
-    for (self.cache) |slot| if (slot) |cached| {
+    for (self.cache, 0..) |slot, index| if (slot) |cached| {
         if (std.meta.eql(cached.reference, reference)) {
             self.hits +|= 1;
+            self.markUsed(index);
             return cached.page;
         }
     };
@@ -101,18 +103,47 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
     if (!std.mem.eql(u8, encoded[8..header_bytes], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const page = try pages.Page.decode(self.allocator, encoded[header_bytes..]);
     try reference.verify(&page);
-    self.remember(reference, page);
+    self.remember(reference, page, true);
     return page;
 }
 
-fn remember(self: *Self, reference: pages.Reference, page: pages.Page) void {
+fn remember(self: *Self, reference: pages.Reference, page: pages.Page, accessed: bool) void {
     if (self.cache.len == 0) return;
-    self.cache[self.next_slot] = .{ .reference = reference, .page = page };
-    self.next_slot = (self.next_slot + 1) % self.cache.len;
+    for (self.cache, 0..) |slot, index| if (slot) |cached| {
+        if (std.meta.eql(cached.reference, reference)) {
+            if (accessed) self.markUsed(index);
+            return;
+        }
+    };
+    for (0..self.cache.len * 2) |_| {
+        const index = self.next_slot;
+        self.next_slot = (self.next_slot + 1) % self.cache.len;
+        if (self.cache[index] != null and self.isUsed(index)) {
+            self.clearUsed(index);
+            continue;
+        }
+        self.cache[index] = .{ .reference = reference, .page = page };
+        if (accessed) self.markUsed(index) else self.clearUsed(index);
+        return;
+    }
+}
+
+fn markUsed(self: *Self, index: usize) void {
+    self.used[index / 64] |= @as(u64, 1) << @intCast(index % 64);
+}
+
+fn clearUsed(self: *Self, index: usize) void {
+    self.used[index / 64] &= ~(@as(u64, 1) << @intCast(index % 64));
+}
+
+fn isUsed(self: *const Self, index: usize) bool {
+    return (self.used[index / 64] & (@as(u64, 1) << @intCast(index % 64))) != 0;
 }
 
 pub fn clearCache(self: *Self) void {
     @memset(self.cache, null);
+    self.used = @splat(0);
+    self.next_slot = 0;
 }
 
 pub fn residentBytes(self: *const Self) usize {
