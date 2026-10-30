@@ -9433,6 +9433,95 @@
         "transit_serving"
       ]
     },
+    "packages/zig/transit-fuze/src/AnalyticalSql.zig": {
+      "errors": {
+        "InvalidJoinColumnIndex": 5,
+        "InvalidRecursiveCteBudget": 1,
+        "OutputBufferTooSmall": 14,
+        "RecursiveCteBudgetExceeded": 4,
+        "RecursiveCteCycleDetected": 1,
+        "RelationTooLarge": 5,
+        "RowArityExceeded": 2,
+        "ScalarSubqueryMultipleRows": 1,
+        "SpillQuotaExceeded": 1
+      },
+      "outcomes": {
+        "CorrelatedSubqueryKind": [
+          "exists_semi",
+          "not_exists_anti",
+          "scalar_single_row",
+          "lateral_inner",
+          "lateral_left"
+        ],
+        "JoinKind": [
+          "inner",
+          "left_outer",
+          "right_outer",
+          "full_outer",
+          "cross",
+          "left_semi",
+          "left_anti"
+        ],
+        "JoinPredicate": [
+          "always_true",
+          "equi",
+          "int64_between",
+          "range_overlaps"
+        ],
+        "SetOpKind": [
+          "union_all",
+          "union_distinct",
+          "intersect_distinct",
+          "except_distinct"
+        ],
+        "WindowFrameMode": [
+          "rows",
+          "range",
+          "groups"
+        ],
+        "WindowFunction": [
+          "row_number",
+          "rank",
+          "dense_rank",
+          "lag",
+          "lead",
+          "first_value",
+          "last_value",
+          "frame_sum_int64",
+          "frame_count_rows"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "JoinPredicate.matches()": "<inferred>",
+        "Row.fromSlice()": "<inferred>",
+        "SpillTracker.recordAllocation()": "<inferred>",
+        "cellsEqualForGrouping()": "<inferred>",
+        "cellsEqualForJoinOn()": "<inferred>",
+        "compareCellsOrder()": "<inferred>",
+        "computeRichAggregateSummary()": "<inferred>",
+        "concatRows()": "<inferred>",
+        "evaluateRecursiveGraphCte()": "<inferred>",
+        "evaluateSetOperation()": "<inferred>",
+        "evaluateSetOperation().appendDistinct.add()": "<inferred>",
+        "evaluateWindow()": "<inferred>",
+        "executeJoin()": "<inferred>",
+        "executeMultiWayJoin()": "<inferred>",
+        "executeUnnestedDJoin()": "<inferred>",
+        "rowsEqualUnderProfile()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
+        "catch": 1
+      },
+      "imports": [
+        "Collation.zig",
+        "Range.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/AuthorizationSql.zig": {
       "errors": {
         "DuplicateRoleOption": 3,
@@ -11143,6 +11232,58 @@
       },
       "imports": [
         "Collation.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/PerfectHashIn.zig": {
+      "errors": {
+        "InvalidInSetCardinality": 1,
+        "InvalidUtf8": 1,
+        "UnrepresentableEbcdic037": 1,
+        "UnrepresentableEbcdic1047": 1
+      },
+      "outcomes": {
+        "EvalState": [
+          "value_true",
+          "value_false",
+          "null_unknown",
+          "missing",
+          "type_error",
+          "conflict"
+        ],
+        "KeywordKind": [
+          "activate",
+          "suspend_kw",
+          "resume_kw",
+          "refresh",
+          "retire",
+          "qualify",
+          "lateral",
+          "as_of",
+          "changes",
+          "stream_slice",
+          "merge",
+          "materialized",
+          "dataflow",
+          "subscription",
+          "connection",
+          "recursive"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "StringInSet.compile()": "<inferred>",
+        "StringInSet.containsBytes()": "<inferred>",
+        "StringInSet.evaluateCell()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
+      },
+      "imports": [
+        "Collation.zig",
+        "Types.zig",
         "std"
       ]
     },
@@ -14760,6 +14901,93 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/VectorUdf.zig": {
+      "errors": {
+        "AmbientUdfImportRejected": 1,
+        "InvalidMacroClampBounds": 1,
+        "InvalidMacroParameterIndex": 1,
+        "InvalidUdfFuelBudget": 1,
+        "InvalidUdfIdentity": 1,
+        "InvalidUdfMemoryBudget": 1,
+        "InvalidUdfName": 1,
+        "InvalidWasmBranchTarget": 1,
+        "InvalidWasmInstructionCount": 1,
+        "InvalidWasmLocalIndex": 1,
+        "MissingSqlMacroBody": 1,
+        "MissingWasmUdfModule": 1,
+        "NonDeterministicUdfRejected": 1,
+        "OutputBufferTooSmall": 1,
+        "TooManyUdfParameters": 2,
+        "UdfArgumentArityMismatch": 2,
+        "UdfExecutionTrapped": 1,
+        "UdfFuelExhausted": 1,
+        "UdfMemoryLimitExceeded": 3,
+        "UdfParameterArityMismatch": 1
+      },
+      "outcomes": {
+        "AmbientImportKind": [
+          "none",
+          "wasi_preview1",
+          "system_clock",
+          "entropy_random",
+          "network_socket",
+          "filesystem_io",
+          "station_actor_send"
+        ],
+        "MacroExpr": [
+          "param",
+          "literal_int64",
+          "literal_utf8",
+          "add_checked",
+          "sub_checked",
+          "mul_checked",
+          "div_checked",
+          "coalesce",
+          "clamp_int64"
+        ],
+        "OnTrapPolicy": [
+          "emit_type_error_cell",
+          "abort_statement"
+        ],
+        "UdfKind": [
+          "scalar",
+          "table"
+        ],
+        "UdfRuntime": [
+          "sql_macro",
+          "wasm_vector_v1"
+        ],
+        "WasmInstr": [
+          "local_get",
+          "i64_const",
+          "i64_add_checked",
+          "i64_sub_checked",
+          "i64_mul_checked",
+          "i64_div_s_checked",
+          "i64_abs_checked",
+          "memory_grow_bytes",
+          "branch_back_if_positive",
+          "trap_explicit"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "FunctionDescriptor.validate()": "<inferred>",
+        "MacroExpr.validate()": "<inferred>",
+        "WasmVectorModule.validate()": "<inferred>",
+        "evaluateScalarBatch()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 9
+      },
+      "imports": [
+        "OperatorTraits.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/VectorizedSearch.zig": {
       "errors": {
         "InvalidSearchQuery": 2,
@@ -14879,6 +15107,7 @@
         "catch": 0
       },
       "imports": [
+        "AnalyticalSql.zig",
         "AuthorizationSql.zig",
         "Batch.zig",
         "BatchExecution.zig",
@@ -14906,6 +15135,7 @@
         "NeutralEncoding.zig",
         "OperatorTraits.zig",
         "PerfectHash.zig",
+        "PerfectHashIn.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -14949,6 +15179,7 @@
         "Types.zig",
         "Unified.zig",
         "VectorMetric.zig",
+        "VectorUdf.zig",
         "VectorizedSearch.zig",
         "execute.zig",
         "model.zig",

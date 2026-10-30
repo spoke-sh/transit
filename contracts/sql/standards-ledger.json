@@ -635,7 +635,114 @@
         "recover": "implemented",
         "transport": "implemented"
       }
+    },
+    {
+      "id": "F401-JOIN",
+      "standard": "iso_sql_2023_foundation",
+      "edition_clause": "ISO/IEC 9075-2:2023 §7.7-7.11",
+      "title": "Multi-way joins, OUTER/SEMI/ANTI/LATERAL joins, and Neumann-Kemper universal D-Join correlated subquery unnesting",
+      "owner": "packages/zig/transit-fuze/src/AnalyticalSql.zig",
+      "dependencies": [
+        "E021-E051"
+      ],
+      "deviations": "Lowers correlated subqueries algebraically via deduplicated domain D = delta(pi_corr(T_outer)) without O(N*M) nested-loop probes.",
+      "corpus_sources": [
+        "contracts/sql/corpus/relational.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
+      "id": "T611-WINDOW",
+      "standard": "iso_sql_2023_foundation",
+      "edition_clause": "ISO/IEC 9075-2:2023 §7.15 & §6.10",
+      "title": "Window functions (OVER PARTITION BY ... ORDER BY ... ROWS/RANGE/GROUPS), ranking/navigation, and QUALIFY",
+      "owner": "packages/zig/transit-fuze/src/AnalyticalSql.zig",
+      "dependencies": [
+        "E021-E051"
+      ],
+      "deviations": "Preserves 5-state cell failure witnesses across window frames and enforces bounded Tier 2 NVMe spill quotas.",
+      "corpus_sources": [
+        "contracts/sql/corpus/relational.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
+      "id": "T121-RECURSIVE-CTE",
+      "standard": "iso_sql_2023_foundation",
+      "edition_clause": "ISO/IEC 9075-2:2023 §7.17",
+      "title": "Common table expressions (WITH and cycle-checked budget-bounded WITH RECURSIVE) and set operations (UNION/INTERSECT/EXCEPT)",
+      "owner": "packages/zig/transit-fuze/src/AnalyticalSql.zig",
+      "dependencies": [
+        "E021-E051"
+      ],
+      "deviations": "Requires explicit iteration/row work bounds and deterministic cycle detection.",
+      "corpus_sources": [
+        "contracts/sql/corpus/relational.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
+      "id": "X007-PERFECT-HASH-IN",
+      "standard": "transit_extension_v1",
+      "edition_clause": "TRANSIT_SQL_V1 §PERFECT-HASH-IN",
+      "title": "Comptime keyword and plan-bound constant WHERE col IN (...) perfect-hash tables with 16-byte SIMD comparisons",
+      "owner": "packages/zig/transit-fuze/src/PerfectHashIn.zig",
+      "dependencies": [
+        "UCS_BASIC",
+        "ASCII_CI",
+        "EBCDIC_037_PAD"
+      ],
+      "deviations": "Evaluates 5-state IN / NOT IN semantics with 16B SIMD prefix probes under the column's declared collation profile.",
+      "corpus_sources": [
+        "contracts/sql/corpus/statements.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
+    },
+    {
+      "id": "X008-VECTOR-UDF",
+      "standard": "transit_extension_v1",
+      "edition_clause": "TRANSIT_SQL_V1 §UDF",
+      "title": "Deterministic SQL expression macros and sandboxed in-engine vectorized Wasm UDFs over Batch columns",
+      "owner": "packages/zig/transit-fuze/src/VectorUdf.zig",
+      "dependencies": [
+        "E021-E051"
+      ],
+      "deviations": "Rejects ambient WASI/network/clock imports and executes in-engine with per-row instruction fuel and memory bounds (zero actor-mailbox hops).",
+      "corpus_sources": [
+        "contracts/sql/corpus/declarations.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      }
     }
   ],
-  "sha256": "a9d8a01679f6113b633c3414745bb694445eaa8c84b20d334ce8e4eed6e6a248"
+  "sha256": "21b4fc1974e36d87acb839ee6d56bfb0f6656598a58332b9cd699dfc2ff463c5"
 }
