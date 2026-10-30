@@ -53,6 +53,13 @@ Queue expiry scheduling, timing-wheel/affinity behavior, terminal cleanup, DLQ
 transfer, mixed transactions or a final committed-source clean lane. The earlier
 Stream clean-core result does not extend to this Queue change.
 
+The subsequent default direct-service gate also passes on committed
+`056be8a68a24e75f4447d540b1938042c20afd86`: 2,055 Table/Stream HTTP calls followed
+by the isolated 25-call Queue schedule. The latter records `dirty: false` and
+the same binary hashes above. The log is
+`/var/tmp/transit-queue-direct-service-regression.log`; this is a committed-source
+workspace run, not an isolated clean lane with empty build caches.
+
 ## Queue catalog composition and shared identity — 2026-10-30
 
 The Queue catalog composition passes its disk test, the original Stream
