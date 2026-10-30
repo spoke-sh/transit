@@ -109,6 +109,8 @@ pub const Zone = struct {
     types: []const u8,
     designations: []const u8,
     footer: []const u8,
+    standard: []const u8,
+    universal: []const u8,
     fn layout(bytes: []const u8) !Zone {
         if (bytes.len > max_zone_bytes) return error.TimezoneDataTooLarge;
         const first = try Header.read(bytes);
@@ -121,7 +123,7 @@ pub const Zone = struct {
         const base = second_at + 44;
         const type_at = base + h.times * 9;
         const chars_at = type_at + h.types * 6;
-        return .{ .times = bytes[base..][0 .. h.times * 8], .indices = bytes[base + h.times * 8 ..][0..h.times], .types = bytes[type_at..][0 .. h.types * 6], .designations = bytes[chars_at..][0..h.chars], .footer = bytes[end + 1 .. bytes.len - 1] };
+        return .{ .times = bytes[base..][0 .. h.times * 8], .indices = bytes[base + h.times * 8 ..][0..h.times], .types = bytes[type_at..][0 .. h.types * 6], .designations = bytes[chars_at..][0..h.chars], .footer = bytes[end + 1 .. bytes.len - 1], .standard = bytes[chars_at + h.chars ..][0..h.standard], .universal = bytes[chars_at + h.chars + h.standard ..][0..h.universal] };
     }
     pub fn init(bytes: []const u8) !Zone {
         const zone = try layout(bytes);
@@ -135,7 +137,43 @@ pub const Zone = struct {
             if (offset < -89999 or offset > 93599 or info[4] > 1 or info[5] >= zone.designations.len) return error.InvalidTimezoneData;
             if (std.mem.indexOfScalar(u8, zone.designations[info[5]..], 0) == null) return error.InvalidTimezoneData;
         }
+        for (zone.standard) |flag| if (flag > 1) return error.InvalidTimezoneData;
+        for (zone.universal, 0..) |flag, i| {
+            if (flag > 1 or (flag == 1 and (zone.standard.len == 0 or zone.standard[i] == 0))) return error.InvalidTimezoneData;
+        }
+        for (zone.footer) |byte| if (byte < 0x20 or byte > 0x7e) return error.InvalidTimezoneData;
         return zone;
+    }
+    /// Only a fixed-offset POSIX footer can establish unlimited coverage in
+    /// a file without transitions. DST rules require an implemented interpreter.
+    fn fixedFooterOffset(footer: []const u8) !i32 {
+        var end: usize = 0;
+        if (footer.len > 0 and footer[0] == '<') {
+            end = (std.mem.indexOfScalar(u8, footer, '>') orelse return error.TimezoneCoverageUnavailable) + 1;
+            if (end < 5) return error.TimezoneCoverageUnavailable;
+        } else {
+            while (end < footer.len and std.ascii.isAlphabetic(footer[end])) : (end += 1) {}
+            if (end < 3) return error.TimezoneCoverageUnavailable;
+        }
+        var offset = footer[end..];
+        const negative = offset.len > 0 and offset[0] == '-';
+        if (offset.len > 0 and (offset[0] == '-' or offset[0] == '+')) offset = offset[1..];
+        var pieces = std.mem.splitScalar(u8, offset, ':');
+        var seconds: i32 = 0;
+        var count: usize = 0;
+        while (pieces.next()) |piece| {
+            if (count == 3 or piece.len == 0 or piece.len > 2) return error.TimezoneCoverageUnavailable;
+            for (piece) |byte| if (!std.ascii.isDigit(byte)) return error.TimezoneCoverageUnavailable;
+            const number = std.fmt.parseInt(i32, piece, 10) catch return error.TimezoneCoverageUnavailable;
+            if (number > (if (count == 0) @as(i32, 24) else 59)) return error.TimezoneCoverageUnavailable;
+            seconds += number * switch (count) {
+                0 => @as(i32, 3600),
+                1 => 60,
+                else => 1,
+            };
+            count += 1;
+        }
+        return if (negative) seconds else -seconds;
     }
     fn transition(self: Zone, index: usize) i64 {
         return std.mem.readInt(i64, self.times[index * 8 ..][0..8], .big);
@@ -156,7 +194,9 @@ pub const Zone = struct {
         const info = self.types[index * 6 ..][0..6];
         const name = self.designations[info[5]..];
         if (std.mem.startsWith(u8, name, "-00\x00")) return error.TimezoneCoverageUnavailable;
-        return std.mem.readInt(i32, info[0..4], .big);
+        const offset = std.mem.readInt(i32, info[0..4], .big);
+        if (count == 0 and self.footer.len > 0 and try fixedFooterOffset(self.footer) != offset) return error.TimezoneCoverageUnavailable;
+        return offset;
     }
 };
 
@@ -183,4 +223,15 @@ test "timezone content pin controls exact DST conversion and unsupported coverag
     var broken: [entries[0].tzif.len]u8 = entries[0].tzif[0..].*;
     broken[0] = 'x';
     try t.expectError(error.UnsupportedTimezoneFormat, Zone.init(&broken));
+}
+
+test "timezone zero-transition files cannot invent fixed coverage from DST footers" {
+    const utc = @embedFile("timezone-fixtures/utc.tzif");
+    const footer_at = utc.len - "UTC0\n".len;
+    const dynamic = utc[0..footer_at] ++ "UTC0DST,M3.2.0,M11.1.0\n";
+    const zone = try Zone.init(dynamic);
+    try std.testing.expectError(error.TimezoneCoverageUnavailable, zone.offsetSeconds(0));
+    try std.testing.expectEqual(@as(i32, 19800), try Zone.fixedFooterOffset("<+0530>-5:30"));
+    try std.testing.expectError(error.TimezoneCoverageUnavailable, Zone.fixedFooterOffset("UTC0junk"));
+    try std.testing.expectError(error.TimezoneCoverageUnavailable, Zone.fixedFooterOffset("UTC0:60"));
 }
