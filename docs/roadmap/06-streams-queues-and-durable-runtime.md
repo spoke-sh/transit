@@ -830,7 +830,8 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 ### First foundation slice
 
-The first implementation PR supplies three independently usable foundations:
+The first implementation PR supplies three independently usable foundations,
+with [scoped qualification](../history/qualification/verification.md#stream-and-queue-contract-and-bitmap-foundations--2026-10-29):
 
 - `transit-protocol.StreamQueue` and the [Stream](../../contracts/STREAM_V1.md)
   and [Queue](../../contracts/QUEUE_V1.md) contracts define original append and
