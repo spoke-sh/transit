@@ -58,6 +58,33 @@ An in-memory timer, local caller clock or delayed wakeup is insufficient.
 Clock rollback and restart require the owner's persisted time/fencing contract;
 these validators do not establish that contract from an arbitrary integer.
 
+`QueueClock` records the last accepted authoritative time floor. The owner
+obtains trusted time under the decision guard and persists its nondecreasing
+floor with lease-affecting outcomes. A missing clock returns
+`QueueTimeUnavailable`; a value below the persisted floor returns
+`QueueTimeRegression`. Neither restart nor delayed timer processing resets the
+floor. Supplying an integer to this pure check does not establish a trusted
+clock source.
+
+## Claim selection and original results
+
+`Claim` freezes the exact target, original operation, positive maximum row count
+and positive lease duration. The owner applies declaration limits and current
+rights at publication. `ClaimReceipt` records the original claim, accepted WAL
+position, observed authoritative time, checked expiry, returned row count and
+immutable content reference for the exact leased selection. Every selected
+lease must bind that claim, target and expiry; epochs and attempts come from
+the accepted per-message state. Selection cannot exceed the requested maximum.
+Expiry equals observed time plus requested duration without overflow.
+
+An empty accepted claim has zero rows and no selection content. Its original
+retry remains empty even if messages become available later. A changed maximum,
+duration or target under the same operation conflicts. A new selection requires
+a new operation identity. A nonempty receipt retains its selection and payload
+dependencies across disconnect and restart. Receipt disclosure needs current
+rights, and later execution still needs the current live lease. These neutral
+receipt types perform neither selection nor durable acceptance.
+
 ## Settlement and original outcomes
 
 `Settlement` freezes a distinct original operation by the claiming principal,

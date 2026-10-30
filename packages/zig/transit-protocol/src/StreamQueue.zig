@@ -87,6 +87,55 @@ pub const AppendReceipt = struct {
     }
 };
 
+/// Persistent producer fencing survives detailed receipt expiry. This value is
+/// a private candidate until accepted with the append and its original receipt.
+pub const ProducerState = struct {
+    target: Partition,
+    principal: u64,
+    producer: Producer,
+    discarded_through: u64,
+
+    pub fn validate(self: ProducerState) !void {
+        try self.target.validate();
+        try self.producer.validate();
+        if (self.principal > p.max_counter or self.discarded_through > self.producer.sequence) return error.InvalidLogProducerState;
+    }
+
+    pub fn initial(append: Append) !ProducerState {
+        try append.validate();
+        const producer = append.producer orelse return error.LogProducerRequired;
+        if (producer.sequence != 1) return error.LogProducerSequenceGap;
+        return .{ .target = append.target, .principal = append.operation.principal, .producer = producer, .discarded_through = 0 };
+    }
+
+    /// Original operation lookup precedes this check. A retry classification
+    /// still requires the exact accepted receipt; it never admits new payload.
+    pub fn check(self: ProducerState, append: Append) !enum { append, advance_epoch, retry } {
+        try self.validate();
+        try append.validate();
+        if (self.target.partition != append.target.partition or !std.meta.eql(self.target.interpretation.object, append.target.interpretation.object)) return error.LogPartitionConflict;
+        const producer = append.producer orelse return error.LogProducerRequired;
+        if (!std.mem.eql(u8, &self.producer.id, &producer.id) or self.principal != append.operation.principal) return error.LogProducerConflict;
+        if (producer.epoch < self.producer.epoch) return error.LogProducerFenced;
+        if (producer.epoch > self.producer.epoch) {
+            if (producer.sequence != 1) return error.LogProducerSequenceGap;
+            return .advance_epoch;
+        }
+        if (producer.sequence <= self.discarded_through) return error.LogProducerReceiptExpired;
+        if (producer.sequence <= self.producer.sequence) return .retry;
+        if (producer.sequence - self.producer.sequence != 1) return error.LogProducerSequenceGap;
+        return .append;
+    }
+
+    pub fn forgetThrough(self: ProducerState, sequence: u64) !ProducerState {
+        try self.validate();
+        if (sequence < self.discarded_through or sequence > self.producer.sequence) return error.InvalidLogProducerFloor;
+        var result = self;
+        result.discarded_through = sequence;
+        return result;
+    }
+};
+
 /// Describes one retained range. Only its owner can prove a live retention pin.
 /// Filtered/key-compacted records may leave holes within the logical range.
 pub const Cut = struct {
@@ -195,6 +244,57 @@ pub const Lease = struct {
     }
 };
 
+/// Trusted time is supplied by the owner under its decision guard. Persist the
+/// accepted floor with outcomes; restart must not reset it to a caller clock.
+pub const QueueClock = struct {
+    floor_ms: u64,
+    pub fn observe(self: QueueClock, trusted_now_ms: ?u64) !u64 {
+        const now = trusted_now_ms orelse return error.QueueTimeUnavailable;
+        if (now < self.floor_ms) return error.QueueTimeRegression;
+        return now;
+    }
+};
+
+/// A claim has its own frozen identity. An accepted empty selection remains
+/// empty on retry; another selection needs another operation, never a restart.
+pub const Claim = struct {
+    target: Partition,
+    operation: d.Operation,
+    maximum: u32,
+    lease_ms: u64,
+    pub fn validate(self: Claim) !void {
+        try self.target.requireOperation(self.operation);
+        if (self.maximum == 0 or self.lease_ms == 0) return error.InvalidQueueClaim;
+    }
+    pub fn requireSame(self: Claim, other: Claim) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.QueueClaimConflict;
+    }
+};
+
+pub const ClaimReceipt = struct {
+    claim: Claim,
+    accepted: d.Position,
+    observed_ms: u64,
+    expires_ms: u64,
+    rows: u32,
+    /// Immutable exact selection and per-message lease epochs/attempts. The
+    /// owner verifies every lease against the claim and retains payload access.
+    leases: ?d.Content,
+    pub fn validate(self: ClaimReceipt) !void {
+        try self.claim.validate();
+        try self.accepted.validate();
+        const expires = std.math.add(u64, self.observed_ms, self.claim.lease_ms) catch return error.QueueLeaseDeadlineOverflow;
+        if (self.accepted.next_lsn == 0 or self.rows > self.claim.maximum or (self.rows == 0) != (self.leases == null) or self.expires_ms != expires) return error.InvalidQueueClaimReceipt;
+        if (self.leases) |leases| try leases.validate();
+    }
+    pub fn requireClaim(self: ClaimReceipt, claim: Claim) !void {
+        try self.validate();
+        try self.claim.requireSame(claim);
+    }
+};
+
 pub const Settlement = struct {
     operation: d.Operation,
     lease: Lease,
@@ -248,7 +348,10 @@ pub const SettlementReceipt = struct {
 pub const SchemaTypes = struct {
     declaration: p.StreamQueueDeclaration.Declaration,
     append: AppendReceipt,
+    producer: ProducerState,
     offset_commit: OffsetCommit,
+    claim: ClaimReceipt,
+    clock: QueueClock,
     settlement: SettlementReceipt,
 };
 

@@ -68,6 +68,25 @@ producer fencing, accept each sequence only once, reject conflicting payloads,
 and preserve old-sequence rejection after receipt cleanup. Shape validation alone
 cannot prove monotonic progression or deduplication.
 
+`ProducerState` specifies the concrete progression rule. The first accepted
+batch for an ID starts at sequence one. A producer ID is scoped to the stable
+object/partition and its original principal; another principal cannot take it
+over. In the same epoch, the next fresh batch is exactly the last accepted
+sequence plus one. An older accepted sequence requires its exact retained
+receipt, including original operation and payload. A higher epoch starts at
+sequence one and fences lower epochs. Current authorization is required to
+advance an epoch. Definition revisions preserve this stable producer scope;
+the current schema/definition check remains an independent admission guard.
+
+The persisted `discarded_through` floor only advances and never exceeds the
+last accepted sequence. A sequence at or below it returns
+`LogProducerReceiptExpired`; cleanup cannot readmit it as fresh work. Maximum
+unsigned sequence is representable; further work in that epoch cannot advance
+without an explicit greater epoch. The owner checks original-operation receipts
+before current producer fencing so a previously accepted retry remains an
+observation of its original result. State and receipt changes must share the
+append decision. These pure progression checks do not publish that decision.
+
 `AppendReceipt` attributes an accepted half-open logical range `[first, next)`
 to the complete original append. The range length equals its row count without
 wrapping, and the separately recorded WAL acceptance position is nonempty.

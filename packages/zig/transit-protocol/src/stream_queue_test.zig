@@ -13,6 +13,8 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     const v = parsed.value;
     try v.declaration.validate();
     try v.append.validate();
+    try v.producer.validate();
+    try v.claim.validate();
     try v.offset_commit.validate();
     try v.settlement.validate();
     try t.expectEqual(std.math.maxInt(u64), v.append.next);
@@ -175,4 +177,62 @@ test "stream queue persisted binding has no missing or foreign definition fallba
     const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
     foreign[at] = if (foreign[at] == '0') '1' else '0';
     try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(q.Partition, t.allocator, foreign));
+}
+
+test "producer floors fence epochs sequence gaps other principals and discarded receipts" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var append = parsed.value.append.append;
+    append.producer.?.epoch = 1;
+    append.producer.?.sequence = 1;
+    const initial = try q.ProducerState.initial(append);
+    try t.expectEqual(.retry, try initial.check(append));
+    append.producer.?.sequence = 3;
+    try t.expectError(error.LogProducerSequenceGap, initial.check(append));
+    append.producer.?.sequence = 2;
+    try t.expectEqual(.append, try initial.check(append));
+    // Definition changes preserve the producer's stable object/partition scope.
+    append.target.interpretation.revision += 1;
+    try t.expectEqual(.append, try initial.check(append));
+    append.operation.principal += 1;
+    try t.expectError(error.LogProducerConflict, initial.check(append));
+    append.operation.principal -= 1;
+    append.producer.?.epoch = 2;
+    try t.expectError(error.LogProducerSequenceGap, initial.check(append));
+    append.producer.?.sequence = 1;
+    try t.expectEqual(.advance_epoch, try initial.check(append));
+    const renewed = try q.ProducerState.initial(append);
+    append.producer.?.epoch = 1;
+    try t.expectError(error.LogProducerFenced, renewed.check(append));
+    const expired = try initial.forgetThrough(1);
+    try t.expectError(error.LogProducerReceiptExpired, expired.check(append));
+    try t.expectError(error.InvalidLogProducerFloor, expired.forgetThrough(0));
+    append = parsed.value.append.append;
+    try t.expectEqual(.retry, try parsed.value.producer.check(append));
+    const exhausted = try parsed.value.producer.forgetThrough(std.math.maxInt(u64));
+    try t.expectError(error.LogProducerReceiptExpired, exhausted.check(append));
+    append.producer.?.epoch += 1;
+    append.producer.?.sequence = 1;
+    try t.expectEqual(.advance_epoch, try exhausted.check(append));
+}
+
+test "claim receipts preserve exact empty selection and expiry and trusted time never rolls back" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var receipt = parsed.value.claim;
+    try receipt.requireClaim(receipt.claim);
+    var changed = receipt.claim;
+    changed.maximum += 1;
+    try t.expectError(error.QueueClaimConflict, receipt.requireClaim(changed));
+    receipt.rows = 0;
+    try t.expectError(error.InvalidQueueClaimReceipt, receipt.validate());
+    receipt.leases = null;
+    try receipt.validate();
+    receipt.expires_ms += 1;
+    try t.expectError(error.InvalidQueueClaimReceipt, receipt.validate());
+    receipt.observed_ms = std.math.maxInt(u64);
+    try t.expectError(error.QueueLeaseDeadlineOverflow, receipt.validate());
+    try t.expectEqual(@as(u64, 500), try parsed.value.clock.observe(500));
+    try t.expectError(error.QueueTimeRegression, parsed.value.clock.observe(499));
+    try t.expectError(error.QueueTimeUnavailable, parsed.value.clock.observe(null));
 }

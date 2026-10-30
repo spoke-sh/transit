@@ -15213,7 +15213,11 @@
         "InvalidLogCut": 1,
         "InvalidLogGroup": 1,
         "InvalidLogProducer": 1,
+        "InvalidLogProducerFloor": 1,
+        "InvalidLogProducerState": 1,
         "InvalidOffsetCommit": 1,
+        "InvalidQueueClaim": 1,
+        "InvalidQueueClaimReceipt": 1,
         "InvalidQueueLease": 1,
         "InvalidQueueSettlement": 2,
         "InvalidQueueSettlementReceipt": 1,
@@ -15222,17 +15226,30 @@
         "LogHistoryUnavailable": 1,
         "LogOffsetBeyondCut": 1,
         "LogOffsetConflict": 1,
-        "LogPartitionConflict": 2,
+        "LogPartitionConflict": 3,
+        "LogProducerConflict": 1,
+        "LogProducerFenced": 1,
+        "LogProducerReceiptExpired": 1,
+        "LogProducerRequired": 2,
+        "LogProducerSequenceGap": 3,
+        "QueueClaimConflict": 1,
+        "QueueLeaseDeadlineOverflow": 1,
         "QueueLeaseExpired": 1,
         "QueueLeaseFenced": 1,
         "QueueSettlementConflict": 1,
-        "QueueTimeUnavailable": 1,
+        "QueueTimeRegression": 1,
+        "QueueTimeUnavailable": 2,
         "UnsupportedTransactionDomain": 1
       },
       "outcomes": {
         "Append.kind": [
           "stream",
           "queue"
+        ],
+        "ProducerState.check().<enum>": [
+          "append",
+          "advance_epoch",
+          "retry"
         ],
         "Settlement.action": [
           "ack",
@@ -15246,6 +15263,10 @@
         "Append.validate()": "<inferred>",
         "AppendReceipt.requireAppend()": "<inferred>",
         "AppendReceipt.validate()": "<inferred>",
+        "Claim.requireSame()": "<inferred>",
+        "Claim.validate()": "<inferred>",
+        "ClaimReceipt.requireClaim()": "<inferred>",
+        "ClaimReceipt.validate()": "<inferred>",
         "Coverage.validate()": "<inferred>",
         "Cut.requireOffset()": "<inferred>",
         "Cut.validate()": "<inferred>",
@@ -15258,6 +15279,11 @@
         "Partition.requireSame()": "<inferred>",
         "Partition.validate()": "<inferred>",
         "Producer.validate()": "<inferred>",
+        "ProducerState.check()": "<inferred>",
+        "ProducerState.forgetThrough()": "<inferred>",
+        "ProducerState.initial()": "<inferred>",
+        "ProducerState.validate()": "<inferred>",
+        "QueueClock.observe()": "<inferred>",
         "Settlement.requireLive()": "<inferred>",
         "Settlement.requireSame()": "<inferred>",
         "Settlement.validate()": "<inferred>",
@@ -15266,8 +15292,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
-        "catch": 0
+        "try": 51,
+        "catch": 1
       },
       "imports": [
         "root.zig",

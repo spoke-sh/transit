@@ -1513,6 +1513,194 @@
         "next_lsn": 12
       }
     },
+    "producer": {
+      "target": {
+        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "principal": 17,
+      "producer": {
+        "id": [
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13,
+          13
+        ],
+        "epoch": 5,
+        "sequence": 18446744073709551615
+      },
+      "discarded_through": 18446744073709551609
+    },
+    "claim": {
+      "claim": {
+        "target": {
+          "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551613
+        },
+        "maximum": 16,
+        "lease_ms": 500
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 12
+      },
+      "observed_ms": 500,
+      "expires_ms": 1000,
+      "rows": 2,
+      "leases": {
+        "bytes": 512,
+        "sha256": [
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41,
+          41
+        ]
+      }
+    },
+    "clock": {
+      "floor_ms": 500
+    },
     "offset_commit": {
       "operation": {
         "scope": {
