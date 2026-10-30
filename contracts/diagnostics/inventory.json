@@ -2766,6 +2766,35 @@
         "Store.zig"
       ]
     },
+    "packages/zig/transit-bitmap/src/root.zig": {
+      "errors": {
+        "BitmapOutputTooSmall": 1,
+        "InvalidBitmapCardinality": 1,
+        "InvalidBitmapEncoding": 12,
+        "NonCanonicalBitmap": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "array",
+          "bitmap",
+          "run"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Container.decode()": "<inferred>",
+        "Container.encode()": "<inferred>",
+        "View.parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-board-api/src/Document.zig": {
       "errors": {},
       "outcomes": {},
@@ -15168,6 +15197,76 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/StreamQueue.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogAppend": 1,
+        "InvalidLogAppendReceipt": 1,
+        "InvalidLogCoverage": 1,
+        "InvalidLogCut": 1,
+        "InvalidLogGroup": 1,
+        "InvalidLogProducer": 1,
+        "InvalidOffsetCommit": 1,
+        "InvalidQueueLease": 1,
+        "InvalidQueueSettlement": 2,
+        "InvalidQueueSettlementReceipt": 1,
+        "LogAppendConflict": 1,
+        "LogGroupFenced": 1,
+        "LogHistoryUnavailable": 1,
+        "LogOffsetBeyondCut": 1,
+        "LogOffsetConflict": 1,
+        "LogPartitionConflict": 2,
+        "QueueLeaseExpired": 1,
+        "QueueLeaseFenced": 1,
+        "QueueSettlementConflict": 1,
+        "QueueTimeUnavailable": 1,
+        "UnsupportedTransactionDomain": 1
+      },
+      "outcomes": {
+        "Append.kind": [
+          "stream",
+          "queue"
+        ],
+        "Settlement.action": [
+          "ack",
+          "nack",
+          "extend"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Append.requireSame()": "<inferred>",
+        "Append.validate()": "<inferred>",
+        "AppendReceipt.requireAppend()": "<inferred>",
+        "AppendReceipt.validate()": "<inferred>",
+        "Coverage.validate()": "<inferred>",
+        "Cut.requireOffset()": "<inferred>",
+        "Cut.validate()": "<inferred>",
+        "Group.validate()": "<inferred>",
+        "Lease.requireLive()": "<inferred>",
+        "Lease.validate()": "<inferred>",
+        "OffsetCommit.requireCurrent()": "<inferred>",
+        "OffsetCommit.validate()": "<inferred>",
+        "Partition.requireOperation()": "<inferred>",
+        "Partition.requireSame()": "<inferred>",
+        "Partition.validate()": "<inferred>",
+        "Producer.validate()": "<inferred>",
+        "Settlement.requireLive()": "<inferred>",
+        "Settlement.requireSame()": "<inferred>",
+        "Settlement.validate()": "<inferred>",
+        "SettlementReceipt.requireSettlement()": "<inferred>",
+        "SettlementReceipt.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Transaction.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -15501,6 +15600,7 @@
         "Schema.zig",
         "State.zig",
         "Storage.zig",
+        "StreamQueue.zig",
         "Transaction.zig",
         "Value.zig",
         "std"
