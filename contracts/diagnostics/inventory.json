@@ -15268,6 +15268,69 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/StreamQueueDeclaration.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogLimits": 2,
+        "InvalidLogPartitioning": 2,
+        "InvalidLogRetention": 1,
+        "InvalidQueueAttempt": 1,
+        "InvalidQueueBackoff": 1,
+        "InvalidQueueDestination": 1,
+        "InvalidQueueLeaseDuration": 1,
+        "InvalidQueuePartitionKey": 1,
+        "InvalidQueuePolicy": 2,
+        "InvalidStreamPolicy": 1,
+        "LogDeclarationConflict": 1,
+        "LogPartitionKeyRequired": 1,
+        "QueueLeaseDeadlineOverflow": 1,
+        "UnsupportedLogKeyChange": 2,
+        "UnsupportedLogRepartition": 1,
+        "UnsupportedTransactionDomain": 1
+      },
+      "outcomes": {
+        "Configuration.policy": [
+          "stream",
+          "queue"
+        ],
+        "Kind": [
+          "stream",
+          "queue"
+        ],
+        "Partitioning.hash": [
+          "sha256_64"
+        ],
+        "Queue.ordering": [
+          "unordered",
+          "key_fifo"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Backoff.delay()": "<inferred>",
+        "Backoff.validate()": "<inferred>",
+        "Configuration.requireEvolution()": "<inferred>",
+        "Configuration.validate()": "<inferred>",
+        "Declaration.requireSuccessor()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Partitioning.select()": "<inferred>",
+        "Partitioning.validate()": "<inferred>",
+        "Queue.deadline()": "<inferred>",
+        "Queue.validate()": "<inferred>",
+        "Retention.validate()": "<inferred>",
+        "Stream.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Transaction.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -15602,6 +15665,7 @@
         "State.zig",
         "Storage.zig",
         "StreamQueue.zig",
+        "StreamQueueDeclaration.zig",
         "Transaction.zig",
         "Value.zig",
         "std"
@@ -27552,6 +27616,48 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-storage/src/BitmapDirectory.zig": {
+      "errors": {
+        "BitmapBatchTooLarge": 1,
+        "BitmapCardinalityOverflow": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidBitmapContainer": 5,
+        "InvalidBitmapPrefix": 3,
+        "InvalidBitmapReference": 2,
+        "InvalidBitmapRoot": 2,
+        "MissingBitmapContainer": 1,
+        "NoStorageCandidate": 1,
+        "StorageCandidateTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.decode()": "<inferred>",
+        "Reference.encode()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "contains()": "<inferred>",
+        "edit()": "<inferred>",
+        "key()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "prefixOf()": "<inferred>",
+        "read()": "<inferred>",
+        "reference()": "<inferred>",
+        "scan()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 33,
+        "catch": 1
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_bitmap",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DiskObjects.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -29070,6 +29176,7 @@
         "catch": 0
       },
       "imports": [
+        "BitmapDirectory.zig",
         "DocumentIndex.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
