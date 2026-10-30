@@ -31,6 +31,17 @@ const CandidateObjects = @import("CandidateObjects.zig");
 const QueueIndex = @import("QueueIndex.zig");
 const QueueClaims = @import("QueueClaims.zig");
 const QueueSelection = @import("QueueSelection.zig");
+const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
+const DeadlineCache = struct {
+    root: ?pages.Reference = null,
+    valid: bool = false,
+    heap: QueueLeaseHeap,
+    fn clear(self: *@This()) void {
+        self.valid = false;
+        self.root = null;
+        self.heap.clear();
+    }
+};
 const queue_read = p.QueueRead;
 pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
     return struct {
@@ -49,6 +60,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             queue_candidate_objects: u32 = 4096,
             queue_candidate_resident_bytes: usize = 16 * 1024 * 1024,
             queue_claim_rows: u32 = 256,
+            /// Cached earliest active deadlines, independent of durable active count.
+            queue_deadline_rows: u32 = 64,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
@@ -72,11 +85,13 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         queue_container: if (kind == .queue) Bitmap.Container else void,
         queue_leases: if (kind == .queue) []q.Lease else void,
         queue_selection: if (kind == .queue) []u8 else void,
+        queue_deadlines: if (kind == .queue) DeadlineCache else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
         pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
             if (std.meta.activeTag(request.declared.declaration.configuration.policy) != kind) return error.LogPartitionConflict;
+            if (kind == .queue and (options.queue_deadline_rows == 0 or options.queue_deadline_rows > 4096)) return error.InvalidQueueScheduleBudget;
             if (kind == .queue and (options.queue_claim_rows == 0 or options.queue_claim_rows > QueueSelection.max_rows)) return error.InvalidQueueClaimBudget;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
@@ -98,7 +113,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             errdefer if (kind == .queue) allocator.free(queue_leases);
             const queue_selection = if (kind == .queue) try allocator.alloc(u8, QueueSelection.header_bytes + QueueSelection.max_metadata_bytes + QueueSelection.item_bytes * options.queue_claim_rows) else {};
             errdefer if (kind == .queue) allocator.free(queue_selection);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection };
+            const deadline_entries = if (kind == .queue) try allocator.alloc(q.Lease, options.queue_deadline_rows) else {};
+            errdefer if (kind == .queue) allocator.free(deadline_entries);
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {} };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
@@ -108,6 +125,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.candidate_objects.deinit();
                 self.allocator.free(self.queue_leases);
                 self.allocator.free(self.queue_selection);
+                self.allocator.free(self.queue_deadlines.heap.entries);
             }
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
@@ -457,12 +475,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.requireReady();
             try self.root.requireControlDeclaration(declared);
             const now = try self.queueTime(self.root.clock_ms);
-            var bitmap: Bitmap = undefined;
-            const expired = try self.queueIndex(&bitmap).firstExpired(self.root.queue.?, now.earliest_ms) orelse {
+            const expired = try self.queueDeadline(declared, now.earliest_ms) orelse {
                 try authorize(guard);
                 return false;
             };
-            const action: @FieldType(@FieldType(r.Record, "action"), "queue_expire") = .{ .lease = expired.lease.?, .observed = now };
+            const action: @FieldType(@FieldType(r.Record, "action"), "queue_expire") = .{ .lease = expired, .observed = now };
             const ordinary = self.enterControl(true);
             defer self.leaveControl(ordinary);
             try self.candidate_objects.reset(self.objects);
@@ -477,6 +494,51 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .queue_expire = action } }, &.{}, guard);
             return true;
         }
+        /// Load only a bounded earliest prefix. A cache miss never limits total
+        /// active leases or establishes that the durable directory is empty.
+        fn queueDeadline(self: *Self, declared: Declaration.Stored, earliest_ms: u64) !?q.Lease {
+            const root = self.root.queue.?;
+            const cached = &self.queue_deadlines;
+            if (!cached.valid or !std.meta.eql(cached.root, root.deadlines) or (cached.heap.len == 0 and root.active != 0)) {
+                cached.clear();
+                var bitmap: Bitmap = undefined;
+                const index = self.queueIndex(&bitmap);
+                var after: ?pages.Key = null;
+                const limit = @min(cached.heap.entries.len, declared.declaration.limits.timer_steps);
+                while (cached.heap.len < limit) {
+                    const item = try index.deadlineAfter(root, after) orelse break;
+                    const lease = item.lease.?;
+                    try cached.heap.insert(lease);
+                    after = try QueueIndex.timedKey(lease.expires_ms, lease.offset);
+                }
+                if (cached.heap.len == 0 and root.active != 0) return error.InvalidQueueSchedule;
+                cached.root = root.deadlines;
+                cached.valid = true;
+            }
+            const lease = cached.heap.peek() orelse return null;
+            return if (lease.expires_ms <= earliest_ms) lease else null;
+        }
+
+        /// Only an accepted expiry can remove the cached earliest entry while
+        /// preserving the rest of its prefix. Every other directory replacement
+        /// invalidates the cache. Physical publications can retain the same root.
+        fn acceptedDeadlines(self: *Self, record: r.Record) void {
+            const cached = &self.queue_deadlines;
+            if (!cached.valid) return;
+            if (!std.meta.eql(cached.root, self.root.queue.?.deadlines)) {
+                cached.clear();
+                return;
+            }
+            if (std.meta.eql(cached.root, record.root.queue.?.deadlines)) return;
+            if (record.action == .queue_expire) {
+                cached.heap.removeExact(record.action.queue_expire.lease) catch {
+                    cached.clear();
+                    return;
+                };
+                cached.root = record.root.queue.?.deadlines;
+            } else cached.clear();
+        }
+
         fn candidateQueueExpiry(self: *Self, declared: Declaration.Stored, action: @FieldType(@FieldType(r.Record, "action"), "queue_expire")) !Root {
             try self.root.requireControlDeclaration(declared);
             var declaration = try Declaration.load(self.allocator, self.objects, declared);
@@ -790,6 +852,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.ready = false;
                 return error.LogAppendUncertain;
             }
+            if (kind == .queue) self.acceptedDeadlines(record);
             self.root = next;
             self.commitment = Evidence.hash(bytes);
         }

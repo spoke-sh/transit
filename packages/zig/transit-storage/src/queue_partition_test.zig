@@ -613,15 +613,19 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     defer base.deinit();
     var definition = base.definition;
     definition.configuration.policy.queue.maximum_attempts = 2;
+    definition.limits.timer_steps = 1;
     var declared = try s.LogDeclaration.prepare(t.allocator, definition);
     defer declared.deinit();
     var policy: Policy = .{};
     var clock: Clock = .{ .value = .exact(1000) };
     var configured = options;
     configured.clock = clock.source();
+    configured.queue_deadline_rows = 1; // Active population is larger than its cached prefix.
     const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
     var fault: Fault = .{ .underlying = wal.log() };
-    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    var allocations: f.memory.AllocationProbe = .{ .parent = t.allocator };
+    defer t.expectEqual(@as(usize, 0), allocations.live_bytes) catch unreachable;
+    var owner = try Queue.open(allocations.allocator(), fault.log(), objects.objectStore(), initial, policy.guard(), configured);
     defer owner.deinit() catch unreachable;
     _ = try owner.recoverStep(policy.guard(), 1);
     var bytes: [8192]u8 = undefined;
@@ -630,6 +634,20 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
     const original = try owner.claim(initial.declared, claim, policy.guard());
     const alpha = try selectedLease(objects.objectStore(), original, 0);
+    // Warm the earliest prefix, then renew its lease. The old wakeup must not
+    // expire a changed lease or hide the other acquired offset.
+    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    const idle_reads = objects.range_reads;
+    allocations.begin(true);
+    for (0..20) |_| try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expectEqual(idle_reads, objects.range_reads);
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.expireOne(initial.declared, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    clock.value = null;
+    try t.expectError(error.QueueTimeUnavailable, owner.expireOne(initial.declared, policy.guard()));
+    try allocations.verify();
+    allocations.begin(false);
     clock.value = .exact(1050);
     _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = alpha, .action = .{ .extend = .{ .expires_ms = 1200 } } }, policy.guard());
     const before = owner.owner.root;
@@ -651,7 +669,8 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     clock.value = null;
     policy.epoch = 2;
-    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    configured.queue_deadline_rows = 4; // Refill still obeys the smaller declared timer budget.
+    owner = try Queue.open(allocations.allocator(), wal.log(), objects.objectStore(), initial, policy.guard(), configured);
     while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
     try t.expectEqual(@as(u64, 0), objects.puts);
     try t.expectEqualDeep(original, try owner.claim(initial.declared, claim, policy.guard()));
@@ -667,6 +686,8 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     try t.expectEqual(@as(u32, 1), retry.rows);
     const beta = try selectedLease(objects.objectStore(), retry, 0);
     try t.expect(beta.offset == 1 and beta.attempt == 2 and beta.epoch == 2);
+    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expectEqual(@as(usize, 1), owner.owner.queue_deadlines.heap.len);
     clock.value = .exact(1000000);
     var retired_definition = declared.definition;
     retired_definition.revision = 2;
@@ -710,7 +731,7 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
     objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     clock.value = null;
-    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    owner = try Queue.open(allocations.allocator(), wal.log(), objects.objectStore(), initial, policy.guard(), configured);
     while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
     try t.expectEqualDeep(original, (try owner.operation(original.claim.operation, policy.guard())).?.outcome.claim.receipt);
     var page = try owner.readClaimPage(current, .{ .receipt = original, .next = 0 }, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());

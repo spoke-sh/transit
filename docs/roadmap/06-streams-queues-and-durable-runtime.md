@@ -436,8 +436,10 @@ The current progress slice delivers:
   [native and installed schedules](../history/qualification/catalog.md#automatic-local-queue-maintenance--2026-10-30)
   pass clock-bound expiry, reserved capacity, physical tiering after retirement,
   original outcomes and the combined Table/Stream maintenance regression.
-  Timer-wheel and affinity scheduling, terminal cleanup and atomic DLQ transfer
-  remain outstanding.
+  A bounded exact-lease heap now caches the earliest active deadline prefix and
+  invalidates on changed durable lease state; its capacity does not limit the
+  active population. Hierarchical timing-wheel and far-future run integration,
+  affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

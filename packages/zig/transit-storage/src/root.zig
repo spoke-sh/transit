@@ -30,6 +30,7 @@ pub const StreamPartition = @import("StreamPartition.zig").Owner;
 pub const QueuePartition = @import("QueuePartition.zig");
 pub const QueueIndex = @import("QueueIndex.zig");
 pub const QueueItem = @import("QueueItem.zig");
+pub const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
 pub const QueueSelection = @import("QueueSelection.zig");
 pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
@@ -75,6 +76,7 @@ test {
     _ = @import("bitmap_directory_test.zig");
     _ = @import("tack_test.zig");
     _ = @import("queue_item_test.zig");
+    _ = QueueLeaseHeap;
     _ = @import("queue_index_test.zig");
     _ = @import("queue_partition_test.zig");
     _ = @import("queue_selection_test.zig");

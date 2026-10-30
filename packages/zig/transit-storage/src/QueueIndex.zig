@@ -298,12 +298,18 @@ pub fn eligibleAfter(self: Self, root: Root, after: ?pages.Key, earliest_ms: u64
 }
 
 pub fn firstExpired(self: Self, root: Root, earliest_ms: u64) !?Item {
+    const value = try self.deadlineAfter(root, null) orelse return null;
+    return if (value.lease.?.expires_ms <= earliest_ms) value else null;
+}
+
+/// One exact active lease from a frozen deadline directory, for bounded cache
+/// loading. The caller must discard its cursor if that directory changes.
+pub fn deadlineAfter(self: Self, root: Root, after: ?pages.Key) !?Item {
     try root.validate();
-    const page = try self.tree().scan(root.deadlines, null);
+    const page = try self.tree().scan(root.deadlines, after);
     const entry = page.entries[0] orelse return null;
     if (entry.key.len != 16 or entry.value.len != 8) return error.InvalidQueueSchedule;
     const at = std.mem.readInt(u64, entry.key.data[0..8], .big);
-    if (at > earliest_ms) return null;
     const value = try self.item(root, std.mem.readInt(u64, entry.key.data[8..16], .big));
     if (try self.state(root, value) != .acquired or value.lease.?.expires_ms != at or
         value.epoch != std.mem.readInt(u64, entry.value.data[0..8], .big)) return error.InvalidQueueSchedule;

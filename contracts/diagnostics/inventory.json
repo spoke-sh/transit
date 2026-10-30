@@ -31675,6 +31675,8 @@
         "InvalidQueueExpiration": 2,
         "InvalidQueueHead": 1,
         "InvalidQueueReadBudget": 1,
+        "InvalidQueueSchedule": 1,
+        "InvalidQueueScheduleBudget": 1,
         "InvalidQueueSelection": 2,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
@@ -31788,6 +31790,7 @@
         "Owner().<return>.publishRecord()": "<inferred>",
         "Owner().<return>.putGroup()": "<inferred>",
         "Owner().<return>.queueCanonicalKey()": "<inferred>",
+        "Owner().<return>.queueDeadline()": "<inferred>",
         "Owner().<return>.queueTime()": "<inferred>",
         "Owner().<return>.readBasis()": "<inferred>",
         "Owner().<return>.readBatch()": "<inferred>",
@@ -31823,8 +31826,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 616,
-        "catch": 17
+        "try": 620,
+        "catch": 18
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -31846,6 +31849,7 @@
         "QueueClaims.zig",
         "QueueIndex.zig",
         "QueueItem.zig",
+        "QueueLeaseHeap.zig",
         "QueueSelection.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
@@ -32357,6 +32361,7 @@
         "addDeadline()": "<inferred>",
         "advanceHead()": "<inferred>",
         "changeState()": "<inferred>",
+        "deadlineAfter()": "<inferred>",
         "eligibleAfter()": "<inferred>",
         "enqueue()": "<inferred>",
         "expire()": "<inferred>",
@@ -32376,7 +32381,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 108,
+        "try": 109,
         "catch": 0
       },
       "imports": [
@@ -32427,6 +32432,28 @@
       "imports": [
         "LogTime.zig",
         "Tack.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueLeaseHeap.zig": {
+      "errors": {
+        "InvalidQueueSchedule": 1,
+        "QueueLeaseCapacityExceeded": 1,
+        "QueueLeaseFenced": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "insert()": "<inferred>",
+        "removeExact()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
         "std",
         "transit_protocol"
       ]
@@ -33849,6 +33876,7 @@
         "PublicationGuard.zig",
         "QueueIndex.zig",
         "QueueItem.zig",
+        "QueueLeaseHeap.zig",
         "QueuePartition.zig",
         "QueueSelection.zig",
         "S3ObjectStore.zig",

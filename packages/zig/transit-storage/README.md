@@ -134,6 +134,25 @@ source nonterminal and blocked. A large clock jump still needs separate bounded
 steps. The local node invokes it through bounded catalog maintenance; the
 transition performs no DLQ transfer.
 
+The Queue owner preallocates a `QueueLeaseHeap` with 64 entries by default
+(`Options.queue_deadline_rows`, 1–4,096). It caches only an earliest prefix of
+accepted active deadlines, independently of the durable active population. A
+refill examines at most the smaller of that capacity and the declaration's
+`timer_steps`. Exhausting a prefix reloads the remaining durable directory; it
+never reports an empty Queue because the cache is full.
+
+The cache binds its immutable deadline-directory root. Claims, renewals and
+settlements that change that root invalidate it. An accepted expiry removes only
+the exact cached lease, including claim identity, epoch and deadline; physical
+publications can retain an unchanged directory. Time, authorization and the
+complete durable transition are checked separately before publication. Warm
+observations before the next deadline need no object reads or backing allocation
+inside the retained storage owner. Owner disposal drops the cache. The local
+maintenance driver currently disposes ready workspaces between units, so this is
+not a claim of allocation-free background maintenance. Durable eligibility and
+deadline directories still use paged indexes; a timing wheel and time-bucketed
+runs are separate scheduling mechanisms.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current
