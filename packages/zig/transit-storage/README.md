@@ -26,6 +26,16 @@ Cache pressure may refuse admission without affecting the durable log. Callers
 serialize access, retain the owner through release, and check current rights
 before disclosing buffered bytes. A cache pin is not a durable retention pin.
 
+`LogDeclaration` validates schema-bound partition/FIFO/compaction keys and stores
+immutable schema, policy, limits and catalog property bytes. `LogInitialization`
+accepts an exact original initialization only at an empty physical partition,
+after reading back its staged declaration and rechecking the service's current
+publication guard. Retrying a lost receipt observes the same genesis; different
+operations or ordinals cannot reuse it. Disk reopen and current-policy readback
+retain the original evidence. Missing or trimmed initialization blocks observation
+until a qualified recovery owner provides retained evidence. These foundations
+do not publish catalog names or expose append/claim APIs.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

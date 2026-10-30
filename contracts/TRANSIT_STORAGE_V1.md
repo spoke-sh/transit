@@ -1268,3 +1268,49 @@ Terminal cardinality permits constant-time eligibility inspection. Physical
 reclamation still requires the owning retained-graph checks for payloads,
 receipts, snapshots, replay and pending transactions; terminal state does not
 authorize deletion.
+
+## Declared log initialization
+
+`LogDeclaration` stores a Stream or Queue schema independently of Station.
+The `LDECL001` envelope is 104 bytes before its variable body: magic (8 bytes),
+current definition (32 bytes), realm/resource/catalog/branch/object/revision
+(six big-endian `u64`), retired flag (`u8`, zero or one), policy/properties/schema
+lengths (three big-endian `u32`), and three zero reserved bytes. The body contains
+canonical JSON `{configuration, limits}`, exact catalog-owned property bytes,
+and the shared canonical `TableSchema` encoding. Policy and properties each
+have a 4096-byte limit; schema retains its 65536-byte bound. SHA-256 of the entire
+artifact binds the immutable definition and object-store content reference;
+the descriptor separately commits the schema bytes and policies.
+
+Log schemas have no relational primary key: offsets establish append identity.
+Declared routing, FIFO and compaction keys must resolve to existing nonnullable
+columns with supported key types and collations. The schema owner validates
+logical types, physical encodings and collations together without conflating
+their roles. Loading verifies content, exact identity, canonical policy, schema
+and every supplied descriptor field before exposing the declaration.
+
+`LogInitialization` writes one `genesis` frame at physical LSN zero. Its payload
+is `LINIT001`, the mandatory shared definition, and canonical JSON for the
+required `Request` fields: definition, stored declaration, original operation,
+logical ordinal and physical partition. The entire payload is at most 8192
+bytes. Its original operation shares the declaration's scope, its ordinal is
+within the fixed partition count, and the definition is live revision one.
+`TWAL1` supplies frame integrity and writer/policy epoch fencing.
+
+Initialization checks current authority before reading the staged declaration,
+verifies that complete dependency, then reacquires and holds the publication
+guard while checking the WAL, fencing and appending. A nonempty partition can
+only return the exact matching original genesis; foreign or missing history
+never authorizes a reset. Append success is followed by verified readback.
+Lost or malformed append/readback results remain `LogInitializationUncertain`
+and resolve under the original request. A retry cannot allocate a new identity
+to conceal that uncertainty. The initialization descriptor does not itself grant
+catalog membership or execution rights.
+
+Observation checks current rights before loading and again after buffering.
+The accepted initialization position remains the exclusive frontier one, even
+when later records exist. Its payload digest commits the exact original
+evidence. The genesis must remain reachable until an executable checkpoint/
+retention owner preserves equivalent evidence; trimmed history rejects instead
+of establishing initialization by inference. Catalog publication and native
+authorization registration remain separate owning operations.

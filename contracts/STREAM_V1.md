@@ -13,7 +13,11 @@ The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 uses full-width identities and deliberately different logical offsets and WAL
 positions. This additive vocabulary does not change existing native commands,
-stored records or the Table-only transaction profile.
+stored records or the Table-only transaction profile. Separately, storage now
+provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
+bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. These
+foundations do not enable the public operations listed above. Their stored
+formats use the current shared definition under the coordinated cutover policy.
 
 ## Identity and append
 

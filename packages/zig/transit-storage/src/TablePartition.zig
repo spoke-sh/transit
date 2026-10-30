@@ -39,12 +39,7 @@ pub const default_predicate_resident_bytes = 4 * 1024 * 1024;
 /// The service acquires its authorization/retirement fence here and holds it
 /// until release. This callback runs for observations and again after staging,
 /// immediately before append. A lease supplied by a client is not a Guard.
-pub const Guard = struct {
-    context: *anyopaque,
-    acquire: *const fn (*anyopaque) anyerror!Fence,
-    release: *const fn (*anyopaque) void,
-    pub const Fence = struct { writer_epoch: u64, policy_epoch: u64 };
-};
+pub const Guard = @import("PublicationGuard.zig");
 pub const Options = struct {
     /// Only transaction recovery/control owners may open an unresolved barrier.
     transaction_control: bool = false,
