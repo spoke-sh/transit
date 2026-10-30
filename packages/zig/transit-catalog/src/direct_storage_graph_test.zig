@@ -92,12 +92,12 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
     const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
     _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
-    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 16384, .key_bytes = 1024, .clock = .{ .context = &context, .read = Fixture.clock }, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 16384, .resident_bytes = 32768 } };
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 65536, .key_bytes = 1024, .clock = .{ .context = &context, .read = Fixture.clock }, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 65536, .resident_bytes = 131072 } };
     var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
     defer owner.deinit() catch unreachable;
     _ = try owner.recoverStep(guard, 1);
     const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
-    var bytes: [16384]u8 = undefined;
+    var bytes: [65536]u8 = undefined;
     var encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, operation, .queue, 24, &bytes);
     var long_key: [300]u8 = @splat('a');
     for (0..24) |i| {
@@ -123,6 +123,37 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }} });
     const added = try encoder.finish();
     _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = later, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(added) }, added, guard);
+    // Leave accepted scheduling with a pending chunk, an unfinished two-input
+    // merge and a partial output directory. Its frozen item/bitmap basis must
+    // remain reachable independently of the current Queue state.
+    for (7..13) |id| {
+        const identity: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = id };
+        encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, identity, .queue, 128, &bytes);
+        var key_bytes: [32]u8 = undefined;
+        for (0..128) |i| {
+            const key = try std.fmt.bufPrint(&key_bytes, "timer-{d}-{d}", .{ id, i });
+            try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = key } } }} });
+        }
+        const batch = try encoder.finish();
+        _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = identity, .kind = .queue, .producer = null, .rows = 128, .payload = s.LogBatch.content(batch) }, batch, guard);
+    }
+    var merged = false;
+    for (0..256) |_| {
+        try t.expect(try owner.scheduleMaintenanceUnit(declared, 17, guard));
+        if (owner.owner.root.queue.?.eligible.work) |pending| {
+            if (pending.merge.sources[1].rows != 0 and pending.merge.output.rows != 0) {
+                merged = true;
+                break;
+            }
+        }
+    }
+    try t.expect(merged);
+    // Current time still precedes this later claim's deadline. A NACK changes
+    // the current basis after the timer merge froze it, without completing it.
+    const next_claim = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 13 }, .maximum = 1, .lease_ms = 100 }, guard);
+    var next_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const next_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), next_claim.leases.?, &next_bytes);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 14 }, .lease = try next_selection.lease(0), .action = .{ .nack = .{ .visible_ms = 1000 } } }, guard);
     const cut = owner.owner.root.position();
     while (!(try owner.flush(cut, guard)).complete) {}
     while (!(try owner.archive(cut, .{ .frames = 2 }, guard)).complete) {}
@@ -130,6 +161,31 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     _ = try owner.trimArchived(guard);
     const root = owner.owner.root;
     try t.expect(!std.meta.eql(frozen_batches, root.batches.?));
+    {
+        var isolated: Workspace = .{};
+        defer isolated.deinit();
+        const scheduling = root.queue.?.eligible;
+        try t.expect(scheduling.pending != null and scheduling.work != null);
+        const frozen = scheduling.work.?.merge;
+        try t.expect(!std.meta.eql(frozen.basis.items, root.queue.?.items));
+        try isolated.enqueue(.{ .queue_schedule = .{
+            .context = .{ .log = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = root.archive }, .seed = initial.target(), .kind = .visible, .serial = scheduling.serial },
+            .root = scheduling,
+        } });
+        var at_job: usize = 0;
+        while (at_job < isolated.jobs.items.len) : (at_job += 1) {
+            var work = isolated.jobs.items[at_job];
+            while (!try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated)) {}
+        }
+        var key: [96]u8 = undefined;
+        for ([_]?s.TreeStore.pages.Reference{ frozen.basis.items, frozen.basis.sidecars }) |reference| try t.expect(isolated.marks.contains(try s.TreeStore.key(reference.?.location, &key)));
+        for (frozen.sources ++ [_]s.QueueTimeDirectory.Root{frozen.output}) |run| {
+            try t.expect(isolated.marks.contains(try s.TreeStore.key(run.directory.?.location, &key)));
+            const directory: s.QueueTimeDirectory = .{ .store = &owner.owner.store, .seed = initial.target(), .kind = .visible, .bucket = frozen.bucket };
+            var audit: s.QueueTimeDirectory.Audit = .{ .basis = run };
+            while (try directory.audit(&audit)) |entry| try t.expect(isolated.marks.contains(try s.QueueTimeRun.key(entry.chunk.content, &key)));
+        }
+    }
     // Isolate the accepted item directory: neither source declaration nor
     // catalog/history traversal may mask a missing blocked-destination edge.
     {
@@ -149,7 +205,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
                 const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &isolated);
                 try t.expect(isolated.jobs.items.len - queued <= 3);
                 steps += 1;
-                if (steps > 1000) return error.FixtureBudget;
+                if (steps > 10000) return error.FixtureBudget;
                 if (complete) break;
             }
         }
@@ -180,7 +236,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
             const complete = try Graph.step(t.allocator, &owner.owner.store, wal.log(), &work, &workspace);
             try t.expect(workspace.jobs.items.len - queued <= 3);
             steps += 1;
-            if (steps > 10000) return error.FixtureBudget;
+            if (steps > 100000) return error.FixtureBudget;
             if (complete) break;
         }
     }
@@ -189,7 +245,8 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     try t.expect(workspace.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &name)));
     for ([_]s.LogDeclaration.Stored{ destination_stored, terminal_stored }) |stored| try t.expect(workspace.marks.contains(try s.LogDeclaration.key(stored.content, &name)));
     try t.expect(!workspace.marks.contains(try s.LogDeclaration.key(replacement_stored.content, &name)));
-    for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys, root.queue.?.eligible }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
+    for ([_]?s.TreeStore.pages.Reference{ root.queue.?.items, root.queue.?.sidecars, root.queue.?.keys }) |reference| try t.expect(workspace.marks.contains(try s.TreeStore.key(reference.?.location, &name)));
+    for ([_]s.QueueSchedule.Root{ root.queue.?.eligible, root.queue.?.deadlines }) |scheduled| try t.expect(workspace.marks.contains(try s.QueueTimeBuffer.key(scheduled.active.?, &name)));
     var removed: usize = 0;
     var at: usize = 0;
     while (at < objects.objects.items.len) {
@@ -224,7 +281,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     long_key[299] = 'A';
     try t.expectEqualSlices(u8, &long_key, decoded_payload.row().cells[0].value.atom.bytes);
     var bitmap: s.BitmapDirectory = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
-    const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer };
+    const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer, .timer_workspace = owner.owner.queue_timers, .timer_seed = owner.owner.root.initialization.target(), .timer_read_work = owner.owner.options.queue_timer_read_work };
     var canonical: [1024]u8 = undefined;
     for (0..24) |i| {
         long_key[299] = @intCast('a' + i);
@@ -235,6 +292,11 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
         const state: s.Tack.State = if (i == 0) .acked else if (i >= 3 and i < 16) .acquired else .available;
         try t.expectEqual(state, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
     }
+    var maintenance_units: usize = 0;
+    while (try owner.scheduleMaintenanceUnit(declared, 17, guard)) : (maintenance_units += 1) {
+        if (maintenance_units > 512) return error.FixtureBudget;
+    }
+    try t.expect(maintenance_units > 20);
 }
 
 test "direct graph retains physical and ADD interpretations without receipt or history roots" {

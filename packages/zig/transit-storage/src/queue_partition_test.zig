@@ -102,13 +102,143 @@ fn request(declared: *const s.LogDeclaration.Owned, id: u64, buffer: []u8) !stru
 }
 fn index(owner: *Queue, bitmap: *s.BitmapDirectory) s.QueueIndex {
     bitmap.* = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
-    return .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer };
+    return .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer, .timer_workspace = owner.owner.queue_timers, .timer_seed = owner.owner.root.initialization.target(), .timer_read_work = owner.owner.options.queue_timer_read_work };
 }
 fn selectedLease(objects: s.TransitObjectStore.ObjectStore, receipt: q.ClaimReceipt, at: u32) !q.Lease {
     var buffer: [s.QueueSelection.max_bytes]u8 = undefined;
     const selected = try s.QueueSelection.load(t.allocator, objects, receipt.leases.?, &buffer);
     try selected.requireReceipt(receipt);
     return selected.lease(at);
+}
+
+test "queue partition resumes accepted timer merges through reply loss retirement and disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.queue);
+    definition.configuration.partitioning.count = 1;
+    definition.configuration.partitioning.key_column = null;
+    definition.configuration.policy.queue.ordering = .unordered;
+    definition.configuration.policy.queue.key_column = null;
+    definition.limits.claim_rows = 256;
+    definition.limits.active_leases = 512;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    configured.batch_bytes = 128 * 1024;
+    configured.tail.slot_bytes = configured.batch_bytes;
+    configured.tail.resident_bytes = configured.batch_bytes * 2;
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log() };
+    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [128 * 1024]u8 = undefined;
+    for (2..4) |id| {
+        var encoder = try s.LogBatch.Encoder.init(declared.definition.schema, operation(id), .queue, 256, &bytes);
+        for (0..256) |_| try encoder.append(.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = "key" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } } });
+        const payload = try encoder.finish();
+        _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(id), .kind = .queue, .producer = null, .rows = 256, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    }
+    try t.expectEqual(@as(u64, 2), owner.owner.root.queue.?.eligible.pending_chunks);
+    // Freeze visibility work while these entries are still available. Claims
+    // change the live item/bitmap basis while that merge retains its own basis.
+    while (owner.owner.root.queue.?.eligible.work == null) try t.expect(try owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
+    var claimed: [2]q.ClaimReceipt = undefined;
+    for (&claimed, 4..) |*receipt, id| {
+        receipt.* = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(id), .maximum = 256, .lease_ms = 100 }, policy.guard());
+        try t.expectEqual(@as(u32, 256), receipt.rows);
+    }
+    try t.expectEqual(@as(u64, 2), owner.owner.root.queue.?.deadlines.pending_chunks);
+    const old_first = try selectedLease(objects.objectStore(), claimed[0], 0);
+    const old_second = try selectedLease(objects.objectStore(), claimed[0], 1);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = old_first, .action = .{ .nack = .{ .visible_ms = 300 } } }, policy.guard());
+    _ = try owner.settle(initial.declared, .{ .operation = operation(7), .lease = old_second, .action = .ack }, policy.guard());
+    var both = false;
+    for (0..16) |_| {
+        try t.expect(try owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
+        const state = owner.owner.root.queue.?;
+        if (state.eligible.work != null and state.deadlines.work != null and state.eligible.work.?.merge.output.rows > 0 and state.deadlines.work.?.merge.output.rows > 0) {
+            both = true;
+            break;
+        }
+    }
+    try t.expect(both);
+    // Two nonempty unfinished merges, including their frozen roots and output
+    // directories, fit the unchanged LOGPART1 metadata budget on every write.
+    const before = owner.owner.root;
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(initial.partition));
+    policy.deny_at = std.math.maxInt(usize);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
+    try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    const accepted = owner.owner.root;
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    policy.epoch += 1;
+    owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    try t.expectEqualDeep(accepted, owner.owner.root);
+    definition.revision = 2;
+    definition.retired = true;
+    var retired = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer retired.deinit();
+    const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
+    clock.value = null; // Physical timer cleanup needs no lease-time decision.
+    var units: usize = 0;
+    while (try owner.scheduleMaintenanceUnit(current, 17, policy.guard())) : (units += 1) {
+        if (units > 512) return error.FixtureBudget;
+    }
+    try t.expect(units > 50);
+    const stable = owner.owner.root;
+    const state = stable.queue.?;
+    try t.expect(state.eligible.work == null and state.deadlines.work == null);
+    try t.expectEqual(@as(u64, 0), state.eligible.pending_chunks + state.deadlines.pending_chunks);
+    try t.expectEqual(@as(u64, 1), state.scheduled);
+    try t.expectEqual(@as(u64, 510), state.active);
+    try t.expectEqual(@as(u64, 0), state.eligible.level_count);
+    try t.expect(state.deadlines.level_count > 0);
+    const idle_puts = objects.puts;
+    for (0..3) |_| try t.expect(!try owner.scheduleMaintenanceUnit(current, 17, policy.guard()));
+    try t.expectEqual(idle_puts, objects.puts);
+    try t.expectEqualDeep(stable, owner.owner.root);
+    var bitmap: s.BitmapDirectory = undefined;
+    const queue = index(&owner, &bitmap);
+    try t.expect(try queue.firstEligible(state, 299) == null);
+    try t.expectEqual(@as(u64, 0), (try queue.firstEligible(state, 300)).?.offset);
+    try t.expectEqual(@as(u64, 2), (try queue.deadlineAfter(state, null)).?.offset);
+    for (claimed) |receipt| try t.expectEqualDeep(receipt, (try owner.operation(receipt.claim.operation, policy.guard())).?.outcome.claim.receipt);
+    const cut = stable.position();
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    while (!(try owner.archive(cut, .{ .frames = 8 }, policy.guard())).complete) {}
+    _ = try owner.checkpoint(cut, policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqualDeep(state, owner.owner.root.queue.?);
+    var page = try owner.readClaimPage(current, .{ .receipt = claimed[0], .next = 0 }, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer page.deinit();
+    try t.expectEqual(@as(usize, 2), page.rows().len);
+    try t.expectEqual(p.QueueRead.State.available, page.rows()[0].lease.state);
+    try t.expectEqual(p.QueueRead.State.acked, page.rows()[1].lease.state);
 }
 
 test "queue partition publishes payload FIFO and producer outcome together through lost replies and disk restart" {
@@ -270,6 +400,30 @@ test "queue partition replay rejects a valid envelope with altered scheduling st
     try t.expectError(error.InvalidLogHistory, recovered.recoverStep(policy.guard(), 1));
     try t.expectEqual(puts, objects.puts);
     try t.expectEqual(@as(u64, 0), recovered.owner.root.next_offset);
+    try t.expectError(error.LogRecoveryRequired, recovered.observe(initial.declared, policy.guard()));
+    // A physical scheduling record also requires exact reconstruction. A
+    // syntactically valid sweep digest cannot substitute another frozen basis.
+    try t.expect(try owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
+    var maintenance = try wal.log().read(t.allocator, 91, 2, 1);
+    defer maintenance.deinit();
+    record = (try s.LogPartitionRecord.decode(t.allocator, maintenance.frames[0], 91, 2)).record;
+    try t.expect(record.action == .queue_schedule);
+    record.root.queue.?.eligible.sweep.?.epoch[0] ^= 1;
+    try record.validate(2);
+    const altered = try s.LogPartitionRecord.encode(record, &.{}, &encoded);
+    try recovered.deinit();
+    other.deinit();
+    other = s.LocalWal.LocalWal.initMemory(t.allocator);
+    _ = try initialize(other.log(), objects.objectStore(), &policy, &declared);
+    _ = try other.log().append(91, 1, 1, 1, .row_delta, batch.frames[0].payload);
+    _ = try other.log().append(91, 2, 1, 1, .manifest_checkpoint, altered);
+    recovered = try Queue.open(t.allocator, other.log(), objects.objectStore(), initial, policy.guard(), options);
+    const before_replay = objects.puts;
+    try t.expect(!(try recovered.recoverStep(policy.guard(), 1)).complete);
+    const accepted = recovered.owner.root;
+    try t.expectError(error.InvalidLogHistory, recovered.recoverStep(policy.guard(), 1));
+    try t.expectEqual(before_replay, objects.puts);
+    try t.expectEqualDeep(accepted, recovered.owner.root);
     try t.expectError(error.LogRecoveryRequired, recovered.observe(initial.declared, policy.guard()));
 }
 
@@ -809,6 +963,7 @@ test "queue partition controls verify immutable declaration bytes before accepta
     try t.expectEqualDeep(acquired, owner.owner.root);
     clock.value = .exact(1100);
     try t.expectError(error.InvalidLogDeclaration, owner.expireOne(invented, policy.guard()));
+    try t.expectError(error.InvalidLogDeclaration, owner.scheduleMaintenanceUnit(invented, 17, policy.guard()));
     try t.expectEqualDeep(acquired, owner.owner.root);
     try t.expectEqual(acquired.next_lsn, try wal.log().tail(91));
 }

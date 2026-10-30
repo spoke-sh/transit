@@ -54,6 +54,9 @@ pub const Root = struct {
     sweep: ?Sweep,
     pending_since_sweep: u8,
     pub const empty: Root = .{ .active = null, .active_rows = 0, .pending = null, .pending_chunks = 0, .levels = null, .level_count = 0, .work = null, .serial = 1, .sweep = null, .pending_since_sweep = 0 };
+    pub fn hasSources(self: Root) bool {
+        return self.active != null or self.pending != null or self.levels != null or self.work != null;
+    }
     pub fn validate(self: Root) !void {
         if ((self.active_rows == 0) != (self.active == null) or self.active_rows > Buffer.max_rows or
             (self.pending_chunks == 0) != (self.pending == null) or (self.level_count == 0) != (self.levels == null) or
@@ -147,6 +150,23 @@ fn loadBuffer(self: Self, root: Root) !Buffer {
         return buffer;
     }
     return Buffer.init(self.seed, self.kind, &self.workspace.pending);
+}
+/// Verify bounded top-level dependencies before an owner becomes ready. Full
+/// run coverage and retained graph traversal are separate bounded operations.
+pub fn verifyRoots(self: Self, root: Root) !void {
+    try self.require(root);
+    _ = try self.loadBuffer(root);
+    for ([_]?pages.Reference{ root.pending, root.levels }) |reference| if (reference) |value| {
+        _ = try self.store.load(value);
+    };
+    if (root.work) |work| {
+        for ([_]?pages.Reference{ work.merge.basis.items, work.merge.basis.sidecars }) |reference| if (reference) |value| {
+            _ = try self.store.load(value);
+        };
+        for (work.merge.sources ++ [_]Directory.Root{work.merge.output}) |run| if (run.directory) |value| {
+            _ = try self.store.load(value);
+        };
+    }
 }
 fn saveBuffer(self: Self, root: *Root, buffer: *const Buffer) !void {
     root.active = if (buffer.len == 0) null else try buffer.stage(self.store.store, &self.workspace.buffer_bytes);
@@ -384,4 +404,17 @@ pub fn nextEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, 
         level_after = entry.key;
     }
     return best;
+}
+
+pub fn contains(self: Self, root: Root, event: Run.Event, basis: Merge.Basis, work: u32, filter: anytype) !bool {
+    try event.validate(self.kind);
+    const before: ?Run.Event = if (event.epoch != 0)
+        .{ .at_ms = event.at_ms, .offset = event.offset, .epoch = event.epoch - 1 }
+    else if (event.offset != 0)
+        .{ .at_ms = event.at_ms, .offset = event.offset - 1, .epoch = std.math.maxInt(u64) }
+    else if (event.at_ms != 0)
+        .{ .at_ms = event.at_ms - 1, .offset = std.math.maxInt(u64), .epoch = std.math.maxInt(u64) }
+    else
+        null;
+    return std.meta.eql(try self.nextEvent(root, before, basis, work, filter), @as(?Run.Event, event));
 }

@@ -121,6 +121,7 @@ pub const Record = struct {
         rewrite: struct { receipt: q.AppendReceipt, segment: ?@import("LogSegment.zig").Descriptor },
         expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, clock_ms: u64, protected_next: u64 },
         queue_expire: struct { lease: q.Lease, observed: @import("LogTime.zig").Sample },
+        queue_schedule: struct { kind: @import("QueueTimeRun.zig").Kind, steps: u16 },
         compaction_start,
         compaction_step: struct { from: u64, through: u64 },
         compaction_publish: d.Position,
@@ -182,6 +183,10 @@ pub const Record = struct {
                     value.observed.earliest_ms < value.lease.expires_ms or
                     value.lease.offset >= self.root.next_offset or value.lease.target.partition != self.root.initialization.ordinal or
                     !std.meta.eql(value.lease.target.interpretation.object, self.root.declared.declaration.interpretation.object)) return error.InvalidQueueExpiration;
+            },
+            .queue_schedule => |value| {
+                if (self.root.queue == null or value.steps == 0 or value.steps > @import("QueueTimeRun.zig").max_rows or
+                    value.steps > self.root.declared.declaration.limits.timer_steps or self.root.queue.?.timer_next == value.kind) return error.InvalidQueueSchedule;
             },
             .compaction_start => {
                 const work = self.root.compaction orelse return error.InvalidStreamCompaction;

@@ -91,6 +91,7 @@ test {
     _ = @import("queue_schedule_test.zig");
     _ = @import("queue_index_test.zig");
     _ = @import("queue_partition_test.zig");
+    _ = @import("queue_record_bound_test.zig");
     _ = @import("queue_selection_test.zig");
     _ = @import("candidate_objects_test.zig");
     _ = @import("log_tail_test.zig");

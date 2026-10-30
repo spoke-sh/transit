@@ -28,8 +28,8 @@ source terminal. Old roots remain independently readable.
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
 producer receipts to one fenced WAL record. Claims publish acquired state,
 exact leases and deadlines together; settlement and expiry publish their full
-successor state through that same owner. Timing-wheel scheduling and DLQ
-transfer are not enabled by these components.
+successor state through that same owner. Bounded resident timing caches accelerate
+the accepted paged schedule; DLQ transfer remains unavailable.
 
 `QueueSelection` retains a nonempty claim's exact leases and payload placement
 cut in a bounded immutable artifact. It keeps original offsets, epochs and
@@ -144,10 +144,10 @@ refill examines at most the smaller of that capacity and the declaration's
 `timer_steps`. Exhausting a prefix reloads the remaining durable directory; it
 never reports an empty Queue because the cache is full.
 
-The cache binds its immutable deadline-directory root. Claims, renewals and
+The cache binds its immutable item-directory root. Claims, renewals and
 settlements that change that root invalidate it. An accepted expiry removes only
 the exact cached lease, including claim identity, epoch and deadline; physical
-publications can retain an unchanged directory. Time, authorization and the
+timer merges can preserve that logical basis. Time, authorization and the
 complete durable transition are checked separately before publication. Warm
 observations before the next deadline need no object reads or backing allocation
 inside the retained storage owner. Owner disposal drops the cache. The local
@@ -166,31 +166,31 @@ The Queue owner caches an earliest eligibility prefix in that wheel, with 64
 entries by default (`Options.queue_visibility_rows`, 1–4,096). Each selection pass
 loads at most the smaller of capacity and declared `timer_steps`, then advances
 at most `timer_steps` wheel units. Deterministic publication validation may repeat
-selection. The cache binds its immutable directory and scheduled count; changed
+selection. The cache binds its immutable item directory and scheduled count; changed
 roots or a backward speculative observation discard it. Incomplete advancement
 or a cursor beyond a partial prefix uses the durable directory. A full cache
 cannot establish an empty claim. Each selected event still validates its current
 durable item and `.tack` state; current authority and time remain separate checks.
 Warm checks before a known future prefix need no object reads or backing allocation.
-Durable eligibility and deadline directories still use paged indexes;
-time-bucketed immutable runs are not integrated into accepted scheduling state.
+Durable visibility and deadline schedules use bounded immutable delta buffers,
+paged pending chunks and time-bucketed `.tseg` runs. Physical schedule changes
+preserve these caches when their logical item basis is unchanged.
 
 `QueueTimeRun` stages bounded sorted `.tseg` chunks for visibility/retry and lease
 metadata. Each chunk holds at most 1,024 `(time, offset, epoch)` entries from one
 time bucket, with an exact genesis interpretation and physical serial. Loading
 verifies full content, typed row identities and descriptor bounds into caller-owned
 scalar output. The caller supplies reusable scratch and an encoded output buffer;
-neither staging nor loading schedules work. Accepted run directories, bounded
-merge progress, stale-event filtering and their retained dependencies remain
-separate integration work. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#queue-time-run-chunks)
+neither staging nor loading alone schedules work. The Queue owner publishes run
+directories, merge progress and stale-event filtering in its WAL root. The
+[storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#queue-time-run-chunks)
 defines the exact descriptor and physical bounds.
 
 `QueueTimeBuffer` keeps at most 256 sorted pending events in caller-owned memory
 and stages exact immutable bytes without internal heap allocation. A full buffer
 refuses further insertion without evicting an event. Its contiguous time-bucket
 slices can seal into `QueueTimeRun` chunks. This bounds one operation buffer;
-publishing active/pending references and retiring earlier buffers still belong
-to the Queue scheduling owner and are not yet integrated.
+the Queue owner publishes active/pending references with its complete candidate.
 
 `QueueTimeDirectory` indexes a sorted run through paged chunk-boundary entries.
 Runs can exceed chunk and cache capacity while earlier roots remain immutable.
@@ -206,8 +206,8 @@ is required for completion. Its frozen Queue item/sidecar basis keeps filtering
 stable while newer operations change current state. `QueueIndex.TimerFilter`
 checks that basis and refuses missing or inconsistent state and future epochs.
 The caller owns reusable chunk arrays and scratch; identical private transitions
-can be rederived without provider writes. Accepted scheduling, retention graph
-edges and background publication of merge progress are still integration work.
+can be rederived without provider writes. Accepted roots retain the frozen basis,
+both inputs and every partial output through the storage graph.
 
 `QueueSchedule` composes those artifacts in private scheduling roots. Full deltas
 seal into paged pending chunks; size-tiered runs merge through resumable frozen
@@ -215,15 +215,26 @@ inputs, and a finite stale-entry sweep stops when its basis is unchanged. Reads
 check all possibly earlier sources under an explicit work budget, including
 both inputs of an unfinished merge. Budget exhaustion refuses instead of
 reporting an empty schedule. Pending cardinality remains on disk; a fixed fan-in
-array cannot limit accepted settlement. The accepted Queue WAL root, batched
-buffer persistence, native maintenance and retained graph are not yet migrated
-to this helper.
+array cannot limit accepted settlement. The accepted Queue root contains separate
+visibility and lease schedules plus the next maintenance kind. Reads use
+`Options.queue_timer_read_work` (default 4,096; 1–65,536) to bound source discovery,
+chunk decoding and candidate checks separately from resident cache capacity.
+
+`scheduleMaintenanceUnit` publishes one physical scheduling transition with
+current authorization and verified declaration bytes, including after retirement.
+It alternates visibility and lease work, examines at most the requested merge
+rows (1–1,024 and no more than declared `timer_steps`), and records exact progress
+in `LOGPART1`. Starting a sweep separately checks the at-most-256-entry active
+buffer; a chunk decode is bounded to 1,024 entries. Replay rederives the same
+successor without provider writes. Lost replies require recovery before further
+work. This operation changes no logical lease, clock floor or original receipt.
 
 `QueueSchedule.Buffers` selects the final visibility and lease delta objects
 when persisting a private candidate. Intermediate buffer versions can remain
 only in reusable candidate memory, while all other object namespaces persist
-normally. It never deletes a previously accepted buffer. The integrating Queue
-owner must supply both final roots and preserve any earlier accepted references.
+normally. The Queue owner supplies both final roots, so per-event private delta
+versions do not become per-event object writes. This selection never deletes a
+previously accepted buffer; collection requires complete retained graph traversal.
 
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch

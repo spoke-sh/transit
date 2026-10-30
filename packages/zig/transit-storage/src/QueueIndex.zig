@@ -14,6 +14,8 @@ const Item = @import("QueueItem.zig");
 const Batch = @import("LogBatch.zig");
 const Declaration = @import("LogDeclaration.zig");
 const Records = @import("LogPartitionRecord.zig");
+const Schedule = @import("QueueSchedule.zig");
+const Run = @import("QueueTimeRun.zig");
 const Self = @This();
 
 pub const Root = struct {
@@ -21,17 +23,20 @@ pub const Root = struct {
     items: ?pages.Reference,
     sidecars: ?pages.Reference,
     keys: ?pages.Reference,
-    eligible: ?pages.Reference,
-    deadlines: ?pages.Reference,
+    eligible: Schedule.Root,
+    deadlines: Schedule.Root,
+    timer_next: Run.Kind,
     scheduled: u64,
     active: u64,
     blocked: u64,
     terminal: u64,
 
-    pub const empty: Root = .{ .next_offset = 0, .items = null, .sidecars = null, .keys = null, .eligible = null, .deadlines = null, .scheduled = 0, .active = 0, .blocked = 0, .terminal = 0 };
+    pub const empty: Root = .{ .next_offset = 0, .items = null, .sidecars = null, .keys = null, .eligible = .empty, .deadlines = .empty, .timer_next = .visible, .scheduled = 0, .active = 0, .blocked = 0, .terminal = 0 };
     pub fn validate(self: Root) !void {
+        try self.eligible.validate();
+        try self.deadlines.validate();
         if ((self.next_offset == 0) != (self.items == null) or (self.items == null) != (self.sidecars == null) or
-            (self.scheduled == 0) != (self.eligible == null) or (self.active == 0) != (self.deadlines == null) or
+            (self.scheduled != 0 and !self.eligible.hasSources()) or (self.active != 0 and !self.deadlines.hasSources()) or
             self.terminal > self.next_offset or self.active > self.next_offset - self.terminal or
             self.blocked > self.next_offset - self.terminal - self.active or
             self.scheduled > self.next_offset - self.terminal - self.active - self.blocked) return error.InvalidQueueRoot;
@@ -61,6 +66,9 @@ scratch: *std.heap.ArenaAllocator,
 bitmap: *Bitmap,
 container: *Bitmap.Container,
 key_buffer: []u8,
+timer_workspace: *Schedule.Workspace,
+timer_seed: q.Partition,
+timer_read_work: u32 = 4096,
 visibility: ?*@import("QueueVisibilityCache.zig") = null,
 
 fn tree(self: Self) pages.Tree(Store) {
@@ -68,6 +76,9 @@ fn tree(self: Self) pages.Tree(Store) {
 }
 fn keys(self: Self) Keys {
     return .{ .store = self.store };
+}
+pub fn timers(self: Self, kind: Run.Kind) Schedule {
+    return .{ .store = self.store, .scratch = self.scratch, .workspace = self.timer_workspace, .seed = self.timer_seed, .kind = kind };
 }
 pub fn timedKey(at_ms: u64, offset: u64) !pages.Key {
     if (offset == std.math.maxInt(u64)) return error.InvalidQueueItem;
@@ -148,16 +159,13 @@ pub fn head(self: Self, root: Root, key: []const u8) !?Head {
 }
 fn schedule(self: Self, root: *Root, value: Item) !void {
     if (value.lease != null or value.blocked != .none) return error.QueueStateConflict;
-    const key = try timedKey(value.visible_ms, value.offset);
-    if (try self.tree().get(root.eligible, key) != null) return error.QueueStateConflict;
-    root.eligible = try self.tree().put(root.eligible, key, try pages.Value.init(&.{}));
+    root.eligible = try self.timers(.visible).append(root.eligible, .{ .at_ms = value.visible_ms, .offset = value.offset, .epoch = value.epoch });
     root.scheduled = try std.math.add(u64, root.scheduled, 1);
 }
 fn unschedule(self: Self, root: *Root, value: Item) !void {
-    const key = try timedKey(value.visible_ms, value.offset);
-    const found = try self.tree().get(root.eligible, key) orelse return error.QueueNotEligible;
-    if (found.len != 0 or root.scheduled == 0) return error.InvalidQueueSchedule;
-    root.eligible = try self.tree().remove(root.eligible, key);
+    const event: Run.Event = .{ .at_ms = value.visible_ms, .offset = value.offset, .epoch = value.epoch };
+    if (!try self.timers(.visible).contains(root.eligible, event, timerBasis(root.*), self.timer_read_work, TimerFilter{ .index = self })) return error.QueueNotEligible;
+    if (root.scheduled == 0) return error.InvalidQueueSchedule;
     root.scheduled -= 1;
 }
 fn changeState(self: Self, root: *Root, value: Item, from: Tack.State, to: Tack.State, accepted: p.DataLifecycle.Position) !void {
@@ -172,18 +180,11 @@ fn changeState(self: Self, root: *Root, value: Item, from: Tack.State, to: Tack.
 }
 fn addDeadline(self: Self, root: *Root, value: Item) !void {
     const lease = value.lease orelse return error.InvalidQueueItem;
-    const key = try timedKey(lease.expires_ms, value.offset);
-    if (try self.tree().get(root.deadlines, key) != null) return error.InvalidQueueSchedule;
-    var bytes: [8]u8 = undefined;
-    std.mem.writeInt(u64, &bytes, lease.epoch, .big);
-    root.deadlines = try self.tree().put(root.deadlines, key, try pages.Value.init(&bytes));
+    root.deadlines = try self.timers(.lease).append(root.deadlines, .{ .at_ms = lease.expires_ms, .offset = value.offset, .epoch = value.epoch });
 }
 fn removeDeadline(self: Self, root: *Root, value: Item) !void {
     const lease = value.lease orelse return error.InvalidQueueItem;
-    const key = try timedKey(lease.expires_ms, value.offset);
-    const found = try self.tree().get(root.deadlines, key) orelse return error.InvalidQueueSchedule;
-    if (found.len != 8 or std.mem.readInt(u64, found.data[0..8], .big) != lease.epoch) return error.InvalidQueueSchedule;
-    root.deadlines = try self.tree().remove(root.deadlines, key);
+    if (!try self.timers(.lease).contains(root.deadlines, .{ .at_ms = lease.expires_ms, .offset = value.offset, .epoch = value.epoch }, timerBasis(root.*), self.timer_read_work, TimerFilter{ .index = self })) return error.InvalidQueueSchedule;
 }
 
 pub fn acquire(self: Self, before: Root, offset: u64, claim: q.Claim, policy: p.StreamQueueDeclaration.Queue, now: @import("LogTime.zig").Sample, accepted: p.DataLifecycle.Position) !Root {
@@ -318,26 +319,31 @@ pub fn firstEligible(self: Self, root: Root, earliest_ms: u64) !?Item {
 /// cursor belongs to the frozen root; it does not mutate or skip a FIFO head.
 pub fn eligibleAfter(self: Self, root: Root, after: ?pages.Key, earliest_ms: u64) !?Item {
     try root.validate();
+    if (root.scheduled == 0) return null;
     if (self.visibility) |cache| {
         const cursor = if (after) |key| try scheduledEvent(key) else null;
-        switch (cache.lookup(root.eligible, root.scheduled, earliest_ms, cursor)) {
+        switch (cache.lookup(root.items, root.scheduled, earliest_ms, cursor)) {
             .miss => {},
             .empty => return null,
             .event => |event| return try self.scheduledItem(root, event),
         }
     }
-    const page = try self.tree().scan(root.eligible, after);
-    const entry = page.entries[0] orelse return null;
-    if (entry.value.len != 0) return error.InvalidQueueSchedule;
-    const event = try scheduledEvent(entry.key);
+    const event = try self.timers(.visible).nextEvent(root.eligible, try timerCursor(after), timerBasis(root), self.timer_read_work, TimerFilter{ .index = self }) orelse {
+        if (after == null) return error.InvalidQueueSchedule;
+        return null;
+    };
     if (event.at_ms > earliest_ms) return null;
-    return try self.scheduledItem(root, event);
+    return try self.scheduledItem(root, .{ .at_ms = event.at_ms, .offset = event.offset });
 }
 
 const Timer = @import("QueueTimingWheel.zig");
 fn scheduledEvent(key: pages.Key) !Timer.Event {
     if (key.len != 16) return error.InvalidQueueSchedule;
     return .{ .at_ms = std.mem.readInt(u64, key.data[0..8], .big), .offset = std.mem.readInt(u64, key.data[8..16], .big) };
+}
+fn timerCursor(after: ?pages.Key) !?Run.Event {
+    const event = try scheduledEvent(after orelse return null);
+    return .{ .at_ms = event.at_ms, .offset = event.offset, .epoch = std.math.maxInt(u64) };
 }
 fn scheduledItem(self: Self, root: Root, event: Timer.Event) !Item {
     const value = try self.item(root, event.offset);
@@ -352,15 +358,13 @@ pub fn prepareVisibility(self: Self, root: Root, earliest_ms: u64, steps: u32) !
     const cache = self.visibility orelse return;
     try root.validate();
     if (steps == 0) return error.InvalidQueueTimerBudget;
-    if (!cache.matches(root.eligible, root.scheduled) or earliest_ms < cache.wheel.now_ms) {
-        cache.reset(root.eligible, root.scheduled, earliest_ms);
+    if (!cache.matches(root.items, root.scheduled) or earliest_ms < cache.wheel.now_ms) {
+        cache.reset(root.items, root.scheduled, earliest_ms);
         const limit = @min(cache.wheel.entries.len, steps, root.scheduled);
         var after: ?pages.Key = null;
         while (cache.wheel.len < limit) {
-            const page = try self.tree().scan(root.eligible, after);
-            const entry = page.entries[0] orelse return error.InvalidQueueSchedule;
-            if (entry.value.len != 0) return error.InvalidQueueSchedule;
-            const event = try scheduledEvent(entry.key);
+            const scheduled = try self.timers(.visible).nextEvent(root.eligible, try timerCursor(after), timerBasis(root), self.timer_read_work, TimerFilter{ .index = self }) orelse return error.InvalidQueueSchedule;
+            const event: Timer.Event = .{ .at_ms = scheduled.at_ms, .offset = scheduled.offset };
             _ = try self.scheduledItem(root, event);
             _ = cache.wheel.insert(event) catch {
                 // Generation-exhausted slots stay retired. Cache capacity may
@@ -369,7 +373,7 @@ pub fn prepareVisibility(self: Self, root: Root, earliest_ms: u64, steps: u32) !
                 return;
             };
             cache.last = event;
-            after = entry.key;
+            after = try timedKey(event.at_ms, event.offset);
         }
         cache.covers_all = cache.wheel.len == root.scheduled;
         cache.valid = true;
@@ -387,12 +391,12 @@ pub fn firstExpired(self: Self, root: Root, earliest_ms: u64) !?Item {
 /// loading. The caller must discard its cursor if that directory changes.
 pub fn deadlineAfter(self: Self, root: Root, after: ?pages.Key) !?Item {
     try root.validate();
-    const page = try self.tree().scan(root.deadlines, after);
-    const entry = page.entries[0] orelse return null;
-    if (entry.key.len != 16 or entry.value.len != 8) return error.InvalidQueueSchedule;
-    const at = std.mem.readInt(u64, entry.key.data[0..8], .big);
-    const value = try self.item(root, std.mem.readInt(u64, entry.key.data[8..16], .big));
-    if (try self.state(root, value) != .acquired or value.lease.?.expires_ms != at or
-        value.epoch != std.mem.readInt(u64, entry.value.data[0..8], .big)) return error.InvalidQueueSchedule;
+    if (root.active == 0) return null;
+    const event = try self.timers(.lease).nextEvent(root.deadlines, try timerCursor(after), timerBasis(root), self.timer_read_work, TimerFilter{ .index = self }) orelse {
+        if (after == null) return error.InvalidQueueSchedule;
+        return null;
+    };
+    const value = try self.item(root, event.offset);
+    if (try self.state(root, value) != .acquired or value.lease.?.expires_ms != event.at_ms or value.epoch != event.epoch) return error.InvalidQueueSchedule;
     return value;
 }

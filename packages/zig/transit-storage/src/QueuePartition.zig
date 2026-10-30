@@ -60,6 +60,9 @@ pub fn settle(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.
 pub fn expireOne(self: *Self, declared: Declaration.Stored, guard: Guard) !bool {
     return self.owner.expireQueueOne(declared, guard);
 }
+pub fn scheduleMaintenanceUnit(self: *Self, declared: Declaration.Stored, maximum: u16, guard: Guard) !bool {
+    return self.owner.scheduleQueueUnit(declared, maximum, guard);
+}
 pub fn flush(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !FlushProgress {
     return self.owner.flush(cut, guard);
 }

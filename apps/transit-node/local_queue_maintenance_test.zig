@@ -78,7 +78,17 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         };
     }
     try t.expect(refused);
-    try t.expectEqual(tail, try data.log().tail(initial.partition));
+    const after_refusal = try data.log().tail(initial.partition);
+    var lsn = tail;
+    while (lsn < after_refusal) : (lsn += 1) {
+        var frames = try data.log().read(t.allocator, initial.partition, lsn, 1);
+        defer frames.deinit();
+        const recorded = try c.storage.LogPartitionRecord.decode(t.allocator, frames.frames[0], initial.partition, lsn);
+        // Physical scheduling cleanup needs no clock and may precede refusal
+        // of an expiry unit. It must not settle either accepted lease.
+        try t.expect(recorded.record.action == .queue_schedule);
+    }
+    try check(&data, initial, declared, claimed, authority.guard(), 2, false);
     // The upper bound has reached the deadline; the lower bound has not.
     // The older lease on partition zero can expire, but these two cannot.
     var peak: usize = work.last_peak_bytes;

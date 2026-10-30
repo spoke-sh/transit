@@ -5215,7 +5215,7 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 34,
+        "InvalidLogStorageGraph": 45,
         "InvalidQueueDestination": 2,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
@@ -5246,9 +5246,7 @@
           "ordered_keys",
           "queue_items",
           "queue_sidecars",
-          "queue_keys",
-          "queue_eligible",
-          "queue_deadlines"
+          "queue_keys"
         ],
         "Role": [
           "current",
@@ -5280,6 +5278,9 @@
           "log_index",
           "log_compaction",
           "queue_sidecar",
+          "queue_schedule",
+          "queue_timer_index",
+          "queue_timer_run",
           "queue_selection",
           "log_read",
           "log_segment",
@@ -5301,6 +5302,10 @@
           "snapshot",
           "wal",
           "segment"
+        ],
+        "Work.queue_timer_index.kind": [
+          "pending",
+          "levels"
         ]
       },
       "error_sets": {},
@@ -5311,6 +5316,7 @@
         "LogContext.fromRoot()": "<inferred>",
         "LogContext.owner()": "<inferred>",
         "LogContext.requireTarget()": "<inferred>",
+        "TimerContext.validate()": "<inferred>",
         "documentEntry()": "<inferred>",
         "fromFrame()": "<inferred>",
         "logEntry()": "<inferred>",
@@ -5319,11 +5325,12 @@
         "markPage()": "<inferred>",
         "requireOwner()": "<inferred>",
         "scope()": "<inferred>",
-        "step()": "<inferred>"
+        "step()": "<inferred>",
+        "timerChunk()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 383,
+        "try": 418,
         "catch": 1
       },
       "imports": [
@@ -31671,7 +31678,7 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 10,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 37,
+        "InvalidLogHistory": 38,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
@@ -31680,8 +31687,9 @@
         "InvalidQueueHead": 1,
         "InvalidQueueReadBudget": 1,
         "InvalidQueueSchedule": 1,
-        "InvalidQueueScheduleBudget": 1,
+        "InvalidQueueScheduleBudget": 2,
         "InvalidQueueSelection": 2,
+        "InvalidQueueTimerBudget": 2,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
         "InvalidStreamCompactionBudget": 3,
@@ -31755,6 +31763,7 @@
         "Owner().<return>.candidate()": "<inferred>",
         "Owner().<return>.candidateClaim()": "<inferred>",
         "Owner().<return>.candidateQueueExpiry()": "<inferred>",
+        "Owner().<return>.candidateQueueSchedule()": "<inferred>",
         "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
@@ -31786,6 +31795,7 @@
         "Owner().<return>.open()": "<inferred>",
         "Owner().<return>.operation()": "<inferred>",
         "Owner().<return>.original()": "<inferred>",
+        "Owner().<return>.persistQueue()": "<inferred>",
         "Owner().<return>.producerState()": "<inferred>",
         "Owner().<return>.progress()": "<inferred>",
         "Owner().<return>.protectedOffset()": "<inferred>",
@@ -31814,6 +31824,7 @@
         "Owner().<return>.rewriteMaintenanceUnit()": "<inferred>",
         "Owner().<return>.rewriteView()": "<inferred>",
         "Owner().<return>.rewriteWithinBudget()": "<inferred>",
+        "Owner().<return>.scheduleQueueUnit()": "<inferred>",
         "Owner().<return>.selectCheckpoint()": "<inferred>",
         "Owner().<return>.settle()": "<inferred>",
         "Owner().<return>.skipTimestamp()": "<inferred>",
@@ -31830,7 +31841,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 622,
+        "try": 642,
         "catch": 18
       },
       "imports": [
@@ -31854,7 +31865,9 @@
         "QueueIndex.zig",
         "QueueItem.zig",
         "QueueLeaseHeap.zig",
+        "QueueSchedule.zig",
         "QueueSelection.zig",
+        "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "QueueVisibilityCache.zig",
         "StreamCompaction.zig",
@@ -31879,6 +31892,7 @@
         "InvalidLogSegment": 3,
         "InvalidQueueExpiration": 1,
         "InvalidQueueRoot": 2,
+        "InvalidQueueSchedule": 1,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
@@ -31893,6 +31907,7 @@
           "rewrite",
           "expire",
           "queue_expire",
+          "queue_schedule",
           "compaction_start",
           "compaction_step",
           "compaction_publish",
@@ -31935,6 +31950,7 @@
         "LogSegment.zig",
         "LogTime.zig",
         "QueueIndex.zig",
+        "QueueTimeRun.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
         "TableArchive.zig",
@@ -32347,7 +32363,7 @@
         "InvalidQueueHead": 9,
         "InvalidQueueItem": 4,
         "InvalidQueueRoot": 2,
-        "InvalidQueueSchedule": 12,
+        "InvalidQueueSchedule": 9,
         "InvalidQueueTimerBudget": 1,
         "LogPartitionConflict": 1,
         "QueueItemMissing": 1,
@@ -32356,7 +32372,7 @@
         "QueueSidecarConflict": 2,
         "QueueSidecarMissing": 1,
         "QueueSidecarOverlap": 1,
-        "QueueStateConflict": 4
+        "QueueStateConflict": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -32391,11 +32407,12 @@
         "state()": "<inferred>",
         "stateAt()": "<inferred>",
         "timedKey()": "<inferred>",
+        "timerCursor()": "<inferred>",
         "unschedule()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 122,
+        "try": 117,
         "catch": 1
       },
       "imports": [
@@ -32406,6 +32423,7 @@
         "LogTime.zig",
         "OrderedKeyIndex.zig",
         "QueueItem.zig",
+        "QueueSchedule.zig",
         "QueueTimeMerge.zig",
         "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
@@ -32496,6 +32514,7 @@
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "scheduleMaintenanceUnit()": "<inferred>",
         "settle()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
@@ -32541,6 +32560,7 @@
         "Slot.key()": "<inferred>",
         "Slot.validate()": "<inferred>",
         "append()": "<inferred>",
+        "contains()": "<inferred>",
         "decodeLevel()": "<inferred>",
         "decodePending()": "<inferred>",
         "epoch()": "<inferred>",
@@ -32555,11 +32575,12 @@
         "removeLevel()": "<inferred>",
         "require()": "<inferred>",
         "saveBuffer()": "<inferred>",
-        "seal()": "<inferred>"
+        "seal()": "<inferred>",
+        "verifyRoots()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 98,
+        "try": 105,
         "catch": 2
       },
       "imports": [

@@ -9,6 +9,50 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Accepted Queue timer schedules — 2026-10-30
+
+On dirty parent `e387a41ca`, accepted Queue roots replace per-event visibility
+and deadline indexes with bounded delta buffers, paged pending chunks and sorted
+time runs. Scheduling maintenance records its kind, input budget and complete
+successor in the Queue WAL; recovery rederives it without provider writes.
+
+The disk fixture enqueues 512 rows, freezes visibility maintenance, claims all
+rows in two original selections, then ACKs and NACKs while both timer kinds have
+unfinished merges and partial output. Publication revocation leaves the accepted
+root unchanged. A lost accepted reply requires recovery; disk reopen reproduces
+the exact root without object writes. Maintenance finishes after retirement with
+no clock, preserves 510 acquired rows and the one delayed row, and becomes idle
+without writes. Sealing, archival, checkpointing and actual WAL trimming preserve
+the original claims and payload pages. Declaration-mismatch rejection passes.
+The focused run passes in `/var/tmp/transit-queue-schedule-owner-large.log`.
+
+The expanded retained-graph fixture covers a pending chunk, a two-input merge,
+partial output and a frozen item/bitmap basis distinct from current Queue state.
+Isolated scheduling traversal marks every input/output chunk and frozen basis;
+full traversal then permits actual deletion of unreferenced candidates. Cold
+recovery and subsequent merge completion preserve original claims, full FIFO
+keys and historical blocked destinations. This memory-provider graph fixture
+passes in `/var/tmp/transit-queue-schedule-graph-large-second.log`; disk recovery
+is the separate fixture above. Documentation checks pass in
+`/var/tmp/transit-queue-schedule-docs.log`.
+
+A conservative reflected-schema bound permits full-width integers, populated
+references, both complete merge states and the largest action variant within
+22,050 of the existing 32,768 metadata bytes. A structurally valid scheduling
+record with a forged sweep basis is rejected by replay without advancing state
+or writing provider objects. Both pass in
+`/var/tmp/transit-queue-schedule-replay-bound.log`. All 50 fast checks pass in
+`/var/tmp/transit-queue-schedule-accepted-fast.log`; all 18 contract checks pass
+in `/var/tmp/transit-queue-schedule-accepted-contracts.log`. Native maintenance
+and collection regressions are still running at this record's creation.
+
+Initial fixture attempts refused undersized payload/tail buffers and exhausted
+the previous smaller graph traversal allowance. Those test bounds were adjusted
+for the added population; runtime row limits, metadata size and maintenance
+resident budgets were not increased. These component checks do not establish
+installed scheduling behavior, final clean qualification or completion of Queue
+affinity, terminal payload cleanup or atomic DLQ transfer.
+
 ## Final Queue delta persistence — 2026-10-30
 
 On dirty parent `b97f41a18`, the disk scheduling fixture persists 100 private

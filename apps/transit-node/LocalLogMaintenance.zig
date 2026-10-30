@@ -28,7 +28,9 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 return switch (self) {
                     .flush => settings.flush.enabled,
                     .archive, .trim => settings.archive.enabled,
-                    .compact => kind == .stream and settings.compact,
+                    // Queue scheduling cleanup is control progress, independent
+                    // of optional Stream payload compaction settings.
+                    .compact => kind == .queue or settings.compact,
                     .expire => true, // Queue lease expiry and opted-in Stream age are distinct.
                 };
             }
@@ -121,7 +123,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 return false;
             };
             if ((kind == .stream and selected == .expire and (definition.stored.retired or definition.stored.declaration.configuration.retention.max_age_ms == null)) or
-                (selected == .compact and definition.stored.declaration.configuration.policy.stream.compact_key_column == null) or
+                (kind == .stream and selected == .compact and definition.stored.declaration.configuration.policy.stream.compact_key_column == null) or
                 (kind == .stream and selected == .flush and definition.stored.retired))
             {
                 active.clear();
@@ -157,7 +159,10 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             defer if (kind == .stream and (runtime(stream).root.next_lsn != before or !runtime(stream).ready)) host.notifyStreams();
             switch (selected) {
                 .archive => return stream.archiveMaintenanceUnit(.{ .frames = settings.archive.work_frames }, authority.guard()),
-                .compact => return if (kind == .stream) stream.compactionMaintenanceUnit(definition.stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard()) else unreachable,
+                .compact => return if (kind == .stream)
+                    stream.compactionMaintenanceUnit(definition.stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard())
+                else
+                    stream.scheduleMaintenanceUnit(definition.stored, @intCast(@min(definition.stored.declaration.limits.timer_steps, c.storage.QueueTimeRun.max_rows)), authority.guard()),
                 .trim => {
                     if (runtime(stream).root.archive.through == 0 or runtime(stream).root.recovery == null) return false;
                     const guard = authority.guard();

@@ -34,6 +34,7 @@ const QueueSelection = @import("QueueSelection.zig");
 const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
 const QueueTimingWheel = @import("QueueTimingWheel.zig");
 const QueueVisibilityCache = @import("QueueVisibilityCache.zig");
+const QueueSchedule = @import("QueueSchedule.zig");
 const DeadlineCache = struct {
     root: ?pages.Reference = null,
     valid: bool = false,
@@ -66,6 +67,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             queue_deadline_rows: u32 = 64,
             /// Cached visibility prefix; remaining work stays in paged storage.
             queue_visibility_rows: u32 = 64,
+            /// Bounded scheduling source scans; independent of the wheel capacity.
+            queue_timer_read_work: u32 = 4096,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
@@ -91,6 +94,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         queue_selection: if (kind == .queue) []u8 else void,
         queue_deadlines: if (kind == .queue) DeadlineCache else void,
         queue_visibility: if (kind == .queue) QueueVisibilityCache else void,
+        queue_timers: if (kind == .queue) *QueueSchedule.Workspace else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
@@ -98,6 +102,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (std.meta.activeTag(request.declared.declaration.configuration.policy) != kind) return error.LogPartitionConflict;
             if (kind == .queue and (options.queue_deadline_rows == 0 or options.queue_deadline_rows > 4096 or options.queue_visibility_rows == 0 or options.queue_visibility_rows > 4096)) return error.InvalidQueueScheduleBudget;
             if (kind == .queue and (options.queue_claim_rows == 0 or options.queue_claim_rows > QueueSelection.max_rows)) return error.InvalidQueueClaimBudget;
+            if (kind == .queue and (options.queue_timer_read_work == 0 or options.queue_timer_read_work > 65536)) return error.InvalidQueueScheduleBudget;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
             if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
@@ -122,7 +127,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             errdefer if (kind == .queue) allocator.free(deadline_entries);
             const visibility_entries = if (kind == .queue) try allocator.alloc(QueueTimingWheel.Entry, options.queue_visibility_rows) else {};
             errdefer if (kind == .queue) allocator.free(visibility_entries);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {} };
+            const queue_timers = if (kind == .queue) try allocator.create(QueueSchedule.Workspace) else {};
+            errdefer if (kind == .queue) allocator.destroy(queue_timers);
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {}, .queue_timers = queue_timers };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
@@ -134,6 +141,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.allocator.free(self.queue_selection);
                 self.allocator.free(self.queue_deadlines.heap.entries);
                 self.allocator.free(self.queue_visibility.wheel.entries);
+                self.allocator.destroy(self.queue_timers);
             }
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
@@ -277,7 +285,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn queueIndex(self: *Self, bitmap: *Bitmap) QueueIndex {
             bitmap.* = .{ .store = &self.store, .objects = self.objects };
-            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility };
+            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility, .timer_workspace = self.queue_timers, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = self.root.initialization.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .timer_read_work = self.options.queue_timer_read_work };
+        }
+        fn persistQueue(self: *Self, next: Root) !void {
+            try self.candidate_objects.persistSelected(try QueueSchedule.Buffers.init(next.queue.?.eligible, next.queue.?.deadlines));
         }
         fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
             return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;
@@ -498,7 +509,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
             const next = try self.candidateQueueExpiry(declared, action);
-            try self.candidate_objects.persist();
+            try self.persistQueue(next);
             try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .queue_expire = action } }, &.{}, guard);
             return true;
         }
@@ -507,7 +518,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn queueDeadline(self: *Self, declared: Declaration.Stored, earliest_ms: u64) !?q.Lease {
             const root = self.root.queue.?;
             const cached = &self.queue_deadlines;
-            if (!cached.valid or !std.meta.eql(cached.root, root.deadlines) or (cached.heap.len == 0 and root.active != 0)) {
+            if (!cached.valid or !std.meta.eql(cached.root, root.items) or (cached.heap.len == 0 and root.active != 0)) {
                 cached.clear();
                 var bitmap: Bitmap = undefined;
                 const index = self.queueIndex(&bitmap);
@@ -520,7 +531,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     after = try QueueIndex.timedKey(lease.expires_ms, lease.offset);
                 }
                 if (cached.heap.len == 0 and root.active != 0) return error.InvalidQueueSchedule;
-                cached.root = root.deadlines;
+                cached.root = root.items;
                 cached.valid = true;
             }
             const lease = cached.heap.peek() orelse return null;
@@ -533,17 +544,17 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn acceptedDeadlines(self: *Self, record: r.Record) void {
             const cached = &self.queue_deadlines;
             if (!cached.valid) return;
-            if (!std.meta.eql(cached.root, self.root.queue.?.deadlines)) {
+            if (!std.meta.eql(cached.root, self.root.queue.?.items)) {
                 cached.clear();
                 return;
             }
-            if (std.meta.eql(cached.root, record.root.queue.?.deadlines)) return;
+            if (std.meta.eql(cached.root, record.root.queue.?.items)) return;
             if (record.action == .queue_expire) {
                 cached.heap.removeExact(record.action.queue_expire.lease) catch {
                     cached.clear();
                     return;
                 };
-                cached.root = record.root.queue.?.deadlines;
+                cached.root = record.root.queue.?.items;
             } else cached.clear();
         }
 
@@ -561,6 +572,54 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             next.next_lsn = accepted.next_lsn;
             next.declared = declared;
             next.queue = try index.expire(self.root.queue.?, expired.offset, declared.declaration.configuration.policy.queue, action.observed, accepted);
+            try next.validate();
+            return next;
+        }
+
+        /// Scheduling cleanup has its own accepted progress, so recovery and
+        /// physical-owner replacement never restart an unbounded merge.
+        pub fn scheduleQueueUnit(self: *Self, declared: Declaration.Stored, maximum: u16, guard: Guard) !bool {
+            try authorize(guard);
+            try self.requireReady();
+            try self.root.requireControlDeclaration(declared);
+            if (maximum == 0 or maximum > @import("QueueTimeRun.zig").max_rows or maximum > declared.declaration.limits.timer_steps) return error.InvalidQueueTimerBudget;
+            const ordinary = self.enterControl(true);
+            defer self.leaveControl(ordinary);
+            try self.candidate_objects.reset(self.objects);
+            self.objects = self.candidate_objects.objectStore();
+            self.store.store = self.objects;
+            self.store.clearCache();
+            defer self.store.clearCache();
+            try self.store.begin(self.options.index_work_bytes);
+            defer self.store.end();
+            const first = self.root.queue.?.timer_next;
+            const second: @import("QueueTimeRun.zig").Kind = if (first == .visible) .lease else .visible;
+            for ([_]@import("QueueTimeRun.zig").Kind{ first, second }) |selected| {
+                const action: @FieldType(@FieldType(r.Record, "action"), "queue_schedule") = .{ .kind = selected, .steps = maximum };
+                if (try self.candidateQueueSchedule(declared, action)) |next| {
+                    try self.persistQueue(next);
+                    try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .queue_schedule = action } }, &.{}, guard);
+                    return true;
+                }
+            }
+            try authorize(guard);
+            return false;
+        }
+        fn candidateQueueSchedule(self: *Self, declared: Declaration.Stored, action: @FieldType(@FieldType(r.Record, "action"), "queue_schedule")) !?Root {
+            try self.root.requireControlDeclaration(declared);
+            if (action.steps == 0 or action.steps > declared.declaration.limits.timer_steps or action.steps > @import("QueueTimeRun.zig").max_rows) return error.InvalidQueueTimerBudget;
+            var declaration = try Declaration.load(self.allocator, self.objects, declared);
+            defer declaration.deinit();
+            const current = self.root.queue.?;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const selected = if (action.kind == .visible) current.eligible else current.deadlines;
+            const scheduled = try index.timers(action.kind).maintain(selected, QueueIndex.timerBasis(current), action.steps, QueueIndex.TimerFilter{ .index = index }) orelse return null;
+            var next = self.root;
+            next.declared = declared;
+            next.next_lsn = (try self.nextPosition()).next_lsn;
+            if (action.kind == .visible) next.queue.?.eligible = scheduled else next.queue.?.deadlines = scheduled;
+            next.queue.?.timer_next = if (action.kind == .visible) .lease else .visible;
             try next.validate();
             return next;
         }
@@ -757,7 +816,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     }
                     if (kind == .queue) {
                         var bitmap: Bitmap = .{ .store = &self.store, .objects = self.objects };
-                        const index: QueueIndex = .{ .store = &self.store, .scratch = &self.scratch, .bitmap = &bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer };
+                        const index = self.queueIndex(&bitmap);
                         result.queue = try index.enqueue(self.root.queue.?, &queue_declaration, receipt, payload);
                     }
                 },
@@ -803,7 +862,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             defer self.store.end();
             const next = try self.candidate(evidence, payload, guard);
             const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .operation = evidence } };
-            if (kind == .queue) try self.candidate_objects.persist();
+            if (kind == .queue) try self.persistQueue(next);
             try self.publishRecord(record, payload, guard);
             // Cache admission is optional after acceptance. Pressure cannot turn an
             // accepted append into rejection; reads can load its verified WAL payload.
@@ -1458,9 +1517,16 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.hidden.containers, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
                 _ = try self.store.load(value);
             };
-            if (self.root.queue) |queue| for ([_]?pages.Reference{ queue.items, queue.sidecars, queue.keys, queue.eligible, queue.deadlines }) |reference| if (reference) |value| {
-                _ = try self.store.load(value);
-            };
+            if (kind == .queue) {
+                const queue = self.root.queue.?;
+                for ([_]?pages.Reference{ queue.items, queue.sidecars, queue.keys }) |reference| if (reference) |value| {
+                    _ = try self.store.load(value);
+                };
+                var bitmap: Bitmap = undefined;
+                const index = self.queueIndex(&bitmap);
+                try index.timers(.visible).verifyRoots(queue.eligible);
+                try index.timers(.lease).verifyRoots(queue.deadlines);
+            }
             if (self.root.compaction) |work| for ([_]?pages.Reference{ work.source.batches, work.source.segments, work.latest, work.candidate.containers }) |reference| if (reference) |value| {
                 _ = try self.store.load(value);
             };
@@ -1475,7 +1541,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             const next = record.root;
             try self.root.initialization.requireSame(next.initialization);
-            if (kind == .queue and (record.action == .operation or record.action == .queue_expire)) {
+            if (kind == .queue and (record.action == .operation or record.action == .queue_expire or record.action == .queue_schedule)) {
                 const ordinary = self.enterControl(true);
                 defer self.leaveControl(ordinary);
                 try self.candidate_objects.reset(self.objects);
@@ -1485,10 +1551,12 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 defer self.store.clearCache();
                 try self.store.begin(self.options.index_work_bytes);
                 defer self.store.end();
-                var expected = if (record.action == .operation)
-                    try self.candidate(record.action.operation, payload, guard)
-                else
-                    try self.candidateQueueExpiry(next.declared, record.action.queue_expire);
+                var expected = switch (record.action) {
+                    .operation => try self.candidate(record.action.operation, payload, guard),
+                    .queue_expire => try self.candidateQueueExpiry(next.declared, record.action.queue_expire),
+                    .queue_schedule => (try self.candidateQueueSchedule(next.declared, record.action.queue_schedule)) orelse return error.InvalidLogHistory,
+                    else => unreachable,
+                };
                 expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
                 if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
                 return;
@@ -1499,7 +1567,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
                 switch (record.action) {
                     .operation => unreachable,
-                    .queue_expire => return error.InvalidLogHistory,
+                    .queue_expire, .queue_schedule => return error.InvalidLogHistory,
                     .maintenance => {},
                     .archive => |value| {
                         if (value.from_lsn != self.root.archive.through) return error.InvalidLogArchive;

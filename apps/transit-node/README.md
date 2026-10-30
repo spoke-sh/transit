@@ -166,7 +166,8 @@ All are released on executor shutdown. A finite quiescent history can therefore
 finish recovery without a resident limit on the partition population.
 
 The existing flush and archive settings also enable Queue physical maintenance;
-compact enables Stream key compaction. Log flushing seals one whole accepted batch, bounded by append limits,
+compact enables Stream key compaction. Queue timer-run merging and stale-event
+cleanup run independently of this optional compaction setting. Log flushing seals one whole accepted batch, bounded by append limits,
 instead of Table's partial-row or age thresholds. Archive units honor
 `archive.work_frames`; key compaction uses at most 64 rows or the smaller
 `compaction_rows` setting. Physical rewriting then inspects at most one accepted
@@ -183,6 +184,13 @@ it. Retry backoff starts at that deadline, including after downtime. Retired
 Queues can settle expired leases and archive accepted history. Empty active-lease
 sets need no clock; unavailable time with active leases refuses expiry. Queue
 expiry uses reserved control capacity and preserves original claims and payloads.
+Queue scheduling maintenance uses the same reserve and publishes one resumable
+physical transition per unit. Visibility and lease work alternate; merge steps
+consume at most 1,024 input entries or the smaller declared `timer_steps` limit.
+Initial sweep cleanup separately examines at most 256 buffered events. Frozen
+merge inputs and progress survive restart, while current item/bitmap state
+continues to govern claims. Scheduling cleanup needs no clock, also after DROP;
+it neither expires payloads nor settles leases.
 
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep

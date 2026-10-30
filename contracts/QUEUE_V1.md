@@ -35,7 +35,13 @@ incomplete recovery before accepting fresh work. The native signed service and
 typed client expose this standalone composition. The local maintenance executor
 seals and archives Queue payloads and expires at most one accepted lease per
 unit. Expiry requires the trusted lower time bound to reach the current deadline,
-also after retirement; it preserves payloads and original receipts. DLQ transfer
+also after retirement; it preserves payloads and original receipts. Visibility
+and lease schedules use bounded deltas and paged time-bucketed runs. Separate
+physical maintenance publishes resumable merges and stale-event sweeps without
+changing logical lease state or requiring a clock. Its frozen inputs and Queue
+basis remain retained until accepted progress releases them; recovery rederives
+each complete successor. The [storage contract](TRANSIT_STORAGE_V1.md#private-scheduling-source-composition)
+defines these bounds and publication rules. DLQ transfer
 and mixed transaction publication remain unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.

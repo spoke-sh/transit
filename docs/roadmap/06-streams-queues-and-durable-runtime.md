@@ -446,12 +446,16 @@ The current progress slice delivers:
   expiry remains owned separately by the fenced heap. Bounded sorted `.tseg`
   timer chunks, pending buffers and paged logical-run directories now have
   storage codecs. Private two-run merging now resumes bounded input progress
-  with exact completion evidence and frozen Queue-state filtering; accepted
-  run/merge publication and retention edges are not integrated. Private schedule
+  with exact completion evidence and frozen Queue-state filtering. Schedule
   composition adds paged pending chunks, bounded earliest-event reads, size-tiered
-  merges and a finite stale-entry sweep. Its migration into accepted Queue roots,
-  batched persistence and native maintenance remains open. Durable time-bucketed runs,
-  affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
+  merges and a finite stale-entry sweep. Accepted Queue roots now publish both
+  timer kinds, final delta buffers and bounded maintenance progress. Retained
+  traversal owns frozen inputs, partial output and Queue-state bases; the
+  [disk recovery and collection schedules](../history/qualification/catalog.md#accepted-queue-timer-schedules--2026-10-30)
+  preserve original work through lost replies, retirement and physical deletion.
+  Native maintenance integration is implemented; its integrated qualification
+  remains open. Lock-free affinity scheduling, terminal cleanup and atomic DLQ
+  transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

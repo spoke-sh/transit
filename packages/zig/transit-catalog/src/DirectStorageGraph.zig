@@ -36,7 +36,17 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_eligible, queue_deadlines };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys };
+const TimerContext = struct {
+    log: LogContext,
+    seed: c.protocol.StreamQueue.Partition,
+    kind: s.QueueTimeRun.Kind,
+    serial: u64,
+    fn validate(self: TimerContext) !void {
+        try self.log.requireTarget(self.seed);
+        if (self.seed.interpretation.revision != 1 or self.serial == 0) return error.InvalidLogStorageGraph;
+    }
+};
 const DocumentContext = struct {
     interpretation: d.Definition,
     partition: u64,
@@ -99,6 +109,9 @@ pub const Work = union(enum) {
     log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, prefix_bytes: u16 = 0, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     log_compaction: struct { context: LogContext, state: s.StreamCompaction.State, slot: u8 = 0 },
     queue_sidecar: struct { context: LogContext, manifest: s.Tack, slot: u8 = 0 },
+    queue_schedule: struct { context: TimerContext, root: s.QueueSchedule.Root, slot: u8 = 0, started: bool = false },
+    queue_timer_index: struct { context: TimerContext, reference: s.TreeStore.pages.Reference, kind: enum { pending, levels }, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
+    queue_timer_run: struct { context: TimerContext, audit: s.QueueTimeDirectory.Audit, started: bool = false },
     queue_selection: struct { context: LogContext, receipt: c.protocol.StreamQueue.ClaimReceipt, slot: u8 = 0 },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
@@ -126,7 +139,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -173,6 +186,16 @@ fn requireOwner(context: Context, root: s.TablePartition.Root) !void {
         root.next_lsn > context.next_lsn or root.next_segment > context.next_segment) return error.InvalidTableStorageGraph;
 }
 
+fn timerChunk(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: TimerContext, chunk: s.QueueTimeRun.Descriptor) !void {
+    try context.validate();
+    if (!std.meta.eql(chunk.seed, context.seed) or chunk.kind != context.kind or chunk.serial >= context.serial) return error.InvalidLogStorageGraph;
+    var output: [s.QueueTimeRun.max_rows]s.QueueTimeRun.Event = undefined;
+    const events = try s.QueueTimeRun.load(allocator, index.store, chunk, &output);
+    for (events) |event| if (event.offset >= context.log.next_offset) return error.InvalidLogStorageGraph;
+    var name: [96]u8 = undefined;
+    try markContent(workspace, try s.QueueTimeRun.key(chunk.content, &name), chunk.content);
+}
+
 fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: LogContext, kind: LogIndexKind, prefix_bytes: u16, entry: s.TreeStore.pages.Entry) !void {
     switch (kind) {
         .pages_only => {},
@@ -216,12 +239,6 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             if (!std.meta.eql(entry.key, try s.LogPartitionRecord.integerKey(manifest.next)) or manifest.next > context.next_offset or
                 manifest.accepted.partition != context.partition or manifest.accepted.next_lsn > context.next_lsn) return error.InvalidLogStorageGraph;
             try workspace.enqueue(.{ .queue_sidecar = .{ .context = context, .manifest = manifest } });
-        },
-        .queue_eligible, .queue_deadlines => {
-            if (entry.key.len != 16 or std.mem.readInt(u64, entry.key.data[8..16], .big) >= context.next_offset) return error.InvalidLogStorageGraph;
-            if (kind == .queue_eligible) {
-                if (entry.value.len != 0) return error.InvalidLogStorageGraph;
-            } else if (entry.value.len != 8 or std.mem.readInt(u64, entry.value.data[0..8], .big) == 0) return error.InvalidLogStorageGraph;
         },
         .batches, .receipts, .producer_receipts => {
             const evidence = try s.LogEvidence.load(allocator, index.store, entry.value);
@@ -620,20 +637,122 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .log_root => |*value| {
             const root = value.root;
             const queue = root.queue orelse s.QueueIndex.Root.empty;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.eligible, queue.deadlines };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_eligible, .queue_deadlines };
-            if (value.slot > directories.len + 1) return error.InvalidLogStorageGraph;
-            if (value.slot == directories.len + 1) return true;
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys };
+            if (value.slot > directories.len + 3) return error.InvalidLogStorageGraph;
+            if (value.slot == directories.len + 3) return true;
             const context = try LogContext.fromRoot(root, value.archive);
             if (value.slot == 0) {
                 try workspace.enqueue(.{ .log_declaration = root.declared });
                 try workspace.enqueue(.{ .log_declaration = root.initialization.declared });
                 if (root.compaction) |state| try workspace.enqueue(.{ .log_compaction = .{ .context = context, .state = state } });
-            } else if (directories[value.slot - 1]) |reference| {
-                try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            } else if (value.slot <= directories.len) {
+                if (directories[value.slot - 1]) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            } else if (root.queue != null) {
+                const visible = value.slot == directories.len + 1;
+                const scheduled = if (visible) queue.eligible else queue.deadlines;
+                try workspace.enqueue(.{ .queue_schedule = .{ .context = .{ .log = context, .seed = root.initialization.target(), .kind = if (visible) .visible else .lease, .serial = scheduled.serial }, .root = scheduled } });
             }
             value.slot += 1;
             return false;
+        },
+        .queue_schedule => |*value| {
+            try value.context.validate();
+            try value.root.validate();
+            if (value.context.serial != value.root.serial or value.slot > 8) return error.InvalidLogStorageGraph;
+            if (value.slot == 8) return true;
+            if (!value.started) {
+                if (value.slot != 0) return error.InvalidLogStorageGraph;
+                if (try workspace.visited(try scope(.{ .queue_schedule = .{ .context = value.context, .root = value.root } }))) return true;
+                value.started = true;
+                return false;
+            }
+            switch (value.slot) {
+                0 => if (value.root.active) |content| {
+                    var bytes: [s.QueueTimeBuffer.max_bytes]u8 = undefined;
+                    var events: [s.QueueTimeBuffer.max_rows]s.QueueTimeRun.Event = undefined;
+                    const buffer = try s.QueueTimeBuffer.load(value.context.seed, value.context.kind, index.store, content, &bytes, &events);
+                    if (buffer.len != value.root.active_rows) return error.InvalidLogStorageGraph;
+                    for (buffer.rows()) |event| if (event.offset >= value.context.log.next_offset) return error.InvalidLogStorageGraph;
+                    var name: [96]u8 = undefined;
+                    try markContent(workspace, try s.QueueTimeBuffer.key(content, &name), content);
+                },
+                1, 2 => {
+                    const reference = if (value.slot == 1) value.root.pending else value.root.levels;
+                    if (reference) |root| try workspace.enqueue(.{ .queue_timer_index = .{ .context = value.context, .reference = root, .kind = if (value.slot == 1) .pending else .levels } });
+                },
+                3, 4 => if (value.root.work) |merge_work| {
+                    if (!std.meta.eql(merge_work.merge.seed, value.context.seed) or merge_work.merge.kind != value.context.kind or merge_work.merge.basis.next_offset > value.context.log.next_offset) return error.InvalidLogStorageGraph;
+                    const reference = if (value.slot == 3) merge_work.merge.basis.items else merge_work.merge.basis.sidecars;
+                    if (reference) |root| {
+                        var context = value.context.log;
+                        context.next_offset = merge_work.merge.basis.next_offset;
+                        try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = root, .kind = if (value.slot == 3) .queue_items else .queue_sidecars } });
+                    }
+                },
+                5, 6, 7 => if (value.root.work) |merge_work| {
+                    const run = switch (value.slot) {
+                        5 => merge_work.merge.sources[0],
+                        6 => merge_work.merge.sources[1],
+                        else => merge_work.merge.output,
+                    };
+                    try workspace.enqueue(.{ .queue_timer_run = .{ .context = value.context, .audit = .{ .basis = run } } });
+                },
+                else => unreachable,
+            }
+            value.slot += 1;
+            return false;
+        },
+        .queue_timer_index => |*value| {
+            try value.context.validate();
+            const page = try index.load(value.reference);
+            if (value.height) |height| if (page.height != height) return error.InvalidLogStorageGraph;
+            if (value.slot > page.count) return error.InvalidLogStorageGraph;
+            if (!value.marked) {
+                if (value.slot != 0) return error.InvalidLogStorageGraph;
+                try markPage(index, workspace, value.reference);
+                if (try workspace.visited(try scope(.{ .queue_timer_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind } }))) return true;
+                value.marked = true;
+                return false;
+            }
+            if (value.slot == page.count) return true;
+            switch (page.body) {
+                .branch => |children| try workspace.enqueue(.{ .queue_timer_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .height = page.height - 1 } }),
+                .leaf => |entries| {
+                    const entry = entries[value.slot].?;
+                    switch (value.kind) {
+                        .pending => {
+                            const chunk = try s.QueueTimeRun.Descriptor.decode(entry.value);
+                            if (!std.meta.eql(entry.key, try s.QueueSchedule.pendingKey(chunk))) return error.InvalidLogStorageGraph;
+                            try timerChunk(allocator, index, workspace, value.context, chunk);
+                        },
+                        .levels => {
+                            const slot = try s.QueueSchedule.Slot.decode(entry.key);
+                            const run = try s.LogPartitionRecord.valueDecode(s.QueueTimeDirectory.Root, allocator, entry.value);
+                            if (run.rows == 0 or run.first.?.bucket() != slot.bucket or run.last.?.bucket() != slot.bucket) return error.InvalidLogStorageGraph;
+                            try workspace.enqueue(.{ .queue_timer_run = .{ .context = value.context, .audit = .{ .basis = run } } });
+                        },
+                    }
+                },
+            }
+            value.slot += 1;
+            return false;
+        },
+        .queue_timer_run => |*value| {
+            try value.context.validate();
+            try value.audit.basis.validate();
+            if (!value.started) {
+                if (value.audit.rows != 0 or value.audit.chunks != 0 or value.audit.after != null or value.audit.complete) return error.InvalidLogStorageGraph;
+                if (try workspace.visited(try scope(.{ .queue_timer_run = .{ .context = value.context, .root = value.audit.basis } }))) return true;
+                if (value.audit.basis.directory) |reference| try workspace.enqueue(.{ .log_index = .{ .context = value.context.log, .reference = reference, .kind = .pages_only } });
+                value.started = true;
+                return false;
+            }
+            const directory: s.QueueTimeDirectory = .{ .store = index, .seed = value.context.seed, .kind = value.context.kind, .bucket = if (value.audit.basis.first) |event| event.bucket() else 0 };
+            var audit = value.audit;
+            if (try directory.audit(&audit)) |entry| try timerChunk(allocator, index, workspace, value.context, entry.chunk);
+            value.audit = audit;
+            return audit.complete;
         },
         .queue_selection => |*value| {
             try value.receipt.validate();

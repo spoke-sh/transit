@@ -1387,8 +1387,9 @@ and one 512-KiB encoding buffer, independently of logical-run size. The caller
 provides reusable scratch, a bounded private page candidate and a nonzero output
 serial. Identical input state, serial, budget and deterministic filter produce
 identical output content and roots; `CandidateObjects` can derive them during
-replay without writing the underlying provider. These private merge operations
-are not yet wired into accepted Queue scheduling or maintenance.
+replay without writing the underlying provider. The Queue owner records merge
+progress in accepted scheduling roots and retains its inputs, frozen basis and
+partial output through the storage graph.
 
 ### Private scheduling source composition
 
@@ -1396,8 +1397,9 @@ are not yet wired into accepted Queue scheduling or maintenance.
 runs and optional resumable merge work. Its scalar root records the active
 content/count, pending directory/count, level directory/count, merge state,
 next nonzero serial, finite-sweep state and an eight-unit pending/sweep counter.
-These fields are mandatory when serialized. It is a private storage helper;
-the accepted Queue root and native maintenance do not yet use it.
+These fields are mandatory when serialized. The accepted Queue root has one
+schedule for visibility and one for lease deadlines, plus mandatory `timer_next`
+(`visible` or `lease`) for fair physical maintenance selection.
 
 Appending to a full 256-entry delta seals one chunk for each contiguous time
 bucket. Pending keys are the first `(time, offset, epoch)` triple followed by
@@ -1410,8 +1412,8 @@ selects only the final visibility/deadline buffer names for
 selected. Previously accepted underlying buffers are never deleted. The caller
 must establish that no accepted reference in its action retains an intermediate
 buffer. Runs and merge states contain scalar events or chunk directories, never
-intermediate buffer references. The Queue WAL owner still needs to adopt this
-selection so per-event private derivation does not become per-event I/O.
+intermediate buffer references. The Queue WAL owner uses this selection for
+enqueue, claim, settlement, expiry and scheduling maintenance publication.
 
 Merged-run keys contain a big-endian `u64` bucket and `u8` level from zero
 through 63; their values are exact logical-run roots. A collision merges two
@@ -1438,6 +1440,26 @@ search returns `QueueTimerReadBudget`, never an empty result or a partially
 qualified earliest event. Every decoded chunk is bounded; whole scheduling
 cardinality does not determine resident allocation. Matching uses the supplied
 current-state filter and provides no authority or settlement decision.
+
+`QueuePartition.scheduleMaintenanceUnit` accepts a `queue_schedule` action with
+the selected kind and requested input-step budget. The budget must be positive,
+at most 1,024 and no greater than the current declaration's `timer_steps`.
+Publication verifies immutable declaration bytes and current authority, including
+for compatible retired declarations. It leaves logical item/bitmap state,
+counts, clock floor, payload offsets and original outcomes unchanged, switches
+`timer_next` to the other kind, and advances the WAL frontier. If the preferred
+kind is idle it may service the other; two idle schedules publish nothing.
+Replay deterministically derives the complete successor using private candidate
+objects and refuses a differing root. An uncertain append requires recovery.
+
+This maintenance uses reserved control capacity and requires no time observation:
+discarding a stale physical event cannot itself expire a lease. Native maintenance
+services it even when optional Stream compaction is disabled. Storage traversal
+verifies and retains active buffers, pending chunks, level directories, both
+merge inputs, partial output and frozen item/sidecar roots. An unfinished audit
+or missing artifact cannot authorize collection. The logical item root binds
+the resident wheel and heap caches; physical schedule rewrites do not grant
+eligibility or invalidate an otherwise unchanged logical basis.
 
 ## Declared log initialization
 
