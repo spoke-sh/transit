@@ -73,6 +73,8 @@ pub const BranchDiff = @import("BranchDiff.zig");
 pub const AnalyticalSql = @import("AnalyticalSql.zig");
 pub const PerfectHashIn = @import("PerfectHashIn.zig");
 pub const VectorUdf = @import("VectorUdf.zig");
+pub const BitemporalAndTvf = @import("BitemporalAndTvf.zig");
+pub const FuzeDelta = @import("FuzeDelta.zig");
 pub const ColumnPredicate = @import("ColumnPredicate.zig");
 pub const TSearchSegment = @import("TSearchSegment.zig");
 pub const VectorizedSearch = @import("VectorizedSearch.zig");
@@ -123,6 +125,8 @@ test {
     _ = AnalyticalSql;
     _ = PerfectHashIn;
     _ = VectorUdf;
+    _ = BitemporalAndTvf;
+    _ = FuzeDelta;
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
@@ -142,6 +146,7 @@ test {
     _ = @import("vectorized_search_test.zig");
     _ = @import("branch_diff_test.zig");
     _ = @import("analytical_sql_test.zig");
+    _ = @import("bitemporal_and_delta_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
     _ = @import("logical_kind_test.zig");

@@ -9695,6 +9695,61 @@
         "TableRow.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/BitemporalAndTvf.zig": {
+      "errors": {
+        "AuthorizationRevokedMidStream": 1,
+        "InvalidChangesWindowBounds": 1,
+        "InvalidStreamSliceBounds": 2,
+        "InvalidValidTimePeriod": 2,
+        "MergeCardinalityViolation": 2,
+        "OutputBufferTooSmall": 8,
+        "PreparedPlanInvalidatedByDdl": 2,
+        "PreparedPlanInvalidatedByPolicyEpoch": 1,
+        "RelationTooLarge": 1,
+        "RowSelectPermissionDenied": 1
+      },
+      "outcomes": {
+        "ChangeMode": [
+          "all_ordered",
+          "net_relation"
+        ],
+        "ChangeOp": [
+          "insert",
+          "delete"
+        ],
+        "MergeSourceAction": [
+          "upsert",
+          "delete_matched"
+        ],
+        "StreamSliceSelector": [
+          "offset_range",
+          "timestamp_range"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BitemporalRightRow.validPeriod()": "<inferred>",
+        "PreparedPlanBinding.validateAgainstCurrent()": "<inferred>",
+        "ValidTimePeriod.initClosedOpen()": "<inferred>",
+        "evaluateChangesTvf()": "<inferred>",
+        "evaluateStreamSliceTvf()": "<inferred>",
+        "executeBitemporalAsOfJoin()": "<inferred>",
+        "executeTransactionalMerge()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "AnalyticalSql.zig",
+        "Collation.zig",
+        "OperatorTraits.zig",
+        "Range.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/BoundedJson.zig": {
       "errors": {
         "InvalidJson": 2,
@@ -10412,6 +10467,63 @@
       },
       "imports": [
         "PredicateTruth.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/FuzeDelta.zig": {
+      "errors": {
+        "InvalidJoinColumnIndex": 5,
+        "InvalidSpatialZSetDescriptor": 1,
+        "RowArityExceeded": 1,
+        "SpatialZSetExecutionDeferredToM17": 1,
+        "ZSetCapacityExceeded": 2
+      },
+      "outcomes": {
+        "LateEventOutcome": [
+          "admitted_on_time",
+          "admitted_within_allowed_lateness",
+          "retracted_late_update",
+          "dropped_expired_window"
+        ],
+        "LateRowPolicy": [
+          "retract_and_emit",
+          "drop_late_with_receipt"
+        ],
+        "SpatialBoundaryOperatorKind": [
+          "planar_half_edge_boundary_d2",
+          "solid_half_face_coboundary_d3",
+          "s2_h3_oct_cell_covering_join"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Arrangement.applyDelta()": "<inferred>",
+        "Arrangement.compactBelowWatermark()": "<inferred>",
+        "ZSet.addRowWeight()": "<inferred>",
+        "ZSet.addZSet()": "<inferred>",
+        "ZSet.consolidateCanonical()": "<inferred>",
+        "ZSet.equals()": "<inferred>",
+        "ZSet.subtractZSet()": "<inferred>",
+        "ZSetGroupByAggregator.applyDelta()": "<inferred>",
+        "ZSetGroupByAggregator.materializeZSet()": "<inferred>",
+        "compareRowsLexicographic()": "<inferred>",
+        "evaluateFiniteJoinOracle()": "<inferred>",
+        "filterDeltaInt64Min()": "<inferred>",
+        "invokeSpatialZSetOperator()": "<inferred>",
+        "joinTwoZSets()": "<inferred>",
+        "projectDelta()": "<inferred>",
+        "rowsEqualAllColumns()": "<inferred>",
+        "stepIncrementalInnerJoin()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 40,
+        "catch": 0
+      },
+      "imports": [
+        "AnalyticalSql.zig",
+        "Collation.zig",
+        "Types.zig",
         "std"
       ]
     },
@@ -15111,6 +15223,7 @@
         "AuthorizationSql.zig",
         "Batch.zig",
         "BatchExecution.zig",
+        "BitemporalAndTvf.zig",
         "BranchDiff.zig",
         "Collation.zig",
         "ColumnPredicate.zig",
@@ -15119,6 +15232,7 @@
         "Ebcdic1047.zig",
         "FileQuery.zig",
         "FileSource.zig",
+        "FuzeDelta.zig",
         "GermanString.zig",
         "HybridSearch.zig",
         "LogicalArrow.zig",
