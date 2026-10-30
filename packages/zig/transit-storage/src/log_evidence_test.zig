@@ -20,6 +20,7 @@ test "log evidence retains original receipt and declaration across disk reopen" 
         .first = std.math.maxInt(u64) - 2,
         .next = std.math.maxInt(u64),
         .accepted = .{ .partition = 91, .next_lsn = 6 },
+        .observed_ms = null,
     } } };
     const reference = try E.stage(objects.objectStore(), record);
     try t.expectEqualDeep(try E.expectedReference(record), reference);

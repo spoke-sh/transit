@@ -239,7 +239,8 @@
     "accepted": {
       "partition": 91,
       "next_lsn": 12
-    }
+    },
+    "observed_ms": 500
   },
   "producer": {
     "target": {

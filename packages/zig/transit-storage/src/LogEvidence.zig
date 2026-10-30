@@ -60,7 +60,8 @@ pub const Record = struct {
         const kind = std.meta.activeTag(self.declared.declaration.configuration.policy);
         switch (self.outcome) {
             .append => |value| if (!std.mem.eql(u8, @tagName(value.append.kind), @tagName(kind)) or
-                value.append.rows > self.declared.declaration.limits.append_rows or value.append.payload.bytes > self.declared.declaration.limits.append_bytes) return error.InvalidLogEvidence,
+                value.append.rows > self.declared.declaration.limits.append_rows or value.append.payload.bytes > self.declared.declaration.limits.append_bytes or
+                (self.declared.declaration.configuration.retention.max_age_ms != null and value.observed_ms == null)) return error.InvalidLogEvidence,
             .assignment, .offset, .read, .release => if (kind != .stream) return error.InvalidLogEvidence,
         }
     }

@@ -1359,7 +1359,7 @@ length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` byte
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
-frontier, retained boundary, batch/segment/receipt/producer/producer-receipt/group/pin
+frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/pin
 directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
 offset, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
@@ -1383,6 +1383,18 @@ writer/policy epochs. One WAL acceptance publishes payload, offset range,
 producer progress and original receipt together. Exact retries inspect original
 outcomes before fresh producer/declaration checks, while still requiring current
 permission. Conflict and uncertainty never allocate a replacement identity.
+
+The trusted adapter optionally supplies `LogTime.Source`. Fresh append samples
+it after validation and records that nullable observation in its receipt. A
+configured source must return an authoritative nonregressing UTC millisecond
+value. A positive retention age requires it; a partition with an accepted time
+floor cannot later accept untimed work. Under the final publication guard the
+owner samples again, refuses regression/unavailability, and refuses an opted-in
+age window already elapsed since the first observation. Private staged objects
+from a refusal establish no acceptance. Replay checks the persisted monotonic
+floor without consulting current time. Original-receipt lookup precedes clock
+checks. Neither producer event timestamps nor a WAL header's incidental clock
+field can supply this capability.
 
 `Options.control`, when supplied, is a trusted adapter capability for the same
 physical namespace and authorization owner using reserved deployment capacity.

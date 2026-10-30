@@ -105,6 +105,14 @@ complete progress and closure, and verify that revocation still refuses both
 mutation and original-outcome disclosure. Reserved capacity grants no expiry or
 permission, and remains finite.
 
+`LogTime.Source` supplies trusted UTC milliseconds when timing is configured or
+required by retention. Append persists its pre-staging observation and rechecks
+time under the publication guard. Missing/regressing clocks and an already
+elapsed retention window refuse fresh publication. Accepted clock floors survive
+restart; original receipts and recovery do not depend on current clock
+availability. Explicitly untimed unlimited history cannot be assigned a synthetic
+time by a later policy change.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

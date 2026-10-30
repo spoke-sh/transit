@@ -109,6 +109,18 @@ Neither a WAL LSN nor its partition ID is the logical offset or ordinal.
 `requireAppend` compares every frozen field; retry cannot substitute a new
 producer, payload, interpretation, operation or partition.
 
+The receipt's mandatory nullable `observed_ms` is the trusted owner's UTC
+observation before private staging, rechecked under the publication guard. It is
+separate from event timestamps and the physical WAL header. A configured clock
+must be available and nonregressing. An opted-in age policy requires a timed
+append and refuses publication if staging has already consumed that policy's
+age window. The accepted observation advances a persisted `LogClock` floor.
+Once a partition has accepted trusted time, a fresh append cannot revert it to
+an untimed profile. An unlimited partition without a clock may explicitly record
+null; later policy changes cannot invent an observation time for that history.
+Original outcomes and recovery remain available under current rights even if
+the clock is subsequently unavailable or regresses.
+
 ## Finite read coverage
 
 `Cut` records the partition interpretation, physical accepted frontier and

@@ -18,6 +18,7 @@ const Batch = @import("LogBatch.zig");
 const Segment = @import("LogSegment.zig");
 const f = @import("transit_fuze");
 const Tail = @import("LogTail.zig");
+const Time = @import("LogTime.zig");
 const TreeStore = @import("TreeStore.zig");
 const Guard = @import("PublicationGuard.zig");
 const r = @import("LogPartitionRecord.zig");
@@ -37,6 +38,7 @@ pub const Options = struct {
     /// Same physical namespace and authority, with deployment control reserve.
     /// Only progress/closure and physical recovery use this capability.
     control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
+    clock: ?Time.Source = null,
     tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
 };
 
@@ -205,7 +207,8 @@ pub fn append(self: *Self, declared: Declaration.Stored, request: q.Append, payl
     var declaration = try Declaration.load(self.allocator, self.objects, declared);
     defer declaration.deinit();
     try Batch.validate(payload, &declaration, request, &self.scratch, self.key_buffer);
-    const receipt: q.AppendReceipt = .{ .append = request, .first = self.root.next_offset, .next = std.math.add(u64, self.root.next_offset, request.rows) catch return error.LogOffsetExhausted, .accepted = try self.nextPosition() };
+    const observed_ms = try Time.observe(self.options.clock, self.root.clock_ms, declared.declaration.configuration.retention.max_age_ms != null);
+    const receipt: q.AppendReceipt = .{ .append = request, .first = self.root.next_offset, .next = std.math.add(u64, self.root.next_offset, request.rows) catch return error.LogOffsetExhausted, .accepted = try self.nextPosition(), .observed_ms = observed_ms };
     try self.publish(.{ .declared = declared, .outcome = .{ .append = receipt } }, payload, guard);
     return receipt;
 }
@@ -344,6 +347,7 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
     switch (evidence.outcome) {
         .append => |receipt| {
             if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
+            result.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);
             result.next_offset = receipt.next;
             result.batches = try self.tree().put(result.batches, try r.integerKey(receipt.next), reference);
             if (try self.nextProducer(receipt.append)) |producer| {
@@ -397,6 +401,13 @@ fn publishRecord(self: *Self, record: r.Record, payload: []const u8, guard: Guar
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidWalEpoch;
+    if (record.action == .operation and record.action.operation.outcome == .append) {
+        const observed_ms = record.action.operation.outcome.append.observed_ms;
+        if (observed_ms != null) {
+            const now = (try Time.observe(self.options.clock, observed_ms, true)).?;
+            if (record.root.declared.declaration.configuration.retention.max_age_ms) |age| if (now - observed_ms.? >= age) return error.LogRetentionWindowElapsed;
+        }
+    }
     const receipt = self.log.append(next.initialization.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, record.frameKind(), bytes) catch |err| {
         self.ready = false;
         return switch (err) {
@@ -628,6 +639,7 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
     switch (evidence.outcome) {
         .append => |receipt| {
             if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
+            expected.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);
             expected.next_offset = receipt.next;
             expected.batches = next.batches;
             try self.verifyValue(next.batches, try r.integerKey(receipt.next), reference);

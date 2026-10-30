@@ -15511,13 +15511,14 @@
         "LogProducerReceiptExpired": 1,
         "LogProducerRequired": 2,
         "LogProducerSequenceGap": 3,
+        "LogTimeRegression": 1,
+        "LogTimeUnavailable": 1,
         "QueueClaimConflict": 1,
         "QueueLeaseDeadlineOverflow": 1,
         "QueueLeaseExpired": 1,
         "QueueLeaseFenced": 1,
         "QueueSettlementConflict": 1,
-        "QueueTimeRegression": 1,
-        "QueueTimeUnavailable": 2,
+        "QueueTimeUnavailable": 1,
         "UnsupportedTransactionDomain": 1
       },
       "outcomes": {
@@ -15560,6 +15561,7 @@
         "GroupProgress.validate()": "<inferred>",
         "Lease.requireLive()": "<inferred>",
         "Lease.validate()": "<inferred>",
+        "LogClock.observe()": "<inferred>",
         "OffsetCommit.requireCurrent()": "<inferred>",
         "OffsetCommit.validate()": "<inferred>",
         "OffsetReceipt.requireCommit()": "<inferred>",
@@ -15572,7 +15574,6 @@
         "ProducerState.forgetThrough()": "<inferred>",
         "ProducerState.initial()": "<inferred>",
         "ProducerState.validate()": "<inferred>",
-        "QueueClock.observe()": "<inferred>",
         "Settlement.requireLive()": "<inferred>",
         "Settlement.requireSame()": "<inferred>",
         "Settlement.validate()": "<inferred>",
@@ -28714,6 +28715,26 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/LogTime.zig": {
+      "errors": {
+        "LogTimeUnavailable": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Source.read()": "anyerror",
+        "advance()": "<inferred>",
+        "observe()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 2,
+        "catch": 1
+      },
+      "imports": [
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/NvmeCache.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -28871,6 +28892,7 @@
         "LogProducerConflict": 1,
         "LogRecoveryMissing": 1,
         "LogRecoveryRequired": 2,
+        "LogRetentionWindowElapsed": 1,
         "LogSegmentBudgetExceeded": 3,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
@@ -28936,7 +28958,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 331,
+        "try": 335,
         "catch": 11
       },
       "imports": [
@@ -28950,6 +28972,7 @@
         "LogRecovery.zig",
         "LogSegment.zig",
         "LogTail.zig",
+        "LogTime.zig",
         "PublicationGuard.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
@@ -30175,6 +30198,7 @@
         "LogSegment.zig",
         "LogStorageRoots.zig",
         "LogTail.zig",
+        "LogTime.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",

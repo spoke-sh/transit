@@ -362,6 +362,6 @@ test "claim receipts preserve exact empty selection and expiry and trusted time 
     receipt.observed_ms = std.math.maxInt(u64);
     try t.expectError(error.QueueLeaseDeadlineOverflow, receipt.validate());
     try t.expectEqual(@as(u64, 500), try parsed.value.clock.observe(500));
-    try t.expectError(error.QueueTimeRegression, parsed.value.clock.observe(499));
-    try t.expectError(error.QueueTimeUnavailable, parsed.value.clock.observe(null));
+    try t.expectError(error.LogTimeRegression, parsed.value.clock.observe(499));
+    try t.expectError(error.LogTimeUnavailable, parsed.value.clock.observe(null));
 }

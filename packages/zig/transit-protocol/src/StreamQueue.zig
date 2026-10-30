@@ -73,6 +73,9 @@ pub const AppendReceipt = struct {
     first: u64,
     next: u64,
     accepted: d.Position,
+    /// Trusted owner observation before staging, rechecked at publication.
+    /// Null retains an explicitly untimed append; event time is independent.
+    observed_ms: ?u64,
 
     pub fn validate(self: AppendReceipt) !void {
         try self.append.validate();
@@ -345,11 +348,11 @@ pub const Lease = struct {
 
 /// Trusted time is supplied by the owner under its decision guard. Persist the
 /// accepted floor with outcomes; restart must not reset it to a caller clock.
-pub const QueueClock = struct {
+pub const LogClock = struct {
     floor_ms: u64,
-    pub fn observe(self: QueueClock, trusted_now_ms: ?u64) !u64 {
-        const now = trusted_now_ms orelse return error.QueueTimeUnavailable;
-        if (now < self.floor_ms) return error.QueueTimeRegression;
+    pub fn observe(self: LogClock, trusted_now_ms: ?u64) !u64 {
+        const now = trusted_now_ms orelse return error.LogTimeUnavailable;
+        if (now < self.floor_ms) return error.LogTimeRegression;
         return now;
     }
 };
@@ -456,7 +459,7 @@ pub const SchemaTypes = struct {
     read_cursor: p.StreamRead.Cursor,
     read_release: p.StreamRead.ReleaseReceipt,
     claim: ClaimReceipt,
-    clock: QueueClock,
+    clock: LogClock,
     settlement: SettlementReceipt,
 };
 

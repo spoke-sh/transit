@@ -1868,7 +1868,8 @@
         "append",
         "first",
         "next",
-        "accepted"
+        "accepted",
+        "observed_ms"
       ],
       "properties": {
         "append": {
@@ -1882,13 +1883,17 @@
         },
         "accepted": {
           "$ref": "#/$defs/T15"
+        },
+        "observed_ms": {
+          "$ref": "#/$defs/T21"
         }
       },
       "required": [
         "append",
         "first",
         "next",
-        "accepted"
+        "accepted",
+        "observed_ms"
       ],
       "x-transit-defaults": {}
     },

@@ -63,11 +63,11 @@ An in-memory timer, local caller clock or delayed wakeup is insufficient.
 Clock rollback and restart require the owner's persisted time/fencing contract;
 these validators do not establish that contract from an arbitrary integer.
 
-`QueueClock` records the last accepted authoritative time floor. The owner
+`LogClock` records the last accepted authoritative time floor. The owner
 obtains trusted time under the decision guard and persists its nondecreasing
 floor with lease-affecting outcomes. A missing clock returns
-`QueueTimeUnavailable`; a value below the persisted floor returns
-`QueueTimeRegression`. Neither restart nor delayed timer processing resets the
+`LogTimeUnavailable`; a value below the persisted floor returns
+`LogTimeRegression`. Neither restart nor delayed timer processing resets the
 floor. Supplying an integer to this pure check does not establish a trusted
 clock source.
 

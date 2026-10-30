@@ -13,6 +13,7 @@ pub const TreeStore = @import("TreeStore.zig");
 pub const BitmapDirectory = @import("BitmapDirectory.zig");
 pub const Tack = @import("Tack.zig");
 pub const LogTail = @import("LogTail.zig");
+pub const LogTime = @import("LogTime.zig");
 pub const LogDeclaration = @import("LogDeclaration.zig");
 pub const PublicationGuard = @import("PublicationGuard.zig");
 pub const LogInitialization = @import("LogInitialization.zig");

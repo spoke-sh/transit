@@ -19,6 +19,7 @@ pub const Root = struct {
     next_lsn: u64,
     next_offset: u64,
     retained_from: u64,
+    clock_ms: ?u64,
     batches: ?pages.Reference,
     segments: ?pages.Reference,
     sealed_through: u64,
@@ -32,7 +33,7 @@ pub const Root = struct {
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
@@ -89,7 +90,7 @@ pub const Record = struct {
                 try evidence.validate();
                 if (!std.meta.eql(evidence.declared, self.root.declared) or !std.meta.eql(evidence.accepted(), self.root.position()) or
                     evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
-                if (evidence.outcome == .append and evidence.outcome.append.next != self.root.next_offset) return error.InvalidLogHistory;
+                if (evidence.outcome == .append and (evidence.outcome.append.next != self.root.next_offset or evidence.outcome.append.observed_ms != self.root.clock_ms)) return error.InvalidLogHistory;
             },
             .archive => |value| {
                 try value.cut.validate();

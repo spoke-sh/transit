@@ -25,7 +25,7 @@ test "log segment disk readback preserves original payload identity and delivery
             .{ .cells = &second, .tombstone = kind == .stream },
         }, &input);
         const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = operation, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 2, .payload = s.LogBatch.content(payload) };
-        const evidence: s.LogEvidence.Record = .{ .declared = declared, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 102, .accepted = .{ .partition = 91, .next_lsn = 7 } } } };
+        const evidence: s.LogEvidence.Record = .{ .declared = declared, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 102, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
         const segment = try s.LogSegment.stage(t.allocator, objects.objectStore(), &declaration, evidence, payload, 1);
         try t.expectEqualDeep(segment, try s.LogSegment.Descriptor.decode(try segment.encode()));
         objects.deinit();
