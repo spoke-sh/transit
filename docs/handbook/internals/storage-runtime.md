@@ -93,8 +93,19 @@ their names. For `n` new objects this requires `3n + 2` sync calls instead of
 inventory and accepted WAL publication. The single-object ordering is unchanged.
 
 Native and direct index owners use already available page groups rather than
-waiting for another command. They record every allocation before creating any
-group content and hold their shared reclamation fence until completion. A failed
+waiting for another command. Multi-tree candidate mutations in
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+and [`DirectCatalogStore`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig)
+coalesce candidate index pages across B-trees through
+[`TreeStore.Batch`](../../../packages/zig/transit-storage/src/TreeStore.zig),
+serving staged pages from the batch buffer during multi-row mutations and
+flushing deduplicated groups of up to eight pages before candidate publication.
+[`DataAllocations`](../../../packages/zig/transit-backend-local/src/DataAllocations.zig)
+and [`NativeAllocations`](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+record missing inventory entries for a batch in one
+[`DiskWal.appendFrames`](../../../packages/zig/transit-storage/src/DiskWal.zig)
+segment append and one `head.json` plus directory sync before creating any
+group content, while holding their shared reclamation fence until completion. A failed
 group can leave a visible subset of complete private objects; it returns no page
 references and installs no new publication confirmations. Exact retries repeat
 the required barriers, and quota reservations remain charged after uncertainty.

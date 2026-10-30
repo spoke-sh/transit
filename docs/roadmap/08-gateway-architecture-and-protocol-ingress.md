@@ -278,11 +278,17 @@ the result and move that owner earlier; do not claim cache work closed the targe
 
 The bounded publication slice is implemented: native and direct index-page groups
 of up to eight objects share their two directory barriers, using `3n + 2`
-object-publication sync calls instead of `5n`. Inventory and accepting WAL syncs
-remain separate. The [qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
-records finite models, disk failures, retries and process-death schedules.
-The [console attempts](../history/qualification/performance.md#bounded-publication-console-attempts--2026-10-30)
-are incomplete and establish no latency gain. Reconstructible bookkeeping
+object-publication sync calls instead of `5n`, and commits `9cfe38b9c`,
+`00fca46d4`, and `4d0a98b6b` batch per-group allocation inventory persistence
+(`DiskWal.appendFrames` + single `head.json` directory barrier), coalesce
+candidate B-tree page staging across trees (`TreeStore.Batch`), and trim
+duplicate per-statement validation and token lookups. The
+[qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
+records finite models, disk failures, retries and process-death schedules, and
+the [updated console and native gateway results](../history/qualification/performance.md#batched-allocation-inventory-cross-tree-index-staging-and-sql-validation-trimming--2026-10-30)
+record passing `test-sql-gateway` execution (104.20 s, 1,041 Table requests) and
+five-cycle persistent console medians (warm `SELECT` 36–40 ms, `INSERT` 175 ms,
+changed `UPDATE` 221 ms, unchanged `UPDATE` 174 ms, `DELETE` 194 ms). Reconstructible bookkeeping
 (W5b), the account-wide token/commit envelope (W6), and the third delivery's
 end-to-end latency/recovery exit remain open.
 

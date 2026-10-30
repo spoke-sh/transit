@@ -9,6 +9,73 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Batched allocation inventory, cross-tree index staging, and SQL validation trimming — 2026-10-30
+
+Commits `9cfe38b9c`, `00fca46d4`, and `4d0a98b6b` (on `main` `54e176fd0`) reduce
+per-batch allocation inventory sync calls, coalesce candidate index-page staging
+across B-trees, and remove duplicate current-command authorization and client-token
+lookups:
+
+- **Batched allocation inventory persistence (`9cfe38b9c`):**
+  [`DiskWal.appendFrames`](../../../packages/zig/transit-storage/src/DiskWal.zig)
+  and [`LocalWal.appendFrames`](../../../packages/zig/transit-storage/src/LocalWal.zig)
+  append a batch of frames to one partition in a single segment write/sync and
+  metadata update (three `fsync`s instead of `3m`).
+  [`DataAllocations`](../../../packages/zig/transit-backend-local/src/DataAllocations.zig)
+  and [`NativeAllocations`](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+  cache their queue head after first load, write individual marker files via
+  [`LocalFiles.saveWithoutDirSync`](../../../packages/zig/transit-backend-local/src/LocalFiles.zig),
+  and persist `head.json` plus a single directory sync across the batch in
+  `Backend.putBatch` and `Backend.putNativePages`.
+- **Cross-tree candidate index-page coalescing (`00fca46d4`):**
+  [`TreeStore.Batch`](../../../packages/zig/transit-storage/src/TreeStore.zig)
+  buffers and deduplicates staged B-tree pages across index trees during a
+  candidate mutation in
+  [`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig),
+  [`DirectCatalog`](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
+  and [`DirectCatalogStore`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig),
+  serves buffered pages on cache misses during multi-row mutations, and flushes
+  them in full `putImmutableBatch` groups of up to eight pages before `publish`.
+- **SQL statement validation and token-lookup trimming (`4d0a98b6b`):**
+  Removes duplicate `binding.require` checks within single prepare/bind calls
+  in `DirectTablePrepared`, `DirectTablePreparedDml`, and
+  `DirectTablePreparedDdl`, avoids repeating `Self.lookupState` in
+  `DatabaseRuntime.submit` after `Registry.execute`'s pre-prepare token check
+  (while reconciling contended concurrent submissions on `bindWrite` or `bind`),
+  and reuses fresh single-command preparation evidence across `Session`,
+  `transit-postgres`, and `transit-mysql` while preserving revalidation before
+  disclosure and across subsequent batches.
+
+At `4d0a98b6b`:
+
+- `just test::storage-io-faults` passes **11/11**.
+- `zig build test-sql-gateway -Doptimize=ReleaseSafe` passes completely in
+  **104.20 seconds** with **1,041** Table requests (`exact_token_recovery: true`),
+  including the unchanged 67-row atomic `INSERT` within the existing 10-second
+  node request and 300-second helper budgets.
+- `python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host --statements --repeat 5 --resources`
+  and `just test::console-latency --statements --repeat 1 --warm-reads 50` pass
+  all statements on the shared Linux x86_64 host (`ReleaseSafe`, pinned Zig
+  `0.17.0-dev.2267+48abf1a34`):
+
+| Statement | Samples | Min (ms) | Median p50 (ms) | Max (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Warm empty `SELECT` (`--warm-reads 50`) | 50 | 30.0 | 36.0 | 47.0 |
+| Warm one-row `SELECT` (`--warm-reads 50`) | 50 | 30.0 | 37.0 | 41.0 |
+| Warm `SELECT` (`--repeat 5 --resources`) | 6 | 37.0 | 40.0 | 49.0 |
+| `INSERT` | 5 | 158.0 | 175.0 | 181.0 |
+| `SELECT` after `INSERT` | 5 | 147.0 | 155.0 | 266.0 |
+| Changed `UPDATE` | 5 | 202.0 | 221.0 | 244.0 |
+| Unchanged `UPDATE` | 5 | 169.0 | 174.0 | 185.0 |
+| `SELECT` after `UPDATE` | 5 | 155.0 | 201.0 | 208.0 |
+| `DELETE` | 5 | 171.0 | 194.0 | 202.0 |
+| `SELECT` after `DELETE` | 5 | 210.0 | 223.0 | 237.0 |
+
+These measurements run on a shared host without CPU affinity or frequency
+isolation; the account-wide token/commit envelope (`#211` W6) and
+reconstructible allocation bookkeeping (`#211` W5b) remain open for the tighter
+`<20 ms` interactive write target.
+
 ## Bounded publication console attempts — 2026-10-30
 
 The [storage change](storage.md#bounded-immutable-publication-groups--2026-10-30)

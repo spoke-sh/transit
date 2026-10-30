@@ -2190,15 +2190,15 @@
     },
     "packages/zig/transit-backend-local/src/Backend.zig": {
       "errors": {
-        "ImmutableObjectConflict": 1,
+        "ImmutableObjectConflict": 2,
         "IncompatibleDefinition": 1,
         "InvalidObjectBatch": 1,
         "MissingStorageObject": 1,
         "NativeObjectReserved": 1,
         "NativeStorageInUse": 1,
         "NativeStorageUnmarked": 2,
-        "ObjectTooLarge": 2,
-        "StaleStorageEpoch": 1,
+        "ObjectTooLarge": 3,
+        "StaleStorageEpoch": 2,
         "StorageObjectTooLarge": 1,
         "StorageQuota": 1
       },
@@ -2216,7 +2216,9 @@
         "countFiles()": "<inferred>",
         "dataKey()": "<inferred>",
         "open()": "<inferred>",
+        "prepareDataBatch()": "<inferred>",
         "prepareDataPut()": "<inferred>",
+        "prepareNativeBatch()": "<inferred>",
         "prepareNativePut()": "<inferred>",
         "put()": "<inferred>",
         "putBatch()": "<inferred>",
@@ -2231,8 +2233,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
-        "catch": 3
+        "try": 96,
+        "catch": 5
       },
       "imports": [
         "DataAllocations.zig",
@@ -2248,12 +2250,12 @@
       "errors": {
         "AllocationConflict": 4,
         "FileNotFound": 1,
-        "ImmutableObjectConflict": 1,
+        "ImmutableObjectConflict": 3,
         "IncompatibleDefinition": 2,
         "InvalidAllocationHistory": 4,
-        "InvalidDataAllocation": 4,
+        "InvalidDataAllocation": 5,
         "MissingAllocationHistory": 3,
-        "StaleStorageEpoch": 1
+        "StaleStorageEpoch": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -2267,9 +2269,11 @@
         "consume()": "<inferred>",
         "consumeEmpty()": "<inferred>",
         "current()": "<inferred>",
+        "encodeQueueRecord()": "<inferred>",
         "latest()": "<inferred>",
         "open()": "<inferred>",
         "record()": "<inferred>",
+        "recordBatchTracked()": "<inferred>",
         "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
@@ -2277,7 +2281,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 53,
         "catch": 1
       },
       "imports": [
@@ -2513,11 +2517,12 @@
         "read()": "<inferred>",
         "remove()": "<inferred>",
         "save()": "<inferred>",
+        "saveWithoutDirSync()": "<inferred>",
         "sync()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 2
       },
       "imports": [
@@ -2530,7 +2535,7 @@
         "FileNotFound": 1,
         "IncompatibleDefinition": 2,
         "InvalidAllocationHistory": 4,
-        "InvalidNativeAllocation": 7,
+        "InvalidNativeAllocation": 10,
         "MissingAllocationHistory": 3
       },
       "outcomes": {
@@ -2550,9 +2555,11 @@
         "consume()": "<inferred>",
         "consumeEmpty()": "<inferred>",
         "current()": "<inferred>",
+        "encodeQueueRecord()": "<inferred>",
         "open()": "<inferred>",
         "read()": "<inferred>",
         "record()": "<inferred>",
+        "recordBatchTracked()": "<inferred>",
         "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
@@ -2560,7 +2567,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 49,
         "catch": 2
       },
       "imports": [
@@ -4182,7 +4189,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 209,
+        "try": 210,
         "catch": 1
       },
       "imports": [
@@ -5206,7 +5213,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTablePreparedDdl.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "InvalidDataIdentity": 1,
         "InvalidDataOperation": 1,
         "InvalidTableIntent": 1,
@@ -5252,7 +5259,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 11,
         "catch": 0
       },
       "imports": [
@@ -5964,7 +5971,7 @@
         "TransactionCutNotAcquired": 1,
         "TransactionFrozen": 1,
         "TransactionIdentityConflict": 1,
-        "TransactionWorkspaceLimit": 1
+        "TransactionWorkspaceLimit": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -5977,6 +5984,7 @@
         "Staging.head()": "<inferred>",
         "Staging.putConditional()": "<inferred>",
         "Staging.putImmutable()": "<inferred>",
+        "Staging.putImmutableBatch()": "<inferred>",
         "get()": "<inferred>",
         "idKey()": "<inferred>",
         "load()": "<inferred>",
@@ -5988,7 +5996,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -14904,9 +14912,12 @@
       "error_sets": {},
       "error_returns": {
         "Engine().<return>.bind()": "<inferred>",
+        "Engine().<return>.bindInner()": "<inferred>",
         "Engine().<return>.columns()": "<inferred>",
         "Engine().<return>.describe()": "<inferred>",
+        "Engine().<return>.describeInner()": "<inferred>",
         "Engine().<return>.execute()": "<inferred>",
+        "Engine().<return>.executeInner()": "<inferred>",
         "Engine().<return>.handle()": "<inferred>",
         "Engine().<return>.init()": "<inferred>",
         "Engine().<return>.parse()": "<inferred>",
@@ -17017,7 +17028,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -23759,7 +23770,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 106,
-        "catch": 11
+        "catch": 12
       },
       "imports": [
         "root.zig",
@@ -28928,6 +28939,7 @@
         "CorruptWalMetadata": 6,
         "FileNotFound": 4,
         "IncompatibleDefinition": 3,
+        "InvalidWalBatch": 1,
         "InvalidWalDirectory": 11,
         "InvalidWalEpoch": 2,
         "InvalidWalHeader": 1,
@@ -28943,13 +28955,14 @@
         "WalLsnConflict": 1,
         "WalLsnExhausted": 3,
         "WalMetadataMissing": 3,
-        "WalPayloadTooLarge": 1,
+        "WalPayloadTooLarge": 2,
         "WalRecoveryRequired": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "append()": "<inferred>",
+        "appendFrames()": "<inferred>",
         "atomic()": "<inferred>",
         "completeTrim()": "<inferred>",
         "continueTrim()": "<inferred>",
@@ -29483,6 +29496,7 @@
     },
     "packages/zig/transit-storage/src/LocalWal.zig": {
       "errors": {
+        "InvalidWalBatch": 1,
         "InvalidWalEpoch": 2,
         "InvalidWalTrimBoundary": 1,
         "StalePolicyEpoch": 1,
@@ -29493,13 +29507,14 @@
         "WalLsnExhausted": 1,
         "WalMemoryCapacity": 1,
         "WalPartitionLimitExceeded": 1,
-        "WalPayloadTooLarge": 1
+        "WalPayloadTooLarge": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "LocalWal.appendErased()": "anyerror",
         "LocalWal.appendFrame()": "<inferred>",
+        "LocalWal.appendFrames()": "<inferred>",
         "LocalWal.fenceEpochs()": "<inferred>",
         "LocalWal.fenceErased()": "anyerror",
         "LocalWal.getOrCreatePartition()": "<inferred>",
@@ -30765,7 +30780,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 672,
+        "try": 674,
         "catch": 16
       },
       "imports": [
@@ -31395,21 +31410,23 @@
     },
     "packages/zig/transit-storage/src/TreeStore.zig": {
       "errors": {
-        "ActiveStorageCandidate": 1,
+        "ActiveStorageCandidate": 2,
         "IncompatibleDefinition": 1,
-        "InvalidDataIndexObject": 6,
+        "InvalidDataIndexObject": 7,
         "InvalidDataIndexReference": 2,
         "InvalidPageBatch": 1,
         "InvalidPageCacheBudget": 1,
-        "InvalidStorageBudget": 1,
+        "InvalidStorageBudget": 2,
         "MissingDataIndexObject": 1,
-        "NoStorageCandidate": 2,
+        "NoStorageCandidate": 3,
         "StorageCandidateTooLarge": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "begin()": "<inferred>",
+        "beginBatch()": "<inferred>",
+        "flush()": "<inferred>",
         "init()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
@@ -31418,7 +31435,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 22,
         "catch": 0
       },
       "imports": [
