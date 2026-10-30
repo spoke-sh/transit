@@ -304,7 +304,7 @@ what to implement next.
 | Area | Delivered basis | Remaining obligation |
 | --- | --- | --- |
 | Database independence | `transit-sql`, `transit-catalog` and `transit-query-direct` reject transitive Station imports; `DatabaseRuntime`, direct tokens and Table commits replace the SQL actor ledger | Preserve the boundary through every new data kind and finish the combined token/commit and measured latency work |
-| SQL recovery | [Event-driven recovery](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29) replaces idle SQL polling | Reuse its bounded recovery ownership; Station/query-host delivery and Queue waits still need migration. Gateway co-hosting remains M8 work |
+| SQL recovery | [Event-driven recovery](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29) replaces idle SQL polling | Reuse its bounded recovery ownership; Station/query-host delivery and Queue waits still need migration. Gateway placement and qualification remain owned by M8 |
 | Physical publication | [Shared content-directory barrier](../history/qualification/storage.md#shared-object-content-directory-barrier--2026-10-29) qualifies five sync calls for a new immutable object | Bounded publication batches and reconstructible coordination/index state remain open; do not repeat the delivered fixed-pair optimization |
 | Transactions | [M5 Table profile](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions), `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog` and `TableTransaction` | Generalize Table-specific cuts, guards, preparations and visibility. `Transaction.Participant.requireLocalTable` still rejects KV, Document, append and settlement participants |
 | Streams and Queues | The delivery direction and [finite Queue model](../../tests/verification/models/README.md#finite-queuepartition-lease-and-turn-commit-model) | Catalog kinds, public operations, grammar, `StreamPartition`, `QueuePartition`, `.tack`, group offsets, durable leases and installed execution |
@@ -349,8 +349,10 @@ independent library boundary warrants its own manifest and checks.
 
 ### Work packages and dependencies
 
-All R packages below are remaining work. Each can contain several reviewable
-changes; a package closes on its exit evidence, not on a parser or module landing.
+All R packages below retain remaining work. The
+[first foundation slice](#first-foundation-slice) delivers parts of R0/R1.
+Each package can contain several reviewable changes; it closes on its exit
+evidence, not on a parser or module landing.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
@@ -733,8 +735,8 @@ as shared dependencies, with one owner per change.
   fast path. The current separate Catalog acceptance/settlement boundaries remain
   until this replacement executes under a new definition.
 - **Read-after-write:** remove avoidable fresh-cut/control work while preserving
-  already-open results and exact uncertain pin acquisition. Connect co-hosted
-  execution through M8's public owner boundary; no raw storage path in SQL.
+  already-open results and exact uncertain pin acquisition. Use M8's co-hosted
+  public owner boundary; no raw storage path in SQL.
 - **TRUNCATE:** implement the [existing proposed contract](#proposed-truncate-contract-for-implementation)
   through Table intent, reset/history, authoritative counts, shared result kinds
   and grammar in one cutover. Cover empty Tables, retained predecessors, concurrent
@@ -825,6 +827,36 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 4. Continue R4/R5 through the first Queue claim + Table/KV mutation + outbound
    append + ACK transaction proof before migrating a Station handler. Keep R9
    progressing with the existing latency owners throughout these changes.
+
+### First foundation slice
+
+The first implementation PR supplies three independently usable foundations:
+
+- `transit-protocol.StreamQueue` and the [Stream](../../contracts/STREAM_V1.md)
+  and [Queue](../../contracts/QUEUE_V1.md) contracts define original append and
+  settlement identities, logical offsets separate from WAL positions, finite
+  filtered coverage, group checkpoint fencing and live-lease checks. Reflected
+  schemas and independent full-width fixtures move with those types. Exact
+  accepted settlement recovery remains distinct from fresh lease authorization.
+- The finite Queue model now covers two keys, authoritative time before
+  reassignment, revocation between preparation and decision, derived-cache
+  replacement, retained-history protection and DLQ payload reachability, with
+  nine negative controls. It assumes atomic accepted state and adds no runtime
+  correspondence or physical durability evidence.
+- [`transit-bitmap`](../../packages/zig/transit-bitmap/README.md) supplies bounded
+  Roaring array/bitmap/run containers, canonical validation, borrowed reads and
+  reusable allocation-free mutation scratch. Its standalone manifest and root
+  component checks qualify the library independently of a storage owner.
+
+R0 remains open for complete declarations, partition/hash/schema policy,
+producer/group/claim owner transitions, direct KV and generalized participant
+preparation. R1 remains open for the paged container directory, coordinated
+`.tdel` cutover, `.tack` envelopes, partition initialization, tail slabs and disk
+publication/recovery. Current `.tdel` bytes and native execution semantics are
+unchanged; the new container codec is not used to reinterpret stored data.
+Neither foundation enables Stream/Queue SQL, claims, transaction participants
+or a Station migration. The next change should complete the declaration and
+storage ownership contracts before that integration.
 
 ## Database dependency separation — 2026-10-27
 
