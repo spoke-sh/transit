@@ -177,3 +177,25 @@ test "decimal extreme scale multiplication and division return typed overflow" {
     const negative: DecimalArithmetic.DecimalValue = .{ .coefficient = -small.coefficient, .precision = 38, .scale = 38 };
     try testing.expectEqual(-square.coefficient, (try DecimalArithmetic.mul(small, negative, 38, 38, .reject)).coefficient);
 }
+
+test "PAD SPACE comparison and sort keys preserve prefix control-byte ordering" {
+    const cases = [_][]const u8{ "", " ", "  ", "\x00", "\x01", "a", "a ", "a  ", "a\x00", "a \x00", "a  \x00", "a b", "a  b", "a b ", "A", "0" };
+    for (cases) |left| for (cases) |right| {
+        // Independent oracle: convert both to CP037, pad to equal length,
+        // and compare unsigned bytes. Do not derive expected from sort keys.
+        var l: [64]u8 = @splat(0x40);
+        var r: [64]u8 = @splat(0x40);
+        const ll = (try @import("Ebcdic037.zig").encode(left, &l)).len;
+        const rl = (try @import("Ebcdic037.zig").encode(right, &r)).len;
+        const n = @max(ll, rl);
+        const expected = std.mem.order(u8, l[0..n], r[0..n]);
+        try testing.expectEqual(expected, try Collation.compareBytesProfile(left, right, .ebcdic_037_pad));
+        var lk: [128]u8 = undefined;
+        var rk: [128]u8 = undefined;
+        const lc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = left } } };
+        const rc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = right } } };
+        const encoded_l = try Collation.encodeSortKeyProfile(lc, .utf8, .ebcdic_037_pad, &lk);
+        const encoded_r = try Collation.encodeSortKeyProfile(rc, .utf8, .ebcdic_037_pad, &rk);
+        try testing.expectEqual(expected, std.mem.order(u8, encoded_l, encoded_r));
+    };
+}
