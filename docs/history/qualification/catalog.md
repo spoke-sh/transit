@@ -9,6 +9,50 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Signed Queue service, typed recovery and installed restart — 2026-10-30
+
+`46e5e4da1` adds the signed Queue action and shared typed client. The focused
+native policy schedule passes with real native registration and grants: lost
+enqueue, claim and ACK replies retain original identity; renewal fences the old
+receipt; NACK preserves requested visibility; an originally empty claim stays
+empty after visibility advances. Owned decoded pages survive later calls, and
+expired-but-unreassigned work reports acquired/expired without authorizing
+settlement. A revocation after serialization suppresses terminal-page disclosure.
+The host-lock check confirms Queue payloads and declaration edits select the same
+object stripe. Independent Python signing vectors bind the complete Queue claim;
+saved work rejects missing/foreign definitions.
+
+The installed ReleaseSafe schedule passes 25 signed HTTP calls on physical local
+storage. It selects offsets 0 and 2 from two FIFO keys, leaving offset 1 blocked
+behind its head; after ACK it selects that successor. The proxy corrupts accepted
+enqueue, claim and ACK replies, and the caller preserves unknown outcomes and
+inspects the original operations. DROP followed by node SIGKILL/restart preserves
+the original saved bytes, producer receipt, claim, ACK and payload pages. Fresh
+claims on the retired declaration refuse. The caller issues no actor data command.
+The standard direct-service gate now includes this isolated Queue schedule.
+
+Installed evidence is `/var/tmp/transit-queue-installed-http-final.log`, with
+private runtime files in `/var/tmp/transit-table-queues-wba_3w0q`. It records dirty
+parent `88b41d089018e0e246c623a507bb94922b64b3f0` and binary SHA-256 values:
+
+- Node: `205ca0086d1a2263453cf7a47d075660a8cc64a9826775e1ab07168011b781d2`.
+- Caller: `9f1c98c175f125230ebb8769e0c9d789114dd1f32bc0cd693f2f3ed5c463a1d6`.
+
+Other successful logs are `/var/tmp/transit-queue-native-policy.log`,
+`/var/tmp/transit-queue-host-lock.log`, `/var/tmp/transit-queue-native-catalog.log`,
+`/var/tmp/transit-queue-catalog-full.log` (full catalog suite),
+`/var/tmp/transit-queue-data-client-final.log`,
+`/var/tmp/transit-queue-native-fast.log` (48 checks),
+`/var/tmp/transit-queue-native-contracts.log` (18 checks) and
+`/var/tmp/transit-queue-native-docs.log`. The first installed build failed on an
+incorrect fixture URL field; the corrected fixture uses the public client's
+`url` field. That failed build remains `/var/tmp/transit-queue-installed-http.log`.
+
+This qualifies standalone signed operations. It does not qualify automatic
+Queue expiry scheduling, timing-wheel/affinity behavior, terminal cleanup, DLQ
+transfer, mixed transactions or a final committed-source clean lane. The earlier
+Stream clean-core result does not extend to this Queue change.
+
 ## Queue catalog composition and shared identity — 2026-10-30
 
 The Queue catalog composition passes its disk test, the original Stream
