@@ -118,6 +118,10 @@ pub const Predicate = union(enum) {
     state: Types.State,
     compare: struct { op: Finite.Comparison, value: Values.Atom },
     null_compare,
+    in_set: []const []const u8,
+    starts_with: []const u8,
+    contains: []const u8,
+    like: struct { pattern: []const u8, escape: ?u8 = null },
 
     pub fn validate(self: Predicate, column: TableSchema.Column) !void {
         try column.validateEncodingAndCollation();
@@ -132,6 +136,23 @@ pub const Predicate = union(enum) {
                 .interval, .json, .structure, .list, .array, .map, .tagged_union => return error.UnsupportedComparison,
                 else => {},
             },
+            .in_set => |literals| {
+                if (column.type != .utf8 and column.type != .binary) return error.UnsupportedComparison;
+                for (literals) |lit| {
+                    try Types.Semantics.validate(.{ .bytes = lit }, column.type);
+                    try Collation.validateBytes(lit, column.collation);
+                }
+            },
+            .starts_with, .contains => |needle| {
+                if (column.type != .utf8 and column.type != .binary) return error.UnsupportedComparison;
+                try Types.Semantics.validate(.{ .bytes = needle }, column.type);
+                try Collation.validateBytes(needle, column.collation);
+            },
+            .like => |spec| {
+                if (column.type != .utf8 and column.type != .binary) return error.UnsupportedComparison;
+                try Types.Semantics.validate(.{ .bytes = spec.pattern }, column.type);
+                try Collation.validateBytes(spec.pattern, column.collation);
+            },
         }
     }
 
@@ -139,7 +160,7 @@ pub const Predicate = union(enum) {
         switch (self) {
             .all => return .yes,
             .state => |state| return if (std.meta.activeTag(cell) == state) .yes else .no,
-            .compare, .null_compare => {},
+            .compare, .null_compare, .in_set, .starts_with, .contains, .like => {},
         }
         return switch (cell) {
             .type_error => .type_error,
@@ -148,13 +169,42 @@ pub const Predicate = union(enum) {
             .value => |value| blk: {
                 if (self == .null_compare) break :blk .unknown;
                 if (value != .atom) return error.UnsupportedComparison;
-                const comparison = self.compare;
-                const truth = try Finite.compareTruth(comparison.op, cell, comparison.value, column, struct {
-                    fn order(descriptor: TableSchema.Column, left: Values.Value, right: Values.Atom) !std.math.Order {
-                        return Collation.compareAtom(left.atom, right, descriptor.type, descriptor.collation);
-                    }
-                }.order);
-                break :blk if (truth.selects()) .yes else .no;
+                const profile = Collation.Profile.fromCollation(column.collation);
+                switch (self) {
+                    .compare => |comparison| {
+                        const truth = try Finite.compareTruth(comparison.op, cell, comparison.value, column, struct {
+                            fn order(descriptor: TableSchema.Column, left: Values.Value, right: Values.Atom) !std.math.Order {
+                                return Collation.compareAtom(left.atom, right, descriptor.type, descriptor.collation);
+                            }
+                        }.order);
+                        break :blk if (truth.selects()) .yes else .no;
+                    },
+                    .in_set => |literals| {
+                        if (value.atom != .bytes) return error.UnsupportedComparison;
+                        for (literals) |lit| {
+                            if ((try Collation.compareBytesProfile(value.atom.bytes, lit, profile)) == .eq) {
+                                break :blk .yes;
+                            }
+                        }
+                        break :blk .no;
+                    },
+                    .starts_with => |prefix| {
+                        if (value.atom != .bytes) return error.UnsupportedComparison;
+                        const matched = try @import("SearchOracle.zig").startsWithBytes(value.atom.bytes, prefix, profile);
+                        break :blk if (matched) .yes else .no;
+                    },
+                    .contains => |needle| {
+                        if (value.atom != .bytes) return error.UnsupportedComparison;
+                        const matched = try @import("SearchOracle.zig").containsBytes(value.atom.bytes, needle, profile);
+                        break :blk if (matched) .yes else .no;
+                    },
+                    .like => |spec| {
+                        if (value.atom != .bytes) return error.UnsupportedComparison;
+                        const matched = try @import("SearchOracle.zig").likeBytes(value.atom.bytes, spec.pattern, spec.escape, profile);
+                        break :blk if (matched) .yes else .no;
+                    },
+                    else => unreachable,
+                }
             },
         };
     }
@@ -174,7 +224,7 @@ pub const Predicate = union(enum) {
                 };
                 return .{ .truths = if (selected == 0) 2 else if (selected == count) 1 else 3 };
             },
-            .compare, .null_compare => {},
+            .compare, .null_compare, .in_set, .starts_with, .contains, .like => {},
         }
         var result: Possibilities = .{
             .fails = zone.error_count != 0 or zone.conflict_count != 0,
@@ -185,22 +235,49 @@ pub const Predicate = union(enum) {
             result.truths |= 4;
             return result;
         }
-        const comparison = self.compare;
         const candidate = candidate: {
-            if (comparison.op == .ne) break :candidate true;
-            var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
-            const key = Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column.type, column.collation, &buffer) catch |err| switch (err) {
-                error.WriteFailed => break :candidate true,
-                else => return err,
-            };
-            break :candidate switch (comparison.op) {
-                .eq => zone.mayMatch(.eq, key),
-                .lt => zone.mayMatch(.lt, key),
-                .le => zone.mayMatch(.le, key),
-                .gt => zone.mayMatch(.gt, key),
-                .ge => zone.mayMatch(.ge, key),
-                .ne => unreachable,
-            };
+            switch (self) {
+                .compare => |comparison| {
+                    if (comparison.op == .ne) break :candidate true;
+                    var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
+                    const key = Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column.type, column.collation, &buffer) catch |err| switch (err) {
+                        error.WriteFailed => break :candidate true,
+                        else => return err,
+                    };
+                    break :candidate switch (comparison.op) {
+                        .eq => zone.mayMatch(.eq, key),
+                        .lt => zone.mayMatch(.lt, key),
+                        .le => zone.mayMatch(.le, key),
+                        .gt => zone.mayMatch(.gt, key),
+                        .ge => zone.mayMatch(.ge, key),
+                        .ne => unreachable,
+                    };
+                },
+                .in_set => |literals| {
+                    if (literals.len == 0) break :candidate false;
+                    var any_match = false;
+                    var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
+                    for (literals) |lit| {
+                        const key = Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = lit } } }, column.type, column.collation, &buffer) catch {
+                            any_match = true;
+                            break;
+                        };
+                        if (zone.mayMatch(.eq, key)) {
+                            any_match = true;
+                            break;
+                        }
+                    }
+                    break :candidate any_match;
+                },
+                .starts_with => |prefix| {
+                    if (prefix.len == 0) break :candidate true;
+                    var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
+                    const key = Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = prefix } } }, column.type, column.collation, &buffer) catch break :candidate true;
+                    break :candidate zone.mayMatch(.ge, key);
+                },
+                .contains, .like => break :candidate true,
+                else => unreachable,
+            }
         };
         result.truths |= if (candidate) @as(u3, 3) else 2;
         return result;

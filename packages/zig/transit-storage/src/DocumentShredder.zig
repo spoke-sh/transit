@@ -44,6 +44,8 @@ pub const ZoneMap = struct {
     max_int64: ?i64 = null,
     min_string: ?[]u8 = null,
     max_string: ?[]u8 = null,
+    min_prefix_u32: ?u32 = null,
+    max_prefix_u32: ?u32 = null,
 
     pub fn deinit(self: *ZoneMap, allocator: std.mem.Allocator) void {
         if (self.min_string) |s| allocator.free(s);
@@ -60,6 +62,13 @@ pub const ZoneMap = struct {
     pub fn mayContainString(self: ZoneMap, collation: Collation, needle: []const u8) bool {
         const lo = self.min_string orelse return false;
         const hi = self.max_string orelse return false;
+        const needle_p = computePrefixU32(collation, needle);
+        if (self.min_prefix_u32) |lo_p| {
+            if (needle_p < lo_p) return false;
+        }
+        if (self.max_prefix_u32) |hi_p| {
+            if (needle_p > hi_p) return false;
+        }
         return compareStrings(collation, needle, lo) != .lt and
             compareStrings(collation, needle, hi) != .gt;
     }
@@ -310,6 +319,19 @@ fn asciiToEbcdicWeight(c: u8) u8 {
     return c & 0x7F;
 }
 
+pub fn computePrefixU32(collation: Collation, s: []const u8) u32 {
+    var pref: [4]u8 = @splat(0);
+    const n = @min(s.len, 4);
+    for (s[0..n], 0..) |c, i| {
+        pref[i] = switch (collation) {
+            .utf8_binary => c,
+            .ascii_ci => std.ascii.toLower(c),
+            .ebcdic_cp037 => asciiToEbcdicWeight(c),
+        };
+    }
+    return std.mem.readInt(u32, &pref, .big);
+}
+
 fn buildSubcolumn(
     output: std.mem.Allocator,
     dot_path: []const u8,
@@ -421,15 +443,18 @@ fn updateZoneMap(
             zm.max_int64 = if (zm.max_int64) |cur| @max(cur, v) else v;
         },
         .string => |v| {
+            const p = computePrefixU32(collation, v);
             if (zm.min_string == null or compareStrings(collation, v, zm.min_string.?) == .lt) {
                 const copy = try output.dupe(u8, v);
                 if (zm.min_string) |old| output.free(old);
                 zm.min_string = copy;
+                zm.min_prefix_u32 = p;
             }
             if (zm.max_string == null or compareStrings(collation, v, zm.max_string.?) == .gt) {
                 const copy = try output.dupe(u8, v);
                 if (zm.max_string) |old| output.free(old);
                 zm.max_string = copy;
+                zm.max_prefix_u32 = p;
             }
         },
         else => {},

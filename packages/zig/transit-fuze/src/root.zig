@@ -68,6 +68,7 @@ pub const DecimalArithmetic = @import("DecimalArithmetic.zig");
 pub const TableConstraints = @import("TableConstraints.zig");
 pub const PerfectHash = @import("PerfectHash.zig");
 pub const SearchOracle = @import("SearchOracle.zig");
+pub const GermanString = @import("GermanString.zig");
 pub const ColumnPredicate = @import("ColumnPredicate.zig");
 pub const TDel = @import("TDel.zig");
 pub const TSeg = @import("TSeg.zig");
@@ -107,6 +108,7 @@ test {
     _ = TableConstraints;
     _ = PerfectHash;
     _ = SearchOracle;
+    _ = GermanString;
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
@@ -122,6 +124,7 @@ test {
     _ = @import("companion_types_test.zig");
     _ = @import("table_constraints_test.zig");
     _ = @import("perfect_hash_and_oracle_test.zig");
+    _ = @import("german_string_and_codecs_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
     _ = @import("logical_kind_test.zig");
