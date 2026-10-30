@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import struct
 import sys
 import threading
 import time
@@ -332,12 +333,65 @@ def run(node, caller, mode="tables", *artifacts):
                 authority = start()
                 subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
                 assert Path(str(profile) + ".queue").read_bytes() == saved
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                settings["storage"] = {"maintenance": {"flush": {"enabled": False}, "archive": {"enabled": False}}}
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 90  # Accepted 60-second leases plus clock bounds and bounded work.
+                probes = 0
+                def queue_observation():
+                    result = subprocess.run([caller, endpoint, "queue-maintenance", str(profile)],
+                                            timeout=30, capture_output=True, text=True)
+                    with (root / "queue-maintenance.stderr").open("a") as output:
+                        output.write(result.stderr)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    observed = json.loads(result.stdout)
+                    with (root / "queue-maintenance-observations.jsonl").open("a") as output:
+                        output.write(json.dumps(observed) + "\n")
+                    return observed
+                while True:
+                    observed = queue_observation()
+                    probes += 1
+                    if observed["expired"]:
+                        break
+                    assert time.monotonic() < deadline, observed
+                    time.sleep(1)
+                assert not list((root / "native").rglob("*.tseg")), "Disabled flushing sealed Queue payloads"
+                # Expiry has now recorded the retired definition in the Queue
+                # root. Physical relocation must remain possible in this order.
+                settings["storage"]["maintenance"]["flush"]["enabled"] = True
+                settings["storage"]["maintenance"]["archive"]["enabled"] = True
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 60
+                while True:
+                    assert queue_observation()["expired"]
+                    segments = list((root / "native").rglob("*.tseg"))
+                    if segments:
+                        break
+                    assert time.monotonic() < deadline, "Retired Queue payload sealing did not converge"
+                    time.sleep(.1)
+                assert len(segments) == 1, segments
+                segment = segments[0].read_bytes()
+                assert segment[:8] == b"TSEG\x01\0\0\0" and segment[-4:] == b"TSEG"
+                assert struct.unpack_from("<Q", segment, 16)[0] == 633000
+                assert struct.unpack_from("<I", segment, 32)[0] == 3
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                assert queue_observation()["expired"]
+                subprocess.run([caller, endpoint, "queue-recover", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".queue").read_bytes() == saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
-                                      requests=fault["requests"], lost_replies=sorted(queue_faults),
+                                      requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
                                       passed=True)), flush=True)
-                print("Direct Queue HTTP: FIFO heads, original empty claims, three lost replies, ACK and original payloads after DROP and node SIGKILL/restart passed.", flush=True)
+                print("Direct Queue HTTP: FIFO heads, original empty claims, three lost replies, ACK, automatic retired-lease expiry and original payloads through tiering and node SIGKILL/restarts passed.", flush=True)
                 return
             if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):

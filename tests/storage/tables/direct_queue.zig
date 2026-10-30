@@ -11,6 +11,7 @@ const State = struct {
     claimed: ?p.StreamQueue.ClaimReceipt,
     ack: ?[]const u8,
     acked: ?p.StreamQueue.SettlementReceipt,
+    successor: ?p.StreamQueue.ClaimReceipt,
 };
 fn callerFor(init: std.process.Init, client: c.DirectTableClient) !data.Catalog {
     return data.Catalog.init(init.gpa, init.io, .{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
@@ -71,7 +72,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{ .{ .cells = &a }, .{ .cells = &a }, .{ .cells = &b } }, &buffer);
     const enqueue: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = .{ .id = @splat(13), .epoch = 1, .sequence = 1 }, .rows = 3, .payload = c.storage.LogBatch.content(payload) } };
     operation.operation = 633002;
-    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null };
+    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
     try save(init, path, state);
     try unknown(&caller, &output, .{ .work = enqueue, .payload = payload });
     const enqueued = (try call(&caller, &output, .{ .operation = enqueue })).operation.?.enqueue;
@@ -103,6 +104,8 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     empty_request.operation.operation = 633005;
     const successor = (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = empty_request } } })).operation.?.claim;
     try t.expectEqual(@as(u32, 1), successor.rows);
+    state.successor = successor;
+    try save(init, path, state);
     const head = (try call(&caller, &output, .{ .page = .{ .cursor = .{ .receipt = successor, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(u64, 1), head.rows[0].lease.original.offset);
     const drop_intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = intent.name, .action = .drop };
@@ -146,4 +149,38 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     fresh.operation.operation = 633007;
     const refused = try caller.callQueue(&output, .{ .mutate = .{ .work = .{ .claim = fresh } } });
     try t.expect(refused.value == .failure and refused.value.failure.protocol_error == .Conflict);
+}
+
+/// Observe original selections only; polling never claims or settles new work.
+pub fn maintenance(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !bool {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(1024 * 1024));
+    const state = (try p.Json.parseFromSlice(State, init.arena.allocator(), bytes)).value;
+    try t.expectEqual(p.Growth.current_definition, state.definition);
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    var complete = true;
+    for ([_]p.StreamQueue.ClaimReceipt{ state.claimed.?, state.successor.? }, 0..) |receipt, index| {
+        _ = output.reset(.retain_capacity);
+        try t.expectEqualDeep(receipt, (try call(&caller, &output, .{ .operation = .{ .claim = receipt.claim } })).operation.?.claim);
+        const page = (try call(&caller, &output, .{ .page = .{ .cursor = .{ .receipt = receipt, .next = 0 }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } })).page;
+        try t.expect(page.cursor.complete());
+        try t.expectEqual(@as(usize, if (index == 0) 2 else 1), page.rows.len);
+        for (page.rows, 0..) |row, ordinal| {
+            const offset: u64 = if (index == 0) ordinal * 2 else 1;
+            try t.expectEqual(offset, row.lease.original.offset);
+            try t.expectEqual(@as(u64, 1), row.lease.epoch);
+            try t.expectEqual(@as(u64, 1), row.lease.attempt);
+            try t.expectEqual(@as(i64, if (offset == 2) 2 else 1), row.value.cells[0].value.atom.signed);
+            if (offset == 0) {
+                try t.expectEqual(.acked, row.lease.state);
+            } else {
+                try t.expect(row.lease.state == .acquired or row.lease.state == .available);
+                complete = complete and row.lease.state == .available;
+            }
+            if (row.lease.state != .acquired) try t.expectEqual(.fenced, row.lease.liveness);
+        }
+    }
+    return complete;
 }

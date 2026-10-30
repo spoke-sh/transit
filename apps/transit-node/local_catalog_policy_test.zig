@@ -1967,6 +1967,19 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         }
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
+    try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
+    const maintenance_context: [32]u8 = @splat(19);
+    var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
+    try @import("local_stream_maintenance_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, maintenance_policy.policy());
+    var retention = intent.action.create.configuration;
+    retention.retention.max_age_ms = 100;
+    const expiry_intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = intent.name, .action = .{ .alter = .{ .configuration = retention, .limits = intent.action.create.limits } } };
+    const expiry_binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 }, .target = binding.target, .action = .alter, .expected_definition = found.value.result.log_lookup.?.declaration.stored.declaration.interpretation, .expected_data = null, .intent = try expiry_intent.digest(t.allocator) };
+    const expiry_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = expiry_binding, .intent = expiry_intent });
+    (try dispatch(&service, .{ .log_admit = expiry_ddl })).deinit();
+    const expiry = try dispatch(&service, .{ .log_operation = .{ .binding = expiry_binding, .command = .execute, .steps = 32 } });
+    defer expiry.deinit();
+    try @import("local_stream_maintenance_test.zig").expire(&service, expiry.value.result.log_operation.operation.resulting.?);
     var queue_intent = intent;
     queue_intent.kind = .queue;
     queue_intent.name = try .init("registered_queue");
@@ -1987,19 +2000,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     try t.expectError(error.Forbidden, dispatch(&service, .{ .queue = queue_terminal }));
     service.before_reply = null;
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(queue_native_id), .owner = role } });
-    try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
-    const maintenance_context: [32]u8 = @splat(19);
-    var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
-    try @import("local_stream_maintenance_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, maintenance_policy.policy());
-    var retention = intent.action.create.configuration;
-    retention.retention.max_age_ms = 100;
-    const expiry_intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = intent.name, .action = .{ .alter = .{ .configuration = retention, .limits = intent.action.create.limits } } };
-    const expiry_binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 }, .target = binding.target, .action = .alter, .expected_definition = found.value.result.log_lookup.?.declaration.stored.declaration.interpretation, .expected_data = null, .intent = try expiry_intent.digest(t.allocator) };
-    const expiry_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = expiry_binding, .intent = expiry_intent });
-    (try dispatch(&service, .{ .log_admit = expiry_ddl })).deinit();
-    const expiry = try dispatch(&service, .{ .log_operation = .{ .binding = expiry_binding, .command = .execute, .steps = 32 } });
-    defer expiry.deinit();
-    try @import("local_stream_maintenance_test.zig").expire(&service, expiry.value.result.log_operation.operation.resulting.?);
+    try @import("local_queue_maintenance_test.zig").exercise(&service, queue_declared, queue_intent.action.create.schema, maintenance_policy.policy());
     const disclosures = [_]c.DirectTableProtocol.Action{
         .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },

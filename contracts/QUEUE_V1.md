@@ -32,8 +32,11 @@ Claim receipt inspection and payload pages require read and acquire privileges;
 settlement requires settle privileges. It rechecks authority after buffering,
 preserves original outcomes through compatible ALTER/DROP, and reports bounded
 incomplete recovery before accepting fresh work. The native signed service and
-typed client expose this standalone composition. Automatic deadline scheduling,
-DLQ transfer and mixed transaction publication remain unimplemented.
+typed client expose this standalone composition. The local maintenance executor
+seals and archives Queue payloads and expires at most one accepted lease per
+unit. Expiry requires the trusted lower time bound to reach the current deadline,
+also after retirement; it preserves payloads and original receipts. DLQ transfer
+and mixed transaction publication remain unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and

@@ -807,6 +807,11 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_queue").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-recover")) {
             try @import("fixture_direct_queue").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-maintenance")) {
+            const expired = try @import("fixture_direct_queue").maintenance(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(.{ .expired = expired }, &encoder);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "stream-maintenance-prepare")) {
             try streamMaintenancePrepare(init, client, &profile, args[3]);
         } else if (std.mem.eql(u8, args[2], "stream-maintenance-check")) {

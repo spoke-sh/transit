@@ -37,6 +37,36 @@ source/binary identities, partition/row counts, sample count and node counters.
 These checks establish installed visibility and caller recovery; native graph
 collection separately proves when obsolete physical placements can be reclaimed.
 
+## Queue maintenance and retired leases
+
+`just test::direct-table-service queues` runs the signed Queue caller on its own
+physical local installation. The default direct-service gate includes it. The
+caller accepts three FIFO rows, loses enqueue/claim/ACK replies, and recovers
+those original operations before retiring the declaration. It saves both
+nonempty claims before node SIGKILL. After restart, original payloads and outcomes
+remain readable and a fresh claim on the retired Queue refuses.
+
+The driver enables native maintenance with flushing and archival disabled and
+observes the same original claims through read-only requests. The accepted 60-second
+leases must become available within a separate 90-second expiry budget that
+includes clock uncertainty and bounded background work. It neither submits a
+replacement claim nor settles a message while observing. The ACKed row remains
+ACKed; the other two retain epoch/attempt one and become fenced under their old
+receipts. It then enables physical maintenance after expiry has recorded the
+retired definition. One physical segment must contain all three original rows
+within the existing 60-second sealing budget. A further
+SIGKILL/restart preserves those observations, original receipts and saved bytes.
+This installed schedule checks public convergence and sealing; the native disk
+schedule separately checks exact archive/checkpoint coverage and WAL trimming.
+
+The native Queue schedule shares the existing Stream fixture and the 32 MiB
+private maintenance allowance. Forty one-row appends make cold replay longer
+than its 16-record unit. A clock interval spanning the accepted deadline cannot
+expire those leases; advancing its lower bound to the deadline can. Expiry uses
+reserved capacity under ordinary quota pressure, and retry backoff remains
+anchored at the original deadline. Executor disposal releases all private bytes.
+Cold reopen after physical WAL trimming preserves claim payloads and outcomes.
+
 ## Foreground resource observations
 
 The disabled-Table-maintenance control and automatic-flush phase each run sixteen

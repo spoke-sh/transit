@@ -20,8 +20,8 @@ Signed Stream payload operations and finite notification waits use
 `DirectStream` and the same global operation namespace. `DirectQueue` uses that
 namespace for standalone enqueue, claim, original payload pages and fenced
 settlements. Both share current native policy and declaration serialization.
-Automatic Queue expiry scheduling, DLQ transfer, mixed transactions and
-Stream/Queue SQL remain unavailable.
+The local node schedules bounded Queue expiry under its maintenance authority.
+DLQ transfer, mixed transactions and Stream/Queue SQL remain unavailable.
 
 The internal `maintenanceNext` traversal inspects one current object entry per
 step under a host-supplied native maintenance guard. A pass fixes the largest
@@ -34,10 +34,10 @@ then calls `maintenanceOpen` to revalidate the entry and recover its accepted
 owner. These internal methods recheck current authority before returning; they
 are not an application metadata or maintenance request endpoint.
 
-`streamMaintenanceNext` uses the same fixed object boundary plus a logical
-partition ordinal to visit one complete Stream partition per step. Queue and
-unfinished declarations consume a bounded discovery step without opening a
-Stream owner. `streamMaintenanceDefinition` revalidates the current definition
+`logMaintenanceNext(kind, ...)` uses the same fixed object boundary plus a
+logical partition ordinal to visit one complete Stream or Queue partition per
+step. Other kinds and unfinished declarations consume a bounded discovery step
+without opening a log owner. `logMaintenanceDefinition(kind, ...)` revalidates the current definition
 under the host's directory/object locks. Retired definitions remain discoverable
 for archive and closure. The local node composes these internal operations with
 storage units under its native maintenance authority.
@@ -667,8 +667,8 @@ not continuously scrub already-validated historical bytes or authorize trimming.
 The [node guide](../../../../apps/transit-node/README.md) states aggregate and
 per-workspace memory limits and the separate request/response accounting.
 
-Stream maintenance uses at most five active recovery workspaces and 64
-same-process root/commitment hints within its shared allocation budget. Each
+Stream and Queue maintenance each retain at most one active recovery workspace
+and 64 same-process root/commitment hints within the shared allocation budget. Each
 replay turn examines at most 16 records. Hints validate their accepted boundary
 before reuse and yield to newer checkpoints; physical-owner replacement discards
 them. They retain no caller proof, clock, read pin or permission.

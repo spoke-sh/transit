@@ -3828,6 +3828,8 @@
         "logAuthorization()": "<inferred>",
         "logDefinition()": "<inferred>",
         "logGuard()": "<inferred>",
+        "logMaintenanceDefinition()": "<inferred>",
+        "logMaintenanceNext()": "<inferred>",
         "logOperation()": "<inferred>",
         "logReason()": "<inferred>",
         "logRecord()": "<inferred>",
@@ -3921,8 +3923,6 @@
         "storageAccess()": "<inferred>",
         "storageState()": "<inferred>",
         "storedSchema()": "<inferred>",
-        "streamMaintenanceDefinition()": "<inferred>",
-        "streamMaintenanceNext()": "<inferred>",
         "terminal()": "<inferred>",
         "transactionCall()": "anyerror",
         "transactionCallOutcome()": "anyerror",
@@ -31898,6 +31898,7 @@
         "Root.initial()": "<inferred>",
         "Root.requireControlDeclaration()": "<inferred>",
         "Root.requireDeclaration()": "<inferred>",
+        "Root.retainedCut()": "<inferred>",
         "Root.validate()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
@@ -31910,7 +31911,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 0
       },
       "imports": [
@@ -32436,6 +32437,7 @@
       "error_sets": {},
       "error_returns": {
         "archive()": "<inferred>",
+        "archiveMaintenanceUnit()": "<inferred>",
         "checkpoint()": "<inferred>",
         "claim()": "<inferred>",
         "deinit()": "<inferred>",

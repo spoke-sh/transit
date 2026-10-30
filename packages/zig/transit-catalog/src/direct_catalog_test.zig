@@ -720,18 +720,18 @@ test "maintenance discovery bounds a growing catalog pass and rechecks current a
         _ = try catalog.admitLog(request, access.policy());
         while ((try catalog.logOperation(request.binding, .execute, access.policy())).operation.phase != .complete) {}
     }
-    var streams: D.StreamMaintenanceCursor = .{};
+    var streams: D.LogMaintenanceCursor = .{};
     var count: usize = 0;
     var examined: usize = 0;
     while (true) : (examined += 1) {
         try t.expect(examined < 128);
         const before = catalog.store.root;
         const puts = objects.puts;
-        const found = try catalog.streamMaintenanceNext(&streams, physical.guard());
+        const found = try catalog.logMaintenanceNext(.stream, &streams, physical.guard());
         if (found.target) |target| {
             try t.expectEqual(2002 + count / 2, target.object);
             try t.expectEqual(count % 2, target.ordinal);
-            const definition = (try catalog.streamMaintenanceDefinition(target, physical.guard())).?;
+            const definition = (try catalog.logMaintenanceDefinition(.stream, target, physical.guard())).?;
             try t.expectEqual(target.object, definition.stored.declaration.interpretation.object.object);
             try t.expectEqualDeep(before, catalog.store.root);
             try t.expectEqual(puts, objects.puts);
@@ -745,19 +745,34 @@ test "maintenance discovery bounds a growing catalog pass and rechecks current a
         if (found.pass_complete) break;
     }
     try t.expectEqual(@as(usize, 18), count);
-    try t.expectEqualDeep(D.StreamMaintenanceCursor{}, streams);
-    try t.expect(try catalog.streamMaintenanceDefinition(.{ .object = 2000, .ordinal = 0 }, physical.guard()) == null);
-    try t.expect(try catalog.streamMaintenanceDefinition(.{ .object = 2001, .ordinal = 0 }, physical.guard()) == null);
+    try t.expectEqualDeep(D.LogMaintenanceCursor{}, streams);
+    try t.expect(try catalog.logMaintenanceDefinition(.stream, .{ .object = 2000, .ordinal = 0 }, physical.guard()) == null);
+    try t.expect(try catalog.logMaintenanceDefinition(.stream, .{ .object = 2001, .ordinal = 0 }, physical.guard()) == null);
+    var queues: D.LogMaintenanceCursor = .{};
+    var queue_count: usize = 0;
+    for (0..128) |_| {
+        const found = try catalog.logMaintenanceNext(.queue, &queues, physical.guard());
+        if (found.target) |target| {
+            try t.expectEqual(@as(u64, 2000), target.object);
+            try t.expectEqual(@as(u32, 0), target.ordinal);
+            try t.expectEqual(.queue, (try catalog.logMaintenanceDefinition(.queue, target, physical.guard())).?.kind());
+            queue_count += 1;
+        }
+        if (found.pass_complete) break;
+    } else return error.FixtureBudget;
+    try t.expectEqual(@as(usize, 1), queue_count);
+    try t.expectEqualDeep(D.LogMaintenanceCursor{}, queues);
+    try t.expect(try catalog.logMaintenanceDefinition(.queue, .{ .object = 2002, .ordinal = 0 }, physical.guard()) == null);
     for ([_]usize{ 1, 2 }) |offset| {
         physical.deny_at = physical.calls + offset;
-        try t.expectError(error.Forbidden, catalog.streamMaintenanceNext(&streams, physical.guard()));
-        try t.expectEqualDeep(D.StreamMaintenanceCursor{}, streams);
+        try t.expectError(error.Forbidden, catalog.logMaintenanceNext(.stream, &streams, physical.guard()));
+        try t.expectEqualDeep(D.LogMaintenanceCursor{}, streams);
     }
     physical.deny_at = physical.calls + 2;
-    try t.expectError(error.Forbidden, catalog.streamMaintenanceDefinition(.{ .object = 2002, .ordinal = 0 }, physical.guard()));
+    try t.expectError(error.Forbidden, catalog.logMaintenanceDefinition(.stream, .{ .object = 2002, .ordinal = 0 }, physical.guard()));
     physical.deny_at = null;
     streams = .{ .pending = .{ .object = 2002, .ordinal = 1 } };
-    try t.expectError(error.InvalidMaintenanceCursor, catalog.streamMaintenanceNext(&streams, physical.guard()));
+    try t.expectError(error.InvalidMaintenanceCursor, catalog.logMaintenanceNext(.stream, &streams, physical.guard()));
     try t.expect(!physical.held);
 }
 

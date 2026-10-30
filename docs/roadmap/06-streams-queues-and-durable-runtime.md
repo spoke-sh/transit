@@ -430,8 +430,10 @@ The current progress slice delivers:
   disk reopen. Signed native dispatch, typed caller recovery, independent signing
   fixtures and installed HTTP now pass focused checks, including FIFO head
   selection, three uncertain replies and original payloads after DROP and
-  SIGKILL/restart. Timer-wheel and affinity scheduling, automatic deadline
-  execution, terminal cleanup and atomic DLQ transfer remain outstanding.
+  SIGKILL/restart. Shared native maintenance now rotates Tables, Streams and
+  Queues under one allocation budget, with one recovering workspace per log
+  kind, physical Queue tiering and one-deadline expiry. Timer-wheel and affinity
+  scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

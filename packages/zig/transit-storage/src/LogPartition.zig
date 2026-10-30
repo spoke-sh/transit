@@ -829,7 +829,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             };
             const receipt = evidence.outcome.append;
             const complete = try self.flushCandidate(receipt.next, cut) == null;
-            var borrowed = (try self.borrowWithinBudget(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, self.root.hidden, receipt.first, guard, allocator)) orelse return error.LogHistoryUnavailable;
+            var borrowed = (try self.borrowWithinBudget(try self.root.retainedCut(self.root.declared), self.root.batches, self.root.segments, self.root.hidden, receipt.first, guard, allocator)) orelse return error.LogHistoryUnavailable;
             defer borrowed.deinit();
             var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
             defer declaration.deinit();

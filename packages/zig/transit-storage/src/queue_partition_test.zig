@@ -668,21 +668,59 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     const beta = try selectedLease(objects.objectStore(), retry, 0);
     try t.expect(beta.offset == 1 and beta.attempt == 2 and beta.epoch == 2);
     clock.value = .exact(1000000);
+    var retired_definition = declared.definition;
+    retired_definition.revision = 2;
+    retired_definition.retired = true;
+    var retired = try s.LogDeclaration.prepare(t.allocator, retired_definition);
+    defer retired.deinit();
+    const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
     const frontier = owner.owner.root.next_lsn;
-    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(try owner.expireOne(current, policy.guard()));
     try t.expectEqual(frontier + 1, owner.owner.root.next_lsn);
     try t.expectEqual(@as(u64, 1), owner.owner.root.queue.?.active);
     queue = index(&owner, &bitmap);
     try t.expectEqual(@as(u64, 1201), (try queue.item(owner.owner.root.queue.?, 0)).visible_ms);
-    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(try owner.expireOne(current, policy.guard()));
     try t.expectEqual(frontier + 2, owner.owner.root.next_lsn);
     try t.expect(owner.owner.root.queue.?.active == 0 and owner.owner.root.queue.?.blocked == 1 and owner.owner.root.queue.?.terminal == 0);
-    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(!try owner.expireOne(current, policy.guard()));
     try t.expectEqual(frontier + 2, owner.owner.root.next_lsn);
     const blocked = try queue.item(owner.owner.root.queue.?, 1);
     try t.expect(blocked.blocked == .exhausted);
     clock.value = .exact(999999);
-    try t.expectError(error.LogTimeRegression, owner.expireOne(initial.declared, policy.guard()));
+    try t.expectError(error.LogTimeRegression, owner.expireOne(current, policy.guard()));
+
+    // Expiry may record retirement before physical flushing starts. Accepted
+    // payloads still seal, archive and recover; retirement cannot revive work.
+    clock.value = .exact(1000000);
+    try t.expect(owner.owner.root.declared.retired and owner.owner.root.sealed_through == 0);
+    claim.operation = operation(6);
+    try t.expectError(error.LogDeclarationConflict, owner.claim(current, claim, policy.guard()));
+    const cut = owner.owner.root.position();
+    try t.expect((try owner.flush(cut, policy.guard())).complete);
+    try t.expectEqual(@as(u64, 3), owner.owner.root.sealed_through);
+    const archived = owner.owner.root.position();
+    while (!(try owner.archive(archived, .{ .frames = 2 }, policy.guard())).complete) {}
+    _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, initial.partition, 0, 1));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    clock.value = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(original, (try owner.operation(original.claim.operation, policy.guard())).?.outcome.claim.receipt);
+    var page = try owner.readClaimPage(current, .{ .receipt = original, .next = 0 }, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer page.deinit();
+    try t.expect(page.cursor.complete() and page.len == 2);
+    for (page.rows(), 0..) |row, offset| {
+        try t.expectEqual(@as(u64, offset), row.lease.original.offset);
+        try t.expectEqual(.available, row.lease.state);
+    }
+    try t.expectEqual(@as(u64, 0), objects.puts);
 }
 
 test "queue partition controls verify immutable declaration bytes before acceptance" {

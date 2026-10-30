@@ -66,6 +66,9 @@ pub fn flush(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !FlushPro
 pub fn archive(self: *Self, cut: p.DataLifecycle.Position, limits: @import("LogHistory.zig").Limits, guard: Guard) !ArchiveProgress {
     return self.owner.archive(cut, limits, guard);
 }
+pub fn archiveMaintenanceUnit(self: *Self, limits: @import("LogHistory.zig").Limits, guard: Guard) !bool {
+    return self.owner.archiveMaintenanceUnit(limits, guard);
+}
 pub fn checkpoint(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !@import("LogRecovery.zig").Reference {
     return self.owner.checkpoint(cut, guard);
 }

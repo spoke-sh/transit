@@ -62,9 +62,13 @@ complete; reading a complete cursor returns an empty terminal page. Closing a
 page or client performs no ACK or renewal. Original outcomes and payloads remain
 recoverable after compatible policy edits, DROP or clock loss.
 
-Automatic Queue expiry scheduling, terminal cleanup, DLQ transfer and mixed
-state/message transactions remain unfinished. An expired lease can still appear
-acquired until bounded expiry work runs; an expired receipt cannot settle it.
+With local native maintenance enabled, Queue payloads are sealed and archived
+and expired leases are processed one accepted deadline at a time. Trusted time
+must establish expiry; retry backoff starts at the accepted deadline, including
+after restart. These transitions preserve original claims and do not expire
+payload history. An expired lease can still appear acquired until bounded work
+runs; an expired receipt cannot settle it. Terminal cleanup, DLQ transfer and
+mixed state/message transactions remain unfinished.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
 for required composition guarantees.

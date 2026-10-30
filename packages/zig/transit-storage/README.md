@@ -131,8 +131,8 @@ reserve. It rechecks the exact renewed lease and authoritative time before
 publication. Uncertain time cannot authorize expiry. Retry backoff starts at the
 accepted deadline, so downtime does not restart the delay; exhaustion keeps the
 source nonterminal and blocked. A large clock jump still needs separate bounded
-steps. This operation supplies the durable transition for a future timer owner;
-it does not install a background scheduler or perform a DLQ transfer.
+steps. The local node invokes it through bounded catalog maintenance; the
+transition performs no DLQ transfer.
 
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
@@ -150,7 +150,9 @@ bounded expiry, observation, original outcome recovery and physical maintenance.
 It has no Stream consumption, group or age-expiry API.
 `DirectQueue` composes this storage boundary with the shared catalog operation
 namespace and current grants. The signed native Queue action exposes standalone
-operations through that adapter; automatic deadline scheduling remains open.
+operations through that adapter. The local node shares its Table/Stream
+maintenance executor with Queue sealing, archiving/checkpointing, WAL trimming
+and one-deadline lease expiry.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

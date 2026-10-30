@@ -97,6 +97,12 @@ pub const Root = struct {
     }
     pub fn cut(self: Root, declared: Declaration.Stored) !q.Cut {
         try self.requireDeclaration(declared);
+        return self.retainedCut(declared);
+    }
+    /// Retained data remains readable by physical maintenance after retirement.
+    /// This descriptor grants no new append, claim or consume authority.
+    pub fn retainedCut(self: Root, declared: Declaration.Stored) !q.Cut {
+        try self.requireControlDeclaration(declared);
         return .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = self.initialization.ordinal }, .accepted = self.position(), .retained_from = self.retained_from, .next = self.next_offset };
     }
     pub fn position(self: Root) d.Position {

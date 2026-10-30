@@ -265,16 +265,16 @@ fn logRecord(self: *Self, object: u64) !?L.Operation {
 }
 
 /// Bounded operator traversal. A pass freezes its highest object ID and visits
-/// one partition of one complete Stream declaration per step. These disposable
+/// one partition of one complete declaration of the selected log kind per step. These disposable
 /// hints retain no authorization, schema allocations or partition owners.
-pub const StreamMaintenanceCursor = struct {
+pub const LogMaintenanceCursor = struct {
     objects: MaintenanceCursor = .{},
     pending: ?struct { object: u64, ordinal: u32 } = null,
 };
-pub const StreamMaintenanceTarget = struct { object: u64, ordinal: u32 };
-pub const StreamMaintenanceSelection = struct { target: ?StreamMaintenanceTarget, pass_complete: bool };
+pub const LogMaintenanceTarget = struct { object: u64, ordinal: u32 };
+pub const LogMaintenanceSelection = struct { target: ?LogMaintenanceTarget, pass_complete: bool };
 
-pub fn streamMaintenanceNext(self: *Self, cursor: *StreamMaintenanceCursor, guard_value: P.Guard) !StreamMaintenanceSelection {
+pub fn logMaintenanceNext(self: *Self, kind: p.StreamQueueDeclaration.Kind, cursor: *LogMaintenanceCursor, guard_value: P.Guard) !LogMaintenanceSelection {
     try check(guard_value);
     try self.store.refresh();
     var next = cursor.*;
@@ -300,7 +300,7 @@ pub fn streamMaintenanceNext(self: *Self, cursor: *StreamMaintenanceCursor, guar
             if (value.object <= next.objects.through.?) object = value.object;
         }
     }
-    var target: ?StreamMaintenanceTarget = null;
+    var target: ?LogMaintenanceTarget = null;
     var complete = true;
     if (object) |id| {
         const ordinal = if (next.pending) |active| active.ordinal else 0;
@@ -308,7 +308,7 @@ pub fn streamMaintenanceNext(self: *Self, cursor: *StreamMaintenanceCursor, guar
         next.objects.after = id;
         complete = id == next.objects.through.?;
         if (try self.logRecord(id)) |known| {
-            if (known.phase == .complete and known.kind == .stream) {
+            if (known.phase == .complete and known.kind == kind) {
                 const definition = known.resulting.?;
                 if (ordinal >= definition.count()) return error.InvalidMaintenanceCursor;
                 target = .{ .object = id, .ordinal = ordinal };
@@ -328,11 +328,11 @@ pub fn streamMaintenanceNext(self: *Self, cursor: *StreamMaintenanceCursor, guar
 /// Revalidate under the host's directory and object locks. The returned owned
 /// scalar definition can select storage work; only the current guard can
 /// authorize it. Retired declarations remain eligible for recovery and closure.
-pub fn streamMaintenanceDefinition(self: *Self, target: StreamMaintenanceTarget, guard_value: P.Guard) !?L.Definition {
+pub fn logMaintenanceDefinition(self: *Self, kind: p.StreamQueueDeclaration.Kind, target: LogMaintenanceTarget, guard_value: P.Guard) !?L.Definition {
     try check(guard_value);
     try self.store.refresh();
     const known = try self.logRecord(target.object);
-    const definition = if (known != null and known.?.phase == .complete and known.?.kind == .stream) known.?.resulting else null;
+    const definition = if (known != null and known.?.phase == .complete and known.?.kind == kind) known.?.resulting else null;
     if (definition) |value| _ = try value.partition(target.ordinal);
     try check(guard_value);
     return definition;
