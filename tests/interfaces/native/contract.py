@@ -18,6 +18,7 @@ if sys.argv[1:] == ["--data-lifecycle"]:
     validator.validate(fixture)
     for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",),
                  ("stream_queue", "append", "append", "target"),
+                 ("stream_queue", "declaration"),
                  ("stream_queue", "offset_commit", "coverage", "cut", "target"),
                  ("stream_queue", "settlement", "settlement", "lease", "target")):
         changed = copy.deepcopy(fixture)

@@ -34,6 +34,10 @@ append, finite coverage, group-checkpoint and lease/settlement bindings. The
 [Queue](../../../contracts/QUEUE_V1.md) contracts separate pure shape/guard
 validation from authorized durable execution. These types add no installed
 Stream/Queue operations or executable transaction participants.
+`StreamQueueDeclaration` adds immutable routing, retention, compaction and Queue
+scheduling policies, operation budgets, checked deadlines and bounded retry
+backoff. Its successor checks preserve object identity and partition/key rules;
+catalog publication and schema-column binding remain separate responsibilities.
 
 The [native contract](../../../contracts/TRANSIT_V1.md),
 [service contract](../../../contracts/SERVICE_V1.md) and

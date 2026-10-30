@@ -172,6 +172,15 @@ def generated():
                      claim=dict(scope=log_scope, principal=17, operation=2**64-3),
                      offset=2**64-4, epoch=9, attempt=2, expires_ms=1000)
         stream_queue = dict(
+            declaration=dict(definition=definition, interpretation=log_target['interpretation'],
+                             schema=dict(bytes=128, sha256=[37]*32),
+                             configuration=dict(
+                                 partitioning=dict(count=4, key_column=9, hash='sha256_64'),
+                                 retention=dict(max_age_ms=None),
+                                 policy=dict(stream=dict(compact_key_column=None))),
+                             limits=dict(append_rows=4096, append_bytes=1048576,
+                                         claim_rows=64, read_rows=4096, read_bytes=1048576,
+                                         active_leases=1024, waiters=64, timer_steps=256)),
             append=dict(append=append, first=2**64-5, next=2**64-1,
                         accepted=dict(partition=91, next_lsn=12)),
             offset_commit=dict(operation=dict(scope=log_scope, principal=17, operation=102),

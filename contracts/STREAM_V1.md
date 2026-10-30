@@ -17,6 +17,32 @@ stored records or the Table-only transaction profile.
 
 ## Identity and append
 
+`StreamQueueDeclaration.Declaration` binds the current definition, immutable
+object interpretation, exact schema content, configuration and operation limits.
+The schema owner resolves stable column IDs and validates their logical types,
+physical codecs and collations. A content digest alone does not perform that
+binding. Declarations use branch one.
+
+Partition count is nonzero and remains fixed across definition successors.
+Automatic routing requires a declared stable key column. It hashes the schema
+owner's canonical collation-aware key bytes with SHA-256, interprets the first
+eight digest bytes as a big-endian unsigned integer and takes modulo partition
+count. Callers without a partition key select an ordinal explicitly. Neither
+hash equality nor partition equality establishes complete key equality.
+
+Retention has a nullable positive `max_age_ms`; null retains unlimited history.
+Key compaction separately names a stable key column. Definition successors retain
+object identity, advance exactly one revision and preserve kind, routing and key
+selection. Schema evolution requires its owner's additional compatibility checks.
+Changing those fixed properties requires a separately defined migration; the
+validator refuses it rather than reinterpreting accepted operations.
+
+Required nonzero limits bound append rows/bytes, claim rows, read rows/bytes,
+active leases, waiters and timer work. Claim size cannot exceed active lease
+capacity. These budgets do not cap durable collection cardinality. Deployment
+admission separately meters aggregate memory and physical capacity and reserves
+control capacity for settlement, revocation and recovery.
+
 `Partition` binds the mandatory current definition, immutable data interpretation
 and a zero-based logical partition ordinal. Its object has one catalog scope and
 branch one. The owning declaration must additionally verify the ordinal against

@@ -16,6 +16,24 @@ are generated/checked through the existing public contract workflow.
 
 ## Lease identity and time
 
+The declaration's Queue policy selects `unordered` or `key_fifo`. FIFO requires
+a stable key column; with multiple partitions that column also supplies routing,
+so equal canonical keys share a partition. Default and maximum lease durations
+are positive, the default does not exceed the maximum, and maximum attempts is
+nonzero. Deadline calculation rejects unsigned overflow and requested durations
+outside the maximum.
+
+Retry backoff records initial/maximum milliseconds and a positive multiplier.
+Attempt one uses the initial delay; later delays multiply with saturation and
+clamp at the maximum. Calculation work is bounded by integer width even for a
+full-width attempt count. Zero initial delay and multiplier one are explicit
+constant-delay policies. Exhaustion does not itself discard a message.
+
+An optional DLQ binds an exact destination definition in the same catalog and
+branch and cannot point back to its source object. Catalog publication must
+also check destination kind/schema, dependencies and current permissions.
+Pure configuration validation does not establish any of those facts.
+
 `Lease` binds the current definition through its target, the exact Queue
 interpretation/partition, original claim operation, logical message offset,
 nonzero lease epoch, nonzero attempt count and absolute expiry in milliseconds.

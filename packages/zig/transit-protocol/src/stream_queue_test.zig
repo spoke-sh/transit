@@ -11,6 +11,7 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     const parsed = try fixture();
     defer parsed.deinit();
     const v = parsed.value;
+    try v.declaration.validate();
     try v.append.validate();
     try v.offset_commit.validate();
     try v.settlement.validate();
@@ -24,6 +25,25 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     const roundtrip = try p.Json.parseFromSlice(q.SchemaTypes, t.allocator, encoded);
     defer roundtrip.deinit();
     try t.expectEqualDeep(v, roundtrip.value);
+}
+
+test "log declaration successors preserve object identity routing and required budgets" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const first = parsed.value.declaration;
+    var next = first;
+    next.interpretation.revision += 1;
+    next.interpretation.digest[0] ^= 1;
+    next.configuration.retention.max_age_ms = 1000;
+    try first.requireSuccessor(next);
+    next.interpretation.object.object += 1;
+    try t.expectError(error.LogDeclarationConflict, first.requireSuccessor(next));
+    next = first;
+    next.limits.read_bytes = 0;
+    try t.expectError(error.InvalidLogLimits, next.validate());
+    next = first;
+    next.limits.claim_rows = next.limits.active_leases + 1;
+    try t.expectError(error.InvalidLogLimits, next.validate());
 }
 
 test "stream exact append retry refuses changed payload producer or original binding" {

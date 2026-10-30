@@ -1272,6 +1272,117 @@
     }
   },
   "stream_queue": {
+    "declaration": {
+      "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 43
+        },
+        "revision": 2,
+        "digest": [
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29,
+          29
+        ]
+      },
+      "schema": {
+        "bytes": 128,
+        "sha256": [
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37,
+          37
+        ]
+      },
+      "configuration": {
+        "partitioning": {
+          "count": 4,
+          "key_column": 9,
+          "hash": "sha256_64"
+        },
+        "retention": {
+          "max_age_ms": null
+        },
+        "policy": {
+          "stream": {
+            "compact_key_column": null
+          }
+        }
+      },
+      "limits": {
+        "append_rows": 4096,
+        "append_bytes": 1048576,
+        "claim_rows": 64,
+        "read_rows": 4096,
+        "read_bytes": 1048576,
+        "active_leases": 1024,
+        "waiters": 64,
+        "timer_steps": 256
+      }
+    },
     "append": {
       "append": {
         "target": {

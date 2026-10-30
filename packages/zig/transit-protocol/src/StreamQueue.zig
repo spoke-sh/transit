@@ -246,6 +246,7 @@ pub const SettlementReceipt = struct {
 };
 
 pub const SchemaTypes = struct {
+    declaration: p.StreamQueueDeclaration.Declaration,
     append: AppendReceipt,
     offset_commit: OffsetCommit,
     settlement: SettlementReceipt,
