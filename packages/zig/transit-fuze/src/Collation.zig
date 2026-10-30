@@ -8,16 +8,58 @@ const TableSchema = @import("TableSchema.zig");
 pub const Collation = TableSchema.Collation;
 pub const max_sort_key_bytes: usize = 4096;
 
+/// Complete collation profile descriptor covering both wire TableSchema.Collation
+/// tags and standards-ledger EBCDIC pad / CP1047 profiles.
+pub const Profile = enum(u8) {
+    none = 0,
+    utf8_binary = 1,
+    ascii_ci = 2,
+    ebcdic_cp037 = 3,
+    icu_root = 4,
+    ebcdic_037_pad = 5,
+    ebcdic_1047_nopad = 6,
+
+    pub fn fromCollation(collation: Collation) Profile {
+        return switch (collation) {
+            .none => .none,
+            .utf8_binary => .utf8_binary,
+            .ascii_ci => .ascii_ci,
+            .ebcdic_cp037 => .ebcdic_cp037,
+            .icu_root => .icu_root,
+        };
+    }
+};
+
 const Ebcdic = @import("Ebcdic037.zig");
+pub const Ebcdic1047 = @import("Ebcdic1047.zig");
 pub const ebcdic037_to_latin1 = Ebcdic.to_latin1;
 pub const latin1_to_ebcdic037 = Ebcdic.from_latin1;
+pub const ebcdic1047_to_latin1 = Ebcdic1047.to_latin1;
+pub const latin1_to_ebcdic1047 = Ebcdic1047.from_latin1;
 
 pub fn validate(collation: Collation) !void {
     if (collation == .icu_root) return error.UnsupportedColumnCollation;
 }
+pub fn validateProfile(profile: Profile) !void {
+    if (profile == .icu_root) return error.UnsupportedColumnCollation;
+}
 pub fn validateBytes(bytes: []const u8, collation: Collation) !void {
     try validate(collation);
     if (collation == .ebcdic_cp037) try Ebcdic.validate(bytes);
+}
+pub fn validateBytesProfile(bytes: []const u8, profile: Profile) !void {
+    try validateProfile(profile);
+    switch (profile) {
+        .ebcdic_cp037, .ebcdic_037_pad => try Ebcdic.validate(bytes),
+        .ebcdic_1047_nopad => try Ebcdic1047.validate(bytes),
+        else => {},
+    }
+}
+
+pub inline fn stripTrailingAsciiSpaces(bytes: []const u8) []const u8 {
+    var end = bytes.len;
+    while (end > 0 and bytes[end - 1] == ' ') end -= 1;
+    return bytes[0..end];
 }
 
 pub inline fn asciiLower(byte: u8) u8 {
@@ -26,9 +68,14 @@ pub inline fn asciiLower(byte: u8) u8 {
 
 /// Compare two UTF-8 / binary slices under the declared Collation.
 pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) !std.math.Order {
-    try validateBytes(left, collation);
-    try validateBytes(right, collation);
-    switch (collation) {
+    return compareBytesProfile(left, right, Profile.fromCollation(collation));
+}
+
+/// Compare two UTF-8 / binary slices under any admitted Collation.Profile.
+pub fn compareBytesProfile(left: []const u8, right: []const u8, profile: Profile) !std.math.Order {
+    try validateBytesProfile(left, profile);
+    try validateBytesProfile(right, profile);
+    switch (profile) {
         .none, .utf8_binary => return std.mem.order(u8, left, right),
         .ascii_ci => {
             const min_len = @min(left.len, right.len);
@@ -42,6 +89,24 @@ pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) !
         .ebcdic_cp037 => {
             var l = try Ebcdic.Iterator.init(left);
             var r = try Ebcdic.Iterator.init(right);
+            while (try l.next()) |lb| {
+                const rb = try r.next() orelse return .gt;
+                if (lb != rb) return std.math.order(lb, rb);
+            }
+            return if (try r.next() != null) .lt else .eq;
+        },
+        .ebcdic_037_pad => {
+            var l = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(left));
+            var r = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(right));
+            while (try l.next()) |lb| {
+                const rb = try r.next() orelse return .gt;
+                if (lb != rb) return std.math.order(lb, rb);
+            }
+            return if (try r.next() != null) .lt else .eq;
+        },
+        .ebcdic_1047_nopad => {
+            var l = try Ebcdic1047.Iterator.init(left);
+            var r = try Ebcdic1047.Iterator.init(right);
             while (try l.next()) |lb| {
                 const rb = try r.next() orelse return .gt;
                 if (lb != rb) return std.math.order(lb, rb);
@@ -122,8 +187,8 @@ fn writeStuffedByte(writer: *std.Io.Writer, byte: u8) !void {
     }
 }
 
-fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, collation: Collation) !void {
-    switch (collation) {
+fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, profile: Profile) !void {
+    switch (profile) {
         .none, .utf8_binary => {
             for (bytes) |b| try writeStuffedByte(writer, b);
             try writer.writeAll(&.{ 0x00, 0x00 });
@@ -137,6 +202,16 @@ fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, collation: Coll
             while (try iterator.next()) |byte| try writeStuffedByte(writer, byte);
             try writer.writeAll(&.{ 0x00, 0x00 });
         },
+        .ebcdic_037_pad => {
+            var iterator = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(bytes));
+            while (try iterator.next()) |byte| try writeStuffedByte(writer, byte);
+            try writer.writeAll(&.{ 0x00, 0x00 });
+        },
+        .ebcdic_1047_nopad => {
+            var iterator = try Ebcdic1047.Iterator.init(bytes);
+            while (try iterator.next()) |byte| try writeStuffedByte(writer, byte);
+            try writer.writeAll(&.{ 0x00, 0x00 });
+        },
         .icu_root => return error.UnsupportedColumnCollation,
     }
 }
@@ -144,12 +219,21 @@ fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, collation: Coll
 /// Encode a single 5-state Cell into an order-preserving sort key such that
 /// `std.mem.order(u8, keyA, keyB) == compareCell(cellA, cellB, expected, collation)`.
 pub fn encodeSortKey(cell: Values.Cell, expected: Types.Type, collation: Collation, out: []u8) ![]const u8 {
+    return encodeSortKeyProfile(cell, expected, Profile.fromCollation(collation), out);
+}
+
+pub fn encodeSortKeyProfile(cell: Values.Cell, expected: Types.Type, profile: Profile, out: []u8) ![]const u8 {
     var writer: std.Io.Writer = .fixed(out);
-    try appendSortKey(&writer, cell, expected, collation);
+    try appendSortKeyProfile(&writer, cell, expected, profile);
     return writer.buffered();
 }
 
 pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.Type, collation: Collation) !void {
+    return appendSortKeyProfile(writer, cell, expected, Profile.fromCollation(collation));
+}
+
+pub fn appendSortKeyProfile(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.Type, profile: Profile) !void {
+    try validateProfile(profile);
     try writer.writeByte(stateRank(std.meta.activeTag(cell)));
     switch (cell) {
         .missing, .null => {},
@@ -170,7 +254,7 @@ pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.
                         try writer.writeInt(u128, mapped, .big);
                     },
                     .boolean => |v| try writer.writeByte(@intFromBool(v)),
-                    .bytes => |v| try writeCollatedBytes(writer, v, collation),
+                    .bytes => |v| try writeCollatedBytes(writer, v, profile),
                     .date => |v| {
                         const mapped: u32 = @as(u32, @bitCast(v)) ^ (@as(u32, 1) << 31);
                         try writer.writeInt(u32, mapped, .big);
@@ -184,7 +268,7 @@ pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.
                     .interval => return error.UnorderedType,
                 }
             },
-            .json => |bytes| try writeCollatedBytes(writer, bytes, collation),
+            .json => |bytes| try writeCollatedBytes(writer, bytes, profile),
             else => return error.UnorderedType,
         },
     }

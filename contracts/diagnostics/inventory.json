@@ -9013,29 +9013,45 @@
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
         "UnorderedType": 4,
-        "UnsupportedColumnCollation": 3
+        "UnsupportedColumnCollation": 4
       },
-      "outcomes": {},
+      "outcomes": {
+        "Profile": [
+          "none",
+          "utf8_binary",
+          "ascii_ci",
+          "ebcdic_cp037",
+          "icu_root",
+          "ebcdic_037_pad",
+          "ebcdic_1047_nopad"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "appendSortKey()": "<inferred>",
+        "appendSortKeyProfile()": "<inferred>",
         "compareAtom()": "<inferred>",
         "compareBytes()": "<inferred>",
+        "compareBytesProfile()": "<inferred>",
         "compareCell()": "<inferred>",
         "encodePrimaryKeySortKey()": "<inferred>",
         "encodeSortKey()": "<inferred>",
+        "encodeSortKeyProfile()": "<inferred>",
         "validate()": "<inferred>",
         "validateBytes()": "<inferred>",
+        "validateBytesProfile()": "<inferred>",
+        "validateProfile()": "<inferred>",
         "writeCollatedBytes()": "<inferred>",
         "writeStuffedByte()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 63,
         "catch": 0
       },
       "imports": [
         "Ebcdic037.zig",
+        "Ebcdic1047.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
@@ -9111,6 +9127,71 @@
       "imports": [
         "Scalar.zig",
         "Types.zig"
+      ]
+    },
+    "packages/zig/transit-fuze/src/DecimalArithmetic.zig": {
+      "errors": {
+        "DecimalOverflow": 2,
+        "DivisionByZero": 2,
+        "IncompatibleGeodesicSrid": 1,
+        "InexactDecimalRounding": 1,
+        "InvalidDecimalParameters": 5,
+        "InvalidSpatialSnapGrid": 1,
+        "InvalidSpatialSrid": 1,
+        "InvalidSpatialUnitScale": 1,
+        "InvalidTimeBucket": 1,
+        "InvalidTzdbVersion": 1,
+        "TimestampOverflow": 1,
+        "UnknownTimezone": 1
+      },
+      "outcomes": {
+        "RoundingMode": [
+          "reject",
+          "half_even",
+          "toward_zero"
+        ],
+        "SpatialDescriptor.AxisOrientation": [
+          "right_handed_z_up",
+          "right_handed_y_up"
+        ],
+        "SpatialDescriptor.ExactPredicateMode": [
+          "shewchuk_adaptive"
+        ],
+        "SpatialDescriptor.Manifold": [
+          "planar",
+          "geodesic_wgs84"
+        ],
+        "SpatialDescriptor.SpaceFillingCurve": [
+          "none",
+          "s2_hilbert",
+          "h3",
+          "hilbert_3d"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "DecimalValue.validate()": "<inferred>",
+        "SpatialDescriptor.validate()": "<inferred>",
+        "TzdbVersion.init()": "<inferred>",
+        "TzdbVersion.truncateLocalMicros()": "<inferred>",
+        "TzdbVersion.utcToLocalMicros()": "<inferred>",
+        "add()": "<inferred>",
+        "checkPrecisionBounds()": "<inferred>",
+        "div()": "<inferred>",
+        "divideAndRound()": "<inferred>",
+        "mul()": "<inferred>",
+        "rescale()": "<inferred>",
+        "resolveZoneOffsetSeconds()": "<inferred>",
+        "sub()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "Types.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/Declaration.zig": {
@@ -9234,6 +9315,29 @@
         "catch": 0
       },
       "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/Ebcdic1047.zig": {
+      "errors": {
+        "UnrepresentableEbcdic1047": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Iterator.init()": "<inferred>",
+        "Iterator.next()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "Ebcdic037.zig",
         "std"
       ]
     },
@@ -10438,6 +10542,36 @@
         "root.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/Range.zig": {
+      "errors": {
+        "MultiRangeBufferTooSmall": 1,
+        "RangeBoundOverflow": 2
+      },
+      "outcomes": {
+        "Subtype": [
+          "int64",
+          "decimal128",
+          "date32",
+          "timestamp",
+          "timestamptz"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "MultiRange().<return>.normalizeInto()": "<inferred>",
+        "Range().<return>.closed()": "<inferred>",
+        "Range().<return>.halfOpen()": "<inferred>",
+        "Range().<return>.init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/Relational.zig": {
@@ -13416,6 +13550,53 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/VectorMetric.zig": {
+      "errors": {
+        "IncompatibleVectorMetric": 4,
+        "InvalidBinaryVectorDimensions": 1,
+        "InvalidVectorDimensions": 5,
+        "InvalidVectorValue": 2,
+        "VectorDimensionMismatch": 7,
+        "ZeroMagnitudeCosineVector": 3
+      },
+      "outcomes": {
+        "ElementType": [
+          "float32",
+          "float16",
+          "bfloat16",
+          "int8",
+          "binary"
+        ],
+        "Metric": [
+          "l2_squared",
+          "cosine",
+          "dot_product",
+          "hamming"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.validate()": "<inferred>",
+        "ElementType.byteSizeForDimensions()": "<inferred>",
+        "Metric.validateForElement()": "<inferred>",
+        "cosineDistanceF32()": "<inferred>",
+        "dotProductF32()": "<inferred>",
+        "dotProductI8()": "<inferred>",
+        "evaluateBytes()": "<inferred>",
+        "hammingDistanceBinary()": "<inferred>",
+        "l2SquaredF32()": "<inferred>",
+        "l2SquaredI8()": "<inferred>",
+        "validateF32Slice()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/VectorPage.zig": {
       "errors": {},
       "outcomes": {},
@@ -13530,7 +13711,9 @@
         "BatchExecution.zig",
         "Collation.zig",
         "ColumnPredicate.zig",
+        "DecimalArithmetic.zig",
         "Declaration.zig",
+        "Ebcdic1047.zig",
         "FileQuery.zig",
         "FileSource.zig",
         "LogicalArrow.zig",
@@ -13550,6 +13733,7 @@
         "Prepared.zig",
         "QueryCollations.zig",
         "QueryValues.zig",
+        "Range.zig",
         "Relational.zig",
         "RelationalCheckpoint.zig",
         "RelationalCodec.zig",
@@ -13584,6 +13768,7 @@
         "TableWitness.zig",
         "Types.zig",
         "Unified.zig",
+        "VectorMetric.zig",
         "execute.zig",
         "model.zig",
         "std",
