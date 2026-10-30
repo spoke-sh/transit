@@ -92,7 +92,7 @@ write, then switches the same session to JSON for independent
 typed readback. Each sample retains the human output, total and phase timings;
 Linux node process CPU deltas include all node threads and concurrent recovery,
 with the kernel's clock-tick resolution; they are not per-statement CPU attribution.
-the summary uses empirical distributions without estimating tails from a small
+The summary uses empirical distributions without estimating tails from a small
 sample. The first external elapsed time includes connection startup; the console
 timer measures the statement. Later samples reuse the session. This is the real
 console script path and table renderer, without terminal editor/PTY timing.
@@ -105,6 +105,14 @@ The first follows readiness and can include startup discovery; the second follow
 verified readback and console closure. Neither label alone proves an empty
 recovery backlog. Use the observed requests and owning recovery evidence to
 interpret quiescence.
+
+Use `--statements --repeat 1 --cycles 50` for repeated zero/one-row measurements.
+Every cycle inserts, updates and deletes one row, verifies all counts and typed
+readbacks, and returns the same persistent session to an empty table. The
+`select_empty_warm` and `select_one_warm` distributions keep cardinality fixed;
+only the first cycle's first SELECT is `select_cold`. Later cycles include a
+separate `select_empty` observation. Records include the zero-based cycle ordinal.
+This is a bounded, sequential workload, not a concurrent throughput experiment.
 
 Add `--resources` to sample the persistent console and the owned installation
 process tree after each timed statement. Linux `/proc` supplies actual thread

@@ -186,6 +186,8 @@ def main():
     parser.add_argument('--worker-interval-ms', type=int, choices=range(1, 60001), metavar='1..60000')
     parser.add_argument('--single', action='store_true', help='measure only the first empty SELECT')
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
+    parser.add_argument('--cycles', type=int, default=1, choices=range(1, 51), metavar='1..50',
+                        help='repeat a verified zero/one-row statement cycle in the same session; requires --statements --repeat 1')
     parser.add_argument('--statements', action='store_true',
                         help='persistent human table console: empty/warm SELECT, INSERT/UPDATE/DELETE, refreshed SELECT, verified JSON readback')
     parser.add_argument('--resources', action='store_true',
@@ -207,6 +209,8 @@ def main():
     parser.add_argument('--representations', action='store_true',
                         help='run separate payload-only row/column LZ4/Zstd experiments after timing samples')
     args = parser.parse_args()
+    if args.cycles > 1 and (not args.statements or args.repeat != 1):
+        parser.error('--cycles requires --statements --repeat 1')
     if args.resources and not args.statements:
         parser.error('--resources requires --statements')
     if args.local_trace and (not args.instrument or args.remote_sql):
@@ -252,7 +256,7 @@ def main():
               'sample_method': 'persistent console; first external elapsed time includes connection startup' if args.statements else 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
               'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
-              'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
+              'age_queries': args.age_queries, 'repeat': args.repeat, 'cycles': args.cycles, 'execution': 'server_session',
               'resource_snapshots': args.resources,
               'local_trace': args.local_trace,
               'cache_condition': 'post-bootstrap; later queries share the node cache',
@@ -303,7 +307,7 @@ def main():
             from performance.console.resources import snapshot
             run(fixture, args.repeat, probes,
                 resource_observer=(lambda pid: snapshot(fixture.process.pid, pid)) if args.resources else None,
-                cpu_observer=cpu)
+                cpu_observer=cpu, cycles=args.cycles)
             idle_sample('idle_after_statements')
             success = True
             return
