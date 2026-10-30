@@ -21,6 +21,7 @@ pub const LogEvidence = @import("LogEvidence.zig");
 pub const LogRead = @import("LogRead.zig");
 pub const LogHistory = @import("LogHistory.zig");
 pub const LogRecovery = @import("LogRecovery.zig");
+pub const LogStorageRoots = @import("LogStorageRoots.zig");
 pub const LogPartitionRecord = @import("LogPartitionRecord.zig");
 pub const StreamPartition = @import("StreamPartition.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");

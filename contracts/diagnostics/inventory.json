@@ -2466,7 +2466,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -4828,14 +4828,24 @@
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
         "InvalidLogCatalogOperation": 1,
+        "InvalidLogStorageGraph": 19,
         "InvalidTableStorageGraph": 20,
-        "LogInitializationMissing": 1,
+        "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
         "TableSegmentMissing": 1
       },
       "outcomes": {
+        "LogIndexKind": [
+          "pages_only",
+          "batches",
+          "receipts",
+          "producer_receipts",
+          "producers",
+          "groups",
+          "pins"
+        ],
         "Role": [
           "current",
           "recovery",
@@ -4860,6 +4870,12 @@
           "log_declaration",
           "log_partitions",
           "log_initialization",
+          "log_history",
+          "log_root",
+          "log_index",
+          "log_read",
+          "log_wal",
+          "log_archive_range",
           "table_history",
           "table_root",
           "table_walk",
@@ -4873,7 +4889,11 @@
       },
       "error_sets": {},
       "error_returns": {
+        "LogContext.fromRoot()": "<inferred>",
+        "LogContext.owner()": "<inferred>",
+        "LogContext.requireTarget()": "<inferred>",
         "fromFrame()": "<inferred>",
+        "logEntry()": "<inferred>",
         "markContent()": "<inferred>",
         "markPage()": "<inferred>",
         "requireOwner()": "<inferred>",
@@ -4882,7 +4902,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 185,
+        "try": 251,
         "catch": 1
       },
       "imports": [
@@ -28418,7 +28438,7 @@
         "encode()": "<inferred>",
         "initialize()": "<inferred>",
         "observe()": "<inferred>",
-        "read()": "<inferred>",
+        "readStored()": "<inferred>",
         "retained()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -28559,6 +28579,48 @@
         "TransitObjectStore.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogStorageRoots.zig": {
+      "errors": {
+        "InvalidLogStorageGraph": 5,
+        "LogHistoryUnavailable": 1,
+        "LogInitializationMissing": 1
+      },
+      "outcomes": {
+        "Step": [
+          "current",
+          "checkpoint",
+          "initialization",
+          "frame",
+          "complete"
+        ],
+        "phase": [
+          "current",
+          "baseline",
+          "frames",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "LogEvidence.zig",
+        "LogHistory.zig",
+        "LogInitialization.zig",
+        "LogPartitionRecord.zig",
+        "LogRecovery.zig",
+        "TransitLog.zig",
+        "TreeStore.zig",
+        "std"
       ]
     },
     "packages/zig/transit-storage/src/LogTail.zig": {
@@ -30042,6 +30104,7 @@
         "LogPartitionRecord.zig",
         "LogRead.zig",
         "LogRecovery.zig",
+        "LogStorageRoots.zig",
         "LogTail.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",

@@ -77,8 +77,11 @@ eight frames per unit. `checkpoint` publishes an exact `LogRecovery` baseline;
 preserving the publishing record. Cold recovery verifies the publication and
 replays bounded successors. Pinned reads and original receipts remain usable
 through physical WAL trim; missing checkpoints or required archive bytes block
-recovery or reads. The native adapter and retained graph must compose these
-owners before enabling service payload maintenance.
+recovery or reads. `LogStorageRoots` enumerates the selected checkpoint and
+hash-linked replay in bounded steps. The native adapter admits only qualified
+trim floors; the catalog retained graph keeps live pins, original receipts and
+required archive frames through physical collection. Service payload maintenance
+still requires its authorization and scheduling composition.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an

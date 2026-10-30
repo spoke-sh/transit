@@ -1483,5 +1483,17 @@ archive coverage to resolve old pinned WAL coordinates, preserving their origina
 cut, payload and receipt. Initialization after trim verifies the checkpoint's
 publication and original request before returning its original frontier one.
 Physical trimming grants no logical expiry or object-deletion authority. Native
-trim admission and the retained-object graph must separately compose these owners
-before enabling installed Stream payload maintenance.
+`DataStore.trimUnit` verifies these bounds against the latest accepted record.
+Installed Stream payload maintenance still needs service composition.
+
+`LogStorageRoots` enumerates the current root, selected immutable baseline and
+hash-linked successors. Its final root and commitment must exactly equal the
+selected cut. `DirectStorageGraph` retains the directories, declarations,
+original evidence, live read bases and payload frames of those roots. Replay
+also retains every newly archived frame needed to verify an archive transition.
+An archive directory is a weak index, not ownership of every referenced object;
+required payload and replay frames have explicit graph edges. Superseded
+checkpoint references inside a baseline are not recursively followed. Released
+read bases remain protected while required by replay, then become collectible
+after a newer checkpoint. Missing or inconsistent dependencies prevent graph
+completion and therefore prevent deletion.

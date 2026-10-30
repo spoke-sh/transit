@@ -76,7 +76,7 @@ fn trim(context: *anyopaque, id: u64, before: u64) !void {
 
 pub const TrimProgress = struct { complete: bool };
 
-/// Validate accepted Table archive coverage and perform one bounded physical
+/// Validate accepted direct-partition archive coverage and perform one bounded physical
 /// cleanup unit. The runtime owns current policy authorization and serializes
 /// this call with the Table; this adapter never accepts an invented trim floor.
 pub fn trimUnit(self: *Self, id: u64, before: u64) !TrimProgress {
@@ -93,7 +93,11 @@ fn trimUnitImpl(self: *Self, id: u64, before: u64) !TrimProgress {
     var latest = try value_log.read(self.backend.allocator, id, end - 1, 1);
     defer latest.deinit();
     if (latest.frames.len != 1 or latest.frames[0].header.partition_id != id or latest.frames[0].header.lsn != end - 1) return error.IncompleteHistory;
-    const through = try storage.TablePartition.archivedThrough(self.backend.allocator, latest.frames[0]);
+    const frame = latest.frames[0];
+    const through = if (std.mem.startsWith(u8, frame.payload, "LOGPART1") or std.mem.startsWith(u8, frame.payload, "LINIT001"))
+        try storage.StreamPartition.archivedThrough(self.backend.allocator, frame)
+    else
+        try storage.TablePartition.archivedThrough(self.backend.allocator, frame);
     if (before > through) return error.NoCheckpointIntent;
     // The serialized Table owner publishes only after durable archive staging.
     // Physical removal does not expire logical history. Conservative allocation

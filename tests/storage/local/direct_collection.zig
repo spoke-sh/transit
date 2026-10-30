@@ -1,4 +1,4 @@
-//! Physical collection through real local native fences and Table roots.
+//! Physical collection through real local native fences and database roots.
 const std = @import("std");
 const t = std.testing;
 const c = @import("transit_catalog");
@@ -114,6 +114,100 @@ fn expectSegment(fixture: *Fixture, content: p.DataLifecycle.Content, present: b
 fn expectArchive(fixture: *Fixture, content: p.DataLifecycle.Content, present: bool) !void {
     var name: [96]u8 = undefined;
     try t.expectEqual(present, try fixture.owner.objects.objectStore().head(try s.TableArchive.objectKey(content.sha256, &name)) != null);
+}
+
+test "direct Stream collection preserves pinned cuts and original receipts through native trim and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var fixture: Fixture = .{};
+    try fixture.open(tmp.dir, true);
+    defer fixture.close();
+    var definition = try s.LogDeclaration.prepare(t.allocator, .{
+        .object = .{ .scope = object.scope, .branch = 1, .object = 8 },
+        .revision = 1,
+        .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &columns },
+        .configuration = .{
+            .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
+            .retention = .{ .max_age_ms = null },
+            .policy = .{ .stream = .{ .compact_key_column = null } },
+        },
+        .limits = .{ .append_rows = 128, .append_bytes = 8192, .claim_rows = 16, .read_rows = 128, .read_bytes = 8192, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "",
+    });
+    defer definition.deinit();
+    const initialized: s.LogInitialization.Request = .{
+        .definition = p.Growth.current_definition,
+        .declared = try s.LogDeclaration.stage(fixture.data.objects(), &definition),
+        .operation = .{ .scope = object.scope, .principal = 0, .operation = 100 },
+        .ordinal = 0,
+        .partition = 23,
+    };
+    _ = try s.LogInitialization.initialize(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard());
+    var stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    defer stream.deinit() catch unreachable;
+    try t.expect((try stream.recoverStep(fixture.guard(), 1)).complete);
+    const op: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 0, .operation = 101 };
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
+    var buffer: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(definition.definition.schema, op, .stream, &.{.{ .cells = &.{cell} }}, &buffer);
+    const request: p.StreamQueue.Append = .{ .target = initialized.target(), .operation = op, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) };
+    const accepted = try stream.append(initialized.declared, request, payload, fixture.guard());
+    const read = try stream.beginRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .group = null, .from = 0, .until = null }, fixture.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const cursor = try stream.readCursor(read.handle(), authority, fixture.guard());
+    const cut = stream.root.position();
+    while (!(try stream.archive(cut, .{ .frames = 1 }, fixture.guard())).complete) {}
+    const checkpoint = try stream.checkpoint(cut, fixture.guard());
+    try t.expectEqual(cut.next_lsn, try stream.trimArchived(fixture.guard()));
+    try t.expectError(error.WalHistoryTrimmed, fixture.data.log().read(t.allocator, 23, 0, 1));
+    // A post-checkpoint archive transition needs its copied frames during replay,
+    // independently of whether any payload locator refers to those controls.
+    const replay_cut = stream.root.position();
+    while (!(try stream.archive(replay_cut, .{ .frames = 1 }, fixture.guard())).complete) {}
+    const orphan = try s.LogRead.stage(fixture.data.objects(), .{
+        .request = .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 999 }, .group = null, .from = 0, .until = null },
+        .declared = initialized.declared,
+        .cut = try stream.observe(initialized.declared, fixture.guard()),
+        .until = 1,
+        .batches = stream.root.batches,
+    });
+    const orphan_checkpoint = try s.LogRecovery.stage(fixture.data.objects(), .{ .root = stream.root, .commitment = stream.commitment });
+    _ = try fixture.collect();
+    var name: [96]u8 = undefined;
+    try t.expect(try fixture.data.objects().head(try s.LogRead.key(orphan.source, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(orphan_checkpoint.content, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) != null);
+    try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) != null);
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
+    var page = try stream.readPage(cursor, authority, .{ .rows = 1, .encoded_bytes = 8192 }, t.allocator, fixture.guard());
+    defer page.deinit();
+    try t.expectEqual(@as(u32, 1), page.count);
+    try t.expect(page.cursor.coverage.complete);
+    try t.expectEqualDeep(accepted, try stream.append(initialized.declared, request, payload, fixture.guard()));
+    _ = try stream.releaseRead(initialized.declared, .{ .target = initialized.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 103 }, .read = read.handle() }, fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) != null);
+    try stream.deinit();
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
+    try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) == null);
+    try t.expectEqualDeep(read, (try stream.operation(read.request.operation, fixture.guard())).?.outcome.read);
+    try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    try t.expect((try stream.recoverStep(fixture.guard(), 1)).complete);
+    try t.expectEqualDeep(accepted, (try stream.operation(op, fixture.guard())).?.outcome.append);
+    try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
 }
 
 test "direct Table collection expires old graph while preserving pins, pending work and original receipts" {

@@ -63,7 +63,9 @@ pub fn decode(allocator: std.mem.Allocator, frame: Log.Frame) !Evidence {
     return .{ .request = parsed.value, .accepted = .{ .partition = parsed.value.partition, .next_lsn = 1 }, .record = .{ .bytes = bytes.len, .sha256 = digest } };
 }
 
-fn read(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
+/// Raw retained-storage verification for recovery and collection owners. This
+/// performs no authorization; public observations use observe's current guard.
+pub fn readStored(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
     var batch = log.read(allocator, request.partition, 0, 1) catch |err| switch (err) {
         error.WalHistoryTrimmed => return retained(allocator, log, objects, request),
         else => return err,
@@ -109,7 +111,7 @@ pub fn observe(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.Obje
     }
     var declaration = try Declaration.load(allocator, objects, request.declared);
     defer declaration.deinit();
-    const evidence = try read(allocator, log, objects, request);
+    const evidence = try readStored(allocator, log, objects, request);
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     return evidence;
@@ -133,15 +135,15 @@ pub fn initialize(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.O
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidWalEpoch;
-    if (try log.tail(request.partition) != 0) return read(allocator, log, objects, request);
+    if (try log.tail(request.partition) != 0) return readStored(allocator, log, objects, request);
     // The publication guard owns fencing. Native data adapters reject direct
     // fence installation because only native authority may advance those epochs.
     // Append checks the guarded epochs and the exact empty-partition expectation.
     const receipt = log.append(request.partition, 0, fence.writer_epoch, fence.policy_epoch, .genesis, bytes) catch |err| switch (err) {
         error.StaleWriterEpoch, error.StalePolicyEpoch => return err,
-        error.WalLsnConflict => return read(allocator, log, objects, request),
+        error.WalLsnConflict => return readStored(allocator, log, objects, request),
         else => return error.LogInitializationUncertain,
     };
     if (receipt.partition_id != request.partition or receipt.lsn != 0 or receipt.next_lsn != 1 or receipt.writer_epoch != fence.writer_epoch or receipt.policy_epoch != fence.policy_epoch) return error.LogInitializationUncertain;
-    return read(allocator, log, objects, request) catch return error.LogInitializationUncertain;
+    return readStored(allocator, log, objects, request) catch return error.LogInitializationUncertain;
 }

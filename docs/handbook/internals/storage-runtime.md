@@ -1219,9 +1219,9 @@ latest root could discard pages needed on restart.
 
 ### Retained direct-data graph and physical collection
 
-What permits deleting a shared Table or catalog object after logical history
+What permits deleting a shared database object after logical history
 expiry? The [graph owner](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
-interprets accepted catalog/Table records; the
+interprets accepted catalog, Table and Stream records; the
 [local collection adapter](../../../packages/zig/transit-backend-local/src/DataCollection.zig)
 owns private progress, epochs, time fences and exact deletion. This separation
 keeps the backend independent of catalog semantics. The model assumes one local
@@ -1239,6 +1239,15 @@ An unflushed row retains its exact frame, while a frame used only as a row
 container does not recursively retain its obsolete roots. Current archive
 placement resolves old row locators. After logical expiry, an archive directory
 entry alone does not own the frame's bytes.
+
+Stream traversal uses the same separation of physical marks and typed contexts.
+Its selected checkpoint and hash-linked replay retain paged batch, producer,
+group, receipt and pin directories. A finite read owns its exact basis and batch
+cut. Released read bases stay retained if replay still needs them; a newer
+checkpoint can remove that dependency. Archive transitions retain the frames
+needed for readback verification. Unpublished checkpoints and read bases confer
+no ownership. Native trimming verifies both archive coverage and the accepted
+checkpoint frontier, preserving the record that publishes recovery authority.
 
 The mark frontier is a durable paged FIFO plus one owned active item. A checkpoint
 publishes those coordinates with all changed mark roots. A failed step discards
