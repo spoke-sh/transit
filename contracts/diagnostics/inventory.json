@@ -30563,6 +30563,39 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/CandidateObjects.zig": {
+      "errors": {
+        "CandidateMutationUnsupported": 2,
+        "CandidateObjectBudgetExceeded": 2,
+        "ImmutableObjectConflict": 1,
+        "InvalidCandidateObject": 1,
+        "InvalidCandidateObjectBase": 1,
+        "InvalidCandidateObjectBudget": 2,
+        "InvalidObjectRange": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "conditional()": "<inferred>",
+        "delete()": "<inferred>",
+        "get()": "<inferred>",
+        "head()": "<inferred>",
+        "init()": "<inferred>",
+        "persist()": "<inferred>",
+        "put()": "<inferred>",
+        "reset()": "<inferred>",
+        "slot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/DiskObjects.zig": {
       "errors": {
         "BufferTooSmall": 1,

@@ -37,6 +37,15 @@ tree; decoded metadata is owned while lease bytes borrow the caller's buffer.
 This artifact does not establish current lease status or publish a claim. Empty
 claims have no selection artifact.
 
+`CandidateObjects` derives one proposed transition's immutable pages and bitmap
+containers in bounded, reusable memory. It enforces separate byte, object-count
+and total resident budgets for that operation. Reads fall through to the existing
+provider; private puts reach the provider only through explicit `persist`.
+Replay can reconstruct and compare roots without writing or requiring old
+intermediate staging objects. Persistence alone publishes no root and supplies no
+WAL acceptance. The enclosing owner must clear derived page caches when abandoning
+or resetting a candidate and must preserve original identity after uncertainty.
+
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
 slices without copying, and keeps 64 trailing zero bytes for internal vector
