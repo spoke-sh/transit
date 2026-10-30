@@ -417,7 +417,9 @@ The current progress slice delivers:
   reclamation pass focused tests. Bounded durable claims now preserve exact
   selections and empty outcomes across expiry and disk recovery, retain original
   payload directories through collection, and refuse capacity or time uncertainty
-  before publication. Current lease inspection, durable settlement publication,
+  before publication. ACK/NACK/renewal and one-deadline expiry now publish full
+  successor roots, preserve original settlement outcomes through retirement and
+  restart, and keep exhausted FIFO heads nonterminal. Current lease inspection,
   installed execution, timer-wheel and affinity scheduling, and atomic DLQ
   transfer remain outstanding.
 

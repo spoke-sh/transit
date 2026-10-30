@@ -26,10 +26,10 @@ exhaustion retains an available but blocked source. Its DLQ reason retains the
 exact destination definition; it does not publish that destination or make the
 source terminal. Old roots remain independently readable.
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
-producer receipts to one fenced WAL record. Claims also publish acquired state,
-exact leases and deadlines together. Settlement changes still remain private
-candidates; timing-wheel scheduling and DLQ transfer are not
-enabled by these components.
+producer receipts to one fenced WAL record. Claims publish acquired state,
+exact leases and deadlines together; settlement and expiry publish their full
+successor state through that same owner. Timing-wheel scheduling and DLQ
+transfer are not enabled by these components.
 
 `QueueSelection` retains a nonempty claim's exact leases and payload placement
 cut in a bounded immutable artifact. It keeps original offsets, epochs and
@@ -117,11 +117,29 @@ The retained graph preserves each original selection's earlier batch and placeme
 directories. This storage receipt does not establish current lease status or
 settle any message.
 
-The Queue wrapper exposes enqueue, claim, observation, original outcome recovery and
-physical maintenance. It has no Stream consumption, group or age-expiry API.
+`QueuePartition.settle` publishes ACK, NACK and renewal with the exact current
+lease and a conservative liveness check repeated at publication. Renewal fences
+the older receipt. ACK obtains the canonical FIFO key from the original payload,
+including sealed placement, and advances one head. NACK preserves that head and
+records backoff or a blocked exhaustion reason. Original settlement receipts
+remain recoverable after expiry and retirement without consulting today's clock;
+current authorization still applies. Current policy governs fresh settlement,
+and compatible retired declarations can close accepted work.
+
+`expireOne` handles at most one earliest accepted deadline under the control
+reserve. It rechecks the exact renewed lease and authoritative time before
+publication. Uncertain time cannot authorize expiry. Retry backoff starts at the
+accepted deadline, so downtime does not restart the delay; exhaustion keeps the
+source nonterminal and blocked. A large clock jump still needs separate bounded
+steps. This operation supplies the durable transition for a future timer owner;
+it does not install a background scheduler or perform a DLQ transfer.
+
+The Queue wrapper exposes enqueue, claim, settlement, bounded expiry, observation,
+original outcome recovery and physical maintenance. It has no Stream
+consumption, group or age-expiry API.
 The service must still compose this storage boundary with the shared catalog
 operation namespace and current grants; installed Queue execution, current lease
-inspection and durable settlement publication remain open.
+inspection and automatic deadline scheduling remain open.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

@@ -35,8 +35,9 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
             return .{ .writer_epoch = 1, .policy_epoch = 1 };
         }
         fn release(_: *anyopaque) void {}
-        fn clock(_: *anyopaque) !?s.LogTime.Sample {
-            return .exact(100);
+        fn clock(raw: *anyopaque) !?s.LogTime.Sample {
+            const phase: *u8 = @ptrCast(@alignCast(raw));
+            return .exact(if (phase.* == 0) 100 else 500);
         }
     };
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
@@ -81,7 +82,13 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const claim: c.protocol.StreamQueue.Claim = .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 16, .lease_ms = 100 };
     const claimed = try owner.claim(declared, claim, guard);
     try t.expectEqual(@as(u32, 16), claimed.rows);
-    const later: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 4 };
+    var original_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const original_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &original_bytes);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 4 }, .lease = try original_selection.lease(0), .action = .ack }, guard);
+    _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 5 }, .lease = try original_selection.lease(2), .action = .{ .nack = .{ .visible_ms = 0 } } }, guard);
+    context = 1;
+    try t.expect(try owner.expireOne(declared, guard));
+    const later: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 6 };
     encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, later, .queue, 1, &bytes);
     long_key[299] = 'z';
     try encoder.append(.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = &long_key } } }} });
@@ -143,8 +150,11 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     for (0..24) |i| {
         long_key[299] = @intCast('a' + i);
         const key = try c.fuze.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = &long_key } } }, .utf8, .ascii_ci, &canonical);
-        try t.expectEqualDeep(s.QueueIndex.Head{ .first = i, .last = i }, (try queue.head(root.queue.?, key)).?);
-        try t.expectEqual(if (i < 16) s.Tack.State.acquired else s.Tack.State.available, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
+        if (i == 0) {
+            try t.expect(try queue.head(root.queue.?, key) == null);
+        } else try t.expectEqualDeep(s.QueueIndex.Head{ .first = i, .last = i }, (try queue.head(root.queue.?, key)).?);
+        const state: s.Tack.State = if (i == 0) .acked else if (i >= 3 and i < 16) .acquired else .available;
+        try t.expectEqual(state, try queue.state(root.queue.?, try queue.item(root.queue.?, i)));
     }
 }
 

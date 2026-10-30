@@ -48,6 +48,12 @@ pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard)
 pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
     return self.owner.claim(declared, request, guard);
 }
+pub fn settle(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Settlement, guard: Guard) !p.StreamQueue.SettlementReceipt {
+    return self.owner.settle(declared, request, guard);
+}
+pub fn expireOne(self: *Self, declared: Declaration.Stored, guard: Guard) !bool {
+    return self.owner.expireQueueOne(declared, guard);
+}
 pub fn flush(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !FlushProgress {
     return self.owner.flush(cut, guard);
 }

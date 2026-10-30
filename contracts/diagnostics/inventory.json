@@ -31349,7 +31349,7 @@
     "packages/zig/transit-storage/src/LogEvidence.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogEvidence": 13,
+        "InvalidLogEvidence": 15,
         "LogEvidenceMissing": 1,
         "LogEvidenceTooLarge": 1
       },
@@ -31360,7 +31360,8 @@
           "offset",
           "read",
           "release",
-          "claim"
+          "claim",
+          "settlement"
         ]
       },
       "error_sets": {},
@@ -31378,7 +31379,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -31464,11 +31465,13 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 10,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 35,
+        "InvalidLogHistory": 37,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
         "InvalidQueueClaimBudget": 1,
+        "InvalidQueueExpiration": 2,
+        "InvalidQueueHead": 1,
         "InvalidQueueSelection": 1,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
@@ -31489,7 +31492,7 @@
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
-        "LogOperationConflict": 7,
+        "LogOperationConflict": 8,
         "LogPartitionConflict": 4,
         "LogPayloadConflict": 3,
         "LogPositionExhausted": 1,
@@ -31502,8 +31505,9 @@
         "LogSegmentBudgetExceeded": 5,
         "LogTimeRegression": 2,
         "LogTimeUnavailable": 1,
+        "QueueItemMissing": 2,
         "QueueLeaseExpired": 1,
-        "QueueTimeUnavailable": 2,
+        "QueueTimeUnavailable": 4,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamCompactionNotDeclared": 1,
@@ -31539,6 +31543,8 @@
         "Owner().<return>.cancelCompaction()": "<inferred>",
         "Owner().<return>.candidate()": "<inferred>",
         "Owner().<return>.candidateClaim()": "<inferred>",
+        "Owner().<return>.candidateQueueExpiry()": "<inferred>",
+        "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
@@ -31552,6 +31558,7 @@
         "Owner().<return>.deinit()": "<inferred>",
         "Owner().<return>.expirationObservation()": "<inferred>",
         "Owner().<return>.expireHistory()": "<inferred>",
+        "Owner().<return>.expireQueueOne()": "<inferred>",
         "Owner().<return>.flush()": "<inferred>",
         "Owner().<return>.flushCandidate()": "<inferred>",
         "Owner().<return>.flushWithinBudget()": "<inferred>",
@@ -31574,6 +31581,7 @@
         "Owner().<return>.publishMaintenance()": "<inferred>",
         "Owner().<return>.publishRecord()": "<inferred>",
         "Owner().<return>.putGroup()": "<inferred>",
+        "Owner().<return>.queueCanonicalKey()": "<inferred>",
         "Owner().<return>.queueTime()": "<inferred>",
         "Owner().<return>.readBasis()": "<inferred>",
         "Owner().<return>.readBatch()": "<inferred>",
@@ -31593,6 +31601,7 @@
         "Owner().<return>.rewriteView()": "<inferred>",
         "Owner().<return>.rewriteWithinBudget()": "<inferred>",
         "Owner().<return>.selectCheckpoint()": "<inferred>",
+        "Owner().<return>.settle()": "<inferred>",
         "Owner().<return>.skipTimestamp()": "<inferred>",
         "Owner().<return>.skipTimestampWithinBudget()": "<inferred>",
         "Owner().<return>.superseded()": "<inferred>",
@@ -31607,7 +31616,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 548,
+        "try": 593,
         "catch": 16
       },
       "imports": [
@@ -31645,10 +31654,11 @@
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
-        "InvalidLogHistory": 9,
+        "InvalidLogHistory": 10,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
         "InvalidLogSegment": 3,
+        "InvalidQueueExpiration": 1,
         "InvalidQueueRoot": 2,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
@@ -31663,6 +31673,7 @@
           "flush",
           "rewrite",
           "expire",
+          "queue_expire",
           "compaction_start",
           "compaction_step",
           "compaction_publish",
@@ -31690,7 +31701,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -31702,6 +31713,7 @@
         "LogInitialization.zig",
         "LogRecovery.zig",
         "LogSegment.zig",
+        "LogTime.zig",
         "QueueIndex.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
@@ -32226,6 +32238,7 @@
         "claim()": "<inferred>",
         "deinit()": "<inferred>",
         "enqueue()": "<inferred>",
+        "expireOne()": "<inferred>",
         "flush()": "<inferred>",
         "observe()": "<inferred>",
         "open()": "<inferred>",
@@ -32233,6 +32246,7 @@
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "settle()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
       "open_error_set_uses": 0,

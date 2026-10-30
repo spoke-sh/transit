@@ -114,6 +114,7 @@ pub const Record = struct {
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
         rewrite: struct { receipt: q.AppendReceipt, segment: ?@import("LogSegment.zig").Descriptor },
         expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, clock_ms: u64, protected_next: u64 },
+        queue_expire: struct { lease: q.Lease, observed: @import("LogTime.zig").Sample },
         compaction_start,
         compaction_step: struct { from: u64, through: u64 },
         compaction_publish: d.Position,
@@ -138,6 +139,7 @@ pub const Record = struct {
                     evidence.target().partition != self.root.initialization.ordinal or self.root.receipts == null) return error.InvalidLogHistory;
                 if (evidence.outcome == .append and (evidence.outcome.append.next != self.root.next_offset or evidence.outcome.append.observed_ms != self.root.clock_ms)) return error.InvalidLogHistory;
                 if (evidence.outcome == .claim and evidence.outcome.claim.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
+                if (evidence.outcome == .settlement and evidence.outcome.settlement.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
             },
             .archive => |value| {
                 try value.cut.validate();
@@ -166,6 +168,14 @@ pub const Record = struct {
                 try value.cut.validate();
                 try value.receipt.validate();
                 if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.clock_ms or value.observed_ms > value.clock_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
+            },
+            .queue_expire => |value| {
+                try value.lease.validate();
+                try value.observed.validate();
+                if (self.root.queue == null or self.root.clock_ms != value.observed.latest_ms or
+                    value.observed.earliest_ms < value.lease.expires_ms or
+                    value.lease.offset >= self.root.next_offset or value.lease.target.partition != self.root.initialization.ordinal or
+                    !std.meta.eql(value.lease.target.interpretation.object, self.root.declared.declaration.interpretation.object)) return error.InvalidQueueExpiration;
             },
             .compaction_start => {
                 const work = self.root.compaction orelse return error.InvalidStreamCompaction;

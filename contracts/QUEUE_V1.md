@@ -22,9 +22,11 @@ complete Queue candidate without object writes. Bounded claims now publish their
 original selection, acquired bits, epochs, attempts and deadlines together.
 Original empty and nonempty outcomes survive restart and expiry; new selection
 requires a new operation. Capacity exhaustion refuses instead of publishing a
-false empty result. This is a storage composition boundary: the installed
-service does not yet admit Queue payload operations, and current lease
-inspection and settlement publication remain unimplemented.
+false empty result. ACK, NACK, renewal and bounded expiry also publish complete
+successor roots with current authorization and conservative deadline checks.
+This is a storage composition boundary: the installed service does not yet
+admit Queue payload operations, and current lease inspection and automatic
+deadline scheduling remain unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
@@ -163,7 +165,7 @@ establishes neither rejection nor acceptance.
 
 ## Required execution and storage boundaries
 
-The future Queue owner must provide these guarantees before enabling claims:
+The integrated Queue service must provide these guarantees before exposing claims:
 
 - Durable enqueue deduplication and exact claim-result recovery. Retrying a
   disconnected claim cannot lease a different selection under the same identity.
