@@ -274,7 +274,7 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-Hosted execution caps are 90 minutes for core, 150 each for storage-query and
+Hosted execution caps are 120 minutes for core, 150 each for storage-query and
 interfaces, 120 for installation-ui, 45 for launchers, and 360 for each SDK lane.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
@@ -299,8 +299,14 @@ startup, readiness or recovery deadlines.
 The [hosted core inventory record](../docs/history/qualification/runtime.md#hosted-core-execution-cap--2026-10-26)
 adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
 then the former 60-minute job cap interrupts the Table authorization build.
-The 90-minute core cap permits the remaining inventory to execute; it is not
-a measured completion time or a change to any proof's own deadline.
+The later [main run at `c5d845df298b`](https://github.com/spoke-sh/transit/actions/runs/41014310164/job/123927142527)
+takes 17.6 minutes for setup and passes its first 23 tasks in 69.8 minutes;
+the 90-minute job cap then cancels the Table authorization build again.
+A separate [PR run at `081815475b7b`](https://github.com/spoke-sh/transit/actions/runs/41010295995/job/123914501274)
+completes all 28 tasks in 73.7 minutes including setup. The 120-minute core cap
+allows for setup and compilation variance while retaining the full inventory.
+It is not a measured completion time or a change to any proof's own deadline;
+the cancelled main attempt remains incomplete evidence.
 
 The installation-ui job also runs all eight browser tasks. An earlier hosted
 experience inventory and its first two browser tasks totaled 37.55 minutes; separate local HTTP
