@@ -17,6 +17,17 @@ stage private roots; lease metadata, receipts and publication remain the owning
 partition's responsibility. Terminal cardinality is a reclamation eligibility
 hint and supplies no authority to delete retained payloads.
 
+`QueueItem` computes lease, renewal, retry and exhaustion candidates using
+trusted time intervals. `QueueIndex` stages paged per-offset metadata, `.tack`
+roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
+Only the head of each FIFO key enters eligibility; its delay, active lease and
+retry block its successors while other keys can advance. ACK moves that head;
+exhaustion retains an available but blocked source. A DLQ flag does not publish a
+destination or make the source terminal. Old roots remain independently readable.
+The enclosing owner must bind these changes to payloads, original receipts,
+current authorization and one accepted WAL record. These candidate components
+do not yet enable Queue execution, timing-wheel scheduling or DLQ transfer.
+
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
 slices without copying, and keeps 64 trailing zero bytes for internal vector
@@ -60,6 +71,8 @@ Trusted same-process adapters can retain `RecoveryState` from a fully recovered
 owner and pass it to `recoverStepSince`. Reuse verifies its exact accepted
 boundary, yields to newer checkpoints and preserves current-policy checks.
 These disposable hints are not persisted recovery authority.
+Its publication and recovery implementation lives in the internal `LogPartition`
+owner. Queue instantiation remains refused until Queue state joins that boundary.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

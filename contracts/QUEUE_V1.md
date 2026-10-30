@@ -71,6 +71,23 @@ floor with lease-affecting outcomes. A missing clock returns
 floor. Supplying an integer to this pure check does not establish a trusted
 clock source.
 
+The storage candidate transitions use `LogTime.Sample`'s trusted closed UTC
+interval. Claim visibility requires the lower bound to reach `visible_ms`;
+claim expiry is the upper bound plus the checked lease duration. Settlement
+requires the entire interval to precede expiry. An interval spanning expiry
+returns `QueueTimeUnavailable`, allowing neither settlement nor reassignment;
+expiry processing requires its lower bound to reach the accepted deadline.
+The eventual publication owner must repeat these checks under its guard and
+preserve the accepted upper clock floor. Pure transition checks alone provide
+no trusted clock or durable acceptance.
+
+NACK backoff starts at its observed upper bound and honors a later requested
+visibility time. Backoff after lease expiry starts at the accepted deadline;
+restart downtime or delayed cleanup does not start that delay again. Exhaustion
+keeps the source available but blocked, with its FIFO successor still blocked.
+A configured DLQ changes the blocked reason, not the source's terminal state.
+The common transaction must establish destination durability before transfer.
+
 ## Claim selection and original results
 
 `Claim` freezes the exact target, original operation, positive maximum row count
