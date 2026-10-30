@@ -1,0 +1,36 @@
+{
+  "tool": "Built-in image_gen",
+  "use_case": "stylized-concept",
+  "reference_images": [
+    {
+      "path": "images/d3-lateral-basin.jpg",
+      "role": "Selected R1 Activity style and continuity reference"
+    },
+    {
+      "path": "../transit-artwork/images/d1-refraction-graphite.jpg",
+      "role": "Original Refraction graphite, transparency and vermilion grammar"
+    }
+  ],
+  "iterations": [
+    {
+      "prompt": "Use case: stylized-concept.\nAsset type: a single very tall continuous editorial illustration for a website that reveals the drawing as the reader scrolls down. Request a 1024 x 3072 portrait, 1:3 width-to-height composition. No panels or separators.\n\nReference image 1: the selected R1 Activity drawing. Use its graphite hairlines, delicate imperfect contours, translucent surfaces, warm ivory paper and restrained vermilion thread. It is a continuity/style reference, not an image to duplicate.\nReference image 2: the project's original Refraction artwork. Use its rich, abstract, drawn spatial grammar; avoid literal cloth or physical objects.\n\nPrimary request: continue downward AFTER R1's large resonance basins. One connected fabric of very fine graphite strands gradually straightens, grows pockets, and finally reveals one angled pocket with a partly hidden, unidentifiable presence inside. The viewer discovers these stages by traveling DOWN the drawing. The pockets must be deformations of the SAME fabric, never separate objects placed on it.\n\nTop 0–18%: the remaining shallow resonance curves gently settle into many nearly parallel, long downward strands. There is no new large concentric basin here. The fabric is broad, quiet, very finely drawn, and already nearly straight.\n18–45%: a long, calm stretch of straightened graphite fabric with subtle cross-filaments and translucent density. This quiet interval matters. The fabric continues down the canvas rather than stopping or breaking into isolated ribbons. A single fine vermilion thread follows the surface.\n45–72%: the continuous fabric develops a few small, asymmetric pockets and soft folds, as if there are local recesses in an abstract field. Perspective is shallow and understated. The linework bends around their rims; these are gentle pockets in the fabric, not landscape craters, holes punched out, bubbles, sewn pouches or floating rings.\n72–95%: the same continuous fabric broadens and turns slightly in depth. One final larger pocket has an oblique three-quarter opening, tilted just enough toward the viewer to see partly past its lip. Fine graphite strands sweep around the rim and continue around the outside. Its interior is delicately shaded and mostly occluded. Only a partial denser tangle of filaments or a folded graphite mark is visible behind the near lip: it feels like something is held there, but the viewer cannot determine what. No distinct recognizable object. Do not fully reveal or name it. The vermilion thread quietly crosses the lip and disappears behind it.\nBottom 5%: the fabric tapers into pale trailing lines and warm paper.\n\nStyle: sophisticated abstract graphite drawing, very fine imperfect strands, vellum-like transparency, delicate line density defining form, slight oblique perspective. Rich yet restrained; keep the clarity and atmosphere of the references. One continuous downward gesture, generous paper margins at the sides, no horizon or ground plane. Warm ivory paper #f7f4ed with very subtle texture, graphite and silver gray, one vermilion thread.\nConstraints: no typography, labels, UI, arrows, nodes, icons, literal musical notes, mountains, cloth seams, stitching, bags, eyes, faces, animals, eggs, gems, glowing orbs, literal objects, glossy plastic, strong black fills or saturated secondary colors. The terminal pocket is the final reveal, not visible again earlier. Maintain clear top-to-bottom narrative spacing.",
+      "output": "exec-f48abc8e-0d7a-4559-a17d-e4920f15eec2.png",
+      "outcome": "The upper quarter repeated existing resonance basins; edited before use."
+    },
+    {
+      "prompt": "Edit the provided tall portrait. Make one targeted change: remove the repeated resonance basins from the upper quarter (top 0–25%). The webpage already shows those basins immediately before this image, so this continuation must begin AFTER them. Replace only that upper quarter with a broad continuous field of nearly straight, very fine downward graphite strands and one restrained vermilion thread, gently converging into the existing straight middle section. Start the strands at the top edge, with the paper margins on both sides. No circular or concentric basin in this upper quarter.\nPreserve the rest of the image: the long quiet straight interval, the small recesses farther down, the final angled pocket and partly hidden indeterminate graphite tangle, the trailing lines, exact graphite/ivory/vermilion palette, tactile fine linework and overall 1:3 portrait proportions. Keep the final pocket partly occluded. Do not add literal objects, text, new features or extra pockets. The image must remain one continuous fabric from top to bottom.",
+      "input": "exec-f48abc8e-0d7a-4559-a17d-e4920f15eec2.png",
+      "output": "exec-24a544dc-f31a-4811-a73c-71ee14426b70.png",
+      "outcome": "Selected continuation: straightened fabric, local pockets, final oblique opening with an unresolved interior."
+    }
+  ],
+  "asset": "images/d5-fabric-pockets.jpg",
+  "encoding": {
+    "format": "JPEG",
+    "quality": 92,
+    "sampling": "4:4:4",
+    "width": 724,
+    "height": 2172,
+    "composition_changed_during_encoding": false
+  }
+}

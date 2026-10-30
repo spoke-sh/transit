@@ -146,24 +146,26 @@ and shading carry the depth; the horizontal transformation is part of the artwor
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions
-stay within the artwork. Structure and Activity share this portrait; Context has
-its own scene below them, alongside its copy.
+stay within the artwork. Structure and Activity share this portrait. Its framing
+uses the two Activity chapters plus the Context copy height, independently of the
+longer Context illustration, preserving the selected R1 view.
 
-[`ContextEchoes`](src/components/ContextEchoes.tsx) renders a
-[transparent wavefront](../design/handbook-theme/images/d4-context-wavefront.webp)
-as a foreground result trace and two quieter grayscale echoes. Each layer uses
-the same lossless WebP asset; depth comes from separate scale and translation,
-not regenerated frames. As Context crosses the viewport, the layers separate at
-different rates while all three remain visible. The imagery suggests retained
-history; it does not display live results or imply stored historical versions.
+[`ContextFabric`](src/components/ContextFabric.tsx) continues below the resonance
+zones with a [single tall drawing](../design/handbook-theme/images/d5-fabric-pockets.jpg).
+The fabric straightens, forms small pockets, and ends in an angled opening with
+an indistinct form behind its rim. The complete 1:3 image stays in normal document
+flow. Native scrolling reveals it in sequence; there is no scroll-controlled
+crop, transform or independent animation. A soft mask blends its ends into the
+page. On tall desktop screens the accompanying copy stays alongside the drawing;
+short screens keep the copy in flow so its links remain reachable. The image is
+an abstract metaphor, not a display of data or a runtime guarantee.
 
-Both scenes share a passive scroll listener and one pending animation frame while
+Activity uses a passive scroll listener and one pending animation frame while
 the story is visible. Media changes and unmount cleanup cancel pending work and
-remove the motion properties. There is no continuous animation loop or animation
-dependency. Narrow layouts, reduced-motion preference and no-JavaScript rendering
-show the complete static illustrations. Context retains its separated layers and
-appears with its text. All narrative and handbook links are server-rendered;
-motion never gates navigation or access to content.
+remove its motion property. Narrow layouts, reduced-motion preference and
+no-JavaScript rendering show the complete illustrations in normal flow, with
+Context's text before its fabric on narrow screens. All narrative and handbook
+links are server-rendered; motion never gates navigation or access to content.
 
 The introduction's [three-plane map](static/img/architecture/three-plane-architecture.svg),
 Architecture's [responsibility map](static/img/architecture/system-responsibilities.svg),

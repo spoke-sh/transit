@@ -446,70 +446,62 @@ test("homepage artwork follows scroll and respects reduced motion", async ({
   await expect(page.getByRole("heading", { name: /^Define your data/ })).toBeVisible();
 });
 
-test("context retains visible echoes through scroll, reduced motion and resize", async ({
+test("context fabric reveals pockets through native scroll without hiding content", async ({
   page,
   baseURL,
 }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "no-preference", colorScheme: "light" });
   await page.goto(baseURL!);
-  const scene = page.getByRole("img", { name: /^A vermilion result trace/ });
-  const layers = scene.locator("img");
-  const transforms = () =>
-    layers.evaluateAll((images) => images.map((image) => getComputedStyle(image).transform));
+  const fabric = page.getByRole("img", { name: /^The graphite fabric straightens/ });
   await page.locator("#context-title").scrollIntoViewIfNeeded();
-  await expect(scene).toBeInViewport();
-  await expect(layers).toHaveCount(3);
+  await expect(fabric).toBeInViewport();
   await expect
-    .poll(() =>
-      layers.evaluateAll((images: HTMLImageElement[]) =>
-        images.every((image) => image.complete && image.naturalWidth === 1536),
-      ),
-    )
-    .toBe(true);
-  const initial = await transforms();
-  expect(new Set(initial).size).toBe(3);
-  await page.evaluate(() => window.scrollBy(0, 180));
-  await expect.poll(transforms).not.toEqual(initial);
-  const moving = await transforms();
-  for (let index = 0; index < initial.length; index++)
-    expect(moving[index]).not.toBe(initial[index]);
-  await page.screenshot({ path: testInfo.outputPath("context-echoes.png") });
+    .poll(() => fabric.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(724);
+  await expect(fabric).toHaveCSS("transform", "none");
+  await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "sticky");
+  const beginning = (await fabric.boundingBox())!;
+  // The terminal pocket is near 82% of the full drawing, beyond the first viewport.
+  expect(beginning.y + beginning.height * 0.82).toBeGreaterThan(1000);
+  await page.screenshot({ path: testInfo.outputPath("context-straight.png") });
+  await fabric.evaluate((image) => {
+    const bounds = image.getBoundingClientRect();
+    window.scrollTo(0, bounds.top + window.scrollY + bounds.height * 0.82 - innerHeight * 0.55);
+  });
+  await expect(page.locator("#context-title")).toBeInViewport();
+  const ending = (await fabric.boundingBox())!;
+  expect(ending.y).toBeLessThan(beginning.y);
+  expect(ending.height).toBe(beginning.height);
+  expect(ending.y + ending.height * 0.82).toBeCloseTo(550, 0);
+  await page.screenshot({ path: testInfo.outputPath("context-pocket.png") });
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
-  await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
-  const still = await transforms();
-  await page.evaluate(() => window.scrollBy(0, -180));
-  await expect.poll(transforms).toEqual(still);
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await expect(fabric).toHaveCSS("transform", "none");
+  expect((await fabric.boundingBox())!.height).toBe(beginning.height);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await scene.scrollIntoViewIfNeeded();
+  await fabric.scrollIntoViewIfNeeded();
   await expect(page.locator(".refraction-story")).not.toHaveAttribute("data-motion");
-  await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
-  expect(
-    await scene.evaluate((element) => {
-      const bounds = element.getBoundingClientRect();
-      return (
-        [...element.querySelectorAll("img")].every((image) => {
-          const layer = image.getBoundingClientRect();
-          return (
-            layer.left >= bounds.left &&
-            layer.right <= bounds.right &&
-            layer.top >= bounds.top &&
-            layer.bottom <= bounds.bottom
-          );
-        }) && document.documentElement.scrollWidth <= window.innerWidth
-      );
-    }),
-  ).toBe(true);
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  const mobile = (await fabric.boundingBox())!;
+  expect(mobile.height / mobile.width).toBeCloseTo(3, 2);
+  expect(mobile.x).toBeGreaterThanOrEqual(0);
+  expect(mobile.x + mobile.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("context-mobile.png") });
 
   await page.setViewportSize({ width: 1440, height: 600 });
-  await scene.scrollIntoViewIfNeeded();
+  await page.locator("#context-title").scrollIntoViewIfNeeded();
   await expect(page.locator(".refraction-story")).toHaveAttribute("data-motion", "enabled");
-  expect((await scene.boundingBox())!.height).toBeLessThanOrEqual(420.5);
+  // Short screens keep the copy in flow so its links remain reachable.
+  await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
+  await page.getByRole("link", { name: "Follow a declaration to its outcome" }).click();
+  await expect(page.locator("#inspect-whether-a-declaration-is-being-fulfilled")).toBeInViewport();
 });
 
 test("homepage content and navigation work without JavaScript", async ({ browser, baseURL }) => {
@@ -522,19 +514,15 @@ test("homepage content and navigation work without JavaScript", async ({ browser
     await page.goto(baseURL!);
     await expect(page.getByRole("heading", { name: "Give structure to change." })).toBeVisible();
     await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
-    const contextScene = page.getByRole("img", { name: /^A vermilion result trace/ });
+    const contextScene = page.getByRole("img", { name: /^The graphite fabric straightens/ });
     await contextScene.scrollIntoViewIfNeeded();
     await expect(contextScene).toBeVisible();
     await expect(page.locator(".context-visual")).toHaveCSS("position", "static");
     await expect
-      .poll(() =>
-        contextScene
-          .locator("img")
-          .evaluateAll((images: HTMLImageElement[]) =>
-            images.every((image) => image.complete && image.naturalWidth === 1536),
-          ),
-      )
-      .toBe(true);
+      .poll(() => contextScene.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(724);
+    const bounds = (await contextScene.boundingBox())!;
+    expect(bounds.height / bounds.width).toBeCloseTo(3, 2);
     await page.getByRole("link", { name: "Go to the handbook" }).click();
     await expect(page.locator("#handbook-title")).toBeInViewport();
     await page.getByRole("link", { name: "Follow the quickstart", exact: true }).click();

@@ -1,14 +1,15 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
-import ContextEchoes from "./ContextEchoes";
+import ContextFabric from "./ContextFabric";
 
 import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
 export default function RefractionStory(): ReactElement {
   const story = useRef<HTMLElement>(null);
+  const activity = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const artwork = useRef<HTMLImageElement>(null);
-  const context = useRef<HTMLElement>(null);
+  const contextCopy = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = story.current;
     if (!element) return;
@@ -20,27 +21,19 @@ export default function RefractionStory(): ReactElement {
     const paint = () => {
       frame = 0;
       if (!media.matches || !visible) return;
-      const bounds = element.getBoundingClientRect();
+      const bounds = activity.current?.getBoundingClientRect();
+      if (!bounds) return;
+      // Keep the selected three-chapter framing independent of the new fabric's length.
+      const referenceHeight = bounds.height + (contextCopy.current?.offsetHeight ?? 0);
       const progress = Math.min(
         1,
-        Math.max(0, -bounds.top / Math.max(1, bounds.height - window.innerHeight)),
+        Math.max(0, -bounds.top / Math.max(1, referenceHeight - window.innerHeight)),
       );
       const travel = Math.max(
         0,
         (artwork.current?.offsetHeight ?? 0) - (viewport.current?.clientHeight ?? 0),
       );
       element.style.setProperty("--scene-shift", `${(-progress * travel).toFixed(2)}px`);
-      const contextBounds = context.current?.getBoundingClientRect();
-      if (contextBounds) {
-        const depth = Math.min(
-          1,
-          Math.max(
-            0,
-            (window.innerHeight - contextBounds.top) / (window.innerHeight + contextBounds.height),
-          ),
-        );
-        element.style.setProperty("--context-depth", depth.toFixed(4));
-      }
     };
     const schedule = () => {
       if (media.matches && visible && !frame) frame = window.requestAnimationFrame(paint);
@@ -49,7 +42,6 @@ export default function RefractionStory(): ReactElement {
       if (frame) window.cancelAnimationFrame(frame);
       frame = 0;
       element.style.removeProperty("--scene-shift");
-      element.style.removeProperty("--context-depth");
       if (media.matches) element.dataset.motion = "enabled";
       else delete element.dataset.motion;
       schedule();
@@ -70,13 +62,12 @@ export default function RefractionStory(): ReactElement {
       window.removeEventListener("resize", schedule);
       if (frame) window.cancelAnimationFrame(frame);
       element.style.removeProperty("--scene-shift");
-      element.style.removeProperty("--context-depth");
       delete element.dataset.motion;
     };
   }, []);
   return (
     <section ref={story} className="refraction-story" aria-label="From structure to change">
-      <div className="refraction-activity">
+      <div ref={activity} className="refraction-activity">
         <div className="refraction-visual">
           <div ref={viewport} className="refraction-window">
             <img
@@ -132,8 +123,8 @@ export default function RefractionStory(): ReactElement {
           </section>
         </div>
       </div>
-      <section ref={context} className="refraction-context" aria-labelledby="context-title">
-        <div className="refraction-chapter">
+      <section className="refraction-context" aria-labelledby="context-title">
+        <div ref={contextCopy} className="refraction-chapter context-copy">
           <p className="transit-kicker">03 / CONTEXT</p>
           <h2 id="context-title">
             See the result.
@@ -156,7 +147,7 @@ export default function RefractionStory(): ReactElement {
           </Link>
         </div>
         <div className="context-visual">
-          <ContextEchoes />
+          <ContextFabric />
         </div>
       </section>
     </section>
