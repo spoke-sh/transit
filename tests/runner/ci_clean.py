@@ -43,8 +43,8 @@ def main():
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
     suite = json.loads((ROOT / "tests/runner/suite.json").read_text())
-    selection.add_argument("--lane", choices=[*suite["lanes"], "bindings"],
-                           help="qualify one lane or both bindings lanes in a clean checkout; not the full suite")
+    selection.add_argument("--lane", choices=[*suite["lanes"], "sdks"],
+                           help="qualify one lane or all SDK lanes in a clean checkout; not the full suite")
     selection.add_argument("--check", choices=("fast", "contracts", "core", "all"),
                            help="run one check module scope in a clean checkout; not the CI suite")
     parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),

@@ -25,7 +25,7 @@ development and checks.
 Go SDK work uses `nix develop .#bindings`: `just bindings::go-build` packages the
 module and native library, `just bindings::go-check` runs formatting, vetting,
 race and cgo pointer checks, and `just bindings::go-sdk-test` runs the installed
-raw-client and example recovery proof. The latter belongs to `bindings-2`.
+raw-client and example recovery proof. The latter belongs to `sdks-systems`.
 
 The root [justfile](../justfile) keeps common commands and modules: `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
@@ -83,13 +83,14 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just check all` | Runs core, Board and documentation-site validation; install locked frontend dependencies first |
 | `just ci` | Lists CI commands; this command executes no qualification |
 | `just ci all` | Loads the pinned bindings shell and runs foundation, package, recovery, Board/frontend, local launcher and language checks |
-| `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
-| `just ci::bindings`, `just ci clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
-| `just ci::growth`, `just ci::interfaces`, `just ci::launchers` | Run the storage/query, SQL/transport and launcher/build-smoke lanes from the same inventory |
+| `just ci::core`, `just ci::installation-ui`, `just ci::browser` | Run individual CI lanes with task timings; select the matching shell, and install the browser before its proof |
+| `just ci::sdks`, `just ci clean --lane sdks` | Run all four SDK suites sequentially, preserving the full language inventory |
+| `just ci::sdks-conformance`, `just ci::sdks-scripting`, `just ci::sdks-systems`, `just ci::sdks-managed` | Run shared conformance or one language family; see the SDK lane table below |
+| `just ci::storage-query`, `just ci::interfaces`, `just ci::launchers` | Run the storage/query, SQL/transport and launcher/build-smoke lanes from the same inventory |
 | `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery, Console and SQL result checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci all` inventory without existing workspace outputs |
-| `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all eight lane reports at the same committed revision |
+| `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all ten lane reports at the same committed revision |
 | `just ci clean --check fast`, `just ci clean --check contracts` | Run a check-module scope from committed HEAD and retain preparation and validation reports; `--check core` and `--check all` select the broader repository scopes |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
@@ -264,8 +265,8 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-Hosted execution caps are 90 minutes for core, 150 each for growth and interfaces, 120 for experience,
-45 for launchers, and 360 for each of the two bindings lanes.
+Hosted execution caps are 90 minutes for core, 150 each for storage-query and
+interfaces, 120 for installation-ui, 45 for launchers, and 360 for each SDK lane.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
 hosted setup, and one original 40 KiB SQL mutation takes 56.61 minutes to complete.
@@ -292,19 +293,29 @@ then the former 60-minute job cap interrupts the Table authorization build.
 The 90-minute core cap permits the remaining inventory to execute; it is not
 a measured completion time or a change to any proof's own deadline.
 
-The experience job also runs all seven browser tasks. The hosted experience
-inventory and first two browser tasks total 37.55 minutes; separate local HTTP
+The installation-ui job also runs all eight browser tasks. An earlier hosted
+experience inventory and its first two browser tasks totaled 37.55 minutes; separate local HTTP
 and gRPC browser/worker proofs take 28.08 minutes. The 120-minute outer cap
 allows those tasks, the remaining reactive schedules and setup to execute.
 These observations span different hosts and are not a combined hosted duration
 or a changed per-proof deadline.
 
-The bindings split record (archived)
-records the complete inventory partition. Python, Node, Rust and Ruby run with
-the shared boundary and cross-language proofs in `bindings-1`; C/C++, Java,
-.NET and Erlang/Elixir run in `bindings-2`. Each job builds its own dependencies.
-Both jobs are required, share the pinned bindings shell, and retain separate
-completion reports. The full `just ci::bindings` command runs both sequentially.
+SDK qualification is grouped by purpose, with matching hosted job and Just names:
+
+| Lane | Qualification |
+| --- | --- |
+| `sdks-conformance` | Generated contracts, native boundary, logical types, cross-language interoperability, SQL and connector fault/preparation proofs |
+| `sdks-scripting` | Installed Python, Node and Ruby consumers |
+| `sdks-systems` | Installed Rust, Go and C/C++ consumers |
+| `sdks-managed` | Installed Java, .NET and Erlang/Elixir consumers |
+
+Each recipe builds its own dependencies. All four lanes are required, share the
+pinned `ci-bindings` shell and `bindings` cache group, and retain separate completion
+reports. `just ci::sdks` runs them sequentially. This replaces the numbered binding
+lanes without adding or removing proofs. The extra jobs repeat shell/cache and
+native preparation within the existing seven-job ceiling; their cost needs new
+hosted measurements. Archived lane names, timings and budget identities remain
+evidence for their original inventories.
 
 Installed SDK Table schedules select `--cold`: the native history plus SDK and
 prepared-parameter cases exceed the hot-only fixture's 64 MiB total capacity.
@@ -359,7 +370,7 @@ Board install recipe also includes the site. `just transit-docs::dev` starts the
 Docusaurus development server on loopback. `build` produces static output and
 `serve` previews it. `just transit-docs::check` runs strict types, Vite+ checks,
 source/reference tests and a production build that rejects broken links and
-anchors; it is included in `just check all` and the experience lane.
+anchors; it is included in `just check all` and the installation-ui lane.
 
 `just transit-docs::browser-install` installs Chromium. Then run
 `just transit-docs::browser` to exercise desktop/mobile navigation, generated

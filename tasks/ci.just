@@ -31,17 +31,17 @@ core:
 formal:
     python3 -B tests/runner/ci.py formal
 
-# Growing state, Station and independent Arrow qualification.
-growth:
-    python3 -B tests/runner/ci.py growth
+# Storage, catalog, query and independent Arrow qualification.
+storage-query:
+    python3 -B tests/runner/ci.py storage-query
 
 # SQL protocols, relational callers and HTTP/gRPC interfaces.
 interfaces:
     python3 -B tests/runner/ci.py interfaces
 
-# Frontend, instrumentation, Board and persistent native launcher proofs.
-experience:
-    python3 -B tests/runner/ci.py experience
+# Installation, Board, documentation and observability proofs.
+installation-ui:
+    python3 -B tests/runner/ci.py installation-ui
 
 # Persistent counter launcher, artifact updates and foreground lifecycle.
 launchers:
@@ -51,16 +51,25 @@ launchers:
 cost run:
     python3 -B tests/runner/ci_cost.py --run {{quote(run)}}
 
-# Shared native boundary and cross-language Station behavior/Arrow proofs.
-bindings:
-    python3 -B tests/runner/ci.py bindings
+# Run all SDK conformance and language suites sequentially.
+sdks:
+    python3 -B tests/runner/ci.py sdks
 
-# Independent complete portions of the bindings inventory for hosted execution.
-bindings-1:
-    python3 -B tests/runner/ci.py bindings-1
+# Generated contracts, native boundary and cross-language interoperability.
+sdks-conformance:
+    python3 -B tests/runner/ci.py sdks-conformance
 
-bindings-2:
-    python3 -B tests/runner/ci.py bindings-2
+# Installed Python, Node and Ruby SDK consumers.
+sdks-scripting:
+    python3 -B tests/runner/ci.py sdks-scripting
+
+# Installed Rust, Go and C/C++ SDK consumers.
+sdks-systems:
+    python3 -B tests/runner/ci.py sdks-systems
+
+# Installed Java, .NET and Erlang/Elixir SDK consumers.
+sdks-managed:
+    python3 -B tests/runner/ci.py sdks-managed
 
 # Browser qualification remains explicit for local developers.
 browser:

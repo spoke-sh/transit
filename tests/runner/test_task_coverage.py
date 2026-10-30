@@ -29,7 +29,7 @@ class TaskCoverage(unittest.TestCase):
         suite["nested_tasks"] = dict(reversed(list(suite["nested_tasks"].items())))
         tasks = self.validate(suite)
         self.assertIn("bindings::direct-catalog-beam", tasks)
-        self.assertNotIn("bindings::authorization", suite["lanes"]["bindings-1"])
+        self.assertNotIn("bindings::authorization", suite["lanes"]["sdks-scripting"])
         self.assertIn("bindings::authorization", suite["external_tasks"]["focused"])
 
     def test_each_missing_language_owner_fails(self):
@@ -51,7 +51,7 @@ class TaskCoverage(unittest.TestCase):
         for task in ("bindings::authorization", "bindings::direct-catalog-python"):
             with self.subTest(task=task):
                 suite = copy.deepcopy(self.suite)
-                suite["lanes"]["bindings-1"].append(task)
+                suite["lanes"]["sdks-scripting"].append(task)
                 with self.assertRaisesRegex(AssertionError, "SQL-MUTATION-01.*found 2"):
                     self.validate(suite)
 

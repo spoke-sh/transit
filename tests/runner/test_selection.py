@@ -16,17 +16,17 @@ class Selection(unittest.TestCase):
     def test_transitive_package_and_combined_model_inputs(self):
         plan = select(["sdks/go/client/types.go", "tests/verification/models/Wal.cfg"], mode="enabled")
         self.assertFalse(plan["full"])
-        self.assertEqual(plan["lanes"], {"formal": ["test::wal-model"], "bindings-2": ["bindings::go-sdk-test"]})
+        self.assertEqual(plan["lanes"], {"formal": ["test::wal-model"], "sdks-systems": ["bindings::go-sdk-test"]})
         self.assertTrue({"go-module", "go-package", "go-installed-consumer"} <= set(plan["groups"]))
         self.assertIn("private-disk-authority", plan["resources"])
         self.assertEqual({row["lane"]: row["cache_writer"] for row in plan["matrix"]["include"]},
-                         {"formal": False, "bindings-2": True})
+                         {"formal": False, "sdks-systems": True})
         mixed = select(["sdks/go/client/types.go", "docs/handbook/reference/callers.md"], mode="enabled")
         self.assertTrue(mixed["checks"] and mixed["documentation"])
         self.assertFalse(plan["documentation"])
         generated = select(["sdks/go/internal/nativeclient/transit_client.h"], mode="enabled")
-        self.assertEqual(generated["lanes"], {"bindings-1": ["bindings::check"],
-                                              "bindings-2": ["bindings::go-sdk-test"]})
+        self.assertEqual(generated["lanes"], {"sdks-conformance": ["bindings::check"],
+                                              "sdks-systems": ["bindings::go-sdk-test"]})
 
     def test_each_reviewed_input_reaches_an_executable_owner(self):
         for group in SUITE["selection"]["groups"].values():
@@ -107,7 +107,7 @@ class Selection(unittest.TestCase):
             result = subprocess.run([*command, base], cwd=root, capture_output=True, check=True)
             plan = json.loads(result.stdout)
             self.assertEqual(plan["paths"], ["docs/example.md", "sdks/go/client/types.go"])
-            self.assertEqual(plan["lanes"], {"bindings-2": ["bindings::go-sdk-test"]})
+            self.assertEqual(plan["lanes"], {"sdks-systems": ["bindings::go-sdk-test"]})
             self.assertTrue(plan["documentation"])
             self.assertNotEqual(subprocess.run([*command, "missing"], cwd=root, capture_output=True).returncode, 0)
             # A move into an unreviewed owner must widen, not follow the old owner alone.
@@ -131,13 +131,13 @@ class Selection(unittest.TestCase):
             env = {k: v for k, v in os.environ.items() if k != "TRANSIT_CI_SELECTION_PATH"}
             env["PATH"] = str(root) + os.pathsep + env["PATH"]
             env["TRANSIT_CI_SELECTION_PATH"] = str(selection)
-            command = [sys.executable, "-B", runner / "ci.py", "bindings-2", "--selection", selection]
+            command = [sys.executable, "-B", runner / "ci.py", "sdks-systems", "--selection", selection]
             # Hosted jobs supply the selection through the environment. It must
             # select this task without becoming an unknown Transit setting in
             # the actual child process. Later calls also check explicit arguments.
             subprocess.run(command[:-2], cwd=root, env=env, check=True, capture_output=True)
             self.assertEqual((root / "executed").read_text().splitlines(), ["bindings::go-sdk-test"])
-            metadata = json.loads((root / ".cache/ci/bindings-2.meta.json").read_text())
+            metadata = json.loads((root / ".cache/ci/sdks-systems.meta.json").read_text())
             self.assertTrue(metadata["completed"])
             self.assertEqual(metadata["expected_tasks"], ["bindings::go-sdk-test"])
             self.assertEqual(metadata["selection"], original)
@@ -150,14 +150,14 @@ class Selection(unittest.TestCase):
                 elif kind == "foreign-source":
                     tampered["checkout_sha"] = base
                 else:
-                    tampered["lanes"]["bindings-2"] = {"omitted-task": [], "unknown-task": ["unknown::task"],
+                    tampered["lanes"]["sdks-systems"] = {"omitted-task": [], "unknown-task": ["unknown::task"],
                         "duplicate-task": ["bindings::go-sdk-test"] * 2}[kind]
                 selection.write_text(json.dumps(tampered))
                 (root / "executed").unlink(missing_ok=True)
                 result = subprocess.run(command, cwd=root, env=env, capture_output=True)
                 self.assertNotEqual(result.returncode, 0, kind)
                 self.assertFalse((root / "executed").exists(), kind)
-            # The hosted experience job runs the browser lane separately after
+            # The hosted installation-ui job runs the browser lane separately after
             # ordinary checks, using the same source-bound selection.
             subprocess.run([sys.executable, "-B", runner / "ci_select.py", "--event", "push",
                             "--output", "selection.json"], cwd=root, check=True, capture_output=True)

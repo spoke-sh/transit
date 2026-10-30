@@ -129,7 +129,7 @@ jobs:
         if: inputs.cache_mode != 'cold' && matrix.cache != 'formal'
         uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
-          # Separate closures: the experience lane never restores Kubernetes,
+          # Separate closures: the installation-ui lane never restores Kubernetes,
           # provider CLIs, PyArrow, or their build dependencies. Small local
           # plugin/environment changes rebuild locally without a store upload.
           primary-key: nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/*.patch', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
@@ -169,7 +169,7 @@ jobs:
             zig-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
             zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
       - name: Install locked Board frontend dependencies
-        if: matrix.lane == 'experience' || matrix.lane == 'launchers'
+        if: matrix.lane == 'installation-ui' || matrix.lane == 'launchers'
         run: nix develop .#${{ matrix.shell }} --command just transit-board::install
       - name: Install locked Node binding dependencies
         if: matrix.cache == 'bindings'
@@ -180,10 +180,10 @@ jobs:
       - name: Run ${{ matrix.lane }} checks
         run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
       - name: Install browser and host dependencies
-        if: matrix.lane == 'experience'
+        if: matrix.lane == 'installation-ui'
         run: nix develop .#${{ matrix.shell }} --command vp exec --filter @transit/board-web playwright install --with-deps chromium
       - name: Qualify embedded Board in Chromium
-        if: matrix.lane == 'experience'
+        if: matrix.lane == 'installation-ui'
         run: nix develop .#${{ matrix.shell }} --command just ci::browser
       - name: Preserve task timings and completion evidence
         if: always()

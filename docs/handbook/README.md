@@ -126,7 +126,7 @@ reload, but the index is built when configuration loads.
 
 `just transit-docs::check` runs Vite+ lint/format, strict TypeScript, reference/link
 transform tests and a production build with broken links/anchors treated as
-errors. `just check all` includes it. The experience CI lane owns it on ordinary runs;
+errors. `just check all` includes it. The installation-ui CI lane owns it on ordinary runs;
 documentation-only PRs run it through the dedicated documentation job. This
 includes site code and assets under `docs/handbook`; shared dependency, contract
 and runtime changes still select the full CI path. Markdown links across the
