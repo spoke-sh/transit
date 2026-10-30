@@ -95,6 +95,11 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await expect(inspector.locator("code")).toHaveText(resultIdentity);
   await inspector.getByRole("button", { name: "Return to workspace", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible();
+  await inspector.getByRole("button", { name: "Open detail in workspace", exact: true }).click();
+  await page.getByRole("button", { name: "Dataset navigation", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Object navigator" })).toBeVisible();
+  await expect(page.getByRole("table")).toBeVisible();
+  await page.getByRole("button", { name: "Dataset navigation", exact: true }).click();
   await inspector.getByRole("button", { name: "Profile", exact: true }).click();
   expect(runs).toBe(1);
   expect(

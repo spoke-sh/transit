@@ -128,6 +128,7 @@ export function Workbench({
     setHost,
     navigation,
     toggleNavigation: () => {
+      setExpanded(false);
       setNavigation((previous) => !previous);
       if (window.matchMedia("(max-width: 1350px)").matches) {
         setSelection(null);
