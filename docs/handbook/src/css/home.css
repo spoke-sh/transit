@@ -212,37 +212,37 @@
   margin: 0;
 }
 @media (min-width: 997px) and (prefers-reduced-motion: no-preference) {
-  .refraction-story[data-motion="enabled"] .refraction-visual {
+  :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .refraction-visual {
     position: sticky;
     top: calc(var(--ifm-navbar-height) + 12vh);
   }
-  .refraction-story[data-motion="enabled"] .refraction-chapter {
+  :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .refraction-chapter {
     min-height: 80vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
   }
-  .refraction-story[data-motion="enabled"] .refraction-window {
+  :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .refraction-window {
     max-height: 70vh;
   }
-  .refraction-story[data-motion="enabled"] .refraction-artwork {
+  :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .refraction-artwork {
     transform: translateY(var(--scene-shift, 0px));
   }
 }
 @media (min-width: 997px) and (min-height: 760px) and (prefers-reduced-motion: no-preference) {
-  .refraction-story[data-motion="enabled"] .context-copy {
+  :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .context-copy {
     position: sticky;
     top: calc(var(--ifm-navbar-height) + 2vh);
   }
   @supports (height: 1cqw) {
-    .refraction-story[data-motion="enabled"] .context-visual {
+    :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .context-visual {
       container-type: inline-size;
     }
-    .refraction-story[data-motion="enabled"] .context-track {
+    :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .context-track {
       /* The selected fabric is 1:3; reserve a short passage at its final pocket. */
       height: calc(300cqw + 45vh);
     }
-    .refraction-story[data-motion="enabled"] .context-fabric {
+    :root:not([data-theme="dark"]) .refraction-story[data-motion="enabled"] .context-fabric {
       position: sticky;
       /* Scroll the whole drawing first, then hold its lower edge within view. */
       top: calc(100vh - 300cqw - 2rem);

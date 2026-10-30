@@ -1,0 +1,178 @@
+/* Both compositions are server-rendered. Docusaurus owns the selected theme. */
+.transit-hero-art .transit-hero-dark,
+.radiograph-heading,
+.radiograph-visual {
+  display: none;
+}
+[data-theme="dark"] .transit-hero-light,
+[data-theme="dark"] .refraction-visual,
+[data-theme="dark"] .context-visual {
+  display: none;
+}
+[data-theme="dark"] .transit-hero-dark {
+  display: block;
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 87%, transparent);
+}
+[data-theme="dark"] .radiograph-heading,
+[data-theme="dark"] .radiograph-visual {
+  display: block;
+}
+.radiograph-heading {
+  padding-top: 2rem;
+  margin-bottom: 3rem;
+}
+.radiograph-heading h2 {
+  font-family: var(--transit-serif);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 3.5vw, 3.4rem);
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+  margin: 1.4rem 0;
+}
+[data-theme="dark"] .refraction-track {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr;
+  column-gap: 4%;
+}
+.radiograph-visual {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: start;
+}
+[data-theme="dark"] .refraction-activity,
+[data-theme="dark"] .refraction-context,
+[data-theme="dark"] .refraction-narrative {
+  display: block;
+}
+[data-theme="dark"] .refraction-activity {
+  grid-column: 1;
+  grid-row: 1;
+}
+[data-theme="dark"] .refraction-context {
+  grid-column: 1;
+  grid-row: 2;
+}
+.radiograph-volume {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: clip;
+}
+.radiograph-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mask-image: radial-gradient(ellipse closest-side, #000 60%, transparent 100%);
+}
+.radiograph-controls {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  border-top: 1px solid var(--docs-line);
+  padding: 1rem 0;
+  font-size: 0.75rem;
+}
+.radiograph-controls a {
+  color: var(--docs-muted);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+@media (max-width: 996px) {
+  [data-theme="dark"] .refraction-track {
+    display: flex;
+    flex-direction: column;
+  }
+  .radiograph-visual {
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
+  }
+  .radiograph-heading {
+    margin-bottom: 1.5rem;
+  }
+}
+
+.radiograph-camera {
+  display: none;
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(var(--camera-z, 0px));
+}
+.radiograph-plane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.radiograph-near {
+  transform: translateZ(80px);
+  opacity: 0.64;
+}
+.radiograph-middle {
+  transform: translateZ(-240px);
+  opacity: 0.65;
+}
+.radiograph-far {
+  transform: translateZ(-650px);
+  opacity: 0.85;
+  mask-image: radial-gradient(ellipse closest-side, #000 30%, transparent 100%);
+}
+.radiograph-volume::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      var(--ifm-background-color),
+      transparent 6%,
+      transparent 94%,
+      var(--ifm-background-color)
+    ),
+    linear-gradient(
+      0deg,
+      var(--ifm-background-color),
+      transparent 8%,
+      transparent 92%,
+      var(--ifm-background-color)
+    );
+}
+.radiograph-controls button {
+  color: var(--ifm-font-color-base);
+  background: transparent;
+  border: 1px solid var(--docs-line);
+  padding: 0.35rem 0.65rem;
+  font: inherit;
+  cursor: pointer;
+}
+@media (min-width: 997px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-visual {
+    position: sticky;
+    top: calc(var(--ifm-navbar-height) + 2vh);
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-volume {
+    height: calc(85vh - var(--ifm-navbar-height));
+    aspect-ratio: auto;
+    perspective: 900px;
+    perspective-origin: 61% 50%;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-poster {
+    visibility: hidden;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .radiograph-camera {
+    display: block;
+  }
+  [data-theme="dark"] .refraction-track[data-depth-motion="enabled"] .refraction-chapter {
+    min-height: 110vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

@@ -2,8 +2,10 @@ import type { ReactElement } from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import refraction from "../../../design/transit-artwork/images/d1-refraction-graphite.jpg";
+import radiograph from "../../../design/handbook-theme/images/d6-radiograph.jpg";
 import RefractionStory from "../components/RefractionStory";
 import "../css/home.css";
+import "../css/radiograph.css";
 
 const chapters = [
   [
@@ -74,10 +76,20 @@ export default function Home(): ReactElement {
           </div>
           <figure className="transit-hero-art">
             <img
+              className="transit-hero-light"
               src={refraction}
               alt="A measured score becomes waves, branching upward into graphite terrain and downward into translucent planes, joined by a vermilion thread."
               width={1774}
               height={887}
+              fetchPriority="high"
+            />
+            <img
+              className="transit-hero-dark"
+              src={radiograph}
+              alt="Silver membranes open into depth, exposing translucent internal folds and a vermilion thread receding through them."
+              width={1774}
+              height={887}
+              loading="lazy"
               fetchPriority="high"
             />
           </figure>
