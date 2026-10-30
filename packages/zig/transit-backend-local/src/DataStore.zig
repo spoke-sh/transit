@@ -96,6 +96,8 @@ fn trimUnitImpl(self: *Self, id: u64, before: u64) !TrimProgress {
     const frame = latest.frames[0];
     const through = if (std.mem.startsWith(u8, frame.payload, "LOGPART1") or std.mem.startsWith(u8, frame.payload, "LINIT001"))
         try storage.StreamPartition.archivedThrough(self.backend.allocator, frame)
+    else if (std.mem.startsWith(u8, frame.payload, "DOCPART1") or std.mem.startsWith(u8, frame.payload, "DINIT001"))
+        try storage.DocumentPartition.archivedThrough(self.backend.allocator, frame)
     else
         try storage.TablePartition.archivedThrough(self.backend.allocator, frame);
     if (before > through) return error.NoCheckpointIntent;

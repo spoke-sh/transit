@@ -91,13 +91,40 @@ pub fn decode(allocator: std.mem.Allocator, frame: Log.Frame) !Evidence {
 }
 
 pub fn readStored(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
-    _ = objects;
-    var batch = try log.read(allocator, request.partition, 0, 1);
+    var batch = log.read(allocator, request.partition, 0, 1) catch |err| switch (err) {
+        error.WalHistoryTrimmed => return retained(allocator, log, objects, request),
+        else => return err,
+    };
     defer batch.deinit();
     if (batch.frames.len != 1) return error.DocumentInitializationMissing;
     const evidence = try decode(allocator, batch.frames[0]);
     try request.requireSame(evidence.request);
     return evidence;
+}
+
+fn retained(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request) !Evidence {
+    const Records = @import("DocumentPartitionRecord.zig");
+    const Recovery = @import("DocumentRecovery.zig");
+    const end = try log.tail(request.partition);
+    if (end <= 1) return error.WalHistoryTrimmed;
+    var latest = try log.read(allocator, request.partition, end - 1, 1);
+    defer latest.deinit();
+    if (latest.frames.len != 1) return error.DocumentRecoveryMissing;
+    const record = (try Records.decode(allocator, latest.frames[0], request.partition, end - 1)).record;
+    try request.requireSame(record.root.initialization);
+    const reference = record.root.recovery orelse return error.WalHistoryTrimmed;
+    const basis = try Recovery.load(allocator, objects, reference, end, request);
+    var publication = try log.read(allocator, request.partition, reference.next_lsn, 1);
+    defer publication.deinit();
+    if (publication.frames.len != 1) return error.DocumentRecoveryMissing;
+    try Recovery.requirePublication(basis, reference, (try Records.decode(allocator, publication.frames[0], request.partition, reference.next_lsn)).record);
+    var buffer: [max_bytes]u8 = undefined;
+    const bytes = try encode(request, &buffer);
+    return .{
+        .request = request,
+        .accepted = .{ .partition = request.partition, .next_lsn = 1 },
+        .record = .{ .bytes = bytes.len, .sha256 = @import("DocumentEvidence.zig").hash(bytes) },
+    };
 }
 
 pub fn observe(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Request, guard: Guard) !Evidence {

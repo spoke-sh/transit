@@ -152,6 +152,15 @@ and the catalog's retained dependency graph.
   (`value`, `null_value`, `missing`, `type_error`, `conflict`) columns with
   `RBC1` presence/null/conflict bitmaps, collation-aware (`utf8_binary`,
   `ascii_ci`, `ebcdic_cp037`) zone maps, and `SuccinctTree` residual topologies.
+- `DocumentPartition.zig`, `DocumentEvidence.zig`, `DocumentRead.zig`,
+  `DocumentPartitionRecord.zig`, `DocumentRecovery.zig`, and
+  `DocumentStorageRoots.zig`: Serialized direct Document partition owner accepting
+  single-append WAL mutations (`DOCPART1`), immutable operation outcomes
+  (`DEVID001` in `document-evidence/{sha256}.data`), retained read bases and
+  HMAC-SHA-256 cumulative coverage cursors (`DREAD001` in
+  `document-reads/{sha256}.data`), finite merge-window checkpoints, WAL archival,
+  recovery checkpoints (`DCHECK01` in `document-checkpoints/{sha256}.data`),
+  physical WAL trim (`trimArchived`), and bounded retained root enumeration.
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
   binary frame format with a mandatory definition in its 128-byte header,
   CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`

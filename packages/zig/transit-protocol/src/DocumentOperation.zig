@@ -5,6 +5,7 @@ const p = @import("root.zig");
 const d = p.DataLifecycle;
 const decl = @import("DocumentDeclaration.zig");
 pub const Read = @import("DocumentRead.zig");
+pub const fixture_json = @embedFile("fixtures/document-v1.json");
 
 pub const Profile = decl.Profile;
 pub const Collation = decl.Collation;
