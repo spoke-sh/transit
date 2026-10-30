@@ -1961,6 +1961,14 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
 
 fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration: c.DirectLog.Definition, schema: c.fuze.TableSchema.Schema) !c.DirectStream.Request {
     const q = p.StreamQueue;
+    const Clock = struct {
+        fn read(_: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = 100, .error_ms = 5 };
+        }
+    };
+    const previous_clock = service.engine.clock;
+    defer service.engine.clock = previous_clock;
+    service.engine.clock = .{ .context = service, .read = Clock.read };
     const target: q.Partition = .{ .definition = g.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
     const identity: p.DataLifecycle.Operation = .{ .scope = service.configuration.scope, .principal = 101, .operation = 301 };
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
@@ -1973,9 +1981,11 @@ fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration
     const original = try c.DirectStreamClient.load(t.allocator, saved);
     defer original.deinit();
     try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = original.value.work } });
+    service.engine.clock = null; // Original acceptance survives clock loss.
     const accepted = try dispatch(service, .{ .stream = .{ .operation = append } });
     defer accepted.deinit();
     try t.expectEqual(@as(u64, 2), accepted.value.result.stream.operation.?.append.next);
+    try t.expectEqual(@as(?u64, 105), accepted.value.result.stream.operation.?.append.observed_ms);
     const repeated = try dispatch(service, .{ .stream = .{ .mutate = original.value.work } });
     defer repeated.deinit();
     try t.expectEqualDeep(accepted.value.result.stream, repeated.value.result.stream);

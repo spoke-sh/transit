@@ -30,8 +30,8 @@ const Fixture = struct {
     fn clock(raw: *anyopaque) !core.Time.Sample {
         return .{ .unix_ms = @as(*Fixture, @ptrCast(@alignCast(raw))).now };
     }
-    fn logClock(raw: *anyopaque) !?u64 {
-        return @as(*Fixture, @ptrCast(@alignCast(raw))).now;
+    fn logClock(raw: *anyopaque) !?s.LogTime.Sample {
+        return s.LogTime.Sample.exact(@as(*Fixture, @ptrCast(@alignCast(raw))).now);
     }
     fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
         self.owner = try local.Backend.open(t.allocator, t.io, directory, "native", .{});

@@ -122,10 +122,14 @@ under that same principal and operation. Reservation alone is not acceptance
 and does not create a read pin or append payloads. The service must check current
 rights before reserving and retain the original storage outcome independently.
 
-The receipt's mandatory nullable `observed_ms` is the trusted owner's UTC
-observation before private staging, rechecked under the publication guard. It is
+The receipt's mandatory nullable `observed_ms` is the upper bound of the trusted
+owner's UTC interval before private staging, rechecked under the publication guard. It is
 separate from event timestamps and the physical WAL header. A configured clock
-must be available and nonregressing. An opted-in age policy requires a timed
+must be available with valid bounds and a nonregressing upper observation.
+Age eligibility uses the later sample's lower bound, so uncertainty cannot
+shorten retention. The upper clock floor and lower eligibility proof remain
+distinct; ongoing appends cannot force expiry to compare a lower bound against
+the most recent append's upper bound. An opted-in age policy requires a timed
 append and refuses publication if staging has already consumed that policy's
 age window. The accepted observation advances a persisted `LogClock` floor.
 Once a partition has accepted trusted time, a fresh append cannot revert it to

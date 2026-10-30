@@ -34,17 +34,21 @@ const Clock = struct {
     value: ?u64 = 100,
     after: ?u64 = null,
     change: bool = false,
+    error_ms: u64 = 0,
+    after_error_ms: ?u64 = null,
     fn source(self: *Clock) s.LogTime.Source {
         return .{ .context = self, .read = sample };
     }
-    fn sample(raw: *anyopaque) !?u64 {
+    fn sample(raw: *anyopaque) !?s.LogTime.Sample {
         const self: *Clock = @ptrCast(@alignCast(raw));
         const result = self.value;
+        const uncertainty = self.error_ms;
         if (self.change) {
             self.value = self.after;
             self.change = false;
+            if (self.after_error_ms) |next| self.error_ms = next;
         }
-        return result;
+        return if (result) |now| .{ .earliest_ms = now -| uncertainty, .latest_ms = now +| uncertainty } else null;
     }
 };
 fn operation(id: u64) p.DataLifecycle.Operation {
@@ -900,6 +904,66 @@ test "stream partition trusted observation floors survive lost replies without t
     try t.expectEqual(@as(?u64, 150), next.observed_ms);
     try t.expectEqual(@as(?u64, 150), owner.root.clock_ms);
     try t.expectEqual(@as(u64, 4), owner.root.next_offset);
+}
+
+test "stream partition expiry uses lower time bounds independently of active append floors" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.retention.max_age_ms = 100;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = 100, .error_ms = 10 };
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    owner.options.clock = clock.source();
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const first = try appendRequest(&declaration, 2, null, &buffer);
+    const receipt = try owner.append(initial.declared, first.request, first.payload, policy.guard());
+    try t.expectEqual(@as(?u64, 110), receipt.observed_ms);
+    const cut = owner.root.position();
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    // Even a later upper bound of 220 cannot prove that 100 ms has elapsed
+    // from the first append's conservative bound of 110.
+    clock.value = 210;
+    try t.expectEqual(Stream.ExpirationStatus.not_due, (try owner.expireHistory(initial.declared, cut, policy.guard())).status);
+    try t.expectEqual(@as(u64, 0), owner.root.retained_from);
+    clock.value = 220;
+    const second = try appendRequest(&declaration, 3, null, &buffer);
+    _ = try owner.append(initial.declared, second.request, second.payload, policy.guard());
+    try t.expectEqual(@as(?u64, 230), owner.root.clock_ms);
+    // An uncertainty increase between staging and publication withdraws the
+    // lower-bound proof even while the upper clock observation advances.
+    clock.after = 220;
+    clock.after_error_ms = 20;
+    clock.change = true;
+    try t.expectError(error.LogTimeRegression, owner.expireHistory(initial.declared, cut, policy.guard()));
+    try t.expectEqual(@as(u64, 0), owner.root.retained_from);
+    clock.value = 230;
+    clock.error_ms = 10;
+    const expired = try owner.expireHistory(initial.declared, cut, policy.guard());
+    try t.expectEqual(Stream.ExpirationStatus.complete, expired.status);
+    try t.expectEqual(@as(u64, 2), expired.retained_from);
+    try t.expectEqual(@as(?u64, 240), owner.root.clock_ms);
+    // Replay needs the recorded lower eligibility proof and upper floor, not a
+    // fresh clock or the old resident owner.
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(@as(u64, 2), owner.root.retained_from);
+    try t.expectEqual(@as(u64, 4), owner.root.next_offset);
+    try t.expectEqual(@as(?u64, 240), owner.root.clock_ms);
 }
 
 test "stream partition expiry protects paged consumer watermarks pins and original producer outcomes" {

@@ -385,9 +385,9 @@ The current progress slice delivers:
   `Catalog.callStream` compose original operation identity, current grants,
   owned finite pages, group settlement and closure. Independent signing fixtures
   and native composition tests cover exact recovery and buffered revocation.
-  Integration of waits and service scheduling, an uncertainty-aware deployed
-  clock adapter, sparse payload rewriting and installed qualification remain
-  open.
+  Trusted clock intervals keep append upper bounds, expiry lower proofs and
+  persisted floors distinct. Integration of waits and service scheduling, sparse
+  payload rewriting and installed qualification remain open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

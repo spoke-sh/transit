@@ -488,8 +488,10 @@ Recovery examines at most 256 frames per request. The local service derives its
 private cursor key from the registrar seed; replacement with the same seed
 preserves cursors. Rotating the seed requires reacquiring authenticated cursors
 for retained reads and does not alter accepted receipts. Timed new work requires
-available authoritative UTC with zero reported uncertainty and a nonregressing
-persisted floor. Original receipt lookup does not require a clock.
+an authoritative UTC interval within the native genesis clock-error limit and a
+nonregressing persisted upper floor. Append age starts at the interval's upper
+bound; expiry requires a lower bound proving the age has elapsed. Original
+receipt lookup does not require a clock.
 
 Conflicting identities, producer/group generations or checkpoints return
 `Conflict`; released/missing read pins return `QueryExpired`; an opted-in

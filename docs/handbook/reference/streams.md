@@ -10,6 +10,11 @@ Retention defaults to unlimited. Current database CONNECT, schema USAGE/CREATE
 and object ownership govern publication and administration; metadata inspection
 uses separate Stream/Queue grants.
 
+An age policy requires trusted UTC within the deployment's configured clock
+uncertainty bound. Append records a conservative upper timestamp; expiry needs
+a later lower bound proving the declared age has elapsed. Missing or regressing
+time refuses fresh timed work while original receipts remain inspectable.
+
 Preview writes nothing. Admission freezes the original request and reserves its
 name and partition identities. Bounded execution registers the permission object
 and initializes partitions; the declaration becomes visible only when all of

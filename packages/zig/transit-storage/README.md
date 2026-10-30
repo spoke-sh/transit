@@ -105,8 +105,8 @@ complete progress and closure, and verify that revocation still refuses both
 mutation and original-outcome disclosure. Reserved capacity grants no expiry or
 permission, and remains finite.
 
-`LogTime.Source` supplies trusted UTC milliseconds when timing is configured or
-required by retention. Append persists its pre-staging observation and rechecks
+`LogTime.Source` supplies a trusted closed UTC interval when timing is configured or
+required by retention. Append persists its pre-staging upper bound and rechecks
 time under the publication guard. Missing/regressing clocks and an already
 elapsed retention window refuse fresh publication. Accepted clock floors survive
 restart; original receipts and recovery do not depend on current clock
@@ -118,7 +118,10 @@ batch through a fixed physical cut. It requires a declared age and trusted time,
 and cannot cross the oldest consumer checkpoint. A paged offset index finds that
 checkpoint without loading all groups. Ineligible work reports whether it is
 unsealed, untimed, not due or protected by a consumer. Existing pins retain their
-original bytes; new reads below the boundary report `LogHistoryUnavailable`.
+original bytes; new reads below the boundary report `LogRangeExpired`.
+Expiry requires a lower UTC bound proving that the append's upper bound plus its
+age has elapsed. The accepted record preserves that lower proof separately from
+the upper clock floor, so recent appends do not prevent eligible older expiry.
 Original outcomes, producer fences and logical offset allocation survive expiry.
 Physical collection separately waits for pins and recovery dependencies to close.
 

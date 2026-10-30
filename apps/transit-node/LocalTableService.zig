@@ -137,14 +137,14 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     return output;
 }
 
-fn streamTime(raw: *anyopaque) !?u64 {
+fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {
     const self: *Self = @ptrCast(@alignCast(raw));
     const clock = self.engine.clock orelse return null;
     const sample = try clock.sample();
-    // Stream's persisted time contract requires an authoritative instant.
-    // An uncertainty interval cannot silently become an earlier expiry time.
-    if (sample.error_ms != 0) return error.LogTimeUnavailable;
-    return sample.unix_ms;
+    const allowed = self.engine.genesis.max_clock_error_ms orelse return error.LogTimeUnavailable;
+    if (sample.error_ms > allowed or sample.upper() > c.protocol.max_counter) return error.LogTimeUnavailable;
+    if (sample.unix_ms < self.engine.head.time_floor_ms) return error.LogTimeRegression;
+    return .{ .earliest_ms = sample.lower(), .latest_ms = sample.upper() };
 }
 
 fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {

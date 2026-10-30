@@ -1385,9 +1385,10 @@ outcomes before fresh producer/declaration checks, while still requiring current
 permission. Conflict and uncertainty never allocate a replacement identity.
 
 The trusted adapter optionally supplies `LogTime.Source`. Fresh append samples
-it after validation and records that nullable observation in its receipt. A
-configured source must return an authoritative nonregressing UTC millisecond
-value. A positive retention age requires it; a partition with an accepted time
+it after validation and records the nullable upper UTC bound in its receipt. A
+configured source returns a closed authoritative interval with earliest and
+latest milliseconds; the latest bound must not regress below the persisted
+floor. A positive retention age requires it; a partition with an accepted time
 floor cannot later accept untimed work. Under the final publication guard the
 owner samples again, refuses regression/unavailability, and refuses an opted-in
 age window already elapsed since the first observation. Private staged objects
@@ -1408,8 +1409,8 @@ to expire payloads, discard progress or forge an outcome.
 
 `expireHistory(declared, cut, guard)` requires an explicit positive retention age
 and advances the logical retained boundary by at most one complete sealed batch
-within the fixed physical cut. Its trusted observation must be at least the
-accepted append observation plus the declared age. Untimed accepted history
+within the fixed physical cut. Its trusted lower bound must be at least the
+accepted append upper bound plus the declared age. Untimed accepted history
 cannot acquire an invented timestamp after a policy change. The owner reports
 `consumer`, `unsealed`, `untimed` or `not_due` without advancing the boundary;
 `progress` and `complete` describe the selected cut, not later appends.
@@ -1421,13 +1422,18 @@ independently of group count. Expiry cannot cross that checkpoint. No group
 means the current append frontier protects no additional unread prefix.
 
 An accepted expiry record binds its previous root, declaration, exact original
-append receipt, fixed cut, trusted time and protected checkpoint. It removes that
+append receipt, fixed cut, lower eligibility time (`observed_ms`), upper clock
+floor (`clock_ms`) and protected checkpoint. Both time fields are mandatory.
+The upper bound advances the root's floor even when its lower bound precedes a
+recent append's upper observation. It removes that
 batch and segment from the current placement roots while preserving original
 receipts, producer fencing and the next logical offset. Replay verifies these
 facts without current time. Publication rechecks current authority and time under
-the guard; uncertainty requires recovery. Existing read pins retain their old
+the guard; a lower-bound regression before publication refuses the candidate,
+and an uncertain append result requires recovery. Existing read pins retain their old
 placements and remain readable under current authorization. Fresh reads below
-the new boundary report `LogHistoryUnavailable`. Physical collection can remove
+the new boundary report `LogRangeExpired`; missing required storage still reports
+`LogHistoryUnavailable`. Physical collection can remove
 bytes only after their pins and recovery dependencies also close.
 
 An unknown or malformed append result marks the resident owner unready. Recovery

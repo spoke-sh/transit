@@ -448,7 +448,10 @@ fn publishRecord(self: *Self, record: r.Record, payload: []const u8, guard: Guar
             if (record.root.declared.declaration.configuration.retention.max_age_ms) |age| if (now - observed_ms.? >= age) return error.LogRetentionWindowElapsed;
         }
     }
-    if (record.action == .expire) _ = try Time.observe(self.options.clock, record.root.clock_ms, true);
+    if (record.action == .expire) {
+        const now = (try Time.bounds(self.options.clock, record.root.clock_ms, true)).?;
+        if (now.earliest_ms < record.action.expire.observed_ms) return error.LogTimeRegression;
+    }
     const receipt = self.log.append(next.initialization.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, record.frameKind(), bytes) catch |err| {
         self.ready = false;
         return switch (err) {
@@ -521,14 +524,15 @@ fn expirationObservation(self: *Self, cut: d.Position, status: ExpirationStatus,
     try authorize(guard);
     return .{ .cut = cut, .position = self.root.position(), .retained_from = self.root.retained_from, .expired_rows = 0, .status = status };
 }
-fn validateExpiration(self: *Self, declared: Declaration.Stored, receipt: q.AppendReceipt, now: u64, protected: u64) !void {
+fn validateExpiration(self: *Self, declared: Declaration.Stored, receipt: q.AppendReceipt, now: Time.Sample, protected: u64) !void {
     if (self.root.compaction != null) return error.LogMaintenanceConflict;
     try self.root.requireDeclaration(declared);
     const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
-    _ = try Time.advance(self.root.clock_ms, now);
+    try now.validate();
+    _ = try Time.advance(self.root.clock_ms, now.latest_ms);
     const observed = receipt.observed_ms orelse return error.InvalidLogExpiration;
-    if (now < observed) return error.LogTimeRegression;
-    if (receipt.first != self.root.retained_from or receipt.next > self.root.sealed_through or protected != try self.protectedOffset() or receipt.next > protected or now - observed < age) return error.InvalidLogExpiration;
+    if (now.earliest_ms < observed) return error.InvalidLogExpiration;
+    if (receipt.first != self.root.retained_from or receipt.next > self.root.sealed_through or protected != try self.protectedOffset() or receipt.next > protected or now.earliest_ms - observed < age) return error.InvalidLogExpiration;
     const value = try self.tree().get(self.root.segments, try r.integerKey(receipt.next)) orelse return error.InvalidLogExpiration;
     const descriptor = try Segment.Descriptor.decode(value);
     const evidence = try self.original(receipt.append.operation) orelse return error.InvalidLogExpiration;
@@ -553,9 +557,8 @@ pub fn expireHistory(self: *Self, declared: Declaration.Stored, cut: d.Position,
     if (receipt.next > protected) return self.expirationObservation(cut, .consumer, guard);
     if (receipt.next > self.root.sealed_through) return self.expirationObservation(cut, .unsealed, guard);
     const observed = receipt.observed_ms orelse return self.expirationObservation(cut, .untimed, guard);
-    const now = (try Time.observe(self.options.clock, self.root.clock_ms, true)).?;
-    if (now < observed) return error.LogTimeRegression;
-    if (now - observed < age) return self.expirationObservation(cut, .not_due, guard);
+    const now = (try Time.bounds(self.options.clock, self.root.clock_ms, true)).?;
+    if (now.earliest_ms < observed or now.earliest_ms - observed < age) return self.expirationObservation(cut, .not_due, guard);
     try self.validateExpiration(declared, receipt, now, protected);
     const complete = try self.flushCandidate(receipt.next, cut) == null;
     const ordinary = self.enterControl(true);
@@ -565,12 +568,12 @@ pub fn expireHistory(self: *Self, declared: Declaration.Stored, cut: d.Position,
     var next = self.root;
     next.declared = declared;
     next.next_lsn = (try self.nextPosition()).next_lsn;
-    next.clock_ms = now;
+    next.clock_ms = now.latest_ms;
     next.retained_from = receipt.next;
     const key = try r.integerKey(receipt.next);
     next.batches = try self.tree().remove(next.batches, key);
     next.segments = try self.tree().remove(next.segments, key);
-    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = .{ .cut = cut, .receipt = receipt, .observed_ms = now, .protected_next = protected } } }, &.{}, guard);
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = .{ .cut = cut, .receipt = receipt, .observed_ms = now.earliest_ms, .clock_ms = now.latest_ms, .protected_next = protected } } }, &.{}, guard);
     return .{ .cut = cut, .position = next.position(), .retained_from = next.retained_from, .expired_rows = @intCast(receipt.append.rows), .status = if (complete) .complete else .progress };
 }
 
@@ -895,12 +898,12 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
             },
             .expire => |value| {
                 const evidence = try self.flushCandidate(self.root.retained_from, value.cut) orelse return error.InvalidLogExpiration;
-                try self.validateExpiration(next.declared, evidence.outcome.append, value.observed_ms, value.protected_next);
+                try self.validateExpiration(next.declared, evidence.outcome.append, .{ .earliest_ms = value.observed_ms, .latest_ms = value.clock_ms }, value.protected_next);
                 if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogExpiration;
                 const key = try r.integerKey(value.receipt.next);
                 if (try self.tree().get(next.batches, key) != null or try self.tree().get(next.segments, key) != null) return error.InvalidLogExpiration;
                 expected.declared = next.declared;
-                expected.clock_ms = value.observed_ms;
+                expected.clock_ms = value.clock_ms;
                 expected.retained_from = value.receipt.next;
                 expected.batches = next.batches;
                 expected.segments = next.segments;

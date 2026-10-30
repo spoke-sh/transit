@@ -102,7 +102,7 @@ pub const Record = struct {
         operation: Evidence.Record,
         archive: struct { cut: d.Position, from_lsn: u64 },
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
-        expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, protected_next: u64 },
+        expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, clock_ms: u64, protected_next: u64 },
         compaction_start,
         compaction_step: struct { from: u64, through: u64 },
         compaction_publish: d.Position,
@@ -143,7 +143,7 @@ pub const Record = struct {
             .expire => |value| {
                 try value.cut.validate();
                 try value.receipt.validate();
-                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.observed_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
+                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.clock_ms or value.observed_ms > value.clock_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
             },
             .compaction_start => {
                 const work = self.root.compaction orelse return error.InvalidStreamCompaction;
