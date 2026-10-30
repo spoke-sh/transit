@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "contracts": {
+    "control_policy_plane": "transit.control-policy-plane.v1",
+    "authorization": "transit.authorization.v1",
+    "secret_manager": "transit.secret-manager.v1"
+  },
+  "acceptance_scenarios": [
+    {
+      "id": "S1_federation_scim_and_deprovisioned_principal_revocation",
+      "magic": "ACTX1",
+      "federation_magic": "IDF1",
+      "scim_deprovision_advances_policy_epoch": true,
+      "conflicting_management_source_outcome": "error.ConflictingManagementSource",
+      "local_hold_override_outcome": "error.LocalRestrictionOverridesExternalSync",
+      "access_context_digest_hex": "a42a76b97836c30db32a7d6e559006428c77ad72131a0c398c16349fd0e8e50f"
+    },
+    {
+      "id": "S2_federation_outage_blocks_stale_external_claims",
+      "stale_external_claim_during_outage_outcome": "error.IdentityProviderUnavailable",
+      "native_local_ed25519_succeeds_during_idp_outage": true,
+      "offboarded_principal_outcome": "error.AccessRevoked"
+    },
+    {
+      "id": "S3_delegation_attenuation_and_human_only_approval",
+      "delegation_magic": "DLG1",
+      "approval_magic": "APV1",
+      "delegation_digest_hex": "7ff462f5be92b9680a232f7bcdda2d1889114f6065d20af075831e4ea28a6348",
+      "delegate_human_only_action_outcome": "error.CannotDelegateHumanOnlyAction",
+      "delegated_agent_approval_outcome": "error.DelegatedAgentCannotApprove",
+      "self_approval_outcome": "error.SeparationOfDutiesViolation"
+    },
+    {
+      "id": "S4_security_barrier_rls_and_geospatial_rls_non_interference",
+      "rls_magic": "RLM1",
+      "unauthorized_div_zero_leaks": false,
+      "unauthorized_type_error_leaks": false,
+      "geospatial_outside_bbox_or_z_range_disclosed": false,
+      "lean_theorem": "security_barrier_rls_non_interference"
+    },
+    {
+      "id": "S5_dynamic_masking_and_german_string_prefix_scrubbing",
+      "unmasked_german_string_prefix_retained": false,
+      "masked_german_string_prefix_ascii": "***-",
+      "zone_map_min_max_on_masked_column_sanitized": true
+    },
+    {
+      "id": "S6_branch_governance_across_all_nine_adapters",
+      "actions": [
+        "inspect",
+        "create_branch",
+        "edit",
+        "share",
+        "propose",
+        "approve",
+        "merge",
+        "external_activation"
+      ],
+      "protected_main_direct_write_outcome": "error.ProtectedBranchDirectWriteDenied",
+      "branching_only_merge_outcome": "error.InstallationProhibitsMerge"
+    },
+    {
+      "id": "S7_secret_manager_dual_guard_and_redaction",
+      "secret_magic": "SEC1",
+      "secret_digest_hex": "3d6a019776fe9305dc76d56565e303a75e330353828edb603e36cc3ed93197fb",
+      "dual_guard_requires": [
+        "USAGE_ON_SECRET",
+        "URL_PREFIX_SCOPE_MATCH"
+      ],
+      "missing_grant_outcome": "error.MissingSecretUsagePrivilege",
+      "out_of_scope_url_outcome": "error.SecretScopeMismatch",
+      "plaintext_literal_outcome": "error.PlaintextSecretLiteralForbidden"
+    },
+    {
+      "id": "S8_oauth2_pkce_challenge_game_dataflow_suspend_and_resume",
+      "rfc7636_code_verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+      "rfc7636_s256_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+      "suspended_state": "credential_pending",
+      "wrong_pkce_verifier_outcome": "error.OauthPkceVerificationFailed",
+      "replayed_callback_outcome": "error.OauthChallengeReplayDetected"
+    },
+    {
+      "id": "S9_gdpr_crypto_shredding_and_cross_branch_purge",
+      "erasure_magic": "ERS1",
+      "erasure_digest_hex": "5f3edd551fb05dbc9412fd151af3c8f71fe7e1c706e61e9ba9e9ba43abb5b870",
+      "shredded_subject_read_state": "missing",
+      "compaction_emits_lineage_edge": true,
+      "contains_raw_subject_pii": false
+    },
+    {
+      "id": "S10_workload_resource_groups_and_admission_bounds",
+      "workload_magic": "WLM1",
+      "escalation_outcome": "error.WorkloadGroupEscalationDenied",
+      "soft_memory_outcome": "spill_to_nvme_tier2",
+      "hard_memory_outcome": "error.WorkloadMemoryQuotaExceeded"
+    },
+    {
+      "id": "S11_zero_work_explain_policy_and_access_audit",
+      "explain_policy_work_bound": "zero_work_explain",
+      "explain_policy_touches_tseg_or_secrets": false,
+      "audit_log_records_denials_and_secret_resolutions": true
+    },
+    {
+      "id": "S12_revocation_during_flight_and_operation_status_inspection",
+      "revocation_terminates_result_disclosure": "error.AccessRevokedOnResultDisclosure",
+      "original_caller_can_inspect_settled_operation_status": true
+    }
+  ]
+}

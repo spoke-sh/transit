@@ -314,6 +314,16 @@
         ]
       },
       {
+        "id": "control_policy_plane",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/control_policy_plane.py"
+        ]
+      },
+      {
         "id": "branch_merge_restore",
         "phase": "static",
         "command": [

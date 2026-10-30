@@ -243,7 +243,7 @@ outcomes that make those decisions inspectable. Its current
 | Need in the stories | Available building block | Proposed integrated capability |
 | --- | --- | --- |
 | Inspect typed data and its interpretation | [Table lifecycle](tables.md), [query profiles](queries.md), [cell states](sql/types.md) | [Published business resources](../../../contracts/PUBLISHED_RESOURCE_V1.md) with meaning, audience, freshness and optional presentation |
-| Govern access | [Native principals, roles and current grants](security.md) | Enterprise identity bindings, IAM lifecycle and explicit agent delegation/approval |
+| Govern access | [Native principals, roles and current grants](security.md) | [Enterprise identity bindings, IAM lifecycle, delegation/approval, declarative secrets and RLS/masking](../../../contracts/CONTROL_POLICY_PLANE_V1.md) |
 | Keep related answers attributable | Query-bound schemas/source snapshots and captured result evidence | A [retained investigation basis](../../../contracts/INVESTIGATION_V1.md) shared across related calls and participants |
 | Explore alternatives safely | Versioned resource reads and data-owner publication boundaries | Branching within a realm, comparable proposals and policy-controlled merges |
 | Present one answer consistently | [Application definitions and bindings](applications.md) | Headless resources projected into reports, MCP resources/tools and optional Apps |
