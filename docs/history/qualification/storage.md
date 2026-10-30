@@ -9,6 +9,47 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct Document protocol, succinct algebra, `.tseg` shredding, and `DocumentPartition` — 2026-10-30
+
+Delivered packages `D0`–`D4` of [Milestone 7](../../roadmap/07-document-storage-and-station-decoupling.md)
+on top of `origin/main` at `796e7fe86`:
+
+- **`transit-protocol` (`D0`):** `DocumentDeclaration`, `DocumentOperation`, and
+  `DocumentRead` with `fixtures/document-v1.json` and reflected
+  `contracts/data-lifecycle-v1.schema.json`.
+  `(cd packages/zig/transit-protocol && zig build test)` passes **85/85 tests**,
+  and `python3 -B tests/runner/launch.py tests/interfaces/native/contract.py --data-lifecycle < contracts/data-lifecycle-v1.schema.json`
+  verifies independent Python/Zig canonical JSON and HMAC-SHA-256 read cursor
+  agreement.
+- **`transit-document` (`D1`):** `SuccinctTree` ($2N$-bit Balanced Parentheses
+  `SBPT0001` topology with two-level `@popCount` rank/select and excess
+  summaries), `SpanText` (span-based collaborative UTF-8 text beyond 96B with
+  interior span splitting, range tombstones, and 24-permutation convergence),
+  and `VersionedMerge` (five-state cell algebra, raw-frame provenance, and
+  commutative 3-way structural merges).
+  `(cd packages/zig/transit-document && zig build test)` passes **14/14 tests**,
+  including zero heap allocations during `SuccinctTree` navigation.
+- **`transit-storage` & `transit-backend-local` (`D2`–`D3`):** `DocumentDeclaration`
+  (`DDECL001`), `DocumentInitialization` (`DINIT001` `.genesis`),
+  `DocumentShredder` (5-state subcolumns with `RBC1` bitmaps,
+  `utf8_binary`/`ascii_ci`/`ebcdic_cp037` zone maps, and `SuccinctTree`
+  residual topologies), `DocumentEvidence` (`DEVID001`), `DocumentRead`
+  (`DREAD001`), `DocumentPartitionRecord` (`DOCPART1`), `DocumentRecovery`
+  (`DCHECK01`), `DocumentStorageRoots`, and `DocumentPartition`, wired into
+  `DataStore.trimUnit`.
+  `(cd packages/zig/transit-storage && zig build test -Dtest-filter="document")`
+  passes **13/13 tests** across disk reopen, duplicate operation and replica
+  sequence retries, finite merge-window checkpoints, retained revision reads,
+  WAL archival, recovery checkpoints, and physical WAL trim.
+- **`transit-catalog` (`D4`):** `DocumentAuthority` and `DirectStorageGraph`
+  reachability walking for `DINIT001`/`DOCPART1` partitions.
+  `(cd packages/zig/transit-catalog && zig build test -Dtest-filter="document")`
+  passes **6/6 tests**.
+- **Remaining limits:** Interactive multi-object `DocumentTransaction`
+  participation, SQL/Fuze lowering, and the public consumer cutover removing
+  `transit-station-document` remain gated on `D5` and the Milestone 5/6
+  common transaction decision for Station turns.
+
 ## Shared object content-directory barrier — 2026-10-29
 
 At runtime source `b7d2980048305c66449b340861b114bb2a0e1024`, payload and

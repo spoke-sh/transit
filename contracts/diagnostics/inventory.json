@@ -4824,9 +4824,12 @@
     "packages/zig/transit-catalog/src/DirectStorageGraph.zig": {
       "errors": {
         "CatalogHistoryMissing": 1,
+        "DocumentHistoryUnavailable": 3,
+        "DocumentStateObjectMissing": 1,
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
+        "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 20,
         "InvalidTableStorageGraph": 20,
@@ -4837,6 +4840,14 @@
         "TableSegmentMissing": 1
       },
       "outcomes": {
+        "DocumentIndexKind": [
+          "pages_only",
+          "documents",
+          "revisions",
+          "replicas",
+          "operations",
+          "reads"
+        ],
         "LogIndexKind": [
           "pages_only",
           "batches",
@@ -4878,6 +4889,13 @@
           "log_segment",
           "log_wal",
           "log_archive_range",
+          "document_declaration",
+          "document_initialization",
+          "document_history",
+          "document_root",
+          "document_index",
+          "document_read",
+          "document_wal",
           "table_history",
           "table_root",
           "table_walk",
@@ -4891,12 +4909,17 @@
       },
       "error_sets": {},
       "error_returns": {
+        "DocumentContext.fromRoot()": "<inferred>",
+        "DocumentContext.owner()": "<inferred>",
+        "DocumentContext.requireTarget()": "<inferred>",
         "LogContext.fromRoot()": "<inferred>",
         "LogContext.owner()": "<inferred>",
         "LogContext.requireTarget()": "<inferred>",
+        "documentEntry()": "<inferred>",
         "fromFrame()": "<inferred>",
         "logEntry()": "<inferred>",
         "markContent()": "<inferred>",
+        "markDocumentBlob()": "<inferred>",
         "markPage()": "<inferred>",
         "requireOwner()": "<inferred>",
         "scope()": "<inferred>",
@@ -4904,7 +4927,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 264,
+        "try": 337,
         "catch": 1
       },
       "imports": [
@@ -5965,6 +5988,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DocumentAuthority.zig": {
+      "errors": {
+        "InvalidCatalogIdentity": 3
+      },
+      "outcomes": {
+        "Access": [
+          "create",
+          "inspect",
+          "read",
+          "mutate",
+          "checkpoint",
+          "administer"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "binding()": "<inferred>",
+        "requirements()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "InvalidCatalogPage": 3
@@ -6451,6 +6503,7 @@
         "DirectTransactionRequest.zig",
         "DirectTransactionSavepoint.zig",
         "DirectTransactionWorkspace.zig",
+        "DocumentAuthority.zig",
         "Inspection.zig",
         "LogAuthority.zig",
         "Model.zig",
@@ -6980,6 +7033,7 @@
       "error_sets": {},
       "error_returns": {
         "Invocation.request()": "<inferred>",
+        "Invocation.requestPtr()": "<inferred>",
         "Invocation.respond()": "<inferred>",
         "call()": "<inferred>",
         "clone()": "<inferred>",
@@ -6987,7 +7041,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 7,
+        "try": 8,
         "catch": 0
       },
       "imports": [
@@ -21685,6 +21739,7 @@
       "errors": {
         "EndOfStream": 1,
         "GatewayConnectionCapacity": 1,
+        "InvalidMemoryLease": 1,
         "InvalidSqlLane": 1,
         "InvalidSqlPeer": 1,
         "ReadFailed": 1,
@@ -21700,13 +21755,14 @@
         "Connection.write()": "std . Io . Writer . Error",
         "RequestStorage.acquire()": "<inferred>",
         "RequestStorage.init()": "<inferred>",
+        "RequestStorage.scratchFor()": "<inferred>",
         "handleConnection()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 6
       },
       "imports": [

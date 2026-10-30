@@ -228,7 +228,7 @@ pub const SpanText = struct {
         // Check for duplicate or conflicting span identity.
         for (self.spans.items) |existing| {
             if (existing.key.eql(ins.span)) {
-                if ( sameBoundary(existing.after, ins.after) and
+                if (sameBoundary(existing.after, ins.after) and
                     std.mem.eql(u8, existing.utf8, ins.utf8))
                 {
                     return .duplicate;

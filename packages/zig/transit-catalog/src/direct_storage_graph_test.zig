@@ -74,3 +74,130 @@ test "direct graph retains physical and ADD interpretations without receipt or h
     // Receipt pages are intentionally absent from this isolated source graph.
     try t.expect(!workspace.marks.contains(try s.TreeStore.key(table.root.receipts.?.location, &name)));
 }
+
+test "direct graph retains document partition declarations states payloads evidence live reads and checkpoints" {
+    const DocFixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn hashBytes(bytes: []const u8) [32]u8 {
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+            return digest;
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = DocFixture.acquire, .release = DocFixture.release };
+    const cols = [_]c.fuze.TableSchema.Column{
+        .{ .id = 1, .name = "doc_key", .type = .utf8, .nullable = false, .collation = .utf8_binary },
+    };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    var owned_decl = try s.DocumentDeclaration.prepare(t.allocator, .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 808 },
+        .revision = 1,
+        .schema = .{ .object = 808, .revision = 1, .next_column = 2, .columns = &cols },
+        .configuration = .{
+            .partitioning = .{ .count = 4, .key_column = 1, .hash = .sha256_64 },
+            .profile = .causal_crdt,
+            .shredding = .{ .frequent_path_threshold = 64, .max_shredded_columns = 32, .default_collation = .utf8_binary },
+            .retention = .{ .max_age_ms = null, .merge_window_revisions = 16 },
+        },
+        .limits = .{
+            .change_bytes = 65_536,
+            .operations_per_change = 64,
+            .path_depth = 32,
+            .read_steps = 4096,
+            .read_bytes = 262_144,
+            .unresolved_conflicts = 16,
+        },
+        .properties = "doc-graph-props",
+    });
+    defer owned_decl.deinit();
+    const declared = try s.DocumentDeclaration.stage(objects.objectStore(), &owned_decl);
+    const init_req: s.DocumentInitialization.Request = .{
+        .definition = c.protocol.Growth.current_definition,
+        .declared = declared,
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 1 },
+        .ordinal = 0,
+        .partition = 141,
+    };
+    _ = try s.DocumentInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), init_req, guard);
+    var owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, guard, .{});
+    defer owner.deinit();
+
+    const doc = c.protocol.DocumentOperation;
+    const target: doc.Target = .{ .partition = init_req.target(), .document = @splat(0x42) };
+    const payload = "doc-delta-payload";
+    const state = "{\"k\":\"v\"}";
+    const mut_rec = try owner.applyMutation(.{
+        .target = target,
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 2 },
+        .lineage = .{
+            .profile = .causal_crdt,
+            .merge_epoch = 1,
+            .base_revision = 0,
+            .parent_revision = null,
+            .replica = .{ .id = @splat(0x52), .epoch = 1, .sequence = 1, .preceding_sequence = 0 },
+            .raw_span = null,
+        },
+        .operations = 1,
+        .payload = .{ .bytes = payload.len, .sha256 = DocFixture.hashBytes(payload) },
+    }, payload, state, 0, guard);
+
+    const live_read = try owner.beginRead(.{
+        .target = target,
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 3 },
+        .from_revision = 1,
+        .through_revision = 1,
+        .max_steps = 16,
+        .max_bytes = 4096,
+    }, guard);
+    const closed_read = try owner.beginRead(.{
+        .target = target,
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 4 },
+        .from_revision = 1,
+        .through_revision = 1,
+        .max_steps = 16,
+        .max_bytes = 4096,
+    }, guard);
+    _ = try owner.releaseRead(.{
+        .target = target,
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 5 },
+        .read = closed_read.handle(),
+    }, guard);
+    _ = try owner.archive(owner.root.position(), .{}, guard);
+    const recovery_ref = try owner.checkpointRecovery(owner.root.position(), guard);
+
+    const tail = try wal.log().tail(init_req.partition);
+    var latest_batch = try wal.log().read(t.allocator, init_req.partition, tail - 1, 1);
+    defer latest_batch.deinit();
+
+    var workspace: Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest_batch.frames[0]));
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) {
+        var work = workspace.jobs.items[at];
+        while (!try Graph.step(t.allocator, &owner.store, wal.log(), &work, &workspace)) {
+            steps += 1;
+            if (steps == 2000) return error.FixtureBudget;
+        }
+        at += 1;
+    }
+
+    var name: [96]u8 = undefined;
+    try t.expect(Graph.collectible(try s.DocumentDeclaration.key(declared.content, &name)));
+    try t.expect(workspace.marks.contains(try s.DocumentDeclaration.key(declared.content, &name)));
+    try t.expect(workspace.marks.contains(try s.DocumentRecovery.key(recovery_ref.content, &name)));
+    try t.expect(workspace.marks.contains(try s.DocumentRead.key(live_read.source, &name)));
+    const state_key = try std.fmt.bufPrint(&name, "document-states/{x}.data", .{&mut_rec.state.sha256});
+    try t.expect(workspace.marks.contains(state_key));
+    const payload_key = try std.fmt.bufPrint(&name, "document-payloads/{x}.data", .{&mut_rec.mutation.payload.sha256});
+    try t.expect(workspace.marks.contains(payload_key));
+}

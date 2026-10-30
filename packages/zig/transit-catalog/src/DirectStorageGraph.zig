@@ -36,6 +36,44 @@ const LogContext = struct {
     }
 };
 const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins };
+const DocumentContext = struct {
+    interpretation: d.Definition,
+    partition: u64,
+    ordinal: u32,
+    next_lsn: u64,
+    archive: s.LogHistory.Coverage,
+    fn fromRoot(root: s.DocumentPartitionRecord.Root, archive: s.LogHistory.Coverage) !DocumentContext {
+        try root.validate();
+        return .{
+            .interpretation = root.declared.declaration.interpretation,
+            .partition = root.initialization.partition,
+            .ordinal = root.initialization.ordinal,
+            .next_lsn = root.next_lsn,
+            .archive = archive,
+        };
+    }
+    fn requireTarget(self: DocumentContext, target: c.protocol.DocumentOperation.Partition) !void {
+        try target.validate();
+        if (!std.meta.eql(target.interpretation.object, self.interpretation.object) or
+            target.partition != self.ordinal or
+            target.interpretation.revision > self.interpretation.revision or
+            (target.interpretation.revision == self.interpretation.revision and !std.meta.eql(target.interpretation, self.interpretation)))
+        {
+            return error.InvalidDocumentStorageGraph;
+        }
+    }
+    fn owner(self: DocumentContext, key: s.TreeStore.pages.Key) !d.Operation {
+        if (key.len != 16) return error.InvalidDocumentStorageGraph;
+        const identity: d.Operation = .{
+            .scope = self.interpretation.object.scope,
+            .principal = std.mem.readInt(u64, key.data[0..8], .big),
+            .operation = std.mem.readInt(u64, key.data[8..16], .big),
+        };
+        try identity.validate();
+        return identity;
+    }
+};
+const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, operations, reads };
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
@@ -61,6 +99,13 @@ pub const Work = union(enum) {
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
     log_archive_range: struct { context: LogContext, from: u64, until: u64 },
+    document_declaration: s.DocumentDeclaration.Stored,
+    document_initialization: s.DocumentInitialization.Request,
+    document_history: s.DocumentStorageRoots.Cursor,
+    document_root: struct { root: s.DocumentPartitionRecord.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
+    document_index: struct { context: DocumentContext, reference: s.TreeStore.pages.Reference, kind: DocumentIndexKind, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
+    document_read: struct { context: DocumentContext, handle: c.protocol.DocumentOperation.Read.Handle },
+    document_wal: struct { context: DocumentContext, lsn: u64 },
     table_history: s.TableStorageRoots,
     table_root: struct { root: s.TablePartition.Root, archive: s.TableArchive.Coverage, role: Role, slot: u8 = 0 },
     table_walk: struct { walk: Walk, archive: s.TableArchive.Coverage, live_pins: bool },
@@ -76,7 +121,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -87,6 +132,11 @@ pub fn fromFrame(allocator: std.mem.Allocator, frame: s.TransitLog.Frame) !Work 
     if (std.mem.startsWith(u8, frame.payload, "LOGPART1")) {
         const record = (try s.LogPartitionRecord.decode(allocator, frame, frame.header.partition_id, frame.header.lsn)).record;
         return .{ .log_history = try .init(.{ .root = record.root, .commitment = s.LogEvidence.hash(frame.payload) }) };
+    }
+    if (std.mem.startsWith(u8, frame.payload, "DINIT001")) return .{ .document_initialization = (try s.DocumentInitialization.decode(allocator, frame)).request };
+    if (std.mem.startsWith(u8, frame.payload, "DOCPART1")) {
+        const record = (try s.DocumentPartitionRecord.decode(allocator, frame, frame.header.partition_id, frame.header.lsn)).record;
+        return .{ .document_history = try .init(record.root.initialization, record.root.next_lsn) };
     }
     if (std.mem.startsWith(u8, frame.payload, "TCATLOG1")) {
         const record = try CatalogStore.decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn);
@@ -165,12 +215,77 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
     }
 }
 
+fn markDocumentBlob(store: s.TransitObjectStore.ObjectStore, workspace: anytype, prefix: []const u8, content: d.Content) !void {
+    try content.validate();
+    var name: [96]u8 = undefined;
+    const key = try std.fmt.bufPrint(&name, "{s}/{x}.data", .{ prefix, &content.sha256 });
+    const meta = (try store.head(key)) orelse return error.DocumentStateObjectMissing;
+    if (meta.size != content.bytes or !std.mem.eql(u8, &meta.sha256, &content.sha256)) return error.InvalidDocumentStorageGraph;
+    try markContent(workspace, key, content);
+}
+
+fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: DocumentContext, kind: DocumentIndexKind, entry: s.TreeStore.pages.Entry) !void {
+    switch (kind) {
+        .pages_only => {},
+        .documents => {
+            const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.DocumentHead, allocator, entry.value.slice());
+            defer parsed.deinit();
+            try parsed.value.cut.validate();
+            try context.requireTarget(parsed.value.cut.target.partition);
+            if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.cut.target.document)) return error.InvalidDocumentStorageGraph;
+            try markDocumentBlob(index.store, workspace, "document-states", parsed.value.cut.state);
+        },
+        .revisions => {
+            const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.RevisionEntry, allocator, entry.value.slice());
+            defer parsed.deinit();
+            if (entry.key.len != 24 or parsed.value.lsn >= context.next_lsn) return error.InvalidDocumentStorageGraph;
+            try markDocumentBlob(index.store, workspace, "document-states", parsed.value.state);
+            try markDocumentBlob(index.store, workspace, "document-payloads", parsed.value.payload);
+        },
+        .replicas => {
+            const parsed = try c.protocol.Json.parseFromSlice(c.protocol.DocumentOperation.ReplicaState, allocator, entry.value.slice());
+            defer parsed.deinit();
+            try parsed.value.validate();
+            try context.requireTarget(parsed.value.target.partition);
+            if (entry.key.len != 32 or
+                !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.target.document) or
+                !std.mem.eql(u8, entry.key.data[16..32], &parsed.value.replica.id))
+            {
+                return error.InvalidDocumentStorageGraph;
+            }
+        },
+        .operations => {
+            const parsed = try c.protocol.Json.parseFromSlice(d.Content, allocator, entry.value.slice());
+            defer parsed.deinit();
+            const outcome = try s.DocumentEvidence.load(allocator, index.store, parsed.value);
+            const expected_op: d.Operation = switch (outcome) {
+                .mutation => |v| v.mutation.operation,
+                .checkpoint => |v| v.checkpoint.operation,
+                .read => |v| v.request.operation,
+                .read_release => |v| v.release.operation,
+            };
+            if (!std.meta.eql(try context.owner(entry.key), expected_op)) return error.InvalidDocumentStorageGraph;
+            var name: [96]u8 = undefined;
+            try markContent(workspace, try s.DocumentEvidence.key(parsed.value, &name), parsed.value);
+        },
+        .reads => {
+            const owner = try context.owner(entry.key);
+            const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.PinEntry, allocator, entry.value.slice());
+            defer parsed.deinit();
+            try parsed.value.source.validate();
+            if (!parsed.value.released) {
+                try workspace.enqueue(.{ .document_read = .{ .context = context, .handle = .{ .owner = owner, .source = parsed.value.source } } });
+            }
+        },
+    }
+}
+
 /// Advance one cursor, directory slot, or bounded object. At most three child
 /// jobs are added. Caller publishes work, marks and this active cursor together;
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_read, .log_segment, .log_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization, .log_read, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -531,6 +646,110 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.lsn < value.context.archive.through) {
                 const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
                 const reference = try tree.get(value.context.archive.directory, try s.TableArchive.key(value.lsn)) orelse return error.LogHistoryUnavailable;
+                const content = try s.TableArchive.decodeReference(reference);
+                try markContent(workspace, try s.TableArchive.objectKey(content.sha256, &key_buffer), content);
+            }
+        },
+        .document_declaration => |stored| {
+            var declaration = try s.DocumentDeclaration.load(allocator, index.store, stored);
+            defer declaration.deinit();
+            try markContent(workspace, try s.DocumentDeclaration.key(stored.content, &key_buffer), stored.content);
+        },
+        .document_initialization => |request| {
+            try request.validate();
+            _ = try s.DocumentInitialization.readStored(allocator, log, index.store, request);
+            try workspace.enqueue(.{ .document_declaration = request.declared });
+            const end = try log.tail(request.partition);
+            if (end > 1) {
+                var latest = try log.read(allocator, request.partition, end - 1, 1);
+                defer latest.deinit();
+                if (latest.frames.len != 1) return error.DocumentHistoryUnavailable;
+                const decoded = (try s.DocumentPartitionRecord.decode(allocator, latest.frames[0], request.partition, end - 1)).record;
+                try request.requireSame(decoded.root.initialization);
+                try workspace.enqueue(.{ .document_history = try .init(decoded.root.initialization, decoded.root.next_lsn) });
+            }
+        },
+        .document_history => |*walk| {
+            switch (try walk.step(allocator, log, index.store)) {
+                .complete => return true,
+                .empty => |initialized| try workspace.enqueue(.{ .document_declaration = initialized.declared }),
+                .root => |root| {
+                    const archive = if (walk.latest) |latest| (latest.record.root.archive orelse s.LogHistory.Coverage.empty) else (root.archive orelse s.LogHistory.Coverage.empty);
+                    const context = try DocumentContext.fromRoot(root, archive);
+                    if (root.recovery) |rec| {
+                        try markContent(workspace, try s.DocumentRecovery.key(rec.content, &key_buffer), rec.content);
+                    }
+                    try workspace.enqueue(.{ .document_root = .{ .root = root, .archive = archive } });
+                    try workspace.enqueue(.{ .document_wal = .{ .context = context, .lsn = root.next_lsn - 1 } });
+                },
+            }
+            return false;
+        },
+        .document_root => |*value| {
+            const root = value.root;
+            const archive_dir = if (root.archive) |a| a.directory else null;
+            const directories = [_]?s.TreeStore.pages.Reference{ root.documents_root, root.revisions_root, root.replicas_root, root.operations_root, root.reads_root, archive_dir };
+            const kinds = [_]DocumentIndexKind{ .documents, .revisions, .replicas, .operations, .reads, .pages_only };
+            if (value.slot > directories.len + 1) return error.InvalidDocumentStorageGraph;
+            if (value.slot == directories.len + 1) return true;
+            const context = try DocumentContext.fromRoot(root, value.archive);
+            if (value.slot == 0) {
+                try workspace.enqueue(.{ .document_declaration = root.declared });
+                try workspace.enqueue(.{ .document_declaration = root.initialization.declared });
+            } else if (directories[value.slot - 1]) |reference| {
+                try workspace.enqueue(.{ .document_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            }
+            value.slot += 1;
+            return false;
+        },
+        .document_index => |*value| {
+            const page = try index.load(value.reference);
+            if (value.height) |height| if (page.height != height) return error.InvalidDocumentStorageGraph;
+            if (value.slot > page.count) return error.InvalidDocumentStorageGraph;
+            if (!value.marked) {
+                if (value.slot != 0) return error.InvalidDocumentStorageGraph;
+                try markPage(index, workspace, value.reference);
+                if (try workspace.visited(try scope(.{ .document_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind } }))) return true;
+                value.marked = true;
+                return false;
+            }
+            if (value.slot == page.count) return true;
+            switch (page.body) {
+                .branch => |children| try workspace.enqueue(.{ .document_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .height = page.height - 1 } }),
+                .leaf => |entries| try documentEntry(allocator, index, workspace, value.context, value.kind, entries[value.slot].?),
+            }
+            value.slot += 1;
+            return false;
+        },
+        .document_read => |value| {
+            const source = try s.DocumentRead.load(allocator, index.store, value.handle.source);
+            try value.context.requireTarget(source.cut.target.partition);
+            if (!std.meta.eql(source.request.operation, value.handle.owner) or
+                source.cut.accepted.partition != value.context.partition or
+                source.cut.accepted.next_lsn >= value.context.next_lsn)
+            {
+                return error.InvalidDocumentStorageGraph;
+            }
+            try markContent(workspace, try s.DocumentRead.key(value.handle.source, &key_buffer), value.handle.source);
+        },
+        .document_wal => |value| {
+            if (value.lsn >= value.context.next_lsn) return error.InvalidDocumentStorageGraph;
+            var batch = if (value.lsn < value.context.archive.through)
+                try s.LogHistory.read(allocator, index, value.context.archive, value.context.partition, value.lsn)
+            else
+                try log.read(allocator, value.context.partition, value.lsn, 1);
+            defer batch.deinit();
+            if (batch.frames.len != 1) return error.DocumentHistoryUnavailable;
+            if (value.lsn == 0) {
+                const initialized = try s.DocumentInitialization.decode(allocator, batch.frames[0]);
+                try value.context.requireTarget(initialized.request.target());
+            } else {
+                const record = (try s.DocumentPartitionRecord.decode(allocator, batch.frames[0], value.context.partition, value.lsn)).record;
+                try value.context.requireTarget(record.root.initialization.target());
+            }
+            if (value.lsn < value.context.archive.through) {
+                const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
+                const reference = try tree.get(value.context.archive.directory, try s.TableArchive.key(value.lsn)) orelse return error.DocumentHistoryUnavailable;
                 const content = try s.TableArchive.decodeReference(reference);
                 try markContent(workspace, try s.TableArchive.objectKey(content.sha256, &key_buffer), content);
             }

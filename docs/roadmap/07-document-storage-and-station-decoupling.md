@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — core and private storage foundation
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — D0–D4 direct Document protocol, algebra, `.tseg` shredding, `DocumentPartition`, and catalog/storage-graph foundations delivered; D5 transaction/SQL/consumer cutover pending M5/M6 turn gate
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -231,11 +231,11 @@ and Station turn participants are in place.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
-| D0 | Neutral `DOCUMENT_V1` declaration, lineage, operation and read contracts | `796e7fe86` baseline | `DocumentDeclaration`, `DocumentOperation` and `DocumentRead` in `transit-protocol`, reflected `data-lifecycle-v1.schema.json`, fixtures and refusal tests |
-| D1 | Logical Document algebra: succinct `BP` trees, span text and 5-state 3-way structural merges | D0 | `SuccinctTree`, `SpanText` and `VersionedMerge` in `transit-document` with reference-oracle equivalence, 24-permutation convergence and zero-allocation navigation checks |
-| D2 | Fenced Document declarations, genesis initialization and adaptive `.tseg` subcolumn shredding | D0–D1 and M6 bitmap/storage foundation | `DocumentDeclaration` (`DDECL001`), `DocumentInitialization` (`DINIT001`) and `DocumentShredder` with 5-state subcolumn zone maps and differential tree/subcolumn equivalence |
-| D3 | `DocumentPartition` WAL acceptance, retained revision reads, checkpoints and GC graph walk | D1–D2 | `DocumentPartition`, `DocumentEvidence`, `DocumentRead`, `DocumentRecovery` and `DocumentStorageRoots` wired into `DirectStorageGraph` and `DataStore.trimUnit`, verified across disk reopen, trim and collection |
-| D4 | Direct catalog lifecycle (`DirectDocument`), `document_domain` authority and node dispatch | D2–D3 | Signed callers create, alter, rename, edit, read, checkpoint and drop Documents through `DirectCatalog` and `LocalCatalogRunner` without Station actors |
+| D0 (Delivered) | Neutral `DOCUMENT_V1` declaration, lineage, operation and read contracts | `796e7fe86` baseline | `DocumentDeclaration`, `DocumentOperation` and `DocumentRead` in `transit-protocol`, reflected `data-lifecycle-v1.schema.json`, fixtures and refusal tests |
+| D1 (Delivered) | Logical Document algebra: succinct `BP` trees, span text and 5-state 3-way structural merges | D0 | `SuccinctTree`, `SpanText` and `VersionedMerge` in `transit-document` with reference-oracle equivalence, 24-permutation convergence and zero-allocation navigation checks |
+| D2 (Delivered) | Fenced Document declarations, genesis initialization and adaptive `.tseg` subcolumn shredding | D0–D1 and M6 bitmap/storage foundation | `DocumentDeclaration` (`DDECL001`), `DocumentInitialization` (`DINIT001`) and `DocumentShredder` with 5-state subcolumn zone maps and differential tree/subcolumn equivalence |
+| D3 (Delivered) | `DocumentPartition` WAL acceptance, retained revision reads, checkpoints and GC graph walk | D1–D2 | `DocumentPartition`, `DocumentEvidence`, `DocumentRead`, `DocumentRecovery` and `DocumentStorageRoots` wired into `DirectStorageGraph` and `DataStore.trimUnit`, verified across disk reopen, trim and collection |
+| D4 (In Progress — authority & graph delivered) | Direct catalog lifecycle (`DirectDocument`), `DocumentAuthority` and node dispatch | D2–D3 | `DocumentAuthority` and `DirectStorageGraph` delivered; signed node dispatch awaits the D5 transaction/consumer cutover gate |
 | D5 | Category-1 `DocumentTransaction` participant, SQL/Fuze lowering and current-v1 consumer cutover | D3–D4 and M6 R5/R7 transaction/turn readiness | Multi-object Table/Document/Stream/Queue transactions, Fuze subcolumn pushdown, removal of `transit-station-document` / `SIX1` Document storage, and migrated ABI/SDK/Board/example suites |
 
 ## Implementation plan for initial Document decoupling

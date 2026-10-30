@@ -82,7 +82,7 @@ pub const Receipt = struct {
         const next_lsn = std.math.add(u64, self.cut.accepted.next_lsn, 1) catch return error.InvalidDocumentRead;
         if (self.cut.accepted.next_lsn == 0 or
             self.accepted.partition != self.cut.accepted.partition or
-            self.accepted.next_lsn != next_lsn or
+            self.accepted.next_lsn < next_lsn or
             self.through_revision != (self.request.through_revision orelse self.cut.accepted_revision) or
             self.through_revision < self.request.from_revision)
         {

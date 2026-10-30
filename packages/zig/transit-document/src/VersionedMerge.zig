@@ -53,8 +53,8 @@ pub const Scalar = union(enum) {
     }
 
     pub fn order(self: Scalar, other: Scalar) std.math.Order {
-        const tag_a = @intFromEnum(std.meta.activeTag(self));
-        const tag_b = @intFromEnum(std.meta.activeTag(other));
+        const tag_a = @backingInt(std.meta.activeTag(self));
+        const tag_b = @backingInt(std.meta.activeTag(other));
         if (tag_a != tag_b) return std.math.order(tag_a, tag_b);
         return switch (self) {
             .boolean => |v| std.math.order(@intFromBool(v), @intFromBool(other.boolean)),
