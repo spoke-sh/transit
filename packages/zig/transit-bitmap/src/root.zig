@@ -9,6 +9,13 @@ pub const header_bytes = 12;
 pub const max_encoded_bytes = header_bytes + word_count * 8;
 pub const Kind = enum(u8) { array = 1, bitmap = 2, run = 3 };
 
+fn overlaps(left: []const u8, right: []const u8) bool {
+    if (left.len == 0 or right.len == 0) return false;
+    const a = @intFromPtr(left.ptr);
+    const b = @intFromPtr(right.ptr);
+    return if (a <= b) b - a < left.len else a - b < right.len;
+}
+
 fn get16(bytes: []const u8, at: usize) u16 {
     return std.mem.readInt(u16, bytes[at..][0..2], .little);
 }
@@ -103,6 +110,7 @@ pub const Container = struct {
     /// their mandatory contract definition, object/range binding and integrity.
     /// This is not the upstream portable Roaring serialization format.
     pub fn encode(self: *const Container, output: []u8) ![]const u8 {
+        if (overlaps(std.mem.asBytes(self), output)) return error.BitmapBufferAlias;
         var runs: u32 = 0;
         var count: u32 = 0;
         var previous: ?u16 = null;
@@ -162,6 +170,7 @@ pub const Container = struct {
 
     /// Parse before mutating scratch: malformed input preserves its old value.
     pub fn decode(self: *Container, bytes: []const u8) !void {
+        if (overlaps(std.mem.asBytes(self), bytes)) return error.BitmapBufferAlias;
         const view = try View.parse(bytes);
         self.clear();
         var it = view.iterator();

@@ -2768,6 +2768,7 @@
     },
     "packages/zig/transit-bitmap/src/root.zig": {
       "errors": {
+        "BitmapBufferAlias": 2,
         "BitmapOutputTooSmall": 1,
         "InvalidBitmapCardinality": 1,
         "InvalidBitmapEncoding": 12,

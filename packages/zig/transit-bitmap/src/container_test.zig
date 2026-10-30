@@ -130,6 +130,17 @@ test "Roaring rejects overflowing adjacent and overlapping run records" {
     try t.expectError(error.InvalidBitmapEncoding, b.View.parse(&bytes));
 }
 
+test "Roaring rejects input and output aliasing mutable scratch before changing it" {
+    var scratch: b.Container = .{};
+    _ = scratch.set(42);
+    const before = scratch.words;
+    const alias = std.mem.asBytes(&scratch.words);
+    try t.expectError(error.BitmapBufferAlias, scratch.encode(alias));
+    try t.expectError(error.BitmapBufferAlias, scratch.decode(alias));
+    try t.expectEqualSlices(u64, &before, &scratch.words);
+    try t.expectEqual(@as(u32, 1), scratch.cardinality);
+}
+
 test "Roaring deterministic mutation corpus roundtrips without allocator access" {
     var scratch: b.Container = .{};
     var recovered: b.Container = .{};

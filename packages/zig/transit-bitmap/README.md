@@ -11,7 +11,8 @@ No operation takes an allocator, opens storage or acquires permission.
 `encode` writes to a caller-owned output buffer of at most 8,204 bytes.
 `View.parse` validates borrowed immutable bytes; `contains` and iteration retain
 no additional allocation. The caller keeps those bytes alive and unchanged.
-Invalid decoding leaves the mutable container unchanged.
+Invalid decoding leaves the mutable container unchanged. Encode/decode reject
+input or output buffers that overlap the mutable container before changing bytes.
 
 The internal canonical `RBC1` encoding has a 12-byte header: magic, one-byte kind
 (`array=1`, `bitmap=2`, `run=3`), three zero reserved bytes and a little-endian
