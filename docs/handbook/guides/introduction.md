@@ -1,19 +1,16 @@
 # What is Transit?
 
-Transit is programmable, versioned data infrastructure for applications. It
-stores and queries relational tables, key-value state and collaborative
-documents, and uses durable execution, write-ahead change streams and recorded
-connectors to **activate** data—maintaining derived views, driving stateful
-workflows and coordinating external effects with exact recovery and current
-authorization.
+**Transit is a declarative, versioned multi-model database, vectorized/incremental query engine (`Fuze`), and durable execution runtime (`Station`) written in Zig.**
 
-Start with the data your application needs: its logical schema, physical
-encoding and collation, how it changes, what computations derive from it, and
-which policies govern its use. The [data model](../reference/data-model.md)
-connects these concerns to their supported interfaces, and
-[Internals](../internals/README.md) formalizes the underlying storage, query and
-execution mechanisms. The [local quickstart](quickstart.md) takes you from an
-empty installation to a Table you define, query and evolve through the console.
+Instead of assembling a fragmented stack of an OLTP database, an analytical lakehouse, a document store, a message stream, a workflow engine, and custom glue pipelines, Transit unifies three architectural planes over a single storage and authority foundation:
+
+- **Control & Policy Plane (`DirectCatalog` & Governance):** Versioned catalog definitions (`manifest/v{N}`), an orthogonal type algebra ($\tau$ logical types $\perp \kappa$ collations and spatial manifolds $\perp \epsilon$ physical codecs), scoped `policy_epoch` permissions, unlimited-by-default retention, and zero-copy branching.
+- **Direct Data & Query Plane (`Fuze` & `.tseg` Storage):** Relational [Tables](../reference/tables.md), [Key-Value state](../reference/state.md), collaborative [Documents](../reference/documents.md), [Streams](../reference/streams.md), and external datasets backed by write-ahead delta logs (`TransitLog`) and immutable columnar `.tseg` segments, queried through `Fuze`'s five-state vectorized and incremental engine (`value`, `null`, `missing`, `type_error`, `conflict`).
+- **Process, Effect & Gateway Plane (`Station` & Sans-I/O Gateways):** Stateful durable processes (`Station`), recorded outbound connector effects (`HTTP`, `gRPC`), and sans-I/O client gateways ([SQL sessions](../reference/sql-sessions.md), [PostgreSQL and MySQL](../reference/database-protocols.md), [Arrow Flight SQL / ADBC](../reference/flight.md), [OpenAPI](../reference/openapi.md), [AsyncAPI](../reference/asyncapi.md), and [Board](inspect-board.md)).
+
+![Transit Three-Plane Architecture](../static/img/architecture/three-plane-architecture.jpg)
+
+Start with the data your application needs: its logical schema, physical encoding and collation, how it changes, what computations derive from it, and which policies govern its use. The [data model](../reference/data-model.md) connects these concerns to their supported interfaces, and [Internals](../internals/README.md) formalizes the underlying storage, query and execution mechanisms. The [local quickstart](quickstart.md) takes you from an empty installation to a Table you define, query and evolve through the console.
 
 ## Describe intent and inspect the result
 
@@ -22,16 +19,9 @@ The question that organizes Transit is:
 > Can someone describe the data, computation and policies they need, then inspect
 > whether Transit is fulfilling that declaration?
 
-For a Table, that means defining columns, keys and defaults, then inspecting its
-published schema and committed rows. For a query, it means identifying its inputs
-and computation, then observing a complete result against a specific data basis.
-For a maintained result, it also means knowing which input changes it includes
-and whether processing has stopped or is still catching up.
+For a Table, that means defining columns, keys, encodings, collations and defaults, then inspecting its published schema and committed rows. For a query, it means identifying its inputs and computation, then observing a complete five-state result against a specific data basis. For a maintained result, it also means knowing which input changes it includes and whether processing has stopped or is still catching up.
 
-These observations have different meanings. A valid definition may still need
-publication or activation. An accepted operation may still be running. A complete
-result describes the source versions it read; newer input can exist. Current
-permissions govern both execution and inspection.
+These observations have different meanings. A valid definition may still need publication or activation. An accepted operation may still be running. A complete result describes the source versions it read; newer input can exist. Current permissions (`policy_epoch`) govern both execution and inspection.
 
 The product direction is:
 
@@ -39,79 +29,39 @@ The product direction is:
 > governing its use. Transit manages the storage hierarchy, delta activation and
 > durable execution lifecycle needed to keep those definitions useful.
 
-The supported path is most complete for Tables: create and evolve their schemas,
-read and change rows, and inspect outcomes through a configured catalog. KV and
-Documents have client/service APIs, but their SQL declarations compile offline
-without creating objects. Named captured and maintained relational queries have
-typed Zig interfaces with explicit host activation and scheduling; SQL view and
-subscription declarations are unavailable. See the [capability map](../reference/data-model.md#declarations-and-current-interfaces)
-for the boundary between the direction and today's operations.
+The supported path is most complete for Tables: create and evolve their schemas, read and change rows independently of actor turns, and inspect outcomes through a configured catalog. KV and Documents have client/service APIs, while their SQL declarations compile offline without creating objects. Named captured and maintained relational queries have typed Zig interfaces with explicit host activation and scheduling; SQL view and subscription declarations are unavailable. See the [capability map](../reference/data-model.md#declarations-and-current-interfaces) for the boundary between the direction and today's operations.
 
 ## Work with data
 
-The [business stories](../reference/collaborative-decisions.md) follow a delivery
-manager, a reviewer and an operations lead using shared evidence to answer
-questions, compare branch proposals and respond to meaningful changes. They
-describe the proposed human/agent collaboration experience and identify its
-available building blocks separately from capabilities still to be implemented.
+The [business stories](../reference/collaborative-decisions.md) follow a delivery manager, a reviewer and an operations lead using shared evidence to answer questions, compare branch proposals and respond to meaningful changes. They describe the proposed human/agent collaboration experience and identify its available building blocks separately from capabilities still to be implemented.
 
 | Need | Start here |
 | --- | --- |
-| Store records with typed columns, keys and defaults | [Tables and schema evolution](../reference/tables.md) |
+| Store records with typed columns, keys, physical codecs and collations | [Tables and materialization](../reference/tables.md) and [data types and cell states](../reference/sql/types.md) |
 | Store keys and values under an explicit encoding | [KV resources](../reference/state.md) |
 | Accept structured edits and collaborative text with explicit conflicts | [Documents](../reference/documents.md) |
-| Read, filter, join or aggregate supported sources | [SQL](../reference/sql.md) and [query lifetimes](../reference/data-model.md#choose-a-computation-lifetime) |
+| Read, filter, join or aggregate supported sources with `Fuze` | [SQL](../reference/sql.md), [queries](../reference/queries.md) and [query lifetimes](../reference/data-model.md#choose-a-computation-lifetime) |
 | Control access, retention and resource budgets | [Permissions](../reference/security.md) and [retention](../reference/retention.md) |
-| Inspect definitions, results and progress | [Observe the lifecycle](../reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled) |
+| Inspect definitions, results and progress | [Observe the lifecycle](../reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled) and [Board](inspect-board.md) |
 | Capture external observations or coordinate external actions | [Connectors and recorded outcomes](../reference/connectors.md) |
 
-SQL, language SDKs, HTTP APIs and Board expose different operations over shared
-owners and contracts. [Choose an interface](choose-interface.md) for the data
-kind, computation lifetime and operations you need. An interface that reads a
-source does not necessarily create it or maintain a derived result.
+SQL, language SDKs, HTTP APIs and Board expose different operations over shared owners and contracts. [Choose an interface](choose-interface.md) for the data kind, computation lifetime and operations you need. An interface that reads a source does not necessarily create it or maintain a derived result.
 
 ## Durable execution supports the data lifecycle
 
-In Transit, data and computation are the primary user-facing declarations, while
-durable processes (`Station`), write-ahead streams and connectors are the
-mechanisms that activate changes and preserve progress across failures:
+In Transit, data and computation are the primary user-facing declarations, while durable processes (`Station`), write-ahead streams (`TransitLog`) and connectors are the mechanisms that activate changes and preserve progress across failures:
 
-1. **Snapshot isolation and atomic publication:** Transit records accepted
-   mutations and keeps partially staged data private until its complete successor
-   is published. A reader retains its selected data version while later writes
-   proceed. After an uncertain write, the original operation's recorded outcome
-   tells the caller whether it applied. Repeating SQL creates new work; a lost
-   connection alone does not establish failure.
-2. **Change capture and derived views:** Committed Table transitions preserve
-   ordered row deltas (`+row`/`-row`) and schema provenance so change readers,
-   reactive watches and maintained computations can advance from exact source
-   watermarks without polling or losing intermediate transactions.
-3. **Stateful workflows and external effects:** Custom `Station` workers extend
-   this model with application-defined validation, orchestration and connector
-   calls. A durable process gives that work an identity (`PID`), ordered input
-   and recoverable progress; its worker can restart without replacing accepted
-   work or re-dispatching an external HTTP/gRPC effect. [Processes and turns](../reference/processes.md)
-   explain the commit mechanism; [build an application](applications.md) explains
-   how to supply your own worker.
+1. **Snapshot isolation and atomic publication:** Transit records accepted mutations and keeps partially staged data private until its complete successor is published. A reader retains its selected data version while later writes proceed. After an uncertain write, the original operation's recorded outcome tells the caller whether it applied. Repeating SQL creates new work; a lost connection alone does not establish failure.
+2. **Change capture and derived views:** Committed Table transitions preserve ordered row deltas (`+row`/`-row`) and schema provenance so change readers, reactive watches and maintained computations can advance from exact source watermarks without polling or losing intermediate transactions.
+3. **Stateful workflows and external effects:** Custom `Station` workers extend this model with application-defined validation, orchestration and connector calls. A durable process gives that work an identity (`PID`), ordered input and recoverable progress; its worker can restart without replacing accepted work or re-dispatching an external HTTP/gRPC effect. [Processes and turns](../reference/processes.md) explain the commit mechanism; [build an application](applications.md) explains how to supply your own worker.
 
-Station provides application behaviors and data owners above the generic kernel.
-Fuze executes vectorized and relational queries over authorized sources. Board
-presents observed state, and connectors record external attempts and outcomes.
-These components support the same data and execution boundaries; their
-[architecture](../reference/architecture.md) and
-[system model](../internals/system-model.md) explain the division of
-responsibilities.
+Station provides application behaviors and data owners above the generic kernel. Fuze executes vectorized and relational queries over authorized sources. Board presents observed state, and connectors record external attempts and outcomes. These components support the same data and execution boundaries; their [architecture](../reference/architecture.md) and [system model](../internals/system-model.md) explain the division of responsibilities.
 
 ## Continue from a working dataset
 
 1. [Run Transit locally](quickstart.md), define a Table and inspect its schema.
 2. Read and change its rows from independent console sessions.
-3. Use the [data model](../reference/data-model.md) to choose representations,
-   computation lifetimes and policies for your application.
-4. Explore [workload recipes across languages](workload-examples.md), then add
-   custom execution or connectors where the application needs them.
+3. Use the [data model](../reference/data-model.md) to choose representations, computation lifetimes and policies for your application.
+4. Explore [workload recipes across languages](workload-examples.md), then add custom execution or connectors where the application needs them.
 
-Retention defaults to unlimited and requires explicit opt-in to expiry. A name,
-resource reference or retained snapshot never grants access. The
-[verification reference](../reference/verification.md) explains the guarantees
-and limits behind the supported operations.
+Retention defaults to unlimited and requires explicit opt-in to expiry. A name, resource reference or retained snapshot never grants access. The [verification reference](../reference/verification.md) explains the guarantees and limits behind the supported operations.

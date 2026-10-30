@@ -18,32 +18,7 @@ The [observation and feedback loop](collaborative-decisions.md#the-observation-a
 explains the product target: useful evidence before a decision and inspectable
 consequences afterward, so applications can revise their understanding.
 
-```mermaid
-flowchart LR
-  subgraph Declare["1. Declare Data, Computation & Policy"]
-    Schema["Data Objects & Catalog\n(Tables, KV, Documents, Types, Codecs, COLLATE)"]
-    Comp["Computations\n(Interactive SQL, Captured Jobs, Maintained Views)"]
-    Pol["Policies\n(Role Graph, policy_epoch, Retention, Budgets)"]
-  end
-
-  subgraph Store["2. Commit & Version State"]
-    Head["Atomic Publication & History\n(Catalog Root / Manifest vN + Delta Log)"]
-  end
-
-  subgraph Activate["3. Activate & Observe"]
-    Fuze["Fuze Vector & Relational Engine\n(5-State Cells, Snapshot & Delta Evaluation)"]
-    Station["Station Processes & Connectors\n(Workflows, Recorded Effect Intents & Outcomes)"]
-    Inspect["Inspectable Evidence\n(Definitions, Source Vectors, Receipts & Progress)"]
-  end
-
-  Schema --> Head
-  Pol --> Head
-  Comp --> Fuze
-  Head --> Fuze
-  Head -->|"Change capture & deltas"| Station
-  Fuze --> Inspect
-  Station --> Inspect
-```
+![Transit Data, Computation and Policy Lifecycle](../static/img/architecture/data-computation-policy-lifecycle.jpg)
 
 This page connects existing data owners and their contracts. The shared model
 below is a way to reason about them; Transit does not yet expose every data kind

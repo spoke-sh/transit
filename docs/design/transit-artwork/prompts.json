@@ -1,0 +1,142 @@
+{
+  "tool": "Built-in image_gen",
+  "encoding": {
+    "format": "JPEG",
+    "dimensions": [
+      1774,
+      887
+    ],
+    "quality": 90,
+    "chroma_sampling": "4:4:4",
+    "metadata": "stripped"
+  },
+  "images": [
+    {
+      "figure": 2,
+      "code": "B0",
+      "asset": "images/d1-resonance-original.jpg",
+      "concept": "Original terrain/resonance fork",
+      "references": [
+        {
+          "asset": "../../handbook/static/img/architecture/transit-score-wave-landscape.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: precise-object-edit\nAsset type: exploratory abstract editorial README hero for Transit.\nInput image: Edit target and visual-style reference, the existing score-to-wave-to-landscape illustration.\nPrimary request: Turn the continuous transformation into an elegant asymmetrical fork: a shared score becomes waves, then branches upward into topographic terrain and downward into a separate scene of color and acoustic resonance. Express one source producing different understandable forms while its lineage stays visible.\nKeep: the warm ivory paper, restrained printmaking texture, fine slate-blue linework, ochre trace, sparse geometric score marks at the left, and the recognizable score-to-wave transition. Wide 2:1 format.\nComposition: Score at the left, a short flowing wave passage toward the center, then a clearly visible organic bifurcation. The upper bundle of lines sweeps toward the upper right and acquires the layered contours, ridges, valleys and translucent strata of the original landscape. The lower bundle sweeps toward the lower right and opens into a distinct oblique vibrating-membrane-like field: fine elliptical interference rings and overlapping curved bands with small quiet nodal regions, where transparent inks overlap into richer colors. This lower scene evokes harmonics and resonance as an abstract color field, not another mountain landscape. Preserve generous ivory negative space between the two branches so the fork is immediately legible at README scale.\nColor: Keep the upper terrain in slate blue and ochre. Introduce restrained sea-green/teal and muted coral only in the lower resonance field, with subtle ink overlaps rather than a rainbow gradient. A single ochre line from the original score visibly divides and continues through BOTH branches, relating the scenes.\nHistory: Subtle pale offset contours behind both scenes, subordinate to the main forms.\nConstraints: All marks emerge continuously from the same source; one coherent gesture, no separate panels, no pasted collage. Airy, sophisticated and quietly expressive. No text, labels, arrows, icons, literal musical notes, instruments, speakers, screens, trees, buildings, gears, circuitry, neon, glossy rendering or decorative rainbow. The lower field must have a different spatial rhythm and color character from the upper terrain."
+    },
+    {
+      "figure": 3,
+      "code": "R1",
+      "asset": "images/d1-resonance-mineral.jpg",
+      "concept": "Terrain/resonance",
+      "palette": "mineral",
+      "references": [
+        {
+          "asset": "images/d1-resonance-original.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: precise-object-edit\nAsset type: abstract editorial hero artwork for Transit, visual direction comparison.\nInput image: Edit target, the branching score-to-wave illustration with upper terrain and lower resonance.\nPreserve: wide 2:1 canvas, fine ink lines, tactile ivory paper, sparse rectangular score marks at the far left, the central wave passage, the upper-right layered terrain, faint earlier contour traces, and a continuous ochre line that forks into both derived scenes. The source, wave and fork must stay legible at README width. Retain enough white space between upper and lower branches; let the bifurcation open slightly earlier and give the branch gap about 15 percent more space. Upper terrain remains the strongest solid form.\nPalette: warm ivory, slate blue and ochre above; restrained teal and pale coral below. Calm editorial printmaking, translucent ink, no gloss.\nChange: Refine the lower resonance field into a quieter, more delicate field of overlapping elliptical interference rings. Reduce the lower branch's saturation and ink density by roughly a third; keep the ring centers open and pale so they do not resemble eyes. Retain the resonance geometry and transparent overlaps, but make it subordinate to the terrain. The ochre path remains distinct and warm throughout both branches. This is the refined terrain/resonance composition.\nConstraints: One continuous illustration, no panels, no labels or text, no icons, no instruments, no speakers, no arrows, no neon, no decorative motifs. Do not add extra branches."
+    },
+    {
+      "figure": 4,
+      "code": "P1",
+      "asset": "images/d1-refraction-mineral.jpg",
+      "concept": "Terrain/refraction",
+      "palette": "mineral",
+      "references": [
+        {
+          "asset": "images/d1-resonance-original.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: precise-object-edit\nAsset type: abstract editorial hero artwork for Transit, visual direction comparison.\nInput image: Edit target, the branching score-to-wave illustration with upper terrain and lower resonance.\nPreserve: wide 2:1 canvas, fine ink lines, tactile ivory paper, sparse rectangular score marks at the far left, the central wave passage, the upper-right layered terrain, faint earlier contour traces, and a continuous ochre line that forks into both derived scenes. The source, wave and fork must stay legible at README width. Retain enough white space between upper and lower branches; let the bifurcation open slightly earlier and give the branch gap about 15 percent more space. Upper terrain remains the strongest solid form.\nPalette: warm ivory, slate blue and ochre above; restrained teal and pale coral below. Calm editorial printmaking, translucent ink, no gloss.\nChange: Replace ONLY the lower resonance scene with an abstract field of optical refraction. The descending lines open into a graceful fan of long, narrow, translucent colored planes, with crisp oblique boundaries and soft ink-filled interiors. At several quiet intersections the transparent planes overlap, revealing new subtle hues. Show one signal unfolding into several perspectives. These are airy geometric light planes, not solid glass prisms, petals, feathers, ribbons of fabric or terrain. Keep two or three fine source lines continuous through the planes, including the ochre thread. Use pale teal, powder blue and diluted coral with plenty of ivory showing through. The lower fan should be spatially open and visually quieter than the upper terrain. This is the terrain/refraction composition.\nConstraints: One continuous illustration, no panels, labels, text, icons, musical notes, speakers, arrows, neon or rainbow gradients. No rings or concentric ellipses in the lower scene. Do not add extra branches."
+    },
+    {
+      "figure": 5,
+      "code": "R2",
+      "asset": "images/d1-resonance-midnight.jpg",
+      "concept": "Terrain/resonance",
+      "palette": "midnight",
+      "references": [
+        {
+          "asset": "images/d1-resonance-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower elliptical resonance rings.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use a deep ink-navy matte paper background (#111B2B), pale ice-blue and desaturated periwinkle terrain lines, a softly luminous amber continuity trace, and restrained sea-glass/cyan and lavender in the lower branch. Translate faint history into subtle lighter navy traces. Fine ink-on-dark-paper appearance with controlled contrast, no neon bloom or electric glow. Keep the lower geometry readable but softer than the terrain.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    },
+    {
+      "figure": 6,
+      "code": "P2",
+      "asset": "images/d1-refraction-midnight.jpg",
+      "concept": "Terrain/refraction",
+      "palette": "midnight",
+      "references": [
+        {
+          "asset": "images/d1-refraction-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower translucent refraction planes.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use a deep ink-navy matte paper background (#111B2B), pale ice-blue and desaturated periwinkle terrain lines, a softly luminous amber continuity trace, and restrained sea-glass/cyan and lavender in the lower branch. Translate faint history into subtle lighter navy traces. Fine ink-on-dark-paper appearance with controlled contrast, no neon bloom or electric glow. Keep the lower geometry readable but softer than the terrain.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    },
+    {
+      "figure": 7,
+      "code": "R3",
+      "asset": "images/d1-resonance-botanical.jpg",
+      "concept": "Terrain/resonance",
+      "palette": "botanical",
+      "references": [
+        {
+          "asset": "images/d1-resonance-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower elliptical resonance rings.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use warm pale linen paper (#F3F0E4), forest-green and sage terrain, a muted golden-ochre continuity trace, and eucalyptus green with pale terracotta in the lower branch. Preserve translucent ink overlaps and delicate historical echoes. This is a muted botanical color palette only: do not add plants, leaves, trees or natural-world objects. Lower geometry must remain legible at small sizes.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    },
+    {
+      "figure": 8,
+      "code": "P3",
+      "asset": "images/d1-refraction-botanical.jpg",
+      "concept": "Terrain/refraction",
+      "palette": "botanical",
+      "references": [
+        {
+          "asset": "images/d1-refraction-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower translucent refraction planes.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use warm pale linen paper (#F3F0E4), forest-green and sage terrain, a muted golden-ochre continuity trace, and eucalyptus green with pale terracotta in the lower branch. Preserve translucent ink overlaps and delicate historical echoes. This is a muted botanical color palette only: do not add plants, leaves, trees or natural-world objects. Lower geometry must remain legible at small sizes.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    },
+    {
+      "figure": 9,
+      "code": "R4",
+      "asset": "images/d1-resonance-graphite.jpg",
+      "concept": "Terrain/resonance",
+      "palette": "graphite",
+      "references": [
+        {
+          "asset": "images/d1-resonance-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower elliptical resonance rings.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use clean warm chalk-white paper, graphite/charcoal structural lines, silver-gray terrain strata and a single restrained vermilion-red continuity trace that divides into both branches. Render the entire lower branch in subtle gray ink with only that shared vermilion thread as color. Preserve fine structure and transparent overlaps. Elegant monochrome print with one signal color. No blue, teal, coral, ochre or other accent colors.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    },
+    {
+      "figure": 10,
+      "code": "P4",
+      "asset": "images/d1-refraction-graphite.jpg",
+      "concept": "Terrain/refraction",
+      "palette": "graphite",
+      "references": [
+        {
+          "asset": "images/d1-refraction-mineral.jpg",
+          "role": "edit target"
+        }
+      ],
+      "prompt": "Use case: style-transfer\nAsset type: palette comparison for Transit abstract README artwork.\nInput image: Edit target; score and waves branching into upper terrain and lower translucent refraction planes.\nChange ONLY the color palette and the associated ink/background contrast. Preserve the exact 2:1 composition, score marks, wave rhythm, bifurcation location, contours, lower-branch geometry, margins and negative space. No new geometry or elements.\nPalette: Use clean warm chalk-white paper, graphite/charcoal structural lines, silver-gray terrain strata and a single restrained vermilion-red continuity trace that divides into both branches. Render the entire lower branch in subtle gray ink with only that shared vermilion thread as color. Preserve fine structure and transparent overlaps. Elegant monochrome print with one signal color. No blue, teal, coral, ochre or other accent colors.\nKeep the tactile editorial printmaking character, continuous source trace, hierarchy of delicate history beneath current forms, and clear visual lineage from left to both right branches. Preserve distinct upper and lower branches. No text, labels, panels, arrows, icons, gradients unrelated to the existing surfaces, embellishments or gloss."
+    }
+  ],
+  "earlier_prompts": "../../handbook/static/img/architecture/transit-concepts.prompts.json",
+  "readme_asset": "images/d1-refraction-graphite.jpg"
+}

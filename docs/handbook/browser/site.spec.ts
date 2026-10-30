@@ -66,7 +66,9 @@ test("production navigation, search, generated references and exact downloads", 
   });
   await page.goto(baseURL!);
   await expect(
-    page.getByRole("heading", { name: "Programmable data infrastructure." }),
+    page.getByRole("heading", {
+      name: "Declarative database, query engine & durable runtime.",
+    }),
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("desktop.png"), fullPage: true });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -89,21 +91,21 @@ test("production navigation, search, generated references and exact downloads", 
     .click();
   await expect(page.locator("#declarations-and-current-interfaces")).toBeVisible();
   await page.goto(baseURL!);
-  await page.getByRole("link", { name: "SQL Syntax, types and query profiles" }).click();
+  await page
+    .getByRole("link", { name: "SQL & Fuze Syntax, 5-state types and query profiles" })
+    .click();
   await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Grammar only", exact: true }).first()).toBeVisible();
   const sidebar = page.locator(".theme-doc-sidebar-menu");
   const categories = sidebar.locator(":scope > .menu__list-item > .menu__list-item-collapsible");
   for (const name of [
-    "Data model",
-    "Queries and derived data",
-    "Policies and lifecycle",
-    "CLI",
-    "SQL",
-    "HTTP APIs / OpenAPI",
-    "Reactive APIs / AsyncAPI",
-    "Flight SQL and ADBC",
-    "Native protocol",
+    "Overview and quickstart",
+    "Data model and type system",
+    "Query engine (Fuze) and SQL",
+    "Durable execution (Station) and apps",
+    "Client protocols, CLI and gateways",
+    "Security, governance and operations",
+    "Verification, contracts and contributing",
   ])
     await expect(categories.getByText(name, { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("sql-navigation.png") });
@@ -243,7 +245,11 @@ test("production navigation, search, generated references and exact downloads", 
   await page.goto(new URL("reference/asyncapi", baseURL).href);
   await expect(page.locator("#channel-reactive")).toHaveText(/Channel reactive/);
   await page.goto(new URL("reference/architecture", baseURL).href);
-  await expect(page.locator(".docusaurus-mermaid-container svg").first()).toBeVisible();
+  const archImg = page.getByRole("img", {
+    name: "Transit System Responsibilities and Authority Boundaries",
+  });
+  await expect(archImg).toBeVisible();
+  expect(await archImg.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
 
@@ -255,7 +261,9 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(baseURL!);
   await expect(
-    page.getByRole("heading", { name: "Programmable data infrastructure." }),
+    page.getByRole("heading", {
+      name: "Declarative database, query engine & durable runtime.",
+    }),
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("mobile.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -301,7 +309,9 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("button", { name: "Toggle navigation bar" }).click();
   const mobileMenu = page.locator(".navbar-sidebar");
-  await mobileMenu.getByRole("button", { name: "SQL", exact: true }).click();
+  await mobileMenu
+    .getByRole("button", { name: "Query engine (Fuze) and SQL", exact: true })
+    .click();
   await mobileMenu.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
   await expect(mobileMenu).not.toBeInViewport();
   await expect(page.getByRole("heading", { name: "CREATE TABLE", exact: true })).toBeVisible();

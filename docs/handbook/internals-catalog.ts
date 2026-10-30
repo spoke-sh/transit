@@ -10,34 +10,29 @@ const account = (name: string, label: string): Page => ({
 // own repository indexes and source links outside this reading path and search.
 export const internalsSections: Section[] = [
   {
-    label: "Read and write Internals",
+    label: "Architecture and foundations",
     pages: [
       account("README", "Internals"),
+      account("system-model", "System model and authority boundaries"),
       account("standard", "Scientific standard for Internals"),
       account("template", "Technical account template"),
     ],
   },
   {
-    label: "Data and computation",
+    label: "Storage, state and query engine (Direct Data Plane)",
     pages: [
-      account("system-model", "System model and authority boundaries"),
+      account("storage-runtime", "Storage, placement and observation"),
       account("state-model", "State, publication and lifetime"),
       account("query-engine", "Query planning, snapshots and results"),
     ],
   },
   {
-    label: "Execution and interfaces",
+    label: "Durable execution, gateways and verification",
     pages: [
       account("execution-model", "Execution, authorization and recovery"),
-      account("client-framework", "Clients, SDKs and Station"),
       account("effect-lifecycle", "External effects and uncertain outcomes"),
       account("service-interfaces", "SQL sessions, serving and operator interfaces"),
-    ],
-  },
-  {
-    label: "Runtime and evidence",
-    pages: [
-      account("storage-runtime", "Storage, placement and observation"),
+      account("client-framework", "Clients, SDKs and Station"),
       account("verification-method", "Verification and the limits of evidence"),
     ],
   },
