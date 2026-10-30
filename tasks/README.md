@@ -56,6 +56,15 @@ directory. Recipes work from repository subdirectories after entering the dev
 shell. `just ci all` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
+`just ci::dependencies` fetches the pinned Zig dependency tree without compiling
+or running checks. Hosted lanes and clean-source qualification run it before
+native builds (the independent formal lane is excluded). It permits four fetch
+attempts, each bounded to 120 seconds, with 5, 15 and 30 second backoffs for
+transient DNS/connection failures or a fetch timeout. Manifest, hash, authentication
+and unclassified failures stop immediately. Dependency preparation retains each
+attempt's diagnostics separately from test results; compilation and tests are
+never retried by this command.
+
 `just test::catalog` qualifies direct dependencies and named native resources;
 `just test::direct-table-service` qualifies direct Table operations. Their local durable
 owners retain history on disk with bounded metadata/data caches. Growth schedules

@@ -3,6 +3,15 @@
   "profiles": {
     "fast": [
       {
+        "id": "zig-dependency-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_zig_dependencies.py"
+        ]
+      },
+      {
         "id": "package-versions",
         "phase": "tooling",
         "command": [

@@ -20,6 +20,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
+| [zig_dependencies.py](zig_dependencies.py), [test_zig_dependencies.py](test_zig_dependencies.py) | Fetch pinned packages before builds, with bounded transport retries and retained failure diagnostics |
 | [ci_select.py](ci_select.py), [test_selection.py](test_selection.py) | Reviewed dependency selection, source-bound plans and conservative fallback controls |
 | [ci_cost.py](ci_cost.py) | Read hosted setup, execution and cache costs without treating missing lanes as success |
 | [ci_runner.py](ci_runner.py) | Selection, inventory, aggregate gate, interruption and clean-run regression controls |

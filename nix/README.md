@@ -458,8 +458,13 @@ historical budgets retain the original inventory identities.
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
 Zig manifests. The first selected SDK lane writes it (`sdks-conformance` for a
 full run), including the C++ standard library when compiled by its proofs.
-It holds fetched packages and global compiler
-objects, excluding checkout objects, launchers, credentials and the Git archive
+`ZIG_LOCAL_PKG_DIR` points Zig at the restored `.cache/ci-zig/p` directory;
+`ZIG_GLOBAL_CACHE_DIR` alone does not select the package directory in the pinned
+compiler. Clean qualification uses the same layout inside its isolated clone.
+Before native checks, `just ci::dependencies` fetches missing pinned packages
+with bounded transport retries, retaining each attempt's diagnostics. Compiler
+and test failures are not retried. The cache holds fetched packages and global
+compiler objects, excluding checkout objects, launchers, credentials and the Git archive
 transport cache. This avoids caching the tens of gigabytes accumulated by local
 Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.
 

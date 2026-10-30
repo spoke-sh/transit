@@ -39,6 +39,7 @@ def clean_runner():
         executable.write_text(f"#!{sys.executable}\n" + '''import json, os, sys
 from pathlib import Path
 assert not any(key.startswith("TRANSIT_") for key in os.environ)
+assert os.environ["ZIG_LOCAL_PKG_DIR"] == str(Path.cwd() / ".cache/ci-zig/p")
 with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
 if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
@@ -71,7 +72,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
             assert (result.returncode == 0) == (exit_code == 0), result.stderr.decode()
             commands = [json.loads(line) for line in record.read_text().splitlines()]
             expected = ({"shell": "default", "prepare": [] if check_scope == "fast" else
-                        [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
+                        [["just", "ci::dependencies"],
+                         ["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
                         if check_scope else profile(SUITE, lane))
             assert len(commands) == 2 + len(expected["prepare"]), commands
             assert all(command[:6] == ["develop", ".#" + expected["shell"],
@@ -168,6 +170,9 @@ def main():
     assert set(SUITE["tiers"]["sdks"]) <= set(selected)
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     steps = workflow["jobs"]["checks"]["steps"]
+    assert workflow["jobs"]["checks"]["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
+    package_cache = next(step for step in steps if step.get("id") == "zig-cache")
+    assert package_cache["with"]["key"].startswith("zig-v3-")
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
     assert reclaim["if"] == "runner.environment == 'github-hosted' && matrix.cache != 'formal'"
     # A primary cache hit can fill the disk during extraction, before the shell
@@ -176,6 +181,14 @@ def main():
     for name in ("Restore Nix store", "Prepare development shell"):
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     names = [step.get("name") for step in steps]
+    dependencies = next(step for step in steps if step.get("name") == "Fetch pinned Zig dependencies")
+    assert dependencies["if"] == "matrix.lane != 'formal'"
+    assert dependencies["run"].endswith("--command just ci::dependencies")
+    assert names.index("Restore Zig standard libraries and fetched packages") < names.index("Fetch pinned Zig dependencies")
+    assert names.index("Fetch pinned Zig dependencies") < names.index("Run ${{ matrix.lane }} checks")
+    for lane, environment in SUITE["environments"].items():
+        if lane != "formal":
+            assert environment["prepare"][0] == ["just", "ci::dependencies"]
     assert names.index("Prepare development shell") < names.index("Save Nix store")
     assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
     for name in ('Restore Nix store', 'Save Nix store'):
