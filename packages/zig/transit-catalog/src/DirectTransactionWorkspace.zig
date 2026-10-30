@@ -172,7 +172,7 @@ pub const Staging = struct {
     used: u64,
     limit: u64,
     pub fn objects(self: *Staging) s.TransitObjectStore.ObjectStore {
-        return .{ .context = self, .vtable = &.{ .putImmutable = putImmutable, .putConditional = putConditional, .getRange = getRange, .head = head, .delete = delete } };
+        return .{ .context = self, .vtable = &.{ .putImmutable = putImmutable, .putImmutableBatch = putImmutableBatch, .putConditional = putConditional, .getRange = getRange, .head = head, .delete = delete } };
     }
     fn cast(ctx: *anyopaque) *Staging {
         return @ptrCast(@alignCast(ctx));
@@ -183,6 +183,15 @@ pub const Staging = struct {
         if (next > self.limit) return error.TransactionWorkspaceLimit;
         self.used = next;
         return self.underlying.putImmutable(key, bytes, hash);
+    }
+    fn putImmutableBatch(ctx: *anyopaque, batch: []const s.TransitObjectStore.ImmutablePut, output: []s.TransitObjectStore.ObjectMeta) !void {
+        const self = cast(ctx);
+        for (batch) |item| {
+            const next = try std.math.add(u64, self.used, item.bytes.len);
+            if (next > self.limit) return error.TransactionWorkspaceLimit;
+            self.used = next;
+        }
+        return self.underlying.putImmutableBatch(batch, output);
     }
     fn putConditional(_: *anyopaque, _: []const u8, _: s.TransitObjectStore.Condition, _: []const u8) !bool {
         return error.InvalidTransactionWorkspace;
