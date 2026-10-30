@@ -1374,6 +1374,48 @@ test "stream partition maintenance rejects invented completion and closes retire
     try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
 }
 
+test "stream partition recovery hints verify accepted anchors and yield to newer checkpoints" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    for (2..8) |id| _ = try compactAppend(&owner, &declaration, &policy, id, &.{.{ .cells = &cells }});
+    const prior = try owner.recoveryState();
+    _ = try compactAppend(&owner, &declaration, &policy, 8, &.{.{ .cells = &cells }});
+    const accepted = owner.root;
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    var corrupt = prior;
+    corrupt.commitment[0] ^= 1;
+    try t.expectError(error.InvalidLogHistory, owner.recoverStepSince(policy.guard(), 1, corrupt));
+    try t.expectError(error.LogRecoveryRequired, owner.recoveryState());
+    corrupt = prior;
+    corrupt.root.clock_ms = 999;
+    try t.expectError(error.InvalidLogHistory, owner.recoverStepSince(policy.guard(), 1, corrupt));
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.recoverStepSince(policy.guard(), 1, prior));
+    policy.deny_at = std.math.maxInt(usize);
+    const recovered = try owner.recoverStepSince(policy.guard(), 1, prior);
+    try t.expect(recovered.complete and recovered.examined == 1);
+    try t.expectEqualDeep(accepted, owner.root);
+    while (try owner.archiveMaintenanceUnit(.{ .frames = 2 }, policy.guard())) {}
+    _ = try owner.trimArchived(policy.guard());
+    const checkpointed = owner.root;
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStepSince(policy.guard(), 1, prior)).complete) {}
+    try t.expectEqualDeep(checkpointed, owner.root);
+}
+
 test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

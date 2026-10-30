@@ -894,13 +894,43 @@ fn selectCheckpoint(self: *Self, end: u64, guard: Guard) !void {
 }
 
 pub const Recovery = struct { examined: u16, position: d.Position, complete: bool };
+/// Same-process evidence from a completely validated immutable prefix. This
+/// owned hint is neither a persisted checkpoint nor authorization. Discard it
+/// when replacing the physical owner; a collision only requires full recovery.
+pub const RecoveryState = struct { root: Root, commitment: [32]u8 };
+pub fn recoveryState(self: *Self) !RecoveryState {
+    try self.requireReady();
+    return .{ .root = self.root, .commitment = self.commitment };
+}
 pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !Recovery {
+    return self.recoverStepSince(guard, budget, null);
+}
+pub fn recoverStepSince(self: *Self, guard: Guard, budget: u16, prior: ?RecoveryState) !Recovery {
     if (budget == 0 or budget > 256) return error.InvalidLogRecoveryBudget;
     try authorize(guard);
     self.ready = false;
     const through = try self.log.tail(self.root.initialization.partition);
     if (through < self.root.next_lsn) return error.InvalidLogHistory;
     try self.selectCheckpoint(through, guard);
+    if (prior) |known| {
+        try known.root.validate();
+        try self.root.initialization.requireSame(known.root.initialization);
+        if (known.root.next_lsn > through) return error.InvalidLogHistory;
+        if (known.root.next_lsn > self.root.next_lsn) {
+            // A newer accepted checkpoint wins over obsolete hints. Otherwise
+            // this boundary remains in the WAL; verify it before reusing the
+            // same owner's earlier full replay, never trust a provider cache.
+            var anchor = try self.log.read(self.allocator, self.root.initialization.partition, known.root.next_lsn - 1, 1);
+            defer anchor.deinit();
+            if (anchor.frames.len != 1) return error.LogHistoryUnavailable;
+            const frame = anchor.frames[0];
+            const record = (try self.decodeFrame(frame, self.root.initialization.partition, known.root.next_lsn - 1)).record;
+            if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &Evidence.hash(frame.payload), &known.commitment)) return error.InvalidLogHistory;
+            try authorize(guard);
+            self.root = known.root;
+            self.commitment = known.commitment;
+        }
+    }
     var examined: u16 = 0;
     while (examined < budget and self.root.next_lsn < through) : (examined += 1) {
         var batch = try self.historyFrame(self.root.next_lsn);
