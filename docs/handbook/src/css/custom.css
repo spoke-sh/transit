@@ -34,17 +34,17 @@
   --ifm-color-primary-light: #f5a696;
   --ifm-color-primary-lighter: #f6b3a5;
   --ifm-color-primary-lightest: #fbdad3;
-  --ifm-background-color: #1c1e1e;
-  --ifm-font-color-base: #eae6de;
-  --ifm-heading-color: #eae6de;
-  --ifm-navbar-background-color: #1c1e1e;
-  --ifm-footer-background-color: #1c1e1e;
+  --ifm-background-color: #14191e;
+  --ifm-font-color-base: #e6e7e5;
+  --ifm-heading-color: #e6e7e5;
+  --ifm-navbar-background-color: #14191e;
+  --ifm-footer-background-color: #14191e;
   --ifm-menu-color-background-active: #f28c780d;
-  --ifm-code-background: #323531;
-  --ifm-background-surface-color: #232626;
-  --docs-line: #444845;
-  --docs-muted: #b8bbb4;
-  --docs-panel: #282b29;
+  --ifm-code-background: #243039;
+  --ifm-background-surface-color: #1b2329;
+  --docs-line: #354149;
+  --docs-muted: #adb9bf;
+  --docs-panel: #1d252b;
 }
 /* Mermaid injects diagram-ID styles; keep its dark edge labels readable. */
 [data-theme="dark"] .docusaurus-mermaid-container .edgeLabel p {
@@ -179,7 +179,7 @@
   --ifm-button-border-color: var(--ifm-color-primary);
 }
 [data-theme="dark"] .button--primary {
-  --ifm-button-color: #1c1e1e;
+  --ifm-button-color: #14191e;
 }
 :focus-visible {
   outline: 2px solid var(--ifm-color-primary);

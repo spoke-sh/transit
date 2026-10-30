@@ -1,10 +1,21 @@
-import { useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
 import ContextFabric from "./ContextFabric";
+import Radiograph from "./Radiograph";
 
 import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
 export default function RefractionStory(): ReactElement {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    // Follow the same root attribute used by the theme's pre-hydration script.
+    const root = document.documentElement;
+    const update = () => setDark(root.dataset.theme === "dark");
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    update();
+    return () => observer.disconnect();
+  }, []);
   const story = useRef<HTMLElement>(null);
   const activity = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -12,7 +23,7 @@ export default function RefractionStory(): ReactElement {
   const contextCopy = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = story.current;
-    if (!element) return;
+    if (!element || dark) return;
     const media = window.matchMedia(
       "(min-width: 997px) and (prefers-reduced-motion: no-preference)",
     );
@@ -64,92 +75,99 @@ export default function RefractionStory(): ReactElement {
       element.style.removeProperty("--scene-shift");
       delete element.dataset.motion;
     };
-  }, []);
+  }, [dark]);
   return (
     <section ref={story} className="refraction-story" aria-label="From structure to change">
-      <div ref={activity} className="refraction-activity">
-        <div className="refraction-visual">
-          <div ref={viewport} className="refraction-window">
-            <img
-              ref={artwork}
-              className="refraction-artwork"
-              src={lateralResonance}
-              alt="Vertical graphite waves widen sideways into overlapping resonance rings, joined by a vermilion thread."
-              width={1024}
-              height={1536}
-              loading="lazy"
-              decoding="async"
-            />
+      <div className="radiograph-heading">
+        <p className="transit-kicker">A DIFFERENT WAY TO SEE</p>
+        <h2>Through the surface.</h2>
+      </div>
+      <div className="refraction-track">
+        <Radiograph />
+        <div ref={activity} className="refraction-activity">
+          <div className="refraction-visual">
+            <div ref={viewport} className="refraction-window">
+              <img
+                ref={artwork}
+                className="refraction-artwork"
+                src={lateralResonance}
+                alt="Vertical graphite waves widen sideways into overlapping resonance rings, joined by a vermilion thread."
+                width={1024}
+                height={1536}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          </div>
+          <div className="refraction-narrative">
+            <section className="refraction-chapter" aria-labelledby="structure-title">
+              <p className="transit-kicker">01 / STRUCTURE</p>
+              <h2 id="structure-title">
+                Begin with
+                <br />
+                what matters.
+              </h2>
+              <p>
+                Describe the data your application needs, the computation it performs, and the
+                policies that govern its use.
+              </p>
+              <p>
+                Tables, documents, key-value state and streams give different kinds of data a place
+                in the same model.
+              </p>
+              <Link className="transit-text-link" to="/reference/data-model">
+                Data, computation and policies <span aria-hidden="true">↗</span>
+              </Link>
+            </section>
+            <section className="refraction-chapter" aria-labelledby="activity-title">
+              <p className="transit-kicker">02 / ACTIVITY</p>
+              <h2 id="activity-title">
+                Let the structure
+                <br />
+                do useful work.
+              </h2>
+              <p>
+                Ask a point-in-time question, maintain a derived view, or coordinate stateful work.
+                Choose the lifetime that fits the computation.
+              </p>
+              <p>
+                Fuze computes over your data. Station coordinates durable processes and recorded
+                external effects.
+              </p>
+              <Link className="transit-text-link" to="/reference/queries">
+                Explore computation lifetimes <span aria-hidden="true">↗</span>
+              </Link>
+            </section>
           </div>
         </div>
-        <div className="refraction-narrative">
-          <section className="refraction-chapter" aria-labelledby="structure-title">
-            <p className="transit-kicker">01 / STRUCTURE</p>
-            <h2 id="structure-title">
-              Begin with
+        <section className="refraction-context" aria-labelledby="context-title">
+          <div ref={contextCopy} className="refraction-chapter context-copy">
+            <p className="transit-kicker">03 / CONTEXT</p>
+            <h2 id="context-title">
+              See the result.
               <br />
-              what matters.
+              Keep its context.
             </h2>
             <p>
-              Describe the data your application needs, the computation it performs, and the
-              policies that govern its use.
+              A useful answer has a basis. Inspect versioned data, recorded progress and outcomes to
+              understand what a declaration produced.
             </p>
             <p>
-              Tables, documents, key-value state and streams give different kinds of data a place in
-              the same model.
+              Explicit permissions, retention and resource budgets define the boundaries in which
+              that work happens.
             </p>
-            <Link className="transit-text-link" to="/reference/data-model">
-              Data, computation and policies <span aria-hidden="true">↗</span>
+            <Link
+              className="transit-text-link"
+              to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled"
+            >
+              Follow a declaration to its outcome <span aria-hidden="true">↗</span>
             </Link>
-          </section>
-          <section className="refraction-chapter" aria-labelledby="activity-title">
-            <p className="transit-kicker">02 / ACTIVITY</p>
-            <h2 id="activity-title">
-              Let the structure
-              <br />
-              do useful work.
-            </h2>
-            <p>
-              Ask a point-in-time question, maintain a derived view, or coordinate stateful work.
-              Choose the lifetime that fits the computation.
-            </p>
-            <p>
-              Fuze computes over your data. Station coordinates durable processes and recorded
-              external effects.
-            </p>
-            <Link className="transit-text-link" to="/reference/queries">
-              Explore computation lifetimes <span aria-hidden="true">↗</span>
-            </Link>
-          </section>
-        </div>
+          </div>
+          <div className="context-visual">
+            <ContextFabric />
+          </div>
+        </section>
       </div>
-      <section className="refraction-context" aria-labelledby="context-title">
-        <div ref={contextCopy} className="refraction-chapter context-copy">
-          <p className="transit-kicker">03 / CONTEXT</p>
-          <h2 id="context-title">
-            See the result.
-            <br />
-            Keep its context.
-          </h2>
-          <p>
-            A useful answer has a basis. Inspect versioned data, recorded progress and outcomes to
-            understand what a declaration produced.
-          </p>
-          <p>
-            Explicit permissions, retention and resource budgets define the boundaries in which that
-            work happens.
-          </p>
-          <Link
-            className="transit-text-link"
-            to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled"
-          >
-            Follow a declaration to its outcome <span aria-hidden="true">↗</span>
-          </Link>
-        </div>
-        <div className="context-visual">
-          <ContextFabric />
-        </div>
-      </section>
     </section>
   );
 }
