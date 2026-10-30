@@ -11,6 +11,27 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Automatic local Stream maintenance — 2026-10-30
 
+The installed signed-caller schedule committed as `5aeca56fe` passes in
+ReleaseSafe. With maintenance disabled, two partitions expose eight original
+rows each. Enabling the background scheduler converges after seven observations
+to one row per partition, at original offset seven. Every observation also
+checks all sixteen rows through the old read pins and recovers unchanged
+producer receipts from saved append bytes. SIGKILL and fresh-process restart
+preserve both views and the original outcomes. Temporary observation pins close
+explicitly. The existing Table maintenance target now runs the Table and Stream
+schedules sequentially; this focused invocation executed only the Stream arm.
+
+The node and caller SHA-256 values are
+`c08b5d219f3c5ff76058afb2db94852f353c36cd3b2f7c865bd6be11235a1672` and
+`5e0296045d029d60629913ca75066dc0ed127017b64037fe5a8fdf23d82d80b6`.
+The log is `/var/tmp/transit-stream-installed-maintenance-final.log` and records
+the working source at `77d5f858b`, exact toolchain and numeric node observations.
+An earlier compile attempt failed on a shadowed fixture declaration; the caller
+was corrected before this successful execution. These results establish public
+visibility and caller recovery, not physical reclamation, full clean-lane
+qualification or Queue execution. Physical reclamation is covered separately
+below.
+
 The sparse-rewrite extension committed as `91575f785` passes the same native
 disk schedule, now including sparse placements in both partitions and cold reads
 of their original row ordinals. It completes **205 units** with **20,271,578 peak

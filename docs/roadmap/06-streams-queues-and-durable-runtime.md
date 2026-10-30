@@ -353,8 +353,8 @@ R2's typed declaration lifecycle now passes its local catalog/native service
 gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
 R0/R1 retain contract/model and integrated maintenance obligations. R3 has a
 disk-backed storage owner, signed typed payload/consumer operations and bounded
-wait composition and automatic local maintenance. Sparse physical payload
-rewriting and full exit qualification remain open.
+wait composition, automatic local maintenance and sparse physical payload
+rewriting. Full exit qualification remains open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
 storage and catalog integration without enabling Queue execution or SQL verbs.
@@ -402,8 +402,10 @@ The current progress slice delivers:
   bounded accepted passes, disk restart and empty placements. The updated native
   scheduler completes both partitions within the same memory budget. Native
   collection retains old placement directories and payloads until both read pins
-  and replay release them, then preserves current reads after reclamation. Installed
-  qualification and full clean-lane evidence remain open.
+  and replay release them, then preserves current reads after reclamation. The
+  installed signed-caller schedule also passes: new reads converge to compacted
+  rows while old read pins and original producer outcomes survive SIGKILL and
+  restart. Full clean-lane evidence remains open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
