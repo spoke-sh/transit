@@ -9,6 +9,29 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue catalog composition and shared identity — 2026-10-30
+
+The Queue catalog composition passes its disk test, the original Stream
+composition regression, Queue reservation tests and all 48 fast checks
+(`/var/tmp/transit-direct-queue-catalog-final.log` and
+`/var/tmp/transit-direct-queue-catalog-fast.log`). Claims require both read and
+acquire rights; original claim inspection and payload pages cannot bypass
+revoked acquire rights. Settlement requires its separate privilege. Revocation
+on the final disclosure check frees already copied page output.
+
+Enqueue retries, original claim payloads and ACK outcomes survive compatible
+ALTER, DROP, closing the remaining accepted lease, full disk reopen and loss of
+the trusted clock. One-record recovery returns explicit incomplete progress.
+Retired declarations reject fresh claims. The response validator rejects omitted
+rows and incorrect byte totals. Disk reservations reject changed claim limits,
+duration, partition, definition, settlement action or extension deadline and
+exclude Table/Stream use of the same operation identity. Cached owners retain
+neither request scratch nor the request's clock capability.
+
+This qualifies internal catalog composition with injected current-policy guards.
+It does not qualify native signed Queue dispatch, installed HTTP, automatic
+expiry scheduling, DLQ transfer or mixed transactions.
+
 ## Original Queue claim pages and observed leases — 2026-10-30
 
 `0ff275765` passes the Queue and Stream storage regression, the protocol package
