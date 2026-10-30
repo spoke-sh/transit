@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Run the QueueLeaseTransaction TLA+ model and its five negative controls."""
+"""Run the finite QueueLeaseTransaction design model and negative controls."""
 
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import shutil
@@ -12,8 +13,8 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from runner.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[3]
 MODELS = Path(__file__).resolve().parent
 ACTION_RE = re.compile(r"^State \d+: <([A-Za-z0-9_]+) ")
 
@@ -23,6 +24,10 @@ CONTROLS = (
     ("CheckLeaseEpochFence", "StaleEpochRejected"),
     ("CheckAtomicTurn", "AtomicThreePrimitiveTurn"),
     ("CheckSegmentReclaim", "SegmentReclaimedOnlyWhenTerminal"),
+    ("CheckLeaseTimeFence", "ExpiredLeaseRejected"),
+    ("CheckPolicyFence", "RevokedCommitRejected"),
+    ("CheckRetainedPayload", "SegmentReclaimedOnlyWhenUnpinned"),
+    ("CheckDlqDurability", "DlqRetainsPayload"),
 )
 
 
@@ -54,7 +59,7 @@ def run_tlc(work: Path, cfg_text: str) -> tuple[int, str]:
     shutil.copy2(MODELS / "QueueLeaseTransaction.tla", work / "QueueLeaseTransaction.tla")
     (work / "QueueLeaseTransaction.cfg").write_text(cfg_text, encoding="utf-8")
     cmd = [tlc, "-workers", "1", "-seed", "1", "-fp", "0", "-cleanup", "-deadlock", "-config", "QueueLeaseTransaction.cfg", "QueueLeaseTransaction"]
-    proc = subprocess.run(cmd, cwd=work, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+    proc = subprocess.run(cmd, cwd=work, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False, timeout=300)
     return proc.returncode, proc.stdout
 
 
@@ -101,13 +106,20 @@ def main(argv: list[str]) -> None:
 
     summary = {
         "model": "QueueLeaseTransaction",
+        "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "model_sha256": hashlib.sha256((MODELS / "QueueLeaseTransaction.tla").read_bytes()).hexdigest(),
+        "config_sha256": hashlib.sha256(base_cfg.encode()).hexdigest(),
+        "driver_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()),
+        "tlc_version": out.splitlines()[0],
+        "completed": True,
         "states_generated": generated,
         "distinct_states": distinct,
         "controls": control_records,
     }
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     rel = output_dir.relative_to(ROOT) if output_dir.is_relative_to(ROOT) else output_dir
-    print(f"Queue lease transaction TLC: {distinct} states exhausted; five negative controls detected. QueuePartition is a Milestone 6 proposal.")
+    print(f"Queue lease transaction TLC: {distinct} states exhausted; {len(CONTROLS)} negative controls detected. No storage/runtime correspondence claimed.")
     print(f"Evidence: {rel}")
 
 

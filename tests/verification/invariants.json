@@ -2587,23 +2587,25 @@
     },
     {
       "id": "QUEUE-01",
-      "claim": "Forward-design QueuePartition .tack Roaring states, key_fifo entity-key affinity, _lease_epoch fencing and 3-primitive turn commits preserve mutual exclusion and atomic visibility",
+      "claim": "Finite Queue state, key_fifo acquisition, lease epoch/time, policy and common-decision guards preserve mutual exclusion, atomic visibility and retained payloads",
       "owner": "docs/handbook/reference/streams.md",
       "implementation": [
         "tests/verification/models/QueueLeaseTransaction.tla",
         "tests/verification/models/queue_lease_transaction_model.py"
       ],
-      "profile": "Milestone 6 forward-design TLA+ specification with five negative controls",
+      "profile": "Three offsets, two keys, two claim generations, time 0..2 and one prepared turn/decision; nine negative controls",
       "tasks": [
         "test::queue-lease-transaction-model"
       ],
       "scenarios": [
         "Disjoint .tack Roaring bitmap states (available, acquired, acked, dlq)",
         "key_fifo mutual exclusion and ordered offset acquisition per entity key",
-        "Timing-wheel lease expiry and _lease_epoch fencing against stale worker ACK/commit",
-        "Atomic 3-primitive turn commit (CLAIM -> TABLE UPDATE -> outbox publish -> ACK) and terminal segment reclamation"
+        "Authoritative expiry before reassignment and _lease_epoch fencing against stale worker ACK/commit",
+        "Policy revocation between preparation and the common decision",
+        "Atomic state/outbox/ACK visibility and original decision recovery across derived-cache replacement",
+        "Terminal segment collection preserves retained history and durable DLQ payload reachability"
       ],
-      "limits": "Forward-design specification for Milestone 6 QueuePartition; runtime QueuePartition implementation is planned.",
+      "limits": "Safety-only design model assuming atomic durable state; no timing wheel, storage I/O, bitmap encoding, fairness or runtime correspondence. QueuePartition remains planned.",
       "model": "tests/verification/models/QueueLeaseTransaction.tla",
       "qualification": "Execution evidence is retained under .cache/verification/queue-lease-transaction-model/ and CI artifacts."
     },

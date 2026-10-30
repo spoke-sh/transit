@@ -559,15 +559,29 @@ Run `nix develop --command just test::queue-lease-transaction-model`. The
 ordinary formal lane owns this forward-design check for Milestone 6
 (`QUEUE-01`). [QueueLeaseTransaction.tla](QueueLeaseTransaction.tla) and
 [QueueLeaseTransaction.cfg](QueueLeaseTransaction.cfg) model `QueuePartition`
-`.tack` Roaring-bitmap state transitions (`available`, `acquired`, `acked`,
-`dlq`), `key_fifo` entity-key affinity locking, hierarchical timing-wheel lease
-expiry with monotonic `_lease_epoch` fencing, atomic 3-primitive turn commits
-(`CLAIM -> TABLE UPDATE -> outbox publish -> ACK`), and terminal segment
-reclamation.
+logical state sets (`available`, `acquired`, `acked`, `dlq`), per-key acquisition,
+lease epochs and authoritative expiry, current-policy commit checks, prepared
+turns, one commit/abort decision and retained-payload collection guards.
 
-The safe configuration exhausts 21 distinct states, and
-[queue_lease_transaction_model.py](queue_lease_transaction_model.py) verifies
-five independent negative controls: partition-set overlap, `key_fifo` lock
-bypass, stale `_lease_epoch` ACK acceptance, partial turn commit visibility, and
-premature segment reclamation. `QueuePartition` is a Milestone 6 proposal without
-a runtime Zig implementation yet.
+The finite domain contains three offsets (two for one key and one for another),
+two claim generations, time in `0..2`, one prepared turn and one decision. A
+restart drops derived residency while accepted records remain. This abstracts
+atomic durable state; it does not model WAL writes, a timing wheel, bitmap bytes,
+receipt authentication, complete implementation correspondence or power loss.
+The invariants are safety-only, with no fairness or starvation-free scheduling
+claim. The other key remains eligible while the first key is blocked.
+
+[queue_lease_transaction_model.py](queue_lease_transaction_model.py) requires
+complete exploration and nine intended invariant failures: overlapping states,
+FIFO bypass, stale epoch, partial turn visibility, premature terminal collection,
+expired-but-unreassigned commit, revoked commit, collection while history remains
+held, and source DLQ terminalization without durable destination payload.
+It records source/configuration/driver hashes, TLC identity, completed state
+counts and each negative trace under the repository's ignored evidence directory.
+Earlier 21-state/five-control results apply to the earlier model revision.
+
+The pure [Stream/Queue bindings](../../../packages/zig/transit-protocol/src/StreamQueue.zig)
+independently check supplied lease/time guards and original accepted receipts;
+those unit checks are not replay of this model. `QueuePartition` remains an
+unimplemented runtime owner. The [Queue contract](../../../contracts/QUEUE_V1.md)
+defines that boundary and the obligations before execution.
