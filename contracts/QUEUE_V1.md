@@ -24,9 +24,10 @@ Original empty and nonempty outcomes survive restart and expiry; new selection
 requires a new operation. Capacity exhaustion refuses instead of publishing a
 false empty result. ACK, NACK, renewal and bounded expiry also publish complete
 successor roots with current authorization and conservative deadline checks.
-This is a storage composition boundary: the installed service does not yet
-admit Queue payload operations, and current lease inspection and automatic
-deadline scheduling remain unimplemented.
+Bounded original-claim reads return owned payload rows and separately observed
+lease status. This is a storage composition boundary: the installed service does
+not yet admit Queue payload operations, and automatic deadline scheduling
+remains unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
@@ -121,6 +122,44 @@ a new operation identity. A nonempty receipt retains its selection and payload
 dependencies across disconnect and restart. Receipt disclosure needs current
 rights, and later execution still needs the current live lease. These neutral
 receipt types perform neither selection nor durable acceptance.
+
+### Original payload traversal and observed lease status
+
+`transit-protocol.QueueRead.Cursor` binds an exact original `ClaimReceipt` and
+the next ordinal in that selection. The ordinal is not a message offset. The
+owner resolves the original accepted operation and compares the entire receipt;
+supplied content references cannot select other work. An ordinal may address
+any position through the original row count. This cursor is a read selector,
+not an authenticated consumption proof, lease or grant. Traversal neither claims
+new work nor settles a message.
+
+The storage `readClaimPage` operation applies current read budgets and returns
+owned row bytes with original producer operation/ordinal attribution. It fills
+bounded pages across original append batches, stops before exceeding the encoded
+row-byte budget, and marks the returned cursor complete exactly at the original
+selection's row count. A row that cannot fit an empty page refuses without
+advancing the cursor. A complete cursor means this selector has reached the end;
+it does not prove that an arbitrary caller read earlier ordinals. Current read
+rights are checked again after buffering, including original empty selections
+and repeated terminal pages. Retrying a page preserves its original payload
+selection, while its separately reported status observation can advance.
+
+`QueueRead.Basis` records the current partition cut and optional trusted closed
+UTC bounds. The immutable original selection separately retains its original
+payload placement cut. Do not describe changing lease observations across pages
+as one atomic status snapshot. `LeaseObservation` carries the original lease,
+current available/acquired/acked/archived state, epoch, attempt, optional deadline
+and blocked reason, without revealing another holder's claim identity.
+
+Liveness is `live` only when the original lease still matches and the entire
+trusted interval precedes expiry. It is `expired` when the lower bound reaches
+that matching lease's deadline, and `unavailable` when time is missing,
+regressing or spans expiry. It is `fenced` after renewal, reassignment or leaving
+the acquired state. An acquired bitmap state can therefore coexist with an
+expired observation before bounded cleanup runs. Clock uncertainty does not
+prevent recovery of original payloads, and an observation supplies no authority
+for a later settlement: that operation must revalidate the live lease and current
+rights at publication.
 
 ### Stored nonempty claim selection
 

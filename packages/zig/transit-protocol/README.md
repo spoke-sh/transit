@@ -38,6 +38,11 @@ Stream/Queue operations or executable transaction participants.
 scheduling policies, operation budgets, checked deadlines and bounded retry
 backoff. Its successor checks preserve object identity and partition/key rules;
 catalog publication and schema-column binding remain separate responsibilities.
+`QueueRead` binds original claim cursors and separates immutable payload
+selection from observed Queue state and lease liveness. Its shared clock bounds,
+state and blocked-reason types also serve the storage owner. These descriptors
+are read attribution, not consumption proofs, grants or present settlement
+authority.
 
 [`DocumentDeclaration`](src/DocumentDeclaration.zig),
 [`DocumentOperation`](src/DocumentOperation.zig) and

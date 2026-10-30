@@ -144,6 +144,16 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
     const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &selection_buffer);
     try selection.requireReceipt(claimed);
+    var payload_page = try owner.readClaimPage(declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, guard);
+    defer payload_page.deinit();
+    try t.expect(payload_page.cursor.complete() and payload_page.rows().len == 16);
+    try t.expectEqual(c.protocol.QueueRead.State.acked, payload_page.rows()[0].lease.state);
+    try t.expectEqual(c.protocol.QueueRead.Liveness.fenced, payload_page.rows()[1].lease.liveness);
+    try t.expectEqual(c.protocol.QueueRead.Liveness.expired, payload_page.rows()[3].lease.liveness);
+    var decoded_payload = try c.fuze.TableRow.decode(t.allocator, declaration.definition.schema, payload_page.rows()[0].encoded);
+    defer decoded_payload.deinit();
+    long_key[299] = 'A';
+    try t.expectEqualSlices(u8, &long_key, decoded_payload.row().cells[0].value.atom.bytes);
     var bitmap: s.BitmapDirectory = .{ .store = &owner.owner.store, .objects = owner.owner.objects };
     const queue: s.QueueIndex = .{ .store = &owner.owner.store, .scratch = &owner.owner.scratch, .bitmap = &bitmap, .container = &owner.owner.queue_container, .key_buffer = owner.owner.key_buffer };
     var canonical: [1024]u8 = undefined;

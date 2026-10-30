@@ -17,6 +17,9 @@ pub const Recovery = Owner.Recovery;
 pub const RecoveryState = Owner.RecoveryState;
 pub const FlushProgress = Owner.FlushProgress;
 pub const ArchiveProgress = Owner.ArchiveProgress;
+pub const ClaimReadLimits = Owner.ClaimReadLimits;
+pub const ClaimReadRow = Owner.ClaimReadRow;
+pub const ClaimReadPage = Owner.ClaimReadPage;
 
 owner: Owner,
 
@@ -47,6 +50,9 @@ pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard)
 }
 pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
     return self.owner.claim(declared, request, guard);
+}
+pub fn readClaimPage(self: *Self, declared: Declaration.Stored, cursor: p.QueueRead.Cursor, limits: ClaimReadLimits, output: std.mem.Allocator, guard: Guard) !ClaimReadPage {
+    return self.owner.readClaimPage(declared, cursor, limits, output, guard);
 }
 pub fn settle(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Settlement, guard: Guard) !p.StreamQueue.SettlementReceipt {
     return self.owner.settle(declared, request, guard);

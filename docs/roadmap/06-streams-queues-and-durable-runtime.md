@@ -422,9 +422,11 @@ The current progress slice delivers:
   payload directories through collection, and refuse capacity or time uncertainty
   before publication. ACK/NACK/renewal and one-deadline expiry now publish full
   successor roots, preserve original settlement outcomes through retirement and
-  restart, and keep exhausted FIFO heads nonterminal. Current lease inspection,
-  installed execution, timer-wheel and affinity scheduling, and atomic DLQ
-  transfer remain outstanding.
+  restart, and keep exhausted FIFO heads nonterminal. Bounded original-claim pages
+  now own payload bytes across scratch/tail reuse and report observed current
+  lease status under separate authority/time checks, including after collection
+  and retirement. Installed execution, timer-wheel and affinity scheduling, and
+  atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

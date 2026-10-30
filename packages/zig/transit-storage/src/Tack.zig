@@ -7,7 +7,7 @@ const B = @import("BitmapDirectory.zig");
 const pages = @import("TreeStore.zig").pages;
 const Self = @This();
 
-pub const State = enum(u2) { available, acquired, acked, archived };
+pub const State = p.QueueRead.State;
 pub const Roots = [4]B.Root;
 pub const encoded_bytes = 488;
 

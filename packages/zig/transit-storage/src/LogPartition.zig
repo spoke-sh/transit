@@ -31,6 +31,7 @@ const CandidateObjects = @import("CandidateObjects.zig");
 const QueueIndex = @import("QueueIndex.zig");
 const QueueClaims = @import("QueueClaims.zig");
 const QueueSelection = @import("QueueSelection.zig");
+const queue_read = p.QueueRead;
 pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
     return struct {
         const Self = @This();
@@ -294,6 +295,108 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             var next = self.root.queue.?;
             for (leases) |lease| next = try index.acquire(next, lease.offset, value.receipt.claim, evidence.declared.declaration.configuration.policy.queue, value.observed, value.receipt.accepted);
             return next;
+        }
+
+        pub const ClaimReadLimits = struct { rows: u32 = 256, encoded_bytes: u32 = 1024 * 1024 };
+        pub const ClaimReadRow = struct {
+            lease: queue_read.LeaseObservation,
+            operation: d.Operation,
+            ordinal: u32,
+            visible_ms: u64,
+            encoded: []const u8,
+        };
+        pub const ClaimReadPage = struct {
+            allocator: std.mem.Allocator,
+            source: Declaration.Stored,
+            basis: queue_read.Basis,
+            from: queue_read.Cursor,
+            cursor: queue_read.Cursor,
+            encoded_bytes: u32,
+            entries: []ClaimReadRow,
+            len: u32,
+            pub fn rows(self: ClaimReadPage) []const ClaimReadRow {
+                return self.entries[0..self.len];
+            }
+            pub fn deinit(self: *ClaimReadPage) void {
+                for (self.rows()) |row| self.allocator.free(row.encoded);
+                self.allocator.free(self.entries);
+                self.* = undefined;
+            }
+        };
+        fn leaseObservation(original_lease: q.Lease, item: @import("QueueItem.zig"), state: @import("Tack.zig").State, basis: queue_read.Basis, receipt: q.ClaimReceipt) !queue_read.LeaseObservation {
+            var liveness: queue_read.Liveness = .fenced;
+            if (item.lease) |current| if (std.meta.eql(current, original_lease)) {
+                liveness = if (basis.time) |time|
+                    (if (time.earliest_ms >= current.expires_ms) .expired else if (time.latest_ms < current.expires_ms) .live else .unavailable)
+                else
+                    .unavailable;
+            };
+            const result: queue_read.LeaseObservation = .{ .original = original_lease, .state = state, .epoch = item.epoch, .attempt = item.attempts, .expires_ms = if (item.lease) |lease| lease.expires_ms else null, .blocked = item.blocked, .liveness = liveness };
+            try result.requireBasis(basis, receipt);
+            return result;
+        }
+        /// Payload belongs to the original immutable selection. Current state is
+        /// separately observed; page traversal never acquires or settles work.
+        pub fn readClaimPage(self: *Self, declared: Declaration.Stored, cursor: queue_read.Cursor, limits: ClaimReadLimits, output: std.mem.Allocator, guard: Guard) !ClaimReadPage {
+            try cursor.validate();
+            try self.requireTarget(cursor.receipt.claim.target);
+            try authorize(guard);
+            try self.requireReady();
+            try self.root.requireControlDeclaration(declared);
+            if (limits.rows == 0 or limits.rows > QueueSelection.max_rows or limits.encoded_bytes == 0 or limits.encoded_bytes > 64 * 1024 * 1024) return error.InvalidQueueReadBudget;
+            const evidence = try self.original(cursor.receipt.claim.operation) orelse return error.QueueClaimMissing;
+            if (evidence.outcome != .claim) return error.LogOperationConflict;
+            try cursor.requireReceipt(evidence.outcome.claim.receipt);
+            var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
+            defer declaration.deinit();
+            if (!std.meta.eql(declared, evidence.declared)) {
+                var current = try Declaration.load(self.allocator, self.objects, declared);
+                current.deinit();
+            }
+            const now: ?Time.Sample = self.queueTime(self.root.clock_ms) catch |err| switch (err) {
+                error.QueueTimeUnavailable, error.LogTimeRegression => null,
+                else => return err,
+            };
+            const basis: queue_read.Basis = .{ .cut = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .accepted = self.root.position(), .retained_from = 0, .next = self.root.next_offset }, .time = now };
+            try basis.requireReceipt(cursor.receipt);
+            const capacity = @min(cursor.receipt.rows - cursor.next, limits.rows, self.options.read_rows, declared.declaration.limits.read_rows);
+            const byte_limit = @min(limits.encoded_bytes, self.options.read_bytes, declared.declaration.limits.read_bytes);
+            var page: ClaimReadPage = .{ .allocator = output, .source = evidence.declared, .basis = basis, .from = cursor, .cursor = cursor, .encoded_bytes = 0, .entries = try output.alloc(ClaimReadRow, capacity), .len = 0 };
+            errdefer page.deinit();
+            if (cursor.receipt.leases) |content| {
+                const selected = try QueueSelection.load(self.scratch.allocator(), self.objects, content, self.queue_selection);
+                _ = self.scratch.reset(.retain_capacity);
+                try selected.requireReceipt(cursor.receipt);
+                if (!std.meta.eql(selected.metadata.declared, evidence.declared)) return error.InvalidQueueSelection;
+                const source = selected.metadata.source;
+                const cut: q.Cut = .{ .target = cursor.receipt.claim.target, .accepted = source.accepted, .retained_from = 0, .next = source.next_offset };
+                var bitmap: Bitmap = undefined;
+                const index = self.queueIndex(&bitmap);
+                while (page.len < capacity) {
+                    const lease = try selected.lease(page.cursor.next);
+                    const item = try index.item(self.root.queue.?, lease.offset);
+                    const observed = try leaseObservation(lease, item, try index.state(self.root.queue.?, item), basis, cursor.receipt);
+                    var borrowed = try self.borrowAt(cut, source.batches, source.segments, .empty, lease.offset, guard) orelse return error.QueueItemMissing;
+                    defer borrowed.deinit();
+                    var rows = try borrowed.iterator(declaration.definition.schema);
+                    var found: ?Batch.EncodedRow = null;
+                    while (try rows.next()) |row| if (row.ordinal == lease.offset - borrowed.receipt.first) {
+                        found = row;
+                        break;
+                    };
+                    const row = found orelse return error.QueueItemMissing;
+                    if (row.bytes.len > byte_limit - page.encoded_bytes) {
+                        if (page.len == 0) return error.QueueReadBudgetExceeded;
+                        break;
+                    }
+                    page.entries[page.len] = .{ .lease = observed, .operation = borrowed.receipt.append.operation, .ordinal = row.ordinal, .visible_ms = row.visible_ms, .encoded = try output.dupe(u8, row.bytes) };
+                    page.len += 1;
+                    page.cursor.next += 1;
+                    page.encoded_bytes += @intCast(row.bytes.len);
+                }
+            }
+            try authorize(guard);
+            return page;
         }
 
         pub fn settle(self: *Self, declared: Declaration.Stored, request: q.Settlement, guard: Guard) !q.SettlementReceipt {

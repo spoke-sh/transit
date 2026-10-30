@@ -2,17 +2,8 @@
 //! incidental clock field. Accepted floors survive replacement; observation
 //! and original-outcome lookup do not require a currently available clock.
 const q = @import("transit_protocol").StreamQueue;
-pub const Sample = struct {
-    /// The trusted adapter asserts that UTC lies inside this closed interval.
-    earliest_ms: u64,
-    latest_ms: u64,
-    pub fn validate(self: Sample) !void {
-        if (self.earliest_ms > self.latest_ms) return error.LogTimeUnavailable;
-    }
-    pub fn exact(now: u64) Sample {
-        return .{ .earliest_ms = now, .latest_ms = now };
-    }
-};
+/// The trusted adapter asserts that UTC lies inside this closed interval.
+pub const Sample = @import("transit_protocol").QueueRead.TimeBounds;
 pub const Source = struct {
     context: *anyopaque,
     /// May run under the publication guard. It must not recursively acquire

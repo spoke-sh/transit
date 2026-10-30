@@ -224,6 +224,14 @@ def generated():
         stream_queue['read_release'] = dict(
             release=dict(target=log_target, operation=dict(scope=log_scope, principal=17, operation=2**64-13),
                          read=read_handle), accepted=dict(partition=91, next_lsn=14))
+        stream_queue['queue_cursor'] = dict(receipt=stream_queue['claim'], next=0)
+        stream_queue['queue_observation_basis'] = dict(
+            cut=dict(target=log_target, accepted=dict(partition=91, next_lsn=13),
+                     retained_from=0, next=2**64-1),
+            time=dict(earliest_ms=600, latest_ms=700))
+        stream_queue['queue_lease_observation'] = dict(
+            original=lease, state='acquired', epoch=9, attempt=2,
+            expires_ms=1000, blocked=dict(none={}), liveness='live')
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
         doc_partition = dict(

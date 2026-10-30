@@ -17818,6 +17818,53 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/QueueRead.zig": {
+      "errors": {
+        "InvalidQueueCursor": 1,
+        "InvalidQueueObservation": 12,
+        "LogTimeUnavailable": 1,
+        "QueueClaimConflict": 1
+      },
+      "outcomes": {
+        "Blocked": [
+          "none",
+          "exhausted",
+          "dead_letter"
+        ],
+        "Liveness": [
+          "live",
+          "expired",
+          "unavailable",
+          "fenced"
+        ],
+        "State": [
+          "available",
+          "acquired",
+          "acked",
+          "archived"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Basis.requireReceipt()": "<inferred>",
+        "Basis.validate()": "<inferred>",
+        "Blocked.validate()": "<inferred>",
+        "Cursor.requireReceipt()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "LeaseObservation.requireBasis()": "<inferred>",
+        "LeaseObservation.validate()": "<inferred>",
+        "TimeBounds.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/RecursiveSchema.zig": {
       "errors": {},
       "outcomes": {},
@@ -18558,6 +18605,7 @@
         "Json.zig",
         "Lifecycle.zig",
         "NativePayload.zig",
+        "QueueRead.zig",
         "Runtime.zig",
         "Schema.zig",
         "State.zig",
@@ -31472,7 +31520,8 @@
         "InvalidQueueClaimBudget": 1,
         "InvalidQueueExpiration": 2,
         "InvalidQueueHead": 1,
-        "InvalidQueueSelection": 1,
+        "InvalidQueueReadBudget": 1,
+        "InvalidQueueSelection": 2,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
         "InvalidStreamCompactionBudget": 3,
@@ -31492,7 +31541,7 @@
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
-        "LogOperationConflict": 8,
+        "LogOperationConflict": 9,
         "LogPartitionConflict": 4,
         "LogPayloadConflict": 3,
         "LogPositionExhausted": 1,
@@ -31503,11 +31552,13 @@
         "LogRetentionNotDeclared": 2,
         "LogRetentionWindowElapsed": 1,
         "LogSegmentBudgetExceeded": 5,
-        "LogTimeRegression": 2,
+        "LogTimeRegression": 3,
         "LogTimeUnavailable": 1,
-        "QueueItemMissing": 2,
+        "QueueClaimMissing": 1,
+        "QueueItemMissing": 4,
         "QueueLeaseExpired": 1,
-        "QueueTimeUnavailable": 4,
+        "QueueReadBudgetExceeded": 1,
+        "QueueTimeUnavailable": 5,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamCompactionNotDeclared": 1,
@@ -31564,6 +31615,7 @@
         "Owner().<return>.flushWithinBudget()": "<inferred>",
         "Owner().<return>.group()": "<inferred>",
         "Owner().<return>.historyFrame()": "<inferred>",
+        "Owner().<return>.leaseObservation()": "<inferred>",
         "Owner().<return>.loadEvidence()": "<inferred>",
         "Owner().<return>.loadRead()": "<inferred>",
         "Owner().<return>.materialize()": "<inferred>",
@@ -31585,6 +31637,7 @@
         "Owner().<return>.queueTime()": "<inferred>",
         "Owner().<return>.readBasis()": "<inferred>",
         "Owner().<return>.readBatch()": "<inferred>",
+        "Owner().<return>.readClaimPage()": "<inferred>",
         "Owner().<return>.readCursor()": "<inferred>",
         "Owner().<return>.readPage()": "<inferred>",
         "Owner().<return>.recoverStep()": "<inferred>",
@@ -31616,8 +31669,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 593,
-        "catch": 16
+        "try": 616,
+        "catch": 17
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -31638,9 +31691,11 @@
         "PublicationGuard.zig",
         "QueueClaims.zig",
         "QueueIndex.zig",
+        "QueueItem.zig",
         "QueueSelection.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
+        "Tack.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -31931,12 +31986,11 @@
     },
     "packages/zig/transit-storage/src/LogTime.zig": {
       "errors": {
-        "LogTimeUnavailable": 5
+        "LogTimeUnavailable": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Sample.validate()": "<inferred>",
         "Source.read()": "anyerror",
         "advance()": "<inferred>",
         "bounds()": "<inferred>",
@@ -32198,13 +32252,7 @@
         "QueueStateConflict": 2,
         "QueueTimeUnavailable": 2
       },
-      "outcomes": {
-        "blocked": [
-          "none",
-          "exhausted",
-          "dead_letter"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "acquire()": "<inferred>",
@@ -32243,6 +32291,7 @@
         "observe()": "<inferred>",
         "open()": "<inferred>",
         "operation()": "<inferred>",
+        "readClaimPage()": "<inferred>",
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
@@ -33312,14 +33361,7 @@
         "QueueSidecarOverlap": 2,
         "QueueStateConflict": 1
       },
-      "outcomes": {
-        "State": [
-          "available",
-          "acquired",
-          "acked",
-          "archived"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Audit.init()": "<inferred>",

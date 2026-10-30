@@ -461,6 +461,9 @@ pub const SchemaTypes = struct {
     claim: ClaimReceipt,
     clock: LogClock,
     settlement: SettlementReceipt,
+    queue_cursor: p.QueueRead.Cursor,
+    queue_observation_basis: p.QueueRead.Basis,
+    queue_lease_observation: p.QueueRead.LeaseObservation,
 };
 
 test {

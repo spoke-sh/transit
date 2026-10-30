@@ -543,6 +543,13 @@ test "queue partition fenced ACK NACK and renewal recover original outcomes afte
     try t.expectEqualDeep(acked, try owner.settle(current, ack, policy.guard()));
     try t.expectEqualDeep(nacked, try owner.settle(current, nack, policy.guard()));
     try t.expectEqualDeep(closed, try owner.settle(current, closing, policy.guard()));
+    var recovered_page = try owner.readClaimPage(current, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, policy.guard());
+    defer recovered_page.deinit();
+    try t.expect(recovered_page.cursor.complete() and recovered_page.rows().len == 2);
+    try t.expect(recovered_page.basis.time == null);
+    try t.expectEqual(p.QueueRead.State.acked, recovered_page.rows()[0].lease.state);
+    try t.expectEqual(p.QueueRead.Liveness.fenced, recovered_page.rows()[1].lease.liveness);
+    try t.expectEqual(@as(u64, 2), recovered_page.rows()[1].lease.epoch);
     policy.deny_at = policy.calls + 2;
     try t.expectError(error.PermissionDenied, owner.settle(current, closing, policy.guard()));
 }
@@ -715,4 +722,128 @@ test "queue partition controls verify immutable declaration bytes before accepta
     try t.expectError(error.InvalidLogDeclaration, owner.expireOne(invented, policy.guard()));
     try t.expectEqualDeep(acquired, owner.owner.root);
     try t.expectEqual(acquired.next_lsn, try wal.log().tail(91));
+}
+
+test "queue partition claim pages retain original payloads with bounded current lease observations" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    const accepted = try owner.claim(initial.declared, claim, policy.guard());
+    const start: p.QueueRead.Cursor = .{ .receipt = accepted, .next = 0 };
+    var first = try owner.readClaimPage(initial.declared, start, .{ .rows = 1 }, t.allocator, policy.guard());
+    defer first.deinit();
+    try t.expectEqual(@as(usize, 1), first.rows().len);
+    try t.expect(!first.cursor.complete());
+    try t.expectEqual(p.QueueRead.Liveness.live, first.rows()[0].lease.liveness);
+    const retained_bytes = try t.allocator.dupe(u8, first.rows()[0].encoded);
+    defer t.allocator.free(retained_bytes);
+    var later = try request(&declared, 4, &bytes);
+    later.append.producer = null;
+    _ = try owner.enqueue(initial.declared, later.append, later.payload, policy.guard());
+    var second = try owner.readClaimPage(initial.declared, first.cursor, .{ .rows = 1 }, t.allocator, policy.guard());
+    defer second.deinit();
+    try t.expect(second.cursor.complete());
+    try t.expectEqual(@as(u64, 1), second.rows()[0].lease.original.offset);
+    try t.expectEqualSlices(u8, retained_bytes, first.rows()[0].encoded);
+    var byte_limited = try owner.readClaimPage(initial.declared, start, .{ .encoded_bytes = first.encoded_bytes + second.encoded_bytes - 1 }, t.allocator, policy.guard());
+    defer byte_limited.deinit();
+    try t.expect(byte_limited.rows().len == 1 and !byte_limited.cursor.complete());
+    var decoded = try f.TableRow.decode(t.allocator, declared.definition.schema, first.rows()[0].encoded);
+    defer decoded.deinit();
+    try t.expectEqualStrings("Alpha", decoded.row().cells[0].value.atom.bytes);
+    clock.value = .exact(1100);
+    var expired = try owner.readClaimPage(initial.declared, start, .{}, t.allocator, policy.guard());
+    defer expired.deinit();
+    try t.expectEqual(p.QueueRead.Liveness.expired, expired.rows()[0].lease.liveness);
+    try t.expectEqual(@as(u64, 2), owner.owner.root.queue.?.active);
+    clock.value = .exact(2000);
+    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    claim.operation = operation(5);
+    const reassigned = try owner.claim(initial.declared, claim, policy.guard());
+    var original_page = try owner.readClaimPage(initial.declared, start, .{}, t.allocator, policy.guard());
+    defer original_page.deinit();
+    try t.expectEqual(p.QueueRead.Liveness.fenced, original_page.rows()[0].lease.liveness);
+    try t.expectEqual(@as(u64, 2), original_page.rows()[0].lease.epoch);
+    try t.expectEqualDeep(accepted.claim.operation, original_page.rows()[0].lease.original.claim);
+    try t.expectEqualSlices(u8, retained_bytes, original_page.rows()[0].encoded);
+    clock.value = null;
+    var unknown = try owner.readClaimPage(initial.declared, .{ .receipt = reassigned, .next = 0 }, .{}, t.allocator, policy.guard());
+    defer unknown.deinit();
+    try t.expect(unknown.basis.time == null);
+    try t.expectEqual(p.QueueRead.Liveness.unavailable, unknown.rows()[0].lease.liveness);
+    try t.expectError(error.QueueReadBudgetExceeded, owner.readClaimPage(initial.declared, start, .{ .encoded_bytes = 1 }, t.allocator, policy.guard()));
+    var forged = start;
+    forged.receipt.leases.?.sha256[0] ^= 1;
+    try t.expectError(error.QueueClaimConflict, owner.readClaimPage(initial.declared, forged, .{}, t.allocator, policy.guard()));
+    policy.deny_at = policy.calls + 3;
+    try t.expectError(error.PermissionDenied, owner.readClaimPage(initial.declared, start, .{ .rows = 1 }, t.allocator, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    var terminal = try owner.readClaimPage(initial.declared, second.cursor, .{}, t.allocator, policy.guard());
+    defer terminal.deinit();
+    try t.expect(terminal.cursor.complete() and terminal.rows().len == 0);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readClaimPage(initial.declared, second.cursor, .{}, t.allocator, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    clock.value = .exact(2000);
+    claim.operation = operation(6);
+    const empty = try owner.claim(initial.declared, claim, policy.guard());
+    try t.expectEqual(@as(u32, 0), empty.rows);
+    var empty_page = try owner.readClaimPage(initial.declared, .{ .receipt = empty, .next = 0 }, .{}, t.allocator, policy.guard());
+    defer empty_page.deinit();
+    try t.expect(empty_page.cursor.complete() and empty_page.rows().len == 0);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readClaimPage(initial.declared, .{ .receipt = empty, .next = 0 }, .{}, t.allocator, policy.guard()));
+}
+
+test "queue partition claim page crosses original batches with one tail slot" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    definition.configuration.policy.queue.ordering = .unordered;
+    definition.configuration.policy.queue.key_column = null;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    for (2..4) |id| {
+        const appended = try request(&declared, id, &bytes);
+        _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    }
+    const accepted = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 6, .lease_ms = 100 }, policy.guard());
+    var page = try owner.readClaimPage(initial.declared, .{ .receipt = accepted, .next = 0 }, .{}, t.allocator, policy.guard());
+    defer page.deinit();
+    try t.expect(page.cursor.complete() and page.rows().len == 6);
+    for (page.rows(), 0..) |row, i| {
+        try t.expectEqual(i, row.lease.original.offset);
+        try t.expectEqual(@as(u32, @intCast(i % 3)), row.ordinal);
+        try t.expectEqualDeep(operation(2 + i / 3), row.operation);
+        try row.lease.requireBasis(page.basis, accepted);
+    }
 }

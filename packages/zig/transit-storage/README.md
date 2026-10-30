@@ -134,12 +134,23 @@ source nonterminal and blocked. A large clock jump still needs separate bounded
 steps. This operation supplies the durable transition for a future timer owner;
 it does not install a background scheduler or perform a DLQ transfer.
 
-The Queue wrapper exposes enqueue, claim, settlement, bounded expiry, observation,
-original outcome recovery and physical maintenance. It has no Stream
-consumption, group or age-expiry API.
+`readClaimPage` resolves an original claim before traversing its frozen selection
+and payload directories. Rows own their encoded bytes independently of scratch
+and tail slabs. Row and byte budgets apply across append batches, and current
+authorization is rechecked after buffering, including empty and terminal pages.
+Each page separately reports its observed partition/time basis and the original
+leases' current state, epochs, attempts, deadlines, blocked reasons and liveness.
+Unavailable time does not prevent payload recovery; renewal, reassignment and
+settlement never substitute different payloads under the original claim.
+Observation does not authorize later execution or settlement. The neutral
+`transit-protocol.QueueRead` contract owns these distinctions.
+
+The Queue wrapper exposes enqueue, claim, original claim pages, settlement,
+bounded expiry, observation, original outcome recovery and physical maintenance.
+It has no Stream consumption, group or age-expiry API.
 The service must still compose this storage boundary with the shared catalog
-operation namespace and current grants; installed Queue execution, current lease
-inspection and automatic deadline scheduling remain open.
+operation namespace and current grants; installed Queue execution and automatic
+deadline scheduling remain open.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut

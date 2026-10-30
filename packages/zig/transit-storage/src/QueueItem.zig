@@ -16,7 +16,7 @@ visible_ms: u64,
 epoch: u64,
 attempts: u64,
 lease: ?q.Lease,
-blocked: union(enum) { none, exhausted, dead_letter: p.DataLifecycle.Definition },
+blocked: p.QueueRead.Blocked,
 
 pub fn initial(offset: u64, batch_next: u64, visible_ms: u64) !Self {
     const result: Self = .{ .offset = offset, .batch_next = batch_next, .next_key = null, .visible_ms = visible_ms, .epoch = 0, .attempts = 0, .lease = null, .blocked = .none };
