@@ -73,8 +73,12 @@ committed as `b74fee887` (before later affinity work). Stream maintenance comple
 units with a 19,215,663-byte peak, below the unchanged shared 32-MiB limit. Clock
 refusal permits preceding physical timer cleanup but no lease settlement;
 trusted lower-bound expiry, reserved control capacity, restart and original
-claim payloads after trimming pass. Native collection and a new installed
-timer-integration run remain separate qualifications.
+claim payloads after trimming pass. The native Table/Stream collection regression
+also passes in `/var/tmp/transit-queue-schedule-native-collection.log`: 11 physical
+collection passes retain pins and original outcomes while reclaiming obsolete
+allocations, including restart and trimmed-history cases. That native fixture
+does not exercise Queue merge closure; the expanded Queue graph fixture above
+owns that coverage. A new installed timer-integration run remains open.
 
 Initial fixture attempts refused undersized payload/tail buffers and exhausted
 the previous smaller graph traversal allowance. Those test bounds were adjusted
