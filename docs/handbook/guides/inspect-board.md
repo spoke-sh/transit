@@ -18,7 +18,13 @@ namespace and Table, inspect its schema, then choose **Preview rows**. Catalog
 filtering covers the current page. Dataset previews and column profiles are
 bounded windows with explicit coverage and source evidence.
 
-Use **Workbook** for temporary notes and SQL cells. **Run** explicitly submits a
+Use the horizontal **Data**, **Workbooks** and **Operations** activities to move
+between exploration and operational evidence. Dataset details, schema columns,
+received-window profiles and result evidence share one contextual **Inspector**.
+It can expand into the workspace; Close inspector or Escape returns to the
+selected control. Inspection never submits SQL.
+
+Use **Workbooks** for temporary notes and SQL cells. **Run** explicitly submits a
 read; editing only changes its draft. SHOW, DESCRIBE, EXPLAIN and SELECT share the
 same typed result surface. Each result has its own observation basis and terminal
 count. Leaving the workbook discards its cells. The

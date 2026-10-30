@@ -122,6 +122,12 @@ excluded. Only the selected metadata records are verified; this view makes no
 claim to have replayed the full body. It follows the same current-grant refresh
 and clearing rules as the records view.
 
+The data workbench uses horizontal activities and one contextual Inspector over
+current authorized metadata or result views. Optional dataset/cell navigation,
+expanded inspection and narrow layouts retain the underlying worksheet. See the
+[workbench guide](../transit-board/docs/workbench.md#activities-and-contextual-inspection)
+for interaction, evidence and clearing behavior.
+
 ## Working in the frontend
 
 The Operations screen includes a [relational worksheet](../transit-board/docs/relational.md)
@@ -142,6 +148,9 @@ remain separate from drafts, and no result or credential enters browser storage.
 | [records.tsx](src/records.tsx)                   | Growing record identities and source-backed exchange metadata                     |
 | [http-metadata.tsx](src/http-metadata.tsx)       | Selected HTTP policy, timing, omission and completion evidence                    |
 | [query-workspace.tsx](src/unified-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
+| [workbench-layout.tsx](src/workbench-layout.tsx) | Shared navigation, selection identities, one inspector and keyboard return |
+| [data-workbench.tsx](src/data-workbench.tsx) | Catalog/dataset metadata and temporary SQL workbooks |
+| [workbench-result.tsx](src/workbench-result.tsx) | Shared result reader presentation, window profiles and observation evidence |
 | [model.test.ts](src/model.test.ts)               | Model/client boundary tests                                                       |
 
 Import public types and transports from `@transit/board-client`; do not copy

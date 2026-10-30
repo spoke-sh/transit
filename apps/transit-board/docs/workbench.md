@@ -7,6 +7,44 @@ Operations retains the atlas, resource/connector inspectors, finite Live,
 relational recovery and application-definition controls with their existing
 separate capabilities.
 
+## Activities and contextual inspection
+
+The horizontal activity bar opens **Data**, **Workbooks** and the declared
+**Operations** screen. Published interfaces retain their application entry and
+navigation. **Definition recovery** remains directly available. Missing catalog
+or SQL configuration is explained inside its workspace; navigation grants no
+additional access.
+
+Dataset and workbook pages share one **Inspector**. **Dataset details** shows
+the selected definition and metadata basis. Selecting a schema column shows its
+logical type, physical codec and collation separately. Selecting a result column
+opens **Profile**, **Definition** and **Evidence** dimensions; **Result evidence**
+opens the result's canonical observation and verified terminal count. The panel
+names the selected dataset or workbook cell. A different selection replaces its
+contents instead of opening another panel. Result schemas do not supply source
+codec or collation metadata.
+
+**Dataset navigation** and **Cells** open optional local navigation. Dataset
+branch/object/definition context and workbook connection scope stay above the
+workspace. These are the actual configured or observed identities; Board does
+not infer one branch or atomic snapshot shared by every workbook cell.
+
+**Open detail in workspace** expands the selected inspection without closing its
+result or discarding SQL drafts. **Return to workspace** restores the layout.
+At widths of 1000 CSS pixels or less, inspection replaces the central content;
+its result status, window bounds, observation kind and earlier-draft warning
+remain visible. **Close inspector** or Escape restores the workspace and returns
+keyboard focus to the selection control, or an available page control if it has
+been removed. Selecting, changing dimensions and expanding details never run SQL.
+
+The inspector reads the current authorized view, without retaining a separate
+data copy. Closing or replacing a result, removing its cell, hiding the document
+or a failed observation clears its inspection. Unavailable workbook connection
+metadata also removes inspector content until access can be checked again.
+Whole-source statistics, storage sharing/reclaimability, measured operator
+metrics and branch-comparison workflows have no new presentation in this
+workbench. Existing operational evidence remains in Operations.
+
 ## Configure data access
 
 Inspection remains read-only and uses its original principal. Data exploration
