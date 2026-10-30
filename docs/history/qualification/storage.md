@@ -9,6 +9,84 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded immutable publication groups — 2026-10-30
+
+The [publication mechanism](../../handbook/internals/storage-runtime.md#sharing-a-content-directory-barrier)
+shares directory barriers within explicit groups of up to eight immutable objects.
+Native and direct index pages use these groups. Allocation inventory, quota
+reservations, creator/reclamation fences and accepting WAL barriers retain their
+own obligations. A group returns references only after every publication is
+durable; a failed group may leave a subset visible for exact retry.
+
+At runtime source `53df6efd2ec89d5ec5784d914ddc991ac00a74a3`, the complete local
+backend ReleaseSafe suite passes **57/57**, and the registered
+`just test::storage-io-faults` Debug selection passes **11/11**. Only qualification
+documentation is uncommitted during these workspace runs. Independent probes
+count `3n + 2` object-publication sync calls for `n` new objects: **26
+instead of 40 for eight objects**, and five for one. Inventory/WAL syncs are
+additional. Tests cover duplicate pages, unchanged output on failure, opposite
+lock orders, every sync failure in two-object groups, partial writes, reopen,
+exact retry and inventory preceding all visible native/direct content.
+A compiled production negative control omits the batch content-directory
+barrier and fails the intended directory-sync assertion (`expected 2, found 1`).
+
+At `6419ea8ee966fd0f699242565cb2c4a4614afa25`, the complete source-clean formal
+lane passes all 14 tasks. Object publication exhausts **397 distinct / 1,575
+generated states** for one object and **3,907 / 19,439** for two; all ten
+independent guard-removal controls detect their expected invariants.
+The complete disk process-death suite passes **165 SIGKILL schedules**, including
+15 new two-object cuts. Its earlier run completed those cuts but failed the
+stale total-count assertion; the successful rerun uses the corrected 165 count.
+
+Raw workspace evidence is under `.cache/write-publication/`: the successful
+`storage-process-faults-final.log` has SHA-256
+`f5d27addaab2910276c69ff97cded7626c1840dfc8f56ce73b0d6db14cd6f00a`;
+`negative-batch-barrier.log` has
+`865e6a0c27073539d6b317f948c9876ee756e352520d794a60b81c80b0c7ae00`.
+The final `rebased-backend.log` and `rebased-storage-io.log` have hashes
+`3bd948b302f08c02454cb3e0db9f6249593c185cc024da6d787f00b6c5052fed` and
+`c11438c559b52f63807865836ca85a8179ca8daa2d15fc5cef89f0b7829db3dd`.
+Formal completion and per-model source/configuration hashes are retained in
+`.cache/ci/clean/6419ea8ee966-transit-ci-ah45bxsb/`.
+These local artifacts are not portable download links.
+
+The finite model covers one/two objects under truthful sync and atomic replacement,
+not arbitrary group sizes, inventory/acceptance composition or implementation
+refinement. Injected disk errors and SIGKILL preserve the operating system;
+physical power loss remains untested. The
+[console attempts](performance.md#bounded-publication-console-attempts--2026-10-30)
+do not establish an end-to-end speedup or the interactive write target.
+
+After rebasing onto Document storage base `a4e695de6`, the complete clean formal
+lane passes again at `0cadac4e784a968fe2283e73e86e318245c6e073`. Its evidence is
+`.cache/ci/clean/0cadac4e784a-transit-ci-4g2ymv5b/`. Earlier formal attempts failed
+Table-only fixture compilation after Stream/Queue categories were introduced;
+explicit refusal of those registrations restores the fixture's Table scope,
+without extending its proof to Stream/Queue behavior.
+All **48 fast checks** pass after reconciling the generated diagnostic inventory
+with the rebase; fast checks do not execute the disk or installed-server suites.
+
+Clean-source integration runs at that same revision retain two failures:
+
+- **Interfaces:** TLS and the full Unix/HTTP/HTTPS SQL allocation controls pass.
+  Native SQL passes its smaller lost-admission, lost-commit and settlement cases,
+  then its original 67-row INSERT exhausts the 300-second helper deadline after
+  repeated 10-second `commit_saved` request timeouts. The original operation and
+  fixture remain at `/var/tmp/transit-sql-database-1pabj51r`; no new-token replay,
+  split statement or increased deadline is used.
+- **Installation/UI:** Board/docs checks, Node bindings, observability and server
+  logging pass. The single-executable default SQL workflow passes exact values
+  across restart. Its subsequent Board fault/restart fixture exhausts the
+  supervisor restart budget after an intervening `HttpConnectionClosing` error;
+  the aggregate task and lane fail. The installation remains at
+  `/var/tmp/transit-server-proof-ft0ye3u9`.
+
+Logs are `.cache/write-publication/rebased-interfaces.log` and
+`rebased-installation-ui.log`; the clean checkouts remain at
+`/var/tmp/transit-ci-im3qfz2e` and `/var/tmp/transit-ci-tbizpy4w`.
+Neither lane is qualified, and subsequent tasks in each lane do not execute.
+These failures do not establish their cause or a regression relative to the base.
+
 ## Direct Document protocol, succinct algebra, `.tseg` shredding, and `DocumentPartition` — 2026-10-30
 
 Delivered packages `D0`–`D4` of [Milestone 7](../../roadmap/07-document-storage-and-station-decoupling.md)
