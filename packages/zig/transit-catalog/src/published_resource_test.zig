@@ -8,6 +8,8 @@ const DecimalArithmetic = fuze.DecimalArithmetic;
 const HistoricalCatalog = c.HistoricalCatalog;
 const PublishedResource = c.PublishedResource;
 const DisclosurePolicy = c.DisclosurePolicy;
+const InvestigationBasis = c.InvestigationBasis;
+const Attribution = c.Attribution;
 
 fn sampleDeliveryResource(state: PublishedResource.ResourceLifecycleState) !PublishedResource.PublishedResourceDescriptor {
     const cols = &[_]s.Column{
@@ -288,4 +290,171 @@ test "disclosure policy separates computation, publication, and consumption auth
         .policy_epoch = 5,
     };
     try t_std.expect(!emp_key.canReuseFor(agent_key));
+}
+
+test "investigation basis freezes atomic cuts vs multi-source vectors, enforces pin expiry and missing captures, and creates immutable successor refreshes with 4-clock attribution" {
+    const t_std = std.testing;
+    const desc = try sampleDeliveryResource(.published);
+    const def_digest = try desc.definitionDigest();
+
+    const publisher_grants = [_]DisclosurePolicy.PublisherGrant{
+        .{ .principal_id = 900, .namespace_id = 1, .can_publish = true, .can_withdraw = true },
+    };
+    const full_source_objs = [_]u64{ 10, 20 };
+    const publisher_sources: HistoricalCatalog.GrantSet = .{
+        .policy_epoch = 5,
+        .select_objects = &full_source_objs,
+    };
+    const derived_policy: DisclosurePolicy.DisclosurePolicy = .{
+        .mode = .derived_publication,
+        .boundary = .{ .min_group_cardinality = 5 },
+        .attestation = .{
+            .publisher_principal = 900,
+            .resource_object = 500,
+            .publication_revision = 1,
+            .definition_digest = def_digest,
+            .attested_policy_epoch = 4,
+        },
+    };
+    const employee_grants = [_]DisclosurePolicy.ResourceConsumerGrant{
+        .{ .principal_id = 100, .resource_object = 500, .audience_kind = .full_resource_and_drilldown },
+    };
+    const employee_access: DisclosurePolicy.CallerAccessContext = .{
+        .caller_principal = 100,
+        .consumer_grants = &employee_grants,
+        .caller_source_grants = publisher_sources,
+        .publisher_grants = &publisher_grants,
+        .publisher_source_grants = publisher_sources,
+        .rls_mask_profile_tag = "unmasked_regional_analyst",
+    };
+
+    // Multi-source basis vector: native source 10 + captured exchange 20
+    const entries_v1 = [_]InvestigationBasis.SourceBasisEntry{
+        .{
+            .native_source = .{
+                .source_object = 10,
+                .source_revision = 1,
+                .branch_id = 1,
+                .manifest_version = 2,
+                .commit_lsn = 50,
+                .pin_lease = .{
+                    .pin_id = 701,
+                    .source_object = 10,
+                    .owner_principal = 100,
+                    .acquired_at_ms = 1_000,
+                    .expires_at_ms = 60_000,
+                },
+            },
+        },
+        .{
+            .captured_exchange = .{
+                .exchange_object = 20,
+                .exchange_revision = 1,
+                .payload_sha256 = @splat(0xCC),
+                .observed_at_ms = 1_100,
+                .capture_present = true,
+            },
+        },
+    };
+    const inv_v1: InvestigationBasis.InvestigationBasis = .{
+        .investigation_id = 888,
+        .basis_revision = 1,
+        .parent_basis_revision = null,
+        .created_by_principal = 100,
+        .created_at_ms = 1_200,
+        .payload = .{ .multi_source_basis_vector = &entries_v1 },
+    };
+
+    // Multi-source basis vector never claims global atomicity
+    try t_std.expect(!inv_v1.isGloballyAtomic());
+    try t_std.expectError(error.NonAtomicBasisVector, inv_v1.requireGlobalAtomicity());
+
+    // Valid evaluation at now_ms = 2_000, min_retained_manifest_version = 1
+    _ = try inv_v1.verifyForResourceEvaluation(desc, derived_policy, employee_access, 5, 2_000, 1);
+
+    // Pin lease expiry -> InvestigationBasisExpired
+    try t_std.expectError(
+        error.InvestigationBasisExpired,
+        inv_v1.verifyForResourceEvaluation(desc, derived_policy, employee_access, 5, 70_000, 1),
+    );
+
+    // Retention watermark expiry -> InvestigationBasisExpired
+    try t_std.expectError(
+        error.InvestigationBasisExpired,
+        inv_v1.verifyForResourceEvaluation(desc, derived_policy, employee_access, 5, 2_000, 3),
+    );
+
+    // Explicit successor refresh (`basis_revision = 2`) when source 10 advances to LSN 80 and exchange 20 updates
+    var entries_v2 = entries_v1;
+    entries_v2[0].native_source.commit_lsn = 80;
+    entries_v2[0].native_source.source_revision = 2;
+    entries_v2[1].captured_exchange.exchange_revision = 2;
+    entries_v2[1].captured_exchange.payload_sha256 = @splat(0xDD);
+
+    const refresh_out = try inv_v1.refreshSuccessor(
+        .{ .multi_source_basis_vector = &entries_v2 },
+        100,
+        5_000,
+    );
+    try t_std.expectEqual(@as(u64, 2), refresh_out.successor.basis_revision);
+    try t_std.expectEqual(@as(?u64, 1), refresh_out.successor.parent_basis_revision);
+    try t_std.expectEqual(@as(u32, 1), refresh_out.diff.advanced_native_sources);
+    try t_std.expectEqual(@as(u32, 1), refresh_out.diff.evolved_schema_sources);
+    try t_std.expectEqual(@as(u32, 1), refresh_out.diff.changed_external_captures);
+
+    // 4-clock freshness & AttributionReceipt verification
+    const basis_v1_digest = try inv_v1.basisDigest();
+    const audience_hash = try employee_access.effectiveAudienceHash(500);
+    const freshness_v1: Attribution.FourClockFreshness = .{
+        .source_observation_cut_ms = 1_100,
+        .domain_event_valid_time_ms = 1_050,
+        .computation_completion_cut_ms = 1_250,
+        .requested_freshness_sla_ms = 60_000,
+    };
+    const f_status = try freshness_v1.evaluate(2_000, desc.freshness_requirement);
+    try t_std.expectEqual(Attribution.FreshnessStatus.fresh, f_status);
+
+    const receipt_v1: Attribution.AttributionReceipt = .{
+        .investigation_id = 888,
+        .basis_revision = 1,
+        .basis_kind = .multi_source_basis_vector,
+        .basis_digest = basis_v1_digest,
+        .resource_object = 500,
+        .publication_revision = 1,
+        .definition_digest = def_digest,
+        .parameter_bindings_digest = @splat(0x55),
+        .schema_epoch = 1,
+        .verified_policy_epoch = 5,
+        .disclosure_mode = .derived_publication,
+        .audience_policy_hash = audience_hash,
+        .freshness = freshness_v1,
+        .freshness_status = f_status,
+        .completeness = .complete,
+        .total_rows_observed = 3,
+    };
+    try receipt_v1.verifyMatchesBasis(inv_v1);
+    // Receipt from basis_revision = 1 cannot be relabeled or attached to basis_revision = 2
+    try t_std.expectError(error.AttributionBasisMismatch, receipt_v1.verifyMatchesBasis(refresh_out.successor));
+
+    const r1_digest = try receipt_v1.receiptDigest();
+    const claims = [_]Attribution.NarrativeClaim{
+        .{
+            .claim_id = "claim_na_delay_spike",
+            .statement_text = "North America shipment delays increased due to port congestion.",
+            .cited_receipt_digests = &[_][32]u8{r1_digest},
+            .assumptions = &[_]Attribution.AssumptionTag{ .model_inference, .human_annotation },
+            .provenance_establishes_truth = false,
+        },
+    };
+    const report_v1: Attribution.ReportArtifact = .{
+        .report_id = "rep_01",
+        .investigation_id = 888,
+        .basis_revision = 1,
+        .basis_digest = basis_v1_digest,
+        .section_receipts = &[_]Attribution.AttributionReceipt{receipt_v1},
+        .narrative_claims = &claims,
+    };
+    const rep_digest = try report_v1.validateConsistentBasis(inv_v1);
+    try t_std.expect(!std.mem.allEqual(u8, &rep_digest, 0));
+    try t_std.expectError(error.AttributionBasisMismatch, report_v1.validateConsistentBasis(refresh_out.successor));
 }

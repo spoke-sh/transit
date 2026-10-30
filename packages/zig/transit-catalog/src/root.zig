@@ -52,6 +52,8 @@ pub const TableLowering = @import("TableLowering.zig");
 pub const HistoricalCatalog = @import("HistoricalCatalog.zig");
 pub const PublishedResource = @import("PublishedResource.zig");
 pub const DisclosurePolicy = @import("DisclosurePolicy.zig");
+pub const InvestigationBasis = @import("InvestigationBasis.zig");
+pub const Attribution = @import("Attribution.zig");
 test {
     // Keep hash contracts discoverable even when a test filter removes their
     // indirect callers in the catalog lifecycle suite.
@@ -80,6 +82,8 @@ test {
     _ = HistoricalCatalog;
     _ = PublishedResource;
     _ = DisclosurePolicy;
+    _ = InvestigationBasis;
+    _ = Attribution;
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;
