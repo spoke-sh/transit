@@ -185,6 +185,13 @@ merge progress, stale-event filtering and their retained dependencies remain
 separate integration work. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#queue-time-run-chunks)
 defines the exact descriptor and physical bounds.
 
+`QueueTimeBuffer` keeps at most 256 sorted pending events in caller-owned memory
+and stages exact immutable bytes without internal heap allocation. A full buffer
+refuses further insertion without evicting an event. Its contiguous time-bucket
+slices can seal into `QueueTimeRun` chunks. This bounds one operation buffer;
+publishing active/pending references and retiring earlier buffers still belong
+to the Queue scheduling owner and are not yet integrated.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current

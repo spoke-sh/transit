@@ -32551,6 +32551,39 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/QueueTimeBuffer.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueTimeBuffer": 13,
+        "QueueTimeBufferBudget": 3,
+        "QueueTimeBufferFull": 1,
+        "QueueTimeBufferMissing": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "header()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "QueueTimeRun.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/QueueTimeRun.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -33982,6 +34015,7 @@
         "QueueLeaseHeap.zig",
         "QueuePartition.zig",
         "QueueSelection.zig",
+        "QueueTimeBuffer.zig",
         "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "S3ObjectStore.zig",

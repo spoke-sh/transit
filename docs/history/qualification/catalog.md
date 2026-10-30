@@ -9,6 +9,25 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue pending timer buffers — 2026-10-30
+
+The `QueueTimeBuffer` codec passes focused checks on dirty parent `1d62204ed`.
+A 256-entry buffer accepts reverse-order insertion across time buckets, refuses
+overflow and duplication without eviction, and survives disk reopen with exact
+copied scalar output. The encoded bound is 6,272 bytes. A 128-entry buffer seals
+into four sorted `.tseg` chunks and reconstructs the same event sequence.
+Negative cases reject foreign owner/kind/definition, invalid lease metadata,
+corruption, missing objects, reserved bytes, duplicate ordering, truncation and
+insufficient output. Clearing permits explicit reuse but an empty buffer cannot
+be staged as a nonempty artifact.
+
+Focused buffer/run checks pass in `/var/tmp/transit-queue-time-buffer-final.log`;
+all 48 fast checks pass in `/var/tmp/transit-queue-time-buffer-fast.log`, and all
+18 contract checks pass in `/var/tmp/transit-queue-time-buffer-contracts.log`.
+This is codec composition, not an accepted Queue transition. Pending directories,
+publication, merge progress, collection and proof of removing per-item timer
+index rewrites remain integration work. No new clean lane is claimed.
+
 ## Bounded Queue time-run codec — 2026-10-30
 
 The physical `QueueTimeRun` codec passes focused storage checks on dirty parent

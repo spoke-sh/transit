@@ -1305,6 +1305,28 @@ The owning Queue must validate the exact genesis and publish reachability with
 its accepted scheduling state. The current Queue scheduling directories have
 not yet adopted time-run chunks or resumable multi-chunk merging.
 
+### Pending timer buffers
+
+`QueueTimeBuffer` orders at most 256 pending events in caller-owned memory and
+stages an immutable `queue-time-buffers/<sha256>.data` object. It shares the
+run's `(time, offset, epoch)` event and kind rules, but may span time buckets.
+Sealing can split its contiguous bucket slices into `QueueTimeRun` chunks.
+A full buffer returns explicit refusal without eviction; it is an operation
+buffer bound, not a bound on retained Queue cardinality.
+
+The header is 128 bytes: `QTBUF001` (8), mandatory current definition (32),
+realm/resource/catalog/branch/object/genesis revision (six big-endian `u64`),
+definition digest (32), partition ordinal (big-endian `u32`), kind (`u8`),
+nonzero row count (big-endian `u16`), and one zero byte. Strictly ordered event
+triples follow as three big-endian `u64` values per row. The exact object size
+is `128 + 24 * rows`, at most 6,272 bytes. Loading verifies length, full digest,
+current definition, exact expected seed/kind and ordering into copied scalar
+output. No decoder allocation or encoded-byte borrow escapes.
+
+The buffer codec does not publish pending work or retire a previous buffer.
+Accepted scheduling state must own the active reference, any sealed chunks,
+merge inputs and output before their physical reclamation becomes eligible.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.
