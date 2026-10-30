@@ -18,6 +18,7 @@ pub const LogDeclaration = @import("LogDeclaration.zig");
 pub const PublicationGuard = @import("PublicationGuard.zig");
 pub const LogInitialization = @import("LogInitialization.zig");
 pub const LogBatch = @import("LogBatch.zig");
+pub const LogView = @import("LogView.zig");
 pub const LogSegment = @import("LogSegment.zig");
 pub const LogEvidence = @import("LogEvidence.zig");
 pub const LogRead = @import("LogRead.zig");
@@ -73,6 +74,7 @@ test {
     _ = @import("log_declaration_test.zig");
     _ = @import("log_initialization_test.zig");
     _ = @import("log_batch_test.zig");
+    _ = @import("log_view_test.zig");
     _ = @import("log_segment_test.zig");
     _ = @import("log_evidence_test.zig");
     _ = @import("log_read_test.zig");
