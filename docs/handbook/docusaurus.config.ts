@@ -39,7 +39,8 @@ writeFileSync(
 
 const config: Config = {
   title: "Transit",
-  tagline: "Programmable data infrastructure for applications.",
+  tagline:
+    "Declarative multi-model database, vectorized/incremental query engine (Fuze), and durable execution runtime (Station).",
   url,
   baseUrl,
   favicon: "img/transit.svg",

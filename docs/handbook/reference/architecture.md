@@ -1,11 +1,12 @@
 # Architecture and scope
 
-Transit combines stored application data, queries and durable execution under
-shared authorization and publication rules. Tables provide typed records and
-schema evolution; KV resources retain explicitly encoded values; Documents
-provide structured edits and collaborative text. Queries bind those data
-definitions to explicit source versions. The [data model](data-model.md) explains
-the user-facing lifecycle and its current declarative interfaces.
+Transit combines a declarative, versioned multi-model database, a vectorized
+and incremental query engine (`Fuze`), and a durable execution runtime
+(`Station`) under shared authorization and publication rules. Tables provide
+typed records and schema evolution; KV resources retain explicitly encoded
+values; Documents provide structured edits and collaborative text. Queries bind
+those data definitions to explicit source versions. The [data model](data-model.md)
+explains the user-facing lifecycle and its current declarative interfaces.
 
 Durable processes, ordered input and versioned resources support that lifecycle.
 Workers propose changes; the authority validates and commits them to durable
@@ -40,25 +41,7 @@ and Board expose their documented portions of the lifecycle.
 
 ## Responsibilities
 
-```mermaid
-flowchart TD
-  App[Application workers and callers] --> Client[Public client and SDKs]
-  App --> Station[Station behaviors and state helpers]
-  Station --> Client
-  Client --> Node[Transit authority]
-  Node --> Storage[Local or Ursula native storage]
-  Node --> Tables[Direct Table catalog and acceptance partitions]
-  Tables --> Objects[Local WAL and immutable objects]
-  Query[Fuze query execution] --> Sources[Authorized source adapters]
-  Sources --> Client
-  SQLClients[Console and PostgreSQL/MySQL clients] --> SQL[Shared SQL sessions]
-  SQL --> Query
-  SQL --> Client
-  Board[Board inspection] --> Client
-  Serving[Serving and Flight gateways] --> Client
-  Runtime[Runtime reconciliation] --> Client
-  Runtime --> Provider[Kubernetes and Substrate]
-```
+![Transit System Responsibilities and Authority Boundaries](../static/img/architecture/system-responsibilities.jpg)
 
 | Layer | Responsibility | Boundary |
 | --- | --- | --- |
