@@ -25,9 +25,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     _ = try binding.require(client, right(target.kind));
     var schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
     defer schema.deinit();
-    var template = try f.TableDmlPrepared.init(allocator, text, target.name, schema.schema, dialect, location);
-    errdefer template.deinit();
-    _ = try binding.require(client, right(target.kind));
+    const template = try f.TableDmlPrepared.init(allocator, text, target.name, schema.schema, dialect, location);
     return .{ .binding = binding, .template = template };
 }
 pub fn parameterTypes(self: *const Self) []const f.Types.Type {
@@ -49,8 +47,5 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTab
     _ = try self.binding.require(client, right(self.template.syntax.subject.kind));
     var plan = try self.template.bind(allocator, self.template.name, self.template.schema.schema, values, location);
     defer plan.deinit();
-    var result = try c.DirectTableIntent.fromDml(allocator, client.connection, metadata, operation, plan.plan, ingestion);
-    errdefer result.deinit();
-    _ = try self.binding.require(client, right(self.template.syntax.subject.kind));
-    return result;
+    return c.DirectTableIntent.fromDml(allocator, client.connection, metadata, operation, plan.plan, ingestion);
 }

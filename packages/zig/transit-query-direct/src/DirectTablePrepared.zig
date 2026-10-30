@@ -32,9 +32,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var prototype = try template.bind(allocator, name, row_type, basis, witnesses[0..template.count], detail);
     defer prototype.deinit();
     var output_fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-    var output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
-    errdefer output.deinit();
-    _ = try binding.require(client, .read);
+    const output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
     return .{ .binding = binding, .template = template, .output = output };
 }
 pub fn parameterTypes(self: *const Self) []const f.Types.Type {

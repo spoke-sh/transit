@@ -86,19 +86,19 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTab
     if (operation == 0) return error.InvalidDataOperation;
     if ((self.compiled.statement == .create) != (create_object != null)) return error.InvalidTableIntent;
     if (create_object) |object| if (object == 0) return error.InvalidDataIdentity;
-    try self.validate(client);
+    if (self.compiled.statement != .create) try self.validate(client) else if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
     var ddl: w.Ddl = .{ .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = self.connection.scope, .principal = self.connection.principal, .operation = operation }, .target = .{ .scope = self.connection.scope, .branch = self.connection.branch, .object = create_object orelse 0 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) }, .namespace = self.namespace, .name = undefined, .action = undefined };
     switch (self.compiled.statement) {
         .create => |create| {
+            const subject = try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table });
             if (create.if_not_exists) {
                 const response = try client.call(.{ .lookup = .{ .namespace = self.namespace, .name = create.name } });
                 defer response.deinit();
                 if (response.value.result.lookup) |existing| return self.assertion(operation, create.name, existing.interpretation.interpretation);
             }
-            const subject = try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table });
             var buffer: [f.TableSchema.max_bytes]u8 = undefined;
             ddl.name = create.name;
             ddl.action = .{ .create = .{ .owner = subject.role, .schema = try .encode(a, try (try create.bind(create_object.?)).encode(&buffer)) } };

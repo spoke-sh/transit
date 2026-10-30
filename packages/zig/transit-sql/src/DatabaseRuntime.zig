@@ -366,37 +366,46 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true, false);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool, fresh_nonce: bool) !c.DirectClientToken.Progress {
     try deadline.check(self.io);
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
-    if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
-        operation.* = previous.id();
-        _ = try self.execution.operationFromState(previous);
-        return previous;
+    const expected_fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint;
+    if (!fresh_nonce) {
+        if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, expected_fingerprint })) |previous| {
+            operation.* = previous.id();
+            _ = try self.execution.operationFromState(previous);
+            return previous;
+        }
     }
     try statement.checkValues(allocator, values);
-    if (statement.plan == .ddl) {
-        try self.available(observer, deadline, g.Statement.validate, .{ statement, table });
-    }
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-    var intent = try self.available(observer, deadline, g.Statement.bindWrite, .{ statement, allocator, table, values, id });
+    var intent = self.available(observer, deadline, g.Statement.bindWrite, .{ statement, allocator, table, values, id }) catch |err| {
+        if (expected_fingerprint != null) {
+            if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, expected_fingerprint })) |previous| {
+                operation.* = previous.id();
+                _ = try self.execution.operationFromState(previous);
+                return previous;
+            }
+        }
+        return err;
+    };
     defer intent.deinit();
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
     const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace });
-    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) try reference.digest() else fingerprint, .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
+    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = expected_fingerprint orelse try reference.digest(), .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
     // A lost bind response can leave work accepted even without an observed ID.
     errdefer self.notify();
     const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ table.*, binding }) catch |err| {
         // A concurrent first submission may have won after the initial lookup.
         // Reconcile only the same token; never invent a new operation.
         if (observer.transport.contended(err)) {
-            if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
+            if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, expected_fingerprint })) |previous| {
                 operation.* = previous.id();
                 _ = try self.execution.operationFromState(previous);
                 return previous;
@@ -418,7 +427,7 @@ pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false, true);
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal|
         return self.project(state, terminal, null);
@@ -470,7 +479,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var claimed = true;
     defer if (claimed) selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false, true);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };

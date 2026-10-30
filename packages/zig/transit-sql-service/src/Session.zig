@@ -116,6 +116,7 @@ pub const Read = struct {
     emitted: bool = false,
     emitted_rows: u64 = 0,
     validated_open: bool = false,
+    validated_disclosure: bool = false,
     transaction: ?p.Transaction.Handle = null,
     transaction_context: ?c.DirectTransactionRead.Context = null,
     pub fn dataBasis(self: *Read, allocator: std.mem.Allocator) !?g.results.Observation.Data {
@@ -192,9 +193,14 @@ pub const Read = struct {
         }, .contract = value.contract, .schema = value.schema } };
     }
     pub fn validateDisclosure(self: *Read) !void {
+        if (self.validated_disclosure) {
+            self.validated_disclosure = false;
+            return;
+        }
         try self.disclosure.validate(self.host, self.prepared);
     }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
+        self.validated_disclosure = false;
         try self.host.deadline.check(self.host.io);
         if (self.validated_open) {
             self.validated_open = false;
@@ -230,7 +236,8 @@ pub const Read = struct {
         if (self.value == .settings) {
             if (self.value.settings.settings) |settings| self.disclosure.origins = settings.origins orelse false;
         }
-        try self.validateDisclosure();
+        try self.disclosure.validate(self.host, self.prepared);
+        self.validated_disclosure = true;
         self.emitted_rows = try std.math.add(u64, self.emitted_rows, self.builder.len);
         return .{ .rows = self.builder.rows, .len = self.builder.len, .complete = complete };
     }
@@ -491,16 +498,20 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
     if (control) |value| {
         result.* = .{ .transaction = value };
         try g.SessionTransaction.require(self, result);
+        self.fresh_prepared = result;
         return result;
     }
     if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
         result.* = .{ .inspection = inspection };
+        self.fresh_prepared = result;
         return result;
     }
     if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, self.readOptions(), &self.compile_binding }) };
+    self.fresh_prepared = result;
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
+    if (self.fresh_prepared == prepared) self.fresh_prepared = null;
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .source) prepared.source.deinit();
     if (prepared.* == .captured) prepared.captured.deinit();
@@ -509,6 +520,11 @@ pub fn destroy(self: *Self, prepared: *Prepared) void {
     self.allocator.destroy(prepared);
 }
 pub fn validate(self: *Self, prepared: *Prepared) !void {
+    if (self.fresh_prepared == prepared) {
+        self.fresh_prepared = null;
+        return;
+    }
+    self.fresh_prepared = null;
     try g.SessionTransaction.require(self, prepared);
     if (prepared.* != .transaction) try g.SessionTransaction.refresh(self);
     try self.deadline.check(self.io);
@@ -524,6 +540,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe, .transaction => {}, // current() already validates the login and database.
     }
+    self.fresh_prepared = prepared;
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
     switch (prepared.*) {
@@ -552,7 +569,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     }
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
-    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes), .transaction = self.transaction.handle, .transaction_context = self.table.transaction };
+    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes), .validated_open = true, .transaction = self.transaction.handle, .transaction_context = self.table.transaction };
     errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
@@ -640,7 +657,11 @@ fn releasePins(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
-    try self.validate(prepared);
+    if (self.fresh_prepared == prepared) {
+        self.fresh_prepared = null;
+    } else {
+        try self.validate(prepared);
+    }
     if (prepared.* == .transaction or self.transaction.handle != null) return g.SessionTransaction.execute(self, prepared, values);
     if (prepared.* == .settings) {
         try Settings.mutate(self, &prepared.settings);

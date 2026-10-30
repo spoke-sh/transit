@@ -106,6 +106,9 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             self.statements[index] = prepared;
         }
         fn bind(self: *Self, input: pg.Frontend.Bind) !usize {
+            return self.bindInner(input, false);
+        }
+        fn bindInner(self: *Self, input: pg.Frontend.Bind, validated: bool) !usize {
             if (self.portalIndex(input.portal)) |i| {
                 if (input.portal.len != 0) return error.DuplicateWirePortal;
                 self.closePortal(i);
@@ -118,7 +121,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             const types = prepared.value.parameters();
             if (input.count != types.len) return error.WireParameterCountMismatch;
             try input.results.validate(prepared.value.fields().len);
-            try self.host.validate(prepared.value);
+            if (!validated) try self.host.validate(prepared.value);
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             errdefer arena.deinit();
             const allocator = arena.allocator();
@@ -142,6 +145,9 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             return buffer[0..fields.len];
         }
         fn describe(self: *Self, target: pg.Frontend.Target) !void {
+            return self.describeInner(target, false);
+        }
+        fn describeInner(self: *Self, target: pg.Frontend.Target, validated: bool) !void {
             var formats: pg.Frontend.Formats = .{};
             const index = switch (target.kind) {
                 .statement => self.statementIndex(target.name) orelse return error.UnknownWireStatement,
@@ -152,17 +158,20 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 },
             };
             const prepared = &self.statements[index].?;
-            try self.host.validate(prepared.value);
+            if (!validated) try self.host.validate(prepared.value);
             if (target.kind == .statement) try self.send(try self.backend.parameters(prepared.oids[0..prepared.count]));
             var buffer: [g.Limits.max_parameters]pg.Backend.Column = undefined;
             const fields = try self.columns(prepared.value, &buffer);
             if (fields.len == 0) try self.send(try self.backend.empty(.no_data)) else try self.send(try self.backend.describe(fields, &formats));
         }
         fn execute(self: *Self, index: usize, maximum: u32) !void {
+            return self.executeInner(index, maximum, false);
+        }
+        fn executeInner(self: *Self, index: usize, maximum: u32, validated: bool) !void {
             const portal = &self.portals[index].?;
             if (portal.complete) return error.CompletedWirePortal;
             const prepared = self.statements[portal.statement].?.value;
-            try self.host.validate(prepared);
+            if (!validated) try self.host.validate(prepared);
             if (prepared.empty()) {
                 portal.complete = true;
                 try self.send(try self.backend.empty(.empty_query));
@@ -212,11 +221,11 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 return;
             }
             try self.parse(.{ .name = "", .sql = sql, .count = 0 });
-            const index = try self.bind(.{ .portal = "", .statement = "", .count = 0, .formats = .{}, .results = .{} });
+            const index = try self.bindInner(.{ .portal = "", .statement = "", .count = 0, .formats = .{}, .results = .{} }, true);
             defer self.closePortal(index);
             const prepared = self.statements[self.portals[index].?.statement].?.value;
-            if (prepared.fields().len != 0) try self.describe(.{ .kind = .portal, .name = "" });
-            try self.execute(index, 0);
+            if (prepared.fields().len != 0) try self.describeInner(.{ .kind = .portal, .name = "" }, true);
+            try self.executeInner(index, 0, true);
         }
         /// Process one complete frame. Framing errors belong to the caller and
         /// close the transport; command errors drain until Sync. Return false on X.
