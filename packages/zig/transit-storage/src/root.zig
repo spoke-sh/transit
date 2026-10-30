@@ -53,6 +53,8 @@ pub const DocumentRecovery = @import("DocumentRecovery.zig");
 pub const DocumentStorageRoots = @import("DocumentStorageRoots.zig");
 pub const DocumentPartition = @import("DocumentPartition.zig");
 pub const TableDeclaration = @import("TableDeclaration.zig");
+pub const KVDeclaration = @import("KVDeclaration.zig");
+pub const KVPartition = @import("KVPartition.zig");
 pub const TableInterpretations = @import("TableInterpretations.zig");
 pub const TableArchive = @import("TableArchive.zig");
 pub const TableRecovery = @import("TableRecovery.zig");
@@ -69,6 +71,7 @@ pub const TableWorkspace = @import("TableWorkspace.zig");
 pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 
 test {
+    _ = @import("kv_partition_test.zig");
     _ = TransitLog;
     _ = TransitObjectStore;
     _ = LocalWal;

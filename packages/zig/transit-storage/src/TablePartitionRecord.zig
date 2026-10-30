@@ -9,6 +9,7 @@ pub const max_metadata_bytes = 16 * 1024;
 pub const header_bytes = 44;
 
 pub const Root = struct {
+    kind: Declaration.Kind,
     interpretation: d.Definition,
     declaration: d.Content,
     schema_fingerprint: [32]u8,
@@ -53,7 +54,7 @@ pub const Root = struct {
     transaction: ?@import("TableTransaction.zig").Reference,
 
     pub fn declared(self: Root) Declaration.Stored {
-        return .{ .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
+        return .{ .kind = self.kind, .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
     }
 
     pub fn validate(self: Root) !void {

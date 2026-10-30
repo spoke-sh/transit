@@ -32,6 +32,7 @@ pub fn validate(self: Self) !void {
     try c.Model.nativeId(self.owner);
     try c.Model.nativeId(self.namespace);
     try self.interpretation.validate();
+    if (self.interpretation.kind != .table) return error.InvalidQuerySource;
     const object: d.Object = .{ .scope = self.scope, .branch = self.branch, .object = self.object };
     if (!std.meta.eql(object, self.interpretation.interpretation.object) or self.interpretation.retired) return error.InvalidQuerySource;
     try self.row_type.validate(.{});
@@ -97,6 +98,7 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     const revision = try reader.takeInt(u64, .little);
     const digest = (try reader.takeArray(32)).*;
     source.interpretation = .{
+        .kind = .table,
         .interpretation = .{ .object = .{ .scope = source.scope, .branch = source.branch, .object = source.object }, .revision = revision, .digest = digest },
         .content = .{ .bytes = try reader.takeInt(u64, .little), .sha256 = digest },
         .schema_fingerprint = (try reader.takeArray(32)).*,

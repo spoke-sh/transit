@@ -7,6 +7,15 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`KVPartition` provides typed point reads and atomic put/remove batches over the
+same paged engine, with an explicit persisted KV kind. It supports binary keys
+up to 1,024 bytes and text/binary values up to 1,047,552 bytes, bounded batches,
+original receipts, current-policy publication guards and retained read cuts.
+Its disk checks cover reply loss, large values, cardinality beyond the page
+cache, sealing, archive/trim and restart. Table opens reject KV storage,
+including recovery from checkpoints. Catalog/caller migration and mixed
+transaction participation are not established by this storage component.
+
 `Tack` binds a queue segment's available, acquired, acked and archived state
 sets to its exact interpretation, offset range and accepted WAL frontier. The
 488-byte envelope references immutable paged `BitmapDirectory` roots and uses

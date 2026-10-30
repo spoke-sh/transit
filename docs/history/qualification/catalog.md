@@ -9,6 +9,43 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct KV storage foundation — 2026-10-30
+
+On dirty parent `bf83e0b5f`, `KVPartition` storage checks pass in
+`/var/tmp/transit-direct-kv-storage-final.log`. A disk schedule accepts six keys
+and a 128-KiB value in one WAL record, recovers the exact receipt after a lost
+reply, grows to 69 live keys with a one-page resident cache, seals payloads,
+archives/trims WAL and reopens from a checkpoint. Original pinned reads retain
+the earlier large value while current reads see its replacement. Changed retries
+conflict; explicit pin release closes the original read. Table initialization
+and checkpoint recovery reject KV storage under a Table kind.
+
+Other cases in that run cover publication-time revocation, resource-wide logical
+conflicts after physical flush, absent-key mutation guards, duplicate keys,
+missing values, maximum key/value lengths together, bounded candidate memory,
+missing persisted kind, and rename/retirement preserving original receipts and
+retained reads. An initial limit test exposed error-precedence behavior; the
+KV byte limit now returns its own refusal before the generic value budget. The
+final test run includes that correction. Earlier selected checkpoint regressions
+also pass in `/var/tmp/transit-direct-kv-storage-third.log`.
+
+Selected existing catalog/host checks pass in
+`/var/tmp/transit-direct-kv-catalog.log`; the complete query package passes in
+`/var/tmp/transit-direct-kv-query-2.log`. Focused final Table response and host
+conversion checks reject KV descriptors in
+`/var/tmp/transit-direct-kv-caller-kinds-final.log`. All 18 generated-contract
+checks pass in `/var/tmp/transit-direct-kv-contracts-final.log`. Language SDK
+descriptors remain Table-specific; native stored descriptors carry the mandatory
+kind, and conversion to a Table descriptor refuses KV.
+
+All 53 fast checks pass in `/var/tmp/transit-direct-kv-fast-pass.log`. The final
+prepared-binding refusal uses the existing invalid Table descriptor diagnostic;
+its focused check passes in `/var/tmp/transit-direct-kv-binding-rejection.log`.
+
+These are storage and adapter checks, not installed direct-KV caller evidence,
+a clean integration lane, or mixed transaction qualification. Named KV catalog
+cutover and state/append/settlement composition remain open.
+
 ## Terminal Queue payload retention — 2026-10-30
 
 On dirty parent `b015393bf`, after rebasing onto `4ea7152b5`, focused storage

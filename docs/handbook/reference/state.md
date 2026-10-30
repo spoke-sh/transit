@@ -21,6 +21,13 @@ one local common cut and commit decision. Native KV/Document state and native
 input acknowledgments do not participate. A handler's independent Table call
 therefore does not extend its native turn boundary.
 
+The database storage package also supplies a direct `KVPartition` foundation:
+typed values, byte-exact keys, atomic batches, original-operation receipts and
+retained reads over paged WAL/segment storage. It has no writer PID or native
+turn value limit. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md)
+defines its bounds. Named KV callers still use the lifecycle below until the
+catalog migration and shared transaction gate are complete.
+
 Named KV and Document declarations use `DirectResourceClient` and the shared
 direct catalog. Save the complete declaration before admission. Its observable
 phases separate name reservation, preparation of the original caller's native

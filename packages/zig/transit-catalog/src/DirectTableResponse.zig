@@ -9,6 +9,7 @@ const P = c.storage.TablePartition;
 
 fn definition(connection: w.Connection, stored: c.storage.TableDeclaration.Stored) !void {
     try stored.validate();
+    if (stored.kind != .table) return error.InvalidTableResponse;
     try connection.object(stored.interpretation.object);
 }
 fn frontier(position: d.Position, changed_lsn: u64) !void {
@@ -77,6 +78,7 @@ fn evidence(binding: d.Binding, value: P.Evidence) !void {
             !std.mem.eql(u8, &decision.attempt.workspace.sha256, &binding.intent)) return error.InvalidTableResponse;
     }
     try value.resulting.validate();
+    if (value.resulting.kind != .table) return error.InvalidTableResponse;
     try value.outcome.position.validate();
     if (!std.meta.eql(value.resulting.interpretation.object, binding.target) or
         value.outcome.position.next_lsn == 0 or value.outcome.affected > value.outcome.matched or

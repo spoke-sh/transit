@@ -7,10 +7,14 @@ const d = p.DataLifecycle;
 const f = @import("transit_fuze");
 const Objects = @import("TransitObjectStore.zig");
 const header_bytes = 104;
+/// Both kinds share paged row storage. The kind is part of the immutable
+/// interpretation, never inferred from a two-column schema or catalog name.
+pub const Kind = enum(u8) { table = 0, kv = 1 };
 pub const max_properties_bytes = 4096;
 pub const max_bytes = header_bytes + max_properties_bytes + f.TableSchema.max_bytes;
 
 pub const Definition = struct {
+    kind: Kind = .table,
     object: d.Object,
     revision: u64,
     schema: f.TableSchema.Schema,
@@ -21,6 +25,7 @@ pub const Definition = struct {
     pub fn validate(self: Definition) !void {
         try self.object.validate();
         try self.schema.validate();
+        if (self.kind == .kv) _ = try @import("KVDeclaration.zig").validateSchema(self.schema);
         if (self.revision == 0 or self.schema.object != self.object.object or self.properties.len > max_properties_bytes) return error.InvalidTableDeclaration;
     }
     pub fn encode(self: Definition, output: []u8) ![]const u8 {
@@ -30,7 +35,7 @@ pub const Definition = struct {
         output[8..40].* = p.Growth.definition_bytes;
         var writer: std.Io.Writer = .fixed(output[40..header_bytes]);
         for ([_]u64{ self.object.scope.realm, self.object.scope.resource, self.object.scope.catalog, self.object.branch, self.object.object, self.revision }) |id| try writer.writeInt(u64, id, .little);
-        try writer.writeInt(u64, @intFromBool(self.retired), .little);
+        try writer.writeInt(u64, @as(u64, @backingInt(self.kind)) << 1 | @intFromBool(self.retired), .little);
         try writer.writeInt(u32, @intCast(self.properties.len), .little);
         @memcpy(output[header_bytes..][0..self.properties.len], self.properties);
         const schema = try self.schema.encode(output[header_bytes + self.properties.len ..]);
@@ -40,6 +45,7 @@ pub const Definition = struct {
 };
 
 pub const Stored = struct {
+    kind: Kind,
     interpretation: d.Definition,
     content: d.Content,
     schema_fingerprint: [32]u8,
@@ -59,7 +65,7 @@ pub const Owned = struct {
     pub fn stored(self: *const Owned) !Stored {
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(self.bytes, &digest, .{});
-        return .{ .interpretation = .{ .object = self.definition.object, .revision = self.definition.revision, .digest = digest }, .content = .{ .bytes = self.bytes.len, .sha256 = digest }, .schema_fingerprint = try self.schema.schema.fingerprint(), .retired = self.definition.retired };
+        return .{ .kind = self.definition.kind, .interpretation = .{ .object = self.definition.object, .revision = self.definition.revision, .digest = digest }, .content = .{ .bytes = self.bytes.len, .sha256 = digest }, .schema_fingerprint = try self.schema.schema.fingerprint(), .retired = self.definition.retired };
     }
     pub fn deinit(self: *Owned) void {
         self.schema.deinit();
@@ -111,8 +117,8 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, stored: 
     var reader: std.Io.Reader = .fixed(bytes[40..header_bytes]);
     const object: d.Object = .{ .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) }, .branch = try reader.takeInt(u64, .little), .object = try reader.takeInt(u64, .little) };
     const revision = try reader.takeInt(u64, .little);
-    const retired = try reader.takeInt(u64, .little);
-    if (retired > 1 or (retired == 1) != stored.retired) return error.InvalidTableDeclaration;
+    const flags = try reader.takeInt(u64, .little);
+    if (flags > 3 or ((flags & 1) == 1) != stored.retired or flags >> 1 != @backingInt(stored.kind)) return error.InvalidTableDeclaration;
     const properties_length = try reader.takeInt(u32, .little);
     const schema_length = try reader.takeInt(u32, .little);
     if (properties_length > max_properties_bytes or schema_length > f.TableSchema.max_bytes or
@@ -121,7 +127,7 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, stored: 
     var schema = try f.TableSchema.decode(allocator, bytes[header_bytes + properties_length ..]);
     errdefer schema.deinit();
     if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &stored.schema_fingerprint)) return error.InvalidTableDeclaration;
-    const definition: Definition = .{ .object = object, .revision = revision, .schema = schema.schema, .properties = bytes[header_bytes..][0..properties_length], .retired = retired == 1 };
+    const definition: Definition = .{ .kind = stored.kind, .object = object, .revision = revision, .schema = schema.schema, .properties = bytes[header_bytes..][0..properties_length], .retired = stored.retired };
     try definition.validate();
     return .{ .allocator = allocator, .bytes = bytes, .schema = schema, .definition = definition };
 }

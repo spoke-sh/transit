@@ -890,7 +890,7 @@ test "retained filter scan binds independent signed cursor and sparse coverage e
     try t.expectError(error.InvalidPlanEncoding, changed.validate(t.allocator));
     const page: w.Page = .{
         .snapshot = scan.snapshot,
-        .interpretation = .{ .interpretation = .{ .object = scan.snapshot.object, .revision = 1, .digest = @splat(3) }, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(5), .retired = false },
+        .interpretation = .{ .kind = .table, .interpretation = .{ .object = scan.snapshot.object, .revision = 1, .digest = @splat(3) }, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(5), .retired = false },
         .accepted = .{ .partition = 9, .next_lsn = 10 },
         .changed_lsn = 9,
         .total_rows = 24,
@@ -902,6 +902,9 @@ test "retained filter scan binds independent signed cursor and sparse coverage e
     var response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .filtered_page = value } };
     try c.DirectTableClient.validateResponse(t.allocator, request, response);
     value.examined = 0;
+    response.result.filtered_page.page.interpretation.kind = .kv;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, response));
+    response.result.filtered_page.page.interpretation.kind = .table;
     try t.expectError(error.InvalidTableResponse, value.validate());
     value.examined = 9;
     try t.expectError(error.InvalidTableResponse, value.validate());

@@ -157,12 +157,42 @@ Table root; it cannot acquire an empty directory by default.
 
 A declaration object contains `TDECL001` at `0..8`, mandatory shared definition
 bytes at `8..40`, then six little-endian `u64` identities (realm, resource,
-catalog, branch, object, definition revision), a `u64` retirement flag (`0` or
-`1`), and `u32` property/schema lengths. Its 104-byte header precedes up to
+catalog, branch, object, definition revision), a `u64` flags word (bit 0:
+retired; bit 1: KV; every other bit must be zero), and `u32` property/schema
+lengths. Its 104-byte header precedes up to
 4 KiB of exact catalog-owned property bytes and up to 64 KiB of encoded Table
 schema. Its key is `table-definitions/<digest>.data`. The complete byte hash is
 the definition digest; the row-schema fingerprint is separate. Staging these
 bytes publishes neither a definition nor a name.
+
+The immutable descriptor and accepted root carry a mandatory `kind` (`table`
+or `kv`). Recovery checks the selected kind before opening the latest record,
+checkpoint or cached predecessor. It cannot change during definition succession.
+The compact physical-interpretation mapping uses the same two flags in its final
+byte; a live mapping cannot be retired. Missing JSON kind fields reject.
+
+`KVDeclaration` and `KVPartition` use this common storage engine with a fixed
+binary key column and a typed value column (`int64`, `boolean`, `utf8` or
+`binary`, with declared nullability). These physical columns do not expose a
+relational Table API. The complete canonical layout is validated on loading;
+KV value types do not evolve through Table ALTER. Native writer PIDs and
+`STATE_V1` values are absent from this storage owner.
+
+KV keys contain 1–1,024 byte-exact bytes, including NUL. Text/binary values
+contain at most 1,047,552 bytes, reserving the largest key within the shared
+1-MiB logical-value budget. Missing/error/conflict cells reject; null requires
+declared nullability. A batch contains 1–1,024 ordered put/remove changes under
+the common encoded-row and candidate-memory budgets. Duplicate keys reject.
+One accepted WAL record publishes the complete batch, original binding, ordered
+change digest and matched/affected counts. A retry with changed changes conflicts.
+Physical flush/archive/checkpoint work preserves the logical conflict frontier;
+resource-wide read guards also protect absent keys. Retained cuts and receipt
+recovery use the same accepted pins, archives and checkpoints as Table storage.
+Decoded values own their output across later reads or mutations. Authorization
+is supplied by the database adapter and held again through publication.
+
+This storage owner does not itself publish catalog names or a caller route.
+The named KV lifecycle and mixed transaction integration remain separate gates.
 
 RENAME preserves row interpretation and indexes. ALTER streams the accepted
 source into bounded segments and private replacement indexes, validating all

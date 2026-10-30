@@ -5515,6 +5515,7 @@
       "errors": {
         "CatalogIdentityConflict": 2,
         "IncompatibleDefinition": 1,
+        "InvalidTableResponse": 1,
         "TableDefinitionChanged": 2
       },
       "outcomes": {},
@@ -6124,7 +6125,7 @@
       "errors": {
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 135
+        "InvalidTableResponse": 137
       },
       "outcomes": {},
       "error_sets": {},
@@ -6189,7 +6190,7 @@
     "packages/zig/transit-catalog/src/DirectTableValues.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableResponse": 3,
+        "InvalidTableResponse": 4,
         "UnsupportedTransactionRead": 1
       },
       "outcomes": {
@@ -20487,7 +20488,7 @@
     "packages/zig/transit-query/src/RelationalHistoryRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidRelationalHistory": 8
+        "InvalidRelationalHistory": 9
       },
       "outcomes": {},
       "error_sets": {},
@@ -21437,7 +21438,7 @@
         "IncompatibleDefinition": 1,
         "IncompleteSource": 1,
         "InvalidQueryCursor": 2,
-        "InvalidQuerySource": 2,
+        "InvalidQuerySource": 3,
         "InvalidSourceEncoding": 3,
         "QueryComplete": 1,
         "SourceChanged": 4,
@@ -31402,6 +31403,81 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/KVDeclaration.zig": {
+      "errors": {
+        "DataKindMismatch": 1,
+        "InvalidKVDeclaration": 3
+      },
+      "outcomes": {
+        "Spec.value_type": [
+          "int64",
+          "boolean",
+          "utf8",
+          "binary"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "fromPhysical()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validateSchema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "TableDeclaration.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/KVPartition.zig": {
+      "errors": {
+        "InvalidKVKey": 2,
+        "InvalidKVOperation": 2,
+        "KVBuildBudget": 2,
+        "KVValueTooLarge": 1,
+        "OutOfMemory": 1
+      },
+      "outcomes": {
+        "Change": [
+          "put",
+          "remove"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "applyBounded()": "<inferred>",
+        "create()": "<inferred>",
+        "encodeKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "observe()": "<inferred>",
+        "pin()": "<inferred>",
+        "readSnapshot()": "<inferred>",
+        "recover()": "<inferred>",
+        "releaseSnapshot()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 2
+      },
+      "imports": [
+        "KVDeclaration.zig",
+        "TableChanges.zig",
+        "TablePartition.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -33055,7 +33131,12 @@
         "TableDeclarationMissing": 1,
         "TableDeclarationTooLarge": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Kind": [
+          "table",
+          "kv"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Definition.encode()": "<inferred>",
@@ -33069,10 +33150,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 38,
         "catch": 0
       },
       "imports": [
+        "KVDeclaration.zig",
         "TransitObjectStore.zig",
         "std",
         "transit_fuze",
@@ -33271,6 +33353,7 @@
       "errors": {
         "BufferTooSmall": 1,
         "DataIdentityConflict": 13,
+        "DataKindMismatch": 6,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 7,
         "DuplicateTableRowIdentity": 3,
@@ -34200,6 +34283,8 @@
         "DocumentRecovery.zig",
         "DocumentShredder.zig",
         "DocumentStorageRoots.zig",
+        "KVDeclaration.zig",
+        "KVPartition.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
         "LogBatch.zig",

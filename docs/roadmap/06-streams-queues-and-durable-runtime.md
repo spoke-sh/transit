@@ -473,11 +473,16 @@ The current progress slice delivers:
   the unchanged 32-MiB bound. See the [terminal-retention evidence](../history/qualification/catalog.md#terminal-queue-payload-retention--2026-10-30).
   Atomic DLQ transfer remains outstanding.
 
-The next implementation work is to finish that R3 service slice, then implement
-R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
-state/append/settlement decision, and R6's dedicated SQL/shared caller/finite
-analytical surfaces. None of those later packages is completed by publishing
-their declarations or neutral data types.
+R5 now has a database-owned KV storage foundation over the shared paged engine:
+typed values, byte-exact keys, bounded atomic batches, exact receipts and retained
+cuts. Disk checks cover large values, more keys than the resident page cache,
+lost replies, sealing, archive/trim and restart. A mandatory persisted kind keeps
+Table callers and checkpoint recovery from treating KV objects as Tables.
+Named KV catalog/caller migration and the common state/append/settlement decision
+remain outstanding, including atomic DLQ transfer. R6's dedicated SQL/shared
+caller/finite analytical surfaces, R0 model correspondence and final integrated
+qualification also remain open. Publishing declarations or neutral types does
+not complete these gates.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |

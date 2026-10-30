@@ -22,6 +22,7 @@ pub fn validate(self: Self) !void {
     try c.Model.nativeId(self.namespace);
     try self.name.validate();
     try self.interpretation.validate();
+    if (self.interpretation.kind != .table) return error.InvalidTableResponse;
     try self.connection.object(self.interpretation.interpretation.object);
     if (self.interpretation.retired) return error.TableDefinitionChanged;
 }

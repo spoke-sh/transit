@@ -13,7 +13,7 @@ const document_projections = [_]q.SourceDefinition.Projection{.{
 fn sources() ![3]q.SourceDefinition {
     return .{
         .{ .resource = 7, .source = .{ .kv = .{ .prefix = try q.protocol.Value.init("data/"), .key = .{ .type = .int64 }, .value = .{ .type = .utf8 } } } },
-        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .branch = 1, .namespace = 1, .object = 9, .interpretation = .{ .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .branch = 1, .object = 9 }, .revision = 1, .digest = @splat(1) }, .content = .{ .bytes = 200, .sha256 = @splat(1) }, .schema_fingerprint = @splat(2), .retired = false }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .utf8, .nullable = true } } } } } },
+        .{ .resource = 7, .source = .{ .table = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .owner = 3, .branch = 1, .namespace = 1, .object = 9, .interpretation = .{ .kind = .table, .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .branch = 1, .object = 9 }, .revision = 1, .digest = @splat(1) }, .content = .{ .bytes = 200, .sha256 = @splat(1) }, .schema_fingerprint = @splat(2), .retired = false }, .row_type = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "value", .type = .utf8, .nullable = true } } } } } },
         .{ .resource = 7, .source = .{ .document = .{
             .reference = .{ .resource = 7, .document = 13, .epoch = 3, .type_revision = 1, .revision = 42 },
             .projections = &document_projections,
