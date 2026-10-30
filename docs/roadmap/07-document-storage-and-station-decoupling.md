@@ -193,6 +193,51 @@ gateway exchange capture over it.
      [`documents.md`](../handbook/reference/documents.md) and
      [`state-model.md`](../handbook/internals/state-model.md).
 
+## Implementation plan for remaining work
+
+**Source baseline:** `origin/main` at `796e7fe86`, 2026-10-30. The
+[initial decoupling slice](#implementation-plan-for-initial-document-decoupling)
+extracted the Station-free `transit-document` evaluator and added private `.tseg`
+causal-record staging in `DocumentIndex`. Meanwhile,
+[Milestone 6](06-streams-queues-and-durable-runtime.md#work-packages-and-dependencies)
+has delivered the shared Roaring-bitmap foundation (`transit-bitmap`,
+`BitmapDirectory`, `.tdel`), `PublicationGuard` fencing, immutable partition
+declarations and genesis records (`LogDeclaration`, `LogInitialization`),
+pinned tail slabs (`LogTail`), partition WAL records and operation receipts
+(`LogPartitionRecord`, `LogEvidence`), finite authenticated read pins (`LogRead`),
+WAL archives and recovery checkpoints (`LogHistory`, `LogRecovery`,
+`LogStorageRoots`), typed direct catalog declarations and native policy domains
+(`DirectLog`, `LogAuthority`, `LocalCatalogRunner`), and `DirectStorageGraph` /
+`DataStore.trimUnit` reachability walking.
+
+This plan sequences the remaining Milestone 7 deliverables on top of that
+Milestone 6 foundation while preserving the public cutover gate until
+[Milestone 5](05-transactions-and-atomic-composition.md) and
+[Milestone 6](06-streams-queues-and-durable-runtime.md) multi-kind transaction
+and Station turn participants are in place.
+
+### Delivered basis and remaining obligations
+
+| Area | Delivered basis at `796e7fe86` | Remaining obligation |
+| --- | --- | --- |
+| Neutral Document contracts | [`STATION_DOCUMENT_V1.md`](../../contracts/STATION_DOCUMENT_V1.md) and [`DataLifecycle`](../../packages/zig/transit-protocol/src/DataLifecycle.zig) | Define `contracts/DOCUMENT_V1.md` and neutral `DocumentDeclaration`, `DocumentOperation` and `DocumentRead` bindings in `transit-protocol`: revision lineage headers, merge profiles (`causal_crdt`, `versioned`), declared collations and shredded path schemas, explicit operation budgets (replacing 96B/64B/8-op format caps), original operation/change receipts and authenticated read cursors |
+| Logical algebra, merge profiles and text | [`transit-document`](../../packages/zig/transit-document/README.md) evaluates `SDC1` causal CRDT map/list/codepoint-text over `Document(Index)` | Add $2N$-bit Balanced Parentheses (`BP`) succinct tree topology (`SuccinctTree`), UTF-8/scalar span-block collaborative text (`SpanText` replacing per-scalar `u32` elements), and 5-state (`value`, `null`, `missing`, `type_error`, `conflict`) `versioned` three-way structural merges (`VersionedMerge`) with optional `(part_id, byte_start, byte_end)` raw-frame provenance |
+| `.tseg` trees and adaptive path shredding | [`DocumentIndex`](../../packages/zig/transit-storage/docs/document-index.md) stages 128B/256B causal records in `.tseg`; [`transit-bitmap`](../../packages/zig/transit-bitmap/src/root.zig) and `BitmapDirectory` back `.tdel` | Add `DocumentShredder` in `transit-storage` to shred declared and frequent paths into typed 5-state `.tseg` subcolumns with presence bitmaps, declared collations ($\kappa$) and collation-aware zone maps (`min`, `max`, `null_count`, `missing_count`, `conflict_count`), while storing unshredded nodes in `.tseg` succinct `BP` residual tree streams |
+| `DocumentPartition`, recovery and GC | M6's `PublicationGuard`, `LogHistory`, `TreeStore`, `DirectStorageGraph` and `DataStore.trimUnit` | Implement `DocumentDeclaration` (`DDECL001`), `DocumentInitialization` (`DINIT001` `.genesis`), `DocumentEvidence` (`DEVID001`), `DocumentRead` (`DREAD001`), `DocumentRecovery` (`DCHECK01`), `DocumentPartitionRecord` (`DOCPART1`), `DocumentStorageRoots` and `DocumentPartition` (single-append WAL acceptance, duplicate token and causal-change recovery, retained revision read pins, finite merge-window checkpoints, WAL archiving/trimming) and wire into `DirectStorageGraph` and `DataStore.trimUnit` |
+| Direct catalog and authorization | `DirectCatalog` and `LocalCatalogRunner` support `Table`, `Stream` and `Queue` lifecycles; `DirectResource` still uses 3-turn `NamedResource` for `Document` | Add `document_domain` and `DocumentAuthority` action masks (`inspect`, `read`, `edit`, `checkpoint`, `administer`), implement `DirectDocument`, `DirectDocumentProtocol` and `DirectDocumentClient`, and replace the `DirectResource.Spec.document` / `NamedResource` actor ceremony |
+| Transactions, SQL/Fuze and hard cutover | `DirectTransaction` (Table-only), `DatabaseRuntime`, `ReadCache` and `transit-station-document` | Implement `DocumentTransaction` (Category 1 participant) with M6 R5, wire SQL DDL/DML and Fuze subcolumn pushdown / 5-state projections, migrate Station Document behaviors to M6 transactional turns, and execute the v1 hard cutover across ABI, 10 SDKs, Board and `examples/station-document` |
+
+### Remaining work packages and gates
+
+| Package | Outcome | Start gate | Exit evidence |
+| --- | --- | --- | --- |
+| D0 | Neutral `DOCUMENT_V1` declaration, lineage, operation and read contracts | `796e7fe86` baseline | `DocumentDeclaration`, `DocumentOperation` and `DocumentRead` in `transit-protocol`, reflected `data-lifecycle-v1.schema.json`, fixtures and refusal tests |
+| D1 | Logical Document algebra: succinct `BP` trees, span text and 5-state 3-way structural merges | D0 | `SuccinctTree`, `SpanText` and `VersionedMerge` in `transit-document` with reference-oracle equivalence, 24-permutation convergence and zero-allocation navigation checks |
+| D2 | Fenced Document declarations, genesis initialization and adaptive `.tseg` subcolumn shredding | D0–D1 and M6 bitmap/storage foundation | `DocumentDeclaration` (`DDECL001`), `DocumentInitialization` (`DINIT001`) and `DocumentShredder` with 5-state subcolumn zone maps and differential tree/subcolumn equivalence |
+| D3 | `DocumentPartition` WAL acceptance, retained revision reads, checkpoints and GC graph walk | D1–D2 | `DocumentPartition`, `DocumentEvidence`, `DocumentRead`, `DocumentRecovery` and `DocumentStorageRoots` wired into `DirectStorageGraph` and `DataStore.trimUnit`, verified across disk reopen, trim and collection |
+| D4 | Direct catalog lifecycle (`DirectDocument`), `document_domain` authority and node dispatch | D2–D3 | Signed callers create, alter, rename, edit, read, checkpoint and drop Documents through `DirectCatalog` and `LocalCatalogRunner` without Station actors |
+| D5 | Category-1 `DocumentTransaction` participant, SQL/Fuze lowering and current-v1 consumer cutover | D3–D4 and M6 R5/R7 transaction/turn readiness | Multi-object Table/Document/Stream/Queue transactions, Fuze subcolumn pushdown, removal of `transit-station-document` / `SIX1` Document storage, and migrated ABI/SDK/Board/example suites |
+
 ## Implementation plan for initial Document decoupling
 
 **Plan basis:** `origin/main` at `1116604e90f79f1d9c879b4262f62993da4990f1`,
