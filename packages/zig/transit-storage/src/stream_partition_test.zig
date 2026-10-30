@@ -902,6 +902,135 @@ test "stream partition trusted observation floors survive lost replies without t
     try t.expectEqual(@as(u64, 4), owner.root.next_offset);
 }
 
+test "stream partition expiry protects paged consumer watermarks pins and original producer outcomes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.retention.max_age_ms = 100;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    owner.options.clock = clock.source();
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const producer: q.Producer = .{ .id = @splat(4), .epoch = 1, .sequence = 1 };
+    const first = try appendRequest(&declaration, 2, producer, &buffer);
+    const original_bytes = try t.allocator.dupe(u8, first.payload);
+    defer t.allocator.free(original_bytes);
+    const accepted = try owner.append(initial.declared, first.request, first.payload, policy.guard());
+    var next_producer = producer;
+    next_producer.sequence = 2;
+    const second = try appendRequest(&declaration, 3, next_producer, &buffer);
+    _ = try owner.append(initial.declared, second.request, second.payload, policy.guard());
+    const payload_cut = owner.root.position();
+    try t.expectEqual(Stream.ExpirationStatus.unsealed, (try owner.expireHistory(initial.declared, payload_cut, policy.guard())).status);
+    while (!(try owner.flush(payload_cut, policy.guard())).complete) {}
+    clock.value = 199;
+    try t.expectEqual(Stream.ExpirationStatus.not_due, (try owner.expireHistory(initial.declared, payload_cut, policy.guard())).status);
+    for (0..32) |i| {
+        const assignment: q.GroupAssignment = .{ .operation = operation(100 + i), .cut = try owner.observe(initial.declared, policy.guard()), .expected = null, .group = .{ .id = i + 1, .generation = 1, .principal = 0 }, .next = if (i == 31) 0 else 2 };
+        _ = try owner.assign(initial.declared, assignment, policy.guard());
+    }
+    clock.value = 200;
+    try t.expectEqual(Stream.ExpirationStatus.consumer, (try owner.expireHistory(initial.declared, payload_cut, policy.guard())).status);
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const lagging = (try owner.group(32, policy.guard())).?.group;
+    const consumed = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(200), .group = lagging, .from = 0, .until = 2, .timestamp = null }, policy.guard());
+    var page = try owner.readPage(try owner.readCursor(consumed.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer page.deinit();
+    _ = try owner.commitOffset(initial.declared, .{ .operation = operation(201), .group = lagging, .coverage = page.cursor.coverage, .expected_next = 0, .next = 2 }, page.cursor, authority, policy.guard());
+    const retained = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(202), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    const cursor = try owner.readCursor(retained.handle(), authority, policy.guard());
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.expireHistory(initial.declared, payload_cut, policy.guard()));
+    clock.value = null;
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(@as(u64, 2), owner.root.retained_from);
+    try t.expectEqual(Stream.ExpirationStatus.consumer, (try owner.expireHistory(initial.declared, payload_cut, policy.guard())).status);
+    try t.expectError(error.LogHistoryUnavailable, owner.readBatch(initial.declared, 0, policy.guard()));
+    try t.expectEqualDeep(accepted, try owner.append(initial.declared, first.request, original_bytes, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(Stream.ExpirationStatus.consumer, (try owner.expireHistory(initial.declared, payload_cut, policy.guard())).status);
+    var old = try owner.readPage(cursor, authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer old.deinit();
+    try t.expect(old.count == 4 and old.cursor.coverage.complete);
+    var illegal = retained.request;
+    illegal.operation = operation(203);
+    try t.expectError(error.LogHistoryUnavailable, owner.beginRead(initial.declared, illegal, policy.guard()));
+    for (0..32) |i| {
+        const group = (try owner.group(i + 1, policy.guard())).?.group;
+        const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(300 + i * 2), .group = group, .from = 2, .until = null, .timestamp = null }, policy.guard());
+        var window = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+        defer window.deinit();
+        _ = try owner.commitOffset(initial.declared, .{ .operation = operation(301 + i * 2), .group = group, .coverage = window.cursor.coverage, .expected_next = 2, .next = 4 }, window.cursor, authority, policy.guard());
+        _ = try owner.releaseRead(initial.declared, .{ .target = initial.target(), .operation = operation(500 + i), .read = pin.handle() }, policy.guard());
+    }
+    owner.options.clock = clock.source();
+    clock.value = 300;
+    const expired = try owner.expireHistory(initial.declared, payload_cut, policy.guard());
+    try t.expectEqual(Stream.ExpirationStatus.complete, expired.status);
+    try t.expectEqual(@as(u32, 2), expired.expired_rows);
+    try t.expectEqual(@as(u64, 4), owner.root.retained_from);
+    try t.expect(owner.root.batches == null and owner.root.segments == null);
+    const empty = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(1000), .group = null, .from = 4, .until = null, .timestamp = null }, policy.guard());
+    var ended = try owner.readPage(try owner.readCursor(empty.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer ended.deinit();
+    try t.expect(ended.count == 0 and ended.cursor.coverage.complete);
+    next_producer.sequence = 3;
+    const third = try appendRequest(&declaration, 1001, next_producer, &buffer);
+    const later = try owner.append(initial.declared, third.request, third.payload, policy.guard());
+    try t.expectEqual(@as(u64, 4), later.first);
+    try t.expectEqual(@as(u64, 6), later.next);
+    try t.expectEqualDeep(accepted, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+}
+
+test "stream partition expiry never invents time for earlier unlimited history" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const request = try appendRequest(&declaration, 2, null, &buffer);
+    const accepted = try owner.append(initial.declared, request.request, request.payload, policy.guard());
+    try t.expect(accepted.observed_ms == null);
+    try t.expectError(error.LogRetentionNotDeclared, owner.expireHistory(initial.declared, owner.root.position(), policy.guard()));
+    _ = try owner.flush(owner.root.position(), policy.guard());
+    var definition = support.definition(.stream);
+    definition.revision = 2;
+    definition.configuration.retention.max_age_ms = 1;
+    var revised = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer revised.deinit();
+    const stored = try s.LogDeclaration.stage(objects.objectStore(), &revised);
+    var clock: Clock = .{ .value = 1000 };
+    owner.options.clock = clock.source();
+    const before = owner.root;
+    try t.expectEqual(Stream.ExpirationStatus.untimed, (try owner.expireHistory(stored, owner.root.position(), policy.guard())).status);
+    try t.expectEqualDeep(before, owner.root);
+}
+
 test "stream partition staged checkpoint cannot grant trim or reconstruct missing initialization" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

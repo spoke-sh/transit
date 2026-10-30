@@ -30,6 +30,9 @@ const Fixture = struct {
     fn clock(raw: *anyopaque) !core.Time.Sample {
         return .{ .unix_ms = @as(*Fixture, @ptrCast(@alignCast(raw))).now };
     }
+    fn logClock(raw: *anyopaque) !?u64 {
+        return @as(*Fixture, @ptrCast(@alignCast(raw))).now;
+    }
     fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
         self.owner = try local.Backend.open(t.allocator, t.io, directory, "native", .{});
         self.pages = try local.PageStore.init(&self.owner, 1);
@@ -143,7 +146,8 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
         .partition = 23,
     };
     _ = try s.LogInitialization.initialize(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard());
-    var stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    const stream_options: s.StreamPartition.Options = .{ .resident_pages = 1, .clock = .{ .context = &fixture, .read = Fixture.logClock } };
+    var stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), stream_options);
     defer stream.deinit() catch unreachable;
     try t.expect((try stream.recoverStep(fixture.guard(), 1)).complete);
     const op: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 0, .operation = 101 };
@@ -188,7 +192,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try stream.deinit();
     fixture.close();
     try fixture.open(tmp.dir, false);
-    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), stream_options);
     while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
     var page = try stream.readPage(cursor, authority, .{ .rows = 1, .encoded_bytes = 8192 }, t.allocator, fixture.guard());
     defer page.deinit();
@@ -199,7 +203,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     _ = try fixture.collect();
     try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) != null);
     try stream.deinit();
-    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), stream_options);
     while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
     try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
     _ = try stream.checkpoint(stream.root.position(), fixture.guard());
@@ -214,10 +218,36 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try stream.deinit();
     fixture.close();
     try fixture.open(tmp.dir, false);
-    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), .{ .resident_pages = 1 });
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), stream_options);
     try t.expect((try stream.recoverStep(fixture.guard(), 1)).complete);
     try t.expectEqualDeep(accepted, (try stream.operation(op, fixture.guard())).?.outcome.append);
     try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
+
+    // Explicit policy opt-in may expire the timed prefix. Only a later accepted
+    // recovery baseline closes its replay dependencies for physical collection.
+    var revised = definition.definition;
+    revised.revision = 2;
+    revised.configuration.retention.max_age_ms = 100;
+    var revised_definition = try s.LogDeclaration.prepare(t.allocator, revised);
+    defer revised_definition.deinit();
+    const revised_stored = try s.LogDeclaration.stage(fixture.data.objects(), &revised_definition);
+    const expired = try stream.expireHistory(revised_stored, stream.root.position(), fixture.guard());
+    try t.expectEqual(s.StreamPartition.ExpirationStatus.complete, expired.status);
+    try t.expectEqual(@as(u64, 1), expired.retained_from);
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) == null);
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initialized, fixture.guard(), stream_options);
+    try t.expect((try stream.recoverStep(fixture.guard(), 1)).complete);
+    const expired_cut = try stream.observe(revised_stored, fixture.guard());
+    try t.expectEqual(@as(u64, 1), expired_cut.retained_from);
+    try t.expectEqual(@as(u64, 1), expired_cut.next);
+    try t.expectEqualDeep(accepted, try stream.append(revised_stored, request, payload, fixture.guard()));
+    try t.expectError(error.LogHistoryUnavailable, stream.beginRead(revised_stored, .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = revised_stored.declaration.interpretation, .partition = 0 }, .operation = .{ .scope = object.scope, .principal = 0, .operation = 104 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard()));
 }
 
 test "direct Table collection expires old graph while preserving pins, pending work and original receipts" {

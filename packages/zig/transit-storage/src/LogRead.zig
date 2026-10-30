@@ -26,8 +26,8 @@ pub const Basis = struct {
         try self.cut.requireOffset(self.request.from);
         try self.cut.requireOffset(self.until);
         if (self.declared.retired or self.declared.declaration.configuration.policy != .stream or
-            self.cut.accepted.next_lsn == 0 or (self.cut.next != 0) != (self.batches != null) or
-            (self.cut.next == 0 and self.segments != null) or
+            self.cut.accepted.next_lsn == 0 or (self.cut.next != self.cut.retained_from) != (self.batches != null) or
+            (self.cut.next == self.cut.retained_from and self.segments != null) or
             !std.meta.eql(self.declared.declaration.interpretation, self.cut.target.interpretation) or
             self.cut.target.partition >= self.declared.declaration.configuration.partitioning.count or
             self.until != (self.request.until orelse self.cut.next) or self.until < self.request.from) return error.InvalidStreamRead;

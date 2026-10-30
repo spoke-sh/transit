@@ -1359,10 +1359,10 @@ length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` byte
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
-frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/pin
+frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/producer/producer-receipt/group/group-offset/pin
 directories, exclusive sealed offset, accepted archive coverage and nullable recovery reference. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
-offset, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
+offset, expiry, flush, archival and checkpoint records use `manifest_checkpoint` and contain no row
 payload. All advance the
 WAL frontier, while only append allocates logical offsets.
 
@@ -1398,13 +1398,37 @@ field can supply this capability.
 
 `Options.control`, when supplied, is a trusted adapter capability for the same
 physical namespace and authorization owner using reserved deployment capacity.
-Offset commits, read release, existing-group reassignment, archive and checkpoint
+Offset commits, read release, existing-group reassignment, expiry, archive and checkpoint
 stage and publish through it. Fresh append, initial group assignment and read-pin
 admission use ordinary capacity. Every operation retains its current-policy
 checks and normal uncertainty semantics. Restoring ordinary I/O after each
 control operation prevents subsequent admission from consuming that reserve.
 The reserve is finite; exhausting it is an explicit failure, never permission
 to expire payloads, discard progress or forge an outcome.
+
+`expireHistory(declared, cut, guard)` requires an explicit positive retention age
+and advances the logical retained boundary by at most one complete sealed batch
+within the fixed physical cut. Its trusted observation must be at least the
+accepted append observation plus the declared age. Untimed accepted history
+cannot acquire an invented timestamp after a policy change. The owner reports
+`consumer`, `unsealed`, `untimed` or `not_due` without advancing the boundary;
+`progress` and `complete` describe the selected cut, not later appends.
+
+Group assignments and offset commits atomically update both the group-ID index
+and a second index keyed by big-endian `(next_offset, group_id)`. The latter
+stores the same complete progress value and bounds the oldest-checkpoint lookup
+independently of group count. Expiry cannot cross that checkpoint. No group
+means the current append frontier protects no additional unread prefix.
+
+An accepted expiry record binds its previous root, declaration, exact original
+append receipt, fixed cut, trusted time and protected checkpoint. It removes that
+batch and segment from the current placement roots while preserving original
+receipts, producer fencing and the next logical offset. Replay verifies these
+facts without current time. Publication rechecks current authority and time under
+the guard; uncertainty requires recovery. Existing read pins retain their old
+placements and remain readable under current authorization. Fresh reads below
+the new boundary report `LogHistoryUnavailable`. Physical collection can remove
+bytes only after their pins and recovery dependencies also close.
 
 An unknown or malformed append result marks the resident owner unready. Recovery
 reads at most the requested 1–256 records, verifies the hash chain, declaration

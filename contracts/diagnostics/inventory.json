@@ -4844,6 +4844,7 @@
           "producer_receipts",
           "producers",
           "groups",
+          "group_offsets",
           "pins"
         ],
         "Role": [
@@ -4903,7 +4904,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 263,
+        "try": 264,
         "catch": 1
       },
       "imports": [
@@ -28471,6 +28472,7 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
+        "InvalidLogExpiration": 1,
         "InvalidLogHistory": 8,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
@@ -28485,6 +28487,7 @@
           "operation",
           "archive",
           "flush",
+          "expire",
           "checkpoint"
         ]
       },
@@ -28497,6 +28500,7 @@
         "Root.validate()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
+        "groupOffsetKey()": "<inferred>",
         "integerKey()": "<inferred>",
         "producerKey()": "<inferred>",
         "valueDecode()": "<inferred>",
@@ -28505,7 +28509,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -28868,8 +28872,9 @@
     "packages/zig/transit-storage/src/StreamPartition.zig": {
       "errors": {
         "InvalidLogArchive": 3,
+        "InvalidLogExpiration": 9,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 24,
+        "InvalidLogHistory": 28,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 3,
@@ -28892,8 +28897,10 @@
         "LogProducerConflict": 1,
         "LogRecoveryMissing": 1,
         "LogRecoveryRequired": 2,
+        "LogRetentionNotDeclared": 2,
         "LogRetentionWindowElapsed": 1,
         "LogSegmentBudgetExceeded": 3,
+        "LogTimeRegression": 2,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamReadByteBudgetTooSmall": 1,
@@ -28901,7 +28908,16 @@
         "StreamReadMissing": 2,
         "StreamReadReleased": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "ExpirationStatus": [
+          "progress",
+          "complete",
+          "consumer",
+          "unsealed",
+          "untimed",
+          "not_due"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "activePin()": "<inferred>",
@@ -28919,6 +28935,8 @@
         "decodeFrame()": "<inferred>",
         "decodeValue()": "<inferred>",
         "deinit()": "<inferred>",
+        "expirationObservation()": "<inferred>",
+        "expireHistory()": "<inferred>",
         "flush()": "<inferred>",
         "flushCandidate()": "<inferred>",
         "flushWithinBudget()": "<inferred>",
@@ -28936,8 +28954,10 @@
         "original()": "<inferred>",
         "producerState()": "<inferred>",
         "progress()": "<inferred>",
+        "protectedOffset()": "<inferred>",
         "publish()": "<inferred>",
         "publishRecord()": "<inferred>",
+        "putGroup()": "<inferred>",
         "readBasis()": "<inferred>",
         "readBatch()": "<inferred>",
         "readCursor()": "<inferred>",
@@ -28953,12 +28973,14 @@
         "skipTimestampWithinBudget()": "<inferred>",
         "timestampMatches()": "<inferred>",
         "trimArchived()": "<inferred>",
+        "validateExpiration()": "<inferred>",
+        "verifyGroup()": "<inferred>",
         "verifyTransition()": "<inferred>",
         "verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 335,
+        "try": 379,
         "catch": 11
       },
       "imports": [

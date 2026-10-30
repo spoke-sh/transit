@@ -232,6 +232,15 @@ unlimited by default. Capacity pressure can refuse admission, never expire
 accepted records or forget producer floors. Required missing history blocks
 recovery.
 
+The storage owner's explicit age-based expiry processes at most one sealed
+prefix batch per call. Trusted append observations establish age; event-time
+columns do not. The slowest consumer checkpoint protects unread offsets through
+a paged minimum index. Existing finite read pins retain their original cut after
+logical expiry, while new reads below the retained boundary report a gap.
+Original outcomes and producer fences outlive payload eligibility. Physical
+collection requires separate closure of every retained dependency. These
+component operations are not yet composed into the public payload service.
+
 Stream append and offset settlement remain reserved, unsupported transaction
 participants. Enabling them requires retained preparation, conflict/policy
 guards, one original decision, common-decision visibility and bounded cleanup

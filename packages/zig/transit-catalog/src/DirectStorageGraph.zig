@@ -35,7 +35,7 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, pins };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins };
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
@@ -151,10 +151,11 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             try context.requireTarget(producer.target);
             if (entry.key.len != 24 or std.mem.readInt(u64, entry.key.data[0..8], .big) != producer.principal or !std.mem.eql(u8, entry.key.data[8..24], &producer.producer.id)) return error.InvalidLogStorageGraph;
         },
-        .groups => {
+        .groups, .group_offsets => {
             const progress = try s.LogPartitionRecord.valueDecode(c.protocol.StreamQueue.GroupProgress, allocator, entry.value);
             try context.requireTarget(progress.target);
-            if (progress.next > context.next_offset or !std.meta.eql(entry.key, try s.LogPartitionRecord.integerKey(progress.group.id))) return error.InvalidLogStorageGraph;
+            const key = if (kind == .groups) try s.LogPartitionRecord.integerKey(progress.group.id) else try s.LogPartitionRecord.groupOffsetKey(progress);
+            if (progress.next > context.next_offset or !std.meta.eql(entry.key, key)) return error.InvalidLogStorageGraph;
         },
         .pins => {
             const owner = try context.owner(entry.key);
@@ -441,8 +442,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .log_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.pins, root.archive.directory, root.segments };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .pins, .pages_only, .pages_only };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only };
             if (value.slot > directories.len + 1) return error.InvalidLogStorageGraph;
             if (value.slot == directories.len + 1) return true;
             const context = try LogContext.fromRoot(root, value.archive);

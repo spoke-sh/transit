@@ -334,6 +334,37 @@ pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetC
 fn nextPosition(self: *Self) !d.Position {
     return .{ .partition = self.root.initialization.partition, .next_lsn = std.math.add(u64, self.root.next_lsn, 1) catch return error.LogPositionExhausted };
 }
+fn putGroup(self: *Self, next: *Root, previous: ?q.GroupProgress, updated: q.GroupProgress) !void {
+    const value = try r.valueEncode(updated);
+    const key = try r.groupOffsetKey(updated);
+    next.groups = try self.tree().put(next.groups, try r.integerKey(updated.group.id), value);
+    if (previous) |old| {
+        const old_key = try r.groupOffsetKey(old);
+        if (!std.meta.eql(old_key, key)) next.group_offsets = try self.tree().remove(next.group_offsets, old_key);
+    }
+    next.group_offsets = try self.tree().put(next.group_offsets, key, value);
+}
+fn verifyGroup(self: *Self, next: Root, previous: ?q.GroupProgress, updated: q.GroupProgress) !void {
+    const value = try r.valueEncode(updated);
+    const key = try r.groupOffsetKey(updated);
+    try self.verifyValue(next.groups, try r.integerKey(updated.group.id), value);
+    try self.verifyValue(next.group_offsets, key, value);
+    if (previous) |old| {
+        const old_key = try r.groupOffsetKey(old);
+        if (!std.meta.eql(old_key, key) and try self.tree().get(next.group_offsets, old_key) != null) return error.InvalidLogHistory;
+    }
+}
+fn protectedOffset(self: *Self) !u64 {
+    const page = try self.tree().scan(self.root.group_offsets, null);
+    if (page.entries[0]) |entry| {
+        const selected = try self.decodeValue(q.GroupProgress, entry.value);
+        const current = try self.progress(selected.group.id) orelse return error.InvalidLogHistory;
+        if (!std.meta.eql(entry.key, try r.groupOffsetKey(selected)) or !std.meta.eql(selected, current) or selected.next < self.root.retained_from or selected.next > self.root.next_offset) return error.InvalidLogHistory;
+        return selected.next;
+    }
+    if (self.root.groups != null) return error.InvalidLogHistory;
+    return self.root.next_offset;
+}
 fn candidate(self: *Self, evidence: Evidence.Record) !Root {
     try evidence.validate();
     try self.root.requireDeclaration(evidence.declared);
@@ -358,7 +389,7 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
         .assignment => |receipt| {
             const assignment = receipt.assignment;
             try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(evidence.declared));
-            result.groups = try self.tree().put(result.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
+            try self.putGroup(&result, assignment.expected, try assignment.resulting());
         },
         .read => |receipt| {
             const expected = try self.readBasis(evidence.declared, receipt.request);
@@ -371,7 +402,7 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
         },
         .offset => |value| {
             const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
-            result.groups = try self.tree().put(result.groups, try r.integerKey(advanced.group.id), try r.valueEncode(advanced));
+            try self.putGroup(&result, try self.progress(advanced.group.id), advanced);
         },
     }
     try result.validate();
@@ -408,6 +439,7 @@ fn publishRecord(self: *Self, record: r.Record, payload: []const u8, guard: Guar
             if (record.root.declared.declaration.configuration.retention.max_age_ms) |age| if (now - observed_ms.? >= age) return error.LogRetentionWindowElapsed;
         }
     }
+    if (record.action == .expire) _ = try Time.observe(self.options.clock, record.root.clock_ms, true);
     const receipt = self.log.append(next.initialization.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, record.frameKind(), bytes) catch |err| {
         self.ready = false;
         return switch (err) {
@@ -472,6 +504,63 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, cut: d.Position,
     next.segments = try self.tree().put(next.segments, try r.integerKey(receipt.next), try segment.encode());
     try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .flush = .{ .cut = cut, .receipt = receipt, .segment = segment } } }, &.{}, guard);
     return .{ .cut = cut, .through = receipt.next, .rows = @intCast(receipt.append.rows), .complete = complete };
+}
+
+pub const ExpirationStatus = enum { progress, complete, consumer, unsealed, untimed, not_due };
+pub const ExpirationProgress = struct { cut: d.Position, position: d.Position, retained_from: u64, expired_rows: u32, status: ExpirationStatus };
+fn expirationObservation(self: *Self, cut: d.Position, status: ExpirationStatus, guard: Guard) !ExpirationProgress {
+    try authorize(guard);
+    return .{ .cut = cut, .position = self.root.position(), .retained_from = self.root.retained_from, .expired_rows = 0, .status = status };
+}
+fn validateExpiration(self: *Self, declared: Declaration.Stored, receipt: q.AppendReceipt, now: u64, protected: u64) !void {
+    try self.root.requireDeclaration(declared);
+    const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
+    _ = try Time.advance(self.root.clock_ms, now);
+    const observed = receipt.observed_ms orelse return error.InvalidLogExpiration;
+    if (now < observed) return error.LogTimeRegression;
+    if (receipt.first != self.root.retained_from or receipt.next > self.root.sealed_through or protected != try self.protectedOffset() or receipt.next > protected or now - observed < age) return error.InvalidLogExpiration;
+    const value = try self.tree().get(self.root.segments, try r.integerKey(receipt.next)) orelse return error.InvalidLogExpiration;
+    const descriptor = try Segment.Descriptor.decode(value);
+    const evidence = try self.original(receipt.append.operation) orelse return error.InvalidLogExpiration;
+    if (evidence.outcome != .append or !std.meta.eql(evidence.outcome.append, receipt) or !std.meta.eql(descriptor.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogExpiration;
+}
+/// Expire at most one sealed batch from the current logical prefix. Retained
+/// read bases and replay keep their old placement roots until their own closure.
+/// Original receipts and producer fences outlive the payload's public range.
+pub fn expireHistory(self: *Self, declared: Declaration.Stored, cut: d.Position, guard: Guard) !ExpirationProgress {
+    try cut.validate();
+    try authorize(guard);
+    try self.requireReady();
+    try self.root.requireDeclaration(declared);
+    const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
+    if (cut.partition != self.root.initialization.partition or cut.next_lsn == 0 or cut.next_lsn > self.root.next_lsn) return error.InvalidLogExpiration;
+    var declaration = try Declaration.load(self.allocator, self.objects, declared);
+    defer declaration.deinit();
+    const evidence = try self.flushCandidate(self.root.retained_from, cut) orelse return self.expirationObservation(cut, .complete, guard);
+    const receipt = evidence.outcome.append;
+    const protected = try self.protectedOffset();
+    if (receipt.next > protected) return self.expirationObservation(cut, .consumer, guard);
+    if (receipt.next > self.root.sealed_through) return self.expirationObservation(cut, .unsealed, guard);
+    const observed = receipt.observed_ms orelse return self.expirationObservation(cut, .untimed, guard);
+    const now = (try Time.observe(self.options.clock, self.root.clock_ms, true)).?;
+    if (now < observed) return error.LogTimeRegression;
+    if (now - observed < age) return self.expirationObservation(cut, .not_due, guard);
+    try self.validateExpiration(declared, receipt, now, protected);
+    const complete = try self.flushCandidate(receipt.next, cut) == null;
+    const ordinary = self.enterControl(true);
+    defer self.leaveControl(ordinary);
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var next = self.root;
+    next.declared = declared;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    next.clock_ms = now;
+    next.retained_from = receipt.next;
+    const key = try r.integerKey(receipt.next);
+    next.batches = try self.tree().remove(next.batches, key);
+    next.segments = try self.tree().remove(next.segments, key);
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = .{ .cut = cut, .receipt = receipt, .observed_ms = now, .protected_next = protected } } }, &.{}, guard);
+    return .{ .cut = cut, .position = next.position(), .retained_from = next.retained_from, .expired_rows = @intCast(receipt.append.rows), .status = if (complete) .complete else .progress };
 }
 
 pub fn archive(self: *Self, cut: d.Position, limits: History.Limits, guard: Guard) !ArchiveProgress {
@@ -580,7 +669,7 @@ pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !Recovery {
         self.root = decoded.record.root;
         self.commitment = next_commitment;
     }
-    for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+    for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
         _ = try self.store.load(value);
     };
     try authorize(guard);
@@ -619,6 +708,18 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
                 expected.segments = next.segments;
                 expected.sealed_through = value.receipt.next;
             },
+            .expire => |value| {
+                const evidence = try self.flushCandidate(self.root.retained_from, value.cut) orelse return error.InvalidLogExpiration;
+                try self.validateExpiration(next.declared, evidence.outcome.append, value.observed_ms, value.protected_next);
+                if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogExpiration;
+                const key = try r.integerKey(value.receipt.next);
+                if (try self.tree().get(next.batches, key) != null or try self.tree().get(next.segments, key) != null) return error.InvalidLogExpiration;
+                expected.declared = next.declared;
+                expected.clock_ms = value.observed_ms;
+                expected.retained_from = value.receipt.next;
+                expected.batches = next.batches;
+                expected.segments = next.segments;
+            },
         }
         if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
         return;
@@ -654,7 +755,8 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
             const assignment = receipt.assignment;
             try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(evidence.declared));
             expected.groups = next.groups;
-            try self.verifyValue(next.groups, try r.integerKey(assignment.group.id), try r.valueEncode(try assignment.resulting()));
+            expected.group_offsets = next.group_offsets;
+            try self.verifyGroup(next, assignment.expected, try assignment.resulting());
         },
         .read => |receipt| {
             const basis = try self.readBasis(evidence.declared, receipt.request);
@@ -672,7 +774,8 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
             // key. Key rotation cannot revoke that accepted result on replay.
             const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
             expected.groups = next.groups;
-            try self.verifyValue(next.groups, try r.integerKey(advanced.group.id), try r.valueEncode(advanced));
+            expected.group_offsets = next.group_offsets;
+            try self.verifyGroup(next, try self.progress(advanced.group.id), advanced);
         },
     }
     if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;

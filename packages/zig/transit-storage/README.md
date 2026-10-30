@@ -70,7 +70,7 @@ The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
 buffering. This component is not yet composed into payload service APIs.
-Notification waits, key compaction and logical payload expiry remain unfinished.
+Notification waits and key compaction remain unfinished.
 `flush` seals one accepted batch per call through a fixed physical cut, preserving
 its original receipt and offsets. Shared `.tseg` columns and a separate immutable
 delivery-metadata sidecar must reproduce the original payload digest before their
@@ -99,7 +99,7 @@ still requires its authorization and scheduling composition.
 
 An optional control store must address the same physical namespace and current
 authority with the deployment's reserved capacity. Offset settlement, read
-release, reassignment, archive and checkpoint use it; fresh append, read-pin and
+release, reassignment, expiry, archive and checkpoint use it; fresh append, read-pin and
 group admission use ordinary capacity. Native disk tests fill ordinary quota,
 complete progress and closure, and verify that revocation still refuses both
 mutation and original-outcome disclosure. Reserved capacity grants no expiry or
@@ -112,6 +112,15 @@ elapsed retention window refuse fresh publication. Accepted clock floors survive
 restart; original receipts and recovery do not depend on current clock
 availability. Explicitly untimed unlimited history cannot be assigned a synthetic
 time by a later policy change.
+
+`expireHistory` advances the logical retained boundary by at most one sealed
+batch through a fixed physical cut. It requires a declared age and trusted time,
+and cannot cross the oldest consumer checkpoint. A paged offset index finds that
+checkpoint without loading all groups. Ineligible work reports whether it is
+unsealed, untimed, not due or protected by a consumer. Existing pins retain their
+original bytes; new reads below the boundary report `LogHistoryUnavailable`.
+Original outcomes, producer fences and logical offset allocation survive expiry.
+Physical collection separately waits for pins and recovery dependencies to close.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an

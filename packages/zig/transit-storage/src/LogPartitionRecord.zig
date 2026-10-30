@@ -27,20 +27,21 @@ pub const Root = struct {
     producers: ?pages.Reference,
     producer_receipts: ?pages.Reference,
     groups: ?pages.Reference,
+    group_offsets: ?pages.Reference,
     pins: ?pages.Reference,
     archive: @import("LogHistory.zig").Coverage,
     recovery: ?@import("LogRecovery.zig").Reference,
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
-        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != 0) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or (self.sealed_through != 0) != (self.segments != null)) return error.InvalidLogRoot;
+        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from) != (self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
         try declared.validate();
@@ -73,6 +74,7 @@ pub const Record = struct {
         operation: Evidence.Record,
         archive: struct { cut: d.Position, from_lsn: u64 },
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
+        expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, protected_next: u64 },
         checkpoint,
     },
 
@@ -105,6 +107,11 @@ pub const Record = struct {
                 try value.receipt.validate();
                 try value.segment.validate();
                 if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.sealed_through) return error.InvalidLogSegment;
+            },
+            .expire => |value| {
+                try value.cut.validate();
+                try value.receipt.validate();
+                if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.observed_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
             },
         }
     }
@@ -155,6 +162,13 @@ pub fn decode(allocator: std.mem.Allocator, frame: Log.Frame, partition: u64, ls
 pub fn integerKey(value: u64) !pages.Key {
     var bytes: [8]u8 = undefined;
     std.mem.writeInt(u64, &bytes, value, .big);
+    return pages.Key.init(&bytes);
+}
+pub fn groupOffsetKey(progress: q.GroupProgress) !pages.Key {
+    try progress.validate();
+    var bytes: [16]u8 = undefined;
+    std.mem.writeInt(u64, bytes[0..8], progress.next, .big);
+    std.mem.writeInt(u64, bytes[8..16], progress.group.id, .big);
     return pages.Key.init(&bytes);
 }
 pub fn producerKey(append: q.Append, sequence: bool) !pages.Key {
