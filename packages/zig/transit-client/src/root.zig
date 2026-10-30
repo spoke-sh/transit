@@ -302,7 +302,8 @@ pub const Client = struct {
             header_count += 1;
         }
         var wait_buffer: [32]u8 = undefined;
-        if (self.wait_hint) |hint| {
+        const request_wait: ?WaitHint = if (@hasDecl(@TypeOf(signed), "transport") and @hasField(@TypeOf(signed.transport()), "wait")) signed.transport().wait else null;
+        if (request_wait orelse self.wait_hint) |hint| {
             headers[header_count] = .{ .name = "x-transit-wait", .value = try hint.format(&wait_buffer) };
             header_count += 1;
         }

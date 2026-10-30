@@ -332,6 +332,15 @@ fn streamWrite(init: std.process.Init, caller: *data.Catalog, source: c.DirectLo
     try streamUnknown(caller, &output, .{ .work = release });
     _ = (try streamCall(caller, &output, .{ .operation = release })).operation.?.release;
     try t.expectEqual(@as(i64, 42), first.rows[0].value.cells[0].value.atom.signed);
+    // The shared caller supplies the exact wait admission header. A timeout
+    // creates no read; retrying an already accepted read returns its old cut.
+    var waiting = consume;
+    waiting.operation.operation = 621007;
+    waiting.from = 2;
+    const timed_out = try streamCall(caller, &output, .{ .wait = .{ .consume = waiting, .milliseconds = 1 } });
+    try t.expectEqual(@as(u64, 2), timed_out.timed_out.next);
+    try t.expect((try streamCall(caller, &output, .{ .operation = .{ .consume = waiting } })).operation == null);
+    try t.expectEqualDeep(read, (try streamCall(caller, &output, .{ .wait = .{ .consume = consume, .milliseconds = 1000 } })).operation.?.consume);
 }
 fn streamRecover(init: std.process.Init, client: c.DirectTableClient, saved: StreamProof) !void {
     const original = try c.DirectStreamClient.load(init.gpa, saved.append);

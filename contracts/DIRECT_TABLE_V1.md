@@ -439,7 +439,7 @@ verbs are unavailable in this profile.
 ### Stream payload and consumer progress
 
 The signed `stream` action carries `DirectStream.Request`: `observe`,
-`mutate`, `operation`, `group`, `cursor` or `page`. Every request binds a
+`mutate`, `operation`, `group`, `cursor`, `page` or `wait`. Every request binds a
 logical partition and exact declaration. Mutations carry one
 `DirectStreamMutation.Request` (`append`, `assign`, `consume`, `offset` or
 `release`); only append carries binary `LogBatch` payload. The complete request
@@ -455,6 +455,34 @@ tombstones, and encoded Fuze rows. Encoded-byte accounting includes the 13-byte
 log row header. Empty filtered pages can be incomplete; only the returned
 coverage establishes exhaustion. Each page is separately authorized, including
 terminal empty pages. Group pages additionally require current acquire rights.
+
+`wait` carries the complete `StreamRead.Request` and a 1–1000 millisecond
+scheduling bound. Its accepted identity and intent are the underlying `consume`;
+the wait duration is not part of durable work. An existing read returns its
+original receipt immediately, even if its original cut was empty or its pin has
+since been released. Fresh work waits until `from < next`, or an explicit
+exclusive `until <= next`, before selecting one finite cut. Timestamp filters
+do not change this readiness predicate. Group membership and the expected
+checkpoint are checked on every attempt. No read or operation reservation is
+accepted while the predicate remains false.
+
+The host registers before checking, releases catalog/object locks before
+parking, and rechecks current rights, declaration, retention and group state
+after each notification. One monotonic deadline covers all wakeups. A final
+authorized recheck accepts a ready read even if the wait deadline has elapsed;
+otherwise `timed_out` reports the observed cut without accepting a read or
+pinning that cut. This outcome does not prove rejection of a concurrent attempt
+with the same identity. Cancellation releases the registration and propagates
+through transport; it cannot undo acceptance or establish nonacceptance. A lost
+or cancelled exchange still requires original-operation inspection.
+
+HTTP waits require the exact `x-transit-wait: 0:MILLISECONDS` header matching
+the signed body, and cannot carry a control hint. Missing, conflicting or
+unsupported hints reject before execution. HTTP and typed local waits share
+the four dedicated wait lanes, leaving ordinary/control capacity available.
+The host bounds active registrations to 64 across all objects and enforces the
+current declaration's waiter limit per stable object/partition; a revision
+change does not reset this count. Capacity refusal is `ControlCapacity`.
 
 Consumer assignment uses an explicit generation and initial next offset.
 Offset settlement requires the exact group generation, expected checkpoint and
@@ -496,7 +524,7 @@ receipt lookup does not require a clock.
 Conflicting identities, producer/group generations or checkpoints return
 `Conflict`; released/missing read pins return `QueryExpired`; an opted-in
 expired source range returns `HistoryReclaimed`. Invalid payloads, cursors or
-budgets return `InvalidRequest`. Missing required recovery storage remains
+budgets or wait hints return `InvalidRequest`. Missing required recovery storage remains
 unavailable. Any mutation transport failure still requires original-work
 inspection; its error class cannot establish rejection.
 

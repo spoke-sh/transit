@@ -19,9 +19,10 @@ pub const Request = union(enum) {
     group: struct { target: q.Partition, id: u64 },
     cursor: struct { target: q.Partition, read: read.Handle },
     page: struct { cursor: read.Cursor, limits: Stream.ReadLimits },
+    wait: struct { consume: read.Request, milliseconds: u32 },
 
     pub fn mutation(self: Request) bool {
-        return self == .mutate;
+        return self == .mutate or self == .wait;
     }
     pub fn control(self: Request) bool {
         return switch (self) {
@@ -36,6 +37,7 @@ pub const Request = union(enum) {
             .mutate => |value| value.work.target(),
             .operation => |value| value.target(),
             .page => |value| value.cursor.coverage.cut.target,
+            .wait => |value| value.consume.target,
             inline .group, .cursor => |value| value.target,
         };
     }
@@ -46,6 +48,7 @@ pub const Request = union(enum) {
             .group => .acquire,
             .observe => .inspect,
             .cursor, .page => .read,
+            .wait => |value| if (value.consume.group != null) .acquire else .read,
         };
     }
     pub fn identity(self: Request) ?d.Operation {
@@ -54,6 +57,7 @@ pub const Request = union(enum) {
             .operation => |value| value.identity(),
             .cursor => |value| value.read.owner,
             .page => |value| value.cursor.read.owner,
+            .wait => |value| value.consume.operation,
             .observe, .group => null,
         };
     }
@@ -77,6 +81,10 @@ pub const Request = union(enum) {
                 if (value.limits.rows == 0 or value.limits.rows > 65536 or value.limits.scanned_rows == 0 or value.limits.scanned_rows > 65536 or value.limits.encoded_bytes == 0 or value.limits.encoded_bytes > 4 * 1024 * 1024) return error.InvalidStreamReadBudget;
             },
             .observe => {},
+            .wait => |value| {
+                try value.consume.validate();
+                if (value.milliseconds == 0 or value.milliseconds > c.client.WaitHint.max_ms) return error.InvalidStreamWait;
+            },
         }
     }
 };
@@ -112,6 +120,9 @@ pub const Result = union(enum) {
     group: ?q.GroupProgress,
     cursor: read.Cursor,
     page: Page,
+    /// The deadline ended waiting. This observation accepts no read and cannot
+    /// establish rejection of another concurrent attempt with the same identity.
+    timed_out: q.Cut,
     pub fn deinit(self: Result, allocator: std.mem.Allocator) void {
         if (self == .page) {
             allocator.free(self.page.source.schema.base64);
@@ -132,6 +143,7 @@ pub const Environment = struct {
     authority: s.LogRead.Authority,
     clock: ?s.LogTime.Source,
     recovery_steps: u16 = 256,
+    waiting: ?struct { expired: bool, registrations: u32 } = null,
 };
 fn authorize(guard: s.PublicationGuard) !void {
     _ = try guard.acquire(guard.context);
@@ -183,6 +195,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     const binding: ?Mutation.Binding = switch (request) {
         .mutate => |value| try value.work.binding(scratch),
         .operation => |value| try value.binding(scratch),
+        .wait => |value| try (Mutation.Request{ .consume = value.consume }).binding(scratch),
         else => null,
     };
     if (binding) |original| if (try c.OperationBinding.lookupStream(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
@@ -218,7 +231,35 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         if (original.outcome.read.request.group != null)
             current = try catalog.streamAuthorization(scratch, request.target(), .acquire, policy);
     }
-    const result: Result = switch (request) {
+    var selected = request;
+    if (request == .wait) {
+        const waiting = environment.waiting orelse return error.StreamWaitUnavailable;
+        const work: Mutation.Request = .{ .consume = request.wait.consume };
+        if (try owner.operation(work.identity(), current.guard) != null) {
+            selected = .{ .operation = work };
+        } else {
+            const input = request.wait.consume;
+            if (current.definition.stored.retired) return error.LogDeclarationConflict;
+            const cut = try owner.observe(current.definition.stored, current.guard);
+            try input.target.requireSame(cut.target);
+            if (input.from < cut.retained_from) return error.LogRangeExpired;
+            if (input.group) |group| {
+                const progress = try owner.group(group.id, current.guard) orelse return error.LogGroupRequired;
+                if (!std.meta.eql(progress.group, group)) return error.LogGroupFenced;
+                if (progress.next != input.from) return error.LogOffsetConflict;
+            }
+            const ready = if (input.until) |until| until <= cut.next else input.from < cut.next;
+            if (!ready) {
+                try authorize(current.guard);
+                if (waiting.expired) return .{ .timed_out = cut };
+                if (waiting.registrations == 0 or waiting.registrations > current.definition.stored.declaration.limits.waiters) return error.StreamWaitCapacity;
+                return error.StreamWaitPending;
+            }
+            selected = .{ .mutate = .{ .work = work, .payload = null } };
+        }
+    }
+    const result: Result = switch (selected) {
+        .wait => unreachable,
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
         .operation => |value| .{ .operation = if (try owner.operation(value.identity(), current.guard)) |record| try originalReceipt(value, record) else null },
         .group => |value| .{ .group = try owner.group(value.id, current.guard) },

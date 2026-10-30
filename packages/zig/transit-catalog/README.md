@@ -34,7 +34,10 @@ returned pages own their encoded rows and expose deterministic cleanup.
 Group reads recheck acquire rights on every cursor/page disclosure, and original
 read closure survives later policy revisions and DROP. The signed `stream`
 action and `DirectStreamClient` expose these operations through the local node.
-SQL execution and blocking waits are unavailable.
+Bounded `wait` selects one finite consume cut or returns a timeout without
+accepting a read. The host owns register/recheck notifications and an absolute
+deadline; accepted identity remains the original consume request. SQL execution
+is unavailable.
 
 `DirectCatalog` composes paged metadata directories with independent Table logs.
 DDL admission reserves its original name and intent. A Table acceptance record

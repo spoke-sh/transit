@@ -352,8 +352,8 @@ independent library boundary warrants its own manifest and checks.
 R2's typed declaration lifecycle now passes its local catalog/native service
 gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
 R0/R1 retain contract/model and integrated maintenance obligations. R3 has a
-disk-backed storage owner and signed typed payload/consumer operations; waits,
-automatic maintenance and full exit qualification remain open.
+disk-backed storage owner, signed typed payload/consumer operations and bounded
+wait composition. Automatic maintenance and full exit qualification remain open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
 storage and catalog integration without enabling Queue execution or SQL verbs.
@@ -386,8 +386,11 @@ The current progress slice delivers:
   owned finite pages, group settlement and closure. Independent signing fixtures
   and native composition tests cover exact recovery and buffered revocation.
   Trusted clock intervals keep append upper bounds, expiry lower proofs and
-  persisted floors distinct. Integration of waits and service scheduling, sparse
-  payload rewriting and installed qualification remain open.
+  persisted floors distinct. Bounded wait composition passes catalog and native
+  concurrent host tests for timeout without acceptance, original cut recovery,
+  append wakeup, cancellation and revocation after parking. HTTP qualification,
+  automatic service scheduling, sparse payload rewriting and installed
+  qualification remain open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

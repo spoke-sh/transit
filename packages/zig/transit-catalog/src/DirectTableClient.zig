@@ -69,6 +69,20 @@ pub const Attempt = struct {
     }
 };
 
+test "Stream wait cancellation retains its original consume identity as unknown work" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-stream-wait-v1.json"));
+    defer fixture.deinit();
+    var attempt: Attempt = .{};
+    attempt.begin(fixture.value.request);
+    const identity = fixture.value.request.action.stream.wait.consume.operation;
+    try t.expectEqualDeep(identity, attempt.mutation.?.identity.?);
+    const diagnostic = (try attempt.failure(error.Canceled, null)).?;
+    try t.expectEqual(.unknown, diagnostic.outcome);
+    try t.expectEqual(.saved_intent, diagnostic.evidence);
+    try t.expectEqual(identity.operation, try diagnostic.identity.?.id.value());
+}
+
 test "direct caller attempt evidence survives reads and service rejection" {
     const t = std.testing;
     const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));

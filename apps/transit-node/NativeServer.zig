@@ -259,7 +259,6 @@ pub fn Host(comptime Provider: type) type {
                 if (comptime @hasDecl(Provider, "TableHost")) {
                     const owner = self.lane.table orelse return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
                     if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
-                    if (try http.header(request, "x-transit-wait") != null) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                     const control = if (try http.header(request, "x-transit-control")) |hint| blk: {
                         if (!std.mem.eql(u8, hint, "table")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                         break :blk true;
@@ -288,12 +287,16 @@ pub fn Host(comptime Provider: type) type {
                 var arena = std.heap.ArenaAllocator.init(backing);
                 defer arena.deinit();
                 const allocator = arena.allocator();
+                // Header views belong to the head parser and end when the
+                // body reader starts. Retain only the parsed scalar hint.
+                const wait: ?wire.WaitHint = if (try http.header(request, "x-transit-wait")) |hint| try wire.WaitHint.parse(hint) else null;
                 const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch |err| return switch (err) {
                     error.OutOfMemory => err,
                     else => error.InvalidBody,
                 };
                 const parsed = w.Request.parse(allocator, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidRequest;
                 if (control and parsed.value.transport().control == null) return error.InvalidRequest;
+                if (!std.meta.eql(wait, parsed.value.transport().wait) or (wait != null and control)) return error.InvalidWaitHint;
                 self.read_only = !parsed.value.transport().mutation;
                 self.uncertain_mutation = !self.read_only;
                 self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
@@ -311,6 +314,7 @@ pub fn Host(comptime Provider: type) type {
                             self.position.* = @max(self.position.*, self.engine.head.position);
                             self.context.syncFromLane(self.lane);
                             self.changed.publishAll(self.io);
+                            owner.notifyStreams();
                         }
                     }
                     break :execution owner.executeMeasured(self.io, self.engine, &arena, backing, parsed.value, control, &self.owner_memory);
@@ -431,6 +435,7 @@ pub fn Host(comptime Provider: type) type {
                         self.position.* = @max(self.position.*, self.engine.head.position);
                         self.context.syncFromLane(self.lane);
                         self.changed.publish(self.io, parsed.value.request.command);
+                        if (comptime @hasDecl(Provider, "TableHost")) if (self.lane.table) |owner| owner.notifyStreams();
                     }
                     self.observation.protocol_outcome = .receipt;
                     self.observation.realm = parsed.value.request.realm;
@@ -520,7 +525,8 @@ pub fn Host(comptime Provider: type) type {
                 const started = if (observed) std.Io.Clock.awake.now(io) else null;
                 defer span.finish(event);
                 errdefer event.outcome = .failed;
-                const lane = try self.acquire(io, if (control) .control else if (invocation.client.wait_hint != null) .wait else .data);
+                const waiting = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.requestPtr(Provider.TableHost.Protocol.Request)).transport().wait != null else invocation.client.wait_hint != null;
+                const lane = try self.acquire(io, if (control) .control else if (waiting) .wait else .data);
                 if (started) |before| event.wait_ns = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
                 defer if (started) |before| {
                     const total: u64 = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
@@ -556,6 +562,7 @@ pub fn Host(comptime Provider: type) type {
                             self.position = @max(self.position, lane.engine.head.position);
                             self.syncFromLane(lane);
                             self.changed.publishAll(io);
+                            owner.notifyStreams();
                         };
                         const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control) catch |err| {
                             if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
@@ -591,6 +598,7 @@ pub fn Host(comptime Provider: type) type {
                 self.position = @max(self.position, lane.engine.head.position);
                 self.syncFromLane(lane);
                 self.changed.publish(io, request.request.command);
+                if (comptime @hasDecl(Provider, "TableHost")) if (lane.table) |owner| owner.notifyStreams();
                 return invocation.respond(wire.Receipt{ .position = position });
             }
             noinline fn localBlocks(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {

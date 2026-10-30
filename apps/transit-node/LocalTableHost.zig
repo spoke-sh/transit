@@ -5,6 +5,7 @@ const std = @import("std");
 const c = @import("transit_catalog");
 const backend = @import("transit_backend_local");
 const Service = @import("LocalTableService.zig");
+const StreamWaits = @import("LocalStreamWaits.zig");
 const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
@@ -37,9 +38,11 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// Retained caches and owner work have a separate aggregate bound from parsed
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
+stream_waits: ?*StreamWaits = null,
 
 /// The embedding owner joins every request before closing retained workspaces.
 pub fn deinit(self: *Self) void {
+    if (self.stream_waits) |waits| waits.destroy();
     for (&self.residents) |*slot| if (slot.value) |resident| resident.destroy();
     for (&self.control_residents) |*slot| if (slot.value) |resident| resident.destroy();
     std.debug.assert(self.resident_memory.data.used.load(.acquire) == 0);
@@ -66,7 +69,12 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // Validate retained configuration/history before listener readiness. This
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = try catalog.recoveryState() };
+    const recovered = try catalog.recoveryState();
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .stream_waits = try StreamWaits.create(allocator, io) };
+}
+/// Publication, policy changes and maintenance only prompt current checks.
+pub fn notifyStreams(self: *Self) void {
+    if (self.stream_waits) |waits| waits.notify();
 }
 pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
     const owner = engine.journal.backend;
@@ -142,6 +150,44 @@ pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engi
     return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null);
 }
 fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) !Service.Result(format) {
+    if (request.action != .stream or request.action.stream != .wait) {
+        // Wake even when accepted work loses its reply. Read-only probes never
+        // wake other probes; this is notification, not an idle polling loop.
+        defer if ((request.action == .stream and request.action.stream.mutation()) or exclusive(request.action)) self.notifyStreams();
+        return self.executeSingle(format, io, engine, arena, output_allocator, request, control, memory_report, null);
+    }
+    if (control) return error.InvalidRequest;
+    const waits = self.stream_waits orelse return error.StreamWaitUnavailable;
+    const input = request.action.stream.wait;
+    try request.action.stream.validate(request.connection.principal, request.connection.scope);
+    const deadline = (std.Io.Timeout{ .duration = .{ .raw = .fromMilliseconds(input.milliseconds), .clock = .awake } }).toDeadline(io);
+    // The parsed request belongs to arena. Reuse independent scratch for each
+    // recheck so unrelated publications cannot accumulate request allocations.
+    var scratch: std.heap.ArenaAllocator = .init(arena.child_allocator);
+    defer scratch.deinit();
+    var expired = false;
+    while (true) {
+        _ = scratch.reset(.retain_capacity);
+        expired = expired or deadline.toDurationFromNow(io).?.raw.nanoseconds <= 0;
+        const ticket = try waits.register(input.consume.target);
+        defer waits.release(ticket);
+        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket) }) catch |err| {
+            if (err != error.StreamWaitPending) {
+                self.notifyStreams(); // Acceptance may precede a failed reply.
+                return err;
+            }
+            switch (try waits.wait(ticket, deadline)) {
+                .changed => {},
+                .timeout => expired = true,
+                .closed => return error.StreamWaitUnavailable,
+            }
+            continue;
+        };
+        self.notifyStreams();
+        return result;
+    }
+}
+fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting")) !Service.Result(format) {
     if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
@@ -171,15 +217,17 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
     };
     defer resident.mutex.unlock(io);
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
-    errdefer {
+    var discard_on_error = true;
+    errdefer if (discard_on_error) {
         resident.value.?.destroy();
         resident.value = null;
-    }
+    };
     defer if (memory_report) |report| {
         report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
     };
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value };
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
+        if (err == error.StreamWaitPending) discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;

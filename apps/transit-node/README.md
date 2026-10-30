@@ -57,6 +57,12 @@ publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
 per-principal fairness.
 
+Typed Stream waits use these same dedicated wait lanes. They register before
+checking the durable offset frontier, park without catalog/object locks, and
+recheck current authorization after appends or policy changes. One deadline
+bounds each wait to at most 1000 milliseconds before its final check. A timeout
+accepts no read; accepted consume retries retain their original finite cut.
+
 Request deadlines cancel and join active work, release its admission lane and
 close the connection. A lost reply leaves any accepted mutation unresolved;
 callers retain its original signed identity for recovery.

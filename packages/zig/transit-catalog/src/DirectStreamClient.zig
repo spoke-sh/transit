@@ -14,6 +14,7 @@ pub const Action = union(enum) {
     group: @FieldType(wire.Request, "group"),
     cursor: @FieldType(wire.Request, "cursor"),
     page: @FieldType(wire.Request, "page"),
+    wait: @FieldType(wire.Request, "wait"),
 
     pub fn encode(self: Action, scratch: std.mem.Allocator) !wire.Request {
         return switch (self) {
@@ -37,6 +38,7 @@ pub const Result = union(enum) {
     group: ?p.StreamQueue.GroupProgress,
     cursor: p.StreamRead.Cursor,
     page: Page,
+    timed_out: p.StreamQueue.Cut,
 };
 pub const Saved = struct {
     definition: p.Growth.Definition,

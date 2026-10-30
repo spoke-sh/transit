@@ -6,6 +6,8 @@ pub fn table(err: anyerror) Refusal {
     const code: p.ErrorCode = switch (err) {
         error.InvalidBody => .InvalidBody,
         error.InvalidRequest => .InvalidRequest,
+        error.InvalidStreamWait, error.InvalidWaitHint => .InvalidRequest,
+        error.StreamWaitCapacity, error.NotificationCapacityExceeded => .ControlCapacity,
         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => .AccessDenied,
         error.TableDefinitionChanged => .TableDefinitionChanged,
         error.LogDeclarationConflict, error.LogOperationConflict, error.LogAppendConflict, error.LogPayloadConflict, error.LogPartitionConflict, error.LogProducerConflict, error.LogProducerFenced, error.LogProducerSequenceGap, error.LogProducerReceiptExpired, error.LogGroupAssignmentConflict, error.LogGroupFenced, error.LogGroupRequired, error.LogOffsetConflict, error.LogRetentionWindowElapsed, error.StreamReadConflict => .Conflict,

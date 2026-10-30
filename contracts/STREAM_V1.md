@@ -31,7 +31,9 @@ bounded timestamp-filtered traversal. The signed
 [`stream` service action](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
 and shared `Catalog.callStream` compose append, finite reads, original-operation
 inspection, assignment, offset settlement and release under current native
-grants. Blocking waits and automatic stream maintenance are not exposed. See the
+grants. Bounded waits select a finite read only after the requested offset
+frontier is available; timeout accepts no read. Existing accepted reads always
+retain their original cut. Automatic stream maintenance is not exposed. See the
 [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append

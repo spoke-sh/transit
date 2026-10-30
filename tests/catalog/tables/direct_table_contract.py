@@ -208,6 +208,10 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     stream_request = {**stream_input, "proof": {"claim": stream_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(stream_claim)).digest())}}
     stream_digest = hashlib.sha256(b"transit.catalog.stream.operation.v1\0" + bytes.fromhex(definition) + canonical(stream_work)).digest()
     stream_fixture = {"request": stream_request, "public_key": public_key, "intent_digest": list(stream_digest)}
+    wait_input = {**request_input, "action": {"stream": {"wait": {"consume": stream_work["consume"], "milliseconds": 1000}}}}
+    wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(wait_input)).digest())}
+    wait_request = {**wait_input, "proof": {"claim": wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(wait_claim)).digest())}}
+    wait_fixture = {"request": wait_request, "public_key": public_key, "intent_digest": list(stream_digest)}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -218,6 +222,7 @@ fixture = {
 }
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
+validator.validate(wait_request)
 validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
@@ -282,6 +287,8 @@ def persist(path, content):
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-wait-v1.json",
+        (json.dumps(wait_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",
         (json.dumps(log_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-filter-v1.json",

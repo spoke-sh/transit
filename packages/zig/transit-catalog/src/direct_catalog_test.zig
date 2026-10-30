@@ -4485,6 +4485,9 @@ test "catalog log DLQ definitions guard publication and retain dependency and st
 }
 
 fn streamCall(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, request: c.DirectStream.Request, steps: u16) !c.DirectStream.Result {
+    return streamCallWaiting(catalog, access, cached, request, steps, null);
+}
+fn streamCallWaiting(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, request: c.DirectStream.Request, steps: u16, waiting: @FieldType(c.DirectStream.Environment, "waiting")) !c.DirectStream.Result {
     var scratch: std.heap.ArenaAllocator = .init(t.allocator);
     defer scratch.deinit();
     return c.DirectStream.apply(scratch.allocator(), t.allocator, catalog, cached, .{
@@ -4492,7 +4495,78 @@ fn streamCall(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, req
         .batch_bytes = 8192,
         .key_bytes = 256,
         .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 },
-    }, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = steps }, request, access.policy());
+    }, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = steps, .waiting = waiting }, request, access.policy());
+}
+
+test "direct Stream waits select one cut without accepting a timeout or extending an original read" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const create = try logCreation(.stream, 10, 1, "waiting", 1);
+    _ = try catalog.admitLog(create, access.policy());
+    _ = try catalog.logOperation(create.binding, .execute, access.policy());
+    const declared = (try catalog.logOperation(create.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.stored.declaration.interpretation, .partition = 0 };
+    const input: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 100 }, .group = null, .from = 0, .until = null, .timestamp = null };
+    var request: c.DirectStream.Request = .{ .wait = .{ .consume = input, .milliseconds = 1000 } };
+    const active: @FieldType(c.DirectStream.Environment, "waiting") = .{ .expired = false, .registrations = 1 };
+    const expired: @FieldType(c.DirectStream.Environment, "waiting") = .{ .expired = true, .registrations = 1 };
+    try t.expectError(error.StreamWaitPending, streamCallWaiting(&catalog, &access, &cached, request, 256, active));
+    try t.expect((try c.OperationBinding.lookupStream(t.allocator, objects.objectStore(), input.operation)) == null);
+    try t.expect((try streamCall(&catalog, &access, &cached, .{ .operation = .{ .consume = input } }, 256)).operation == null);
+    try t.expectError(error.StreamWaitCapacity, streamCallWaiting(&catalog, &access, &cached, request, 256, .{ .expired = false, .registrations = declared.stored.declaration.limits.waiters + 1 }));
+    const timeout = try streamCallWaiting(&catalog, &access, &cached, request, 256, expired);
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .principal = 1, .audience = 3, .role = null };
+    try c.DirectStreamResponse.validate(t.allocator, connection, request, timeout);
+    try t.expectEqual(@as(u64, 0), timeout.timed_out.next);
+    try t.expect((try c.OperationBinding.lookupStream(t.allocator, objects.objectStore(), input.operation)) == null);
+    access.denied_privileges = .{ .id = declared.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, streamCallWaiting(&catalog, &access, &cached, request, 256, expired));
+    access.denied_privileges = null;
+    var empty_input = input;
+    empty_input.operation.operation = 101;
+    const empty = (try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .consume = empty_input }, .payload = null } }, 256)).operation.?.consume;
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 102 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(create.intent.action.create.schema, identity, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &bytes);
+    const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(encoded.base64);
+    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .append = .{ .target = target, .operation = identity, .kind = .stream, .producer = null, .rows = 2, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
+    // Readiness wins the final deadline recheck. This is a newly accepted finite
+    // read; it does not turn the earlier timeout into acceptance evidence.
+    const accepted = try streamCallWaiting(&catalog, &access, &cached, request, 256, expired);
+    try c.DirectStreamResponse.validate(t.allocator, connection, request, accepted);
+    try t.expectEqual(@as(u64, 2), accepted.operation.?.consume.until);
+    request.wait.milliseconds = 1;
+    try t.expectEqualDeep(accepted, try streamCallWaiting(&catalog, &access, &cached, request, 256, active));
+    request.wait.consume = empty_input;
+    try t.expectEqualDeep(empty, (try streamCallWaiting(&catalog, &access, &cached, request, 256, active)).operation.?.consume);
+    try t.expectEqual(@as(u64, 0), empty.until);
+    request.wait.consume = input;
+    request.wait.consume.operation.operation = 103;
+    request.wait.consume.until = 3;
+    try t.expectError(error.StreamWaitPending, streamCallWaiting(&catalog, &access, &cached, request, 256, active));
+    try c.DirectStreamResponse.validate(t.allocator, connection, request, try streamCallWaiting(&catalog, &access, &cached, request, 256, expired));
+    request.wait.consume.group = .{ .id = 1, .generation = 1, .principal = 1 };
+    try t.expectError(error.LogGroupRequired, streamCallWaiting(&catalog, &access, &cached, request, 256, expired));
+    const cut = accepted.operation.?.consume.cut;
+    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .assign = .{ .cut = cut, .operation = .{ .scope = scope, .principal = 1, .operation = 104 }, .expected = null, .group = request.wait.consume.group.?, .next = 2 } }, .payload = null } }, 256);
+    try t.expectError(error.LogOffsetConflict, streamCallWaiting(&catalog, &access, &cached, request, 256, expired));
+    request.wait.consume.from = 2;
+    request.wait.consume.group.?.generation = 2;
+    try t.expectError(error.LogGroupFenced, streamCallWaiting(&catalog, &access, &cached, request, 256, expired));
+    request.wait.consume.group.?.generation = 1;
+    try t.expectError(error.StreamWaitPending, streamCallWaiting(&catalog, &access, &cached, request, 256, active));
 }
 
 test "direct Stream composition preserves original work pins and group rights across catalog edits and reopen" {

@@ -34,19 +34,19 @@
               "$ref": "#/$defs/Request/$defs/T8"
             },
             "delegation": {
-              "$ref": "#/$defs/Request/$defs/T281"
+              "$ref": "#/$defs/Request/$defs/T282"
             },
             "closure": {
-              "$ref": "#/$defs/Request/$defs/T285"
+              "$ref": "#/$defs/Request/$defs/T286"
             },
             "borrow": {
-              "$ref": "#/$defs/Request/$defs/T287"
+              "$ref": "#/$defs/Request/$defs/T288"
             },
             "lease": {
-              "$ref": "#/$defs/Request/$defs/T291"
+              "$ref": "#/$defs/Request/$defs/T292"
             },
             "transaction": {
-              "$ref": "#/$defs/Request/$defs/T293"
+              "$ref": "#/$defs/Request/$defs/T294"
             },
             "proof": {
               "$ref": "#/$defs/Request/$defs/T39"
@@ -7111,6 +7111,18 @@
                   "$ref": "#/$defs/Request/$defs/T279"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "wait"
+              ],
+              "properties": {
+                "wait": {
+                  "$ref": "#/$defs/Request/$defs/T281"
+                }
+              }
             }
           ]
         },
@@ -7789,16 +7801,37 @@
           }
         },
         "T281": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "consume",
+            "milliseconds"
+          ],
+          "properties": {
+            "consume": {
+              "$ref": "#/$defs/Request/$defs/T266"
+            },
+            "milliseconds": {
+              "$ref": "#/$defs/Request/$defs/T23"
+            }
+          },
+          "required": [
+            "consume",
+            "milliseconds"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T282": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Request/$defs/T282"
+              "$ref": "#/$defs/Request/$defs/T283"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T282": {
+        "T283": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -7807,7 +7840,7 @@
           ],
           "properties": {
             "binding": {
-              "$ref": "#/$defs/Request/$defs/T283"
+              "$ref": "#/$defs/Request/$defs/T284"
             },
             "proof": {
               "$ref": "#/$defs/Request/$defs/T39"
@@ -7819,7 +7852,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T283": {
+        "T284": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -7856,7 +7889,7 @@
               "$ref": "#/$defs/Request/$defs/T16"
             },
             "retention": {
-              "$ref": "#/$defs/Request/$defs/T284"
+              "$ref": "#/$defs/Request/$defs/T285"
             },
             "purpose": {
               "$ref": "#/$defs/Request/$defs/T12"
@@ -7876,24 +7909,24 @@
             "selection": "exact"
           }
         },
-        "T284": {
+        "T285": {
           "type": "string",
           "enum": [
             "snapshot",
             "history"
           ]
         },
-        "T285": {
+        "T286": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Request/$defs/T286"
+              "$ref": "#/$defs/Request/$defs/T287"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T286": {
+        "T287": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -7914,17 +7947,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T287": {
+        "T288": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Request/$defs/T288"
+              "$ref": "#/$defs/Request/$defs/T289"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T288": {
+        "T289": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -7933,7 +7966,7 @@
           ],
           "properties": {
             "binding": {
-              "$ref": "#/$defs/Request/$defs/T289"
+              "$ref": "#/$defs/Request/$defs/T290"
             },
             "signature": {
               "$ref": "#/$defs/Request/$defs/T41"
@@ -7945,7 +7978,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T289": {
+        "T290": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -7958,7 +7991,7 @@
               "$ref": "#/$defs/Request/$defs/T4"
             },
             "target": {
-              "$ref": "#/$defs/Request/$defs/T290"
+              "$ref": "#/$defs/Request/$defs/T291"
             },
             "purpose": {
               "$ref": "#/$defs/Request/$defs/T12"
@@ -7971,7 +8004,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T290": {
+        "T291": {
           "oneOf": [
             {
               "type": "object",
@@ -7999,17 +8032,17 @@
             }
           ]
         },
-        "T291": {
+        "T292": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Request/$defs/T292"
+              "$ref": "#/$defs/Request/$defs/T293"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T292": {
+        "T293": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -8030,17 +8063,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T293": {
+        "T294": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Request/$defs/T294"
+              "$ref": "#/$defs/Request/$defs/T295"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T294": {
+        "T295": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -15895,6 +15928,18 @@
               "properties": {
                 "page": {
                   "$ref": "#/$defs/Response/$defs/T333"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timed_out"
+              ],
+              "properties": {
+                "timed_out": {
+                  "$ref": "#/$defs/Response/$defs/T306"
                 }
               }
             }

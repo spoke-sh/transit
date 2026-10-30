@@ -55,6 +55,16 @@ the read; use the explicit completion flag. Pages allow at most 4096 rows,
 4096 examined offsets and 4 MiB encoded data, further bounded by the declaration.
 Release the retained read explicitly when it is no longer needed.
 
+Use `wait` with the same complete consume request to wait up to 1000 milliseconds
+for an offset frontier before accepting the read. It returns either that finite
+read's original receipt or `timed_out` with the observed cut and no accepted read.
+An explicit upper offset waits for that frontier; an open upper bound waits for
+an offset after `from`. A timestamp filter does not wait for a matching event.
+If data is ready at the final check, the read can still be accepted. Retrying an
+already accepted identity always returns its original cut. Cancellation or a
+lost reply requires inspection of the original consume operation; it does not
+roll back acceptance.
+
 Consumer groups have explicit assignment generations and committed next
 offsets. Group reads require current acquire rights; committing an offset is a
 separate settle operation using authenticated complete coverage and the expected
@@ -64,8 +74,8 @@ remain subject to current rights after ALTER or DROP.
 
 The service rechecks authorization after buffering every response. Bounded
 recovery can return incomplete progress before executing new work. Typed
-positional and group reads are finite; blocking waits and automatic stream
-maintenance are not exposed by this service. See the
+positional and group reads remain finite after a wait. Automatic stream
+maintenance is not exposed by this service. See the
 [payload contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress).
 
 ## Mailbox delivery

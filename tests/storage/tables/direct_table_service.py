@@ -73,6 +73,7 @@ def run(node, caller, mode="tables", *artifacts):
 
         dependency_faults = set()
         stream_faults = set()
+        stream_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
@@ -110,6 +111,24 @@ def run(node, caller, mode="tables", *artifacts):
                 for name in ("x-transit-control", "x-transit-wait"):
                     if name in self.headers:
                         headers[name] = self.headers[name]
+                stream_action = envelope.get("action", {}).get("stream") if isinstance(envelope.get("action"), dict) else None
+                if mode == "tables" and stream_action and "wait" in stream_action:
+                    waiting = stream_action["wait"]
+                    assert headers.get("x-transit-wait") == f'0:{waiting["milliseconds"]}'
+                    if int(waiting["consume"]["operation"]["operation"]) == 621007:
+                        # A signed wait cannot occupy an ordinary lane, and its
+                        # scheduling hint cannot disagree with its signed bound.
+                        for invalid in ({"Content-Type": "application/json"},
+                                        {"Content-Type": "application/json", "x-transit-wait": "0:2"}):
+                            probe = HTTPConnection("127.0.0.1", port, timeout=70)
+                            try:
+                                probe.request("POST", self.path, body, invalid)
+                                rejected = probe.getresponse()
+                                assert rejected.status == 400, rejected.status
+                                assert json.loads(rejected.read()) == {"err": "InvalidRequest"}
+                            finally:
+                                probe.close()
+                        stream_wait_checks.add("admission")
                 connection = HTTPConnection("127.0.0.1", port, timeout=70)
                 try:
                     connection.request("POST", self.path, body, headers)
@@ -627,6 +646,7 @@ def run(node, caller, mode="tables", *artifacts):
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             assert fault["log_admit"] and fault["log_publish"]
             assert stream_faults == {621001, 621002, 621005, 621006}
+            assert stream_wait_checks == {"admission"}
             stop(authority)
             authority = None
             authority = start()

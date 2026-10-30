@@ -18,6 +18,7 @@ options: D.Options = .{},
 /// no policy, native owner, result buffer, or borrowed request allocation.
 recovery_state: ?*D.RecoveryState = null,
 resident: ?*Resident = null,
+waiting: @FieldType(c.DirectStream.Environment, "waiting") = null,
 /// Inject a real authority change after response serialization in fault proofs.
 before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backend.DataAuthority.Engine) anyerror!void } = null,
 
@@ -162,6 +163,7 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
     return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, .{}, .{
         .authority = .{ .secret = secret },
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+        .waiting = self.waiting,
     }, request, policy);
 }
 

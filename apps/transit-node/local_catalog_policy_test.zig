@@ -1936,12 +1936,29 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     try t.expectEqualDeep(finished.value.result.log_operation.operation.resulting.?, found.value.result.log_lookup.?.declaration);
     const retained_page = try streamPayloadDispatch(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema);
     const Revoke = struct {
+        fn prepare(current: *Engine, id: u64) !u64 {
+            const change_id = try command(current, .{ .authorization = .{ .begin = .{ .expected_revision = current.head.authorization.revision, .action = .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = 0 } } } } });
+            for (0..256) |_| {
+                const observed = try outcome(current, change_id);
+                if (observed.status == .ready) return change_id;
+                try t.expectEqual(.preparing, observed.status);
+                _ = try command(current, .{ .authorization = .{ .advance = change_id } });
+            }
+            return error.PolicyPreparationBudget;
+        }
+        fn publish(current: *Engine, id: u64) !void {
+            _ = try command(current, .{ .authorization = .{ .publish = id } });
+        }
+        fn transfer(current: *Engine, id: u64, new_owner: u64) !void {
+            _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = new_owner } });
+        }
         fn run(raw: *anyopaque, current: *Engine) !void {
             const id: *u64 = @ptrCast(@alignCast(raw));
             _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
         }
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
+    try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
     const disclosures = [_]c.DirectTableProtocol.Action{
         .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },

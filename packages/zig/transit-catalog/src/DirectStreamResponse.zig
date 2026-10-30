@@ -39,8 +39,18 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         if (progress.complete or progress.examined == 0 or progress.examined > 256 or progress.position.next_lsn == 0) return error.InvalidStreamResponse;
         return;
     }
+    if (result == .timed_out) {
+        if (request != .wait) return error.InvalidStreamResponse;
+        const cut = result.timed_out;
+        try cut.validate();
+        const input = request.wait.consume;
+        try input.target.requireSame(cut.target);
+        if (input.from < cut.retained_from or
+            (if (input.until) |until| until <= cut.next else input.from < cut.next)) return error.InvalidStreamResponse;
+        return;
+    }
     const expected: std.meta.Tag(stream.Result) = switch (request) {
-        .mutate, .operation => .operation,
+        .mutate, .operation, .wait => .operation,
         .observe => .cut,
         .group => .group,
         .cursor => .cursor,
@@ -48,9 +58,14 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidStreamResponse;
     switch (result) {
-        .recovering => unreachable,
+        .recovering, .timed_out => unreachable,
         .operation => |maybe| if (maybe) |value| {
-            try requireReceipt(if (request == .operation) request.operation else request.mutate.work, value);
+            try requireReceipt(switch (request) {
+                .operation => |work| work,
+                .wait => |input| .{ .consume = input.consume },
+                .mutate => |input| input.work,
+                else => unreachable,
+            }, value);
         } else if (request != .operation) return error.InvalidStreamResponse,
         .cut => |value| {
             try value.validate();
