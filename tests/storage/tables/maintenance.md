@@ -1,10 +1,12 @@
-# Automatic Table maintenance qualification
+# Automatic Table and Stream maintenance qualification
 
 Run `just test direct-table-maintenance` inside `nix develop`. The existing
 [service fixture](direct_table_service.py) starts a local disk node and a signed
 [Table caller](direct_table_maintenance.zig). It does not start Station workers
 or a SQL service. The [schedule](direct_table_maintenance.py) preserves failed
 installations under `/var/tmp` and the runner captures stdout automatically.
+The target runs the Table schedule followed by the Stream schedule, sharing the
+built node/caller artifacts while keeping their disk installations separate.
 
 Three Tables retain 256, one and one point-written rows. Two identities collide
 in the bounded maintenance age cache. Independent values, original snapshot
@@ -14,6 +16,26 @@ The small Tables must finish flushing before the large Table. Independent segmen
 footer/checksum checks verify all 258 physical rows. Packed segment files must
 remain unchanged after compaction eligibility inspection, and settled maintenance
 must stop publishing new work.
+
+## Installed Stream maintenance
+
+Run the Stream schedule alone with
+`zig build test-direct-table-service -Doptimize=ReleaseSafe -- stream-maintenance`.
+Two declared Stream partitions each accept eight rows with the same compaction
+key. The caller saves append bytes and original read identities before issuing
+them. With maintenance disabled, current and retained reads each return all
+eight rows. With flush, archive and compaction enabled, new reads eventually
+return only original offset seven, while the earlier read pins still return all
+eight rows. Original producer receipts must remain unchanged.
+
+The driver kills and restarts the node, then repeats public read and original
+append recovery. Every observation has its own saved consume/release identities
+and closes its temporary pin. A failed run preserves unsettled identities and
+the private installation instead of submitting replacement work. The existing
+60-second convergence budget remains unchanged. Numeric output records exact
+source/binary identities, partition/row counts, sample count and node counters.
+These checks establish installed visibility and caller recovery; native graph
+collection separately proves when obsolete physical placements can be reclaimed.
 
 ## Foreground resource observations
 

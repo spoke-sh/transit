@@ -544,3 +544,50 @@ def response_pressure(port, root, owner, saved_inspection, scan, limit):
     assert (before['pid'], before['start_ticks']) == (after['pid'], after['start_ticks'])
     print(json.dumps(dict(profile='direct_response_pressure', schedules=observations,
                           owner_before=before, owner_after=after)), flush=True)
+
+
+def exercise_streams(caller, endpoint, profile, root, restart, owner, node):
+    """Installed compaction preserves prior reads and original append outcomes."""
+    def call(phase):
+        result = subprocess.run([caller, endpoint, f'stream-maintenance-{phase}', str(profile)],
+                                timeout=180, capture_output=True, text=True)
+        with (root / f'stream-{phase}.stderr').open('a') as output:
+            output.write(result.stderr)
+        assert result.returncode == 0, result.stderr[-12000:]
+        return json.loads(result.stdout) if phase == 'check' else None
+
+    call('prepare')
+    frozen = json.loads(profile.read_text())['stream_maintenance']
+    original = {key: frozen[key] for key in ('target', 'appends', 'requests', 'reads')}
+    def check():
+        result = call('check')
+        current = json.loads(profile.read_text())['stream_maintenance']
+        assert {key: current[key] for key in original} == original, 'Saved Stream work changed'
+        assert current['probe'] is None, 'Observation left a live read pin'
+        with (root / 'stream-observations.jsonl').open('a') as output:
+            output.write(json.dumps(result) + '\n')
+        return result
+
+    restart(False)
+    assert check()['rows'] == [8, 8]
+    restart(True, True)
+    before = process_usage(owner())
+    deadline = time.monotonic() + 60
+    samples = 0
+    while True:
+        observed = check()
+        samples += 1
+        if observed['rows'] == [1, 1]:
+            break
+        assert time.monotonic() < deadline, observed
+        time.sleep(.1)
+    after = process_usage(owner())
+    restart(True, True)
+    assert check()['rows'] == [1, 1]
+    print('Installed Stream maintenance: ' + json.dumps(dict(
+        source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
+        partitions=2, original_rows=16, compacted_rows=2, samples=samples,
+        node_before=before, node_after=after,
+        result='original producer outcomes and retained reads survive background compaction and SIGKILL/restart',
+        limits='public visibility and caller recovery; native collection separately qualifies physical reclamation'),
+        sort_keys=True), flush=True)

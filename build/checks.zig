@@ -1370,7 +1370,17 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_maintenance.addArg("maintenance");
     direct_table_maintenance.has_side_effects = true;
     direct_table_maintenance.stdio = .inherit;
-    b.step("test-direct-table-maintenance", "Prove automatic Table maintenance, restart and retained pins on physical disk").dependOn(&direct_table_maintenance.step);
+    const direct_stream_maintenance = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_stream_maintenance.addFileArg(b.path("tests/runner/launch.py"));
+    direct_stream_maintenance.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+    direct_stream_maintenance.addArtifactArg(node_artifact);
+    direct_stream_maintenance.addArtifactArg(direct_table_client);
+    direct_stream_maintenance.addArg("stream-maintenance");
+    direct_stream_maintenance.has_side_effects = true;
+    direct_stream_maintenance.stdio = .inherit;
+    // Keep the disk schedules sequential while sharing their built artifacts.
+    direct_stream_maintenance.step.dependOn(&direct_table_maintenance.step);
+    b.step("test-direct-table-maintenance", "Prove automatic Table and Stream maintenance, restart and retained pins on physical disk").dependOn(&direct_stream_maintenance.step);
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
     direct_callers.addFileArg(b.path("tests/runner/launch.py"));
     direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
