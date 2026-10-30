@@ -94,11 +94,14 @@ pub fn record(self: *Self, allocation: Allocation) !bool {
 /// Physical maintenance records its allocations for safe reclamation without
 /// counting its own bookkeeping as new work that should trigger another pass.
 pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
+    const existing = try self.read(allocation.name());
+    return self.recordTrackedWithExisting(allocation, existing, source);
+}
+pub fn recordTrackedWithExisting(self: *Self, allocation: Allocation, existing: ?Allocation, source: bool) !bool {
     const encoded = try allocation.encode();
     const name = allocation.name();
-    var bytes: [record_bytes]u8 = undefined;
-    if (try Files.read(self.io, self.directory, &name, &bytes)) |existing| {
-        if (!std.mem.eql(u8, existing, &encoded)) return error.InvalidNativeAllocation;
+    if (existing) |known| {
+        if (!std.meta.eql(known, allocation)) return error.InvalidNativeAllocation;
         // Resolve a prior uncertain link before creating content behind it.
         const file = try self.directory.openFile(self.io, &name, .{});
         defer file.close(self.io);
@@ -115,8 +118,12 @@ pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
     return true;
 }
 pub fn recordBatchTracked(self: *Self, allocations: []const Allocation, source: bool) !void {
+    return self.recordBatchTrackedWithExisting(allocations, null, source);
+}
+pub fn recordBatchTrackedWithExisting(self: *Self, allocations: []const Allocation, known_existing: ?[]const ?Allocation, source: bool) !void {
     const Objects = storage.TransitObjectStore;
     if (allocations.len == 0 or allocations.len > Objects.max_put_batch) return error.InvalidNativeAllocation;
+    if (known_existing) |slice| if (slice.len != allocations.len) return error.InvalidNativeAllocation;
     var encoded: [Objects.max_put_batch][record_bytes]u8 = undefined;
     var names: [Objects.max_put_batch]Name = undefined;
     var active: [Objects.max_put_batch]usize = undefined;
@@ -131,9 +138,9 @@ pub fn recordBatchTracked(self: *Self, allocations: []const Allocation, source: 
                 break;
             }
         } else {
-            var bytes: [record_bytes]u8 = undefined;
-            if (try Files.read(self.io, self.directory, &names[i], &bytes)) |existing| {
-                if (!std.mem.eql(u8, existing, &encoded[i])) return error.InvalidNativeAllocation;
+            const existing = if (known_existing) |slice| slice[i] else try self.read(names[i]);
+            if (existing) |known| {
+                if (!std.meta.eql(known, allocation)) return error.InvalidNativeAllocation;
                 const file = try self.directory.openFile(self.io, &names[i], .{});
                 defer file.close(self.io);
                 try file.sync(self.io);

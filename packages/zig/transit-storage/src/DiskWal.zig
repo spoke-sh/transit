@@ -22,6 +22,7 @@ const State = struct {
     cleaned_through: u64 = 0,
     segment: u64 = 0,
     offset: u64 = 0,
+    has_metadata: bool = false,
     /// Derived verified frame coordinates; never persisted or authoritative.
     latest: ?Cursor = null,
     read_start: ?Cursor = null,
@@ -145,7 +146,8 @@ fn usable(self: *Self) !void {
 }
 
 fn syncDirectory(self: *Self) !void {
-    try syncDir(self.io, self.dir);
+    const file: std.Io.File = .{ .handle = self.dir.handle, .flags = .{ .nonblocking = false } };
+    try file.sync(self.io);
     self.syncs += 1;
 }
 
@@ -217,7 +219,7 @@ fn metadata(self: *Self, id: u64) !?State {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes[0..96], &digest, .{});
     if (!std.mem.eql(u8, &digest, bytes[96..128])) return error.CorruptWalMetadata;
-    var state: State = .{ .partition = id };
+    var state: State = .{ .partition = id, .has_metadata = true };
     inline for (.{ "partition", "writer", "policy", "floor", "next", "cleaned_through" }, 0..) |field, i| @field(state, field) = std.mem.readInt(u64, bytes[40 + i * 8 ..][0..8], .little);
     if (state.partition != id or state.writer == 0 or state.policy == 0 or state.floor > state.next or state.cleaned_through > state.floor) return error.CorruptWalMetadata;
     return state;
@@ -454,8 +456,12 @@ pub fn appendFrames(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, polic
         _ = try log.encodeFrame(id, writer, policy, state.next + i, 0, kind, payload, bytes[encoded_offset .. encoded_offset + frame_bytes]);
         encoded_offset += frame_bytes;
     }
-    if (try self.metadata(id) == null) try self.save(state.*);
+    if (!state.has_metadata) {
+        try self.save(state.*);
+        state.has_metadata = true;
+    }
     var next = state.*;
+    next.has_metadata = true;
     // Opening and checking an existing segment changes no accepted bytes.
     // Cancellation there leaves this owner usable. Creation or the first write
     // can change disk state; every later error still requires recovery. Other

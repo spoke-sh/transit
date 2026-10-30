@@ -110,9 +110,12 @@ pub fn record(self: *Self, allocation: Allocation) !bool {
 /// Physical maintenance records its allocations for safe reclamation without
 /// counting its own bookkeeping as new work that should trigger another pass.
 pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
+    const previous = try self.latest(allocation.name());
+    return self.recordTrackedWithPrevious(allocation, previous, source);
+}
+pub fn recordTrackedWithPrevious(self: *Self, allocation: Allocation, previous: ?Allocation, source: bool) !bool {
     const encoded = try allocation.encode();
     const name = allocation.name();
-    const previous = try self.latest(name);
     if (previous) |known| {
         if (!std.meta.eql(known.object_key, allocation.object_key) or !std.meta.eql(known.meta, allocation.meta)) return error.ImmutableObjectConflict;
         if (known.epoch > allocation.epoch) return error.StaleStorageEpoch;
@@ -133,7 +136,11 @@ pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
     return true;
 }
 pub fn recordBatchTracked(self: *Self, allocations: []const Allocation, source: bool) !void {
+    return self.recordBatchTrackedWithPrevious(allocations, null, source);
+}
+pub fn recordBatchTrackedWithPrevious(self: *Self, allocations: []const Allocation, known_previous: ?[]const ?Allocation, source: bool) !void {
     if (allocations.len == 0 or allocations.len > Objects.max_put_batch) return error.InvalidDataAllocation;
+    if (known_previous) |slice| if (slice.len != allocations.len) return error.InvalidDataAllocation;
     var encoded: [Objects.max_put_batch][record_bytes]u8 = undefined;
     var names: [Objects.max_put_batch]Name = undefined;
     var replace: [Objects.max_put_batch]bool = undefined;
@@ -149,7 +156,7 @@ pub fn recordBatchTracked(self: *Self, allocations: []const Allocation, source: 
                 break;
             }
         } else {
-            const previous = try self.latest(names[i]);
+            const previous = if (known_previous) |slice| slice[i] else try self.latest(names[i]);
             if (previous) |known| {
                 if (!std.meta.eql(known.object_key, allocation.object_key) or !std.meta.eql(known.meta, allocation.meta)) return error.ImmutableObjectConflict;
                 if (known.epoch > allocation.epoch) return error.StaleStorageEpoch;
