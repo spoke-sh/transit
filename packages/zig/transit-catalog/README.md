@@ -204,3 +204,13 @@ continuations retain the exact source and interval. Range reads leave sequential
 scan coverage unchanged; callers explicitly release their pins. See the
 [retained read contract](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
 for bounds, current authorization and historical-lease limits.
+
+`HistoricalCatalog` supplies pure, borrowed historical-cut validation and query
+fixtures. Its digest includes the complete supplied cut: schemas, interpretation
+profiles, constraint and dependency descriptors, column origins, segments and
+rows. `HistoricalTimeline.publishHeadConditional` accepts a caller-owned complete
+successor sequence, verifies the retained prefix, and updates both the sequence
+and its head. The caller must keep that sequence immutable and alive. This helper
+performs no WAL publication, synchronization or durable retention; those remain
+with `DirectCatalog` and the storage owner. Segment projection inspection reuses
+one segment's scratch workspace independently of segment count.

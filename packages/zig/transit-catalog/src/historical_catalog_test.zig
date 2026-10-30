@@ -345,10 +345,12 @@ test "current policy_epoch gates historical AS OF queries, enforces mid-stream r
     };
     try std.testing.expectError(
         error.ConditionalBranchHeadConflict,
-        timeline.publishHeadConditional(1, cut_v3),
+        timeline.publishHeadConditional(1, &.{ cut_v1, cut_v2, cut_v3 }),
     );
-    const new_head = try timeline.publishHeadConditional(2, cut_v3);
+    const new_head = try timeline.publishHeadConditional(2, &.{ cut_v1, cut_v2, cut_v3 });
     try std.testing.expectEqual(@as(u64, 3), new_head.manifest_version);
+    try std.testing.expectEqual(@as(u64, 3), (try timeline.selectCut(.{ .head = "main" })).manifest_version);
+    try std.testing.expectEqual(@as(u64, 3), (try timeline.selectCut(.{ .manifest_version = 3 })).manifest_version);
 
     // Batch 1 succeeds even after main moved to v3 (branch movement immunity)
     var rows_buf: [4][s.max_columns]v.Cell = undefined;
@@ -507,4 +509,25 @@ test "multi-model catalog descriptors validate View, PropertyGraph (SQL/PGQ), an
     // Milestone 18 runtime execution gates fail closed
     try std.testing.expectError(error.SqlPgqExecutionDeferredToM18, graph.checkGraphTableExecutionAdmission());
     try std.testing.expectError(error.SqlMedScanDeferredToM18, foreign_table.checkForeignScanAdmission());
+}
+
+test "historical manifest digest commits collation overrides" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "code", .type = .utf8 }};
+    const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &cols };
+    var tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 1, .revision = 1, .schema = schema }};
+    const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 1, .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"), .tables = &tables };
+    const before = try cut.digest();
+    tables[0].collation_profiles = &.{.{ .column = 1, .profile = .ebcdic_037_pad }};
+    const after = try cut.digest();
+    try std.testing.expect(!std.mem.eql(u8, &before, &after));
+}
+
+test "historical projection coverage exceeds one scratch page" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &cols };
+    var segments: [129]H.HistoricalSegment = undefined;
+    for (&segments, 0..) |*seg, i| seg.* = .{ .segment_id = i + 1, .min_lsn = 1, .max_lsn = 1, .physical_schema = schema };
+    const binding: H.HistoricalTableBinding = .{ .namespace = 1, .name = "t", .object = 1, .revision = 1, .schema = schema, .segments = &segments };
+    const summary = try binding.segmentProjectionSummary(schema, &.{});
+    try std.testing.expectEqual(@as(u32, 129), summary.native_target_segments);
 }

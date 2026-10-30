@@ -107,19 +107,36 @@ pub const HistoricalTableBinding = struct {
         target_schema: s.Schema,
         target_origins: []const TableSchemaProjection.Initial,
     ) !TableConstraints.SegmentProjectionSummary {
-        var descriptors: [64]TableConstraints.SegmentDescriptor = undefined;
-        var init_bufs: [64][s.max_columns]TableSchemaProjection.Initial = undefined;
-        if (self.segments.len > descriptors.len) return error.TooManyHistoricalSegments;
-        for (self.segments, 0..) |seg, i| {
-            const seg_initials = filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &init_bufs[i]);
-            descriptors[i] = .{
+        var summary: TableConstraints.SegmentProjectionSummary = .{
+            .target_object = target_schema.object,
+            .target_revision = target_schema.revision,
+            .total_segments = 0,
+            .native_target_segments = 0,
+            .lazily_projected_segments = 0,
+            .synthesized_default_columns = 0,
+            .omitted_dropped_columns = 0,
+            .total_rows = 0,
+            .lazily_projected_rows = 0,
+        };
+        // One segment's bounded projection scratch, independent of retained cardinality.
+        var initials: [s.max_columns]TableSchemaProjection.Initial = undefined;
+        for (self.segments) |seg| {
+            const descriptor: TableConstraints.SegmentDescriptor = .{
                 .segment_id = seg.segment_id,
                 .physical_schema = seg.physical_schema,
-                .initials = seg_initials,
+                .initials = filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &initials),
                 .row_count = seg.rows.len,
             };
+            const part = try TableConstraints.inspectSegmentProjectionCoverage(&.{descriptor}, target_schema);
+            summary.total_segments = try std.math.add(u32, summary.total_segments, 1);
+            summary.native_target_segments = try std.math.add(u32, summary.native_target_segments, part.native_target_segments);
+            summary.lazily_projected_segments = try std.math.add(u32, summary.lazily_projected_segments, part.lazily_projected_segments);
+            summary.total_rows = try std.math.add(u64, summary.total_rows, part.total_rows);
+            summary.lazily_projected_rows = try std.math.add(u64, summary.lazily_projected_rows, part.lazily_projected_rows);
+            summary.synthesized_default_columns = @max(summary.synthesized_default_columns, part.synthesized_default_columns);
+            summary.omitted_dropped_columns = @max(summary.omitted_dropped_columns, part.omitted_dropped_columns);
         }
-        return TableConstraints.inspectSegmentProjectionCoverage(descriptors[0..self.segments.len], target_schema);
+        return summary;
     }
 };
 
@@ -416,29 +433,16 @@ pub const ManifestCut = struct {
 
     pub fn digest(self: ManifestCut) ![32]u8 {
         try self.validate();
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.catalog.manifest.v1\x00");
-        hash.update(&self.previous_manifest_digest);
-        var buf: [24]u8 = undefined;
-        std.mem.writeInt(u64, buf[0..8], self.manifest_version, .little);
-        std.mem.writeInt(u64, buf[8..16], self.commit_lsn, .little);
-        std.mem.writeInt(u64, buf[16..24], self.branch_id, .little);
-        hash.update(&buf);
-        hash.update(self.branch_name);
-        hash.update(&[1]u8{0});
-        hash.update(self.tzdb.version_id);
-        hash.update(&self.tzdb.digest);
-        for (self.tables) |tbl| {
-            var tbl_buf: [24]u8 = undefined;
-            std.mem.writeInt(u64, tbl_buf[0..8], tbl.namespace, .little);
-            std.mem.writeInt(u64, tbl_buf[8..16], tbl.object, .little);
-            std.mem.writeInt(u64, tbl_buf[16..24], tbl.revision, .little);
-            hash.update(&tbl_buf);
-            hash.update(tbl.name);
-            const fp = try tbl.schema.fingerprint();
-            hash.update(&fp);
-        }
-        return hash.finalResult();
+        var scratch: [1024]u8 = undefined;
+        var hash: std.Io.Writer.Hashing(std.crypto.hash.sha2.Sha256) = .init(&scratch);
+        hash.hasher.update("transit.catalog.manifest.v1.2026-10-30.complete\x00");
+        // Include every interpreted field, including segment data and metadata
+        // outside TableSchema. JSON provides length/tag boundaries; pointers
+        // and slice addresses never participate in this commitment.
+        var encoder: std.json.Stringify = .{ .writer = &hash.writer };
+        try c.protocol.Json.write(self, &encoder);
+        try hash.writer.flush();
+        return hash.hasher.finalResult();
     }
 };
 
@@ -492,12 +496,20 @@ pub const HistoricalTimeline = struct {
         };
     }
 
-    /// Conditional CAS publication of `refs/heads/<branch>` (`publishHeadConditional`).
+    /// Pure conditional successor over caller-owned immutable cuts. The caller
+    /// supplies the complete retained successor history and keeps it alive.
+    /// This helper performs no durable publication or synchronization.
     pub fn publishHeadConditional(
         self: *HistoricalTimeline,
         expected_manifest_version: u64,
-        next_cut: ManifestCut,
+        next_cuts: []const ManifestCut,
     ) !BranchHead {
+        if (self.head.manifest_version != expected_manifest_version) return error.ConditionalBranchHeadConflict;
+        if (next_cuts.len != try std.math.add(usize, self.cuts.len, 1)) return error.InvalidNextManifestVersion;
+        for (self.cuts, next_cuts[0..self.cuts.len]) |before, after| {
+            if (!std.mem.eql(u8, &(try before.digest()), &(try after.digest()))) return error.BrokenManifestDigestChain;
+        }
+        const next_cut = next_cuts[next_cuts.len - 1];
         if (!std.mem.eql(u8, next_cut.branch_name, self.head.branch_name) or next_cut.branch_id != self.head.branch_id) {
             return error.MultiCommitBranchingDeferredToM19;
         }
@@ -511,6 +523,7 @@ pub const HistoricalTimeline = struct {
             return error.BrokenManifestDigestChain;
         }
         const next_digest = try next_cut.digest();
+        self.cuts = next_cuts;
         self.head = .{
             .branch_id = next_cut.branch_id,
             .branch_name = next_cut.branch_name,
