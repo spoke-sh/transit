@@ -9,8 +9,7 @@ Direct Control Plane (`transit-catalog`) and shared statement result surface
 
 An investigation binds multiple related queries, published resource evaluations,
 reports, and participants (human analysts and delegated agents) to one frozen,
-durable source basis without holding an interactive database transaction
-([Milestone 5](../docs/roadmap/05-transactions-and-atomic-composition.md)) open
+durable source basis without holding an [interactive database transaction](../docs/handbook/reference/sql/transactions.md) open
 across user or agent think time.
 
 ### Two explicit, non-conflated basis kinds (`BasisKind`)
@@ -24,9 +23,9 @@ across user or agent think time.
    - Binds an ordered slice of `SourceBasisEntry` items combining:
      - `native_source_cut`: `(source_object, source_revision, branch_id, commit_lsn, snapshot_pin_id)`
      - `captured_exchange_revision`: `(exchange_object, exchange_revision, payload_sha256, observed_at_ms)`
-       for captured gateway/connector exchanges ([Milestone 16](../docs/roadmap/16-document-profiles-and-gateway-exchange-lifecycle.md)).
+       for [captured gateway/connector exchanges](../docs/handbook/reference/connectors.md).
      - `foreign_source_pin`: `(foreign_object, uri, etag_or_generation, content_sha256, schema_epoch, observed_at_ms)`
-       for external multi-model files ([Milestone 18](../docs/roadmap/18-multi-model-and-foreign-relations.md)).
+       for external multi-model files; the pin identifies the captured source bytes.
    - Explicitly reports `isGloballyAtomic() == false`. Any operation or caller
      that requires global cross-source serializable atomicity on a
      `multi_source_basis_vector` is rejected (`error.NonAtomicBasisVector`).
