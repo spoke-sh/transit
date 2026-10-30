@@ -10096,6 +10096,47 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/OperatorTraits.zig": {
+      "errors": {},
+      "outcomes": {
+        "ChangeMode": [
+          "explanation_zero_work",
+          "snapshot_finite",
+          "append_only_stream",
+          "retractable_zset",
+          "atomic_mutation"
+        ],
+        "CollationRule": [
+          "none",
+          "column_bound",
+          "explicit_override",
+          "mixed_rejected"
+        ],
+        "FiveStateRule": [
+          "preserves_all_states",
+          "filters_to_true_only",
+          "checked_aggregate",
+          "check_constraint_true_or_null",
+          "total_state_predicate"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "forLogicalPlan()": "<inferred>",
+        "forRelationalPlan()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "LogicalQuery.zig",
+        "Relational.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -11867,6 +11908,41 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/StandardsLedger.zig": {
+      "errors": {},
+      "outcomes": {
+        "PadAttribute": [
+          "no_pad",
+          "pad_space"
+        ],
+        "StageState": [
+          "implemented",
+          "staged",
+          "reference_only",
+          "rejected"
+        ],
+        "StandardFamily": [
+          "iso_sql_2023_foundation",
+          "iso_sql_2023_json",
+          "iso_sql_2023_pgq",
+          "iso_sql_2023_med",
+          "iso_sql_2023_mda",
+          "transit_extension_v1"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "PhysicalCodecs.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TDel.zig": {
       "errors": {
         "CorruptDeletionVector": 1,
@@ -13469,6 +13545,7 @@
         "LogicalSchema.zig",
         "LogicalStream.zig",
         "NeutralEncoding.zig",
+        "OperatorTraits.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -13489,6 +13566,7 @@
         "SqlInput.zig",
         "SqlTyped.zig",
         "SqlTypes.zig",
+        "StandardsLedger.zig",
         "TDel.zig",
         "TSeg.zig",
         "TSegReader.zig",

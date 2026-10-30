@@ -224,6 +224,16 @@
         ]
       },
       {
+        "id": "standards_ledger",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/standards_ledger.py"
+        ]
+      },
+      {
         "id": "table_schema",
         "phase": "static",
         "command": [

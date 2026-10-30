@@ -59,6 +59,8 @@ pub const Declaration = @import("Declaration.zig");
 pub const QueryCollations = @import("QueryCollations.zig");
 pub const Collation = @import("Collation.zig");
 pub const PhysicalCodecs = @import("PhysicalCodecs.zig");
+pub const OperatorTraits = @import("OperatorTraits.zig");
+pub const StandardsLedger = @import("StandardsLedger.zig");
 pub const ColumnPredicate = @import("ColumnPredicate.zig");
 pub const TDel = @import("TDel.zig");
 pub const TSeg = @import("TSeg.zig");
@@ -89,6 +91,8 @@ test {
     _ = TableProjection;
     _ = Collation;
     _ = PhysicalCodecs;
+    _ = OperatorTraits;
+    _ = StandardsLedger;
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
@@ -100,6 +104,7 @@ test {
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("query_collation_test.zig");
+    _ = @import("operator_traits_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
     _ = @import("logical_kind_test.zig");
