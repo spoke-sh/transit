@@ -511,6 +511,56 @@ test("snapshot acquisition and release preserve saved recovery through host loss
   await withHost("loss", (client) => assert.rejects(client.snapshotMetadata(snapshot), ReadFailed));
 });
 
+test("catalog descriptions require all current policy domains without aliases", async () => {
+  const authority = {
+    database_domain: 10,
+    schema_domain: 11,
+    table_domain: 12,
+    stream_domain: 31,
+    queue_domain: 32,
+    kv_domain: 33,
+    database: 20,
+    initial_schema: 1,
+    initial_schema_authority: 21,
+  };
+  const description = {
+    configuration: {
+      scope: fixture.host.connection.scope,
+      branch: "1",
+      partition: "2",
+      audience: 5,
+      authority,
+      database_name: "transit",
+      initial_schema_name: "public",
+    },
+    subject: {
+      principal: 4,
+      login_role: 4,
+      role: 4,
+      credential_epoch: 1,
+      audience: 5,
+      context: Array(32).fill(1),
+    },
+    policy_revision: 2,
+  };
+  await withHost({ catalog: { description } }, async (client) => {
+    const profile = (await client.describe()).configuration.authority;
+    assert.equal(profile.streamDomain, 31);
+    assert.equal(profile.queueDomain, 32);
+    assert.equal(profile.kvDomain, 33);
+  });
+  for (const field of ["stream_domain", "queue_domain", "kv_domain"] as const) {
+    for (const missing of [true, false]) {
+      const bad = structuredClone(description);
+      if (missing) Reflect.deleteProperty(bad.configuration.authority, field);
+      else bad.configuration.authority[field] = authority.table_domain;
+      await withHost({ catalog: { description: bad } }, (client) =>
+        assert.rejects(client.describe(), missing ? ReadFailed : IncompatibleNative),
+      );
+    }
+  }
+});
+
 async function withHost(
   response: object | "loss",
   run: (client: Client, requests: () => Promise<any[]>) => Promise<void>,

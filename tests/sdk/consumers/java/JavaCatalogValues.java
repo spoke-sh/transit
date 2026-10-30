@@ -73,16 +73,16 @@ public final class JavaCatalogValues {
         List<List<Assignment>> oversized = new ArrayList<>(Collections.nCopies(9, List.of(new Assignment(n(1), large)))); oversized.add(List.of(new Assignment(n(1), invalid)));
         check(rejects(IllegalArgumentException.class, () -> new Insert(oversized).wire()).getMessage().equals("Table wire budget exceeded"));
         JsonArray context = new JsonArray(); for (int i=0; i<32; i++) context.add(1);
-        AuthorityProfile authority = new AuthorityProfile(10,11,12,13,14,20,1,21);
+        AuthorityProfile authority = new AuthorityProfile(10,11,12,13,14,15,20,1,21);
         JsonObject description = obj("configuration", obj("scope", SCOPE.wire(), "branch", "1", "partition", MAX.toString(), "audience", 3, "authority", authority.wire(), "database_name", "ledger", "initial_schema_name", "public"),
             "subject", obj("principal",17,"login_role",17,"role",17,"credential_epoch",1,"audience",3,"context",context), "policy_revision",2);
         CatalogValues.response(obj("catalog",obj("description",description)));
         check(CatalogValues.description(description,CONNECTION,17).configuration().partition().equals(MAX));
         check(CatalogValues.description(description,CONNECTION,17).configuration().authority().equals(authority));
-        for (String field : List.of("stream_domain", "queue_domain")) {
+        for (String field : List.of("stream_domain", "queue_domain", "kv_domain")) {
             JsonObject missing = description.deepCopy(); missing.getAsJsonObject("configuration").getAsJsonObject("authority").remove(field);
             rejects(TransitException.class, () -> CatalogValues.response(obj("catalog",obj("description",missing))));
-            for (long value : new long[]{0,10,11,12,field.equals("stream_domain") ? 14 : 13,9007199254740992L}) {
+            for (long value : new long[]{0,10,11,12,field.equals("stream_domain") ? 14 : 13,field.equals("kv_domain") ? 14 : 15,9007199254740992L}) {
                 JsonObject bad = description.deepCopy(); bad.getAsJsonObject("configuration").getAsJsonObject("authority").addProperty(field,value);
                 rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.description(bad,CONNECTION,17)));
             }

@@ -4,7 +4,7 @@
 -include("transit_logical.hrl").
 -record(transit_catalog_scope, {resource :: #transit_resource{}, catalog :: pos_integer()}).
 -record(transit_catalog_limits, {record_bytes :: pos_integer(), staging_bytes :: pos_integer(), staging_records :: pos_integer()}).
--record(transit_catalog_authority, {database_domain, schema_domain, table_domain, stream_domain, queue_domain, database, initial_schema_authority, initial_schema}).
+-record(transit_catalog_authority, {database_domain, schema_domain, table_domain, stream_domain, queue_domain, kv_domain, database, initial_schema_authority, initial_schema}).
 -record(transit_catalog_subject, {principal, login_role, role, credential_epoch, audience, context}).
 -record(transit_catalog_column, {id :: pos_integer(), name :: binary(), type, nullable=true, default=undefined, max_characters=undefined, encoding=plain, collation=none}).
 -record(transit_catalog_schema, {object :: pos_integer(), revision :: pos_integer(), next_column :: pos_integer(), columns=[], primary_key=[]}).

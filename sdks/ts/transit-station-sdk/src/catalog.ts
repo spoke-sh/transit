@@ -956,6 +956,7 @@ export interface AuthorityProfile {
   readonly tableDomain: number;
   readonly streamDomain: number;
   readonly queueDomain: number;
+  readonly kvDomain: number;
   readonly database: number;
   readonly initialSchema: number;
   readonly initialSchemaAuthority: number;
@@ -1118,6 +1119,20 @@ export class Client {
     );
     const config = value.configuration;
     const authority = config.authority;
+    const domains = [
+      authority.database_domain,
+      authority.schema_domain,
+      authority.table_domain,
+      authority.stream_domain,
+      authority.queue_domain,
+      authority.kv_domain,
+    ];
+    if (
+      new Set(domains).size !== domains.length ||
+      authority.database === authority.initial_schema_authority
+    ) {
+      throw new IncompatibleNative("Invalid catalog authority profile");
+    }
     const subject = value.subject;
     return Object.freeze({
       configuration: Object.freeze({
@@ -1133,6 +1148,7 @@ export class Client {
           tableDomain: authority.table_domain,
           streamDomain: authority.stream_domain,
           queueDomain: authority.queue_domain,
+          kvDomain: authority.kv_domain,
           database: authority.database,
           initialSchema: authority.initial_schema,
           initialSchemaAuthority: authority.initial_schema_authority,

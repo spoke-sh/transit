@@ -119,9 +119,12 @@ operation identity through retries and name reuse.
 `LogAuthority` defines the Stream/Queue action masks over separate native
 domains: inspect, read, append, acquire and settle. It shares database CONNECT,
 schema USAGE/CREATE and ownership checks with `TableAuthority`; it stores no
-grants. The current configuration requires all five domain identities, including
-Stream and Queue. Lifecycle publication uses these domains and the existing
+grants. The current configuration requires all six domain identities, including
+Stream, Queue and KV. Lifecycle publication uses these domains and the existing
 native registrar, with the caller's rights checked at every publication boundary.
+`KVAuthority` separates metadata inspection, value reads and writes, with
+CONNECT, USAGE/CREATE and native ownership checks. Its registered domain is
+required even before direct KV lifecycle operations are enabled.
 `DocumentAuthority` similarly defines direct Document action masks (`inspect`,
 `read`, `mutate`, `checkpoint`, `administer`) and domain-separated authorization
 bindings, while `DirectStorageGraph` enumerates retained `DocumentPartition`

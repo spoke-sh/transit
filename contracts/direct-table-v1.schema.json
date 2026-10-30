@@ -11802,6 +11802,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -11822,6 +11823,9 @@
             "queue_domain": {
               "$ref": "#/$defs/Response/$defs/T4"
             },
+            "kv_domain": {
+              "$ref": "#/$defs/Response/$defs/T4"
+            },
             "database": {
               "$ref": "#/$defs/Response/$defs/T4"
             },
@@ -11838,6 +11842,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -27893,6 +27898,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -27913,6 +27919,9 @@
             "queue_domain": {
               "$ref": "#/$defs/HostResult/$defs/T10"
             },
+            "kv_domain": {
+              "$ref": "#/$defs/HostResult/$defs/T10"
+            },
             "database": {
               "$ref": "#/$defs/HostResult/$defs/T10"
             },
@@ -27929,6 +27938,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"

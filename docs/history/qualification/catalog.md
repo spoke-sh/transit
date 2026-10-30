@@ -9,6 +9,43 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct KV authority and complete caller profiles — 2026-10-30
+
+On dirty parent `a729bf0ae`, the native catalog authority profile adds a mandatory,
+distinct KV domain with inspect/read/write privileges. Local bootstrap registers
+that domain; shared generated contracts and every affected SDK require the
+complete profile. Missing or duplicated domains reject before catalog use.
+The [catalog authority](../../../packages/zig/transit-catalog/README.md) and
+[security reference](../../handbook/reference/security.md) own the semantics.
+
+All eight installed direct-catalog targets pass in
+`/var/tmp/transit-direct-kv-policy-installed.log`: Python, Node, Rust, Ruby,
+C/C++, Java, .NET and BEAM (Erlang/Elixir). These exercise the existing Table
+surface with the extended authority profile, including current access,
+wide values, uncertain receipts and pin/release replies, caller/node replacement,
+and retained metadata after DROP/name reuse. They do not expose direct KV data
+operations. Source and binary hashes remain in each run's native artifact record;
+the final BEAM record is
+`.cache/native-artifacts/clients-ReleaseSafe-jicbmkdi/record.json`.
+
+Focused KV/log authority tests pass in
+`/var/tmp/transit-direct-kv-authority-first.log`. Python/Ruby source checks,
+the Rust complete-profile unit, the TypeScript package check and its eleven
+catalog tests pass in `/var/tmp/transit-direct-kv-policy-sdk-units.log`,
+`/var/tmp/transit-direct-kv-policy-rust.log`,
+`/var/tmp/transit-direct-kv-policy-node.log` and
+`/var/tmp/transit-direct-kv-policy-node-profile-2.log`. The first Rust attempt
+lacked a native artifact; the successful retry uses the matching recorded build.
+The first TypeScript negative test expected the wrong error class for a missing
+wire field; the corrected test distinguishes wire decoding from semantic rejection.
+
+All 53 fast checks, including generated inventories and documentation links, pass
+in `/var/tmp/transit-direct-kv-policy-fast-final.log`.
+
+This evidence predates the rebase onto `84b7c8f18` and does not qualify that combined
+source, direct KV catalog/data integration, mixed transactions or the clean core
+lane. The full native catalog policy run is still pending at this record's source.
+
 ## Direct KV storage foundation — 2026-10-30
 
 On dirty parent `bf83e0b5f`, `KVPartition` storage checks pass in

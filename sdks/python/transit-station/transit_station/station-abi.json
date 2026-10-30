@@ -61913,6 +61913,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -61933,6 +61934,9 @@
             "queue_domain": {
               "$ref": "#/$defs/T10"
             },
+            "kv_domain": {
+              "$ref": "#/$defs/T10"
+            },
             "database": {
               "$ref": "#/$defs/T10"
             },
@@ -61949,6 +61953,7 @@
             "table_domain",
             "stream_domain",
             "queue_domain",
+            "kv_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"

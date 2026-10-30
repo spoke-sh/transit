@@ -27,9 +27,9 @@ remain explicit; this interface does not supply automatic recovery or a shared
 SQL session. Existing foreign-language Catalog APIs retain their current
 Station package entry points.
 
-Catalog descriptions carry five authorization domain identifiers: database,
-schema, table, stream and queue. Each must be a positive native counter, and all
-five must be distinct. The current definition requires all five domains; missing
+Catalog descriptions carry six authorization domain identifiers: database,
+schema, table, stream, queue and KV. Each must be a positive native counter, and all
+six must be distinct. The current definition requires all six domains; missing
 fields do not acquire defaults for an older profile. These observed bindings grant
 no access and do not enable unsupported Stream or Queue operations.
 

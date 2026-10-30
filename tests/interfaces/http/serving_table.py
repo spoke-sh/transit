@@ -42,7 +42,7 @@ def provision_catalog(realm, resource, audience, key, send, query, readers=()):
     apply({'grant': dict(object=dict(kind='realm', id=0), grantee=owner, privileges=20, grant_options=0)})
     worker_role = read({'identity': {}}, 78)['body']['identity']['login_role']
     apply({'membership': dict(member=worker_role, role=owner, admin=False, inherit=False, set=True)})
-    domains = [apply({'register_domain': dict(registrar=0, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15, 31, 31)]
+    domains = [apply({'register_domain': dict(registrar=0, actions=mask, lifetime_resource=resource)}) for mask in (1, 3, 15, 31, 31, 7)]
     def binding(kind, identity):
         return list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + current_definition()
             + struct.pack('<QQQBQ', realm, resource, 1, kind, identity)).digest())
@@ -57,7 +57,7 @@ def provision_catalog(realm, resource, audience, key, send, query, readers=()):
         return dict(len=len(value), bytes=list(value.encode()) + [0] * (63-len(value)))
     scope = dict(realm=realm, resource=resource, catalog=1)
     catalog = dict(scope=scope, branch=1, partition=1, audience=audience,
-        authority=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2], stream_domain=domains[3], queue_domain=domains[4],
+        authority=dict(database_domain=domains[0], schema_domain=domains[1], table_domain=domains[2], stream_domain=domains[3], queue_domain=domains[4], kv_domain=domains[5],
             database=database, initial_schema=1, initial_schema_authority=schema),
         database_name=name('serving'), initial_schema_name=name('public'))
     data = dict(definition=current_definition().hex(), scope=scope, branch=1,

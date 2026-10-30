@@ -28,10 +28,9 @@ final class CatalogValues {
         JsonObject v = fields(value, "realm", "resource", "catalog"); return new Scope(new ResourceRef(number(v.get("realm"), 1), number(v.get("resource"), 1)), wide(v.get("catalog")));
     }
     static AuthorityProfile authority(JsonElement value) {
-        JsonObject v = fields(value, "database_domain", "schema_domain", "table_domain", "stream_domain", "queue_domain", "database", "initial_schema", "initial_schema_authority");
+        JsonObject v = fields(value, "database_domain", "schema_domain", "table_domain", "stream_domain", "queue_domain", "kv_domain", "database", "initial_schema", "initial_schema_authority");
         return new AuthorityProfile(number(v.get("database_domain"), 1), number(v.get("schema_domain"), 1), number(v.get("table_domain"), 1),
-            number(v.get("stream_domain"), 1), number(v.get("queue_domain"), 1),
-            number(v.get("database"), 1), number(v.get("initial_schema"), 1), number(v.get("initial_schema_authority"), 1));
+            number(v.get("stream_domain"), 1), number(v.get("queue_domain"), 1), number(v.get("kv_domain"), 1), number(v.get("database"), 1), number(v.get("initial_schema"), 1), number(v.get("initial_schema_authority"), 1));
     }
     static Subject subject(JsonElement value) {
         JsonObject v = fields(value, "principal", "login_role", "role", "credential_epoch", "audience", "context");

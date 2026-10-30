@@ -89,6 +89,10 @@ settlement alone cannot disclose payloads. CONNECT and USAGE still apply, and
 administration requires object ownership. A lease or consumer-group assignment
 never grants access. Typed catalog lifecycle operations use these domains;
 payload execution and Stream/Queue SQL remain separate implementation work.
+Direct KV policy defines separate inspection, read and write rights in its own
+native domain. The catalog configuration and all caller descriptors require this
+domain alongside database, schema, Table, Stream and Queue; missing or duplicate
+domain IDs reject. Direct KV lifecycle integration remains in progress.
 See the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
 
 SQL authorization plans resolve database, schema and Table names through the

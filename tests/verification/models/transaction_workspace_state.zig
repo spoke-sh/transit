@@ -25,7 +25,7 @@ const Event = enum {
 };
 
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 
 const Access = struct {
@@ -56,7 +56,7 @@ const Access = struct {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
-            .stream, .queue => return null,
+            .stream, .queue, .kv => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -69,7 +69,7 @@ const Access = struct {
                 .database => null,
                 .schema => a.reference(profile.database),
                 .table => a.reference(profile.initial_schema_authority),
-                .stream, .queue => return null,
+                .stream, .queue, .kv => return null,
             },
             .revision = 1,
         };

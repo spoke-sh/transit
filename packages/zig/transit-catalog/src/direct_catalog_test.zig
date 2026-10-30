@@ -7,7 +7,7 @@ const a = c.TableAuthority;
 const D = c.DirectCatalog;
 const P = s.TablePartition;
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 
 // Injected policy exercises required scopes and fence placement. Native signed
 // proofs, registration and service enforcement need separate composition tests.
@@ -54,17 +54,17 @@ const Access = struct {
     }
     fn release(_: *anyopaque) void {}
     fn registered(context: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
-        if ((kind == .table or kind == .stream or kind == .queue) and erased(context).missing_table) return null;
+        if ((kind == .table or kind == .stream or kind == .queue or kind == .kv) and erased(context).missing_table) return null;
         if (kind == .schema and id != 1 and erased(context).missing_schema) return null;
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table, .stream, .queue => 100 + id,
+            .table, .stream, .queue, .kv => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => a.reference(profile.database),
-            .table, .stream, .queue => a.reference(profile.initial_schema_authority),
+            .table, .stream, .queue, .kv => a.reference(profile.initial_schema_authority),
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {

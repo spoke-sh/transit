@@ -21291,6 +21291,7 @@
               "table_domain",
               "stream_domain",
               "queue_domain",
+              "kv_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -21311,6 +21312,9 @@
               "queue_domain": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
+              "kv_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
               "database": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
@@ -21327,6 +21331,7 @@
               "table_domain",
               "stream_domain",
               "queue_domain",
+              "kv_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -25183,6 +25188,7 @@
               "table_domain",
               "stream_domain",
               "queue_domain",
+              "kv_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -25203,6 +25209,9 @@
               "queue_domain": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
+              "kv_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
               "database": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
@@ -25219,6 +25228,7 @@
               "table_domain",
               "stream_domain",
               "queue_domain",
+              "kv_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"

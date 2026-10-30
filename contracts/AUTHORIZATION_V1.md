@@ -88,8 +88,8 @@ domain always includes the field, including an explicit `null` for an unbound
 domain. It grants no resource privileges or associations. A successful `Guard`
 also checks each required domain's bound resource and its lifetime dependencies.
 Privilege `decision` inspection remains an authority decision, not a resource
-usability check. Direct catalog database, schema, Table, Stream and Queue domains
-must all bind the configured catalog resource. Their five domain IDs are mandatory,
+usability check. Direct catalog database, schema, Table, Stream, Queue and KV domains
+must all bind the configured catalog resource. Their six domain IDs are mandatory,
 nonzero and pairwise distinct in the current-v1 configuration; missing domains
 are not defaulted when reading saved configurations.
 An expired or absent bound resource denies the guard. Storage or clock failures
