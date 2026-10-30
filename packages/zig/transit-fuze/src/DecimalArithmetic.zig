@@ -179,66 +179,8 @@ pub fn div(a: DecimalValue, b: DecimalValue, target_precision: u8, target_scale:
     };
 }
 
-/// Manifest-pinned IANA `tzdb` version descriptor ($\kappa_{\text{tz}}$) ensuring
-/// historical `FOR SYSTEM_TIME AS OF` queries evaluate calendar operations bit-for-bit identically.
-pub const TzdbVersion = struct {
-    version_id: []const u8,
-    digest: [32]u8,
-
-    pub fn init(version_id: []const u8) !TzdbVersion {
-        if (version_id.len == 0 or version_id.len > 64) return error.InvalidTzdbVersion;
-        var digest: [32]u8 = undefined;
-        var hasher = std.crypto.hash.sha2.Sha256.init(.{});
-        hasher.update("transit.catalog.tzdb.v1\x00");
-        hasher.update(version_id);
-        hasher.final(&digest);
-        return .{
-            .version_id = version_id,
-            .digest = digest,
-        };
-    }
-
-    pub fn eql(a: TzdbVersion, b: TzdbVersion) bool {
-        return std.mem.eql(u8, &a.digest, &b.digest);
-    }
-
-    /// Evaluate UTC microseconds shifted to a pinned zone's local wall-clock microseconds.
-    pub fn utcToLocalMicros(self: TzdbVersion, utc_micros: i64, zone_name: []const u8) !i64 {
-        const offset_seconds = try resolveZoneOffsetSeconds(self.version_id, utc_micros, zone_name);
-        return std.math.add(i64, utc_micros, @as(i64, offset_seconds) * 1_000_000) catch error.TimestampOverflow;
-    }
-
-    /// Bucket UTC microseconds to day/hour/minute in the pinned zone and return local wall-clock start.
-    pub fn truncateLocalMicros(self: TzdbVersion, utc_micros: i64, zone_name: []const u8, bucket_micros: i64) !i64 {
-        if (bucket_micros <= 0) return error.InvalidTimeBucket;
-        const local = try self.utcToLocalMicros(utc_micros, zone_name);
-        return @divFloor(local, bucket_micros) * bucket_micros;
-    }
-};
-
-fn resolveZoneOffsetSeconds(version_id: []const u8, utc_micros: i64, zone_name: []const u8) !i32 {
-    if (std.ascii.eqlIgnoreCase(zone_name, "UTC") or std.ascii.eqlIgnoreCase(zone_name, "Etc/UTC") or std.ascii.eqlIgnoreCase(zone_name, "Z")) {
-        return 0;
-    }
-    if (std.ascii.eqlIgnoreCase(zone_name, "America/New_York")) {
-        // US Eastern standard (-05:00 = -18000s) vs DST (-04:00 = -14400s)
-        return if (utc_micros >= 1710054000_000_000 and utc_micros < 1730617200_000_000) -14400 else -18000;
-    }
-    if (std.ascii.eqlIgnoreCase(zone_name, "Europe/London")) {
-        return if (utc_micros >= 1711846800_000_000 and utc_micros < 1729990800_000_000) 3600 else 0;
-    }
-    if (std.ascii.eqlIgnoreCase(zone_name, "Asia/Tokyo")) {
-        return 9 * 3600;
-    }
-    if (std.ascii.eqlIgnoreCase(zone_name, "America/Santiago")) {
-        // Historical rule test case: tzdb_2026a vs tzdb_2026b policy shift on 2026-04-05
-        if (std.mem.eql(u8, version_id, "tzdb_2026a")) {
-            return -10800; // -03:00
-        }
-        return -14400; // -04:00
-    }
-    return error.UnknownTimezone;
-}
+/// Explicit content identity; rules are loaded through Timezone.Database.
+pub const TzdbVersion = @import("Timezone.zig").Version;
 
 /// Spatial & 3D Volumetric Reference & Precision Descriptor ($\kappa_{\text{spatial}}$)
 /// reserved in catalog descriptors for Milestone 17.

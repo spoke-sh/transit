@@ -14,14 +14,11 @@ HISTORICAL_ZIG_PATH = ROOT / "packages/zig/transit-catalog/src/HistoricalCatalog
 CONSTRAINTS_ZIG_PATH = ROOT / "packages/zig/transit-fuze/src/TableConstraints.zig"
 
 
-def tzdb_digest_hex(version_id: str) -> str:
-    return hashlib.sha256(b"transit.catalog.tzdb.v1\x00" + version_id.encode("utf-8")).hexdigest()
-
-
 def build_fixtures() -> dict:
-    tz_2026a = tzdb_digest_hex("tzdb_2026a")
-    tz_2026b = tzdb_digest_hex("tzdb_2026b")
-    assert tz_2026a != tz_2026b
+    # Opaque content pins used for catalog lineage tests, not IANA rule data.
+    # Actual TZif conversion has independently sourced binary fixtures in Fuze.
+    tz_2026a = bytes([1] * 32).hex()
+    tz_2026b = bytes([2] * 32).hex()
 
     check_five_state_truth_table = [
         {"cell_state": "value", "predicate_outcome": True, "admitted": True, "reason": None},
@@ -51,7 +48,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 1,
                 "commit_lsn": 10,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026a",
+                "tzdb_version": "fixture-a",
                 "tzdb_digest_hex": tz_2026a,
                 "tables": [
                     {
@@ -70,7 +67,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 2,
                 "commit_lsn": 20,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026a",
+                "tzdb_version": "fixture-a",
                 "tzdb_digest_hex": tz_2026a,
                 "tables": [
                     {
@@ -90,7 +87,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 3,
                 "commit_lsn": 30,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026b",
+                "tzdb_version": "fixture-b",
                 "tzdb_digest_hex": tz_2026b,
                 "tables": [
                     {

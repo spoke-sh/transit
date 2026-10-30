@@ -553,3 +553,14 @@ intermediates cover every admitted input/scale combination without allocation.
 An unrepresentable output returns `DecimalOverflow`; discarded nonzero digits
 under `reject` return `InexactDecimalRounding`. These scalar helpers do not
 extend SQL arithmetic or stored schema descriptors.
+
+`Timezone.Database` loads a sorted, immutable set of named TZif files and hashes
+both their complete bytes and the version label. Conversion requires the exact
+`Timezone.Version` content identity supplied by the caller. It never reads host
+timezone files or substitutes rules based on a version string. Loading validates
+TZif 2/3/4 without leap seconds; each file is bounded to 128 KiB. UTC conversion
+uses the recorded transitions and returns `TimezoneCoverageUnavailable` beyond
+the last explicit transition; POSIX-footer extrapolation is unsupported. Fixed
+zones with one local-time type and no transitions use that offset. Missing names,
+foreign content identities and timestamp overflow reject explicitly. These
+helpers do not add SQL `AT TIME ZONE` syntax.

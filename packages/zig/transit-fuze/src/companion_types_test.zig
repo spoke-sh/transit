@@ -112,17 +112,6 @@ test "deterministic DECIMAL(p, s) arithmetic rounding rules, pinned tzdb version
     try testing.expectEqual(@as(u8, 3), sum.scale);
     try testing.expectEqual(@as(i128, 13845), sum.coefficient);
 
-    // Pinned tzdb version digest reproducibility across historical tzdb updates
-    const tz_2026a = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a");
-    const tz_2026b = try DecimalArithmetic.TzdbVersion.init("tzdb_2026b");
-    try testing.expect(!tz_2026a.eql(tz_2026b));
-    const sample_utc: i64 = 1775433600_000_000;
-    const santiago_a = try tz_2026a.utcToLocalMicros(sample_utc, "America/Santiago");
-    const santiago_b = try tz_2026b.utcToLocalMicros(sample_utc, "America/Santiago");
-    try testing.expect(santiago_a != santiago_b);
-    // Re-evaluating against tzdb_2026a is bit-for-bit identical
-    try testing.expectEqual(santiago_a, try tz_2026a.utcToLocalMicros(sample_utc, "America/Santiago"));
-
     // Spatial descriptor validation
     const spatial: DecimalArithmetic.SpatialDescriptor = .{
         .srid = 4326,

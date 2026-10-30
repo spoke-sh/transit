@@ -64,6 +64,7 @@ pub const OperatorTraits = @import("OperatorTraits.zig");
 pub const StandardsLedger = @import("StandardsLedger.zig");
 pub const Range = @import("Range.zig");
 pub const VectorMetric = @import("VectorMetric.zig");
+pub const Timezone = @import("Timezone.zig");
 pub const DecimalArithmetic = @import("DecimalArithmetic.zig");
 pub const TableConstraints = @import("TableConstraints.zig");
 pub const PerfectHash = @import("PerfectHash.zig");
@@ -116,6 +117,7 @@ test {
     _ = Range;
     _ = VectorMetric;
     _ = DecimalArithmetic;
+    _ = Timezone;
     _ = TableConstraints;
     _ = PerfectHash;
     _ = SearchOracle;

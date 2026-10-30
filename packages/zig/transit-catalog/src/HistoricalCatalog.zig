@@ -409,7 +409,7 @@ pub const ManifestCut = struct {
         if (self.manifest_version == 0 or self.commit_lsn == 0 or self.branch_id == 0 or self.branch_name.len == 0) {
             return error.InvalidManifestCut;
         }
-        if (self.tzdb.version_id.len == 0 or self.tzdb.version_id.len > 64) return error.InvalidTzdbVersion;
+        try self.tzdb.validate();
         for (self.tables, 0..) |tbl, i| {
             try tbl.validate();
             for (self.tables[0..i]) |prev| {
