@@ -1,6 +1,7 @@
 //! Unboxed dense numeric vectors `VECTOR(dim, elem_type)` and distance metric
 //! descriptors ($\kappa_{\text{metric}}$: L2_SQUARED, COSINE, DOT_PRODUCT, HAMMING).
-//! Stored as 64-byte aligned SIMD slabs without per-element 5-state tags.
+//! Helpers over caller-owned numeric slices; slab alignment is a descriptor
+//! property, not an implemented Table storage or SQL type.
 const std = @import("std");
 
 pub const slab_alignment: usize = 64;

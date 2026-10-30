@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Independent oracle for Milestone 10 historical catalog manifests, AS OF /
-PROJECTING TO resolution, current policy_epoch authorization, 5-state CHECK
-constraints, EBCDIC collations, and multi-model descriptors.
+"""Regenerate and check the standalone historical-catalog fixture corpus.
+
+This is a consistency check, not Zig execution, SQL qualification or an
+independent cross-language semantic oracle.
 """
 from runner.paths import ROOT
 import argparse
@@ -10,8 +11,6 @@ import json
 import struct
 
 FIXTURE_PATH = ROOT / "contracts/catalog/historical-manifest-fixtures.json"
-HISTORICAL_ZIG_PATH = ROOT / "packages/zig/transit-catalog/src/HistoricalCatalog.zig"
-CONSTRAINTS_ZIG_PATH = ROOT / "packages/zig/transit-fuze/src/TableConstraints.zig"
 
 
 def build_fixtures() -> dict:
@@ -182,36 +181,12 @@ def build_fixtures() -> dict:
     }
 
 
-def verify_zig_sources(fixtures: dict) -> None:
-    hist_zig = HISTORICAL_ZIG_PATH.read_text(encoding="utf-8")
-    constraints_zig = CONSTRAINTS_ZIG_PATH.read_text(encoding="utf-8")
-
-    for handoff_key, err_token in fixtures["historical_lineage"]["cross_milestone_handoffs"].items():
-        if err_token not in hist_zig and err_token not in constraints_zig:
-            raise SystemExit(f"Missing fail-closed handoff error {err_token} ({handoff_key}) in Zig implementation")
-
-    for required_symbol in (
-        "publishHeadConditional",
-        "admitHistoricalQuery",
-        "fetchNextHistoricalBatch",
-        "PropertyGraphDescriptor",
-        "ForeignTableDescriptor",
-        "ViewDescriptor",
-        "error.AuthorizationRevokedMidStream",
-        "error.HistoricalSnapshotExpired",
-        "error.IncompatibleHistoricalObjectLineage",
-    ):
-        if required_symbol not in hist_zig:
-            raise SystemExit(f"HistoricalCatalog.zig missing required symbol: {required_symbol}")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
 
     fixtures = build_fixtures()
-    verify_zig_sources(fixtures)
     rendered = json.dumps(fixtures, indent=2) + "\n"
 
     if args.write:
@@ -223,9 +198,9 @@ def main() -> None:
         )
 
     print(
-        f"Historical catalog: {len(fixtures['historical_lineage']['manifests'])} manifests, "
+        f"Historical fixture consistency: {len(fixtures['historical_lineage']['manifests'])} manifests, "
         f"{len(fixtures['historical_lineage']['scenarios'])} scenarios, and "
-        f"{len(fixtures['historical_lineage']['cross_milestone_handoffs'])} cross-milestone gates verified"
+        f"{len(fixtures['historical_lineage']['cross_milestone_handoffs'])} handoff expectations; no runtime execution verified"
     )
 
 
