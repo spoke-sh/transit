@@ -7585,6 +7585,168 @@
         "std"
       ]
     },
+    "packages/zig/transit-document/src/SpanText.zig": {
+      "errors": {
+        "InvalidDeleteRange": 1,
+        "InvalidReadBudget": 1,
+        "InvalidReadCursor": 4,
+        "InvalidSpanBoundary": 3,
+        "InvalidSpanIdentity": 1,
+        "InvalidUtf8Span": 2,
+        "MissingSpanDependency": 2,
+        "SpanIdentityConflict": 1
+      },
+      "outcomes": {
+        "ApplyDisposition": [
+          "applied",
+          "duplicate"
+        ],
+        "Operation": [
+          "insert",
+          "delete"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "InvalidSpanIdentity",
+          "InvalidUtf8Span",
+          "InvalidSpanBoundary",
+          "InvalidDeleteRange",
+          "MissingSpanDependency",
+          "SpanIdentityConflict",
+          "InvalidReadBudget",
+          "InvalidReadCursor",
+          "OutOfMemory"
+        ]
+      },
+      "error_returns": {
+        "SpanKey.validate()": "Error",
+        "SpanText.apply()": "Error",
+        "SpanText.applyDelete()": "Error",
+        "SpanText.applyInsert()": "Error",
+        "SpanText.ensureSplitAt()": "Error",
+        "SpanText.materializeAlloc()": "Error",
+        "SpanText.readBounded()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/SuccinctTree.zig": {
+      "errors": {
+        "EmptySuccinctTree": 1,
+        "InvalidSuccinctTree": 15,
+        "NodeOutOfBounds": 4,
+        "TreeTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "Error": [
+          "EmptySuccinctTree",
+          "InvalidSuccinctTree",
+          "NodeOutOfBounds",
+          "OutOfMemory",
+          "TreeTooLarge"
+        ]
+      },
+      "error_returns": {
+        "SuccinctTree.buildSummaries()": "Error",
+        "SuccinctTree.closeBit()": "Error",
+        "SuccinctTree.decode()": "Error",
+        "SuccinctTree.depth()": "Error",
+        "SuccinctTree.encode()": "Error",
+        "SuccinctTree.findClose()": "Error",
+        "SuccinctTree.firstChild()": "Error",
+        "SuccinctTree.fromParentSlice()": "Error",
+        "SuccinctTree.isAncestor()": "Error",
+        "SuccinctTree.lca()": "Error",
+        "SuccinctTree.nextSibling()": "Error",
+        "SuccinctTree.openBit()": "Error",
+        "SuccinctTree.parent()": "Error",
+        "SuccinctTree.select1()": "Error",
+        "SuccinctTree.subtreeSize()": "Error",
+        "SuccinctTree.within()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/VersionedMerge.zig": {
+      "errors": {
+        "InvalidProvenanceSpan": 1
+      },
+      "outcomes": {
+        "Cell": [
+          "value",
+          "null_value",
+          "missing",
+          "type_error",
+          "conflict"
+        ],
+        "CellState": [
+          "value",
+          "null_value",
+          "missing",
+          "type_error",
+          "conflict"
+        ],
+        "Node.Kind": [
+          "scalar",
+          "null_value",
+          "type_error",
+          "conflict",
+          "object",
+          "array"
+        ],
+        "Scalar": [
+          "boolean",
+          "int64",
+          "float64",
+          "string",
+          "bytes"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "InvalidProvenanceSpan",
+          "OutOfMemory",
+          "EmptySuccinctTree",
+          "InvalidSuccinctTree",
+          "NodeOutOfBounds",
+          "TreeTooLarge"
+        ]
+      },
+      "error_returns": {
+        "Node.clone()": "Error",
+        "RawProvenance.validate()": "Error",
+        "Scalar.clone()": "Error",
+        "appendPreorderParents()": "Error",
+        "buildSuccinctTree()": "Error",
+        "collectConflictScalars()": "Error",
+        "mergeNodes()": "Error",
+        "mergeObjects()": "Error",
+        "mergeThreeWay()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 46,
+        "catch": 0
+      },
+      "imports": [
+        "SuccinctTree.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document/src/codec.zig": {
       "errors": {
         "DocumentEncodingCapacity": 1,
@@ -7633,6 +7795,9 @@
         "Bytes.zig",
         "Document.zig",
         "Model.zig",
+        "SpanText.zig",
+        "SuccinctTree.zig",
+        "VersionedMerge.zig",
         "codec.zig"
       ]
     },
