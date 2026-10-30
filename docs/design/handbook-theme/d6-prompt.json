@@ -1,0 +1,33 @@
+{
+  "tool": "Built-in image_gen",
+  "references": [
+    {
+      "path": "../transit-artwork/images/d1-refraction-graphite.jpg",
+      "role": "Material continuity, not an edit target"
+    },
+    {
+      "path": "images/d5-fabric-pockets.jpg",
+      "role": "Abstract pocket and unresolved interior"
+    }
+  ],
+  "generations": [
+    {
+      "prompt": "Use case: stylized-concept.\nAsset type: original dark-mode artwork for Transit handbook design review D6, wide 2:1 editorial illustration.\nInput image 1 is the accepted light-mode Refraction illustration: a style/continuity reference only. Input image 2 is the accepted pocket fabric: a reference for the abstract unresolved interior. Do not recolor either composition. Create a new scene whose DOMINANT AXIS IS DEPTH INTO THE SCREEN.\nPrimary request: an abstract radiographic view THROUGH a delicate layered fabric. The viewer looks obliquely into an asymmetric opening in three or four translucent suspended membranes. Near silver-white filaments form a broad open rim; behind it, quieter, smaller contour layers recede toward a restrained indistinct knot of threads, visible THROUGH the intervening surfaces. The layers should feel like a single continuous form seen in x-ray, neither separate disks nor a tunnel. Show internal folds that the opaque light-mode drawing would conceal. The depth center sits just right of center, with an asymmetric long filament trailing toward the left. One very fine muted vermilion thread crosses the foreground and recedes into the volume; it becomes partially dimmer through each layer.\nStyle: exquisite dense silverpoint hairline drawing and radiographic translucency, imperfect soft fine marks, graphite-derived editorial character. Charcoal near-black #14191e background, pale silver #c7d6dc filaments, quieter slate rear layers, one restrained warm vermilion thread. Quiet, analytical and spacious. Luminosity comes from overlapping fine line density, not neon or bloom. A very small amount of cool translucent shading.\nComposition: horizontal 2:1, generous empty dark margins, form concentrated through the central two-thirds; no clipping. The opening faces the viewer, with clear foreshortening and decreasing scale into depth. NOT a side-view landscape, downward waterfall, or lateral terrain.\nNo typography, labels, UI, frames, diagrams, coordinate axes, scan lines, grids, bones, anatomy, literal medical devices, machinery, glossy metal, neon blue, lens effects, stars, outer space, black hole, concentric target rings, recognizable object inside. Opaque dark background.",
+      "output": "images/d6-radiograph.jpg",
+      "encoding": "Original 1774 × 887, quality-92 JPEG with 4:4:4 sampling"
+    },
+    {
+      "prompt": "Use case: stylized-concept.\nAsset type: transparent near-depth layer for the Transit dark handbook, landscape 3:2.\nReference image 1 is the radiographic style reference, NOT a composition to duplicate.\nDraw ONE broad extremely delicate translucent silver filament membrane around a large irregular OPEN CENTER on genuine transparency. An asymmetric swept lip occupies the lower-left and curls gently toward the top-right. Its wide irregular aperture takes up about 55% of the canvas. The far side of the lip is much fainter; one side nearly dissolves into scattered silver threads. Through the center we must see ONLY transparent pixels, because an independently moving deeper layer will be visible there in the website. Draw the fabric as hundreds of wispy silverpoint lines, subtle uneven cross-filaments and tiny traces; sophisticated radiographic ink, open and airy.\nThis is the close foreground layer in a camera zoom through z-depth. Use clear foreshortening of an abstract folded membrane, not a flat oval. Keep the silver lines visible against a charcoal page. Include a short restrained vermilion strand entering from the left edge along the near rim, fading away along the surface. The geometry should extend across most of the canvas but leave 5% transparent margins. Do not include a center knot, deeper layers, background, dark fill, paper, atmosphere, lighting glow, lens effects, machinery, labels, lettering, medical anatomy, or any literal recognizable object. No concentric circles or uniform torus. The whole exterior and interior are genuinely transparent; only the fine silver and vermilion filament marks have alpha.",
+      "references": ["images/d6-radiograph.jpg"],
+      "output": "images/d6-near.webp",
+      "encoding": "Original 1536 × 1024, quality-90 WebP, generated alpha preserved"
+    },
+    {
+      "prompt": "Use case: stylized-concept.\nAsset type: transparent middle-depth layer for Transit dark handbook, landscape 3:2.\nReference image is a radiographic MATERIAL reference. Create a distinctly different original form. A single oblique folded silverpoint membrane is suspended on genuine transparency, with an open asymmetric slit curling through its center. The membrane is narrower and more vertically folded than the reference; imagine a thin translucent fabric seen in x-ray, two offset curved lips exposing its internal filaments. Front and back surfaces are visible through each other. It should NOT repeat the circular aperture or composition of the reference. Use an irregular diagonal S-shaped fold with a dark empty gap between its near and far lips. The gap is genuinely transparent and will reveal another layer behind it. Draw a fine vermilion filament descending from the upper-left and crossing the fold once toward the lower-right. Rich whisper-thin imperfect silver lines, airy connective filaments, silver-white and gray only with the one restrained warm red thread. Keep almost all opacity in the lines, never fill large areas white or black. The composition sits within central 80 percent of a 3:2 frame, all sides softly dissolve into transparency.\nNo background, backdrop, paper, lighting glow, atmosphere, labels, grid, axes, medical objects, anatomy, scenery, solid object, glossy metal, tunnel, concentric bullseye, typography. This is one standalone translucent layer with real alpha and clear negative space, designed to be viewed against charcoal and to enlarge as a virtual camera travels into z-depth.",
+      "references": ["images/d6-radiograph.jpg"],
+      "output": "images/d6-middle.webp",
+      "encoding": "Original 1536 × 1024, quality-90 WebP, generated alpha preserved"
+    }
+  ],
+  "notes": "New artwork, no inversion or reuse of light-mode compositions. Format encoding only; no compositional edits. Layered prototype, not a reconstructed 3D mesh."
+}
