@@ -2,13 +2,15 @@
 
 **Transit is a declarative, versioned multi-model database, vectorized/incremental query engine (`Fuze`), and durable execution runtime (`Station`) written in Zig.**
 
-Instead of assembling a fragmented stack of an OLTP database, an analytical lakehouse, a document store, a message stream, a workflow engine, and custom glue pipelines, Transit unifies three architectural planes over a single storage and authority foundation:
+Transit separates responsibility into three architectural planes. Applications describe data, computations and policies; the planes explain how those descriptions become stored state, results and recorded work.
 
-- **Control & Policy Plane (`DirectCatalog` & Governance):** Versioned catalog definitions (`manifest/v{N}`), an orthogonal type algebra ($\tau$ logical types $\perp \kappa$ collations and spatial manifolds $\perp \epsilon$ physical codecs), scoped `policy_epoch` permissions, unlimited-by-default retention, and zero-copy branching.
-- **Direct Data & Query Plane (`Fuze` & `.tseg` Storage):** Relational [Tables](../reference/tables.md), [Key-Value state](../reference/state.md), collaborative [Documents](../reference/documents.md), [Streams](../reference/streams.md), and external datasets backed by write-ahead delta logs (`TransitLog`) and immutable columnar `.tseg` segments, queried through `Fuze`'s five-state vectorized and incremental engine (`value`, `null`, `missing`, `type_error`, `conflict`).
-- **Process, Effect & Gateway Plane (`Station` & Sans-I/O Gateways):** Stateful durable processes (`Station`), recorded outbound connector effects (`HTTP`, `gRPC`), and sans-I/O client gateways ([SQL sessions](../reference/sql-sessions.md), [PostgreSQL and MySQL](../reference/database-protocols.md), [Arrow Flight SQL / ADBC](../reference/flight.md), [OpenAPI](../reference/openapi.md), [AsyncAPI](../reference/asyncapi.md), and [Board](inspect-board.md)).
+- **Control & Policy Plane:** Catalog identities and definitions, current authorization, retention and resource budgets govern data access and execution.
+- **Direct Data Plane:** Direct Table storage preserves accepted rows and snapshots. `Fuze` executes queries over authorized sources, including supported Table, KV and Document adapters. Direct Table reads and writes do not require a `Station` actor turn.
+- **Process & Effect Plane:** `Station` coordinates stateful durable processes. Connectors record authorized external attempts and outcomes, preserving the distinction between replaying history and dispatching an effect.
 
-![Transit Three-Plane Architecture](../static/img/architecture/three-plane-architecture.jpg)
+[![Transit three-plane architecture: control and policy govern direct data and durable processes separately; public interfaces reach each plane through its owning operations.](../static/img/architecture/three-plane-architecture.svg)](../static/img/architecture/three-plane-architecture.svg)
+
+SQL, CLI, SDKs and protocol gateways are entry points to these operations. A gateway does not create a separate policy authority, and data requests need not pass through a process mailbox. The [architecture reference](../reference/architecture.md) explains the owners and boundaries; the [capability map](../reference/data-model.md#declarations-and-current-interfaces) identifies the operations available for each data kind.
 
 Start with the data your application needs: its logical schema, physical encoding and collation, how it changes, what computations derive from it, and which policies govern its use. The [data model](../reference/data-model.md) connects these concerns to their supported interfaces, and [Internals](../internals/README.md) formalizes the underlying storage, query and execution mechanisms. The [local quickstart](quickstart.md) takes you from an empty installation to a Table you define, query and evolve through the console.
 

@@ -1,0 +1,288 @@
+.transit-home {
+  --transit-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  overflow: clip;
+}
+.transit-hero,
+.refraction-story,
+.transit-directory {
+  width: min(1280px, calc(100% - 6rem));
+  margin-inline: auto;
+}
+.transit-kicker {
+  color: var(--ifm-color-primary);
+  font: 500 0.72rem/1.5 var(--ifm-font-family-monospace);
+  letter-spacing: 0.12em;
+}
+.transit-hero-copy {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  column-gap: 7%;
+  padding: 5rem 0 2.5rem;
+  align-items: end;
+}
+.transit-hero-copy > .transit-kicker {
+  grid-column: 1 / -1;
+  margin-bottom: 1.5rem;
+}
+.transit-hero h1,
+.refraction-chapter h2,
+.transit-directory h2 {
+  font-family: var(--transit-serif);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+.transit-hero h1 {
+  font-size: clamp(3.6rem, 6.7vw, 6.25rem);
+  margin: 0;
+}
+.transit-hero-introduction > p:first-child {
+  font-size: 1.12rem;
+  line-height: 1.7;
+  max-width: 34rem;
+  margin-bottom: 0.7rem;
+}
+.transit-implementation {
+  color: var(--docs-muted);
+  font-size: 0.88rem;
+}
+.transit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  margin-top: 1.8rem;
+}
+.transit-actions .button {
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.85rem 1.1rem;
+}
+.transit-actions .button span {
+  margin-left: 0.8rem;
+}
+.transit-text-link {
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+.transit-text-link span {
+  margin-left: 0.35rem;
+}
+.transit-hero-art {
+  margin: 0 -3rem;
+}
+.transit-hero-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.transit-hero-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--docs-line);
+  padding: 1.1rem 0;
+  color: var(--docs-muted);
+  font-size: 0.75rem;
+}
+.transit-hero-foot a {
+  color: var(--ifm-font-color-base);
+}
+.transit-hero-foot a span {
+  margin-left: 1rem;
+}
+.refraction-story {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr;
+  column-gap: 4%;
+  margin-top: 4rem;
+}
+.refraction-visual {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  padding-top: 3rem;
+}
+.refraction-narrative {
+  grid-column: 1;
+  grid-row: 1;
+}
+.refraction-chapter {
+  padding: 4rem 0;
+}
+.refraction-chapter h2 {
+  font-size: clamp(2.4rem, 3.5vw, 3.4rem);
+  margin: 1.4rem 0 1.6rem;
+}
+.refraction-chapter > p:not(.transit-kicker) {
+  font-size: 0.98rem;
+  color: var(--docs-muted);
+  max-width: 26rem;
+}
+.refraction-chapter .transit-text-link {
+  display: inline-block;
+  margin-top: 1rem;
+}
+.refraction-window {
+  overflow: hidden;
+}
+.refraction-artwork {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.transit-directory {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr;
+  gap: 4%;
+  padding: 6rem 0 8rem;
+  border-top: 1px solid var(--docs-line);
+  scroll-margin-top: 5rem;
+}
+.transit-directory h2 {
+  font-size: clamp(2.4rem, 3.5vw, 3.4rem);
+  margin: 1.4rem 0;
+}
+.transit-directory-heading > p:not(.transit-kicker) {
+  max-width: 23rem;
+  color: var(--docs-muted);
+}
+.transit-directory-heading .transit-text-link {
+  display: inline-block;
+  margin-top: 1rem;
+}
+.transit-chapters {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.transit-chapters li {
+  border-top: 1px solid var(--docs-line);
+}
+.transit-chapters li:last-child {
+  border-bottom: 1px solid var(--docs-line);
+}
+.transit-chapters a {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 1.25rem 0.5rem;
+  color: var(--ifm-font-color-base);
+}
+.transit-chapters a:hover {
+  text-decoration: none;
+  background: var(--docs-panel);
+}
+.transit-chapters a:hover h3,
+.transit-chapter-arrow {
+  color: var(--ifm-color-primary);
+}
+.transit-chapter-number {
+  font: 0.72rem/1.5 var(--ifm-font-family-monospace);
+  color: var(--docs-muted);
+}
+.transit-chapters h3 {
+  font-size: 1.05rem;
+  font-weight: 500;
+  margin: 0 0 0.4rem;
+}
+.transit-chapters p {
+  font-size: 0.82rem;
+  color: var(--docs-muted);
+  margin: 0;
+}
+@media (min-width: 997px) and (prefers-reduced-motion: no-preference) {
+  .refraction-story[data-motion="enabled"] .refraction-visual {
+    position: sticky;
+    top: calc(var(--ifm-navbar-height) + 12vh);
+  }
+  .refraction-story[data-motion="enabled"] .refraction-chapter {
+    min-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .refraction-story[data-motion="enabled"] .refraction-window {
+    max-height: 70vh;
+  }
+  .refraction-story[data-motion="enabled"] .refraction-artwork {
+    transform: translateY(var(--scene-shift, 0px));
+  }
+}
+@media (max-width: 996px) {
+  .transit-hero,
+  .refraction-story,
+  .transit-directory {
+    width: calc(100% - 3rem);
+  }
+  .transit-hero-copy {
+    gap: 0;
+    grid-template-columns: 1fr;
+    padding-top: 3rem;
+  }
+  .transit-hero-introduction {
+    margin-top: 1.8rem;
+  }
+  .transit-hero-art {
+    margin-inline: -1.5rem;
+  }
+  .refraction-story {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 1rem;
+  }
+  .refraction-visual {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1rem 0 3rem;
+  }
+  .refraction-narrative {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+  .refraction-chapter {
+    padding: 1rem 0 4rem;
+  }
+  .refraction-chapter h2 {
+    font-size: 2rem;
+  }
+  .transit-directory {
+    padding-block: 4rem;
+  }
+}
+@media (max-width: 640px) {
+  .transit-hero h1 {
+    font-size: clamp(3.2rem, 13vw, 4.5rem);
+  }
+  .transit-hero-introduction > p:first-child {
+    font-size: 1rem;
+  }
+  .transit-hero-foot {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .refraction-narrative,
+  .transit-directory {
+    display: block;
+  }
+  .refraction-chapter {
+    padding-block: 2.5rem;
+    border-top: 1px solid var(--docs-line);
+  }
+  .refraction-chapter h2 {
+    font-size: 2.5rem;
+  }
+  .transit-chapters {
+    margin-top: 2.5rem;
+  }
+  .transit-chapters a {
+    grid-template-columns: 1.5rem 1fr auto;
+    gap: 0.6rem;
+  }
+}

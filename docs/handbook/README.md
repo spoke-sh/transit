@@ -122,6 +122,43 @@ external service, API key or analytics. Restart the dev server after editing the
 catalog, API descriptions or search-index content; ordinary Markdown pages hot
 reload, but the index is built when configuration loads.
 
+## Visual theme and homepage
+
+The Refraction theme extends Docusaurus classic within this site.
+[`src/css/custom.css`](src/css/custom.css) owns shared paper/graphite/vermilion
+colors, dark-mode equivalents, typography, focus and documentation navigation
+styles. Use the theme's stable classes and Infima variables; do not target
+hashed upstream CSS-module names. Reading pages retain the existing sidebar,
+breadcrumbs, table of contents, search and source routes.
+
+[`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage and
+imports the selected [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
+from its existing owner. Docusaurus fingerprints the image with the page's assets;
+its URL follows the configured publication base path. The root README continues
+to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
+homepage layout and visual layers.
+
+[`RefractionStory`](src/components/RefractionStory.tsx) presents a
+[portrait companion](../design/handbook-theme/images/d2-vertical-refraction.jpg)
+to the original artwork. Graphite currents flow downward into overlapping terrain
+and translucent surfaces, with depth carried by the illustration itself.
+On desktop with no reduced-motion preference, a sticky viewport travels vertically
+through the portrait in response to native scrolling. The travel distance comes
+from the rendered image and viewport heights, so the first and last positions
+stay within the artwork. Updates use a passive scroll listener and a single pending animation
+frame while the scene is visible; cleanup removes listeners and pending work.
+There is no continuous animation loop or animation-library dependency.
+
+Narrow layouts and reduced-motion preference show the complete static portrait. The
+server-rendered page also provides all narrative and handbook links without
+JavaScript. Motion never gates navigation or access to content. Artwork describes
+a visual metaphor, not execution state or additional runtime guarantees.
+
+For structural changes beyond CSS, wrap the specific Docusaurus theme component
+in `src/theme/` before considering a larger theme replacement. Keep the shared
+Markdown sources in CommonMark mode; custom React pages can host richer graphics
+without changing the handbook's content format.
+
 ## Validation and hosting
 
 `just transit-docs::check` runs Vite+ lint/format, strict TypeScript, reference/link
@@ -140,6 +177,8 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
+It checks homepage scroll motion, reduced-motion and no-JavaScript navigation,
+and the introduction’s vector architecture figure.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
 It follows the top-level interface sections into executable SELECT, grammar-only
