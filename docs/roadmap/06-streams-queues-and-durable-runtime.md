@@ -406,7 +406,9 @@ The current progress slice delivers:
   and replay release them, then preserves current reads after reclamation. The
   installed signed-caller schedule also passes: new reads converge to compacted
   rows while old read pins and original producer outcomes survive SIGKILL and
-  restart. Full clean-lane evidence remains open.
+  restart. The committed Stream slice also passes all 28 tasks in the
+  [clean core lane](../history/qualification/catalog.md#clean-core-qualification-of-the-stream-maintenance-slice--2026-10-30).
+  Final common-revision qualification with subsequent Queue work remains open.
 - R4 private candidate transitions and paged Queue indexes now cover FIFO heads,
   eligibility, exact lease metadata, retries and blocked destinations. Immutable
   claim-selection artifacts preserve original leases and placement cuts. Their

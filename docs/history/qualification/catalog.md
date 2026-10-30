@@ -9,6 +9,27 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Clean core qualification of the Stream maintenance slice — 2026-10-30
+
+Committed source `f5c7cc0861d5b45b13d37d1c0d6e01438b8d40d7` passes
+`just ci clean --lane core` in a fresh checkout with no inherited workspace
+build outputs. All 28 tasks complete successfully in 5,293.93 seconds, including
+native component/storage collection checks, 43 standalone packages, Zig SDK and
+runtime distribution boundaries, client ABI, Station, disk recovery, service,
+authorization, runtime upgrade, caller, inspection and state schedules.
+
+The execution log is `/var/tmp/transit-stream-clean-core-sparse.log`. Completion,
+source, toolchain and per-task evidence are retained in
+`/var/tmp/transit-m6-qualification-65f9eba22/.cache/ci/clean/f5c7cc0861d5-transit-ci-isdi8jnl/`;
+`core.meta.json` records `dirty: false`, `completed: true` and 28 results.
+The shared definition is
+`342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d`.
+
+This qualifies the committed Stream maintenance/rewrite slice and its corrected
+derived fixtures. It does not qualify the later Queue implementation, all other
+clean lanes, or complete Milestone 6. The earlier failed clean attempts remain
+failure evidence; they are not reclassified by this successful run.
+
 ## Fenced Queue settlements and bounded expiry — 2026-10-30
 
 `ac52c941d` passes the combined Queue and Stream partition suites, the focused
