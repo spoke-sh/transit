@@ -60,6 +60,21 @@ ROLLBACK and named savepoint controls. Other isolation levels, chaining, nested
 transactions and implicit commits are excluded. See
 [transactions](../../docs/handbook/reference/sql/transactions.md).
 
+## Capability ledger
+
+[standards-ledger.json](standards-ledger.json) is the neutral owner of the
+capability inventory. Each entry records its public parse, lowering, execution,
+recovery and transport scope separately. An implemented entry covers only its
+stated profile and deviations; it does not certify an entire ISO feature or
+promote a standalone helper to SQL support. Physical-codec entries describe
+typed TableSchema admission; SQL `ENCODING` remains reference-only.
+
+`tests/query/logical/standards_ledger.py --write` regenerates the ledger digest and
+its Zig projection, `StandardsLedgerData.zig`. The check compares every field,
+including lifecycle states, dependencies and fixture paths. This is a consistency
+check. Actual compiler tests and installed SQL session tests establish behavior;
+file presence and fixture regeneration do not establish execution or recovery.
+
 ## Reproducible reference checks
 
 From the pinned development shell:

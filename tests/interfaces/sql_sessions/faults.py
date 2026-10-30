@@ -23,6 +23,7 @@ class Faults:
         self.before_pin_once = None
         self.lose_pin_conflict_once = False
         self.record_pins = False
+        self.explain_actions = None
         self.pin_attempts = []
         self.pin_states = []
         self.fail_coordinator = None
@@ -47,7 +48,16 @@ class Faults:
                 query = envelope.get('kind', {})
                 table = request.get('action', {}) if self.path == '/table/v1' else {}
                 before_pin = None
+                explain_failure = False
                 with owner.lock:
+                    if owner.explain_actions is not None and table:
+                        # Count action names only. Any data read or acquisition
+                        # fails before forwarding, so a successful EXPLAIN cannot
+                        # hide a release-after-pin or eager scan.
+                        for name in table:
+                            owner.explain_actions[name] = owner.explain_actions.get(name, 0) + 1
+                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress') for name in table)
+
                     if 'pin' in table:
                         before_pin, owner.before_pin_once = owner.before_pin_once, None
                         if owner.record_pins:
@@ -84,7 +94,7 @@ class Faults:
                 metadata_failure = owner.fail_once and 'lookup' in table
                 acquisition_failure = owner.fail_open and 'pin' in table
                 snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
-                if (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and request.get('connection', {}).get('principal') == owner.fail_coordinator and 'inspect' in table.get('client_progress', {})):
+                if explain_failure or (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and request.get('connection', {}).get('principal') == owner.fail_coordinator and 'inspect' in table.get('client_progress', {})):
                     if source_failure:
                         owner.fail_source_once = None
                     if result_failure:
@@ -164,6 +174,17 @@ class Faults:
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
+
+    @contextmanager
+    def metadata_only(self):
+        with self.lock:
+            assert self.explain_actions is None
+            actions = self.explain_actions = {}
+        try:
+            yield actions
+        finally:
+            with self.lock:
+                self.explain_actions = None
 
     def arm_settings(self, stage, code='HttpCapacity', *, count=1, after=False):
         with self.lock:

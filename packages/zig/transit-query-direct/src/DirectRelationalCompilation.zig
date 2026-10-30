@@ -15,9 +15,14 @@ positions: [r.max_sources]q.protocol.DataLifecycle.Position = undefined,
 schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
 sources: [r.max_sources]r.Source = undefined,
 plan: r.Plan,
+access: c.TableAuthority.Access = .read,
 pub const resident_base = @sizeOf(Self) + r.max_sources * f.TableSchema.max_bytes;
 
 pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
+    return prepareAccess(allocator, clients, namespace, text, lifetime, options, location, .read);
+}
+pub fn prepareAccess(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location, access: c.TableAuthority.Access) !*Self {
+    if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     if (clients.len == 0) return error.InvalidRelationalSources;
     for (clients) |client| try options.requireClient(client);
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
@@ -25,6 +30,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClien
     const self = try allocator.create(Self);
     errdefer allocator.destroy(self);
     self.parent = allocator;
+    self.access = .read;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
@@ -38,7 +44,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClien
         const metadata = response.value.result.lookup orelse return error.TableNotFound;
         self.bindings[i] = try c.DirectTableBinding.init(client.connection, metadata);
         self.positions[i] = metadata.position;
-        _ = try self.bindings[i].require(client, .read);
+        _ = try self.bindings[i].require(client, access);
         const bytes = try metadata.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
         defer self.memory.allocator().free(bytes);
         self.schemas[i] = try f.TableSchema.decode(self.memory.allocator(), bytes);
@@ -46,6 +52,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClien
         const connection = client.connection;
         self.sources[i] = .{ .alias = target.alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = self.schemas[i].?.schema };
     }
+    self.access = access;
     self.plan = try self.syntax.bind(self.sources[0..clients.len], lifetime, options.budgets, location);
     try self.validate(clients[0]);
     return self;
@@ -54,7 +61,7 @@ pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
     try self.validateBindings(client);
     var checks: [r.max_sources]c.DirectTableProtocol.ReadCheck = undefined;
     for (self.bindings[0..self.syntax.targets.len], 0..) |binding, i| {
-        checks[i] = .{ .access = .{ .namespace = binding.namespace, .target = binding.interpretation.interpretation, .access = .read } };
+        checks[i] = .{ .access = .{ .namespace = binding.namespace, .target = binding.interpretation.interpretation, .access = self.access } };
     }
     const response = try client.call(.{ .check_set = checks[0..self.syntax.targets.len] });
     defer response.deinit();
@@ -78,6 +85,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
     const self = try allocator.create(Self);
     errdefer allocator.destroy(self);
     self.parent = allocator;
+    self.access = .read;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);

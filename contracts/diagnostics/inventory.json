@@ -7266,13 +7266,14 @@
     "packages/zig/transit-catalog/src/HistoricalCatalog.zig": {
       "errors": {
         "AuthorizationRevokedMidStream": 1,
-        "BrokenManifestDigestChain": 2,
+        "BrokenManifestDigestChain": 3,
         "CannotExpireActiveHead": 1,
         "ColumnReferencedByPropertyGraph": 1,
         "ColumnReferencedByView": 1,
-        "ConditionalBranchHeadConflict": 1,
+        "ConditionalBranchHeadConflict": 2,
         "DuplicateHistoricalTableName": 1,
         "DuplicateHistoricalTableObject": 1,
+        "DuplicateSchemaInitialValue": 1,
         "EmptyHistoricalTimeline": 1,
         "ForeignKeyTargetNotFound": 1,
         "ForeignKeyTargetRevisionMismatch": 1,
@@ -7280,11 +7281,13 @@
         "ForeignTableSchemaIdentityMismatch": 1,
         "HistoricalBatchBufferTooSmall": 1,
         "HistoricalSchemaIdentityMismatch": 1,
+        "HistoricalSegmentBeyondCut": 1,
         "HistoricalSegmentObjectMismatch": 1,
         "HistoricalSnapshotExpired": 2,
         "HistoricalTableNotFound": 1,
         "IncompatibleHistoricalObjectLineage": 1,
         "IncompatibleMainframeCodecType": 4,
+        "IncompatibleSchemaProjection": 1,
         "InvalidForeignTableDescriptor": 2,
         "InvalidHistoricalSegment": 1,
         "InvalidHistoricalSegmentRowArity": 1,
@@ -7292,13 +7295,12 @@
         "InvalidHistoricalTableName": 1,
         "InvalidMainframeRecordLayout": 2,
         "InvalidManifestCut": 1,
-        "InvalidNextManifestVersion": 1,
+        "InvalidNextManifestVersion": 2,
         "InvalidPolicyEpoch": 1,
         "InvalidPropertyGraphDescriptor": 2,
         "InvalidPropertyGraphEdgeTable": 1,
         "InvalidPropertyGraphVertexTable": 1,
         "InvalidRetentionRegression": 1,
-        "InvalidTzdbVersion": 1,
         "InvalidViewDescriptor": 2,
         "MainframeEbcdicRequiresCollationProfile": 1,
         "MetadataPermissionDenied": 1,
@@ -7315,11 +7317,12 @@
         "PropertyGraphRequiresVertexTables": 1,
         "PropertyGraphVertexRevisionMismatch": 1,
         "PropertyGraphVertexTableNotFound": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
         "RowSelectPermissionDenied": 1,
         "SecurityDefinerViewsUnsupported": 1,
         "SqlMedScanDeferredToM18": 1,
         "SqlPgqExecutionDeferredToM18": 1,
-        "TooManyHistoricalSegments": 1,
         "UnknownBranchName": 1,
         "UnknownColumn": 1,
         "UnknownManifestVersion": 2,
@@ -7366,6 +7369,7 @@
         "admitHistoricalQuery()": "<inferred>",
         "compareAtomsWithProfile()": "<inferred>",
         "fetchNextHistoricalBatch()": "<inferred>",
+        "filterInitialsForSegment()": "<inferred>",
         "rowMatchesHistoricalFilter()": "<inferred>",
         "shouldPruneSegmentByZoneMap()": "<inferred>",
         "validateChangeAgainstMultiModel()": "<inferred>",
@@ -7373,7 +7377,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 59,
         "catch": 1
       },
       "imports": [
@@ -11076,7 +11080,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 69,
+        "try": 70,
         "catch": 0
       },
       "imports": [
@@ -11173,11 +11177,7 @@
         "InvalidDecimalParameters": 5,
         "InvalidSpatialSnapGrid": 1,
         "InvalidSpatialSrid": 1,
-        "InvalidSpatialUnitScale": 1,
-        "InvalidTimeBucket": 1,
-        "InvalidTzdbVersion": 1,
-        "TimestampOverflow": 1,
-        "UnknownTimezone": 1
+        "InvalidSpatialUnitScale": 1
       },
       "outcomes": {
         "RoundingMode": [
@@ -11207,24 +11207,21 @@
       "error_returns": {
         "DecimalValue.validate()": "<inferred>",
         "SpatialDescriptor.validate()": "<inferred>",
-        "TzdbVersion.init()": "<inferred>",
-        "TzdbVersion.truncateLocalMicros()": "<inferred>",
-        "TzdbVersion.utcToLocalMicros()": "<inferred>",
         "add()": "<inferred>",
         "checkPrecisionBounds()": "<inferred>",
         "div()": "<inferred>",
         "divideAndRound()": "<inferred>",
         "mul()": "<inferred>",
         "rescale()": "<inferred>",
-        "resolveZoneOffsetSeconds()": "<inferred>",
         "sub()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
-        "catch": 1
+        "try": 16,
+        "catch": 0
       },
       "imports": [
+        "Timezone.zig",
         "Types.zig",
         "std"
       ]
@@ -12402,7 +12399,8 @@
           "snapshot_finite",
           "append_only_stream",
           "retractable_zset",
-          "atomic_mutation"
+          "atomic_mutation",
+          "recomputed_delta"
         ],
         "CollationRule": [
           "none",
@@ -14535,7 +14533,22 @@
       "imports": [
         "Collation.zig",
         "PhysicalCodecs.zig",
+        "StandardsLedgerData.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/StandardsLedgerData.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "StandardsLedger.zig"
       ]
     },
     "packages/zig/transit-fuze/src/TDel.zig": {
@@ -15414,6 +15427,46 @@
         "TableRow.zig",
         "TableSchema.zig",
         "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/Timezone.zig": {
+      "errors": {
+        "EmptyTimezoneDatabase": 1,
+        "InvalidTimeBucket": 1,
+        "InvalidTimezoneData": 12,
+        "InvalidTimezoneName": 1,
+        "InvalidTzdbVersion": 1,
+        "LeapSecondTimezoneUnsupported": 1,
+        "TimestampOverflow": 2,
+        "TimezoneCoverageUnavailable": 11,
+        "TimezoneDataTooLarge": 1,
+        "TimezoneDefinitionMismatch": 1,
+        "UnknownTimezone": 1,
+        "UnsortedTimezoneDatabase": 1,
+        "UnsupportedTimezoneFormat": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Database.init()": "<inferred>",
+        "Database.requireVersion()": "<inferred>",
+        "Database.truncateLocalMicros()": "<inferred>",
+        "Database.utcToLocalMicros()": "<inferred>",
+        "Header.read()": "<inferred>",
+        "Version.init()": "<inferred>",
+        "Version.validate()": "<inferred>",
+        "Zone.fixedFooterOffset()": "<inferred>",
+        "Zone.init()": "<inferred>",
+        "Zone.layout()": "<inferred>",
+        "Zone.offsetSeconds()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 3
+      },
+      "imports": [
         "std"
       ]
     },
@@ -16504,6 +16557,7 @@
         "TableSchemaProjection.zig",
         "TableSelect.zig",
         "TableWitness.zig",
+        "Timezone.zig",
         "Types.zig",
         "Unified.zig",
         "VectorMetric.zig",
@@ -19532,6 +19586,7 @@
     "packages/zig/transit-query-direct/src/DirectRelationalCompilation.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
+        "InvalidQueryAccess": 1,
         "InvalidQueryBudget": 2,
         "InvalidRelationalSources": 4,
         "RelationalCallerChanged": 2,
@@ -19544,6 +19599,7 @@
       "error_returns": {
         "fromRetained()": "<inferred>",
         "prepare()": "<inferred>",
+        "prepareAccess()": "<inferred>",
         "validate()": "<inferred>",
         "validateBindings()": "<inferred>"
       },
@@ -19639,6 +19695,7 @@
     "packages/zig/transit-query-direct/src/DirectTablePrepared.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
+        "InvalidQueryAccess": 1,
         "TableDefinitionChanged": 1,
         "TableNotFound": 1
       },
@@ -19646,11 +19703,12 @@
       "error_sets": {},
       "error_returns": {
         "instantiate()": "<inferred>",
-        "prepare()": "<inferred>"
+        "prepare()": "<inferred>",
+        "prepareAccess()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -26219,7 +26277,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 52,
         "catch": 0
       },
       "imports": [
@@ -26827,7 +26885,7 @@
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
         "InvalidCatalogIdentity": 1,
-        "UnsupportedGatewayStatement": 3,
+        "UnsupportedGatewayStatement": 4,
         "WireParameterCountMismatch": 3
       },
       "outcomes": {
@@ -26842,7 +26900,8 @@
         ],
         "Profile": [
           "native",
-          "wire"
+          "wire",
+          "inspection"
         ],
         "Write": [
           "table",

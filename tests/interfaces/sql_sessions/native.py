@@ -159,7 +159,7 @@ class Client:
         self.http.close()
 
 
-def run(root, port, postgres, restart, console, authorize, select_source, source_pin, sources=None, faults=None, service_pid=None):
+def run(root, port, postgres, restart, console, authorize, select_source, source_pin, sources=None, faults=None, service_pid=None, authorize_reads=None):
     first, second = Client(root, port).open(), Client(root, port).open()
     rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected
@@ -272,11 +272,34 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert len(desc['observation']['metadata']['definitions']) == 1
     assert desc['complete'] and desc['completion']['rows'] == 2
     first.call(dict(close_result=desc['cursor']))
-    explain = first.execute('EXPLAIN SELECT id FROM native_sessions')['batch']
-    assert explain['rows']
-    assert explain['observation']['metadata']['kind'] == 'plan'
-    assert explain['complete'] and explain['completion']['rows'] == 1
-    first.call(dict(close_result=explain['cursor']))
+    from interfaces.sql_sessions.storage import text
+    if authorize_reads is not None:
+        authorize_reads(False)
+    try:
+        with faults.metadata_only() if faults is not None else nullcontext() as actions:
+            for sql in ('EXPLAIN SELECT id FROM native_sessions',
+                        'EXPLAIN SELECT a.id FROM native_sessions AS a JOIN native_sessions AS b ON a.id = b.id'):
+                explain = first.execute(sql)['batch']
+                assert explain['observation']['metadata']['kind'] == 'plan'
+                assert explain['complete'] and explain['completion']['rows'] == 1
+                plan = json.loads(text(explain['rows'][0][0]))
+                assert plan['executed'] is False and plan['basis'] is None
+                traits = plan['traits']
+                assert traits['target']['effects']['read'] is True
+                assert not any(traits['explain_effects'].values())
+                assert traits['explain_change_mode'] == 'explanation_zero_work'
+                assert not any(traits['explain_work_bound'].values())
+                assert first.call(dict(fetch=dict(cursor=explain['cursor'], batch=explain['batch'])))['batch'] == explain
+                first.call(dict(close_result=explain['cursor']))
+            if actions is not None:
+                assert actions.get('lookup', 0) > 0 and actions.get('check', 0) > 0, actions
+                assert set(actions) <= {'lookup', 'check', 'check_set', 'client_progress'}, actions
+        print('EXPLAIN: single/join typed traits, repeated disclosure and zero pin/data actions passed.', flush=True)
+        if authorize_reads is not None:
+            first.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AccessDenied')
+    finally:
+        if authorize_reads is not None:
+            authorize_reads(True)
     with ThreadPoolExecutor(max_workers=2) as pool:
         replies = list(pool.map(lambda c: c.concurrent_read(), (first, second)))
     for client, reply in zip((first, second), replies):

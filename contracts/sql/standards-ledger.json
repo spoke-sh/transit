@@ -21,7 +21,8 @@
       "snapshot_finite",
       "append_only_stream",
       "retractable_zset",
-      "atomic_mutation"
+      "atomic_mutation",
+      "recomputed_delta"
     ],
     "explain_invariants": {
       "acquires_data_pins": false,
@@ -52,7 +53,7 @@
       "sql_spelling": "ASCII_CI",
       "runtime_tag": "ascii_ci",
       "pad_attribute": "NO_PAD",
-      "repertoire": "UTF-8 with ASCII A-Z folded to a-z and deterministic raw-byte tiebreaker",
+      "repertoire": "UTF-8 with ASCII A-Z folded to a-z; equal folded strings compare equal",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/Collation.zig",
@@ -86,16 +87,16 @@
       "sql_spelling": "EBCDIC_037_PAD",
       "runtime_tag": null,
       "pad_attribute": "PAD_SPACE",
-      "repertoire": "IBM CP037 (US/Canada EBCDIC) with trailing space padding normalization",
+      "repertoire": "Standalone IBM CP037 PAD SPACE helper; not a TableSchema or SQL collation",
       "normalized_key_order_preserving": true,
-      "zone_map_pruning_sound": true,
+      "zone_map_pruning_sound": false,
       "owner": "packages/zig/transit-fuze/src/Collation.zig",
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "staged",
-        "recover": "staged",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -105,14 +106,14 @@
       "pad_attribute": "NO_PAD",
       "repertoire": "IBM CP1047 (z/OS UNIX System Services / Open Systems EBCDIC)",
       "normalized_key_order_preserving": true,
-      "zone_map_pruning_sound": true,
+      "zone_map_pruning_sound": false,
       "owner": "packages/zig/transit-fuze/src/Collation.zig",
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "staged",
-        "recover": "staged",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -151,9 +152,10 @@
         "uuid",
         "utf8",
         "binary",
-        "range",
-        "multirange",
-        "vector"
+        "json",
+        "array",
+        "map",
+        "struct"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
@@ -172,16 +174,13 @@
       "logical_families": [
         "boolean",
         "int8..int64",
-        "uint8..uint64",
-        "date",
-        "time",
-        "timestamp"
+        "uint8..uint64"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -193,11 +192,15 @@
       "encoding": "rle",
       "logical_families": [
         "boolean",
-        "int8..int64",
-        "uint8..uint64",
+        "int8..int128",
+        "uint8..uint128",
+        "float32",
+        "float64",
+        "decimal",
         "date",
         "time",
         "timestamp",
+        "uuid",
         "utf8",
         "binary"
       ],
@@ -205,7 +208,7 @@
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -216,17 +219,24 @@
       "id": "DICTIONARY",
       "encoding": "dictionary",
       "logical_families": [
+        "boolean",
+        "int8..int128",
+        "uint8..uint128",
+        "float32",
+        "float64",
+        "decimal",
+        "date",
+        "time",
+        "timestamp",
+        "uuid",
         "utf8",
-        "binary",
-        "int64",
-        "uint64",
-        "uuid"
+        "binary"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -244,7 +254,7 @@
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -255,16 +265,13 @@
       "id": "COMP",
       "encoding": "comp",
       "logical_families": [
-        "int16",
-        "int32",
-        "int64",
-        "decimal"
+        "int8..int64"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -275,15 +282,14 @@
       "id": "COMP_3",
       "encoding": "comp_3",
       "logical_families": [
-        "int64",
-        "int128",
-        "decimal"
+        "int8..int64",
+        "decimal(precision <= 31)"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -294,15 +300,14 @@
       "id": "ZONED",
       "encoding": "zoned",
       "logical_families": [
-        "int64",
-        "int128",
-        "decimal"
+        "int8..int64",
+        "decimal(precision <= 31)"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -314,14 +319,13 @@
       "encoding": "ibm_hfp",
       "logical_families": [
         "float32",
-        "float64",
-        "decimal"
+        "float64"
       ],
       "invalid_payload_cell_state": "type_error",
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -338,7 +342,7 @@
       "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
       "states": {
-        "parse": "implemented",
+        "parse": "reference_only",
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
@@ -356,7 +360,7 @@
       "dependencies": [
         "UCS_BASIC"
       ],
-      "deviations": "No implicit lossy casts; checked int64/decimal overflow and explicit kappa_numeric rounding rules.",
+      "deviations": "Selected scalar types only. Stored DECIMAL does not imply SQL decimal arithmetic or a manifest-bound rounding descriptor; standalone helpers are separately tested.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/parameters.json"
@@ -378,7 +382,7 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Separates O(1) lazy metadata/projection ALTER TABLE evolutions from online phased physical rewrites.",
+      "deviations": "Selected CREATE/ALTER/DROP operations only. Online physical rewrites and the standalone evolution classifier are not integrated.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json",
         "contracts/sql/corpus/mutations.json"
@@ -396,20 +400,20 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §11.6-11.9",
       "title": "Constraint management: deterministic row-level CHECK constraints",
-      "owner": "packages/zig/transit-fuze/src/TableSchema.zig",
+      "owner": "packages/zig/transit-fuze/src/TableConstraints.zig",
       "dependencies": [
         "F031-F034"
       ],
-      "deviations": "Evaluated under Transit's 5-state cell algebra: true and null pass; false, missing, type_error, and conflict reject.",
+      "deviations": "Standalone CHECK descriptor/evaluator only. TableDdl rejects CHECK; schemas, writes and recovery do not carry these constraints.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -417,20 +421,20 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §11.8",
       "title": "Declarative referential integrity: FOREIGN KEY ... REFERENCES with RESTRICT, NO ACTION, CASCADE, SET NULL",
-      "owner": "packages/zig/transit-catalog/src/DirectCatalogDependencies.zig",
+      "owner": "packages/zig/transit-fuze/src/TableConstraints.zig",
       "dependencies": [
         "F031-F034"
       ],
-      "deviations": "Binds stable (Object, DefinitionId, ColumnId) edges in DirectCatalogDependencies; gates runtime write enforcement on Milestone 11 index-backed enforcer.",
+      "deviations": "Standalone foreign-key descriptors only. TableDdl rejects FOREIGN KEY/REFERENCES; no durable dependency or write-enforcement integration.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -459,23 +463,23 @@
       "standard": "transit_extension_v1",
       "edition_clause": "TRANSIT_SQL_V1 §AS-OF",
       "title": "Manifest-backed historical queries (AS OF SNAPSHOT, AS OF MANIFEST, FOR SYSTEM_TIME AS OF) and PROJECTING TO",
-      "owner": "packages/zig/transit-catalog/src/DirectCatalog.zig",
+      "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
       "dependencies": [
         "F031-F034",
         "UCS_BASIC",
         "EBCDIC_037_NOPAD"
       ],
-      "deviations": "Binds immutable CatalogCut before name resolution while checking authorization against current policy_epoch.",
+      "deviations": "Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -487,16 +491,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Discrete domains canonicalize to half-open [lower, upper); MULTIRANGE stores sorted non-overlapping runs.",
+      "deviations": "Standalone interval helper. RANGE and MULTIRANGE are absent from current logical type/value/schema codecs and SQL execution.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -508,16 +512,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Stored as 64B-aligned unboxed SIMD slabs distinct from 5-state recursive ARRAY cells.",
+      "deviations": "Standalone vector metric helper. VECTOR is absent from current logical type/value/schema codecs, SQL lowering and storage slabs.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -525,21 +529,21 @@
       "standard": "iso_sql_2023_pgq",
       "edition_clause": "ISO/IEC 9075-16:2023 §11-14",
       "title": "SQL/PGQ CREATE PROPERTY GRAPH catalog descriptors and vertex/edge table bindings",
-      "owner": "packages/zig/transit-catalog/src/DirectCatalogRecords.zig",
+      "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
       "dependencies": [
         "F031-F034",
         "F492"
       ],
-      "deviations": "Catalog descriptors bind by (Object, DefinitionId, ColumnId); cyclic WCOJ and GRAPH_TABLE execution land in Milestone 18.",
+      "deviations": "Standalone property-graph descriptor validation. No SQL compiler, DirectCatalog persistence or graph execution.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "staged",
-        "recover": "staged",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -547,7 +551,7 @@
       "standard": "iso_sql_2023_med",
       "edition_clause": "ISO/IEC 9075-9:2023 §11",
       "title": "SQL/MED CREATE FOREIGN TABLE catalog descriptors and mainframe copybook codec bindings",
-      "owner": "packages/zig/transit-catalog/src/DirectCatalogRecords.zig",
+      "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
       "dependencies": [
         "COMP",
         "COMP_3",
@@ -555,16 +559,38 @@
         "IBM_HFP",
         "EBCDIC"
       ],
-      "deviations": "Binds immutable captured manifests and mainframe physical codecs; foreign scan execution lands in Milestone 18.",
+      "deviations": "Standalone foreign-table descriptor validation. No SQL compiler, DirectCatalog persistence or foreign scan execution.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      }
+    },
+    {
+      "id": "X006-EXPLAIN",
+      "standard": "transit_extension_v1",
+      "edition_clause": "TRANSIT_SQL_V1 §EXPLAIN",
+      "title": "Zero-work EXPLAIN with operator read/mutate/capture/dispatch effects, 5-state rules, and work bounds",
+      "owner": "packages/zig/transit-fuze/src/OperatorTraits.zig",
+      "dependencies": [
+        "E021-E051"
+      ],
+      "deviations": "Native direct Table SELECT explanation reports typed traits under metadata-inspection rights; no data pins or scans. Results are session-local and must be prepared again after replacement.",
+      "corpus_sources": [
+        "tests/interfaces/sql_sessions/native.py",
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ],
+      "states": {
         "parse": "implemented",
         "lower": "implemented",
-        "execute": "staged",
-        "recover": "staged",
-        "transport": "staged"
+        "execute": "implemented",
+        "recover": "rejected",
+        "transport": "implemented"
       }
     },
     {
@@ -613,27 +639,6 @@
         "execute": "implemented",
         "recover": "implemented",
         "transport": "staged"
-      }
-    },
-    {
-      "id": "X006-EXPLAIN",
-      "standard": "transit_extension_v1",
-      "edition_clause": "TRANSIT_SQL_V1 §EXPLAIN",
-      "title": "Zero-work EXPLAIN with operator read/mutate/capture/dispatch effects, 5-state rules, and work bounds",
-      "owner": "packages/zig/transit-fuze/src/OperatorTraits.zig",
-      "dependencies": [
-        "E021-E051"
-      ],
-      "deviations": "Guaranteed to acquire zero data pins, read zero .tseg segments, and mutate zero durable state.",
-      "corpus_sources": [
-        "contracts/sql/corpus/statements.json"
-      ],
-      "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "implemented"
       }
     },
     {
@@ -877,5 +882,6 @@
       }
     }
   ],
-  "sha256": "4669fbc1303c24669258030c6d16d9db1701c0732dd929cdb8dd35b01c249051"
+  "sha256": "2bff88d850b4027e4ba6d5e78b9484061e7fcc43366d3ec8a101e06405588e56",
+  "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures."
 }
