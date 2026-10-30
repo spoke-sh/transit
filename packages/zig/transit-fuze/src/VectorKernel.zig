@@ -217,7 +217,7 @@ fn Compare(comptime T: type, comptime op: finite.Comparison) type {
                 }
                 return;
             }
-            if (T == void and (self.kind == .utf8 or self.kind == .char or self.kind == .binary)) {
+            if (T == void and (self.kind == .utf8 or self.kind == .binary)) {
                 const GermanString = @import("GermanString.zig").GermanString;
                 const profile = Collation.Profile.fromCollation(self.collation);
                 const lit_bytes = self.literal.bytes;

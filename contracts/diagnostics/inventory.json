@@ -9794,6 +9794,46 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/HybridSearch.zig": {
+      "errors": {
+        "MissingStringArena": 1,
+        "PolicyEpochRevoked": 1,
+        "ScratchBufferTooSmall": 2,
+        "SnapshotDocCountMismatch": 1,
+        "SourceTextOutOfBounds": 1,
+        "VectorDimensionMismatch": 1,
+        "VectorSlabSizeMismatch": 1
+      },
+      "outcomes": {
+        "FusionMode": [
+          "rrf",
+          "linear"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "SnapshotBinding.verifyDisclosure()": "<inferred>",
+        "VectorSlab.validate()": "<inferred>",
+        "executeHybridSearch()": "<inferred>",
+        "scoreVectorSlabCandidates()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "GermanString.zig",
+        "SearchOracle.zig",
+        "TSearchSegment.zig",
+        "VectorMetric.zig",
+        "VectorizedSearch.zig",
+        "std",
+        "transit_bitmap",
+        "transit_memory"
+      ]
+    },
     "packages/zig/transit-fuze/src/IbmHfp.zig": {
       "errors": {
         "IbmHfpOverflow": 1,
@@ -12471,6 +12511,76 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/TSearchSegment.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidSearchSegment": 2,
+        "RequiredSearchIndexUnavailable": 1,
+        "SearchScratchExhausted": 12,
+        "SearchSegmentChecksumMismatch": 1,
+        "SearchSegmentRowLimitExceeded": 1,
+        "SearchSegmentTermLimitExceeded": 1
+      },
+      "outcomes": {
+        "AccessPathSelection": [
+          "index",
+          "scalar_oracle_fallback"
+        ],
+        "FallbackReason": [
+          "no_matching_column",
+          "index_not_ready",
+          "segmenter_digest_mismatch",
+          "collation_mismatch",
+          "positions_not_indexed"
+        ],
+        "IndexProfile": [
+          "block_max_bm25_v1",
+          "trigram_bitmap_v1",
+          "vector_ann_v1"
+        ],
+        "LifecycleState": [
+          "building",
+          "backfilling",
+          "catching_up",
+          "ready",
+          "failed",
+          "dropped"
+        ]
+      },
+      "error_sets": {
+        "<error>": [
+          "InvalidSearchSegment",
+          "IncompatibleDefinition",
+          "SearchSegmentChecksumMismatch",
+          "SearchSegmentRowLimitExceeded",
+          "SearchSegmentTermLimitExceeded",
+          "RequiredSearchIndexUnavailable",
+          "OutOfMemory"
+        ]
+      },
+      "error_returns": {
+        "Segment.build()": "Error",
+        "Segment.encodeHeaderEnvelope()": "Error",
+        "Segment.findTerm()": "Error",
+        "Segment.validateHeaderEnvelope()": "Error",
+        "selectSearchAccessPath()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 12
+      },
+      "imports": [
+        "Collation.zig",
+        "PerfectHash.zig",
+        "SearchOracle.zig",
+        "Types.zig",
+        "Values.zig",
+        "std",
+        "transit_bitmap",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/TSeg.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -14059,6 +14169,36 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/VectorizedSearch.zig": {
+      "errors": {
+        "InvalidSearchQuery": 2,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "SearchScratchExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "<error>": [
+          "InvalidSearchQuery",
+          "QueryTypeError",
+          "QueryConflict"
+        ]
+      },
+      "error_returns": {
+        "executeBlockMaxSearch()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "SearchOracle.zig",
+        "TSearchSegment.zig",
+        "std",
+        "transit_bitmap"
+      ]
+    },
     "packages/zig/transit-fuze/src/execute.zig": {
       "errors": {},
       "outcomes": {},
@@ -14159,6 +14299,7 @@
         "FileQuery.zig",
         "FileSource.zig",
         "GermanString.zig",
+        "HybridSearch.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
         "LogicalDisplay.zig",
@@ -14197,6 +14338,7 @@
         "SqlTypes.zig",
         "StandardsLedger.zig",
         "TDel.zig",
+        "TSearchSegment.zig",
         "TSeg.zig",
         "TSegReader.zig",
         "TableConstraints.zig",
@@ -14215,6 +14357,7 @@
         "Types.zig",
         "Unified.zig",
         "VectorMetric.zig",
+        "VectorizedSearch.zig",
         "execute.zig",
         "model.zig",
         "std",
