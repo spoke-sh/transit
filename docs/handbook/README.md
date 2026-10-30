@@ -138,10 +138,11 @@ its URL follows the configured publication base path. The root README continues
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
-[`RefractionStory`](src/components/RefractionStory.tsx) presents a
-[portrait companion](../design/handbook-theme/images/d2-vertical-refraction.jpg)
-to the original artwork. Graphite currents flow downward into overlapping terrain
-and translucent surfaces, with depth carried by the illustration itself.
+[`RefractionStory`](src/components/RefractionStory.tsx) imports the selected
+[lateral resonance portrait](../design/handbook-theme/images/d3-lateral-basin.jpg)
+directly from its design owner. Falling graphite waves widen sideways into
+overlapping resonance rings, connected by a vermilion thread. Translucent folds
+and shading carry the depth; the horizontal transformation is part of the artwork.
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
 
-import verticalRefraction from "../../../design/handbook-theme/images/d2-vertical-refraction.jpg";
+import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
 export default function RefractionStory(): ReactElement {
   const story = useRef<HTMLElement>(null);
@@ -66,8 +66,8 @@ export default function RefractionStory(): ReactElement {
           <img
             ref={artwork}
             className="refraction-artwork"
-            src={verticalRefraction}
-            alt="Vertical graphite currents unfold into overlapping terrain and translucent planes, traced by a vermilion thread."
+            src={lateralResonance}
+            alt="Vertical graphite waves widen sideways into overlapping resonance rings, joined by a vermilion thread."
             width={1024}
             height={1536}
             loading="lazy"
