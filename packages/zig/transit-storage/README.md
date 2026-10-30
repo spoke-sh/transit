@@ -209,6 +209,16 @@ The caller owns reusable chunk arrays and scratch; identical private transitions
 can be rederived without provider writes. Accepted scheduling, retention graph
 edges and background publication of merge progress are still integration work.
 
+`QueueSchedule` composes those artifacts in private scheduling roots. Full deltas
+seal into paged pending chunks; size-tiered runs merge through resumable frozen
+inputs, and a finite stale-entry sweep stops when its basis is unchanged. Reads
+check all possibly earlier sources under an explicit work budget, including
+both inputs of an unfinished merge. Budget exhaustion refuses instead of
+reporting an empty schedule. Pending cardinality remains on disk; a fixed fan-in
+array cannot limit accepted settlement. The accepted Queue WAL root, batched
+buffer persistence, native maintenance and retained graph are not yet migrated
+to this helper.
+
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch
 and tail slabs. Row and byte budgets apply across append batches, and current

@@ -1390,6 +1390,49 @@ identical output content and roots; `CandidateObjects` can derive them during
 replay without writing the underlying provider. These private merge operations
 are not yet wired into accepted Queue scheduling or maintenance.
 
+### Private scheduling source composition
+
+`QueueSchedule` composes an active buffer, paged pending chunks, paged merged
+runs and optional resumable merge work. Its scalar root records the active
+content/count, pending directory/count, level directory/count, merge state,
+next nonzero serial, finite-sweep state and an eight-unit pending/sweep counter.
+These fields are mandatory when serialized. It is a private storage helper;
+the accepted Queue root and native maintenance do not yet use it.
+
+Appending to a full 256-entry delta seals one chunk for each contiguous time
+bucket. Pending keys are the first `(time, offset, epoch)` triple followed by
+the serial, all big-endian `u64`; values are the 240-byte run descriptors.
+Pending cardinality has no resident fan-in array or fixed total bound. Staging
+still obeys the caller's private page budget and provider quotas. Intermediate
+buffer candidates are not published by this helper; the integrating owner must
+batch their persistence so per-event staging does not become per-event I/O.
+
+Merged-run keys contain a big-endian `u64` bucket and `u8` level from zero
+through 63; their values are exact logical-run roots. A collision merges two
+runs into the next level, with checked serial and level exhaustion. Pending
+chunks are filtered even when their initial level is empty. Readers continue to
+use both complete input runs while a merge is in progress; private output never
+hides their unprocessed suffix. New appends can extend the active/pending roots
+without changing those frozen inputs.
+
+Maintenance performs one pending promotion, bounded merge step or finite-sweep
+transition at a time. The sweep hashes the item/sidecar basis solely for change
+detection, advances a bucket/level cursor, and freezes the current basis for
+each individual merge. Its initial buffer cleanup examines at most 256 entries.
+Up to eight pending promotions alternate with a sweep transition when both have
+work; an active merge finishes through bounded steps first. A completed sweep
+with an unchanged basis and no pending work is idle. Changed data starts another
+pass, including entries inserted before a previous pass's cursor.
+
+Reads inspect active events, merge inputs, pending chunks and merged runs to
+prove the earliest matching event after an exclusive cursor. Directory steps,
+chunk decodes and candidate checks consume an explicit work budget. Immutable
+event bounds prune later sources and skip earlier time buckets. An unfinished
+search returns `QueueTimerReadBudget`, never an empty result or a partially
+qualified earliest event. Every decoded chunk is bounded; whole scheduling
+cardinality does not determine resident allocation. Matching uses the supplied
+current-state filter and provides no authority or settlement decision.
+
 ## Declared log initialization
 
 `LogDeclaration` stores a Stream or Queue schema independently of Station.

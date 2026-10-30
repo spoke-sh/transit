@@ -36,6 +36,7 @@ pub const QueueTimeRun = @import("QueueTimeRun.zig");
 pub const QueueTimeBuffer = @import("QueueTimeBuffer.zig");
 pub const QueueTimeDirectory = @import("QueueTimeDirectory.zig");
 pub const QueueTimeMerge = @import("QueueTimeMerge.zig");
+pub const QueueSchedule = @import("QueueSchedule.zig");
 pub const QueueSelection = @import("QueueSelection.zig");
 pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
@@ -87,6 +88,7 @@ test {
     _ = @import("queue_time_buffer_test.zig");
     _ = @import("queue_time_directory_test.zig");
     _ = @import("queue_time_merge_test.zig");
+    _ = @import("queue_schedule_test.zig");
     _ = @import("queue_index_test.zig");
     _ = @import("queue_partition_test.zig");
     _ = @import("queue_selection_test.zig");

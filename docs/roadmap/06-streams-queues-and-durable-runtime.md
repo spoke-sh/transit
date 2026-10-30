@@ -447,7 +447,10 @@ The current progress slice delivers:
   timer chunks, pending buffers and paged logical-run directories now have
   storage codecs. Private two-run merging now resumes bounded input progress
   with exact completion evidence and frozen Queue-state filtering; accepted
-  run/merge publication and retention edges are not integrated. Durable time-bucketed runs,
+  run/merge publication and retention edges are not integrated. Private schedule
+  composition adds paged pending chunks, bounded earliest-event reads, size-tiered
+  merges and a finite stale-entry sweep. Its migration into accepted Queue roots,
+  batched persistence and native maintenance remains open. Durable time-bucketed runs,
   affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement

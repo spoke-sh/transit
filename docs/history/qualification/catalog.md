@@ -9,6 +9,39 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Private Queue scheduling roots — 2026-10-30
+
+On dirty parent `11881ca08`, `QueueSchedule` passes a disk schedule that seals
+three pending chunks (including duplicate events and a far-future time bucket),
+retains a partial active buffer, and completes 78 bounded maintenance units.
+Seventeen input entries bound each merge step. A one-page cache and repeated
+disk reopen preserve reads during unfinished merges, two final run levels and
+the original pre-maintenance root. Appending while a merge has private output
+preserves its frozen inputs and makes the new event separately readable.
+Unchanged completed maintenance performs no object writes.
+
+A separate schedule seals one delta into 256 distinct pending time buckets.
+After clearing its one-page cache, a six-unit read budget finds a later bucket
+without scanning the preceding pending prefix. A failed partial seal preserves
+the complete earlier active buffer. Negative cases refuse an undersized read
+budget, inconsistent pending counts, malformed active metadata, wrong ownership,
+zero maintenance budget and missing chunk bytes. Budget refusal does not return
+an empty result or publish a private candidate.
+
+Focused scheduling and timer checks pass in
+`/var/tmp/transit-queue-schedule-final.log`; the first disk schedule also passes
+in `/var/tmp/transit-queue-schedule-first.log`. All 48 fast checks pass in
+`/var/tmp/transit-queue-schedule-fast.log`, and all 18 contract checks pass in
+`/var/tmp/transit-queue-schedule-contracts.log`. The diagnostic inventory records
+the reviewed private storage owner and refusal cases.
+
+These checks cover private composition with a deterministic fixture filter.
+Real frozen Queue filtering is covered separately above the storage boundary in
+the preceding merge record. Accepted Queue scheduling roots, batched buffer
+persistence, native maintenance, retained graph integration and their WAL fault
+schedules remain open. The separate core lane at `52e8d40a8` is still running;
+it does not qualify these later helpers or the newly fetched `origin/main`.
+
 ## Resumable private Queue timer merges — 2026-10-30
 
 The two-run merge and frozen Queue-state filter pass workspace checks on dirty

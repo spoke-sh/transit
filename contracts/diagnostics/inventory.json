@@ -32517,6 +32517,60 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/QueueSchedule.zig": {
+      "errors": {
+        "InvalidQueueSchedule": 20,
+        "InvalidQueueTimerBudget": 2,
+        "QueueTimerLevelExhausted": 1,
+        "QueueTimerReadBudget": 1,
+        "QueueTimerSerialExhausted": 2
+      },
+      "outcomes": {
+        "Work.mode": [
+          "promote",
+          "sweep"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Budget.charge()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "Slot.decode()": "<inferred>",
+        "Slot.key()": "<inferred>",
+        "Slot.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "decodeLevel()": "<inferred>",
+        "decodePending()": "<inferred>",
+        "epoch()": "<inferred>",
+        "inspectChunk()": "<inferred>",
+        "inspectRun()": "<inferred>",
+        "loadBuffer()": "<inferred>",
+        "maintain()": "<inferred>",
+        "nextEvent()": "<inferred>",
+        "pendingKey()": "<inferred>",
+        "promote()": "<inferred>",
+        "putLevel()": "<inferred>",
+        "removeLevel()": "<inferred>",
+        "require()": "<inferred>",
+        "saveBuffer()": "<inferred>",
+        "seal()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 96,
+        "catch": 2
+      },
+      "imports": [
+        "LogPartitionRecord.zig",
+        "QueueTimeBuffer.zig",
+        "QueueTimeDirectory.zig",
+        "QueueTimeMerge.zig",
+        "QueueTimeRun.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/QueueSelection.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -34081,6 +34135,7 @@
         "QueueItem.zig",
         "QueueLeaseHeap.zig",
         "QueuePartition.zig",
+        "QueueSchedule.zig",
         "QueueSelection.zig",
         "QueueTimeBuffer.zig",
         "QueueTimeDirectory.zig",
