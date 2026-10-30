@@ -1,6 +1,6 @@
 //! Serialized Queue payload and scheduling-state owner. The catalog adapter
 //! binds current declarations, authorization and the global operation namespace.
-//! Stream consumption and retention controls are deliberately not Queue APIs.
+//! Stream consumption is not a Queue API; payload expiry requires terminal state.
 const std = @import("std");
 const p = @import("transit_protocol");
 const Log = @import("TransitLog.zig");
@@ -16,6 +16,8 @@ pub const Root = Owner.Root;
 pub const Recovery = Owner.Recovery;
 pub const RecoveryState = Owner.RecoveryState;
 pub const FlushProgress = Owner.FlushProgress;
+pub const ExpirationStatus = Owner.ExpirationStatus;
+pub const ExpirationProgress = Owner.ExpirationProgress;
 pub const ArchiveProgress = Owner.ArchiveProgress;
 pub const ClaimReadLimits = Owner.ClaimReadLimits;
 pub const ClaimReadRow = Owner.ClaimReadRow;
@@ -62,6 +64,11 @@ pub fn settle(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.
 }
 pub fn expireOne(self: *Self, declared: Declaration.Stored, guard: Guard) !bool {
     return self.owner.expireQueueOne(declared, guard);
+}
+/// Retire at most one sealed, fully terminal payload batch from the retained
+/// prefix under explicit age policy. Open claim reads retain their frozen roots.
+pub fn expireTerminalHistory(self: *Self, declared: Declaration.Stored, cut: p.DataLifecycle.Position, guard: Guard) !ExpirationProgress {
+    return self.owner.expireHistory(declared, cut, guard);
 }
 pub fn scheduleMaintenanceUnit(self: *Self, declared: Declaration.Stored, maximum: u16, guard: Guard) !bool {
     return self.owner.scheduleQueueUnit(declared, maximum, guard);

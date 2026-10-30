@@ -14,7 +14,7 @@ fn metadata(declared: s.LogDeclaration.Stored) Selection.Metadata {
         .observed = .{ .earliest_ms = 90, .latest_ms = 110 },
         .expires_ms = 210,
         .rows = 2,
-        .source = .{ .accepted = .{ .partition = 91, .next_lsn = 5 }, .next_offset = 12, .batches = .{ .digest = @splat(10), .location = @splat(11) }, .segments = .{ .digest = @splat(12), .location = @splat(13) } },
+        .source = .{ .accepted = .{ .partition = 91, .next_lsn = 5 }, .retained_from = 0, .next_offset = 12, .batches = .{ .digest = @splat(10), .location = @splat(11) }, .segments = .{ .digest = @splat(12), .location = @splat(13) } },
     };
 }
 fn leases(meta: Selection.Metadata) [2]p.StreamQueue.Lease {
@@ -122,4 +122,27 @@ test "queue selection independent row bytes reject duplicates foreign definition
     std.mem.copyForwards(u8, output[49 .. original.len - removed], output[49 + removed .. original.len]);
     std.mem.writeInt(u32, output[40..44], @intCast(metadata_bytes - removed), .big);
     try t.expectError(error.MissingField, Selection.decode(t.allocator, output[0 .. original.len - removed]));
+}
+
+test "queue selection binds the retained lower boundary without a compatibility default" {
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.queue));
+    defer declaration.deinit();
+    var meta = metadata(try declaration.stored());
+    const selected = leases(meta);
+    var output: [Selection.max_bytes]u8 = undefined;
+    meta.source.retained_from = 3;
+    const bytes = try Selection.encode(meta, &selected, &output);
+    try t.expectEqualDeep(meta, (try Selection.decode(t.allocator, bytes)).metadata);
+    meta.source.retained_from = 4;
+    try t.expectError(error.InvalidQueueSelection, Selection.encode(meta, &selected, &output));
+    meta.source.retained_from = 13;
+    try t.expectError(error.InvalidQueueSelection, meta.validate());
+    meta.source.retained_from = 0;
+    const canonical = try Selection.encode(meta, &selected, &output);
+    const field = "\"retained_from\":0,";
+    const at = std.mem.indexOf(u8, canonical, field).?;
+    std.mem.copyForwards(u8, output[at..], output[at + field.len .. canonical.len]);
+    const size = std.mem.readInt(u32, output[40..44], .big);
+    std.mem.writeInt(u32, output[40..44], @intCast(size - field.len), .big);
+    try t.expectError(error.MissingField, Selection.decode(t.allocator, output[0 .. canonical.len - field.len]));
 }

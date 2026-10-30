@@ -21,8 +21,9 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             trim,
             compact,
             expire,
+            retention,
             fn next(self: Class) Class {
-                return @fromBackingInt(@intCast((@backingInt(self) + 1) % 5));
+                return @fromBackingInt(@intCast((@backingInt(self) + 1) % class_count));
             }
             fn enabled(self: Class, settings: c.protocol.Storage.Maintenance) bool {
                 return switch (self) {
@@ -32,9 +33,11 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                     // of optional Stream payload compaction settings.
                     .compact => kind == .queue or settings.compact,
                     .expire => true, // Queue lease expiry and opted-in Stream age are distinct.
+                    .retention => kind == .queue,
                 };
             }
         };
+        const class_count = @typeInfo(Class).@"enum".field_names.len;
         const Active = struct {
             cursor: c.DirectCatalog.LogMaintenanceCursor = .{},
             pending: ?c.DirectCatalog.LogMaintenanceTarget = null,
@@ -65,7 +68,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             }
         };
 
-        active: [5]Active = @splat(.{}),
+        active: [class_count]Active = @splat(.{}),
         hints: ?struct { allocator: std.mem.Allocator, values: *Hints } = null,
         next_class: Class = .flush,
         last_object: ?u64 = null,
@@ -80,7 +83,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
         pub fn step(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: c.protocol.Growth.SignedRequest) !bool {
             self.last_object = null;
             self.last_rows = 0;
-            for (0..5) |_| {
+            for (0..class_count) |_| {
                 const selected = self.next_class;
                 self.next_class = selected.next();
                 const active = &self.active[@backingInt(selected)];
@@ -122,7 +125,8 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 active.clear();
                 return false;
             };
-            if ((kind == .stream and selected == .expire and (definition.stored.retired or definition.stored.declaration.configuration.retention.max_age_ms == null)) or
+            if ((selected == .retention and definition.stored.declaration.configuration.retention.max_age_ms == null) or
+                (kind == .stream and selected == .expire and (definition.stored.retired or definition.stored.declaration.configuration.retention.max_age_ms == null)) or
                 (kind == .stream and selected == .compact and definition.stored.declaration.configuration.policy.stream.compact_key_column == null) or
                 (kind == .stream and selected == .flush and definition.stored.retired))
             {
@@ -178,6 +182,12 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                     const progress = try stream.flush(runtime(stream).root.position(), authority.guard());
                     self.last_rows = progress.rows;
                     return progress.rows != 0;
+                },
+                .retention => {
+                    if (kind == .stream) return false;
+                    const progress = try stream.expireTerminalHistory(definition.stored, runtime(stream).root.position(), authority.guard());
+                    self.last_rows = progress.expired_rows;
+                    return progress.expired_rows != 0;
                 },
                 .expire => {
                     if (kind == .queue) {

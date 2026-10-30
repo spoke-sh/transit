@@ -80,8 +80,18 @@ use paged time-bucketed storage with bounded resident caches. Native maintenance
 also merges timer runs and removes stale scheduling entries through recorded,
 resumable progress, including after DROP. This physical cleanup needs no clock
 and changes no claim or payload lifetime. A scheduling-read budget refusal is
-distinct from an empty claim. Terminal cleanup, DLQ transfer and
-mixed state/message transactions remain unfinished.
+distinct from an empty claim.
+
+An explicit `max_age_ms` retention policy also lets native maintenance expire one
+sealed, fully terminal payload batch from the retained prefix per unit. The age
+uses trusted append time. Available, acquired, delayed, retrying or blocked items
+prevent expiry of their batch; later terminal batches wait behind that prefix.
+ACK alone does not authorize expiry. Original claims keep their payloads through
+this logical expiry until explicitly released; older replay cuts can retain them
+longer. Current Queue observations report the advanced retained boundary, while
+an open original claim can still return its older offsets. Physical collection
+waits for all dependencies to close. See [retention](retention.md).
+DLQ transfer and mixed state/message transactions remain unfinished.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
 for required composition guarantees.

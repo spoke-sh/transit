@@ -108,7 +108,54 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     settings.compact = true;
     const units = try settle(&work, service, settings, signed, &allocations, true, &peak);
     try check(&data, initial, declared, claimed, authority.guard(), 0, true);
-    std.debug.print("Native Queue maintenance: {d} physical units, {d} peak bytes, trusted expiry and original claims survive WAL trimming.\n", .{ units, peak });
+    // Settle all work through the owning public composition. The original expired
+    // claim remains open; payload retention must preserve its older read basis.
+    clock.now = 2120;
+    {
+        var cached: ?c.DirectQueue.Cached = null;
+        defer if (cached) |*value| value.deinit();
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        var output: std.heap.ArenaAllocator = .init(t.allocator);
+        defer output.deinit();
+        const environment: c.DirectQueue.Environment = .{ .clock = @import("LocalLogClock.zig").source(service.engine) };
+        var operation: u64 = 20041;
+        var remaining: u32 = 40;
+        while (remaining != 0) {
+            _ = scratch.reset(.retain_capacity);
+            _ = output.reset(.retain_capacity);
+            const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = operation }, .maximum = 16, .lease_ms = 100 };
+            operation += 1;
+            const receipt = (try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .mutate = .{ .work = .{ .claim = claim }, .payload = null } }, policy)).operation.?.claim;
+            try t.expectEqual(@min(remaining, 16), receipt.rows);
+            const page = (try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .page = .{ .cursor = .{ .receipt = receipt, .next = 0 }, .limits = .{ .rows = 16, .encoded_bytes = 8192 } } }, policy)).page;
+            try t.expect(page.cursor.complete());
+            var leases: [16]p.StreamQueue.Lease = undefined;
+            for (page.rows, 0..) |row, i| leases[i] = row.lease.original;
+            for (leases[0..receipt.rows]) |lease| {
+                _ = scratch.reset(.retain_capacity);
+                _ = output.reset(.retain_capacity);
+                _ = try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = operation }, .lease = lease, .action = .ack } }, .payload = null } }, policy);
+                operation += 1;
+            }
+            remaining -= receipt.rows;
+        }
+    }
+    native.limits.bytes = native.allocated;
+    const retention_units = try settle(&work, service, settings, signed, &allocations, true, &peak);
+    native.limits = limits;
+    var retained = try c.storage.QueuePartition.open(t.allocator, data.log(), data.objects(), initial, authority.guard(), .{});
+    defer retained.deinit() catch unreachable;
+    while (!(try retained.recoverStep(authority.guard(), 16)).complete) {}
+    try t.expectEqual(@as(u64, 40), retained.owner.root.retained_from);
+    try t.expectEqual(@as(u64, 40), retained.owner.root.queue.?.terminal);
+    try t.expect(retained.owner.root.batches == null and retained.owner.root.segments == null);
+    var original = try retained.readClaimPage(declared.stored, .{ .receipt = claimed, .next = 0 }, .{ .rows = 2 }, t.allocator, authority.guard());
+    defer original.deinit();
+    try t.expect(original.cursor.complete() and original.len == 2);
+    try t.expectEqual(@as(u64, 40), original.basis.cut.retained_from);
+    for (original.rows()) |row| try t.expectEqual(p.QueueRead.State.acked, row.lease.state);
+    std.debug.print("Native Queue maintenance: {d} physical units, {d} terminal-retention units, {d} peak bytes; expiry preserves open claims under reserved capacity.\n", .{ units, retention_units, peak });
 }
 
 fn settle(work: *Work, service: *Service, settings: p.Storage.Maintenance, signed: p.Growth.SignedRequest, allocations: *c.fuze.memory.AllocationProbe, restart: bool, peak: *usize) !usize {

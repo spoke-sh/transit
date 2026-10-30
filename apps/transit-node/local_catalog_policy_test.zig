@@ -1987,6 +1987,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     queue_intent.kind = .queue;
     queue_intent.name = try .init("registered_queue");
     queue_intent.action.create.schema.object = 301;
+    queue_intent.action.create.configuration.retention.max_age_ms = 100;
     queue_intent.action.create.configuration.policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } };
     var queue_binding = binding;
     queue_binding.identity.operation = 500;

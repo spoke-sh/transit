@@ -17986,7 +17986,7 @@
     "packages/zig/transit-protocol/src/QueueRead.zig": {
       "errors": {
         "InvalidQueueCursor": 1,
-        "InvalidQueueObservation": 12,
+        "InvalidQueueObservation": 11,
         "InvalidQueueReadRelease": 2,
         "LogTimeUnavailable": 1,
         "QueueClaimConflict": 1,
@@ -31685,7 +31685,7 @@
     "packages/zig/transit-storage/src/LogPartition.zig": {
       "errors": {
         "InvalidLogArchive": 3,
-        "InvalidLogExpiration": 10,
+        "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
         "InvalidLogHistory": 39,
         "InvalidLogRecovery": 4,
@@ -31751,6 +31751,7 @@
           "progress",
           "complete",
           "consumer",
+          "nonterminal",
           "unsealed",
           "untimed",
           "not_due"
@@ -31773,6 +31774,7 @@
         "Owner().<return>.cancelCompaction()": "<inferred>",
         "Owner().<return>.candidate()": "<inferred>",
         "Owner().<return>.candidateClaim()": "<inferred>",
+        "Owner().<return>.candidateExpiration()": "<inferred>",
         "Owner().<return>.candidateQueueExpiry()": "<inferred>",
         "Owner().<return>.candidateQueueSchedule()": "<inferred>",
         "Owner().<return>.candidateSettlement()": "<inferred>",
@@ -31844,6 +31846,7 @@
         "Owner().<return>.skipTimestamp()": "<inferred>",
         "Owner().<return>.skipTimestampWithinBudget()": "<inferred>",
         "Owner().<return>.superseded()": "<inferred>",
+        "Owner().<return>.terminalExpirationBatch()": "<inferred>",
         "Owner().<return>.timestampMatches()": "<inferred>",
         "Owner().<return>.trimArchived()": "<inferred>",
         "Owner().<return>.validateExpiration()": "<inferred>",
@@ -31855,7 +31858,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 665,
+        "try": 674,
         "catch": 18
       },
       "imports": [
@@ -32404,8 +32407,8 @@
         "QueueItemMissing": 1,
         "QueueNotEligible": 2,
         "QueueOffsetOutOfRange": 1,
-        "QueueSidecarConflict": 2,
-        "QueueSidecarMissing": 1,
+        "QueueSidecarConflict": 3,
+        "QueueSidecarMissing": 2,
         "QueueSidecarOverlap": 1,
         "QueueStateConflict": 3
       },
@@ -32441,13 +32444,14 @@
         "sidecarAt()": "<inferred>",
         "state()": "<inferred>",
         "stateAt()": "<inferred>",
+        "terminalBatch()": "<inferred>",
         "timedKey()": "<inferred>",
         "timerCursor()": "<inferred>",
         "unschedule()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 117,
+        "try": 123,
         "catch": 1
       },
       "imports": [
@@ -32542,6 +32546,7 @@
         "deinit()": "<inferred>",
         "enqueue()": "<inferred>",
         "expireOne()": "<inferred>",
+        "expireTerminalHistory()": "<inferred>",
         "flush()": "<inferred>",
         "observe()": "<inferred>",
         "open()": "<inferred>",

@@ -187,7 +187,8 @@ selection cannot reuse an original receipt's content digest.
 
 Metadata retains its required definition, exact declaration, original claim,
 trusted time interval, expiry, accepted position and the preceding payload
-placement cut. The acceptance position is exactly one log record after that
+placement cut, including its mandatory retained lower and next-offset boundaries.
+Every selected offset lies within those original boundaries. The acceptance position is exactly one log record after that
 cut. Metadata is bounded to 16 KiB and a selection to 4,096 rows, additionally
 restricted by the declaration and owner budgets. Missing or foreign
 definitions, noncanonical metadata, duplicate offsets, trailing bytes and
@@ -220,6 +221,36 @@ their own dependencies; current Queue data and any other open selection retain
 theirs independently. Closure alone authorizes no payload expiry or deletion.
 Terminal cleanup additionally needs declared retention and the owning logical
 expiry and physical collection gates.
+
+## Terminal payload retention
+
+Retention remains unlimited unless `max_age_ms` is explicitly declared. The
+storage owner and local native maintenance can expire at most one whole sealed
+append batch at the current retained prefix per unit. Its accepted append must
+have a trusted time; the current trusted lower bound must reach that append's
+upper bound plus the declared age. An unsealed, untimed, not-yet-due or
+nonterminal batch stops that prefix. Later terminal batches remain retained until
+the prefix reaches them. Delay, lease expiry, retry exhaustion, blocked DLQ work,
+DROP and quota pressure never substitute for terminal state or retention policy.
+
+The `.tack` directory lookup resolves the exact batch's accepted state vector.
+Its four cardinalities provide a constant-time terminal check after the bounded
+paged lookup; every item must be ACKed or durably archived. This profile currently
+publishes ACK terminalization; transactional DLQ transfer is still unavailable.
+The owner revalidates policy, time, original append and terminal state, removes
+only that batch's current placement entries, and records the new retained lower
+boundary. Queue replay reconstructs both successor directories exactly, refusing
+unrelated removal without writing objects. Metadata, producer fences, original
+claim/settlement receipts and logical offsets remain unchanged.
+
+Lease expiry and terminal payload retention occupy separate bounded maintenance
+classes. Retention uses reserved control capacity and remains available after
+DROP under its frozen opted-in declaration. A Queue observation's `retained_from`
+reports the current payload prefix; an open original claim can still read offsets
+below it from its frozen placement roots, with current lease status and rights.
+Physical collection requires explicit claim-read closure and closure of every
+other retained dependency, including replay checkpoints. Neither expiry nor a
+release by itself proves that payload bytes can be deleted.
 
 ## Settlement and original outcomes
 

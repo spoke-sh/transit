@@ -464,8 +464,14 @@ The current progress slice delivers:
   Retained traversal uses closure only from its own accepted cut; older replay
   roots keep their payload dependencies. Focused disk, signed-contract and
   catalog checks pass; the [installed closure schedule](../history/qualification/catalog.md#explicit-queue-claim-payload-read-closure--2026-10-30)
-  passes four uncertain replies and repeated node restarts. Terminal cleanup and
-  atomic DLQ transfer remain outstanding.
+  passes four uncertain replies and repeated node restarts. Terminal payload
+  expiry now removes at most one sealed, fully terminal prefix batch under an
+  opted-in age policy, preserving open claims and exact original outcomes. Disk
+  recovery, unrelated-removal negative controls and native physical collection
+  and installed automatic retention pass. The combined native schedule preserves
+  open claims while expiring forty terminal batches under reserved capacity and
+  the unchanged 32-MiB bound. See the [terminal-retention evidence](../history/qualification/catalog.md#terminal-queue-payload-retention--2026-10-30).
+  Atomic DLQ transfer remains outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

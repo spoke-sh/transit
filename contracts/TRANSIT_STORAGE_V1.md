@@ -1608,6 +1608,17 @@ cannot acquire an invented timestamp after a policy change. The owner reports
 `consumer`, `unsealed`, `untimed` or `not_due` without advancing the boundary;
 `progress` and `complete` describe the selected cut, not later appends.
 
+`QueuePartition.expireTerminalHistory` adds the Queue's terminal-state gate to
+this prefix operation. Its exact `.tack` batch binding and state cardinalities
+must establish that every offset is ACKed or archived; otherwise `nonterminal`
+leaves the root unchanged. Queue expiry is control work after retirement as well
+as before it, and replay reconstructs the complete removed-key directories in
+private candidate memory. Its original claim selections store mandatory retained
+lower boundaries and keep their frozen placement roots until explicit payload-
+read release. Current observations can advance beyond those original offsets.
+The [Queue contract](QUEUE_V1.md#terminal-payload-retention) defines that lifetime
+separately from lease expiry and physical collection.
+
 Group assignments and offset commits atomically update both the group-ID index
 and a second index keyed by big-endian `(next_offset, group_id)`. The latter
 stores the same complete progress value and bounds the oldest-checkpoint lookup

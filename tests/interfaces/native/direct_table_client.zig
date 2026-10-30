@@ -809,6 +809,15 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_queue").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-release") or std.mem.eql(u8, args[2], "queue-release-recover")) {
             try @import("fixture_direct_queue").releaseReads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}), std.mem.eql(u8, args[2], "queue-release-recover"));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-prepare")) {
+            try @import("fixture_direct_queue").terminalPrepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-ack")) {
+            try @import("fixture_direct_queue").terminalAck(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-terminal-observe")) {
+            const ready = try @import("fixture_direct_queue").terminalObserve(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.terminal", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(.{ .ready = ready }, &encoder);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "queue-maintenance")) {
             const expired = try @import("fixture_direct_queue").maintenance(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
             var encoder: std.json.Stringify = .{ .writer = &output.interface };

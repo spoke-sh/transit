@@ -424,3 +424,84 @@ test "direct Table collection expires old graph while preserving pins, pending w
     try t.expectEqual(@as(i128, 2), row.row().cells[0].value.atom.signed);
     try t.expect(try fixture.table.get(t.allocator, try key(1, &first_key), fixture.guard()) == null);
 }
+
+test "direct Queue collection requires terminal expiry claim closure and replay closure" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var fixture: Fixture = .{};
+    try fixture.open(tmp.dir, true);
+    defer fixture.close();
+    var base = try streamDefinition(null);
+    defer base.deinit();
+    var value = base.definition;
+    value.configuration.retention.max_age_ms = 100;
+    value.configuration.policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 1000, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 1, .maximum_ms = 100, .multiplier = 2 }, .dead_letter = null } };
+    var definition = try s.LogDeclaration.prepare(t.allocator, value);
+    defer definition.deinit();
+    const initial: s.LogInitialization.Request = .{ .definition = p.Growth.current_definition, .declared = try s.LogDeclaration.stage(fixture.data.objects(), &definition), .operation = .{ .scope = object.scope, .principal = 0, .operation = 100 }, .ordinal = 0, .partition = 23 };
+    _ = try s.LogInitialization.initialize(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard());
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .clock = .{ .context = &fixture, .read = Fixture.logClock } };
+    var queue = try s.QueuePartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), options);
+    defer queue.deinit() catch unreachable;
+    try t.expect((try queue.recoverStep(fixture.guard(), 1)).complete);
+    const op: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 0, .operation = 101 };
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(definition.definition.schema, op, .queue, &.{.{ .cells = &.{cell} }}, &bytes);
+    const request: p.StreamQueue.Append = .{ .target = initial.target(), .operation = op, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) };
+    const enqueued = try queue.enqueue(initial.declared, request, payload, fixture.guard());
+    _ = try queue.flush(queue.owner.root.position(), fixture.guard());
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &queue.owner.store };
+    const sealed = try s.LogSegment.Descriptor.decode((try tree.get(queue.owner.root.segments, try s.LogPartitionRecord.integerKey(1))).?);
+    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .maximum = 1, .lease_ms = 1000 }, fixture.guard());
+    var selection_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const selection = try s.QueueSelection.load(t.allocator, fixture.data.objects(), claimed.leases.?, &selection_bytes);
+    const acked = try queue.settle(initial.declared, .{ .operation = .{ .scope = object.scope, .principal = 0, .operation = 103 }, .lease = try selection.lease(0), .action = .ack }, fixture.guard());
+    fixture.now = 200;
+    const expired = try queue.expireTerminalHistory(initial.declared, queue.owner.root.position(), fixture.guard());
+    try t.expectEqual(@as(u64, 1), expired.retained_from);
+    const cut = queue.owner.root.position();
+    while (!(try queue.archive(cut, .{ .frames = 2 }, fixture.guard())).complete) {}
+    _ = try queue.checkpoint(queue.owner.root.position(), fixture.guard());
+    _ = try queue.trimArchived(fixture.guard());
+    try t.expectError(error.WalHistoryTrimmed, fixture.data.log().read(t.allocator, 23, 0, 1));
+    _ = try fixture.collect();
+    var name: [96]u8 = undefined;
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(sealed.segment.?, &name)) != null);
+    try queue.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    queue = try s.QueuePartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), options);
+    while (!(try queue.recoverStep(fixture.guard(), 1)).complete) {}
+    var page = try queue.readClaimPage(initial.declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, fixture.guard());
+    defer page.deinit();
+    try t.expect(page.cursor.complete() and page.len == 1);
+    try t.expectEqual(@as(u64, 1), page.basis.cut.retained_from);
+    try t.expectEqual(p.QueueRead.State.acked, page.rows()[0].lease.state);
+    const released = try queue.releaseClaimRead(initial.declared, .{ .operation = .{ .scope = object.scope, .principal = 0, .operation = 104 }, .claim = claimed }, fixture.guard());
+    // A privately staged checkpoint grants no closure. The accepted old baseline
+    // still retains the open selection, independently of current release state.
+    const orphan = try s.LogRecovery.stage(fixture.data.objects(), .{ .root = queue.owner.root, .commitment = queue.owner.commitment });
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(orphan.content, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(sealed.segment.?, &name)) != null);
+    _ = try queue.checkpoint(queue.owner.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(sealed.segment.?, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(sealed.metadata, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.QueueSelection.objectKey(claimed.leases.?, &name)) != null);
+    try queue.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    queue = try s.QueuePartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), options);
+    try t.expect((try queue.recoverStep(fixture.guard(), 1)).complete);
+    try t.expectEqual(@as(u64, 1), queue.owner.root.retained_from);
+    try t.expectEqualDeep(enqueued, try queue.enqueue(initial.declared, request, payload, fixture.guard()));
+    try t.expectEqualDeep(claimed, try queue.claim(initial.declared, claimed.claim, fixture.guard()));
+    try t.expectEqualDeep(acked, try queue.settle(initial.declared, acked.settlement, fixture.guard()));
+    try t.expectEqualDeep(released, try queue.releaseClaimRead(initial.declared, released.release, fixture.guard()));
+    try t.expectError(error.QueueReadReleased, queue.readClaimPage(initial.declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, fixture.guard()));
+    var stale = acked.settlement;
+    stale.operation.operation = 105;
+    try t.expectError(error.QueueLeaseFenced, queue.settle(initial.declared, stale, fixture.guard()));
+}

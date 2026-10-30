@@ -222,3 +222,85 @@ pub fn maintenance(init: std.process.Init, client: c.DirectTableClient, path: []
     }
     return complete;
 }
+
+pub fn terminalPrepare(init: std.process.Init, client: c.DirectTableClient, role: u64, path: []const u8) !void {
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "value", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 633010, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("terminal_work"), .action = .{ .create = .{
+        .owner = role,
+        .schema = schema,
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = 1000 }, .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 60000, .maximum_lease_ms = 60000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const creation: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 633010 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = schema.object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
+    const declared = try finish(&caller, &output, creation);
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.stored.declaration.interpretation, .partition = 0 };
+    var operation = creation.binding.identity;
+    operation.operation = 633011;
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{.{ .cells = &cells }}, &buffer);
+    const enqueue: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } };
+    operation.operation = 633012;
+    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 1, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
+    try save(init, path, state);
+    _ = try call(&caller, &output, .{ .mutate = .{ .work = enqueue, .payload = payload } });
+    state.claimed = (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = state.claim } } })).operation.?.claim;
+    try save(init, path, state);
+    try t.expectEqual(@as(u32, 1), state.claimed.?.rows);
+    const page = (try call(&caller, &output, .{ .page = .{ .cursor = .{ .receipt = state.claimed.?, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    operation.operation = 633013;
+    state.ack = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = .{ .settle = .{ .operation = operation, .lease = page.rows[0].lease.original, .action = .ack } } });
+    try save(init, path, state);
+}
+
+pub fn terminalAck(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(1024 * 1024));
+    var state = (try p.Json.parseFromSlice(State, init.arena.allocator(), bytes)).value;
+    try t.expectEqual(p.Growth.current_definition, state.definition);
+    const loaded = try c.DirectQueueClient.load(init.gpa, state.ack.?);
+    defer loaded.deinit();
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    state.acked = (try call(&caller, &output, .{ .mutate = .{ .work = loaded.value.work.work } })).operation.?.settle;
+    try save(init, path, state);
+}
+
+/// Polling observes the saved operations and retained data; it never claims or
+/// settles new work. The two phases prove age alone and terminal state differ.
+pub fn terminalObserve(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !bool {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(1024 * 1024));
+    const state = (try p.Json.parseFromSlice(State, init.arena.allocator(), bytes)).value;
+    try t.expectEqual(p.Growth.current_definition, state.definition);
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const loaded = try c.DirectQueueClient.load(init.gpa, state.enqueue);
+    defer loaded.deinit();
+    const enqueued = (try call(&caller, &output, .{ .operation = loaded.value.work.work })).operation.?.enqueue;
+    try t.expectEqualDeep(state.claimed.?, (try call(&caller, &output, .{ .operation = .{ .claim = state.claim } })).operation.?.claim);
+    const cut = (try call(&caller, &output, .{ .observe = state.claim.target })).cut;
+    try t.expectEqual(@as(u64, 1), cut.next);
+    const page = (try call(&caller, &output, .{ .page = .{ .cursor = .{ .receipt = state.claimed.?, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    try t.expect(page.cursor.complete() and page.rows.len == 1);
+    try t.expectEqual(@as(u64, 0), page.rows[0].lease.original.offset);
+    try t.expectEqual(@as(i64, 42), page.rows[0].value.cells[0].value.atom.signed);
+    if (state.acked) |acked| {
+        const ack = try c.DirectQueueClient.load(init.gpa, state.ack.?);
+        defer ack.deinit();
+        try t.expectEqualDeep(acked, (try call(&caller, &output, .{ .operation = ack.value.work.work })).operation.?.settle);
+        try t.expectEqual(p.QueueRead.State.acked, page.rows[0].lease.state);
+        return cut.retained_from == 1 and page.basis.cut.retained_from == 1;
+    }
+    try t.expectEqual(@as(u64, 0), cut.retained_from);
+    try t.expectEqual(p.QueueRead.State.acquired, page.rows[0].lease.state);
+    const now = page.basis.time orelse return error.FixtureClockUnavailable;
+    return now.earliest_ms >= enqueued.observed_ms.? + 1000;
+}

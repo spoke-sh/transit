@@ -114,6 +114,20 @@ fn sidecarAt(self: Self, sidecars: ?pages.Reference, value: Item) !Tack {
     if (result.next != value.batch_next or result.first > value.offset or result.next <= value.offset) return error.QueueSidecarConflict;
     return result;
 }
+/// The paged lookup is bounded by directory height; the four cached cardinalities
+/// decide terminal eligibility without scanning the batch's offsets or bitmaps.
+/// This grants no physical deletion authority.
+pub fn terminalBatch(self: Self, root: Root, receipt: q.AppendReceipt, frontier: p.DataLifecycle.Position) !bool {
+    try receipt.validate();
+    try frontier.validate();
+    const encoded = try self.tree().get(root.sidecars, try Records.integerKey(receipt.next)) orelse return error.QueueSidecarMissing;
+    const manifest = try Tack.decode(encoded.data[0..encoded.len]);
+    try manifest.target.requireSame(receipt.append.target);
+    if (receipt.append.kind != .queue or manifest.first != receipt.first or manifest.next != receipt.next or
+        manifest.segment != receipt.accepted.next_lsn or manifest.accepted.partition != frontier.partition or
+        manifest.accepted.next_lsn < receipt.accepted.next_lsn or manifest.accepted.next_lsn > frontier.next_lsn) return error.QueueSidecarConflict;
+    return manifest.terminal();
+}
 pub fn state(self: Self, root: Root, value: Item) !Tack.State {
     return self.stateAt(root.sidecars, value);
 }

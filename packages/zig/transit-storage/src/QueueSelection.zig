@@ -25,6 +25,7 @@ pub const Metadata = struct {
     rows: u32,
     source: struct {
         accepted: d.Position,
+        retained_from: u64,
         next_offset: u64,
         batches: ?pages.Reference,
         segments: ?pages.Reference,
@@ -41,7 +42,7 @@ pub const Metadata = struct {
             !std.meta.eql(self.declared.declaration.interpretation, self.claim.target.interpretation) or
             self.claim.target.partition >= self.declared.declaration.configuration.partitioning.count or
             self.rows == 0 or self.rows > self.claim.maximum or self.claim.maximum > self.declared.declaration.limits.claim_rows or self.rows > max_rows or
-            self.source.next_offset < self.rows or self.source.batches == null or self.source.accepted.next_lsn == 0 or
+            self.source.retained_from > self.source.next_offset or self.source.next_offset - self.source.retained_from < self.rows or self.source.batches == null or self.source.accepted.next_lsn == 0 or
             self.accepted.partition != self.source.accepted.partition or self.accepted.next_lsn == 0 or
             self.accepted.next_lsn - 1 != self.source.accepted.next_lsn) return error.InvalidQueueSelection;
         if (self.expires_ms != try self.declared.declaration.configuration.policy.queue.deadline(self.observed.latest_ms, self.claim.lease_ms)) return error.InvalidQueueSelection;
@@ -66,7 +67,7 @@ pub fn objectKey(content: d.Content, buffer: *[96]u8) ![]const u8 {
 fn requireLease(meta: Metadata, lease: q.Lease, previous: ?u64) !void {
     try lease.validate();
     if (!std.meta.eql(lease.target, meta.claim.target) or !std.meta.eql(lease.claim, meta.claim.operation) or
-        lease.expires_ms != meta.expires_ms or lease.offset >= meta.source.next_offset or
+        lease.expires_ms != meta.expires_ms or lease.offset < meta.source.retained_from or lease.offset >= meta.source.next_offset or
         (previous != null and lease.offset <= previous.?)) return error.InvalidQueueSelection;
 }
 

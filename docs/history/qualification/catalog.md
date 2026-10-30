@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Terminal Queue payload retention — 2026-10-30
+
+On dirty parent `b015393bf`, after rebasing onto `4ea7152b5`, focused storage
+checks pass for one sealed terminal prefix batch per maintenance unit. The disk
+schedule preserves nonterminal payloads, refuses absent retention and trusted
+time, rechecks time and authority at publication, recovers a lost expiry reply
+without object writes, and keeps original claim rows readable below the advanced
+current lower boundary. Subsequent claims bind that lower boundary explicitly.
+Retirement, checkpoint publication, actual WAL trim and disk reopen preserve the
+original enqueue, claim, ACK and read-release outcomes. The first run also passes
+the existing Stream expiry regression. Raw output is
+`/var/tmp/transit-queue-terminal-storage-first.log`.
+
+The extended schedule in `/var/tmp/transit-queue-terminal-storage-third.log`
+passes a malformed-replay negative control: a structurally valid expiry that
+also removes a different live batch is rejected with the prior root intact and
+no object writes. Selection format checks reject offsets below their original
+lower boundary and metadata missing that mandatory field. Test compilation
+issues were corrected before this successful run. All 53 fast checks pass in
+`/var/tmp/transit-queue-terminal-fast.log`.
+
+The focused native disk collection schedule passes in
+`/var/tmp/transit-queue-terminal-collection-second.log`. Three fenced collection
+passes take 115, 627 and 859 bounded steps and reclaim 17, 231 and 372 allocations.
+An expired terminal payload survives collection and reopen while its original
+claim is open. Releasing that claim still preserves the payload through the old
+accepted replay checkpoint; an unaccepted staged checkpoint is collected. After
+publishing a new checkpoint, collection physically removes the segment and its
+metadata. Restart still recovers the original enqueue, claim, ACK and release;
+new stale settlement refuses without requiring the deleted payload. This uses
+the actual local native collector and disk provider, with the fixture's explicit
+trusted guard. It does not qualify signed collection authorization separately.
+
+The full installed Queue scenario passes on the same dirty parent in
+`/var/tmp/transit-queue-terminal-installed.log`: **333 requests**, four uncertain
+replies and repeated SIGKILL/restarts. The added retention phase observes trusted
+age while an acquired item remains retained, then ACKs the saved lease and waits
+for automatic terminal expiry. The signed cut advances to offset one while the
+original claim still returns offset zero and its payload; node restart preserves
+that result and the saved operation bytes. Artifacts remain at
+`/var/tmp/transit-table-queues-5krkkazx`. Node and caller SHA-256 values are
+`00006e62850905cf5b9aa3f01efcc7cef7ca090c322c3c401ec6e23b083320f3` and
+`705e6e62c7da4f7f35b60ae3a07096d7a7037185b43fd188fcde855ec70c93d2`.
+The protocol suite, focused signed/catalog/retained-graph checks and all 18
+contract checks also pass in `/var/tmp/transit-queue-terminal-protocol.log`,
+`/var/tmp/transit-queue-terminal-catalog.log` and
+`/var/tmp/transit-queue-terminal-contracts.log`.
+
+The combined `ReleaseSafe` native schedule also passes in
+`/var/tmp/transit-queue-terminal-native-second.log`: Stream maintenance takes
+157 units with 6,976,018 peak bytes; Queue maintenance takes 223 physical units
+and **219 terminal-retention units**, with **18,627,821 peak bytes** under the
+unchanged shared 32-MiB limit. Forty messages settle through the catalog owner,
+then automatic retention advances across forty sealed batches while ordinary
+capacity is exhausted. Executor replacement preserves progress; the original
+expired claim still returns its two payloads below the new lower boundary.
+These results do not establish the remaining transactional DLQ or mixed-
+participant work, nor a final committed-source clean lane.
+
 ## Explicit Queue claim payload-read closure — 2026-10-30
 
 On dirty parent `63fdd3ed2`, `QueueRead.Release` binds a new saved operation to

@@ -53,7 +53,7 @@ pub fn metadata(root: Root, declared: Declaration.Stored, claim: q.Claim, observ
         .observed = observed,
         .expires_ms = try declared.declaration.configuration.policy.queue.deadline(observed.latest_ms, claim.lease_ms),
         .rows = rows,
-        .source = .{ .accepted = root.position(), .next_offset = root.next_offset, .batches = root.batches, .segments = root.segments },
+        .source = .{ .accepted = root.position(), .retained_from = root.retained_from, .next_offset = root.next_offset, .batches = root.batches, .segments = root.segments },
     };
 }
 

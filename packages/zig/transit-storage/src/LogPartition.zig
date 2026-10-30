@@ -433,7 +433,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 error.QueueTimeUnavailable, error.LogTimeRegression => null,
                 else => return err,
             };
-            const basis: queue_read.Basis = .{ .cut = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .accepted = self.root.position(), .retained_from = 0, .next = self.root.next_offset }, .time = now };
+            const basis: queue_read.Basis = .{ .cut = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .accepted = self.root.position(), .retained_from = self.root.retained_from, .next = self.root.next_offset }, .time = now };
             try basis.requireReceipt(cursor.receipt);
             const capacity = @min(cursor.receipt.rows - cursor.next, limits.rows, self.options.read_rows, declared.declaration.limits.read_rows);
             const byte_limit = @min(limits.encoded_bytes, self.options.read_bytes, declared.declaration.limits.read_bytes);
@@ -445,7 +445,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try selected.requireReceipt(cursor.receipt);
                 if (!std.meta.eql(selected.metadata.declared, evidence.declared)) return error.InvalidQueueSelection;
                 const source = selected.metadata.source;
-                const cut: q.Cut = .{ .target = cursor.receipt.claim.target, .accepted = source.accepted, .retained_from = 0, .next = source.next_offset };
+                const cut: q.Cut = .{ .target = cursor.receipt.claim.target, .accepted = source.accepted, .retained_from = source.retained_from, .next = source.next_offset };
                 var bitmap: Bitmap = undefined;
                 const index = self.queueIndex(&bitmap);
                 while (page.len < capacity) {
@@ -503,7 +503,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             defer declaration.deinit();
             const ci = try declaration.definition.schema.index(key_column);
             const column = declaration.definition.schema.columns[ci];
-            const cut: q.Cut = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = self.root.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .accepted = self.root.position(), .retained_from = 0, .next = self.root.next_offset };
+            const cut: q.Cut = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = self.root.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .accepted = self.root.position(), .retained_from = self.root.retained_from, .next = self.root.next_offset };
             var borrowed = try self.borrowAt(cut, self.root.batches, self.root.segments, .empty, offset, guard) orelse return error.QueueItemMissing;
             defer borrowed.deinit();
             var rows = try borrowed.iterator(declaration.definition.schema);
@@ -1019,7 +1019,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return .{ .cut = cut, .through = receipt.next, .rows = @intCast(receipt.append.rows), .complete = complete };
         }
 
-        pub const ExpirationStatus = enum { progress, complete, consumer, unsealed, untimed, not_due };
+        pub const ExpirationStatus = enum { progress, complete, consumer, nonterminal, unsealed, untimed, not_due };
         pub const ExpirationProgress = struct { cut: d.Position, position: d.Position, retained_from: u64, expired_rows: u32, status: ExpirationStatus };
         fn expirationObservation(self: *Self, cut: d.Position, status: ExpirationStatus, guard: Guard) !ExpirationProgress {
             try authorize(guard);
@@ -1027,13 +1027,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn validateExpiration(self: *Self, declared: Declaration.Stored, receipt: q.AppendReceipt, now: Time.Sample, protected: u64) !void {
             if (self.root.compaction != null) return error.LogMaintenanceConflict;
-            try self.root.requireDeclaration(declared);
+            if (kind == .queue) try self.root.requireControlDeclaration(declared) else try self.root.requireDeclaration(declared);
             const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
             try now.validate();
             _ = try Time.advance(self.root.clock_ms, now.latest_ms);
             const observed = receipt.observed_ms orelse return error.InvalidLogExpiration;
             if (now.earliest_ms < observed) return error.InvalidLogExpiration;
             if (receipt.first != self.root.retained_from or receipt.next > self.root.sealed_through or protected != try self.protectedOffset() or receipt.next > protected or now.earliest_ms - observed < age) return error.InvalidLogExpiration;
+            if (!try self.terminalExpirationBatch(receipt)) return error.InvalidLogExpiration;
             const value = try self.tree().get(self.root.segments, try r.integerKey(receipt.next)) orelse return error.InvalidLogExpiration;
             const descriptor = try Segment.Descriptor.decode(value);
             const evidence = try self.original(receipt.append.operation) orelse return error.InvalidLogExpiration;
@@ -1046,7 +1047,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try cut.validate();
             try authorize(guard);
             try self.requireReady();
-            try self.root.requireDeclaration(declared);
+            if (kind == .queue) try self.root.requireControlDeclaration(declared) else try self.root.requireDeclaration(declared);
             const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
             if (self.root.compaction != null) return error.LogMaintenanceConflict;
             if (cut.partition != self.root.initialization.partition or cut.next_lsn == 0 or cut.next_lsn > self.root.next_lsn) return error.InvalidLogExpiration;
@@ -1057,6 +1058,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const protected = try self.protectedOffset();
             if (receipt.next > protected) return self.expirationObservation(cut, .consumer, guard);
             if (receipt.next > self.root.sealed_through) return self.expirationObservation(cut, .unsealed, guard);
+            if (!try self.terminalExpirationBatch(receipt)) return self.expirationObservation(cut, .nonterminal, guard);
             const observed = receipt.observed_ms orelse return self.expirationObservation(cut, .untimed, guard);
             const now = (try Time.bounds(self.options.clock, self.root.clock_ms, true)).?;
             if (now.earliest_ms < observed or now.earliest_ms - observed < age) return self.expirationObservation(cut, .not_due, guard);
@@ -1066,16 +1068,32 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             defer self.leaveControl(ordinary);
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
+            const action: @FieldType(@FieldType(r.Record, "action"), "expire") = .{ .cut = cut, .receipt = receipt, .observed_ms = now.earliest_ms, .clock_ms = now.latest_ms, .protected_next = protected };
+            const next = try self.candidateExpiration(declared, action);
+            try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = action } }, &.{}, guard);
+            return .{ .cut = cut, .position = next.position(), .retained_from = next.retained_from, .expired_rows = @intCast(receipt.append.rows), .status = if (complete) .complete else .progress };
+        }
+
+        fn terminalExpirationBatch(self: *Self, receipt: q.AppendReceipt) !bool {
+            if (kind == .stream) return true;
+            var bitmap: Bitmap = undefined;
+            return self.queueIndex(&bitmap).terminalBatch(self.root.queue.?, receipt, self.root.position());
+        }
+        fn candidateExpiration(self: *Self, declared: Declaration.Stored, value: @FieldType(@FieldType(r.Record, "action"), "expire")) !Root {
+            try value.cut.validate();
+            if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn == 0 or value.cut.next_lsn > self.root.next_lsn) return error.InvalidLogExpiration;
+            const evidence = try self.flushCandidate(self.root.retained_from, value.cut) orelse return error.InvalidLogExpiration;
+            if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogExpiration;
+            try self.validateExpiration(declared, value.receipt, .{ .earliest_ms = value.observed_ms, .latest_ms = value.clock_ms }, value.protected_next);
             var next = self.root;
             next.declared = declared;
             next.next_lsn = (try self.nextPosition()).next_lsn;
-            next.clock_ms = now.latest_ms;
-            next.retained_from = receipt.next;
-            const key = try r.integerKey(receipt.next);
+            next.clock_ms = value.clock_ms;
+            next.retained_from = value.receipt.next;
+            const key = try r.integerKey(value.receipt.next);
             next.batches = try self.tree().remove(next.batches, key);
             next.segments = try self.tree().remove(next.segments, key);
-            try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = .{ .cut = cut, .receipt = receipt, .observed_ms = now.earliest_ms, .clock_ms = now.latest_ms, .protected_next = protected } } }, &.{}, guard);
-            return .{ .cut = cut, .position = next.position(), .retained_from = next.retained_from, .expired_rows = @intCast(receipt.append.rows), .status = if (complete) .complete else .progress };
+            return next;
         }
 
         fn compactionSource(self: *Self, declared: Declaration.Stored) !Compaction.Source {
@@ -1585,7 +1603,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             const next = record.root;
             try self.root.initialization.requireSame(next.initialization);
-            if (kind == .queue and (record.action == .operation or record.action == .queue_expire or record.action == .queue_schedule)) {
+            if (kind == .queue and (record.action == .operation or record.action == .queue_expire or record.action == .queue_schedule or record.action == .expire)) {
                 const ordinary = self.enterControl(true);
                 defer self.leaveControl(ordinary);
                 try self.candidate_objects.reset(self.objects);
@@ -1598,6 +1616,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 var expected = switch (record.action) {
                     .operation => try self.candidate(record.action.operation, payload, guard),
                     .queue_expire => try self.candidateQueueExpiry(next.declared, record.action.queue_expire),
+                    .expire => try self.candidateExpiration(next.declared, record.action.expire),
                     .queue_schedule => (try self.candidateQueueSchedule(next.declared, record.action.queue_schedule)) orelse return error.InvalidLogHistory,
                     else => unreachable,
                 };

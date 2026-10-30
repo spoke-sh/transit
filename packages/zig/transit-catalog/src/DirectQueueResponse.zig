@@ -35,7 +35,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         } else if (request != .operation) return error.InvalidQueueResponse,
         .cut => |value| {
             try value.validate();
-            if (value.retained_from != 0 or !std.meta.eql(value.target.interpretation.object, request.observe.interpretation.object) or
+            if (!std.meta.eql(value.target.interpretation.object, request.observe.interpretation.object) or
                 value.target.partition != request.observe.partition or value.target.interpretation.revision < request.observe.interpretation.revision or
                 (value.target.interpretation.revision == request.observe.interpretation.revision and !std.meta.eql(value.target, request.observe))) return error.InvalidQueueResponse;
         },

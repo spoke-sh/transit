@@ -394,12 +394,33 @@ def run(node, caller, mode="tables", *artifacts):
                 authority = start()
                 subprocess.run([caller, endpoint, "queue-release-recover", str(profile)], check=True, timeout=180)
                 assert Path(str(profile) + ".queue.release").read_bytes() == release_saved
+                subprocess.run([caller, endpoint, "queue-terminal-prepare", str(profile)], check=True, timeout=180)
+                def terminal_observation():
+                    result = subprocess.run([caller, endpoint, "queue-terminal-observe", str(profile)],
+                                            timeout=30, capture_output=True, text=True)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    return json.loads(result.stdout)["ready"]
+                deadline = time.monotonic() + 30
+                while not terminal_observation():
+                    assert time.monotonic() < deadline, "Trusted retention age was not observed"
+                    time.sleep(.1)
+                subprocess.run([caller, endpoint, "queue-terminal-ack", str(profile)], check=True, timeout=180)
+                terminal_saved = Path(str(profile) + ".terminal").read_bytes()
+                deadline = time.monotonic() + 60
+                while not terminal_observation():
+                    assert time.monotonic() < deadline, "Terminal Queue retention did not converge"
+                    time.sleep(.1)
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                assert terminal_observation(), "Restart lost terminal expiry or original claim payload"
+                assert Path(str(profile) + ".terminal").read_bytes() == terminal_saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
                                       requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
                                       passed=True)), flush=True)
-                print("Direct Queue HTTP: FIFO heads, original empty claims, four lost replies, ACK, automatic retired-lease expiry, retained payloads through tiering and explicit read closure across node SIGKILL/restarts passed.", flush=True)
+                print("Direct Queue HTTP: FIFO heads, original empty claims, four lost replies, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
                 return
             if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):

@@ -1184,3 +1184,195 @@ test "queue partition claim page crosses original batches with one tail slot" {
         try row.lease.requireBasis(page.basis, accepted);
     }
 }
+
+test "queue partition terminal retention preserves original reads and replays expiry without writes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    definition.configuration.retention.max_age_ms = 100;
+    definition.configuration.policy.queue.ordering = .unordered;
+    definition.configuration.policy.queue.key_column = null;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log() };
+    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    var appended: [2]q.AppendReceipt = undefined;
+    for (&appended, 2..) |*receipt, id| {
+        var encoder = try s.LogBatch.Encoder.init(declared.definition.schema, operation(id), .queue, 3, &bytes);
+        for (0..3) |_| try encoder.append(.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = "key" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } } });
+        const payload = try encoder.finish();
+        receipt.* = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(id), .kind = .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    }
+    const cut = owner.owner.root.position();
+    try t.expectEqual(Queue.ExpirationStatus.unsealed, (try owner.expireTerminalHistory(initial.declared, cut, policy.guard())).status);
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 3, .lease_ms = 1000 }, policy.guard());
+    try t.expectEqual(@as(u32, 3), claimed.rows);
+    var acked: [3]q.SettlementReceipt = undefined;
+    for (0..2) |i| acked[i] = try owner.settle(initial.declared, .{ .operation = operation(5 + i), .lease = try selectedLease(objects.objectStore(), claimed, @intCast(i)), .action = .ack }, policy.guard());
+    clock.value = .exact(1100);
+    const before = owner.owner.root;
+    try t.expectEqual(Queue.ExpirationStatus.nonterminal, (try owner.expireTerminalHistory(initial.declared, cut, policy.guard())).status);
+    try t.expectEqualDeep(before, owner.owner.root);
+    acked[2] = try owner.settle(initial.declared, .{ .operation = operation(7), .lease = try selectedLease(objects.objectStore(), claimed, 2), .action = .ack }, policy.guard());
+    // A terminal segment still needs opted-in policy and trusted age. A compatible
+    // candidate without retention cannot authorize expiration or change the root.
+    var unlimited_definition = definition;
+    unlimited_definition.revision = 2;
+    unlimited_definition.configuration.retention.max_age_ms = null;
+    var unlimited = try s.LogDeclaration.prepare(t.allocator, unlimited_definition);
+    defer unlimited.deinit();
+    const unlimited_stored = try s.LogDeclaration.stage(objects.objectStore(), &unlimited);
+    try t.expectError(error.LogRetentionNotDeclared, owner.expireTerminalHistory(unlimited_stored, cut, policy.guard()));
+    clock.value = null;
+    try t.expectError(error.LogTimeUnavailable, owner.expireTerminalHistory(initial.declared, cut, policy.guard()));
+    clock.value = .exact(1100);
+    clock.after = .exact(1099);
+    clock.change = true;
+    try t.expectError(error.LogTimeRegression, owner.expireTerminalHistory(initial.declared, cut, policy.guard()));
+    clock.value = .exact(1100);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.expireTerminalHistory(initial.declared, cut, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    try t.expectEqual(@as(u64, 0), owner.owner.root.retained_from);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.expireTerminalHistory(initial.declared, cut, policy.guard()));
+    const puts = objects.puts;
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(@as(u64, 3), owner.owner.root.retained_from);
+    try t.expectEqual(Queue.ExpirationStatus.nonterminal, (try owner.expireTerminalHistory(initial.declared, cut, policy.guard())).status);
+    var original_page = try owner.readClaimPage(initial.declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, policy.guard());
+    defer original_page.deinit();
+    try t.expect(original_page.cursor.complete() and original_page.rows().len == 3);
+    try t.expectEqual(@as(u64, 3), original_page.basis.cut.retained_from);
+    for (original_page.rows(), 0..) |row, i| {
+        try t.expectEqual(i, row.lease.original.offset);
+        try t.expectEqual(p.QueueRead.State.acked, row.lease.state);
+        try t.expectEqualDeep(acked[i], try owner.settle(initial.declared, acked[i].settlement, policy.guard()));
+    }
+    const later = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(8), .maximum = 3, .lease_ms = 1000 }, policy.guard());
+    var selection_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
+    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), later.leases.?, &selection_bytes);
+    try t.expectEqual(@as(u64, 3), selection.metadata.source.retained_from);
+    for (0..3) |i| _ = try owner.settle(initial.declared, .{ .operation = operation(9 + i), .lease = try selection.lease(@intCast(i)), .action = .ack }, policy.guard());
+    var retired_definition = definition;
+    retired_definition.revision = 2;
+    retired_definition.retired = true;
+    var retired = try s.LogDeclaration.prepare(t.allocator, retired_definition);
+    defer retired.deinit();
+    const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
+    const released = try owner.releaseClaimRead(current, .{ .operation = operation(12), .claim = claimed }, policy.guard());
+    const later_released = try owner.releaseClaimRead(current, .{ .operation = operation(13), .claim = later }, policy.guard());
+    const expired = try owner.expireTerminalHistory(current, cut, policy.guard());
+    try t.expectEqual(Queue.ExpirationStatus.complete, expired.status);
+    try t.expectEqual(@as(u32, 3), expired.expired_rows);
+    try t.expectEqual(@as(u64, 6), expired.retained_from);
+    try t.expect(owner.owner.root.batches == null and owner.owner.root.segments == null);
+    try t.expectEqual(@as(u64, 6), owner.owner.root.queue.?.terminal);
+    try t.expectEqual(@as(u32, 0), (try owner.expireTerminalHistory(current, cut, policy.guard())).expired_rows);
+    const archived = owner.owner.root.position();
+    while (!(try owner.archive(archived, .{ .frames = 2 }, policy.guard())).complete) {}
+    _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, initial.partition, 0, 1));
+    const accepted = owner.owner.root;
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    clock.value = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(accepted, owner.owner.root);
+    try t.expectEqualDeep(appended[0], (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    try t.expectEqualDeep(claimed, (try owner.operation(operation(4), policy.guard())).?.outcome.claim.receipt);
+    try t.expectEqualDeep(released, try owner.releaseClaimRead(current, released.release, policy.guard()));
+    try t.expectEqualDeep(later_released, try owner.releaseClaimRead(current, later_released.release, policy.guard()));
+    try t.expectError(error.QueueReadReleased, owner.readClaimPage(current, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, policy.guard()));
+    try t.expectEqual(@as(u64, 0), objects.puts);
+}
+
+test "queue partition terminal retention replay refuses removal of another live batch" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    definition.configuration.retention.max_age_ms = 1;
+    definition.configuration.policy.queue.ordering = .unordered;
+    definition.configuration.policy.queue.key_column = null;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [65536]u8 = undefined;
+    for (2..5) |id| {
+        const payload = try s.LogBatch.encode(declared.definition.schema, operation(id), .queue, &.{.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = "key" } } }, .{ .value = .{ .atom = .{ .bytes = "value" } } } } }}, &bytes);
+        _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(id), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    }
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(5), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    try t.expectEqual(@as(u64, 0), lease.offset);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = lease, .action = .ack }, policy.guard());
+    const cut = owner.owner.root.position();
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    clock.value = .exact(1001);
+    const before = owner.owner.root;
+    _ = try owner.expireTerminalHistory(initial.declared, cut, policy.guard());
+    var last = try wal.log().read(t.allocator, initial.partition, before.next_lsn, 1);
+    defer last.deinit();
+    var record = (try s.LogPartitionRecord.decode(t.allocator, last.frames[0], initial.partition, before.next_lsn)).record;
+    try t.expect(record.action == .expire);
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.owner.store };
+    try owner.owner.store.begin(options.index_work_bytes);
+    record.root.batches = try tree.remove(record.root.batches, try s.LogPartitionRecord.integerKey(2));
+    record.root.segments = try tree.remove(record.root.segments, try s.LogPartitionRecord.integerKey(2));
+    owner.owner.store.end();
+    // The expired prefix key is absent and the resulting directories are valid,
+    // but this record also discards an available batch that had no expiry right.
+    try record.validate(before.next_lsn);
+    const forged = try s.LogPartitionRecord.encode(record, &.{}, &bytes);
+    var other = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer other.deinit();
+    _ = try initialize(other.log(), objects.objectStore(), &policy, &declared);
+    var at: u64 = 1;
+    while (at < before.next_lsn) : (at += 1) {
+        var frame = try wal.log().read(t.allocator, initial.partition, at, 1);
+        defer frame.deinit();
+        _ = try other.log().append(initial.partition, at, 1, 1, frame.frames[0].header.kind, frame.frames[0].payload);
+    }
+    _ = try other.log().append(initial.partition, at, 1, 1, last.frames[0].header.kind, forged);
+    var recovered = try Queue.open(t.allocator, other.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer recovered.deinit() catch unreachable;
+    const puts = objects.puts;
+    while (recovered.owner.root.next_lsn < before.next_lsn) _ = try recovered.recoverStep(policy.guard(), 1);
+    try t.expectEqualDeep(before, recovered.owner.root);
+    try t.expectError(error.InvalidLogHistory, recovered.recoverStep(policy.guard(), 1));
+    try t.expectEqualDeep(before, recovered.owner.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expect(!recovered.owner.ready);
+}

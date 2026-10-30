@@ -51,7 +51,7 @@ pub const Root = struct {
         if ((self.declared.declaration.configuration.policy == .queue) != (self.queue != null)) return error.InvalidQueueRoot;
         if (self.queue) |queue| {
             try queue.validate();
-            if (queue.next_offset != self.next_offset or self.retained_from != 0 or self.groups != null or self.group_offsets != null or self.pins != null or
+            if (queue.next_offset != self.next_offset or self.groups != null or self.group_offsets != null or self.pins != null or
                 self.maintenance.compaction_source_lsn != 0 or self.maintenance.rewrite_source_lsn != 0 or self.maintenance.rewrite_target != null) return error.InvalidQueueRoot;
         }
         if (self.recovery) |reference| try reference.validate(self.next_lsn);

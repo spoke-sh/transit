@@ -83,7 +83,6 @@ pub const Basis = struct {
     time: ?TimeBounds,
     pub fn validate(self: Basis) !void {
         try self.cut.validate();
-        if (self.cut.retained_from != 0) return error.InvalidQueueObservation;
         if (self.time) |time| try time.validate();
     }
     pub fn requireReceipt(self: Basis, original: q.ClaimReceipt) !void {

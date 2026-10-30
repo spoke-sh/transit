@@ -275,13 +275,20 @@ Observation does not authorize later execution or settlement. The neutral
 `transit-protocol.QueueRead` contract owns these distinctions.
 
 The Queue wrapper exposes enqueue, claim, original claim pages, settlement,
-bounded expiry, observation, original outcome recovery and physical maintenance.
-It has no Stream consumption, group or age-expiry API.
+bounded lease expiry, terminal payload expiry, observation, original outcome
+recovery and physical maintenance. It has no Stream consumption or group API.
+`expireTerminalHistory` requires opted-in age policy, trusted append/time evidence
+and a sealed, fully terminal prefix batch. A paged `.tack` lookup plus its four
+cardinalities bounds the eligibility check. Each accepted step removes exactly
+one batch from current placement while preserving metadata and receipts. Queue
+replay derives the exact successor directories without provider writes. Open
+claim selections retain their original lower/upper boundaries and payload roots;
+release and replay closure remain necessary for physical collection.
 `DirectQueue` composes this storage boundary with the shared catalog operation
 namespace and current grants. The signed native Queue action exposes standalone
 operations through that adapter. The local node shares its Table/Stream
 maintenance executor with Queue sealing, archiving/checkpointing, WAL trimming
-and one-deadline lease expiry.
+one-deadline lease expiry and a separate terminal-retention class.
 
 The storage owner also persists explicit group assignments and generations.
 Current batch reads return borrowed verified slabs and an observed cut; that cut
