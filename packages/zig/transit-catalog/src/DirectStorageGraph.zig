@@ -35,7 +35,7 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys };
 const DocumentContext = struct {
     interpretation: d.Definition,
     partition: u64,
@@ -94,7 +94,8 @@ pub const Work = union(enum) {
     log_initialization: s.LogInitialization.Request,
     log_history: s.LogStorageRoots,
     log_root: struct { root: s.StreamPartition.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
-    log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
+    log_index: struct { context: LogContext, reference: s.TreeStore.pages.Reference, kind: LogIndexKind, prefix_bytes: u16 = 0, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
+    log_compaction: struct { context: LogContext, state: s.StreamCompaction.State, slot: u8 = 0 },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
@@ -121,7 +122,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -168,9 +169,22 @@ fn requireOwner(context: Context, root: s.TablePartition.Root) !void {
         root.next_lsn > context.next_lsn or root.next_segment > context.next_segment) return error.InvalidTableStorageGraph;
 }
 
-fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: LogContext, kind: LogIndexKind, entry: s.TreeStore.pages.Entry) !void {
+fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: LogContext, kind: LogIndexKind, prefix_bytes: u16, entry: s.TreeStore.pages.Entry) !void {
     switch (kind) {
         .pages_only => {},
+        .bitmap => {
+            const prefix = try s.BitmapDirectory.prefixOf(entry.key);
+            const reference = try s.BitmapDirectory.Reference.decode(entry.value);
+            var directory: s.BitmapDirectory = .{ .store = index, .objects = index.store };
+            var offsets = (try directory.read(prefix, reference)).iterator();
+            while (offsets.next()) |low| if (((prefix << 16) | low) >= context.next_offset) return error.InvalidLogStorageGraph;
+            var name: [96]u8 = undefined;
+            try markContent(workspace, try s.BitmapDirectory.objectKey(reference, &name), .{ .bytes = reference.bytes, .sha256 = reference.digest });
+        },
+        .ordered_keys => {
+            if (try s.OrderedKeyIndex.terminalValue(entry, prefix_bytes)) |value| _ = try s.StreamCompaction.decodeOffset(value, 0, context.next_offset);
+            if (try s.OrderedKeyIndex.childIndex(entry, prefix_bytes)) |child| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = child, .kind = .ordered_keys, .prefix_bytes = prefix_bytes + entry.key.len } });
+        },
         .batches, .receipts, .producer_receipts => {
             const evidence = try s.LogEvidence.load(allocator, index.store, entry.value);
             try context.requireTarget(evidence.target());
@@ -557,14 +571,15 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .log_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap };
             if (value.slot > directories.len + 1) return error.InvalidLogStorageGraph;
             if (value.slot == directories.len + 1) return true;
             const context = try LogContext.fromRoot(root, value.archive);
             if (value.slot == 0) {
                 try workspace.enqueue(.{ .log_declaration = root.declared });
                 try workspace.enqueue(.{ .log_declaration = root.initialization.declared });
+                if (root.compaction) |state| try workspace.enqueue(.{ .log_compaction = .{ .context = context, .state = state } });
             } else if (directories[value.slot - 1]) |reference| {
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
             }
@@ -578,14 +593,36 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (!value.marked) {
                 if (value.slot != 0) return error.InvalidLogStorageGraph;
                 try markPage(index, workspace, value.reference);
-                if (try workspace.visited(try scope(.{ .log_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind } }))) return true;
+                if (try workspace.visited(try scope(.{ .log_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind, .prefix_bytes = value.prefix_bytes } }))) return true;
                 value.marked = true;
                 return false;
             }
             if (value.slot == page.count) return true;
             switch (page.body) {
-                .branch => |children| try workspace.enqueue(.{ .log_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .height = page.height - 1 } }),
-                .leaf => |entries| try logEntry(allocator, index, workspace, value.context, value.kind, entries[value.slot].?),
+                .branch => |children| try workspace.enqueue(.{ .log_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .prefix_bytes = value.prefix_bytes, .height = page.height - 1 } }),
+                .leaf => |entries| try logEntry(allocator, index, workspace, value.context, value.kind, value.prefix_bytes, entries[value.slot].?),
+            }
+            value.slot += 1;
+            return false;
+        },
+        .log_compaction => |*value| {
+            const state = value.state;
+            try state.validate();
+            try value.context.requireTarget(state.source.cut.target);
+            if (state.source.cut.accepted.partition != value.context.partition or state.source.cut.accepted.next_lsn >= value.context.next_lsn or state.source.cut.next > value.context.next_offset) return error.InvalidLogStorageGraph;
+            const roots = [_]?s.TreeStore.pages.Reference{ state.source.batches, state.source.segments, state.source.hidden.containers, state.latest, state.candidate.containers };
+            const kinds = [_]LogIndexKind{ .batches, .pages_only, .bitmap, .ordered_keys, .bitmap };
+            if (value.slot > roots.len + 1) return error.InvalidLogStorageGraph;
+            if (value.slot == roots.len + 1) return true;
+            if (value.slot == 0) {
+                try workspace.enqueue(.{ .log_declaration = state.source.declared });
+            } else if (roots[value.slot - 1]) |reference| {
+                var context = value.context;
+                context.interpretation = state.source.cut.target.interpretation;
+                context.next_lsn = state.source.cut.accepted.next_lsn;
+                context.next_offset = state.source.cut.next;
+                context.segments = state.source.segments;
+                try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
             }
             value.slot += 1;
             return false;
@@ -596,12 +633,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (basis.cut.accepted.partition != value.context.partition or basis.cut.accepted.next_lsn >= value.context.next_lsn or basis.cut.next > value.context.next_offset) return error.InvalidLogStorageGraph;
             try markContent(workspace, try s.LogRead.key(value.handle.source, &key_buffer), value.handle.source);
             try workspace.enqueue(.{ .log_declaration = basis.declared });
+            var context = value.context;
+            context.interpretation = basis.cut.target.interpretation;
+            context.next_lsn = basis.cut.accepted.next_lsn;
+            context.next_offset = basis.cut.next;
+            context.segments = basis.segments;
+            if (basis.hidden.containers) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .bitmap } });
             if (basis.batches) |reference| {
-                var context = value.context;
-                context.interpretation = basis.cut.target.interpretation;
-                context.next_lsn = basis.cut.accepted.next_lsn;
-                context.next_offset = basis.cut.next;
-                context.segments = basis.segments;
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .batches } });
             }
         },

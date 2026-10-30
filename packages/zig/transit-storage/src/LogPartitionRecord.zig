@@ -9,6 +9,7 @@ const Initialization = @import("LogInitialization.zig");
 const Evidence = @import("LogEvidence.zig");
 const Log = @import("TransitLog.zig");
 const pages = @import("TreeStore.zig").pages;
+const Compaction = @import("StreamCompaction.zig");
 pub const header_bytes = 44;
 pub const max_metadata_bytes = 32 * 1024;
 pub const max_batch_bytes = Log.max_payload_bytes - header_bytes - max_metadata_bytes;
@@ -23,6 +24,9 @@ pub const Root = struct {
     batches: ?pages.Reference,
     segments: ?pages.Reference,
     sealed_through: u64,
+    hidden: @import("BitmapDirectory.zig").Root,
+    compaction: ?Compaction.State,
+    compacted: ?d.Position,
     receipts: ?pages.Reference,
     producers: ?pages.Reference,
     producer_receipts: ?pages.Reference,
@@ -34,13 +38,31 @@ pub const Root = struct {
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
         try self.requireDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
+        try self.hidden.validate();
+        if (self.hidden.cardinality > self.next_offset) return error.InvalidStreamCompaction;
+        if ((self.hidden.cardinality != 0 or self.compaction != null or self.compacted != null) and
+            (self.declared.declaration.configuration.policy != .stream or self.declared.declaration.configuration.policy.stream.compact_key_column == null)) return error.InvalidStreamCompaction;
+        if (self.compacted) |cut_value| {
+            try cut_value.validate();
+            if (cut_value.partition != self.initialization.partition or cut_value.next_lsn >= self.next_lsn) return error.InvalidStreamCompaction;
+        }
+        if (self.compaction) |work| {
+            try work.validate();
+            if (work.source.cut.accepted.partition != self.initialization.partition or work.source.cut.accepted.next_lsn >= self.next_lsn or
+                work.source.cut.retained_from != self.retained_from or work.source.cut.next > self.next_offset or
+                !std.meta.eql(work.source.cut.target.interpretation.object, self.declared.declaration.interpretation.object) or
+                work.source.cut.target.interpretation.revision > self.declared.declaration.interpretation.revision or
+                !std.meta.eql(work.source.declared.declaration.schema, self.initialization.declared.declaration.schema) or
+                !std.meta.eql(work.source.declared.declaration.configuration.policy.stream, self.declared.declaration.configuration.policy.stream) or
+                work.source.cut.target.partition != self.initialization.ordinal or !std.meta.eql(work.source.hidden, self.hidden)) return error.InvalidStreamCompaction;
+        }
         if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from) != (self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
@@ -75,6 +97,10 @@ pub const Record = struct {
         archive: struct { cut: d.Position, from_lsn: u64 },
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
         expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, protected_next: u64 },
+        compaction_start,
+        compaction_step: struct { from: u64, through: u64 },
+        compaction_publish: d.Position,
+        compaction_cancel: d.Position,
         checkpoint,
     },
 
@@ -112,6 +138,19 @@ pub const Record = struct {
                 try value.cut.validate();
                 try value.receipt.validate();
                 if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.retained_from or value.protected_next < value.receipt.next or value.protected_next > self.root.next_offset or self.root.clock_ms != value.observed_ms or self.root.declared.declaration.configuration.retention.max_age_ms == null) return error.InvalidLogExpiration;
+            },
+            .compaction_start => {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (work.source.cut.accepted.next_lsn != lsn or work.phase != .index or work.next != work.source.cut.retained_from or work.latest != null) return error.InvalidStreamCompaction;
+            },
+            .compaction_step => |step| {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (step.from < work.source.cut.retained_from or step.through <= step.from or step.through > work.source.cut.next or step.through - step.from > Compaction.max_rows) return error.InvalidStreamCompaction;
+            },
+            .compaction_publish, .compaction_cancel => |cut_value| {
+                try cut_value.validate();
+                if (self.root.compaction != null or cut_value.partition != self.root.initialization.partition or cut_value.next_lsn >= lsn) return error.InvalidStreamCompaction;
+                if (self.action == .compaction_publish and !std.meta.eql(self.root.compacted, @as(?d.Position, cut_value))) return error.InvalidStreamCompaction;
             },
         }
     }

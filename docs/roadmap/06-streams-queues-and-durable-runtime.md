@@ -376,9 +376,13 @@ The current progress slice delivers:
   reads and offset settlement, sealed `.tseg` placement, timestamp filtering,
   archive/checkpoint/trim, control reserve and explicit age-based prefix expiry.
   Paged consumer watermarks protect unread input; old pins and original outcomes
-  survive logical expiry. Notification waits, key compaction, public payload
-  operation identity and authorization composition, service scheduling and
-  installed qualification remain open.
+  survive logical expiry. Resumable key compaction publishes sparse read
+  visibility while preserving old pins, tombstones and current consumer cuts;
+  native collection retains pending candidates through checkpoint and restart.
+  A bounded notification component covers register/recheck wake ordering,
+  cancellation and deadlines. Public payload operation identity and authorization
+  composition, integration of waits and service scheduling, sparse payload
+  rewriting and installed qualification remain open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common

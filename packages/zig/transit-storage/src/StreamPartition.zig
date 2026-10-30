@@ -19,6 +19,9 @@ const Segment = @import("LogSegment.zig");
 const f = @import("transit_fuze");
 const Tail = @import("LogTail.zig");
 const Time = @import("LogTime.zig");
+const Compaction = @import("StreamCompaction.zig");
+const Bitmap = @import("BitmapDirectory.zig");
+const Keys = @import("OrderedKeyIndex.zig");
 const TreeStore = @import("TreeStore.zig");
 const Guard = @import("PublicationGuard.zig");
 const r = @import("LogPartitionRecord.zig");
@@ -265,7 +268,7 @@ fn readBasis(self: *Self, declared: Declaration.Stored, request: read.Request) !
     try request.target.requireSame(cut.target);
     try cut.requireOffset(request.from);
     if (request.group) |selected| _ = try self.requireGroup(selected, request.from);
-    const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches, .segments = self.root.segments };
+    const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches, .segments = self.root.segments, .hidden = self.root.hidden };
     try basis.validate();
     return basis;
 }
@@ -513,6 +516,7 @@ fn expirationObservation(self: *Self, cut: d.Position, status: ExpirationStatus,
     return .{ .cut = cut, .position = self.root.position(), .retained_from = self.root.retained_from, .expired_rows = 0, .status = status };
 }
 fn validateExpiration(self: *Self, declared: Declaration.Stored, receipt: q.AppendReceipt, now: u64, protected: u64) !void {
+    if (self.root.compaction != null) return error.LogMaintenanceConflict;
     try self.root.requireDeclaration(declared);
     const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
     _ = try Time.advance(self.root.clock_ms, now);
@@ -533,6 +537,7 @@ pub fn expireHistory(self: *Self, declared: Declaration.Stored, cut: d.Position,
     try self.requireReady();
     try self.root.requireDeclaration(declared);
     const age = declared.declaration.configuration.retention.max_age_ms orelse return error.LogRetentionNotDeclared;
+    if (self.root.compaction != null) return error.LogMaintenanceConflict;
     if (cut.partition != self.root.initialization.partition or cut.next_lsn == 0 or cut.next_lsn > self.root.next_lsn) return error.InvalidLogExpiration;
     var declaration = try Declaration.load(self.allocator, self.objects, declared);
     defer declaration.deinit();
@@ -561,6 +566,177 @@ pub fn expireHistory(self: *Self, declared: Declaration.Stored, cut: d.Position,
     next.segments = try self.tree().remove(next.segments, key);
     try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .expire = .{ .cut = cut, .receipt = receipt, .observed_ms = now, .protected_next = protected } } }, &.{}, guard);
     return .{ .cut = cut, .position = next.position(), .retained_from = next.retained_from, .expired_rows = @intCast(receipt.append.rows), .status = if (complete) .complete else .progress };
+}
+
+fn compactionSource(self: *Self, declared: Declaration.Stored) !Compaction.Source {
+    return .{ .declared = declared, .cut = try self.root.cut(declared), .batches = self.root.batches, .segments = self.root.segments, .hidden = self.root.hidden, .sealed_through = self.root.sealed_through };
+}
+fn compactionProgress(self: *Self, cut: d.Position, examined: u32, status: @FieldType(Compaction.Progress, "status"), guard: Guard) !Compaction.Progress {
+    try authorize(guard);
+    return .{ .cut = cut, .position = self.root.position(), .next = if (self.root.compaction) |work| work.next else self.root.next_offset, .examined = examined, .hidden = self.root.hidden.cardinality, .status = status };
+}
+const CompactionRow = struct { offset: u64, key: []const u8, tombstone: bool };
+const CompactionRows = struct { values: [Compaction.max_rows]CompactionRow = undefined, count: usize = 0, through: u64 };
+fn compactionRows(self: *Self, work: Compaction.State, maximum: u16, output: std.mem.Allocator, guard: Guard) !CompactionRows {
+    if (maximum == 0 or maximum > Compaction.max_rows or work.phase == .ready) return error.InvalidStreamCompactionBudget;
+    var declaration = try Declaration.load(output, self.objects, work.source.declared);
+    defer declaration.deinit();
+    const schema = declaration.definition.schema;
+    const column = schema.columns[try schema.index(declaration.definition.configuration.policy.stream.compact_key_column.?)];
+    const column_index = try schema.index(column.id);
+    var batch = (try self.borrowAt(work.source.cut, work.source.batches, work.source.segments, work.next, guard)) orelse return error.LogHistoryUnavailable;
+    defer batch.deinit();
+    var iterator = try Batch.Iterator.init(try batch.payload.bytes(), schema, .stream, batch.receipt.append.rows);
+    var result: CompactionRows = .{ .through = work.next };
+    defer _ = self.scratch.reset(.retain_capacity);
+    while (try iterator.next()) |encoded| {
+        const offset = try std.math.add(u64, batch.receipt.first, encoded.ordinal);
+        if (offset < work.next) continue;
+        if (offset != result.through) return error.LogHistoryUnavailable;
+        _ = self.scratch.reset(.retain_capacity);
+        const row = try encoded.decode(self.scratch.allocator(), schema, batch.receipt.append.operation);
+        const key = try f.Collation.encodeSortKey(row.cells[column_index], column.type, column.collation, self.key_buffer);
+        result.values[result.count] = .{ .offset = offset, .key = try output.dupe(u8, key), .tombstone = row.tombstone };
+        result.count += 1;
+        result.through += 1;
+        if (result.count == maximum or result.through == work.until()) break;
+    }
+    if (result.count == 0) return error.InvalidStreamCompaction;
+    return result;
+}
+fn superseded(index: Keys, work: Compaction.State, row: CompactionRow) !bool {
+    const value = try index.get(work.latest, row.key) orelse return error.InvalidStreamCompaction;
+    const latest = try Compaction.decodeOffset(value, work.source.cut.retained_from, work.source.cut.next);
+    if (latest < row.offset) return error.InvalidStreamCompaction;
+    // Tombstones remain explicit records until age-based history expiry. A
+    // later tombstone can supersede an earlier value, never the reverse here.
+    return !row.tombstone and latest > row.offset;
+}
+fn requireCompactionPublication(self: *Self, work: Compaction.State, cut: d.Position) !void {
+    try work.validate();
+    if (work.phase != .ready or !std.meta.eql(work.source.cut.accepted, cut) or !std.meta.eql(work.source.hidden, self.root.hidden)) return error.LogCompactionConflict;
+    if (try self.protectedOffset() < work.protected_next) return error.LogCompactionConsumerProtected;
+}
+
+/// Each call accepts one bounded maintenance step. The first captures the exact
+/// current cut; subsequent calls resume that same cut across appends/restarts.
+/// The final publication changes new read bases atomically. Existing pins keep
+/// their prior visibility. Concurrent expiry waits for completion or cancel.
+pub fn compactStep(self: *Self, declared: Declaration.Stored, cut: d.Position, maximum: u16, guard: Guard) !Compaction.Progress {
+    try cut.validate();
+    try authorize(guard);
+    try self.requireReady();
+    try self.root.requireDeclaration(declared);
+    if (declared.declaration.configuration.policy.stream.compact_key_column == null) return error.StreamCompactionNotDeclared;
+    if (maximum == 0 or maximum > Compaction.max_rows) return error.InvalidStreamCompactionBudget;
+    if (self.root.compaction == null) {
+        if (std.meta.eql(self.root.compacted, @as(?d.Position, cut))) return self.compactionProgress(cut, 0, .complete, guard);
+        if (!std.meta.eql(cut, self.root.position())) return error.LogCompactionConflict;
+        if (self.root.next_offset == self.root.retained_from) return self.compactionProgress(cut, 0, .complete, guard);
+        const protected = try self.protectedOffset();
+        if (protected == self.root.retained_from) return self.compactionProgress(cut, 0, .consumer, guard);
+        if (self.root.sealed_through == self.root.retained_from) return self.compactionProgress(cut, 0, .unsealed, guard);
+        var next = self.root;
+        next.declared = declared;
+        next.next_lsn = (try self.nextPosition()).next_lsn;
+        next.compaction = try Compaction.State.init(try self.compactionSource(declared), protected);
+        try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .compaction_start }, &.{}, guard);
+        return self.compactionProgress(cut, 0, .progress, guard);
+    }
+    const work = self.root.compaction.?;
+    if (!std.meta.eql(work.source.cut.accepted, cut)) return error.LogCompactionConflict;
+    if (work.phase == .ready) {
+        if (try self.protectedOffset() < work.protected_next) return self.compactionProgress(cut, 0, .consumer, guard);
+        try self.requireCompactionPublication(work, cut);
+        var next = self.root;
+        next.next_lsn = (try self.nextPosition()).next_lsn;
+        next.hidden = work.candidate;
+        next.compaction = null;
+        next.compacted = cut;
+        try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .compaction_publish = cut } }, &.{}, guard);
+        return self.compactionProgress(cut, 0, .complete, guard);
+    }
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    var output = std.heap.ArenaAllocator.init(memory.allocator());
+    defer output.deinit();
+    const rows = self.compactionRows(work, maximum, output.allocator(), guard) catch |err| return if (memory.exhausted) error.LogCompactionBudgetExceeded else err;
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var updated = work;
+    const keys: Keys = .{ .store = &self.store };
+    var bitmap: Bitmap = .{ .store = &self.store, .objects = self.objects };
+    var scratch: Bitmap.Container = .{};
+    for (rows.values[0..rows.count]) |row| switch (work.phase) {
+        .index => updated.latest = try keys.put(updated.latest, row.key, Compaction.encodeOffset(row.offset)),
+        .mark => if (try superseded(keys, work, row)) {
+            updated.candidate = try bitmap.edit(updated.candidate, row.offset >> 16, &.{.{ .offset = @truncate(row.offset), .present = true }}, &scratch);
+        },
+        .ready => unreachable,
+    };
+    try updated.advance(rows.through);
+    var next = self.root;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    next.compaction = updated;
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .compaction_step = .{ .from = work.next, .through = rows.through } } }, &.{}, guard);
+    return self.compactionProgress(cut, @intCast(rows.count), .progress, guard);
+}
+
+/// Cancels only unpublished maintenance. Already visible compaction and all
+/// accepted application work keep their own identities and retention owners.
+pub fn cancelCompaction(self: *Self, cut: d.Position, guard: Guard) !void {
+    try cut.validate();
+    try authorize(guard);
+    try self.requireReady();
+    const work = self.root.compaction orelse return;
+    if (!std.meta.eql(work.source.cut.accepted, cut)) return error.LogCompactionConflict;
+    const ordinary = self.enterControl(true);
+    defer self.leaveControl(ordinary);
+    var next = self.root;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    next.compaction = null;
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .root = next, .previous = self.commitment, .action = .{ .compaction_cancel = cut } }, &.{}, guard);
+}
+
+fn verifyCompactionStep(self: *Self, before: Compaction.State, after: Compaction.State, through: u64, guard: Guard) !void {
+    if (through <= before.next or through - before.next > Compaction.max_rows) return error.InvalidStreamCompaction;
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    var output = std.heap.ArenaAllocator.init(memory.allocator());
+    defer output.deinit();
+    const rows = self.compactionRows(before, @intCast(through - before.next), output.allocator(), guard) catch |err| return if (memory.exhausted) error.LogCompactionBudgetExceeded else err;
+    if (rows.through != through) return error.InvalidStreamCompaction;
+    var expected = before;
+    const keys: Keys = .{ .store = &self.store };
+    switch (before.phase) {
+        .index => {
+            for (rows.values[0..rows.count], 0..) |row, i| {
+                var overwritten = false;
+                for (rows.values[i + 1 .. rows.count]) |later| if (std.mem.eql(u8, row.key, later.key)) {
+                    overwritten = true;
+                    break;
+                };
+                if (!overwritten) {
+                    const value = try keys.get(after.latest, row.key) orelse return error.InvalidStreamCompaction;
+                    if (!std.mem.eql(u8, &value, &Compaction.encodeOffset(row.offset))) return error.InvalidStreamCompaction;
+                }
+            }
+            expected.latest = after.latest;
+        },
+        .mark => {
+            var bitmap: Bitmap = .{ .store = &self.store, .objects = self.objects };
+            var count = before.candidate.cardinality;
+            for (rows.values[0..rows.count]) |row| {
+                const old = try bitmap.contains(before.candidate, row.offset);
+                const present = old or try superseded(keys, before, row);
+                if (present and !old) count += 1;
+                if (try bitmap.contains(after.candidate, row.offset) != present) return error.InvalidStreamCompaction;
+            }
+            if (after.candidate.cardinality != count or (count == before.candidate.cardinality and !std.meta.eql(before.candidate, after.candidate))) return error.InvalidStreamCompaction;
+            expected.candidate = after.candidate;
+        },
+        .ready => return error.InvalidStreamCompaction,
+    }
+    try expected.advance(through);
+    if (!std.meta.eql(expected, after)) return error.InvalidStreamCompaction;
 }
 
 pub fn archive(self: *Self, cut: d.Position, limits: History.Limits, guard: Guard) !ArchiveProgress {
@@ -663,13 +839,16 @@ pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !Recovery {
         const frame = batch.frames[0];
         const decoded = try self.decodeFrame(frame, self.root.initialization.partition, self.root.next_lsn);
         if (!std.mem.eql(u8, &decoded.record.previous, &self.commitment)) return error.InvalidLogHistory;
-        try self.verifyTransition(decoded.record);
+        try self.verifyTransition(decoded.record, guard);
         const next_commitment = Evidence.hash(frame.payload);
         try authorize(guard);
         self.root = decoded.record.root;
         self.commitment = next_commitment;
     }
-    for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+    for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.hidden.containers, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+        _ = try self.store.load(value);
+    };
+    if (self.root.compaction) |work| for ([_]?pages.Reference{ work.source.batches, work.source.segments, work.latest, work.candidate.containers }) |reference| if (reference) |value| {
         _ = try self.store.load(value);
     };
     try authorize(guard);
@@ -680,7 +859,7 @@ fn verifyValue(self: *Self, root: ?pages.Reference, key: pages.Key, value: pages
     const found = try self.tree().get(root, key) orelse return error.InvalidLogHistory;
     if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
 }
-fn verifyTransition(self: *Self, record: r.Record) !void {
+fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
     const next = record.root;
     try self.root.initialization.requireSame(next.initialization);
     if (record.action != .operation) {
@@ -719,6 +898,29 @@ fn verifyTransition(self: *Self, record: r.Record) !void {
                 expected.retained_from = value.receipt.next;
                 expected.batches = next.batches;
                 expected.segments = next.segments;
+            },
+            .compaction_start => {
+                try self.root.requireDeclaration(next.declared);
+                expected.declared = next.declared;
+                expected.compaction = try Compaction.State.init(try self.compactionSource(next.declared), try self.protectedOffset());
+            },
+            .compaction_step => |step| {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (step.from != work.next) return error.InvalidStreamCompaction;
+                try self.verifyCompactionStep(work, next.compaction orelse return error.InvalidStreamCompaction, step.through, guard);
+                expected.compaction = next.compaction;
+            },
+            .compaction_publish => |cut| {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                try self.requireCompactionPublication(work, cut);
+                expected.hidden = work.candidate;
+                expected.compaction = null;
+                expected.compacted = cut;
+            },
+            .compaction_cancel => |cut| {
+                const work = self.root.compaction orelse return error.InvalidStreamCompaction;
+                if (!std.meta.eql(work.source.cut.accepted, cut)) return error.LogCompactionConflict;
+                expected.compaction = null;
             },
         }
         if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
@@ -893,7 +1095,14 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
     var result: ReadPage = .{ .allocator = output, .storage = try output.alloc(ReadRow, if (cursor.coverage.complete) 0 else limits.rows), .count = 0, .encoded_bytes = 0, .cursor = cursor };
     errdefer result.deinit();
     var coverage = cursor.coverage;
+    var visibility: Bitmap = .{ .store = &self.store, .objects = self.objects };
     outer: while (!coverage.complete and result.count < limits.rows and result.examined < limits.scanned_rows) {
+        if (try visibility.contains(retained.basis.hidden, coverage.through)) {
+            coverage.through += 1;
+            result.examined += 1;
+            coverage.complete = coverage.through == coverage.until;
+            continue;
+        }
         if (retained.basis.request.timestamp) |range| {
             const maximum: u32 = @intCast(@min(coverage.until - coverage.through, limits.scanned_rows - result.examined));
             const skipped = try self.skipTimestamp(retained.basis, range, coverage.through, maximum);
@@ -912,6 +1121,14 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
             const offset = try std.math.add(u64, batch.receipt.first, row.ordinal);
             if (offset < coverage.through) continue;
             if (offset != coverage.through) return error.LogHistoryUnavailable;
+            if (try visibility.contains(retained.basis.hidden, offset)) {
+                coverage.through += 1;
+                result.examined += 1;
+                coverage.complete = coverage.through == coverage.until;
+                advanced = true;
+                if (coverage.complete or result.examined == limits.scanned_rows) break :outer;
+                continue;
+            }
             if (retained.basis.request.timestamp) |range| {
                 const ci = try declaration.definition.schema.index(declaration.definition.configuration.policy.stream.timestamp_column.?);
                 if (!try self.timestampMatches(row, declaration.definition.schema, batch.receipt.append.operation, ci, range)) {

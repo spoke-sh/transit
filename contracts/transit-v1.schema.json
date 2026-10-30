@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e",
+    "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -74,7 +74,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
           ]
         },
         "realm": {
@@ -2117,7 +2117,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                               ]
                                             },
                                             "realm": {
@@ -3430,7 +3430,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                   ]
                                                 },
                                                 "realm": {
@@ -4847,7 +4847,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
       }
     },
     "SignedRequest": {
@@ -4880,7 +4880,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
               ]
             },
             "realm": {
@@ -6923,7 +6923,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                   ]
                                                 },
                                                 "realm": {
@@ -8236,7 +8236,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                        "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                       ]
                                                     },
                                                     "realm": {
@@ -9706,7 +9706,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
               ]
             },
             "realm": {
@@ -11749,7 +11749,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                   ]
                                                 },
                                                 "realm": {
@@ -13062,7 +13062,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                        "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                       ]
                                                     },
                                                     "realm": {
@@ -14546,7 +14546,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
               ]
             },
             "realm": {
@@ -27283,7 +27283,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
           ]
         },
         "realm": {
@@ -28638,7 +28638,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                               ]
                                             },
                                             "realm": {
@@ -28828,7 +28828,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                   ]
                                                 },
                                                 "realm": {
@@ -29687,7 +29687,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                   ]
                                 },
                                 "realm": {
@@ -31730,7 +31730,7 @@
                                                                     "definition": {
                                                                       "type": "string",
                                                                       "enum": [
-                                                                        "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                                        "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                                       ]
                                                                     },
                                                                     "realm": {
@@ -33043,7 +33043,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                                            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -34460,7 +34460,7 @@
                               ],
                               "x-transit-defaults": {
                                 "version": 1,
-                                "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                               }
                             }
                           }
@@ -36115,7 +36115,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+        "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
       }
     },
     "SignedQuery": {
@@ -36147,7 +36147,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
               ]
             },
             "realm": {
@@ -37502,7 +37502,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                   ]
                                                 },
                                                 "realm": {
@@ -37692,7 +37692,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                        "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                       ]
                                                     },
                                                     "realm": {
@@ -38551,7 +38551,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                        "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                       ]
                                     },
                                     "realm": {
@@ -40594,7 +40594,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                                            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -41907,7 +41907,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                                                                "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -43324,7 +43324,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "version": 1,
-                                    "definition": "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                                    "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                                   }
                                 }
                               }
@@ -45023,7 +45023,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
           ]
         },
         "realm": {
@@ -58038,7 +58038,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+                    "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
                   ]
                 },
                 "realm": {
@@ -58154,7 +58154,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bc4336065f662f6b20815669d660ac9a0f3ff3d0af462c8790ac297ce464f73e"
+            "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d"
           ]
         },
         "realm": {

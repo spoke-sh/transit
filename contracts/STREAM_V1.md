@@ -241,6 +241,17 @@ Original outcomes and producer fences outlive payload eligibility. Physical
 collection requires separate closure of every retained dependency. These
 component operations are not yet composed into the public payload service.
 
+Declared key compaction uses the full collation-normalized key to find the
+latest offset at a frozen cut. A resumable two-pass operation builds a private
+key directory and visibility bitmap, processing at most 64 rows per step.
+Publication hides superseded values only below both the sealed frontier and
+protected consumer checkpoints; tombstones remain until explicit age expiry.
+A newly assigned lagging consumer blocks publication. Existing read pins retain
+their original visibility, while new reads authenticate the published bitmap
+and count hidden offsets as verified scanned coverage. Original append outcomes
+remain unchanged. This logical compaction does not rewrite sparse payload
+segments; physical cleanup still requires the retained dependency graph.
+
 Stream append and offset settlement remain reserved, unsupported transaction
 participants. Enabling them requires retained preparation, conflict/policy
 guards, one original decision, common-decision visibility and bounded cleanup

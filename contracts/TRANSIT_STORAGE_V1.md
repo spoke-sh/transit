@@ -1484,6 +1484,45 @@ admission verifies the complete original batch. Physical copies may be reclaimed
 only after the retained graph no longer needs their placement, independently of
 logical payload retention.
 
+### Stream key compaction
+
+`compactStep(declared, cut, maximum, guard)` selects the exact current physical
+cut when starting and resumes that same cut until publication or cancellation.
+The declared compaction column supplies canonical full keys under its collation;
+hash or prefix equality never establishes supersession. Each step handles at
+most 1–64 rows from one original batch, under the index and allocation budgets.
+
+The first pass builds a paged `OrderedKeyIndex` mapping each full key to its
+latest logical offset within the frozen source. Values contain a big-endian
+`u64` offset and 24 zero padding bytes. The second pass stages a paged Roaring
+visibility mask for superseded non-tombstone rows in the sealed prefix below
+the captured consumer watermark. Tombstones remain explicit records until
+age-based history expiry. Appends after the source cut cannot change that pass's
+supersession decisions.
+
+The accepted root has mandatory `hidden`, nullable `compaction` work and nullable
+`compacted` cut fields. Work records retain the exact declaration, cut, batch and
+segment placements, original mask, protected checkpoint, phase, continuation,
+private full-key index and candidate mask. Indexing and marking publish bounded
+progress without changing visible rows. A final WAL transition publishes the
+candidate mask and closes work. It rechecks current consumer protection; a newly
+assigned lagging group blocks publication until progress or explicit cancellation.
+Lost replies resume from accepted work rather than selecting a different cut.
+
+Every finite read basis captures its own mandatory `hidden` root. Previously
+accepted reads preserve their visibility; new reads advance scanned coverage
+over verified masked offsets without emitting those rows. Empty intermediate
+pages remain incomplete until their original upper bound is reached. Original
+append receipts, offsets and producer state remain unchanged.
+
+`cancelCompaction` closes only unpublished work and can use the control reserve.
+Expiry refuses while a pass owns its frozen source. Recovery and native collection
+retain active work, full-key child directories, bitmap containers and pinned
+visibility roots. This logical compaction does not yet rewrite sparse segment
+payloads; original sealed batch bytes remain retained until their payload owners
+permit physical reclamation. Component batch borrows expose original storage
+bytes; consumers use the visibility-aware finite reader.
+
 ### Retained Stream reads and offset settlement
 
 `beginRead` stages a `log-reads/{sha256}.data` object, then atomically publishes

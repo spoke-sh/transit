@@ -70,7 +70,7 @@ The adapter supplies the private read-authentication key, serializes catalog
 changes, enforces current grants and binds global operation identity across
 objects. Every read, including terminal metadata, rechecks current authority after
 buffering. This component is not yet composed into payload service APIs.
-Notification waits and key compaction remain unfinished.
+Notification waits remain unfinished.
 `flush` seals one accepted batch per call through a fixed physical cut, preserving
 its original receipt and offsets. Shared `.tseg` columns and a separate immutable
 delivery-metadata sidecar must reproduce the original payload digest before their
@@ -121,6 +121,16 @@ unsealed, untimed, not due or protected by a consumer. Existing pins retain thei
 original bytes; new reads below the boundary report `LogHistoryUnavailable`.
 Original outcomes, producer fences and logical offset allocation survive expiry.
 Physical collection separately waits for pins and recovery dependencies to close.
+
+`compactStep` captures a fixed source cut and performs two bounded passes: a
+paged full-key index identifies the latest offset under the declared collation,
+then a Roaring mask hides superseded sealed values below protected consumer
+checkpoints. Each call handles at most 64 rows. Publication rechecks consumer
+protection; original pins keep their earlier visibility and newer reads preserve
+scanned coverage across hidden offsets. Tombstones remain until history expiry.
+Work resumes after restart or explicit cancellation, which does not undo any
+published visibility. Sparse segment payload rewriting remains separate; the
+current pass preserves original batch bytes and receipts.
 
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an

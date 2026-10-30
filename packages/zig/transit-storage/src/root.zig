@@ -26,6 +26,7 @@ pub const LogRecovery = @import("LogRecovery.zig");
 pub const LogStorageRoots = @import("LogStorageRoots.zig");
 pub const LogPartitionRecord = @import("LogPartitionRecord.zig");
 pub const StreamPartition = @import("StreamPartition.zig");
+pub const StreamCompaction = @import("StreamCompaction.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");
 pub const DocumentDeclaration = @import("DocumentDeclaration.zig");

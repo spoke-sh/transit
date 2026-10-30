@@ -119,24 +119,28 @@ fn expectArchive(fixture: *Fixture, content: p.DataLifecycle.Content, present: b
     try t.expectEqual(present, try fixture.owner.objects.objectStore().head(try s.TableArchive.objectKey(content.sha256, &name)) != null);
 }
 
-test "direct Stream collection preserves pinned cuts and original receipts through native trim and restart" {
-    var tmp = t.tmpDir(.{});
-    defer tmp.cleanup();
-    var fixture: Fixture = .{};
-    try fixture.open(tmp.dir, true);
-    defer fixture.close();
-    var definition = try s.LogDeclaration.prepare(t.allocator, .{
+fn streamDefinition(compact_key: ?u64) !s.LogDeclaration.Owned {
+    return s.LogDeclaration.prepare(t.allocator, .{
         .object = .{ .scope = object.scope, .branch = 1, .object = 8 },
         .revision = 1,
         .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &columns },
         .configuration = .{
             .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
             .retention = .{ .max_age_ms = null },
-            .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } },
+            .policy = .{ .stream = .{ .compact_key_column = compact_key, .timestamp_column = null } },
         },
         .limits = .{ .append_rows = 128, .append_bytes = 8192, .claim_rows = 16, .read_rows = 128, .read_bytes = 8192, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
         .properties = "",
     });
+}
+
+test "direct Stream collection preserves pinned cuts and original receipts through native trim and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var fixture: Fixture = .{};
+    try fixture.open(tmp.dir, true);
+    defer fixture.close();
+    var definition = try streamDefinition(null);
     defer definition.deinit();
     const initialized: s.LogInitialization.Request = .{
         .definition = p.Growth.current_definition,
@@ -179,6 +183,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
         .until = 1,
         .batches = stream.root.batches,
         .segments = stream.root.segments,
+        .hidden = stream.root.hidden,
     });
     const orphan_checkpoint = try s.LogRecovery.stage(fixture.data.objects(), .{ .root = stream.root, .commitment = stream.commitment });
     _ = try fixture.collect();
@@ -248,6 +253,69 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expectEqual(@as(u64, 1), expired_cut.next);
     try t.expectEqualDeep(accepted, try stream.append(revised_stored, request, payload, fixture.guard()));
     try t.expectError(error.LogHistoryUnavailable, stream.beginRead(revised_stored, .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = revised_stored.declaration.interpretation, .partition = 0 }, .operation = .{ .scope = object.scope, .principal = 0, .operation = 104 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard()));
+}
+
+test "direct Stream collection retains pending compaction and pinned visibility after checkpoint" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var fixture: Fixture = .{};
+    try fixture.open(tmp.dir, true);
+    defer fixture.close();
+    var definition = try streamDefinition(1);
+    defer definition.deinit();
+    const initial: s.LogInitialization.Request = .{
+        .definition = p.Growth.current_definition,
+        .declared = try s.LogDeclaration.stage(fixture.data.objects(), &definition),
+        .operation = .{ .scope = object.scope, .principal = 0, .operation = 100 },
+        .ordinal = 0,
+        .partition = 23,
+    };
+    _ = try s.LogInitialization.initialize(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard());
+    var stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), .{ .resident_pages = 1 });
+    defer stream.deinit() catch unreachable;
+    _ = try stream.recoverStep(fixture.guard(), 1);
+    const op: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 0, .operation = 101 };
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
+    var buffer: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(definition.definition.schema, op, .stream, &.{ .{ .cells = &.{cell} }, .{ .cells = &.{cell} }, .{ .cells = &.{cell} } }, &buffer);
+    const request: p.StreamQueue.Append = .{ .target = initial.target(), .operation = op, .kind = .stream, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) };
+    const receipt = try stream.append(initial.declared, request, payload, fixture.guard());
+    const before = try stream.beginRead(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard());
+    _ = try stream.flush(stream.root.position(), fixture.guard());
+    const cut = stream.root.position();
+    _ = try stream.compactStep(initial.declared, cut, 1, fixture.guard());
+    while (stream.root.compaction.?.phase != .mark or stream.root.compaction.?.next == 0) _ = try stream.compactStep(initial.declared, cut, 1, fixture.guard());
+    const work = stream.root.compaction.?;
+    try t.expectEqual(@as(u64, 1), work.candidate.cardinality);
+    var directory: s.BitmapDirectory = .{ .store = &stream.store, .objects = fixture.data.objects() };
+    const mask = (try directory.reference(work.candidate, 0)).?;
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    var name: [96]u8 = undefined;
+    try t.expect(try fixture.data.objects().head(try s.BitmapDirectory.objectKey(mask, &name)) != null);
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), .{ .resident_pages = 1 });
+    while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
+    while ((try stream.compactStep(initial.declared, cut, 1, fixture.guard())).status != .complete) {}
+    const after = try stream.beginRead(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 103 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.BitmapDirectory.objectKey(mask, &name)) == null);
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), .{ .resident_pages = 1 });
+    while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
+    var original = try stream.readPage(try stream.readCursor(before.handle(), authority, fixture.guard()), authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, fixture.guard());
+    defer original.deinit();
+    var compacted = try stream.readPage(try stream.readCursor(after.handle(), authority, fixture.guard()), authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, fixture.guard());
+    defer compacted.deinit();
+    try t.expect(original.count == 3 and original.cursor.coverage.complete);
+    try t.expect(compacted.count == 1 and compacted.rows()[0].offset == 2 and compacted.cursor.coverage.complete and compacted.cursor.coverage.through == 3);
+    try t.expectEqualDeep(receipt, (try stream.operation(op, fixture.guard())).?.outcome.append);
 }
 
 test "direct Table collection expires old graph while preserving pins, pending work and original receipts" {
