@@ -15,6 +15,26 @@ pub fn stage(objects: Objects.ObjectStore, intent: *const I, namespace: u64) !I.
     if (stored.size != reference.content.bytes or !std.mem.eql(u8, &stored.sha256, &reference.content.sha256)) return error.InvalidTableIntent;
     return reference;
 }
+pub fn stageWithBinding(objects: Objects.ObjectStore, intent: *const I, namespace: u64, claim_binding: bool) !I.Reference {
+    const reference = try intent.reference(namespace);
+    if (!claim_binding) return stage(objects, intent, namespace);
+    var binding_name: [96]u8 = undefined;
+    const binding_key = try c.OperationBinding.key(reference.binding.identity, &binding_name);
+    if (try objects.head(binding_key) != null) return stage(objects, intent, namespace);
+    var intent_name: [96]u8 = undefined;
+    const intent_key = try key(reference, &intent_name);
+    var binding_buf: [c.OperationBinding.max_bytes]u8 = undefined;
+    const encoded_binding = try c.OperationBinding.encodeData(reference.binding, &binding_buf);
+    const puts = [2]Objects.ImmutablePut{
+        .{ .key = intent_key, .bytes = intent.bytes, .sha256 = reference.content.sha256 },
+        .{ .key = binding_key, .bytes = encoded_binding.bytes, .sha256 = encoded_binding.sha256 },
+    };
+    var metas: [2]Objects.ObjectMeta = undefined;
+    try objects.putImmutableBatch(&puts, &metas);
+    if (metas[0].size != reference.content.bytes or !std.mem.eql(u8, &metas[0].sha256, &reference.content.sha256)) return error.InvalidTableIntent;
+    if (metas[1].size != encoded_binding.bytes.len or !std.mem.eql(u8, &metas[1].sha256, &encoded_binding.sha256)) return error.InvalidOperationBinding;
+    return reference;
+}
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, reference: I.Reference) !I {
     var name: [96]u8 = undefined;
     const path = try key(reference, &name);
