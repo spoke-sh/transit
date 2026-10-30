@@ -324,6 +324,16 @@
         ]
       },
       {
+        "id": "managed_dataflows",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/managed_dataflows.py"
+        ]
+      },
+      {
         "id": "sdk_layout",
         "phase": "static",
         "command": [

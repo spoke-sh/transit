@@ -6553,6 +6553,127 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-catalog/src/ManagedDataflow.zig": {
+      "errors": {
+        "CompleteOrderedConsumerCannotSkipHistory": 1,
+        "ConnectionReferencedByEndpoint": 1,
+        "ConnectorCatalogFull": 2,
+        "DataflowAlreadyRetired": 6,
+        "DataflowAuthorizationRevoked": 1,
+        "DataflowHistoryExpired": 2,
+        "DataflowInitialRevisionNotReady": 1,
+        "DataflowNotActive": 1,
+        "DataflowNotAuthorized": 4,
+        "DataflowPendingTransactionBufferFull": 1,
+        "DataflowSinkOutboxFull": 1,
+        "DataflowWorkBudgetExceeded": 1,
+        "IncompatibleSourceSchemaEvolution": 1,
+        "InlinePlaintextSecretRejected": 1,
+        "InvalidConnectionDescriptor": 1,
+        "InvalidDataflowIdentity": 1,
+        "InvalidDataflowLifecycleTransition": 1,
+        "InvalidDataflowName": 1,
+        "InvalidDataflowSinkBinding": 1,
+        "InvalidDataflowSourceBinding": 1,
+        "InvalidDataflowSourceCount": 1,
+        "InvalidDataflowWorkBudget": 1,
+        "InvalidEndpointDescriptor": 1,
+        "InvalidPolicyEpoch": 1,
+        "MissingRecomputeSnapshotCut": 3,
+        "RowSelectPermissionDenied": 1,
+        "SinkAuthorizationRevoked": 1,
+        "SinkReferencedByActiveDataflow": 1,
+        "SourcePhasedRewriteInProgress": 1,
+        "StaleDataflowLeaseEpoch": 1,
+        "UnboundDataflowSourceObject": 1,
+        "UnknownOrRetiredConnection": 2,
+        "UnknownSinkEndpoint": 1
+      },
+      "outcomes": {
+        "BlockedReason": [
+          "none",
+          "awaiting_authorization",
+          "policy_revoked",
+          "history_expired",
+          "incompatible_source_schema",
+          "source_phased_rewrite_in_progress",
+          "sink_unavailable",
+          "budget_exhausted",
+          "lease_fenced"
+        ],
+        "ConsumerContract": [
+          "complete_ordered_changes",
+          "net_relation_changes",
+          "finite_recomputation"
+        ],
+        "DataflowKind": [
+          "materialized_view",
+          "dataflow",
+          "subscription"
+        ],
+        "EndpointKind": [
+          "source",
+          "sink"
+        ],
+        "LifecycleCommand": [
+          "authorize",
+          "activate",
+          "suspend_computation",
+          "resume_computation",
+          "refresh",
+          "retire",
+          "dialect_enable",
+          "dialect_disable"
+        ],
+        "LifecycleState": [
+          "published",
+          "authorized",
+          "active",
+          "suspended",
+          "retired"
+        ],
+        "ResumePolicy": [
+          "replay_history",
+          "recompute_snapshot"
+        ],
+        "SourceEvolutionClass": [
+          "unchanged",
+          "class_a_lazy_compatible",
+          "class_b_phased_rewrite",
+          "incompatible_ddl"
+        ],
+        "TxDecisionState": [
+          "pending_participants",
+          "committed_cut",
+          "aborted"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "ConnectorCatalog.createConnection()": "<inferred>",
+        "ConnectorCatalog.createEndpoint()": "<inferred>",
+        "ConnectorCatalog.dropConnectionRestrict()": "<inferred>",
+        "ConnectorCatalog.dropSinkRestrict()": "<inferred>",
+        "DataflowDeclaration.validate()": "<inferred>",
+        "DataflowRuntime.authorize()": "<inferred>",
+        "DataflowRuntime.establishSnapshotToLiveHandoff()": "<inferred>",
+        "DataflowRuntime.ingestWalDeltaBatch()": "<inferred>",
+        "DataflowRuntime.publish()": "<inferred>",
+        "DataflowRuntime.readCompletedRevision()": "<inferred>",
+        "DataflowRuntime.resumeDataflow()": "<inferred>",
+        "DataflowRuntime.retireDataflow()": "<inferred>",
+        "DataflowRuntime.suspendDataflow()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Model.zig": {
       "errors": {
         "InvalidCatalogIdentity": 1
@@ -7161,6 +7282,7 @@
         "Inspection.zig",
         "InvestigationBasis.zig",
         "LogAuthority.zig",
+        "ManagedDataflow.zig",
         "Model.zig",
         "NameAssertion.zig",
         "OperationBinding.zig",

@@ -492,6 +492,16 @@ pub const features = [_]FeatureDescriptor{
         .deviations = "Preserves reversible 5-state and checked-arithmetic overflow witnesses across retractions; spatial boundary Z-set operators hand off to Milestone 17.",
         .states = LifecycleStates.compile_and_local_execute,
     },
+    .{
+        .id = "X010-DATAFLOW-LIFECYCLE",
+        .standard = .transit_extension_v1,
+        .edition_clause = "DATAFLOW_V1 §LIFECYCLE",
+        .title = "Five-state computation lifecycle (Published, Authorized, Active, Suspended, Retired), ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DDL, and WAL-activated scheduling (T5, T8)",
+        .owner = "packages/zig/transit-catalog/src/ManagedDataflow.zig",
+        .dependencies = &.{ "F111", "T181-X003", "X011-DBSP-ZSET" },
+        .deviations = "Replaces boolean ENABLE/DISABLE with a 5-state machine, aligns multi-object changes to M5 Transaction.Cut (0x54584331), and fails closed if history was compacted during suspension.",
+        .states = LifecycleStates.compile_and_local_execute,
+    },
 };
 
 pub fn findCollation(id_or_spelling: []const u8) ?CollationDescriptor {
