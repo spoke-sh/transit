@@ -1,8 +1,9 @@
 # Direct Table request contract v1
 
 `DirectTableProtocol` defines signed Table, Stream and Queue declaration, Table
-row mutation, operation inspection and retained-read requests. The node's internal `LocalTableService`
-dispatches these requests through `DirectCatalog`, the Table storage owner and
+row mutation, Stream append/consumer progress, operation inspection and
+retained-read requests. The node's internal `LocalTableService`
+dispatches these requests through `DirectCatalog`, the partition storage owners and
 native authorization. The local node's optional `table` setting serves
 `POST /table/v1`; the local launcher configures that owner for its default Tables
 and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
@@ -432,8 +433,70 @@ mutation attempt still requires original-operation recovery.
 `DirectLogClient` and `transit-data-client.Catalog.callLog` use these same signed
 actions. Saved work includes mandatory shared definition, exact connection and
 complete DDL; lookup schemas belong to the caller's output arena. No call retries
-or chooses a replacement identity implicitly. This profile enables declaration
-lifecycles; payload append/consume/claim and SQL verbs require separate owners.
+or chooses a replacement identity implicitly. Queue payload operations and SQL
+verbs are unavailable in this profile.
+
+### Stream payload and consumer progress
+
+The signed `stream` action carries `DirectStream.Request`: `observe`,
+`mutate`, `operation`, `group`, `cursor` or `page`. Every request binds a
+logical partition and exact declaration. Mutations carry one
+`DirectStreamMutation.Request` (`append`, `assign`, `consume`, `offset` or
+`release`); only append carries binary `LogBatch` payload. The complete request
+is covered by the ordinary signed catalog envelope. Queue partitions reject
+this action. No Station turn or Table row operation participates.
+
+Append returns its original allocated range and producer receipt. Consume
+accepts a finite retained cut; subsequent appends cannot extend it. Cursor and
+page requests carry the original read handle, authenticated coverage, and
+explicit row, encoded-byte and scanned-row budgets. Pages include the original
+source declaration and schema, ascending offsets, operation/ordinal identities,
+tombstones, and encoded Fuze rows. Encoded-byte accounting includes the 13-byte
+log row header. Empty filtered pages can be incomplete; only the returned
+coverage establishes exhaustion. Each page is separately authorized, including
+terminal empty pages. Group pages additionally require current acquire rights.
+
+Consumer assignment uses an explicit generation and initial next offset.
+Offset settlement requires the exact group generation, expected checkpoint and
+authenticated complete read coverage. Reading, releasing a pin, closing a
+client or losing a response never commits an offset. Original settlement and
+release can finish after ALTER or DROP under current rights. Fresh appends and
+reads require the current live definition.
+
+Mutations reserve their full intent in the shared catalog operation namespace
+before partition acceptance. Reservation alone is not acceptance. `operation`
+inspects that exact work and returns its original receipt or null; it does not
+execute it. Changed fields, including a different target partition or offset
+cursor, conflict. Every attempt retains its original identity after an
+uncertain response. Bounded recovery can instead return `recovering` with its
+examined count and physical position; this result accepts no new mutation and
+establishes no data coverage.
+
+Observe requires metadata rights; append requires append rights; positional
+reads and release require read rights; group consumption requires acquire;
+offset settlement requires settle; assignment requires ownership. All checks
+include the current database/schema scope and repeat after response buffering.
+Operation inspection requires the original work's current rights. Inspection,
+release, offset settlement and reassignment use the control reserve.
+
+`DirectStreamClient` and `Catalog.callStream` use this action. Saved mutation
+bytes include mandatory shared definition, full connection, exact work and
+payload commitment. Returned schemas and decoded rows belong to the caller's
+output arena. The service bounds append payloads to 1 MiB, pages to 4096 returned
+and scanned rows and 4 MiB encoded data; declaration limits can be smaller.
+Recovery examines at most 256 frames per request. The local service derives its
+private cursor key from the registrar seed; replacement with the same seed
+preserves cursors. Rotating the seed requires reacquiring authenticated cursors
+for retained reads and does not alter accepted receipts. Timed new work requires
+available authoritative UTC with zero reported uncertainty and a nonregressing
+persisted floor. Original receipt lookup does not require a clock.
+
+Conflicting identities, producer/group generations or checkpoints return
+`Conflict`; released/missing read pins return `QueryExpired`; an opted-in
+expired source range returns `HistoryReclaimed`. Invalid payloads, cursors or
+budgets return `InvalidRequest`. Missing required recovery storage remains
+unavailable. Any mutation transport failure still requires original-work
+inspection; its error class cannot establish rejection.
 
 ### Namespace lifecycle
 

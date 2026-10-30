@@ -38,6 +38,7 @@ pub const Attempt = struct {
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
             .identity = switch (request.action) {
+                .stream => |value| value.identity(),
                 // A raced token may select a different original operation. Never
                 // label the proposed operation as the accepted recovery identity.
                 .client_token => null,

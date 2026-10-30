@@ -27,11 +27,41 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
-These operations currently publish declarations only. Stream production and
-consumption, Queue leasing, SQL verbs and Station composition require their
-execution owners. The existing mailbox delivery profile below remains separate.
+Queue payload leasing, SQL verbs and Station composition are unavailable through
+these operations. The existing mailbox delivery profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+
+## Stream payloads and consumer progress
+
+`Catalog.callStream` appends schema-bound batches to one declared partition,
+observes its accepted cut, reads finite retained ranges and manages consumer
+progress. Save the exact mutation with `DirectStreamClient.save` before sending
+it. After a lost response, inspect that original work under current rights.
+An append receipt records its allocated offsets; a missing response is not
+rejection. Payloads are limited to 1 MiB per append and may have smaller
+declaration limits.
+
+Consume accepts a read with a fixed upper cut. Read its cursor in bounded pages;
+each page carries its pinned schema, offsets, original row identities and
+coverage. Later appends do not extend the read. Returned cells belong to the
+caller's output arena. Empty pages may cover filtered offsets without finishing
+the read; use the explicit completion flag. Pages allow at most 4096 rows,
+4096 examined offsets and 4 MiB encoded data, further bounded by the declaration.
+Release the retained read explicitly when it is no longer needed.
+
+Consumer groups have explicit assignment generations and committed next
+offsets. Group reads require current acquire rights; committing an offset is a
+separate settle operation using authenticated complete coverage and the expected
+checkpoint. Reading or closing a client never advances a group. A stale
+generation or checkpoint conflicts. Retained reads and original operations
+remain subject to current rights after ALTER or DROP.
+
+The service rechecks authorization after buffering every response. Bounded
+recovery can return incomplete progress before executing new work. Typed
+positional and group reads are finite; blocking waits and automatic stream
+maintenance are not exposed by this service. See the
+[payload contract](../../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress).
 
 ## Mailbox delivery
 

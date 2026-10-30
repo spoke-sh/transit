@@ -32,8 +32,9 @@ explicit incomplete progress before any new mutation executes. Request proofs,
 scratch allocations and time callbacks never remain in the cached owner;
 returned pages own their encoded rows and expose deterministic cleanup.
 Group reads recheck acquire rights on every cursor/page disclosure, and original
-read closure survives later policy revisions and DROP. This package component
-is not yet wired to the signed payload service or SQL execution.
+read closure survives later policy revisions and DROP. The signed `stream`
+action and `DirectStreamClient` expose these operations through the local node.
+SQL execution and blocking waits are unavailable.
 
 `DirectCatalog` composes paged metadata directories with independent Table logs.
 DDL admission reserves its original name and intent. A Table acceptance record

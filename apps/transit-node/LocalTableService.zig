@@ -31,6 +31,7 @@ pub const Resident = struct {
     data: backend.DataStore,
     catalog: D,
     table: ?D.CachedTable = null,
+    stream: ?c.DirectStream.Cached = null,
 
     pub fn create(allocator: std.mem.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
         const self = try allocator.create(Resident);
@@ -45,6 +46,7 @@ pub const Resident = struct {
         return self;
     }
     pub fn destroy(self: *Resident) void {
+        if (self.stream) |*cached| cached.deinit();
         if (self.table) |*cached| cached.table.deinit();
         self.catalog.deinit();
         std.debug.assert(self.memory.used == 0);
@@ -115,7 +117,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .stream = executeStream };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -133,6 +135,34 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
     if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
     return output;
+}
+
+fn streamTime(raw: *anyopaque) !?u64 {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    const clock = self.engine.clock orelse return null;
+    const sample = try clock.sample();
+    // Stream's persisted time contract requires an authoritative instant.
+    // An uncertainty interval cannot silently become an earlier expiry time.
+    if (sample.error_ms != 0) return error.LogTimeUnavailable;
+    return sample.unix_ms;
+}
+
+fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var temporary: ?c.DirectStream.Cached = null;
+    defer if (temporary) |*cached| cached.deinit();
+    const slot = if (self.resident) |resident| &resident.stream else &temporary;
+    var seed = self.registrar.key.secret_key.seed();
+    defer std.crypto.secureZero(u8, &seed);
+    var secret: [32]u8 = undefined;
+    defer std.crypto.secureZero(u8, &secret);
+    std.crypto.auth.hmac.sha2.HmacSha256.create(&secret, "transit.catalog.stream.cursor.v1\x00", &seed);
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+        .authority = .{ .secret = secret },
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+    }, request, policy);
 }
 
 fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy, steps: u16) !D.Observation {

@@ -199,6 +199,16 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     log_request = {**log_input, "proof": {"claim": log_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_claim)).digest())}}
     log_fixture = {"request": log_request, "public_key": public_key, "intent_digest": list(log_digest)}
 
+    stream_work = {"consume": {
+        "target": {"definition": definition, "interpretation": source_definition, "partition": 1},
+        "operation": log_binding["identity"], "group": None, "from": 0, "until": None, "timestamp": None,
+    }}
+    stream_input = {**request_input, "action": {"stream": {"mutate": {"work": stream_work, "payload": None}}}}
+    stream_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(stream_input)).digest())}
+    stream_request = {**stream_input, "proof": {"claim": stream_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(stream_claim)).digest())}}
+    stream_digest = hashlib.sha256(b"transit.catalog.stream.operation.v1\0" + bytes.fromhex(definition) + canonical(stream_work)).digest()
+    stream_fixture = {"request": stream_request, "public_key": public_key, "intent_digest": list(stream_digest)}
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -221,6 +231,11 @@ for columns in ("abc", [0] * 129):
 validator.validate(dependency_request)
 validator.validate(resource_request)
 validator.validate(log_request)
+validator.validate(stream_request)
+for field in ("target", "operation", "group", "from", "until", "timestamp"):
+    invalid = copy.deepcopy(stream_request)
+    del invalid["action"]["stream"]["mutate"]["work"]["consume"][field]
+    assert not validator.is_valid(invalid), field
 for field in ("binding", "kind", "namespace", "name", "action"):
     invalid = copy.deepcopy(log_request)
     del invalid["action"]["log_admit"][field]
@@ -265,6 +280,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
+        (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",
         (json.dumps(log_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-filter-v1.json",

@@ -266,6 +266,7 @@ fn readBasis(self: *Self, declared: Declaration.Stored, request: read.Request) !
     try request.validate();
     const cut = try self.root.cut(declared);
     try request.target.requireSame(cut.target);
+    if (request.from < cut.retained_from) return error.LogRangeExpired;
     try cut.requireOffset(request.from);
     if (request.group) |selected| _ = try self.requireGroup(selected, request.from);
     const basis: Read.Basis = .{ .request = request, .declared = declared, .cut = cut, .until = request.until orelse cut.next, .batches = self.root.batches, .segments = self.root.segments, .hidden = self.root.hidden };

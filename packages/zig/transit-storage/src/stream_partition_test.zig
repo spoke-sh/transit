@@ -972,7 +972,7 @@ test "stream partition expiry protects paged consumer watermarks pins and origin
     try t.expect(old.count == 4 and old.cursor.coverage.complete);
     var illegal = retained.request;
     illegal.operation = operation(203);
-    try t.expectError(error.LogHistoryUnavailable, owner.beginRead(initial.declared, illegal, policy.guard()));
+    try t.expectError(error.LogRangeExpired, owner.beginRead(initial.declared, illegal, policy.guard()));
     for (0..32) |i| {
         const group = (try owner.group(i + 1, policy.guard())).?.group;
         const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(300 + i * 2), .group = group, .from = 2, .until = null, .timestamp = null }, policy.guard());

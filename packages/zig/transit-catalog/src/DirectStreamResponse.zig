@@ -32,6 +32,7 @@ pub fn requireReceipt(work: c.DirectStreamMutation.Request, result: stream.Recei
 
 pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, request: stream.Request, result: stream.Result) !void {
     try request.validate(connection.principal, connection.scope);
+    try connection.object(request.target().interpretation.object);
     if (result == .recovering) {
         const progress = result.recovering;
         try progress.position.validate();

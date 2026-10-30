@@ -72,6 +72,7 @@ def run(node, caller, mode="tables", *artifacts):
         fault = {"changed": False, "log_admit": False, "log_publish": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
+        stream_faults = set()
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
@@ -163,6 +164,17 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
                         log_admit = envelope["action"].get("log_admit")
+                        stream = envelope["action"].get("stream", {}).get("mutate")
+                        if mode == "tables" and stream and response.status == 200:
+                            kind, work = next(iter(stream["work"].items()))
+                            identity = work["commit"]["operation"] if kind == "offset" else work["operation"]
+                            selected = identity["operation"]
+                            if selected in (621001, 621002, 621005, 621006) and selected not in stream_faults:
+                                parsed = json.loads(data)
+                                assert kind in parsed["result"]["stream"]["operation"], parsed
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                stream_faults.add(selected)
                         log_operation = envelope["action"].get("log_operation")
                         for selected, tag, result, phase in ((log_admit, "log_admit", "log_admitted", "admitted"), (log_operation, "log_publish", "log_operation", "complete")):
                             if (mode == "tables" and selected and selected["binding"]["identity"]["operation"] == 620001
@@ -614,6 +626,7 @@ def run(node, caller, mode="tables", *artifacts):
             subprocess.run([caller, endpoint, "projection", str(profile)], check=True, timeout=180)
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             assert fault["log_admit"] and fault["log_publish"]
+            assert stream_faults == {621001, 621002, 621005, 621006}
             stop(authority)
             authority = None
             authority = start()

@@ -100,6 +100,7 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .stream => |value| value.target().interpretation.object.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
         inline .observe, .read_current => |value| value.interpretation.object.object,
         inline .storage, .flush => |value| value.object.object,

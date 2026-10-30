@@ -109,11 +109,16 @@ owns language coverage.
 
 `LocalTableHost` validates the complete catalog history before readiness. It
 retains up to ten ordinary and two reserved control workspaces, each containing
-one Catalog and at most one Table owner. The owners retain verified immutable
+one Catalog, at most one Table owner and one Stream partition owner. The owners retain verified immutable
 index pages and owned declarations. Every acquisition checks the current log
 frontier; a changed frontier validates the saved boundary and every newer
 record before serving the request. A different Table replaces only the volatile
-workspace, preserving durable pins, receipts and pending work.
+workspace, preserving durable pins, receipts and pending work. Stream payload
+actions share the object's lock with catalog DDL and recheck native grants.
+They use the [Stream payload contract](../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress),
+including finite reads and explicit group settlement. Cursor authentication uses
+a private key derived from the registrar seed; replacing that seed invalidates
+old cursor authentication but preserves accepted work.
 
 Retained owners and their private work share a 256 MiB ordinary allowance and a
 separate 64 MiB control allowance, with per-owner limits of 128 MiB and 64 MiB,

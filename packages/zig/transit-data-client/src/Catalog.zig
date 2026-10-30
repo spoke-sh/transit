@@ -45,6 +45,13 @@ pub const LogOutcome = struct {
         return self.attempt.mutation != null;
     }
 };
+pub const StreamOutcome = struct {
+    value: union(enum) { result: c.DirectStreamClient.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: StreamOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
 
 pub fn validEndpoint(url: []const u8) bool {
     if (url.len == 0 or url.len > 2048) return false;
@@ -135,6 +142,22 @@ pub fn callLog(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectLo
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = c.DirectLogClient.apply(output, caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+/// Finite Stream payload/progress calls use the same signed connection and
+/// unknown-outcome evidence. A page or close never advances a consumer offset.
+pub fn callStream(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectStreamClient.Action) error{Busy}!StreamOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = c.DirectStreamClient.apply(output, caller, action) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };

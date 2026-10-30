@@ -6,7 +6,7 @@
 defines neutral partition, append, receipt, read-coverage and consumer-offset
 bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
-availability or durable acceptance. There is no installed `CREATE STREAM`,
+availability or durable acceptance. There is no installed SQL `CREATE STREAM`,
 `PRODUCE`, `CONSUME`, `COMMIT OFFSET` or `STREAM_SLICE` execution API.
 
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
@@ -17,18 +17,21 @@ now publishes Stream/Queue declarations with native authority and verified
 partition initialization. SQL verbs and the Table-only transaction profile
 remain unchanged. Storage
 provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
-bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. These
-foundations do not enable payload operations or SQL verbs. Their stored
+bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. Their stored
 formats use the current shared definition under the coordinated cutover policy.
 
-The storage-only `StreamPartition` additionally accepts schema-bound batches,
+`StreamPartition` accepts schema-bound batches,
 publishes paged producer and original-result indexes atomically with each
 payload, and persists explicit group assignment generations. It also publishes
 finite read pins, authenticates cumulative traversal coverage and atomically
 settles group offsets with original receipts. These storage paths are exercised
 across disk reopen, including lost accepted replies. It seals batches into the
 shared `.tseg` format, retains pinned placements through collection and supports
-bounded timestamp-filtered traversal. Service payload APIs remain uncomposed. See the
+bounded timestamp-filtered traversal. The signed
+[`stream` service action](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+and shared `Catalog.callStream` compose append, finite reads, original-operation
+inspection, assignment, offset settlement and release under current native
+grants. Blocking waits and automatic stream maintenance are not exposed. See the
 [stored acceptance contract](TRANSIT_STORAGE_V1.md#stream-partition-acceptance).
 
 ## Identity and append

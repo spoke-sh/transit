@@ -20,6 +20,16 @@ pub const Request = union(enum) {
     cursor: struct { target: q.Partition, read: read.Handle },
     page: struct { cursor: read.Cursor, limits: Stream.ReadLimits },
 
+    pub fn mutation(self: Request) bool {
+        return self == .mutate;
+    }
+    pub fn control(self: Request) bool {
+        return switch (self) {
+            .operation => true,
+            .mutate => |value| value.work.control(),
+            else => false,
+        };
+    }
     pub fn target(self: Request) q.Partition {
         return switch (self) {
             .observe => |value| value,
@@ -85,7 +95,14 @@ pub const Row = struct {
     tombstone: bool,
     encoded: w.Binary,
 };
-pub const Page = struct { source: c.DirectLogProtocol.Definition, rows: []const Row, cursor: read.Cursor, examined: u32, encoded_bytes: u32 };
+pub const Page = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = 65536 };
+    source: c.DirectLogProtocol.Definition,
+    rows: []const Row,
+    cursor: read.Cursor,
+    examined: u32,
+    encoded_bytes: u32,
+};
 pub const Result = union(enum) {
     /// Bounded replay has not reached the current accepted frontier. This
     /// result accepts no new mutation and supplies no complete data coverage.

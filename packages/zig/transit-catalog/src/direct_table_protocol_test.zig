@@ -223,6 +223,34 @@ test "direct Table request proof binds the complete typed action and current def
     try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
 }
 
+test "direct Stream preserves independent signed work and required saved definition" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-stream-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const work = request.action.stream.mutate.work;
+    try t.expectEqual(std.math.maxInt(u64), work.identity().operation);
+    try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
+    const bytes = try c.DirectStreamClient.save(t.allocator, request.connection, .{ .work = work });
+    defer t.allocator.free(bytes);
+    const saved = try c.DirectStreamClient.load(t.allocator, bytes);
+    defer saved.deinit();
+    try t.expectEqualDeep(request.action.stream.mutate, saved.value.work);
+    var changed = request;
+    changed.action.stream.mutate.work.consume.from = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    const foreign = try t.allocator.dupe(u8, bytes);
+    defer t.allocator.free(foreign);
+    const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+    @memset(foreign[at..][0..64], '0');
+    try t.expectError(error.InvalidJsonShape, c.DirectStreamClient.load(t.allocator, foreign));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .connection = saved.value.connection, .work = saved.value.work });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectStreamClient.load(t.allocator, missing));
+}
+
 test "direct log consumes independent signed intent and preserves saved full-width identity" {
     const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-log-v1.json"));

@@ -1844,6 +1844,13 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     const unavailable = failure.table(error.InjectedStorageUnavailable);
     try t.expectEqual(std.http.Status.service_unavailable, unavailable.status);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, unavailable.code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.LogGroupFenced).code);
+    try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.StreamReadReleased).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.StreamCursorUnauthenticated).code);
+    try t.expectEqual(p.ErrorCode.ClockUnavailable, failure.table(error.LogTimeUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.LogRetentionWindowElapsed).code);
+    try t.expectEqual(p.ErrorCode.HistoryReclaimed, failure.table(error.LogRangeExpired).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.LogHistoryUnavailable).code);
 }
 
 test "log privileges enforce separate native domains and current disclosure rights" {
@@ -1927,6 +1934,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     const found = try dispatch(&service, .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } });
     defer found.deinit();
     try t.expectEqualDeep(finished.value.result.log_operation.operation.resulting.?, found.value.result.log_lookup.?.declaration);
+    const retained_page = try streamPayloadDispatch(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema);
     const Revoke = struct {
         fn run(raw: *anyopaque, current: *Engine) !void {
             const id: *u64 = @ptrCast(@alignCast(raw));
@@ -1935,6 +1943,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
     const disclosures = [_]c.DirectTableProtocol.Action{
+        .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },
         .{ .log_list = .{ .namespace = 1, .after = null } },
         .{ .log_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } },
@@ -1948,4 +1957,87 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         try t.expect(filtered.value.result.log_list.entries[0] == null);
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_id), .owner = role } });
     }
+}
+
+fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration: c.DirectLog.Definition, schema: c.fuze.TableSchema.Schema) !c.DirectStream.Request {
+    const q = p.StreamQueue;
+    const target: q.Partition = .{ .definition = g.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
+    const identity: p.DataLifecycle.Operation = .{ .scope = service.configuration.scope, .principal = 101, .operation = 301 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    const payload = try c.storage.LogBatch.encode(schema, identity, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &buffer);
+    const append: c.DirectStreamMutation.Request = .{ .append = .{ .target = target, .operation = identity, .kind = .stream, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(payload) } };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const saved = try c.DirectStreamClient.save(t.allocator, connection, .{ .work = append, .payload = payload });
+    defer t.allocator.free(saved);
+    const original = try c.DirectStreamClient.load(t.allocator, saved);
+    defer original.deinit();
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = original.value.work } });
+    const accepted = try dispatch(service, .{ .stream = .{ .operation = append } });
+    defer accepted.deinit();
+    try t.expectEqual(@as(u64, 2), accepted.value.result.stream.operation.?.append.next);
+    const repeated = try dispatch(service, .{ .stream = .{ .mutate = original.value.work } });
+    defer repeated.deinit();
+    try t.expectEqualDeep(accepted.value.result.stream, repeated.value.result.stream);
+
+    const read: p.StreamRead.Request = .{ .target = target, .operation = .{ .scope = identity.scope, .principal = identity.principal, .operation = 302 }, .group = null, .from = 0, .until = null, .timestamp = null };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = .{ .consume = read }, .payload = null } } });
+    const pinned = try dispatch(service, .{ .stream = .{ .operation = .{ .consume = read } } });
+    defer pinned.deinit();
+    const cursor = try dispatch(service, .{ .stream = .{ .cursor = .{ .target = target, .read = pinned.value.result.stream.operation.?.consume.handle() } } });
+    defer cursor.deinit();
+    const page_request: c.DirectStream.Request = .{ .page = .{ .cursor = cursor.value.result.stream.cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 2 } } };
+
+    // The real shared caller crosses the typed endpoint and destroys its wire
+    // response before these decoded output rows are inspected.
+    const Endpoint = struct {
+        fn run(raw: *anyopaque, invocation: *c.client.LocalEndpoint.Invocation) !void {
+            const current: *@import("LocalTableService.zig") = @ptrCast(@alignCast(raw));
+            try t.expectEqualStrings("/table/v1", invocation.path);
+            var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+            defer scratch.deinit();
+            try invocation.respond(try current.executeResult(.typed, &scratch, invocation.allocator, try invocation.request(c.DirectTableProtocol.Request)));
+        }
+    };
+    var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    transport.local = .{ .context = service, .invoke = Endpoint.run };
+    const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = try key(29), .credential_epoch = (try service.engine.principal(101)).credential_epoch };
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const first = (try c.DirectStreamClient.apply(&output, caller, .{ .page = page_request.page })).page;
+    try t.expectEqual(@as(usize, 1), first.rows.len);
+    try t.expect(!first.cursor.coverage.complete);
+    const second = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = first.cursor, .limits = page_request.page.limits } })).page;
+    try t.expect(second.cursor.coverage.complete);
+    try t.expectEqual(@as(u64, 2), second.cursor.coverage.rows);
+    const terminal = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = second.cursor, .limits = page_request.page.limits } })).page;
+    try t.expect(terminal.cursor.coverage.complete);
+    try t.expectEqual(@as(usize, 0), terminal.rows.len);
+    try t.expectEqual(@as(i64, 42), first.rows[0].value.cells[0].value.atom.signed);
+    try t.expectEqual(@as(u64, 0), first.rows[0].offset);
+    try t.expectEqual(@as(u64, 1), second.rows[0].offset);
+
+    const cut = (try c.DirectStreamClient.apply(&output, caller, .{ .observe = target })).cut;
+    const group: q.Group = .{ .id = 1, .generation = 1, .principal = 101 };
+    const assignment: c.DirectStreamMutation.Request = .{ .assign = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 303 }, .cut = cut, .expected = null, .group = group, .next = 0 } };
+    _ = try c.DirectStreamClient.apply(&output, caller, .{ .mutate = .{ .work = assignment } });
+    var grouped = read;
+    grouped.operation.operation = 304;
+    grouped.group = group;
+    const group_read = (try c.DirectStreamClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
+    const group_cursor = (try c.DirectStreamClient.apply(&output, caller, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
+    const consumed = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    const commit: c.DirectStreamMutation.Request = .{ .offset = .{
+        .commit = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 305 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 },
+        .cursor = consumed.cursor,
+    } };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = commit, .payload = null } } });
+    _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = commit })).operation.?.offset;
+    try t.expectEqual(@as(u64, 2), (try c.DirectStreamClient.apply(&output, caller, .{ .group = .{ .target = target, .id = 1 } })).group.?.next);
+    const release: c.DirectStreamMutation.Request = .{ .release = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 306 }, .target = target, .read = group_read.handle() } };
+    try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = release, .payload = null } } });
+    _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = release })).operation.?.release;
+    try t.expectError(error.StreamReadReleased, c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = page_request.page.limits } }));
+    return page_request;
 }

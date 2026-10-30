@@ -14,13 +14,15 @@ const D = c.DirectCatalog;
 /// The host supplies native registration execution. The implementation must
 /// recheck the original policy before every registrar publication; its own
 /// credential supplies no permission to the caller. Other actions use the
-/// catalog/storage owners directly and cannot enter this execution callback.
+/// catalog/storage owners directly. Stream composition uses a separate callback
+/// for its bounded resident owner, private cursor key and trusted clock.
 pub const Execution = struct {
     context: *anyopaque,
     ddl: *const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!D.Observation,
     namespace: *const fn (*anyopaque, *D, c.DirectNamespace.Binding, D.Policy, u16) anyerror!c.DirectNamespace.Observation,
     resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
     log: ?*const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!c.DirectLog.Observation = null,
+    stream: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectStream.Request) anyerror!c.DirectStream.Result = null,
 };
 
 fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
@@ -80,6 +82,10 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
+        .stream => {
+            const run = execution.stream orelse return error.StreamServiceUnavailable;
+            return .{ .stream = try run(execution.context, allocator, catalog, policy, action.stream) };
+        },
         .transaction => {
             const request = @field(action.*, @tagName(action_tag));
             return .{ .transaction = switch (request) {
