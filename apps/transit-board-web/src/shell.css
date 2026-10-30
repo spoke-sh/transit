@@ -36,7 +36,11 @@
   align-items: center;
   height: 100%;
 }
-.shell-areas button {
+.shell-areas button,
+.shell-areas a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   height: 100%;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -45,7 +49,8 @@
   background: transparent;
   padding: 0 16px;
 }
-.shell-areas button[aria-pressed="true"] {
+.shell-areas button[aria-pressed="true"],
+.shell-areas a[aria-current="page"] {
   border-bottom-color: var(--ink);
   color: var(--ink);
 }
@@ -56,9 +61,14 @@
     monospace;
 }
 .shell-menu {
-  display: none;
+  display: block;
+}
+.shell-recovery-link {
+  color: var(--muted);
+  font-size: 12px;
 }
 .shell-navigation {
+  display: none;
   position: absolute;
   top: 56px;
   bottom: 0;
@@ -67,6 +77,9 @@
   padding: 24px 16px;
   border-right: 1px solid var(--line);
   background: #fafafa;
+}
+.shell-navigation.open {
+  display: block;
 }
 .shell-navigation .eyebrow {
   margin: 0 8px 16px;
@@ -102,8 +115,11 @@
   margin: 8px 0;
 }
 .shell-content {
-  margin-left: 208px;
+  margin-left: 0;
   min-width: 0;
+}
+.transit-shell[data-navigation="true"] .shell-content {
+  margin-left: 208px;
 }
 .shell-content .scope {
   background: #fafafa;
@@ -149,7 +165,8 @@
     width: 100%;
     height: 36px;
   }
-  .shell-areas button {
+  .shell-areas button,
+  .shell-areas a {
     flex: 1;
   }
   .shell-realm,
@@ -170,7 +187,8 @@
   .shell-navigation.open {
     display: block;
   }
-  .shell-content {
+  .shell-content,
+  .transit-shell[data-navigation="true"] .shell-content {
     margin-left: 0;
     --content-space: 16px;
   }

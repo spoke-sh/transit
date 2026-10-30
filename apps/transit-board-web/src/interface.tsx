@@ -69,6 +69,12 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     };
   }, [scope.realm, retry]);
   const definition = current?.compiled.definition;
+  const dataPage =
+    pathname === "/catalog" ||
+    pathname.startsWith("/datasets/") ||
+    (pathname === "/" && !current?.published);
+  const workbookPage = pathname === "/workbook";
+  const operations = definition?.screens.find((screen) => screen.renderer === "operations");
   useEffect(() => {
     const screen = definition?.screens.find((candidate) => candidate.path === pathname);
     if (
@@ -79,8 +85,8 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     )
       setArea("workspace");
     else if (screen) setArea(current?.published ? screen.area : "operations");
-    setNavigation(false);
-  }, [pathname, definition, current?.published]);
+    setNavigation(!dataPage && !workbookPage && window.matchMedia("(min-width: 761px)").matches);
+  }, [pathname, definition, current?.published, dataPage, workbookPage]);
   const tokens = density ?? (definition ? presentation(definition).density : "comfortable");
   return (
     <Interface.Provider value={current}>
@@ -88,6 +94,7 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
         className="transit-shell"
         data-density={tokens}
         data-interface-generation={current?.identity ?? "unavailable"}
+        data-navigation={navigation}
       >
         <header className="shell-header">
           <Link
@@ -98,15 +105,39 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
           >
             <span aria-hidden="true">▥</span> Transit <small>BOARD</small>
           </Link>
-          <nav className="shell-areas" aria-label="Area">
-            <button aria-pressed={area === "workspace"} onClick={() => setArea("workspace")}>
-              Workspace
-            </button>
-            <button aria-pressed={area === "operations"} onClick={() => setArea("operations")}>
-              Operations
-            </button>
+          <nav className="shell-areas" aria-label="Activities">
+            <Link to="/catalog" aria-current={dataPage ? "page" : undefined}>
+              Data
+            </Link>
+            <Link to="/workbook" aria-current={workbookPage ? "page" : undefined}>
+              Workbooks
+            </Link>
+            {operations && (
+              <Link
+                to={operations.path}
+                aria-current={
+                  area === "operations" && !dataPage && !workbookPage ? "page" : undefined
+                }
+              >
+                Operations
+              </Link>
+            )}
+            {current?.published && (
+              <button
+                aria-pressed={area === "workspace" && !dataPage && !workbookPage}
+                onClick={() => {
+                  setArea("workspace");
+                  setNavigation(true);
+                }}
+              >
+                Application
+              </button>
+            )}
           </nav>
           <span className="shell-realm">Realm {scope.realm}</span>
+          <Link className="shell-recovery-link" to="/recovery/definition">
+            Definition recovery
+          </Link>
           <button
             className="shell-menu"
             aria-expanded={navigation}
@@ -155,7 +186,6 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
               ))}
           </nav>
           <div className="shell-recovery">
-            <Link to="/recovery/definition">Definition recovery</Link>
             <p>
               {current
                 ? `${current.published ? "Published" : "Built-in"} revision ${definition?.revision}`
