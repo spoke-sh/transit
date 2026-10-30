@@ -252,7 +252,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expectEqual(@as(u64, 1), expired_cut.retained_from);
     try t.expectEqual(@as(u64, 1), expired_cut.next);
     try t.expectEqualDeep(accepted, try stream.append(revised_stored, request, payload, fixture.guard()));
-    try t.expectError(error.LogHistoryUnavailable, stream.beginRead(revised_stored, .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = revised_stored.declaration.interpretation, .partition = 0 }, .operation = .{ .scope = object.scope, .principal = 0, .operation = 104 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard()));
+    try t.expectError(error.LogRangeExpired, stream.beginRead(revised_stored, .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = revised_stored.declaration.interpretation, .partition = 0 }, .operation = .{ .scope = object.scope, .principal = 0, .operation = 104 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard()));
 }
 
 test "direct Stream collection retains pending compaction and pinned visibility after checkpoint" {
