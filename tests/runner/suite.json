@@ -538,7 +538,7 @@
     },
     "core": {
       "cache": "core",
-      "timeout": 90
+      "timeout": 120
     },
     "storage-query": {
       "cache": "core",
