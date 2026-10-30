@@ -33,7 +33,8 @@ case. Those are separate requirements tracked by
 
 Run `just test::diagnostic-inventory` in the pinned development shell. After
 reviewing a changed surface and its mappings/evidence, use
-`python3 -B tests/interfaces/cli/diagnostic_inventory.py --record` to update the source record.
+`python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_inventory.py --record`
+to update the source record.
 Recording does not certify diagnostic implementation or test coverage.
 
 `mappings.json` records the implemented semantic coverage boundaries separately.
