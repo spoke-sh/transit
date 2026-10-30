@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Transit — D6 / Through the surface</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#handbook">Skip to the handbook</a>
+    <header class="nav">
+      <a class="wordmark" href="#top">Transit<span> / Handbook</span></a>
+      <nav aria-label="Study navigation">
+        <a href="#depth">Explore the depth study</a>
+        <a href="#handbook">Handbook ↗</a>
+      </nav>
+    </header>
+    <main id="top">
+      <div class="review-bar">
+        <span>D6 / THROUGH THE SURFACE</span><span>Dark-mode design study · In review</span>
+      </div>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div>
+            <p class="kicker">DATA · COMPUTATION · POLICY</p>
+            <h1 id="hero-title">Give structure<br />to change.</h1>
+          </div>
+          <div class="introduction">
+            <p>
+              Transit is a declarative, versioned multi-model database, vectorized/incremental query
+              engine, and durable execution runtime.
+            </p>
+            <p class="muted">Written in Zig. SDKs for a wide range of languages.</p>
+            <div class="actions">
+              <a class="button" href="https://spoke-sh.github.io/transit/guides/quickstart"
+                >Create your first dataset ↗</a
+              ><a href="https://spoke-sh.github.io/transit/reference/data-model"
+                >Explore the data model ↗</a
+              >
+            </div>
+          </div>
+        </div>
+        <img
+          class="hero-art"
+          src="../../images/d6-radiograph.jpg"
+          width="1774"
+          height="887"
+          alt="Silver membranes open into depth, exposing translucent internal folds and a vermilion thread receding through them."
+        />
+        <div class="hero-foot">
+          <span>One system. Many ways to work with data.</span
+          ><a href="#depth">Scroll into the structure ↓</a>
+        </div>
+      </section>
+      <section id="depth" class="depth" aria-labelledby="depth-title">
+        <div class="depth-heading">
+          <p class="kicker">A DIFFERENT WAY TO SEE</p>
+          <h2 id="depth-title">Through the surface.</h2>
+          <p>Scroll down to move in. Scroll back up to pull out.</p>
+        </div>
+        <div class="depth-track">
+          <div class="depth-sticky">
+            <div
+              class="volume"
+              role="img"
+              aria-label="A radiographic volume: a near membrane, a folded middle surface and a deeper pocket, visible through one another."
+            >
+              <img
+                class="poster"
+                src="../../images/d6-radiograph.jpg"
+                width="1774"
+                height="887"
+                alt=""
+              />
+              <div class="camera" aria-hidden="true">
+                <img
+                  class="plane far"
+                  src="../../images/d6-radiograph.jpg"
+                  width="1774"
+                  height="887"
+                  alt=""
+                />
+                <img
+                  class="plane middle"
+                  src="../../images/d6-middle.webp"
+                  width="1536"
+                  height="1024"
+                  alt=""
+                />
+                <img
+                  class="plane near"
+                  src="../../images/d6-near.webp"
+                  width="1536"
+                  height="1024"
+                  alt=""
+                />
+              </div>
+            </div>
+            <div class="study-controls">
+              <span id="depth-status" aria-hidden="true">Static section</span
+              ><button id="motion-toggle" type="button" aria-pressed="false" hidden>
+                Pause depth motion</button
+              ><a href="#handbook">Skip to handbook ↓</a>
+            </div>
+          </div>
+          <div class="chapters">
+            <section class="chapter" aria-labelledby="structure-title">
+              <p class="kicker">01 / STRUCTURE</p>
+              <h2 id="structure-title">Begin with<br />what matters.</h2>
+              <p>
+                Describe the data your application needs, the computation it performs, and the
+                policies that govern its use.
+              </p>
+              <a href="https://spoke-sh.github.io/transit/reference/data-model"
+                >Data, computation and policies ↗</a
+              >
+            </section>
+            <section class="chapter" aria-labelledby="activity-title">
+              <p class="kicker">02 / ACTIVITY</p>
+              <h2 id="activity-title">Let the structure<br />do useful work.</h2>
+              <p>
+                Ask a point-in-time question, maintain a derived view, or coordinate stateful work.
+                Choose the lifetime that fits the computation.
+              </p>
+              <p>
+                Fuze computes over your data. Station coordinates durable processes and recorded
+                external effects.
+              </p>
+              <a href="https://spoke-sh.github.io/transit/reference/queries"
+                >Explore computation lifetimes ↗</a
+              >
+            </section>
+            <section class="chapter" aria-labelledby="context-title">
+              <p class="kicker">03 / CONTEXT</p>
+              <h2 id="context-title">Keep the result.<br />And its context.</h2>
+              <p>Inspect the definitions, source basis and recorded outcomes behind an answer.</p>
+              <a href="https://spoke-sh.github.io/transit/reference/architecture"
+                >Explore the architecture ↗</a
+              >
+            </section>
+          </div>
+        </div>
+      </section>
+      <section id="handbook" class="directory" aria-labelledby="handbook-title">
+        <div>
+          <p class="kicker">THE HANDBOOK</p>
+          <h2 id="handbook-title">Find your way in.</h2>
+          <p>
+            Start with a dataset, explore an interface, or follow the system down to its
+            foundations.
+          </p>
+        </div>
+        <ol>
+          <li>
+            <a href="https://spoke-sh.github.io/transit/guides/introduction"
+              >Overview & quickstart <span>↗</span></a
+            >
+          </li>
+          <li>
+            <a href="https://spoke-sh.github.io/transit/reference/data-model"
+              >Data model & types <span>↗</span></a
+            >
+          </li>
+          <li>
+            <a href="https://spoke-sh.github.io/transit/reference/sql"
+              >Query engine & SQL <span>↗</span></a
+            >
+          </li>
+          <li>
+            <a href="https://spoke-sh.github.io/transit/reference/station"
+              >Durable execution & apps <span>↗</span></a
+            >
+          </li>
+          <li>
+            <a href="https://spoke-sh.github.io/transit/internals"
+              >Internals & verification <span>↗</span></a
+            >
+          </li>
+        </ol>
+      </section>
+    </main>
+    <footer>Transit · Handbook theme D6 · Local design prototype</footer>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

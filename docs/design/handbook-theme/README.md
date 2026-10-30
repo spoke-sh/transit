@@ -5,7 +5,13 @@
 Carry the visual grammar of the selected [Transit artwork](../transit-artwork/D1.md#direction-and-palette-comparison)
 into the Docusaurus homepage and reading experience.
 
-Current review: [D5 — Fabric and hidden pockets](D5.md). Status: **Accepted**.
+Current review: [D6 — Through the surface](D6.md). Status: **In review**.
+Dark mode becomes a radiographic view into depth. Scrolling down moves the camera
+in along z; scrolling up pulls it back through the same layers. D6 includes new
+artwork, a local interactive study and a reversible-motion recording. Its
+composition and motion distance remain proposals; the published theme is unchanged.
+
+The accepted light-mode baseline remains [D5 — Fabric and hidden pockets](D5.md).
 After the resonance zones, the fabric straightens, develops pockets and ends in
 an oblique opening with an unresolved interior. Native scrolling reveals the
 continuous drawing. D5 Figures 3 and 4 are selected; the final oblique pocket
@@ -25,3 +31,4 @@ for comparison.
 | [D3 — Falling waves and lateral resonance](D3.md) | How should falling waves transform horizontally into resonance beside the selected Activity copy? | Accepted |
 | [D4 — Context echoes and graphite diagrams](D4.md) | How can depth express retained context, and how should the same grammar carry precise architecture diagrams? | Accepted in part |
 | [D5 — Fabric and hidden pockets](D5.md) | How can scrolling reveal a continuous fabric that straightens, forms pockets and holds something unresolved? | Accepted |
+| [D6 — Through the surface](D6.md) | How should dark mode use radiographic layers and reversible camera travel into z-depth? | In review |
