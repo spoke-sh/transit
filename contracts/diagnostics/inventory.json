@@ -9459,6 +9459,70 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/BranchDiff.zig": {
+      "errors": {
+        "DiffOutputBufferTooSmall": 9,
+        "DiffRequiresPrimaryKey": 2,
+        "InvalidBBox2D": 1,
+        "InvalidBBox3D": 1,
+        "InvalidCompactionLineageEdge": 1,
+        "InvalidConflict": 1,
+        "InvalidScene3DClearance": 1,
+        "InvalidSpatialCellRange": 2,
+        "SchemaDiffBufferTooSmall": 7,
+        "TooManyCandidateKeys": 1
+      },
+      "outcomes": {
+        "DiffOp": [
+          "added",
+          "modified",
+          "removed",
+          "conflict"
+        ],
+        "SchemaDiffKind": [
+          "table_renamed",
+          "table_recreated",
+          "column_added_lazy",
+          "column_dropped",
+          "column_renamed",
+          "column_type_rewritten",
+          "column_collation_rewritten"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BBox2D.validate()": "<inferred>",
+        "BBox3D.validate()": "<inferred>",
+        "BranchTableSnapshot.profileForColumn()": "<inferred>",
+        "CompactionLineageEdge.validate()": "<inferred>",
+        "SpatialViewportFilter.matchesZone()": "<inferred>",
+        "compareCellsUnderProfile()": "<inferred>",
+        "computeThreeWayRowDiff()": "<inferred>",
+        "computeTwoWayRowDiff()": "<inferred>",
+        "diffTableSchemas()": "<inferred>",
+        "evaluateScene3DClashConflict()": "<inferred>",
+        "evaluateTopologicalEditConflict()": "<inferred>",
+        "findRowByPrimaryKey()": "<inferred>",
+        "makeAlternative()": "<inferred>",
+        "planThreeWaySegmentDiff()": "<inferred>",
+        "planTwoWaySegmentDiff()": "<inferred>",
+        "populateConflictCell()": "<inferred>",
+        "projectRowToTarget()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "TableConstraints.zig",
+        "TableSchema.zig",
+        "TableSchemaProjection.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/BudgetDiagnostic.zig": {
       "errors": {},
       "outcomes": {
@@ -14639,6 +14703,7 @@
         "AuthorizationSql.zig",
         "Batch.zig",
         "BatchExecution.zig",
+        "BranchDiff.zig",
         "Collation.zig",
         "ColumnPredicate.zig",
         "DecimalArithmetic.zig",
