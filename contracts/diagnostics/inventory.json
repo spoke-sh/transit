@@ -3361,6 +3361,83 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/BranchMergeRestore.zig": {
+      "errors": {
+        "BranchMergingDisabled": 1,
+        "ConditionalBranchHeadConflict": 1,
+        "DuplicateBranchReplicaIdentity": 1,
+        "ForeignKeyMergeIntegrityViolation": 1,
+        "ForeignKeyTargetNotFound": 1,
+        "HydratedSegmentDigestMismatch": 1,
+        "IncompatibleDocumentMergeHistory": 1,
+        "InvalidDocumentProvenanceSpan": 1,
+        "InvalidPolicyEpoch": 1,
+        "InvalidRemoteAncestorVersion": 1,
+        "InvalidUpstreamProposal": 1,
+        "LiveConnectorEffectForbiddenOnRemoteMirrorBranch": 1,
+        "MergeCandidateBufferTooSmall": 4,
+        "MergeTokenJournalFull": 1,
+        "MissingCapturedExchangeForReplay": 1,
+        "PrimaryKeyMergeCollision": 1,
+        "PropertyGraphDanglingEdgeOnMerge": 2,
+        "SecondaryUniqueKeyMergeCollision": 1,
+        "StaleTargetBranchHead": 1,
+        "UnknownBranchName": 1,
+        "UnknownRemoteBranch": 1,
+        "UnknownSourceBranch": 1,
+        "UnknownTargetBranch": 1,
+        "UnresolvedDeleteModifyConflict": 1,
+        "UnresolvedMergeCellConflict": 1
+      },
+      "outcomes": {
+        "ConnectorEffectMode": [
+          "live_network",
+          "replay_only_fenced"
+        ],
+        "DataflowRestoreDisposition": [
+          "suspend_on_restore",
+          "recompute_snapshot"
+        ],
+        "DocumentMergeMode": [
+          "versioned_bp_tree",
+          "causal_crdt"
+        ],
+        "HydrationMode": [
+          "eager",
+          "lazy_on_demand"
+        ],
+        "MergeStrategy": [
+          "fail_on_conflict",
+          "source_wins",
+          "target_wins",
+          "promote_schema_only"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "MergeTokenJournal.record()": "<inferred>",
+        "buildMergedCandidateRows()": "<inferred>",
+        "checkLocalBranchConnectorExecution()": "<inferred>",
+        "fetchIncrementalFromRemote()": "<inferred>",
+        "hydrateLazySegmentOnDemand()": "<inferred>",
+        "mergeDocumentBranches()": "<inferred>",
+        "prepareUpstreamProposalPush()": "<inferred>",
+        "restoreBranchForward()": "<inferred>",
+        "revalidateCandidateUniquenessAndChecks()": "<inferred>",
+        "revalidateCrossTableForeignKeys()": "<inferred>",
+        "revalidatePropertyGraphEndpoints()": "<inferred>",
+        "validateAndPublishThreeWayMerge()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 45,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/CallerCodes.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -7033,6 +7110,7 @@
         "Attribution.zig",
         "AuthorizationLowering.zig",
         "BranchLifecycle.zig",
+        "BranchMergeRestore.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",
         "DirectCatalogAdministration.zig",
