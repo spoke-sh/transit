@@ -10,6 +10,7 @@ pub const NvmeCache = @import("NvmeCache.zig");
 pub const S3ObjectStore = @import("S3ObjectStore.zig");
 pub const PartitionLease = @import("PartitionLease.zig");
 pub const TreeStore = @import("TreeStore.zig");
+pub const BitmapDirectory = @import("BitmapDirectory.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const DocumentIndex = @import("DocumentIndex.zig");
 pub const TableDeclaration = @import("TableDeclaration.zig");
@@ -41,6 +42,7 @@ test {
     _ = @import("disk_wal_test.zig");
     _ = @import("disk_objects_test.zig");
     _ = @import("tree_store_test.zig");
+    _ = @import("bitmap_directory_test.zig");
     _ = @import("ordered_key_index_test.zig");
     _ = @import("document_index_test.zig");
     _ = @import("table_partition_test.zig");
