@@ -9136,11 +9136,12 @@
     },
     "packages/zig/transit-fuze/src/Collation.zig": {
       "errors": {
+        "ColumnPageTooLarge": 1,
         "InvalidColumnCount": 1,
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
         "UnorderedType": 4,
-        "UnsupportedColumnCollation": 4
+        "UnsupportedColumnCollation": 5
       },
       "outcomes": {
         "Profile": [
@@ -9157,10 +9158,14 @@
       "error_returns": {
         "appendSortKey()": "<inferred>",
         "appendSortKeyProfile()": "<inferred>",
+        "canonicalByteLen()": "<inferred>",
+        "canonicalByteLenProfile()": "<inferred>",
         "compareAtom()": "<inferred>",
         "compareBytes()": "<inferred>",
         "compareBytesProfile()": "<inferred>",
         "compareCell()": "<inferred>",
+        "computeSortPrefix4B()": "<inferred>",
+        "computeSortPrefix4BProfile()": "<inferred>",
         "encodePrimaryKeySortKey()": "<inferred>",
         "encodeSortKey()": "<inferred>",
         "encodeSortKeyProfile()": "<inferred>",
@@ -9173,7 +9178,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 69,
         "catch": 0
       },
       "imports": [
@@ -10368,6 +10373,78 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/PerfectHash.zig": {
+      "errors": {
+        "DuplicatePerfectHashKey": 1,
+        "TooManyPerfectHashKeys": 1
+      },
+      "outcomes": {
+        "DdlOptionTag": [
+          "encoding_plain",
+          "encoding_bitpacked",
+          "encoding_rle",
+          "encoding_dictionary",
+          "encoding_fsst",
+          "encoding_comp",
+          "encoding_comp_3",
+          "encoding_zoned",
+          "encoding_ibm_hfp",
+          "encoding_ebcdic",
+          "collation_utf8_binary",
+          "collation_ascii_ci",
+          "collation_ebcdic_cp037",
+          "collation_icu_root",
+          "index_block_max_bm25",
+          "index_trigram_bitmap",
+          "index_vector_ann"
+        ],
+        "Mode": [
+          "perfect_hash",
+          "sorted_fallback"
+        ],
+        "WireHeaderTag": [
+          "content_type",
+          "content_length",
+          "authorization",
+          "accept",
+          "transfer_encoding",
+          "connection",
+          "x_transit_account",
+          "x_transit_token",
+          "x_transit_snapshot",
+          "x_transit_branch",
+          "client_encoding",
+          "application_name",
+          "TimeZone",
+          "search_path"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "DuplicatePerfectHashKey",
+          "TooManyPerfectHashKeys",
+          "PerfectHashBufferTooSmall",
+          "UnsupportedColumnCollation",
+          "UnrepresentableEbcdic037",
+          "UnrepresentableEbcdic1047",
+          "InvalidUtf8"
+        ]
+      },
+      "error_returns": {
+        "FrozenDirectory.contains()": "Error",
+        "FrozenDirectory.init()": "Error",
+        "FrozenDirectory.lookup()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "Collation.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -11300,6 +11377,86 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/SearchOracle.zig": {
+      "errors": {
+        "InvalidBm25Parameters": 2,
+        "InvalidHybridParameters": 2,
+        "InvalidLikePattern": 2,
+        "InvalidSearchQuery": 3,
+        "InvalidUtf8": 5,
+        "SearchScratchExhausted": 8
+      },
+      "outcomes": {
+        "FiveStateMatch": [
+          "missing",
+          "null",
+          "type_error",
+          "value",
+          "conflict"
+        ],
+        "MatchMode": [
+          "conjunctive_and",
+          "disjunctive_or"
+        ],
+        "NormMode": [
+          "min_max",
+          "theoretical_bounds"
+        ],
+        "SegmenterProfile": [
+          "unicode_word_v1",
+          "ascii_fold_v1",
+          "code_identifier_v1",
+          "ngram_3_v1",
+          "raw_bytes_v1"
+        ],
+        "evaluatePatternCell().kind": [
+          "starts_with",
+          "contains",
+          "like"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "InvalidUtf8",
+          "InvalidLikePattern",
+          "InvalidSearchQuery",
+          "InvalidProximityDistance",
+          "InvalidBm25Parameters",
+          "InvalidHybridParameters",
+          "SearchScratchExhausted",
+          "UnsupportedColumnCollation",
+          "UnrepresentableEbcdic037",
+          "UnrepresentableEbcdic1047",
+          "EncounteredTypeErrorCell",
+          "EncounteredConflictCell",
+          "EncounteredMissingCell"
+        ]
+      },
+      "error_returns": {
+        "Bm25Params.validate()": "Error",
+        "containsBytes()": "Error",
+        "evaluatePatternCell()": "Error",
+        "fuseLinear()": "Error",
+        "fuseRrf()": "Error",
+        "likeBytes()": "Error",
+        "likeMatchRecursive()": "Error",
+        "matchTokens()": "Error",
+        "nearTokens()": "Error",
+        "segmentText()": "Error",
+        "startsWithBytes()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 6
+      },
+      "imports": [
+        "Collation.zig",
+        "Types.zig",
+        "Values.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SourceCodec.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -11482,6 +11639,7 @@
         "catch": 13
       },
       "imports": [
+        "PerfectHash.zig",
         "SqlBinding.zig",
         "SqlPredicate.zig",
         "root.zig",
@@ -12762,12 +12920,15 @@
         "DuplicateAssignment": 1,
         "DuplicateColumn": 1,
         "DuplicateColumnIdentity": 1,
+        "DuplicateColumnName": 1,
+        "DuplicatePerfectHashKey": 1,
         "DuplicatePrimaryKeyColumn": 1,
         "IncompatibleColumnCollation": 1,
         "IncompatibleColumnEncoding": 1,
         "InvalidCharacterLimit": 2,
-        "InvalidColumnCount": 2,
+        "InvalidColumnCount": 3,
         "InvalidColumnIdentity": 1,
+        "InvalidColumnName": 1,
         "InvalidKeyWidth": 1,
         "InvalidPrimaryKey": 2,
         "InvalidRowWidth": 2,
@@ -12780,7 +12941,7 @@
         "TableConflict": 1,
         "TableSchemaTooLarge": 4,
         "TableTypeError": 1,
-        "UnknownColumn": 2,
+        "UnknownColumn": 3,
         "UnsupportedColumnCollation": 1,
         "UnsupportedPrimaryKeyType": 1,
         "UnsupportedTableSchemaDefinition": 1,
@@ -12815,7 +12976,9 @@
       "error_returns": {
         "Column.validateCell()": "<inferred>",
         "Column.validateEncodingAndCollation()": "<inferred>",
+        "Schema.NameDirectory.resolve()": "<inferred>",
         "Schema.assign()": "<inferred>",
+        "Schema.buildNameDirectory()": "<inferred>",
         "Schema.clone()": "<inferred>",
         "Schema.encode()": "<inferred>",
         "Schema.fingerprint()": "<inferred>",
@@ -12838,13 +13001,14 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 97,
-        "catch": 2
+        "try": 98,
+        "catch": 3
       },
       "imports": [
         "Collation.zig",
         "Ebcdic037.zig",
         "IbmHfp.zig",
+        "PerfectHash.zig",
         "Types.zig",
         "std"
       ]
@@ -13930,6 +14094,7 @@
         "LogicalStream.zig",
         "NeutralEncoding.zig",
         "OperatorTraits.zig",
+        "PerfectHash.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -13945,6 +14110,7 @@
         "RelationalOutput.zig",
         "RelationalSql.zig",
         "RelationalValues.zig",
+        "SearchOracle.zig",
         "SourceCodec.zig",
         "Sql.zig",
         "SqlDiagnostic.zig",

@@ -62,6 +62,75 @@ pub inline fn stripTrailingAsciiSpaces(bytes: []const u8) []const u8 {
     return bytes[0..end];
 }
 
+pub inline fn canonicalSliceProfile(bytes: []const u8, profile: Profile) []const u8 {
+    return switch (profile) {
+        .ebcdic_037_pad => stripTrailingAsciiSpaces(bytes),
+        else => bytes,
+    };
+}
+
+/// Canonical byte length under the declared `Profile`. For `PAD SPACE` profiles
+/// (`ebcdic_037_pad`), trailing ASCII spaces are stripped so collation-equivalent
+/// strings always produce identical canonical lengths.
+pub fn canonicalByteLenProfile(bytes: []const u8, profile: Profile) !u32 {
+    try validateBytesProfile(bytes, profile);
+    const slice = canonicalSliceProfile(bytes, profile);
+    return std.math.cast(u32, slice.len) orelse error.ColumnPageTooLarge;
+}
+
+pub fn canonicalByteLen(bytes: []const u8, collation: Collation) !u32 {
+    return canonicalByteLenProfile(bytes, Profile.fromCollation(collation));
+}
+
+/// Extract the first 4 bytes of the collation-normalized sort weights for `bytes`,
+/// zero-padded when fewer than 4 collation weights exist.
+/// Soundness invariant (`A2`): whenever `computeSortPrefix4BProfile(a, p) != computeSortPrefix4BProfile(b, p)`,
+/// `compareSortPrefix4B(prefix_a, prefix_b) == compareBytesProfile(a, b, p)`.
+pub fn computeSortPrefix4BProfile(bytes: []const u8, profile: Profile) ![4]u8 {
+    try validateBytesProfile(bytes, profile);
+    const slice = canonicalSliceProfile(bytes, profile);
+    var prefix: [4]u8 = @splat(0);
+    switch (profile) {
+        .none, .utf8_binary => {
+            const n = @min(slice.len, 4);
+            @memcpy(prefix[0..n], slice[0..n]);
+        },
+        .ascii_ci => {
+            const n = @min(slice.len, 4);
+            for (slice[0..n], 0..) |b, i| prefix[i] = asciiLower(b);
+        },
+        .ebcdic_cp037, .ebcdic_037_pad => {
+            var it = try Ebcdic.Iterator.init(slice);
+            var i: usize = 0;
+            while (i < 4) : (i += 1) {
+                prefix[i] = (try it.next()) orelse break;
+            }
+        },
+        .ebcdic_1047_nopad => {
+            var it = try Ebcdic1047.Iterator.init(slice);
+            var i: usize = 0;
+            while (i < 4) : (i += 1) {
+                prefix[i] = (try it.next()) orelse break;
+            }
+        },
+        .icu_root => return error.UnsupportedColumnCollation,
+    }
+    return prefix;
+}
+
+pub fn computeSortPrefix4B(bytes: []const u8, collation: Collation) ![4]u8 {
+    return computeSortPrefix4BProfile(bytes, Profile.fromCollation(collation));
+}
+
+/// Compare two 4-byte collation sort prefixes in a single 32-bit big-endian register compare.
+/// Returns `.lt` or `.gt` when the 4-byte prefixes differ (which is a sound final order decision),
+/// or `.eq` when the 4-byte prefixes are tied and full comparison is required.
+pub inline fn compareSortPrefix4B(left_prefix: [4]u8, right_prefix: [4]u8) std.math.Order {
+    const l = std.mem.readInt(u32, &left_prefix, .big);
+    const r = std.mem.readInt(u32, &right_prefix, .big);
+    return std.math.order(l, r);
+}
+
 pub inline fn asciiLower(byte: u8) u8 {
     return if (byte >= 'A' and byte <= 'Z') byte + ('a' - 'A') else byte;
 }

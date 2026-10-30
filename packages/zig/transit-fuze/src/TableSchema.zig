@@ -115,6 +115,31 @@ pub const Schema = struct {
         for (self.columns, 0..) |column, i| if (std.mem.eql(u8, column.name, name)) return i;
         return error.UnknownColumn;
     }
+
+    pub const NameDirectory = struct {
+        keys: [max_columns][]const u8 = undefined,
+        len: usize = 0,
+        directory: @import("PerfectHash.zig").FrozenDirectory = .{},
+
+        pub fn resolve(self: *const NameDirectory, name: []const u8) !usize {
+            const idx = (try self.directory.lookup(self.keys[0..self.len], name)) orelse return error.UnknownColumn;
+            return idx;
+        }
+    };
+
+    pub fn buildNameDirectory(self: Schema) !NameDirectory {
+        if (self.columns.len == 0 or self.columns.len > max_columns) return error.InvalidColumnCount;
+        var out: NameDirectory = .{ .len = self.columns.len };
+        for (self.columns, 0..) |col, i| out.keys[i] = col.name;
+        out.directory = @import("PerfectHash.zig").FrozenDirectory.init(
+            out.keys[0..self.columns.len],
+            .utf8_binary,
+        ) catch |err| switch (err) {
+            error.DuplicatePerfectHashKey => return error.DuplicateColumnName,
+            else => return error.InvalidColumnName,
+        };
+        return out;
+    }
     pub fn rowType(self: Schema, output: *[max_columns]t.Field) !t.Type {
         if (self.columns.len == 0 or self.columns.len > max_columns) return error.InvalidColumnCount;
         for (self.columns, output[0..self.columns.len]) |column, *field| field.* = column.field();
