@@ -44,6 +44,7 @@ pub const DirectLog = @import("DirectLog.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
 pub const LogAuthority = @import("LogAuthority.zig");
+pub const DocumentAuthority = @import("DocumentAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
 pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
 pub const TableValues = @import("TableValues.zig");
@@ -74,6 +75,7 @@ test {
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;
+    _ = DocumentAuthority;
     _ = DirectLog;
 }
 

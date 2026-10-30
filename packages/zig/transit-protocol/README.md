@@ -39,6 +39,15 @@ scheduling policies, operation budgets, checked deadlines and bounded retry
 backoff. Its successor checks preserve object identity and partition/key rules;
 catalog publication and schema-column binding remain separate responsibilities.
 
+[`DocumentDeclaration`](src/DocumentDeclaration.zig),
+[`DocumentOperation`](src/DocumentOperation.zig) and
+[`DocumentRead`](src/DocumentRead.zig) supply neutral direct Document
+declarations, merge profiles (`causal_crdt`, `versioned`), subcolumn shredding
+and collation configurations, lineage and replica deduplication floors, finite
+merge-window checkpoints and retained revision read pins. Their
+[contract](../../../contracts/DOCUMENT_V1.md) separates shape/lineage validation
+from durable partition acceptance.
+
 The [native contract](../../../contracts/TRANSIT_V1.md),
 [service contract](../../../contracts/SERVICE_V1.md) and
 [state contract](../../../contracts/STATE_V1.md) specify behavior.

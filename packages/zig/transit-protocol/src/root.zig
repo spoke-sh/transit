@@ -21,6 +21,9 @@ pub const IndexLifecycle = @import("IndexLifecycle.zig");
 pub const StreamQueue = @import("StreamQueue.zig");
 pub const StreamRead = @import("StreamRead.zig");
 pub const StreamQueueDeclaration = @import("StreamQueueDeclaration.zig");
+pub const DocumentDeclaration = @import("DocumentDeclaration.zig");
+pub const DocumentOperation = @import("DocumentOperation.zig");
+pub const DocumentRead = @import("DocumentRead.zig");
 pub const max_effect_observations = 16;
 pub const max_payload_bytes = 64 * 1024;
 pub const max_turn_outputs = Growth.turn_outputs;
@@ -73,6 +76,8 @@ test {
     _ = IndexLifecycle;
     _ = StreamQueue;
     _ = StreamQueueDeclaration;
+    _ = DocumentDeclaration;
+    _ = DocumentOperation;
 }
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.

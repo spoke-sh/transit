@@ -30,6 +30,23 @@ The independent [`DocumentIndex`](../transit-storage/docs/document-index.md)
 adapter stages private candidates in direct `.tseg` storage; it supplies no
 database acceptance or installed caller route.
 
+For the direct [Document contract](../../../contracts/DOCUMENT_V1.md), this
+package also exports:
+
+- [`SuccinctTree`](src/SuccinctTree.zig): $2N$-bit Balanced Parentheses (`BP`)
+  succinct tree bitvector (`SBPT0001`) with two-level `@popCount` rank/select
+  and excess summaries supporting zero-allocation `parent`, `firstChild`,
+  `nextSibling`, `subtreeSize`, `depth`, `isAncestor`, `within`, and `lca`
+  navigation.
+- [`SpanText`](src/SpanText.zig): span-based collaborative UTF-8 text supporting
+  arbitrary-length contiguous spans beyond 96 bytes, interior span splitting,
+  range tombstones, 24-permutation causal convergence, and step/byte-bounded
+  sequence reads.
+- [`VersionedMerge`](src/VersionedMerge.zig): five-state cell algebra (`value`,
+  `null_value`, `missing`, `type_error`, `conflict`), raw-frame provenance
+  anchors, commutative three-way structural merges (`mergeThreeWay`), path
+  evaluation, and `SuccinctTree` lowering.
+
 `zig build test` in the pinned development shell exercises the change codec and
 merge rules against an independent append-only index fixture, including all 24
 concurrent delivery permutations, candidate failure, detached descendants,

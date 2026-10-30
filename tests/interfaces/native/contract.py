@@ -25,7 +25,14 @@ if sys.argv[1:] == ["--data-lifecycle"]:
                  ("stream_queue", "offset_receipt", "commit", "coverage", "cut", "target"),
                  ("stream_queue", "claim", "claim", "target"),
                  ("stream_queue", "offset_commit", "coverage", "cut", "target"),
-                 ("stream_queue", "settlement", "settlement", "lease", "target")):
+                 ("stream_queue", "settlement", "settlement", "lease", "target"),
+                 ("document", "declaration"),
+                 ("document", "mutation", "mutation", "target", "partition"),
+                 ("document", "replica", "target", "partition"),
+                 ("document", "checkpoint", "checkpoint", "target", "partition"),
+                 ("document", "read", "request", "target", "partition"),
+                 ("document", "read_cursor", "coverage", "cut", "target", "partition"),
+                 ("document", "read_release", "release", "target", "partition")):
         changed = copy.deepcopy(fixture)
         item = changed
         for name in path:

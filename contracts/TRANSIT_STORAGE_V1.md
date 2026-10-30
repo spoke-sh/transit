@@ -1592,3 +1592,53 @@ checkpoint references inside a baseline are not recursively followed. Released
 read bases remain protected while required by replay, then become collectible
 after a newer checkpoint. Missing or inconsistent dependencies prevent graph
 completion and therefore prevent deletion.
+
+## Direct Document declarations, genesis, and adaptive shredding
+
+`DocumentDeclaration` stages immutable `document-definitions/{sha256}.data`
+objects (`DDECL001`) with a 104-byte big-endian header binding the current
+definition, object identity, revision, retired flag, canonical JSON policy
+(`Configuration` and `Limits`), catalog properties, and the encoded
+`TableSchema` for declared path columns and optional partition key routing.
+Relational primary keys and nullable partition key columns are rejected.
+
+`DocumentInitialization` records the initial `.genesis` frame (`DINIT001`) at
+`lsn == 0` under `PublicationGuard` after reading back and verifying the staged
+`DocumentDeclaration`. Retries with the same `Request` return the original
+`Evidence`; differing operations or ordinals reject with
+`DocumentInitializationConflict`.
+
+`DocumentShredder` shreds declared and frequent (`count >= frequent_path_threshold`,
+bounded by `max_shredded_columns`) document paths into typed five-state
+(`value`, `null_value`, `missing`, `type_error`, `conflict`) subcolumns backed
+by `RBC1` presence, null, and conflict bitmaps, collation-ordered (`utf8_binary`,
+`ascii_ci`, `ebcdic_cp037`) `ZoneMap` summaries, and per-row `SuccinctTree`
+residual topologies.
+
+## Direct Document partition records, evidence, retained reads, and recovery
+
+`DocumentPartition` serializes direct Document mutations, finite merge-window
+checkpoints, retained revision reads, and archival/recovery over `TransitLog`
+and `TransitObjectStore`:
+
+- `DocumentPartitionRecord` (`DOCPART1`) encodes a 40-byte header (`"DOCPART1"`
+  + 32-byte definition) followed by canonical JSON binding the preceding record
+  commitment, successor `Root` (`documents_root`, `revisions_root`,
+  `replicas_root`, `operations_root`, `reads_root`, `archive`, `recovery`),
+  action (`mutation`, `checkpoint`, `read`, `read_release`, `declaration`,
+  `archive`, `recovery_checkpoint`), and optional `DocumentEvidence` content.
+  Mutations use `row_delta` frames; control transitions use `manifest_checkpoint`
+  frames.
+- `DocumentEvidence` (`DEVID001`) stores immutable operation outcomes in
+  `document-evidence/{sha256}.data` so duplicate client tokens and replica
+  sequence retries resolve to the original receipt across disk reopen without
+  re-reading historical payload frames.
+- `DocumentRead` (`DREAD001`) stores immutable retained read bases in
+  `document-reads/{sha256}.data` and authenticates cumulative revision coverage
+  cursors with `HMAC-SHA256(secret, "transit.document.read.coverage.v1\x00" || definition_bytes || canonical_json({read, coverage}))`.
+- `DocumentRecovery` (`DCHECK01`) stages immutable recovery baselines in
+  `document-checkpoints/{sha256}.data`. `trimArchived` requires both accepted
+  `LogHistory` archive coverage and an accepted `DocumentRecovery` checkpoint,
+  preserving the checkpoint-publishing WAL record and allowing
+  `DocumentInitialization.observe` and `DocumentStorageRoots.Cursor` to verify
+  the original initialization and retained roots after WAL prefix trim.

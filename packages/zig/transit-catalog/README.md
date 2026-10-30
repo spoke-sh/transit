@@ -84,6 +84,11 @@ schema USAGE/CREATE and ownership checks with `TableAuthority`; it stores no
 grants. The current configuration requires all five domain identities, including
 Stream and Queue. Lifecycle publication uses these domains and the existing
 native registrar, with the caller's rights checked at every publication boundary.
+`DocumentAuthority` similarly defines direct Document action masks (`inspect`,
+`read`, `mutate`, `checkpoint`, `administer`) and domain-separated authorization
+bindings, while `DirectStorageGraph` enumerates retained `DocumentPartition`
+declarations, states, payloads, operation evidence, live read bases, and
+recovery checkpoints.
 
 `DirectTableClient` signs typed requests with the caller's current credential and
 selected role. The node checks database CONNECT, schema USAGE, the required
