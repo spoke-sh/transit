@@ -91,8 +91,8 @@ claim expiry is the upper bound plus the checked lease duration. Settlement
 requires the entire interval to precede expiry. An interval spanning expiry
 returns `QueueTimeUnavailable`, allowing neither settlement nor reassignment;
 expiry processing requires its lower bound to reach the accepted deadline.
-The eventual publication owner must repeat these checks under its guard and
-preserve the accepted upper clock floor. Pure transition checks alone provide
+The storage publication owner repeats these checks under its guard and
+preserves the accepted upper clock floor. Pure transition checks alone provide
 no trusted clock or durable acceptance.
 
 NACK backoff starts at its observed upper bound and honors a later requested
@@ -135,7 +135,7 @@ Metadata retains its required definition, exact declaration, original claim,
 trusted time interval, expiry, accepted position and the preceding payload
 placement cut. The acceptance position is exactly one log record after that
 cut. Metadata is bounded to 16 KiB and a selection to 4,096 rows, additionally
-restricted by the declaration and eventual owner budgets. Missing or foreign
+restricted by the declaration and owner budgets. Missing or foreign
 definitions, noncanonical metadata, duplicate offsets, trailing bytes and
 truncation reject. An empty claim has no selection artifact; its receipt remains
 the original empty result. The storage owner verifies the exact selection during

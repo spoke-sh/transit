@@ -9,6 +9,40 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Fenced Queue settlements and bounded expiry — 2026-10-30
+
+`ac52c941d` passes the combined Queue and Stream partition suites, the focused
+Queue retained-graph schedule and all 48 fast checks. ACK, NACK and renewal
+publish their original outcomes with complete Queue successors. Disk tests lose
+renewal and ACK replies, recover without object writes, fence the old renewal
+receipt, ACK through cold sealed payload placement, advance exactly one FIFO
+head and retain retry backoff and attempt/epoch increments. Compatible retired
+declarations can settle already accepted work; new claims refuse. Accepted
+settlements remain recoverable after retirement, expiry and restart with no
+available clock, while current authorization still governs disclosure.
+
+Publication rejects an interval spanning expiry and a definitely expired lease.
+One-step expiry ignores the superseded renewal deadline, loses an accepted
+expiry reply and recovers it from disk. Each step advances exactly one WAL record
+even after a large clock jump. Backoff remains anchored to the accepted deadline;
+exhausted work stays available but blocked, with no terminal or DLQ claim. Backward
+and unavailable time refuse new expiry work.
+
+Review found that Queue control candidates also needed to load and verify the
+complete immutable declaration. Claims, settlements and expiry now reject
+structurally valid metadata with a fabricated revision before acceptance. The
+regression keeps the original root and WAL frontier unchanged. The collection
+schedule adds ACK, NACK and expiry before sealing, checkpointing and trimming;
+after reclaiming private objects, it preserves original selection directories,
+the remaining FIFO heads and available/acquired/acked bitmap sets.
+
+Executed logs are `/var/tmp/transit-queue-settlement-declarations-final.log`,
+`/var/tmp/transit-queue-settlement-collection-final.log` and
+`/var/tmp/transit-queue-settlement-fast-final.log`. Earlier focused settlement
+and expiry runs also passed. These are storage-owner checks, not installed Queue
+admission, automatic timer-wheel/affinity scheduling, current lease inspection,
+DLQ transfer or mixed transaction qualification.
+
 ## Durable original Queue claims — 2026-10-30
 
 `d1bc4cb83` adds accepted claims to the shared Queue WAL owner. The disk test

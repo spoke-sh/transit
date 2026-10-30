@@ -357,7 +357,8 @@ wait composition, automatic local maintenance and sparse physical payload
 rewriting. Full exit qualification remains open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
-storage and catalog integration without enabling Queue execution or SQL verbs.
+storage and catalog integration without enabling installed Queue operations or
+SQL verbs.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
 
