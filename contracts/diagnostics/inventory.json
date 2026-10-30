@@ -31829,7 +31829,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 620,
+        "try": 622,
         "catch": 18
       },
       "imports": [
@@ -31854,6 +31854,8 @@
         "QueueItem.zig",
         "QueueLeaseHeap.zig",
         "QueueSelection.zig",
+        "QueueTimingWheel.zig",
+        "QueueVisibilityCache.zig",
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
         "Tack.zig",
@@ -32324,7 +32326,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -32344,7 +32346,8 @@
         "InvalidQueueHead": 9,
         "InvalidQueueItem": 4,
         "InvalidQueueRoot": 2,
-        "InvalidQueueSchedule": 8,
+        "InvalidQueueSchedule": 11,
+        "InvalidQueueTimerBudget": 1,
         "LogPartitionConflict": 1,
         "QueueItemMissing": 1,
         "QueueNotEligible": 2,
@@ -32372,10 +32375,13 @@
         "firstExpired()": "<inferred>",
         "head()": "<inferred>",
         "item()": "<inferred>",
+        "prepareVisibility()": "<inferred>",
         "putItem()": "<inferred>",
         "putSidecar()": "<inferred>",
         "removeDeadline()": "<inferred>",
         "schedule()": "<inferred>",
+        "scheduledEvent()": "<inferred>",
+        "scheduledItem()": "<inferred>",
         "settle()": "<inferred>",
         "sidecar()": "<inferred>",
         "state()": "<inferred>",
@@ -32384,8 +32390,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
-        "catch": 0
+        "try": 118,
+        "catch": 1
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -32395,6 +32401,8 @@
         "LogTime.zig",
         "OrderedKeyIndex.zig",
         "QueueItem.zig",
+        "QueueTimingWheel.zig",
+        "QueueVisibilityCache.zig",
         "Tack.zig",
         "TreeStore.zig",
         "std",
@@ -32541,6 +32549,59 @@
         "TreeStore.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueTimingWheel.zig": {
+      "errors": {
+        "InvalidQueueTimerBudget": 2,
+        "QueueTimerCapacityExceeded": 1,
+        "QueueTimerFenced": 2,
+        "QueueTimerTimeRegression": 1
+      },
+      "outcomes": {
+        "Entry.state": [
+          "free",
+          "waiting",
+          "ready",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "cancel()": "<inferred>",
+        "init()": "<inferred>",
+        "insert()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueVisibilityCache.zig": {
+      "errors": {},
+      "outcomes": {
+        "Lookup": [
+          "miss",
+          "empty",
+          "event"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "QueueTimingWheel.zig",
+        "TreeStore.zig",
+        "std"
       ]
     },
     "packages/zig/transit-storage/src/S3ObjectStore.zig": {
@@ -33882,6 +33943,7 @@
         "QueueLeaseHeap.zig",
         "QueuePartition.zig",
         "QueueSelection.zig",
+        "QueueTimingWheel.zig",
         "S3ObjectStore.zig",
         "StreamCompaction.zig",
         "StreamPartition.zig",

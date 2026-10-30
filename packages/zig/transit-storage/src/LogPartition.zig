@@ -32,6 +32,8 @@ const QueueIndex = @import("QueueIndex.zig");
 const QueueClaims = @import("QueueClaims.zig");
 const QueueSelection = @import("QueueSelection.zig");
 const QueueLeaseHeap = @import("QueueLeaseHeap.zig");
+const QueueTimingWheel = @import("QueueTimingWheel.zig");
+const QueueVisibilityCache = @import("QueueVisibilityCache.zig");
 const DeadlineCache = struct {
     root: ?pages.Reference = null,
     valid: bool = false,
@@ -62,6 +64,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             queue_claim_rows: u32 = 256,
             /// Cached earliest active deadlines, independent of durable active count.
             queue_deadline_rows: u32 = 64,
+            /// Cached visibility prefix; remaining work stays in paged storage.
+            queue_visibility_rows: u32 = 64,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
@@ -86,12 +90,13 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         queue_leases: if (kind == .queue) []q.Lease else void,
         queue_selection: if (kind == .queue) []u8 else void,
         queue_deadlines: if (kind == .queue) DeadlineCache else void,
+        queue_visibility: if (kind == .queue) QueueVisibilityCache else void,
 
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
         pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
             if (std.meta.activeTag(request.declared.declaration.configuration.policy) != kind) return error.LogPartitionConflict;
-            if (kind == .queue and (options.queue_deadline_rows == 0 or options.queue_deadline_rows > 4096)) return error.InvalidQueueScheduleBudget;
+            if (kind == .queue and (options.queue_deadline_rows == 0 or options.queue_deadline_rows > 4096 or options.queue_visibility_rows == 0 or options.queue_visibility_rows > 4096)) return error.InvalidQueueScheduleBudget;
             if (kind == .queue and (options.queue_claim_rows == 0 or options.queue_claim_rows > QueueSelection.max_rows)) return error.InvalidQueueClaimBudget;
             if (options.read_scan_rows == 0 or options.read_scan_rows > 65536) return error.InvalidStreamBudget;
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
@@ -115,7 +120,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             errdefer if (kind == .queue) allocator.free(queue_selection);
             const deadline_entries = if (kind == .queue) try allocator.alloc(q.Lease, options.queue_deadline_rows) else {};
             errdefer if (kind == .queue) allocator.free(deadline_entries);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {} };
+            const visibility_entries = if (kind == .queue) try allocator.alloc(QueueTimingWheel.Entry, options.queue_visibility_rows) else {};
+            errdefer if (kind == .queue) allocator.free(visibility_entries);
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {} };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
@@ -126,6 +133,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.allocator.free(self.queue_leases);
                 self.allocator.free(self.queue_selection);
                 self.allocator.free(self.queue_deadlines.heap.entries);
+                self.allocator.free(self.queue_visibility.wheel.entries);
             }
             self.allocator.free(self.encoded);
             self.allocator.free(self.key_buffer);
@@ -269,7 +277,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn queueIndex(self: *Self, bitmap: *Bitmap) QueueIndex {
             bitmap.* = .{ .store = &self.store, .objects = self.objects };
-            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer };
+            return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility };
         }
         fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
             return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;

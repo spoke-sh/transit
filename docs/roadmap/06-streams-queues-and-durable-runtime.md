@@ -440,7 +440,10 @@ The current progress slice delivers:
   invalidates on changed durable lease state; its capacity does not limit the
   active population. Retained graph traversal now follows exact historical DLQ
   definitions from declarations and blocked items, refusing missing or invalid
-  destinations. Hierarchical timing-wheel and far-future run integration,
+  destinations. A hierarchical visibility/retry wheel now accelerates a bounded
+  earliest eligibility prefix; incomplete advancement or prefix exhaustion
+  consults the durable directory and never establishes an empty claim. Lease
+  expiry remains owned separately by the fenced heap. Durable time-bucketed runs,
   affinity scheduling, terminal cleanup and atomic DLQ transfer remain outstanding.
 
 The next implementation work is to finish that R3 service slice, then implement

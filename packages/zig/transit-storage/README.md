@@ -152,9 +152,28 @@ complete durable transition are checked separately before publication. Warm
 observations before the next deadline need no object reads or backing allocation
 inside the retained storage owner. Owner disposal drops the cache. The local
 maintenance driver currently disposes ready workspaces between units, so this is
-not a claim of allocation-free background maintenance. Durable eligibility and
-deadline directories still use paged indexes; a timing wheel and time-bucketed
-runs are separate scheduling mechanisms.
+not a claim of allocation-free background maintenance.
+
+Visibility and retry wakeups use a separate `QueueTimingWheel`; this wheel never
+expires an acquired lease. Eight radix-256 levels span the unsigned millisecond
+range. Intrusive bucket links give constant-time insertion and exact cancellation.
+Generation-tagged handles fence reuse; exhausted generations permanently retire
+their slots. Advancement jumps to occupied boundaries and charges each boundary
+jump and individual cascade against its work budget, including after a large
+clock jump. Ready-event selection scans only the bounded resident entries.
+
+The Queue owner caches an earliest eligibility prefix in that wheel, with 64
+entries by default (`Options.queue_visibility_rows`, 1–4,096). Each selection pass
+loads at most the smaller of capacity and declared `timer_steps`, then advances
+at most `timer_steps` wheel units. Deterministic publication validation may repeat
+selection. The cache binds its immutable directory and scheduled count; changed
+roots or a backward speculative observation discard it. Incomplete advancement
+or a cursor beyond a partial prefix uses the durable directory. A full cache
+cannot establish an empty claim. Each selected event still validates its current
+durable item and `.tack` state; current authority and time remain separate checks.
+Warm checks before a known future prefix need no object reads or backing allocation.
+Durable eligibility and deadline directories still use paged indexes;
+time-bucketed immutable runs are not implemented.
 
 `readClaimPage` resolves an original claim before traversing its frozen selection
 and payload directories. Rows own their encoded bytes independently of scratch

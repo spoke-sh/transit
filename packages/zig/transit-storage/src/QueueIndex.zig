@@ -61,6 +61,7 @@ scratch: *std.heap.ArenaAllocator,
 bitmap: *Bitmap,
 container: *Bitmap.Container,
 key_buffer: []u8,
+visibility: ?*@import("QueueVisibilityCache.zig") = null,
 
 fn tree(self: Self) pages.Tree(Store) {
     return .{ .store = self.store };
@@ -286,15 +287,64 @@ pub fn firstEligible(self: Self, root: Root, earliest_ms: u64) !?Item {
 /// cursor belongs to the frozen root; it does not mutate or skip a FIFO head.
 pub fn eligibleAfter(self: Self, root: Root, after: ?pages.Key, earliest_ms: u64) !?Item {
     try root.validate();
+    if (self.visibility) |cache| {
+        const cursor = if (after) |key| try scheduledEvent(key) else null;
+        switch (cache.lookup(root.eligible, root.scheduled, earliest_ms, cursor)) {
+            .miss => {},
+            .empty => return null,
+            .event => |event| return try self.scheduledItem(root, event),
+        }
+    }
     const page = try self.tree().scan(root.eligible, after);
     const entry = page.entries[0] orelse return null;
-    if (entry.key.len != 16 or entry.value.len != 0) return error.InvalidQueueSchedule;
-    const at = std.mem.readInt(u64, entry.key.data[0..8], .big);
-    const offset = std.mem.readInt(u64, entry.key.data[8..16], .big);
-    if (at > earliest_ms) return null;
-    const value = try self.item(root, offset);
-    if (value.visible_ms != at or value.blocked != .none or try self.state(root, value) != .available) return error.InvalidQueueSchedule;
+    if (entry.value.len != 0) return error.InvalidQueueSchedule;
+    const event = try scheduledEvent(entry.key);
+    if (event.at_ms > earliest_ms) return null;
+    return try self.scheduledItem(root, event);
+}
+
+const Timer = @import("QueueTimingWheel.zig");
+fn scheduledEvent(key: pages.Key) !Timer.Event {
+    if (key.len != 16) return error.InvalidQueueSchedule;
+    return .{ .at_ms = std.mem.readInt(u64, key.data[0..8], .big), .offset = std.mem.readInt(u64, key.data[8..16], .big) };
+}
+fn scheduledItem(self: Self, root: Root, event: Timer.Event) !Item {
+    const value = try self.item(root, event.offset);
+    if (value.visible_ms != event.at_ms or value.blocked != .none or try self.state(root, value) != .available) return error.InvalidQueueSchedule;
     return value;
+}
+
+/// Once per selection, load at most `steps` prefix entries and advance at most
+/// `steps` wheel units. An incomplete cascade falls back to the paged directory.
+/// The resident prefix and time horizon never limit the durable population.
+pub fn prepareVisibility(self: Self, root: Root, earliest_ms: u64, steps: u32) !void {
+    const cache = self.visibility orelse return;
+    try root.validate();
+    if (steps == 0) return error.InvalidQueueTimerBudget;
+    if (!cache.matches(root.eligible, root.scheduled) or earliest_ms < cache.wheel.now_ms) {
+        cache.reset(root.eligible, root.scheduled, earliest_ms);
+        const limit = @min(cache.wheel.entries.len, steps, root.scheduled);
+        var after: ?pages.Key = null;
+        while (cache.wheel.len < limit) {
+            const page = try self.tree().scan(root.eligible, after);
+            const entry = page.entries[0] orelse return error.InvalidQueueSchedule;
+            if (entry.value.len != 0) return error.InvalidQueueSchedule;
+            const event = try scheduledEvent(entry.key);
+            _ = try self.scheduledItem(root, event);
+            _ = cache.wheel.insert(event) catch {
+                // Generation-exhausted slots stay retired. Cache capacity may
+                // fall without reducing the durable queue's capacity.
+                cache.valid = false;
+                return;
+            };
+            cache.last = event;
+            after = entry.key;
+        }
+        cache.covers_all = cache.wheel.len == root.scheduled;
+        cache.valid = true;
+    }
+    cache.observed_ms = null;
+    if ((try cache.wheel.advance(earliest_ms, steps)).complete) cache.observed_ms = earliest_ms;
 }
 
 pub fn firstExpired(self: Self, root: Root, earliest_ms: u64) !?Item {

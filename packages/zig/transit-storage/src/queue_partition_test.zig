@@ -280,7 +280,11 @@ test "queue partition original claim selections and empty outcomes survive expir
     defer wal.deinit();
     var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     defer objects.deinit();
-    var declared = try declaration();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    definition.limits.timer_steps = 1;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
     defer declared.deinit();
     var policy: Policy = .{};
     var clock: Clock = .{};
@@ -288,12 +292,24 @@ test "queue partition original claim selections and empty outcomes survive expir
     var fault: Fault = .{ .underlying = wal.log() };
     var configured = options;
     configured.clock = clock.source();
-    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    configured.queue_visibility_rows = 1;
+    var allocations: f.memory.AllocationProbe = .{ .parent = t.allocator };
+    defer t.expectEqual(@as(usize, 0), allocations.live_bytes) catch unreachable;
+    var owner = try Queue.open(allocations.allocator(), fault.log(), objects.objectStore(), initial, policy.guard(), configured);
     defer owner.deinit() catch unreachable;
     _ = try owner.recoverStep(policy.guard(), 1);
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    // An observed cut with two due heads exceeds the resident prefix. Reading
+    // beyond that prefix must still find the other key through its durable index.
+    var visibility_bitmap: s.BitmapDirectory = undefined;
+    var visibility_index = index(&owner, &visibility_bitmap);
+    visibility_index.visibility = &owner.owner.queue_visibility;
+    try visibility_index.prepareVisibility(owner.owner.root.queue.?, 1000, 1);
+    const first_due = (try visibility_index.firstEligible(owner.owner.root.queue.?, 1000)).?;
+    try t.expectEqual(@as(u64, 1), first_due.offset);
+    try t.expectEqual(@as(u64, 0), (try visibility_index.eligibleAfter(owner.owner.root.queue.?, try s.QueueIndex.timedKey(first_due.visible_ms, first_due.offset), 1000)).?.offset);
     const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
     fault.lose_reply = true;
     try t.expectError(error.LogAppendUncertain, owner.claim(initial.declared, claim, policy.guard()));
@@ -312,7 +328,21 @@ test "queue partition original claim selections and empty outcomes survive expir
     empty_request.operation = operation(4);
     const empty = try owner.claim(initial.declared, empty_request, policy.guard());
     try t.expect(empty.rows == 0 and empty.leases == null);
+    // This prefix contains the future head. Warm visibility checks allocate no
+    // backing memory and read no objects; they do not publish a claim.
+    const idle_reads = objects.range_reads;
+    allocations.begin(true);
+    for (0..20) |_| {
+        try visibility_index.prepareVisibility(owner.owner.root.queue.?, 100, 1);
+        try t.expect(try visibility_index.firstEligible(owner.owner.root.queue.?, 100) == null);
+    }
+    try allocations.verify();
+    allocations.begin(false);
+    try t.expectEqual(idle_reads, objects.range_reads);
     clock.value = .exact(1000);
+    try visibility_index.prepareVisibility(owner.owner.root.queue.?, 1000, 1);
+    try t.expect(owner.owner.queue_visibility.observed_ms == null); // Cascade is incomplete.
+    try t.expectEqual(@as(u64, 0), (try visibility_index.firstEligible(owner.owner.root.queue.?, 1000)).?.offset);
     try t.expectEqualDeep(empty, try owner.claim(initial.declared, empty_request, policy.guard()));
     try t.expectEqualDeep(original, try owner.claim(initial.declared, claim, policy.guard()));
     var fresh = claim;
@@ -331,7 +361,7 @@ test "queue partition original claim selections and empty outcomes survive expir
     objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     policy.epoch = 2;
     clock.value = null;
-    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    owner = try Queue.open(allocations.allocator(), wal.log(), objects.objectStore(), initial, policy.guard(), configured);
     while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
     try t.expectEqualDeep(root, owner.owner.root);
     try t.expectEqual(@as(u64, 0), objects.puts);

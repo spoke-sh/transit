@@ -20,6 +20,7 @@ pub fn select(index: Index, root: Root, declared: Declaration.Stored, claim: q.C
     const policy = declared.declaration.configuration.policy.queue;
     _ = try policy.deadline(observed.latest_ms, claim.lease_ms);
     const before = root.queue orelse return error.InvalidQueueRoot;
+    try index.prepareVisibility(before, observed.earliest_ms, declared.declaration.limits.timer_steps);
     const capacity = declared.declaration.limits.active_leases -| before.active;
     const limit = @min(claim.maximum, capacity);
     var count: usize = 0;
