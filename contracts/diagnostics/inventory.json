@@ -12228,6 +12228,80 @@
         "zarrow"
       ]
     },
+    "packages/zig/transit-fuze/src/TableConstraints.zig": {
+      "errors": {
+        "CheckConstraintViolation": 10,
+        "ColumnReferencedByCheckConstraint": 3,
+        "ColumnReferencedByForeignKey": 3,
+        "ColumnReferencedByInboundForeignKey": 3,
+        "DuplicateForeignKeyColumn": 1,
+        "ForeignKeyIndexEnforcementUnavailable": 1,
+        "ForeignKeySetNullRequiresNullableColumn": 2,
+        "ForeignKeyTargetMismatch": 1,
+        "ForeignKeyTargetNotUniqueKey": 1,
+        "IncompatibleCheckColumns": 1,
+        "IncompatibleForeignKeyColumnType": 1,
+        "InvalidCheckConstraint": 1,
+        "InvalidColumnCount": 1,
+        "InvalidConstraintName": 2,
+        "InvalidForeignKeyArity": 1,
+        "OnlinePhasedRewriteRequired": 1,
+        "UnknownColumn": 1
+      },
+      "outcomes": {
+        "CheckAtom": [
+          "compare_literal",
+          "compare_columns",
+          "is_not_null",
+          "is_null"
+        ],
+        "CheckViolationReason": [
+          "predicate_false",
+          "missing_cell",
+          "type_error_cell",
+          "conflict_cell"
+        ],
+        "ForeignKeyEnforcement": [
+          "staged_awaiting_index",
+          "enforced"
+        ],
+        "ReferentialAction": [
+          "restrict",
+          "no_action",
+          "cascade",
+          "set_null"
+        ],
+        "RewriteKind": [
+          "lazy_metadata_or_projection",
+          "validation_scan_only",
+          "online_phased_rewrite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "CheckConstraint.validate()": "<inferred>",
+        "ForeignKeyConstraint.checkWriteAdmission()": "<inferred>",
+        "ForeignKeyConstraint.validateAgainstSchemas()": "<inferred>",
+        "checkSynchronousEvolutionAdmission()": "<inferred>",
+        "classifyTransition()": "<inferred>",
+        "evaluateCheckRow()": "<inferred>",
+        "inspectSegmentProjectionCoverage()": "<inferred>",
+        "validateChangeAgainstConstraints()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
+        "catch": 1
+      },
+      "imports": [
+        "Collation.zig",
+        "TableEvolution.zig",
+        "TableSchema.zig",
+        "TableSchemaProjection.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableDdl.zig": {
       "errors": {
         "DuplicateColumnConstraint": 3,
@@ -13754,6 +13828,7 @@
         "TDel.zig",
         "TSeg.zig",
         "TSegReader.zig",
+        "TableConstraints.zig",
         "TableDdl.zig",
         "TableDml.zig",
         "TableDmlCodec.zig",

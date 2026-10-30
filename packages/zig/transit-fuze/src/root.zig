@@ -65,6 +65,7 @@ pub const StandardsLedger = @import("StandardsLedger.zig");
 pub const Range = @import("Range.zig");
 pub const VectorMetric = @import("VectorMetric.zig");
 pub const DecimalArithmetic = @import("DecimalArithmetic.zig");
+pub const TableConstraints = @import("TableConstraints.zig");
 pub const ColumnPredicate = @import("ColumnPredicate.zig");
 pub const TDel = @import("TDel.zig");
 pub const TSeg = @import("TSeg.zig");
@@ -101,6 +102,7 @@ test {
     _ = Range;
     _ = VectorMetric;
     _ = DecimalArithmetic;
+    _ = TableConstraints;
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
@@ -114,6 +116,7 @@ test {
     _ = @import("query_collation_test.zig");
     _ = @import("operator_traits_test.zig");
     _ = @import("companion_types_test.zig");
+    _ = @import("table_constraints_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
     _ = @import("logical_kind_test.zig");
