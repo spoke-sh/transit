@@ -1,4 +1,4 @@
-# 35. Release distribution
+# 36. Release distribution
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -6,7 +6,7 @@ Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
 [source onboarding](../handbook/guides/quickstart.md) are the baseline, not a release pipeline.
 
-Consume the qualified [operations and upgrade procedures](23-operations-and-recovery.md).
+Consume the qualified [operations and upgrade procedures](24-operations-and-recovery.md).
 This milestone packages and verifies their installation experience; operational
 recovery, compatibility and conversion semantics remain with that owner.
 
@@ -76,10 +76,10 @@ SDK and installer matrix must complete before closing their acceptance items.
 - Board catalog discovery, dataset previews and temporary workbooks are
   implemented; the release workflow now exercises them from installed packages.
   Saved/shared workbooks and governed review still depend on the remaining
-  [workbench scope](28-board-reimplementation.md), and cannot yet complete those
+  [workbench scope](29-board-reimplementation.md), and cannot yet complete those
   capability-dependent onboarding criteria.
 - Installed MCP business-resource/App checks depend on
-  [the planned MCP service](29-mcp-service-and-apps.md). There is no endpoint
+  [the planned MCP service](30-mcp-service-and-apps.md). There is no endpoint
   or App package to distribute yet.
 
 Static/component checks and a running server do not complete the milestone's
@@ -120,7 +120,7 @@ These probes do not add desktop targets to the supported distribution matrix.
    ownership and failure/rollback policy.
 4. Package SDKs/libraries with generated resources and native dependency closure.
    Test consumers outside the checkout, including the qualified
-   [direct-client, Station and mixed programming models](32-programming-model.md).
+   [direct-client, Station and mixed programming models](33-programming-model.md).
    An ordinary data-client installation must not require the optional Station
    runner artifact; each release advertises its actual operation/language matrix.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
@@ -128,7 +128,7 @@ These probes do not add desktop targets to the supported distribution matrix.
    application installation and compatible worker replacement. State the released
    object kinds and lifecycle capabilities explicitly; an installed server alone
    does not complete onboarding.
-   Include the qualified [Board workbench](28-board-reimplementation.md) and
+   Include the qualified [Board workbench](29-board-reimplementation.md) and
    its embedded assets: exercise catalog discovery, bounded preview, a saved
    workbook and configured review capabilities from the installed package
    without checkout assets, a frontend development server or CDN dependencies.
@@ -145,7 +145,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](34-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](35-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

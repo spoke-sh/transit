@@ -1,4 +1,4 @@
-# 33. SQL grammar, standards comparison and dialect ergonomics
+# 34. SQL grammar, standards comparison and dialect ergonomics
 
 [Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -7,8 +7,8 @@ standards (**SQL:2023** `Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED` and
 **GQL**) and industry-standard analytical, transactional and streaming dialects
 (**PostgreSQL**, **DuckDB**, **Snowflake**, **ClickHouse**, **GoogleSQL** and
 **Materialize / RisingWave / Flink SQL**) before the
-[1.0 qualification scorecard](34-qualification-and-benchmarks.md) and
-[release distribution](35-releases.md). Adopt high-leverage ergonomic syntax—such
+[1.0 qualification scorecard](35-qualification-and-benchmarks.md) and
+[release distribution](36-releases.md). Adopt high-leverage ergonomic syntax—such
 as DuckDB's `FROM`-first query composition (`FROM people SELECT id, name;`),
 `GROUP BY ALL`, `ORDER BY ALL`, `SELECT * EXCLUDE (...) REPLACE (...)`, trailing
 commas and readable numeric literals—as deterministic compile-time desugarings to
@@ -31,18 +31,19 @@ Build on the delivered and planned foundations across
 [first-class strings and search](14-vectorized-strings-and-search.md),
 [data-centric compilation](15-data-centric-compilation-and-specialization.md),
 [Document profiles](16-document-profiles-and-gateway-exchange-lifecycle.md),
-[multi-model and foreign relations](17-multi-model-and-foreign-relations.md),
-[branches and merges](18-branches-merges-and-restore.md),
-[enterprise control and policy](25-control-and-policy-plane.md),
-[Board workbench](28-board-reimplementation.md) and
-[language-native application composition](32-programming-model.md). Start from
+[geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md),
+[multi-model and foreign relations](18-multi-model-and-foreign-relations.md),
+[branches and merges](19-branches-merges-and-restore.md),
+[enterprise control and policy](26-control-and-policy-plane.md),
+[Board workbench](29-board-reimplementation.md) and
+[language-native application composition](33-programming-model.md). Start from
 the [SQL statement reference](../handbook/reference/sql.md),
 [grammar surface inventory](../handbook/reference/sql/grammar-surface.md),
 [checked grammar and rewrite proofs](../../contracts/sql/README.md) and
 [query engine architecture](../handbook/internals/query-engine.md).
 
-Placing this milestone immediately after [Milestone 32](32-programming-model.md)
-and before [Milestone 34](34-qualification-and-benchmarks.md) resolves three
+Placing this milestone immediately after [Milestone 33](33-programming-model.md)
+and before [Milestone 35](35-qualification-and-benchmarks.md) resolves three
 pre-release requirements once every data, stream, queue, document, branch and
 computation primitive is defined:
 
@@ -82,9 +83,9 @@ computation primitive is defined:
 
 | Standard or dialect | Primary audit scope | Target adoption & boundary in Transit |
 | --- | --- | --- |
-| **ISO/IEC 9075 SQL:2023** (`Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED`) & **ISO/IEC 39075 GQL** | Core relational algebra, window frames, `MATCH_RECOGNIZE` / `GRAPH_TABLE`, temporal periods (`FOR SYSTEM_TIME AS OF`), foreign tables (`CREATE FOREIGN TABLE`), collations and 3-valued $\to$ 5-state truth tables | Primary normative baseline for standard relational, graph, temporal and foreign-table clauses; document exact feature IDs and Transit's intentional 5-state (`missing`, `type_error`, `conflict`) and checked-arithmetic deviations |
-| **PostgreSQL 17** (`libpg_query` baseline) | Lexical rules, `standard_conforming_strings`, `::type` casts, `RETURNING`, `ON CONFLICT`, `LATERAL`, CTEs, `GRANT`/`REVOKE`, `ALTER SUBSCRIPTION ... ENABLE \| DISABLE` and wire-protocol (`transit-postgres`) metadata queries | Preserve AST agreement on the shared compatibility subset; map PostgreSQL-specific administrative and replication idioms (`ENABLE`/`DISABLE`, `pg_catalog` introspection) to Transit's catalog and dataflow operations |
-| **DuckDB ("Friendly SQL")** | `FROM`-first queries (`FROM tbl SELECT ...`, bare `FROM tbl;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`, `ORDER BY ALL`, `QUALIFY`, `AS OF JOIN`, trailing commas and numeric underscores (`1_000_000`) | Adopt `FROM`-first syntax, `EXCLUDE`/`REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas and numeric underscores as first-class compile-time desugarings to canonical `FQP1` plans |
+| **ISO/IEC 9075 SQL:2023** (`Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED`), **ISO/IEC 13249-3 SQL/MM Spatial** & **ISO/IEC 39075 GQL** | Core relational algebra, window frames, `MATCH_RECOGNIZE` / `GRAPH_TABLE`, `GEOMETRY` / `GEOGRAPHY` & `ST_*` spatial functions ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)), temporal periods (`FOR SYSTEM_TIME AS OF`), foreign tables (`CREATE FOREIGN TABLE`), collations and 3-valued $\to$ 5-state truth tables | Primary normative baseline for standard relational, spatial, graph, temporal and foreign-table clauses; document exact feature IDs and Transit's intentional 5-state (`missing`, `type_error`, `conflict`) and checked-arithmetic deviations |
+| **PostgreSQL 17 & PostGIS** (`libpg_query` baseline) | Lexical rules, `standard_conforming_strings`, `::type` casts, `RETURNING`, `ON CONFLICT`, `LATERAL`, CTEs, `RANGE` / `MULTIRANGE` (`&&`, `@>`, `-|-`), `GEOMETRY(subtype, srid)` / `ST_*` / `<->` $k$-NN operators, `GRANT`/`REVOKE`, `ALTER SUBSCRIPTION ... ENABLE \| DISABLE` and wire-protocol (`transit-postgres`) metadata queries | Preserve AST agreement on the shared compatibility subset; map PostgreSQL-specific administrative and replication idioms (`ENABLE`/`DISABLE`, `pg_catalog` / `geometry_columns` introspection) to Transit's catalog and dataflow operations |
+| **DuckDB ("Friendly SQL" & DuckDB Spatial)** | `FROM`-first queries (`FROM tbl SELECT ...`, bare `FROM tbl;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`, `ORDER BY ALL`, `QUALIFY`, `AS OF JOIN`, `ST_*` / `H3_*` functions, trailing commas and numeric underscores (`1_000_000`) | Adopt `FROM`-first syntax, `EXCLUDE`/`REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas and numeric underscores as first-class compile-time desugarings to canonical `FQP1` plans |
 | **Snowflake & Databricks / Delta Lake** | Dynamic Tables and Tasks (`CREATE \| ALTER DYNAMIC TABLE ... SUSPEND \| RESUME \| REFRESH`), `QUALIFY`, `CHANGES AT/BEFORE`, `table_changes(...)` CDC feeds, semi-structured path navigation and time-travel selectors | Align stateful computation lifecycle verbs (`SUSPEND`, `RESUME`, `REFRESH`) with Transit's 5-state dataflow lifecycle and linear `CHANGES(table, ...)` TVF while keeping publication, authorization, activation and retirement explicit |
 | **Dolt ("Git for Data") & Relational Diff Prior Art** | `DOLT_DIFF`, `DOLT_DIFF_SUMMARY`, `DOLT_SCHEMA_DIFF`, `DOLT_MERGE` and ISO SQL `EXCEPT [ALL]` / `FOR SYSTEM_TIME FROM a TO b` | Provide first-class key-aligned 2-way and 3-way `DIFF(...)` and `DIFF_SCHEMA(...)` table-valued functions plus declarative `REMOTE` / `FETCH` / `MIRROR` / `PROPOSE` syntax over `.tseg` segment skipping, `ColumnId` lineage and 5-state `IS CONFLICT` cells without doubling column count into `from_*`/`to_*` |
 | **ClickHouse** | Vectorized string/search functions, `LIMIT n BY ...`, codec/compression clauses, parameterized views and array/tuple higher-order idioms | Compare physical codec (`ENCODING`) and search/BM25 query ergonomics; keep logical types ($\tau$), collations ($\kappa$) and physical codecs ($\epsilon$) strictly orthogonal |
@@ -116,7 +117,7 @@ computation primitive is defined:
 
 2. **Implement DuckDB-style `FROM`-first query syntax and compositional relational ergonomics.**
    Extend the reference grammar, production Zig relational/analytical compilers,
-   `transit console` and [Board's](28-board-reimplementation.md) SQL editor/autocomplete
+   `transit console` and [Board's](29-board-reimplementation.md) SQL editor/autocomplete
    to support prefix `FROM` queries and schema-bound projection shorthands:
    - **`FROM`-first clause ordering (`FROM ... SELECT ...` and bare `FROM ...`):**
      Allow any query block (top-level queries, CTEs, derived subqueries and
@@ -202,7 +203,7 @@ computation primitive is defined:
 4. **Standardize declarative `DIFF`, `DIFF_SCHEMA` and Git-like remote/branch sync SQL grammar.**
    Audit relational and schema diff syntax across ISO SQL (`EXCEPT [ALL]`,
    `FOR SYSTEM_TIME FROM a TO b`), Dolt (`DOLT_DIFF`, `DOLT_SCHEMA_DIFF`), and
-   Snowflake/Delta (`CHANGES` / `table_changes`), and expose [Milestone 18's](18-branches-merges-and-restore.md)
+   Snowflake/Delta (`CHANGES` / `table_changes`), and expose [Milestone 19's](19-branches-merges-and-restore.md)
    segment-skipping diff, five-state conflict algebra and remote mirroring
    through composable SQL:
    - **Two-way and three-way relational/document `DIFF(...)` and `DIFF_SCHEMA(...)`:**
@@ -246,6 +247,6 @@ computation primitive is defined:
      can format both `SELECT`-first and `FROM`-first forms losslessly without
      changing bound identities, collations or literal types.
    - **Interactive console and Board autocomplete:** Verify in `transit console`
-     and [Board](28-board-reimplementation.md) that writing `FROM <table_name> `
+     and [Board](29-board-reimplementation.md) that writing `FROM <table_name> `
      immediately provides schema-scoped column completions for subsequent
      `WHERE`, `JOIN`, `GROUP BY` and `SELECT` clauses.

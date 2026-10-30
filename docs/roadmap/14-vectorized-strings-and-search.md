@@ -141,12 +141,12 @@ current-authority disclosure checks.
    `EDI`) and unified gateway/connector exchange lifecycle to
    [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md),
    multi-model Document/Graph structural search and foreign-format
-   projections to [Milestone 17](17-multi-model-and-foreign-relations.md),
+   projections to [Milestone 18](18-multi-model-and-foreign-relations.md),
    governed reactive context assembly to
-   [Milestone 30](30-reactive-context-and-agent-activation.md), and speculative
+   [Milestone 31](31-reactive-context-and-agent-activation.md), and speculative
    research into declarative span/proximity maps (`NEAR`), context-conditioned
    sequence continuation and branch-verified agency to
-   [Milestone 36](36-declarative-language-context-and-synthesis.md).
+   [Milestone 37](37-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -179,4 +179,4 @@ separate from evidence for Transit's Zig implementations.
   strings, `IN (...)`) and standard information-retrieval workloads (lexical
   top-$k$, substring/proximity filtering and hybrid search) meet predeclared
   latency, throughput and allocation budgets in the
-  [qualification scorecard](34-qualification-and-benchmarks.md).
+  [qualification scorecard](35-qualification-and-benchmarks.md).

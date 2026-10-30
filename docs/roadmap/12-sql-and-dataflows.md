@@ -87,7 +87,7 @@ half-committed transaction as a completed result.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    expose the same typed lifecycle state machine and DDL verbs across SQL
    (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and
-   Board; [SQL grammar and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md)
+   Board; [SQL grammar and dialect ergonomics](34-sql-grammar-and-dialect-ergonomics.md)
    audits these forms against PostgreSQL (`ENABLE`/`DISABLE`) and Snowflake
    (`SUSPEND`/`RESUME`/`REFRESH`) dialects. Inspection and `EXPLAIN` do no work.
    Board consumes the same definitions and evidence through its explicit
@@ -128,9 +128,12 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   window frames, joins and aggregations).
 - **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods):**
   combine system-time knowledge cuts (`FOR SYSTEM_TIME AS OF`) with declarative
-  application/valid-time periods (`PERIOD FOR valid_time`) and native streaming
-  **`AS OF JOIN`** (matching each left observation to the nearest prior or exact
-  valid-time right row per entity key without $O(N^2)$ inequality joins). Ensure
+  application/valid-time periods (`PERIOD FOR valid_time` backed by
+  [Milestone 10's](10-standards-and-catalogs.md) canonical `RANGE<TIMESTAMPTZ>`
+  type) and native streaming **`AS OF JOIN`** (matching each left observation to
+  the nearest prior or exact valid-time right row per entity key—and supporting
+  [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) piecewise-linear
+  4D `TRAJECTORY` interpolation—without $O(N^2)$ inequality joins). Ensure
   point-in-time research, backtesting and decision auditing evaluate what was
   valid in the domain *and* known to the system at the decision cut, preventing
   later backfill corrections from leaking into earlier simulated decisions.
@@ -150,14 +153,17 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   owns session control, atomicity/isolation, DDL/constraint interactions and
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
-  from branch merge. [Foreign relations](17-multi-model-and-foreign-relations.md)
+  from branch merge. [Foreign relations](18-multi-model-and-foreign-relations.md)
   now owns typed `COPY`/import/export and streaming CDC ingress together with its
   actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
   including conditional alteration and retirement. SQL, SDK and Board use the
   same administrative operations.
 - Optimize incremental maintained computation over `TransitLog` (`+row`/`-row`
-  Z-set/delta vectors) against the complete finite-recomputation oracle.
+  Z-set/delta vectors) against the complete finite-recomputation oracle,
+  providing the Z-set arrangement and operator foundation extended by
+  [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) for algebraic
+  half-edge `ST_Union` and `INTERIOR`/`BOUNDARY` cell-covering spatial joins.
   Event-time windows and bitemporal views require explicit timestamps, watermarks,
   allowed-lateness bounds and retraction rules.
 - Bind outputs to recorded connector effects through independently authorized
@@ -166,7 +172,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Formal model follow-through
 
-Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](20-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
+Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](21-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
 as the computation and phased-DDL contracts settle. Verify that `ACTIVATE`,
 `SUSPEND`, `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
 `REFRESH` and `RETIRE` preserve last-completed-revision invariants when racing
@@ -177,7 +183,7 @@ production Zig catalog and dataflow state reducers.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](30-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](31-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot

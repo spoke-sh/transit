@@ -597,7 +597,7 @@ Require executable proof through real SQL and typed callers in the
 
 - [Gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md),
   [shared client foundation](09-client-foundation-and-language-apis.md) and
-  [SDK coverage](19-service-and-sdk-coverage.md) expose idiomatic Station-free
+  [SDK coverage](20-service-and-sdk-coverage.md) expose idiomatic Station-free
   `Document` APIs and direct-plane ingress across target languages over this
   package boundary.
 - [Standards and historical catalogs](10-standards-and-catalogs.md) and

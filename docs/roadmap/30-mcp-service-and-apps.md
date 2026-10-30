@@ -1,4 +1,4 @@
-# 29. MCP service and interactive Apps
+# 30. MCP service and interactive Apps
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,14 +10,14 @@ query semantics or durable workflow engine.
 
 ## Prerequisites and scope
 
-Consume the [access plane](25-control-and-policy-plane.md),
-[published resources and results](26-published-resources-and-investigations.md)
-and [reviewed collaboration](27-reviewed-data-collaboration.md) for each exposed
+Consume the [access plane](26-control-and-policy-plane.md),
+[published resources and results](27-published-resources-and-investigations.md)
+and [reviewed collaboration](28-reviewed-data-collaboration.md) for each exposed
 operation. A read-only protocol spike can precede collaboration implementation;
 it does not qualify branch or approval capabilities. Shared adapter parity follows
-[service and SDK coverage](19-service-and-sdk-coverage.md).
+[service and SDK coverage](20-service-and-sdk-coverage.md).
 
-This follows [Board reimplementation](28-board-reimplementation.md) in the
+This follows [Board reimplementation](29-board-reimplementation.md) in the
 delivery order so the human workbench exercises the shared workflows first.
 MCP calls their service owners directly; it does not require a running Board,
 depend on its frontend or inherit its configured upstream identity. Reusing a

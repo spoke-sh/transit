@@ -204,10 +204,10 @@ from application call counts.
 | #211 W5a | Extend the qualified five-sync publication toward explicit bounded batches only with physical models, guard-removal controls and disk faults. M8 does not remove storage barriers. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
 | #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
-| M9 / M19 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
+| M9 / M20 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
 | M16 | Pure protocol/Document transformations use shared ingress; durable capture uses separately qualified Document/effect owners. A codec neither accesses storage nor dispatches effects. |
-| M20 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
-| M24 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
+| M21 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
+| M25 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
 
 ### Accepted architectural decisions
 
@@ -607,12 +607,12 @@ M8 closure requires evidence for each selected capability:
 ## Later owners and execution gates
 
 [Shared clients](09-client-foundation-and-language-apis.md) and
-[service/SDK coverage](19-service-and-sdk-coverage.md) consume qualified boundaries.
+[service/SDK coverage](20-service-and-sdk-coverage.md) consume qualified boundaries.
 [M13](13-data-structures-and-performance.md),
 [strings/search](14-vectorized-strings-and-search.md) and
 [compilation](15-data-centric-compilation-and-specialization.md) extend workload
 scorecards. [Document profiles/exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md)
 add pure grammars and qualified capture over the Document owner.
-[Clustered execution](24-clustered-execution.md) extends placement/lease handoff
+[Clustered execution](25-clustered-execution.md) extends placement/lease handoff
 with its own failure evidence. Sharing the gateway host confers neither broader
 support nor performance guarantees.

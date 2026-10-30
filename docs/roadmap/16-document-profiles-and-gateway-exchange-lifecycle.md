@@ -283,7 +283,7 @@ flowchart LR
 
 6. **Expose unified SQL, structural/spatial search, spreadsheet relational views and Board inspection.**
    Make every Document Profile, compound office document and captured exchange a
-   first-class citizen of `Fuze` SQL, search and [Board](28-board-reimplementation.md):
+   first-class citizen of `Fuze` SQL, search and [Board](29-board-reimplementation.md):
    - Query shredded paths, `LDAP` DN subtrees, `MQTT` topic wildcards, `NTP`
      clock-offset/uncertainty bounds, `XLSX`/`ODS` spreadsheet tables and `PDF`
      spatial/page spans through standard `Fuze` SQL (`SELECT`, `WHERE`,
@@ -351,19 +351,23 @@ connectors in the [proof ledger](../history/qualification/README.md):
 
 ## Later owners and execution gates
 
-- [Multi-model and multi-format foreign relations](17-multi-model-and-foreign-relations.md)
+- [Geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md)
+  shares the `BBOX2D` / `GEOMETRY(SRID 0)` representation and 2D interval/R-tree
+  operators with `PDF` `(page_no, bbox, span)` layout spans, `GeoJSON` and
+  `GML`/`KML` XML profiles.
+- [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md)
   composes these Document Profiles with property-graph (`SQL/PGQ`) projections,
   Worst-Case Optimal Joins (`WCOJ`), vector/hybrid ANN search, external
-  `FOREIGN TABLE` / `COPY` datasets (`PARQUET`, `ARROW_IPC`, `CSV`, mainframe
+  `FOREIGN TABLE` / `COPY` datasets (`PARQUET`/`GeoParquet`, `ARROW_IPC`, `CSV`, mainframe
   `FB`/`VB` copybooks) and streaming CDC ingress.
-- [Branches, merges and restore](18-branches-merges-and-restore.md) extends
+- [Branches, merges and restore](19-branches-merges-and-restore.md) extends
   zero-copy manifest branching and three-way structural/causal merging across
   all Document Profiles while keeping external effects disabled on branches by
   default.
-- [Board reimplementation](28-board-reimplementation.md) presents structured
+- [Board reimplementation](29-board-reimplementation.md) presents structured
   Document trees, container part graphs, spreadsheet/PDF previews, raw-frame
   byte provenance, five-state validation errors and exchange lineage graphs
   through read-only public queries.
-- [Recorded outbound MCP](31-recorded-mcp-integrations.md) reuses this
+- [Recorded outbound MCP](32-recorded-mcp-integrations.md) reuses this
   `DOCUMENT`-backed exchange capture and lineage model for governed agent tool
   and MCP interactions.

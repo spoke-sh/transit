@@ -151,7 +151,7 @@ The broader composition outcomes remain individually assigned:
 | Station inbox/state/outbox composition | M6 migration onto those database participants, preserving accepted native work and avoiding a second turn-commit protocol |
 | Real connector dispatch and external outcomes | Connector policy and recorded attempts; the Table example qualifies local intent publication and a fake application policy, not remote exactly-once execution |
 | Gateway co-hosting and event-driven recovery | [M8](08-gateway-architecture-and-protocol-ingress.md) owns protocol ingress placement and control-path cost reduction; this profile does not claim a constant round-trip or low-latency bound |
-| Fine-grained conflicts and distributed placement | M11/M21 and M22–M24 requalify isolation, authority and availability for their extended domains |
+| Fine-grained conflicts and distributed placement | M11/M22 and M23–M25 requalify isolation, authority and availability for their extended domains |
 
 The local closeout does not claim implementation refinement, liveness under
 indefinite failures, host power-loss testing, arbitrary distributed atomicity or
@@ -168,8 +168,8 @@ from the qualification owner.
 | [M4](04-statement-results-and-consumption.md#delivered-integration-boundary), Completed | `transit-sql-results`, `Executor`, bounded `ResultSet`, typed counts and immutable observation evidence | Extend the shared model with provisional transaction attribution and decision evidence in P0/P5. Keep completion, delivery and closure separate. Do not rebuild submission/fetch/recovery in each adapter. |
 | [M6 Step 1](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28), In Progress | `DirectClientToken`, `DatabaseRuntime`, activation fencing, `ReadCache`, `commit_saved`, and build checks excluding Station from database packages | The architectural prerequisite is delivered. Preserve the one-data-append fast path and measure complete control-path cost; its remaining performance/installation gates are not prerequisites for drafting P0, nor are they automatically passed by this plan. |
 | [M13 / #194](13-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
-| [M19](19-service-and-sdk-coverage.md), In Progress; [M9](09-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
-| [M20 T4](20-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
+| [M20](20-service-and-sdk-coverage.md), In Progress; [M9](09-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
+| [M21 T4](21-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
 
 The storage follow-up at this base deliberately **does not adopt** the reusable
 128 MiB private maintenance reserve: installed RSS increased without a clear
@@ -274,7 +274,7 @@ qualification. Public references own the executable syntax and exact limits.
    participant guards for the first local Table profile. Because whole-Table
    read conflict detection aborts concurrent read-write transactions touching
    disjoint keys on the same Table, [indexing and access paths](11-indexing-and-access-paths.md)
-   and [concurrent-writer qualification](21-storage-providers-and-concurrency.md)
+   and [concurrent-writer qualification](22-storage-providers-and-concurrency.md)
    explicitly own the progression to fine-grained key-range and predicate-level
    Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
    same transaction session and recovery contract; neither can weaken the
@@ -380,20 +380,20 @@ parent/child foreign-key histories in later qualification.
 [dataflows](12-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](17-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](18-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](18-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](26-published-resources-and-investigations.md)
+[Branches](19-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](27-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](21-storage-providers-and-concurrency.md),
-[replication](22-replication-and-failover.md), [operations](23-operations-and-recovery.md)
-and [clustered execution](24-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](22-storage-providers-and-concurrency.md),
+[replication](23-replication-and-failover.md), [operations](24-operations-and-recovery.md)
+and [clustered execution](25-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 
