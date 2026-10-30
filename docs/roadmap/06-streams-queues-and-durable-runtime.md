@@ -349,8 +349,12 @@ independent library boundary warrants its own manifest and checks.
 
 ### Work packages and dependencies
 
-All R packages below retain remaining work. The
-[first foundation slice](#first-foundation-slice) delivers parts of R0/R1.
+R2's typed declaration lifecycle now passes its local catalog/native service
+gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
+R0/R1 retain contract/model and partition-maintenance work; R3 onward remain
+open. The [first foundation slice](#first-foundation-slice) delivered the initial
+parts of R0/R1, followed by shared bitmap/sidecar migration, initialization and
+tail-cache foundations.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
 
@@ -358,7 +362,7 @@ evidence, not on a parser or module landing.
 | --- | --- | --- | --- |
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
-| R2 | Catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | Typed create/alter/drop/inspect/recovery, stable identities and dependency/policy checks |
+| R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Stream append, retained reads and consumer groups | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
