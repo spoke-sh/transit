@@ -145,6 +145,13 @@ and the catalog's retained dependency graph.
   record batches and paged data indexes, independent of Station. Its
   [storage and integration guide](docs/document-index.md) specifies workspace
   lifetimes, budgets and the transaction/retention obligations before service use.
+- `DocumentDeclaration.zig`, `DocumentInitialization.zig`, and `DocumentShredder.zig`:
+  Immutable `DDECL001` Document declarations in `document-definitions/{sha256}.data`,
+  fenced `DINIT001` `.genesis` partition initialization at `lsn == 0` under
+  `PublicationGuard`, and adaptive `.tseg` subcolumn shredding into five-state
+  (`value`, `null_value`, `missing`, `type_error`, `conflict`) columns with
+  `RBC1` presence/null/conflict bitmaps, collation-aware (`utf8_binary`,
+  `ascii_ci`, `ebcdic_cp037`) zone maps, and `SuccinctTree` residual topologies.
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
   binary frame format with a mandatory definition in its 128-byte header,
   CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`

@@ -28461,6 +28461,40 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentDeclaration.zig": {
+      "errors": {
+        "DocumentDeclarationMissing": 1,
+        "DocumentDeclarationTooLarge": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidDocumentDeclaration": 10,
+        "InvalidDocumentKeyColumn": 1,
+        "UnsupportedDocumentPrimaryKey": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Definition.encode()": "<inferred>",
+        "Definition.requireKey()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Owned.stored()": "<inferred>",
+        "Stored.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "prepare()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 42,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DocumentIndex.zig": {
       "errors": {
         "ActiveStorageCandidate": 1,
@@ -28518,6 +28552,100 @@
         "std",
         "transit_document",
         "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/DocumentInitialization.zig": {
+      "errors": {
+        "DocumentInitializationConflict": 1,
+        "DocumentInitializationMissing": 1,
+        "DocumentInitializationUncertain": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidDocumentInitialization": 5,
+        "InvalidWalEpoch": 1,
+        "StalePolicyEpoch": 1,
+        "StaleWriterEpoch": 1,
+        "WalLsnConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Request.requireSame()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "initialize()": "<inferred>",
+        "observe()": "<inferred>",
+        "readStored()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 1
+      },
+      "imports": [
+        "DocumentDeclaration.zig",
+        "PublicationGuard.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/DocumentShredder.zig": {
+      "errors": {
+        "BatchTooLarge": 1,
+        "EmptyDocumentBatch": 1,
+        "RowOutOfBounds": 1
+      },
+      "outcomes": {
+        "Subcolumn.OwnedCell": [
+          "value",
+          "null_value",
+          "missing",
+          "type_error",
+          "conflict"
+        ]
+      },
+      "error_sets": {
+        "Error": [
+          "EmptyDocumentBatch",
+          "BatchTooLarge",
+          "RowOutOfBounds",
+          "InvalidDocumentShredding",
+          "InvalidBitmapCardinality",
+          "BitmapBufferAlias",
+          "BitmapOutputTooSmall",
+          "InvalidBitmapEncoding",
+          "NonCanonicalBitmap",
+          "InvalidProvenanceSpan",
+          "EmptySuccinctTree",
+          "InvalidSuccinctTree",
+          "NodeOutOfBounds",
+          "TreeTooLarge",
+          "OutOfMemory"
+        ]
+      },
+      "error_returns": {
+        "ShreddedBatch.evaluatePath()": "Error",
+        "Subcolumn.conflictView()": "Error",
+        "Subcolumn.nullView()": "Error",
+        "Subcolumn.presentView()": "Error",
+        "buildSubcolumn()": "Error",
+        "collectDocumentPaths()": "Error",
+        "joinPath()": "Error",
+        "shredBatch()": "Error",
+        "updateZoneMap()": "Error"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 36,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_bitmap",
+        "transit_document",
         "transit_protocol"
       ]
     },
@@ -30529,7 +30657,10 @@
       },
       "imports": [
         "BitmapDirectory.zig",
+        "DocumentDeclaration.zig",
         "DocumentIndex.zig",
+        "DocumentInitialization.zig",
+        "DocumentShredder.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
         "LogBatch.zig",

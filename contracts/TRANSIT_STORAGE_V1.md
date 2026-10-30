@@ -1592,3 +1592,25 @@ checkpoint references inside a baseline are not recursively followed. Released
 read bases remain protected while required by replay, then become collectible
 after a newer checkpoint. Missing or inconsistent dependencies prevent graph
 completion and therefore prevent deletion.
+
+## Direct Document declarations, genesis, and adaptive shredding
+
+`DocumentDeclaration` stages immutable `document-definitions/{sha256}.data`
+objects (`DDECL001`) with a 104-byte big-endian header binding the current
+definition, object identity, revision, retired flag, canonical JSON policy
+(`Configuration` and `Limits`), catalog properties, and the encoded
+`TableSchema` for declared path columns and optional partition key routing.
+Relational primary keys and nullable partition key columns are rejected.
+
+`DocumentInitialization` records the initial `.genesis` frame (`DINIT001`) at
+`lsn == 0` under `PublicationGuard` after reading back and verifying the staged
+`DocumentDeclaration`. Retries with the same `Request` return the original
+`Evidence`; differing operations or ordinals reject with
+`DocumentInitializationConflict`.
+
+`DocumentShredder` shreds declared and frequent (`count >= frequent_path_threshold`,
+bounded by `max_shredded_columns`) document paths into typed five-state
+(`value`, `null_value`, `missing`, `type_error`, `conflict`) subcolumns backed
+by `RBC1` presence, null, and conflict bitmaps, collation-ordered (`utf8_binary`,
+`ascii_ci`, `ebcdic_cp037`) `ZoneMap` summaries, and per-row `SuccinctTree`
+residual topologies.
