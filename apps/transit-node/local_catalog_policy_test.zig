@@ -1872,6 +1872,7 @@ test "log privileges enforce separate native domains and current disclosure righ
     defer scratch.deinit();
     const alloc = scratch.allocator();
     const namespace_record: c.TableAuthority.Schema = .{ .scope = scope, .id = 1, .authorization = namespace, .name = config.initial_schema_name, .revision = 1 };
+    try logLifecycleDispatch(&engine, config, role);
     for ([_]c.TableAuthority.Kind{ .stream, .queue }, 0..) |kind, i| {
         const object_id: u64 = 200 + i;
         const native_id = (try change(&engine, .{ .register_object = .{ .domain = config.authority.domain(kind), .owner = 0, .schema = c.TableAuthority.reference(namespace), .binding = try c.TableAuthority.binding(scope, kind, object_id) } })).?;
@@ -1898,5 +1899,53 @@ test "log privileges enforce separate native domains and current disclosure righ
             try t.expectError(error.Forbidden, guard.acquire(guard.context));
             try t.expectError(error.Forbidden, policy.check());
         }
+    }
+}
+
+fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !void {
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    (try dispatch(&service, .initialize)).deinit();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const cols = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("registered_stream"), .action = .{ .create = .{
+        .owner = role,
+        .schema = .{ .object = 300, .revision = 1, .next_column = 2, .columns = &cols, .primary_key = &.{} },
+        .configuration = .{ .partitioning = .{ .count = 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 300 }, .target = .{ .scope = config.scope, .branch = 1, .object = 300 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+    const ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = binding, .intent = intent });
+    (try dispatch(&service, .{ .log_admit = ddl })).deinit();
+    const pending = try dispatch(&service, .{ .log_pending = .{ .namespace = 1, .after = null } });
+    defer pending.deinit();
+    try t.expectEqualDeep(binding, pending.value.result.log_pending.entries[0].?.binding);
+    const finished = try dispatch(&service, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+    defer finished.deinit();
+    try t.expectEqual(.complete, finished.value.result.log_operation.operation.phase);
+    try t.expectEqual(@as(u32, 2), finished.value.result.log_operation.operation.initialized);
+    const found = try dispatch(&service, .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } });
+    defer found.deinit();
+    try t.expectEqualDeep(finished.value.result.log_operation.operation.resulting.?, found.value.result.log_lookup.?.declaration);
+    const Revoke = struct {
+        fn run(raw: *anyopaque, current: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(raw));
+            _ = try change(current, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
+    const disclosures = [_]c.DirectTableProtocol.Action{
+        .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },
+        .{ .log_list = .{ .namespace = 1, .after = null } },
+        .{ .log_operation = .{ .binding = binding, .command = .inspect, .steps = 1 } },
+    };
+    for (disclosures) |action| {
+        service.before_reply = .{ .context = &native_id, .run = Revoke.run };
+        try t.expectError(error.Forbidden, dispatch(&service, action));
+        service.before_reply = null;
+        const filtered = try dispatch(&service, .{ .log_list = .{ .namespace = 1, .after = null } });
+        defer filtered.deinit();
+        try t.expect(filtered.value.result.log_list.entries[0] == null);
+        _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_id), .owner = role } });
     }
 }

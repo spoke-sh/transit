@@ -82,13 +82,14 @@ objects. CONNECT and USAGE precede each Table privilege check; role ownership
 governs ALTER and DROP. Metadata visibility follows the current object's grants
 or ownership. Names and backing-resource associations do not inherit privileges.
 
-The Stream/Queue foundation uses separate registered domains for metadata
+Stream/Queue declarations use separate registered domains for metadata
 inspection, payload reads, append/enqueue, consumption/claim and settlement.
 Selection requires payload-read rights as well as consumption/claim rights;
 settlement alone cannot disclose payloads. CONNECT and USAGE still apply, and
 administration requires object ownership. A lease or consumer-group assignment
-never grants access. This foundation does not yet enable Stream/Queue SQL or
-catalog lifecycles; see the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
+never grants access. Typed catalog lifecycle operations use these domains;
+payload execution and Stream/Queue SQL remain separate implementation work.
+See the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
 
 SQL authorization plans resolve database, schema and Table names through the
 direct catalog and publish through native authorization against the observed

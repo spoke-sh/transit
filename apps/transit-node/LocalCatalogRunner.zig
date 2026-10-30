@@ -120,6 +120,44 @@ pub fn run(self: *Self, catalog: *D, binding: p.DataLifecycle.Binding, policy: D
 pub fn runNamespace(self: *Self, catalog: *D, binding: c.DirectNamespace.Binding, policy: D.Policy, step_limit: u16) !NamespaceResult {
     return self.runInner(true, catalog, binding, policy, step_limit);
 }
+/// Each iteration performs at most one native registration step or one private
+/// partition initialization. The next call resumes the original accepted work.
+pub fn runLog(self: *Self, catalog: *D, binding: p.DataLifecycle.Binding, policy: D.Policy, step_limit: u16) !c.DirectLog.Observation {
+    if (step_limit == 0 or step_limit > 256) return error.InvalidCatalogStepBudget;
+    var transport: Transport = .{ .engine = self.engine };
+    const registrar: client.AuthorizationClientWithTransport(Transport) = .{ .transport = &transport, .realm = self.engine.genesis.realm, .principal = self.principal, .key = self.key, .role = self.role };
+    for (0..step_limit) |_| {
+        const observed = try catalog.logOperation(binding, .inspect, policy);
+        if (observed != .operation or !observed.operation.pending()) return observed;
+        const plan = if (binding.action == .create) try catalog.logRegistration(binding, policy) else null;
+        if (plan == null) {
+            _ = try catalog.logOperation(binding, .execute, policy);
+            continue;
+        }
+        const next = registrar.registrationAt(plan.?.action, plan.?.authorization_revision) catch |err| {
+            if (err == error.StaleAuthorizationRevision) return catalog.logOperation(binding, .inspect, policy);
+            return err;
+        };
+        switch (next) {
+            .ready => continue,
+            .submit => |signed| {
+                const prepared = self.engine.prepare(signed) catch |err| {
+                    if (err == error.AlreadyCommitted or err == error.StaleAuthorizationRevision) continue;
+                    return err;
+                };
+                if (self.after_prepare) |inject| try inject.run(inject.context, self.engine);
+                const checked = try catalog.logRegistration(binding, policy) orelse continue;
+                if (!std.meta.eql(checked.action, plan.?.action)) return error.CatalogIdentityConflict;
+                if (checked.authorization_revision != plan.?.authorization_revision) continue;
+                _ = self.engine.commit(prepared) catch |err| {
+                    if (err == error.Conflict) continue;
+                    return err;
+                };
+            },
+        }
+    }
+    return catalog.logOperation(binding, .inspect, policy);
+}
 fn observe(comptime namespace: bool, catalog: *D, binding: anytype, policy: D.Policy) !(if (namespace) c.DirectNamespace.Observation else D.Observation) {
     return if (namespace) catalog.namespaceOperation(binding, .inspect, policy) else catalog.status(binding, policy);
 }

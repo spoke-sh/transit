@@ -15684,7 +15684,7 @@ const schema654 = {"type":"array","minItems":4,"maxItems":4,"items":{"$ref":"#/$
 const schema655 = {"anyOf":[{"$ref":"#/$defs/CatalogResponse/$defs/T109"},{"type":"null"}]};
 const schema656 = {"type":"object","additionalProperties":false,"properties":{"source":{"$ref":"#/$defs/CatalogResponse/$defs/T31"},"dependent":{"$ref":"#/$defs/CatalogResponse/$defs/T110"},"privileges":{"$ref":"#/$defs/CatalogResponse/$defs/T10"}},"required":["source","dependent","privileges"]};
 const schema657 = {"type":"object","additionalProperties":false,"properties":{"kind":{"$ref":"#/$defs/CatalogResponse/$defs/T111"},"interpretation":{"$ref":"#/$defs/CatalogResponse/$defs/T31"}},"required":["kind","interpretation"]};
-const schema658 = {"type":"string","enum":["kv","document","captured","maintained"]};
+const schema658 = {"type":"string","enum":["kv","document","captured","maintained","stream","queue"]};
 
 function validate2473(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -15700,7 +15700,7 @@ if(typeof data !== "string"){
 validate2473.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!((((data === "kv") || (data === "document")) || (data === "captured")) || (data === "maintained"))){
+if(!((((((data === "kv") || (data === "document")) || (data === "captured")) || (data === "maintained")) || (data === "stream")) || (data === "queue"))){
 validate2473.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema658.enum}}];
 return false;
 }

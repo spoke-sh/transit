@@ -28204,7 +28204,9 @@
               "kv",
               "document",
               "captured",
-              "maintained"
+              "maintained",
+              "stream",
+              "queue"
             ]
           },
           "T112": {

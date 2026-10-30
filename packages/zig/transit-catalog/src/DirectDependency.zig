@@ -9,7 +9,7 @@ const d = p.DataLifecycle;
 const pages = c.storage.TreeStore.pages;
 
 pub const Dependent = struct {
-    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4 },
+    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4, stream = 5, queue = 6 },
     interpretation: d.Definition,
 
     pub fn validate(self: Dependent) !void {
@@ -31,7 +31,7 @@ pub const Edge = struct {
         try self.dependent.validate();
         if (self.source.object.branch != 1 or
             self.source.object.scope.realm != self.dependent.interpretation.object.scope.realm or
-            self.privileges == 0 or self.privileges & ~c.TableAuthority.table_actions != 0)
+            self.privileges == 0 or self.privileges & ~c.LogAuthority.all_privileges != 0)
             return error.InvalidCatalogDependency;
     }
 

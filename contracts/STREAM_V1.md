@@ -12,11 +12,13 @@ availability or durable acceptance. There is no installed `CREATE STREAM`,
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 uses full-width identities and deliberately different logical offsets and WAL
-positions. This additive vocabulary does not change existing native commands,
-stored records or the Table-only transaction profile. Separately, storage now
+positions. The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+now publishes Stream/Queue declarations with native authority and verified
+partition initialization. SQL verbs and the Table-only transaction profile
+remain unchanged. Storage
 provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
 bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. These
-foundations do not enable the public operations listed above. Their stored
+foundations do not enable payload operations or SQL verbs. Their stored
 formats use the current shared definition under the coordinated cutover policy.
 
 ## Identity and append

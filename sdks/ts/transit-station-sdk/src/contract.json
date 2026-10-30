@@ -9882,7 +9882,9 @@
             "kv",
             "document",
             "captured",
-            "maintained"
+            "maintained",
+            "stream",
+            "queue"
           ]
         },
         "T232": {
@@ -56697,7 +56699,9 @@
             "kv",
             "document",
             "captured",
-            "maintained"
+            "maintained",
+            "stream",
+            "queue"
           ]
         },
         "T67": {
@@ -68862,7 +68866,9 @@
             "kv",
             "document",
             "captured",
-            "maintained"
+            "maintained",
+            "stream",
+            "queue"
           ]
         },
         "T87": {

@@ -328,6 +328,12 @@ pub const Action = union(enum) {
     resource_operation: struct { binding: c.DirectResource.Binding, command: c.DirectResource.Command, steps: u16, signed_allocation: ?c.DirectResource.SignedAllocation },
     resource_lookup: struct { namespace: u64, name: []const u8 },
     resource_list: struct { namespace: u64, after: ?u64 },
+    log_preview: c.DirectLogProtocol.Ddl,
+    log_admit: c.DirectLogProtocol.Ddl,
+    log_operation: c.DirectLogProtocol.Operation,
+    log_lookup: struct { namespace: u64, name: []const u8 },
+    log_list: struct { namespace: u64, after: ?u64 },
+    log_pending: struct { namespace: u64, after: ?u64 },
     check: D.AccessRequest,
     /// All requirements are checked together before disclosing the response.
     check_set: []const ReadCheck,
@@ -404,9 +410,11 @@ pub const Request = struct {
             .namespace_operation => |value| value.command != .inspect,
             .dependency_operation => |value| value.command != .inspect,
             .resource_operation => |value| value.command != .inspect,
+            .log_admit => true,
+            .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -445,6 +453,11 @@ pub const Request = struct {
             .transaction => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
+            },
+            inline .log_preview, .log_admit => |value| try value.validate(allocator, connection),
+            .log_operation => |value| {
+                try connection.binding(value.binding);
+                if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
             },
             .record => |value| {
                 try value.validate();
@@ -526,11 +539,11 @@ pub const Request = struct {
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
                 };
             },
-            inline .list, .resource_list => |value| {
+            inline .list, .resource_list, .log_list, .log_pending => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (value.after) |after| if (after == 0) return error.InvalidCatalogCursor;
             },
-            inline .lookup, .resource_lookup => |value| {
+            inline .lookup, .resource_lookup, .log_lookup => |value| {
                 try c.Model.nativeId(value.namespace);
                 _ = try c.TableAuthority.Name.init(value.name);
             },
@@ -791,6 +804,12 @@ pub const Result = union(enum) {
     resource_operation: c.DirectResource.Observation,
     resource_lookup: ?D.ResourceView,
     resource_list: struct { entries: [8]?D.ResourceView, next: ?u64, position: d.Position },
+    log_preview: c.DirectLog.Preview,
+    log_admitted: c.DirectLog.Operation,
+    log_operation: c.DirectLog.Observation,
+    log_lookup: ?c.DirectLogProtocol.Definition,
+    log_list: c.DirectLogProtocol.Page,
+    log_pending: c.DirectLogProtocol.PendingPage,
     checked,
     staged: c.DirectTableIntent.Reference,
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },

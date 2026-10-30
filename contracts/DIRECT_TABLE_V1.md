@@ -1,7 +1,7 @@
 # Direct Table request contract v1
 
-`DirectTableProtocol` defines signed Table declaration, row mutation, operation
-inspection and retained-read requests. The node's internal `LocalTableService`
+`DirectTableProtocol` defines signed Table, Stream and Queue declaration, Table
+row mutation, operation inspection and retained-read requests. The node's internal `LocalTableService`
 dispatches these requests through `DirectCatalog`, the Table storage owner and
 native authorization. The local node's optional `table` setting serves
 `POST /table/v1`; the local launcher configures that owner for its default Tables
@@ -348,6 +348,93 @@ observation position. A listing does not establish a multi-resource data cut or
 permission to read values. Shared metadata permission registration reuses the
 catalog's Table domain; native resource grants remain the data authority.
 
+### Stream and Queue lifecycle
+
+`log_preview` and `log_admit` carry `DirectLogProtocol.Ddl`: a complete
+`DataLifecycle.Binding`, `kind` (`stream` or `queue`), namespace, original name
+and CREATE, ALTER, RENAME or DROP action. CREATE carries owner role, binary Fuze
+schema, `StreamQueueDeclaration.Configuration` and required operation limits.
+The schema has stable column/type/codec/collation identities and no Table primary
+key. Routing, FIFO and compaction keys must identify nonnull supported key columns.
+ALTER carries replacement configuration and limits; RENAME carries the new name.
+Non-CREATE bindings require the exact current definition; `expected_data` is null.
+The intent digest hashes `transit.catalog.log.intent.v1`, one zero byte, and
+canonical `DirectLog.Intent` JSON. Identity claims share the catalog's original
+principal/operation namespace with other direct work.
+
+Preview returns the original binding, observation position, nullable current
+definition and conflict reason without writing. Admission freezes the full
+intent and records `admitted` or `rejected` with its reason. Accepted CREATE
+reserves one contiguous physical partition identity range and the live name
+privately. The returned `DirectLog.Operation` includes original binding, intent
+content, kind, namespace, proposed name, optional CREATE owner, position, phase,
+reason, partition range, initialized count and optional resulting definition.
+Phases are `admitted`, `initializing`, `complete`, `rejected` and `cancelled`.
+Rejections distinguish name conflict, object conflict, stale definition and
+dependency. Repeating the original binding returns its original progress or
+result; changing any frozen field conflicts.
+
+`log_operation` carries that binding, `inspect`, `execute` or `cancel`, and a
+step budget of 1–256. Inspect returns `not_observed` or the original operation.
+Execution advances native permission registration or at most one private
+partition initialization per step. A catalog completion record publishes the
+declaration only after all exact genesis records have verified readback.
+Cancellation retains the allocated range, initialized prefix and original
+operation, releases its pending name reservation logically, and publishes no
+declaration. An operation's terminal result remains unchanged after later edits.
+Missing transport responses establish neither rejection nor cancellation.
+
+The first ALTER profile permits retention, operation budgets and compatible
+Queue scheduling/DLQ policies. Schema changes have no action representation.
+Partition count/hash/routing key, FIFO mode/key and Stream compaction key cannot
+change. Unsupported transitions reject before durable admission. RENAME and
+policy changes produce a successor definition on the same object and original
+partition range. The original revision-one initialization remains a recovery
+dependency. DROP RESTRICT rejects retained dependents. Completed DROP retires
+the live definition and hides its name, while retaining its definitions,
+operations and storage dependencies. Name reuse requires a new object identity.
+
+An optional DLQ binds a live Queue's exact definition in the same scope/branch,
+with the same schema after object/revision normalization. Publication requires
+current destination metadata and append privileges and revalidates the exact
+definition. Source publication atomically adds both dependency index entries.
+Later source changes retain historical edges; generic edge removal returns
+`QueueDependencyRetained` until a Queue closure owner can establish safe removal.
+These declarations do not themselves transfer or discard payloads.
+
+`log_lookup {namespace,name}` returns null or the complete `DirectLog.Definition`
+and binary schema. The client reconstructs and checks its immutable declaration
+digest. `log_list {namespace,after}` scans at most eight durable object records
+per call, returning up to eight live declarations, an optional exclusive object
+continuation, and a catalog observation position. A filtered empty page may
+carry a continuation. Each page is a current observation, not a retained snapshot.
+The definition binds current and original stored declarations, catalog
+properties, original initialization operation and first physical partition ID.
+
+`log_pending {namespace,after}` scans at most eight entries from the shared pending
+directory. It returns only this principal's authorized pending log operations,
+with an exclusive object continuation and catalog position. It never resumes
+work. Other callers' bindings and inaccessible entries are filtered; an empty
+page can still carry continuation. Each returned binding can be inspected or
+explicitly resumed without inventing an operation after caller replacement.
+
+All lifecycle calls use current database/schema authority and separate native
+Stream/Queue domains. CREATE additionally requires schema CREATE and eligibility
+for the declared owner; ALTER/RENAME/DROP require ownership. Inspection requires
+current metadata authority, including original receipts after retirement. Pending
+CREATE inspection requires CREATE until its metadata object is registered.
+Successful requirements are rechecked after response buffering. Execute/admit
+are mutations; inspect/cancel use the existing control reserve classification.
+Invalid policies and unsupported evolution return `InvalidRequest`; changed DLQ
+definitions and retained dependency removal return `Conflict`. An error after a
+mutation attempt still requires original-operation recovery.
+
+`DirectLogClient` and `transit-data-client.Catalog.callLog` use these same signed
+actions. Saved work includes mandatory shared definition, exact connection and
+complete DDL; lookup schemas belong to the caller's output arena. No call retries
+or chooses a replacement identity implicitly. This profile enables declaration
+lifecycles; payload append/consume/claim and SQL verbs require separate owners.
+
 ### Namespace lifecycle
 
 `namespace_preview` and `namespace_operation` use `DirectNamespace.Binding`:
@@ -405,10 +492,13 @@ shares the catalog/principal/operation claim with DDL, DML, namespace changes
 and conditional name assertions. A reused identity must match the entire saved
 binding, including authority. Transport credential replacement does not change it.
 
-An edge binds a source Table or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
-kind (`kv`, `document`, `captured`, `maintained`) and exact definition, and a
+An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
+kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
 nonzero mask of required logical actions. Table sources accept Table action masks;
 named KV/Document sources accept SELECT only, mapped to native INSPECT and READ.
+Stream/Queue sources accept their own five-bit action masks; their dependents
+use native metadata inspection or ownership. Queue DLQ publication registers its
+edge atomically as described above and retains it against generic removal.
 These actions describe required access and never grant it. Both objects use branch
 one and the same realm. Named resource dependents belong to this catalog; captured
 and maintained dependents use their separate owning native metadata resource.

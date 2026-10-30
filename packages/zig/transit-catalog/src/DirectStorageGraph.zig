@@ -25,6 +25,10 @@ pub const Work = union(enum) {
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
+    log_operation: struct { configuration: r.Configuration, operation: c.DirectLog.Operation },
+    log_declaration: s.LogDeclaration.Stored,
+    log_partitions: struct { definition: c.DirectLog.Definition, initialized: u32, next: u32 = 0 },
+    log_initialization: s.LogInitialization.Request,
     table_history: s.TableStorageRoots,
     table_root: struct { root: s.TablePartition.Root, archive: s.TableArchive.Coverage, role: Role, slot: u8 = 0 },
     table_walk: struct { walk: Walk, archive: s.TableArchive.Coverage, live_pins: bool },
@@ -40,13 +44,14 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
 }
 
 pub fn fromFrame(allocator: std.mem.Allocator, frame: s.TransitLog.Frame) !Work {
+    if (std.mem.startsWith(u8, frame.payload, "LINIT001")) return .{ .log_initialization = (try s.LogInitialization.decode(allocator, frame)).request };
     if (std.mem.startsWith(u8, frame.payload, "TCATLOG1")) {
         const record = try CatalogStore.decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn);
         return .{ .catalog_history = try .init(.{ .root = record.root, .chain = r.hash(frame.payload) }) };
@@ -82,7 +87,7 @@ fn requireOwner(context: Context, root: s.TablePartition.Root) !void {
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .log_initialization => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -91,6 +96,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const record = try walk.next(allocator, log) orelse return true;
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
+            if (record.action == .log) try workspace.enqueue(.{ .log_operation = .{ .configuration = record.root.configuration, .operation = record.action.log } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
                 const call = record.action.client_token.receipt.binding.intent.transaction_call;
                 if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
@@ -291,6 +297,42 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             defer intent.deinit();
             try value.operation.binding.requireSame(intent.value.binding);
             try markContent(workspace, try Intent.key(value.operation.intent, &key_buffer), value.operation.intent);
+        },
+        .log_operation => |value| {
+            const LogIntent = c.DirectLog.IntentStore;
+            var intent = try LogIntent.load(allocator, index.store, value.configuration, value.operation.intent);
+            defer intent.deinit();
+            try value.operation.binding.requireSame(intent.value.binding);
+            try markContent(workspace, try LogIntent.key(value.operation.intent, &key_buffer), value.operation.intent);
+            if (value.operation.resulting) |definition| {
+                try workspace.enqueue(.{ .log_declaration = definition.stored });
+                try workspace.enqueue(.{ .log_declaration = definition.seed });
+                // Later declarations preserve the original fully initialized
+                // range; a private creation retains only its verified prefix.
+                try workspace.enqueue(.{ .log_partitions = .{ .definition = definition, .initialized = if (value.operation.binding.action == .create) value.operation.initialized else definition.count() } });
+            }
+        },
+        .log_declaration => |stored| {
+            var declaration = try s.LogDeclaration.load(allocator, index.store, stored);
+            defer declaration.deinit();
+            try markContent(workspace, try s.LogDeclaration.key(stored.content, &key_buffer), stored.content);
+        },
+        .log_partitions => |*value| {
+            try value.definition.validate();
+            if (value.next > value.initialized or value.initialized > value.definition.count()) return error.InvalidLogCatalogOperation;
+            if (value.next == value.initialized) return true;
+            try workspace.enqueue(.{ .log_initialization = try value.definition.genesis(value.next) });
+            value.next += 1;
+            return false;
+        },
+        .log_initialization => |request| {
+            try request.validate();
+            var batch = try log.read(allocator, request.partition, 0, 1);
+            defer batch.deinit();
+            if (batch.frames.len != 1) return error.LogInitializationMissing;
+            const evidence = try s.LogInitialization.decode(allocator, batch.frames[0]);
+            try request.requireSame(evidence.request);
+            try workspace.enqueue(.{ .log_declaration = request.declared });
         },
         .table_history => |*walk| {
             const context = try Context.fromRoot(walk.cut.root);

@@ -20,6 +20,7 @@ pub const Execution = struct {
     ddl: *const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!D.Observation,
     namespace: *const fn (*anyopaque, *D, c.DirectNamespace.Binding, D.Policy, u16) anyerror!c.DirectNamespace.Observation,
     resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
+    log: ?*const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!c.DirectLog.Observation = null,
 };
 
 fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
@@ -102,6 +103,39 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
         .dependency_state => |edge| return .{ .dependency_state = try catalog.dependencyState(edge, policy) },
         .dependencies => |value| return .{ .dependencies = try catalog.dependencyPage(value.selection, value.cursor, value.authority, policy) },
         .resource_preview => |binding| return .{ .resource_preview = try catalog.previewResource(binding, policy) },
+        .log_preview => |value| return .{ .log_preview = try catalog.previewLog(try value.request(allocator), policy) },
+        .log_admit => |value| return .{ .log_admitted = try catalog.admitLog(try value.request(allocator), policy) },
+        .log_operation => |value| {
+            if (value.command == .execute) {
+                const run = execution.log orelse return error.LogCatalogExecutionUnavailable;
+                return .{ .log_operation = try run(execution.context, catalog, value.binding, policy, value.steps) };
+            }
+            return .{ .log_operation = try catalog.logOperation(value.binding, if (value.command == .inspect) .inspect else .cancel, policy) };
+        },
+        .log_lookup => |value| {
+            const found = try catalog.resolveLog(value.namespace, try .init(value.name), policy) orelse return .{ .log_lookup = null };
+            var declaration = try catalog.logDefinition(catalog.allocator, found, policy);
+            defer declaration.deinit();
+            return .{ .log_lookup = .{ .declaration = found, .schema = try schema(allocator, catalog.allocator, declaration.definition.schema) } };
+        },
+        .log_list => |value| {
+            const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
+            const page = try catalog.listLogs(value.namespace, after, policy);
+            const next = if (page.next) |cursor| blk: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :blk std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null;
+            return .{ .log_list = .{ .entries = page.entries, .next = next, .position = page.position } };
+        },
+        .log_pending => |value| {
+            const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
+            const page = try catalog.pendingLogs(value.namespace, after, policy);
+            const next = if (page.next) |cursor| blk: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :blk std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null;
+            return .{ .log_pending = .{ .entries = page.entries, .next = next, .position = page.position } };
+        },
         .resource_operation => |value| {
             if (value.command == .inspect or value.command == .admit) return .{ .resource_operation = try catalog.resourceOperation(value.binding, value.command, policy) };
             const run = execution.resource orelse return error.NamedResourceNativeUnavailable;

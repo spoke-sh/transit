@@ -113,15 +113,15 @@ candidate with a new reserved identity; retirement never permits binding reuse.
 
 The SQL profile maps CONNECT to databases, USAGE/CREATE to schemas and
 SELECT/INSERT/UPDATE/DELETE to Tables. Lifecycle control follows logical ownership.
-The Stream/Queue foundation defines separate native action masks: metadata
+Stream/Queue declarations use separate native action masks: metadata
 inspection `1`, payload read `2`, append/enqueue `4`, consumption/claim `8`, and
 offset/lease settlement `16`. Selection requires both payload read and
 consumption/claim; settlement does not itself grant payload disclosure. Every
 operation also requires database CONNECT and schema USAGE. CREATE additionally
 requires schema CREATE; ALTER, RENAME and DROP require native object ownership.
-An accepted claim or group membership confers none of these rights. These masks
-and registered domains do not by themselves expose executable Stream/Queue SQL
-or catalog operations; those require their corresponding lifecycle owners.
+An accepted claim or group membership confers none of these rights. Typed
+[catalog lifecycle operations](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+use these domains. Payload operations and SQL verbs require their execution owners.
 Catalogs map explicitly to databases; schemas are catalog metadata namespaces.
 Configuration includes the database name and stable native database identity.
 The catalog owns bounded schema name lookup, rename and DROP RESTRICT. Every

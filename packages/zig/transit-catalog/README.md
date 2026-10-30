@@ -12,7 +12,7 @@ It has no Station dependency: Table declaration, authorization, acceptance and
 retained reads use database owners. Named Document publication limits use the
 shared data contract; application initialization retains its separate owner.
 
-Named Tables, schemas and native KV/Document declarations, exported as
+Named Tables, Streams, Queues, schemas and native KV/Document declarations, exported as
 `transit_catalog`. Catalog owns names, stable identities, exact operation
 bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
 `transit-storage` owns Table acceptance and retained data. Native authorization
@@ -55,6 +55,21 @@ writer initialization and completed publication. The
 [named resource guide](../transit-station-app/docs/named-resources.md) explains
 permissions, interpretation, partial outcomes and explicit cleanup.
 
+`DirectLogClient` provides typed Stream/Queue preview, admission, bounded
+execution, inspection, ALTER, RENAME and DROP. CREATE reserves its stable object,
+name and partition range privately; one execution step verifies one partition's
+genesis. The catalog publishes the definition only after all partitions and native
+permission registration are complete. Exact retries retain that allocation.
+ALTER changes retention, operation limits and compatible Queue policy; schema,
+partition count, routing, key and ordering changes reject before admission.
+DROP hides the live name and preserves original operations and definitions.
+DLQ references bind an exact compatible Queue definition and add dependency edges
+in the publication record. Edges remain retained until the Queue closure owner
+can establish safe removal. The storage graph follows original intents,
+declarations and every initialized partition, including cancelled work.
+These lifecycle operations do not yet append or claim payloads or implement SQL
+Stream/Queue verbs. See the [wire contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+
 `DirectDependency` records exact-definition dependencies with bounded inspection
 and DROP RESTRICT. Registering an edge neither activates its dependent nor pins
 Table data. `NameAssertion` records conditional unchanged/rejected/cancelled DDL
@@ -67,8 +82,8 @@ operation identity through retries and name reuse.
 domains: inspect, read, append, acquire and settle. It shares database CONNECT,
 schema USAGE/CREATE and ownership checks with `TableAuthority`; it stores no
 grants. The current configuration requires all five domain identities, including
-Stream and Queue. The helper and domain bootstrap are foundations for their
-lifecycle owners, not executable catalog declarations by themselves.
+Stream and Queue. Lifecycle publication uses these domains and the existing
+native registrar, with the caller's rights checked at every publication boundary.
 
 `DirectTableClient` signs typed requests with the caller's current credential and
 selected role. The node checks database CONNECT, schema USAGE, the required

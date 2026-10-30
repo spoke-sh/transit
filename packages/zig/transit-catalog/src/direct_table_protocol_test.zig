@@ -223,6 +223,38 @@ test "direct Table request proof binds the complete typed action and current def
     try t.expectError(error.MissingField, w.Request.parse(t.allocator, missing));
 }
 
+test "direct log consumes independent signed intent and preserves saved full-width identity" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-log-v1.json"));
+    defer parsed.deinit();
+    try parsed.value.request.validate(t.allocator);
+    try parsed.value.request.proof.verify(parsed.value.public_key);
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const request = try parsed.value.request.action.log_admit.request(scratch.allocator());
+    try t.expectEqual(std.math.maxInt(u64), request.binding.identity.operation);
+    try t.expectEqualDeep(parsed.value.intent_digest, try request.intent.digest(t.allocator));
+    const bytes = try c.DirectLogClient.save(t.allocator, parsed.value.request.connection, request);
+    defer t.allocator.free(bytes);
+    const saved = try c.DirectLogClient.load(t.allocator, bytes);
+    defer saved.deinit();
+    try t.expectEqualDeep(parsed.value.request.action.log_admit, saved.value.work);
+    var changed = parsed.value.request;
+    changed.action.log_admit.kind = .stream;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    var substituted = saved.value;
+    substituted.work.action.rename = "retargeted";
+    try t.expectError(error.DataIdentityConflict, substituted.validate(t.allocator));
+    const foreign = try t.allocator.dupe(u8, bytes);
+    defer t.allocator.free(foreign);
+    const at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+    @memset(foreign[at..][0..64], '0');
+    try t.expectError(error.InvalidJsonShape, c.DirectLogClient.load(t.allocator, foreign));
+    const missing = try p.Json.valueAlloc(t.allocator, .{ .connection = saved.value.connection, .work = saved.value.work });
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectLogClient.load(t.allocator, missing));
+}
+
 test "direct dependency consumes independently signed full-width registration and binary digest" {
     const Fixture = struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));

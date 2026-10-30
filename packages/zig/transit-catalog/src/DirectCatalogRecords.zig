@@ -65,8 +65,14 @@ pub const Entry = struct {
     /// Control-log record owning the latest named native-resource state.
     /// Mandatory null for Tables; no second name or object directory exists.
     resource: ?u64,
+    /// Latest Stream/Queue lifecycle record in this same control log.
+    log: ?u64,
     pub fn validate(self: Entry, config: Configuration) !void {
         if (self.object == 0) return error.InvalidDirectCatalogEntry;
+        if (self.log) |at| {
+            if (at == 0 or self.resource != null or self.seed != null or self.partition <= config.partition) return error.InvalidDirectCatalogEntry;
+            return;
+        }
         if (self.resource) |at| {
             if (at == 0 or self.partition != 0 or self.seed != null) return error.InvalidDirectCatalogEntry;
             return;
@@ -154,11 +160,17 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, client_token: c.DirectClientToken.Progress },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, log: c.DirectLog.Operation, client_token: c.DirectClientToken.Progress },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
+            .log => |value| {
+                try value.validate();
+                if (position == 0 or !std.meta.eql(value.binding.target.scope, self.root.configuration.scope) or
+                    value.binding.target.branch != self.root.configuration.branch or
+                    value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
+            },
             .client_token => |value| {
                 try value.validate();
                 if (position == 0 or !value.receipt.binding.key.connection.matches(self.root.configuration) or value.revision.partition != self.root.configuration.partition or value.revision.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;

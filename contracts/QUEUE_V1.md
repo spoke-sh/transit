@@ -9,6 +9,11 @@ or commit state. No installed `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK`
 or `EXTEND LEASE` operation is enabled by these types. Queue transaction
 participants continue to reject before acceptance.
 
+The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
+publishes Queue declarations separately from payload execution. It verifies
+partition initialization, native ownership, compatible DLQ schemas and exact
+destination definitions, and publishes retained dependency edges atomically.
+
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
 [fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)

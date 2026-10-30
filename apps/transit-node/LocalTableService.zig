@@ -115,7 +115,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -150,4 +150,9 @@ fn executeResource(raw: *anyopaque, catalog: *D, binding: c.DirectResource.Bindi
     const self: *Self = @ptrCast(@alignCast(raw));
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return (try runner.runResource(catalog, binding, policy, command, steps, signed_allocation)).observation;
+}
+fn executeLog(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy, steps: u16) !c.DirectLog.Observation {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
+    return runner.runLog(catalog, binding, policy, steps);
 }
