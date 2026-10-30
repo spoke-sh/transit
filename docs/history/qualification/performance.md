@@ -9,6 +9,77 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Single-chunk `.checks` elision, coalesced DML intent staging, and warm `ReadCache` eviction — 2026-10-30
+
+Building on `4adae5c04`, commits `b07e9b559`, `08699352b`, `0453946b7`, and
+`8a8c1293e` eliminate single-chunk `.checks` sidecar files, directory reopens in
+[`LocalFiles`](../../../packages/zig/transit-backend-local/src/LocalFiles.zig),
+separate DML intent and operation-binding staging calls, and redundant
+`pin_status`/`lookup` RPCs during warm [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig)
+eviction:
+
+- **Single-chunk `.checks` elision and persistent `LocalFiles` directory handles (`b07e9b559`):**
+  [`DiskObjects`](../../../packages/zig/transit-storage/src/DiskObjects.zig)
+  already stores the complete object SHA-256 in the 60-byte `.meta` file (`TOBJ1`)
+  and verifies it on `readDiskPayload`. For objects fitting in a single chunk
+  (`<= chunk_bytes = 64 KiB`, which covers all B-tree pages, receipts, operation
+  records, pins, intents, and bindings), the 32-byte `.checks` file is an
+  identical copy of `.meta`'s SHA-256 digest. `putImmutable` and
+  `putImmutableBatch` now omit `.tmp.checks` / `.checks` creation, `fsync`, and
+  `rename` when `bytes.len <= self.options.chunk_bytes`, and `verifyRange`,
+  `readVerifiedRange`, and `recoverPartialWrites` derive the single-chunk digest
+  directly from `meta.sha256` when `.checks` is absent (while retaining `.checks`
+  for multi-chunk objects `> 64 KiB` and backward compatibility with existing
+  on-disk `.checks` files). This reduces single-object `putImmutable` from 5
+  `fsync`s to 4 (`2n + 2` instead of `3n + 2` for batches of `n` single-chunk
+  objects) and halves staging `open`/`write`/`rename` syscalls.
+  [`LocalFiles`](../../../packages/zig/transit-backend-local/src/LocalFiles.zig)
+  syncs `dir.handle` directly in `syncDir` instead of reopening `"."` on every
+  atomic file save.
+- **Coalesced DML intent and operation-binding staging (`08699352b`):**
+  [`OperationBinding`](../../../packages/zig/transit-catalog/src/OperationBinding.zig)
+  exposes `encodeData`, and [`DirectTableIntentStore`](../../../packages/zig/transit-catalog/src/DirectTableIntentStore.zig)
+  adds `stageWithBinding` so [`DirectTableDispatch.stage`](../../../packages/zig/transit-catalog/src/DirectTableDispatch.zig)
+  coalesces the `"TDI1"` (`direct-intents/<sha>.data`) and `"TOPBIND1"`
+  (`data-operations/<sha>.data`) objects into a single `putImmutableBatch` call
+  on first staging instead of two sequential `Backend.put` calls.
+- **Warm `ReadCache` eviction `pin_status` and `lookup` elision (`0453946b7`):**
+  When [`ReadCache.acquireCurrent`](../../../packages/zig/transit-sql/src/ReadCache.zig)
+  replaces a live in-memory cached snapshot pin (`cached != null`), `to_release`
+  already carries its verified `handle` from `.pin`. Instead of calling
+  `closeOriginalPin` (`.pin_status` + `.release`) followed by a second `.lookup`
+  RPC, `acquireCurrent` releases the verified handle directly via `.release` and,
+  when `to_release` belongs to the same table object, advances
+  `selected.position.next_lsn` by 1 (falling back to `.pin_status` + `.lookup`
+  in the existing `error.Conflict` retry loop if a concurrent writer raced with
+  `.release`), reducing post-mutation `SELECT` from 7 local Table RPCs and 5
+  native queries to 5 local Table RPCs and 3 native queries.
+
+At `8a8c1293e`:
+
+- `just test::storage-io-faults` passes **11/11**.
+- `zig build test-sql-gateway -Doptimize=ReleaseSafe` passes completely in
+  **26.07 seconds** (down from **28.17 seconds** at `2d6ceaf0d`, **104.20 seconds**
+  at `4d0a98b6b`, and `>300 s` before `9cfe38b9c`) with **968** Table requests
+  (`exact_token_recovery: true`).
+- `just test::console-latency --statements --repeat 5 --resources` and
+  `--statements --repeat 1 --warm-reads 50 --instrument` pass all statements on
+  the shared Linux x86_64 host (`ReleaseSafe`, pinned Zig
+  `0.17.0-dev.2267+48abf1a34`):
+
+| Statement | Samples | Min (ms) | Median p50 (ms) | Max (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Warm empty `SELECT` (`--warm-reads 50`) | 50 | 24.0 | 36.0 | 47.0 |
+| Warm one-row `SELECT` (`--warm-reads 50`) | 50 | 29.0 | 36.0 | 57.0 |
+| Warm `SELECT` (`--repeat 5 --resources`) | 6 | 44.0 | 45.0 | 53.0 |
+| `INSERT` | 5 | 122.0 | 130.0 | 158.0 |
+| `SELECT` after `INSERT` | 5 | 107.0 | 123.0 | 151.0 |
+| Changed `UPDATE` | 5 | 166.0 | 192.0 | 229.0 |
+| Unchanged `UPDATE` | 5 | 138.0 | 157.0 | 182.0 |
+| `SELECT` after `UPDATE` | 5 | 144.0 | 175.0 | 178.0 |
+| `DELETE` | 5 | 148.0 | 166.0 | 179.0 |
+| `SELECT` after `DELETE` | 5 | 153.0 | 158.0 | 208.0 |
+
 ## Batched auxiliary staging, deduplicated allocation reads, and client-token index deduplication — 2026-10-30
 
 Building on `54e176fd0` (`f9a46d2a3`), commits `461a76332`, `ff8f404cc`, and

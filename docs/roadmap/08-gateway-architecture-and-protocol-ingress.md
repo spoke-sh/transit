@@ -287,14 +287,19 @@ duplicate per-statement validation and token lookups, and commits `461a76332`,
 coalesce auxiliary receipts/operations/segments/pins and operation bindings into
 `TreeStore` batches, eliminate duplicate per-key allocation inventory reads and
 directory reopens, and deduplicate unchanged `client_operations` and
-`client_pending` B-tree updates. The
+`client_pending` B-tree updates, and commits `b07e9b559`, `08699352b`, and
+`0453946b7` elide single-chunk `.checks` sidecar files (`2n + 2` instead of
+`3n + 2` syncs per single-chunk batch), coalesce DML intent and operation-binding
+staging into one `putImmutableBatch` call, and remove redundant `pin_status` and
+`lookup` RPCs on warm `ReadCache` eviction. The
 [qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
 records finite models, disk failures, retries and process-death schedules, and
-the [updated console and native gateway results](../history/qualification/performance.md#batched-auxiliary-staging-deduplicated-allocation-reads-and-client-token-index-deduplication--2026-10-30)
-record passing `test-sql-gateway` execution (28.17 s, 967 Table requests, down
+the [updated console and native gateway results](../history/qualification/performance.md#single-chunk-checks-elision-coalesced-dml-intent-staging-and-warm-readcache-eviction--2026-10-30)
+record passing `test-sql-gateway` execution (26.07 s, 968 Table requests, down
 from 104.20 s at `4d0a98b6b`) and five-cycle persistent console medians (warm
-`SELECT` 38–41 ms, `INSERT` 148 ms, `SELECT` after `INSERT` 145 ms, changed
-`UPDATE` 206 ms, unchanged `UPDATE` 153 ms, `DELETE` 177 ms). Reconstructible bookkeeping
+`SELECT` 36–45 ms, `INSERT` 130 ms, `SELECT` after `INSERT` 123 ms, changed
+`UPDATE` 192 ms, unchanged `UPDATE` 157 ms, `DELETE` 166 ms, `SELECT` after
+`DELETE` 158 ms). Reconstructible bookkeeping
 (W5b), the account-wide token/commit envelope (W6), and the third delivery's
 end-to-end latency/recovery exit remain open.
 

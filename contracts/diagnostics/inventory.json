@@ -2524,7 +2524,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 11,
         "catch": 2
       },
       "imports": [
@@ -5761,7 +5761,8 @@
     },
     "packages/zig/transit-catalog/src/DirectTableIntentStore.zig": {
       "errors": {
-        "InvalidTableIntent": 4,
+        "InvalidOperationBinding": 1,
+        "InvalidTableIntent": 5,
         "TableIntentMissing": 1
       },
       "outcomes": {},
@@ -5769,11 +5770,12 @@
       "error_returns": {
         "key()": "<inferred>",
         "load()": "<inferred>",
-        "stage()": "<inferred>"
+        "stage()": "<inferred>",
+        "stageWithBinding()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -7170,6 +7172,7 @@
         "claimTransactionInTree()": "<inferred>",
         "claimTransactionSavepoint()": "<inferred>",
         "claimTransactionStatement()": "<inferred>",
+        "encodeData()": "<inferred>",
         "key()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupAssertion()": "<inferred>",
@@ -7182,7 +7185,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 32,
         "catch": 1
       },
       "imports": [
@@ -25858,7 +25861,7 @@
         "InvalidSqlReadRecovery": 9,
         "SqlReadLeaseCapacity": 1,
         "StaleGatewayCoordinator": 1,
-        "TableDefinitionChanged": 3,
+        "TableDefinitionChanged": 4,
         "TableSnapshotNotPinned": 1
       },
       "outcomes": {
@@ -25884,7 +25887,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 49,
         "catch": 2
       },
       "imports": [
@@ -30875,7 +30878,7 @@
         "FileNotFound": 4,
         "ImmutableObjectConflict": 5,
         "IncompatibleDefinition": 3,
-        "ObjectDigestMismatch": 8,
+        "ObjectDigestMismatch": 9,
         "ObjectKeyConflict": 2,
         "ObjectNotFound": 2,
         "ObjectTooLarge": 4,
@@ -30915,7 +30918,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 92,
+        "try": 94,
         "catch": 9
       },
       "imports": [
