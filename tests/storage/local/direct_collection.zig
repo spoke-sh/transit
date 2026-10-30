@@ -193,7 +193,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) != null);
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) != null);
     try expectArchive(&fixture, payload_archive, true);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) != null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment.?, &name)) != null);
     try stream.deinit();
     fixture.close();
     try fixture.open(tmp.dir, false);
@@ -216,7 +216,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expect(try fixture.data.objects().head(try s.LogRead.key(read.source, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) == null);
     try expectArchive(&fixture, payload_archive, false);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) != null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment.?, &name)) != null);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) != null);
     try t.expectEqualDeep(read, (try stream.operation(read.request.operation, fixture.guard())).?.outcome.read);
     try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
@@ -241,7 +241,7 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expectEqual(@as(u64, 1), expired.retained_from);
     _ = try stream.checkpoint(stream.root.position(), fixture.guard());
     _ = try fixture.collect();
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment.?, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) == null);
     try stream.deinit();
     fixture.close();
@@ -315,6 +315,40 @@ test "direct Stream collection retains pending compaction and pinned visibility 
     defer compacted.deinit();
     try t.expect(original.count == 3 and original.cursor.coverage.complete);
     try t.expect(compacted.count == 1 and compacted.rows()[0].offset == 2 and compacted.cursor.coverage.complete and compacted.cursor.coverage.through == 3);
+    try t.expectEqualDeep(receipt, (try stream.operation(op, fixture.guard())).?.outcome.append);
+
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &stream.store };
+    const batch_key = try s.LogPartitionRecord.integerKey(3);
+    const old_segment = try s.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, batch_key)).?);
+    while (try stream.rewriteMaintenanceUnit(initial.declared, fixture.guard())) {}
+    const rewritten = try s.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, batch_key)).?);
+    try t.expect(rewritten.layout == .sparse and rewritten.rows == 1);
+    try t.expect(!std.meta.eql(old_segment.segment, rewritten.segment));
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    // The earlier compacted pin still owns the complete physical placement.
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(old_segment.segment.?, &name)) != null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(rewritten.segment.?, &name)) != null);
+    for ([_]p.StreamRead.Receipt{ before, after }, 104..) |pin, id| {
+        _ = try stream.releaseRead(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = id }, .read = pin.handle() }, fixture.guard());
+    }
+    _ = try fixture.collect();
+    // Release alone cannot close the old recovery baseline's dependencies.
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(old_segment.segment.?, &name)) != null);
+    _ = try stream.checkpoint(stream.root.position(), fixture.guard());
+    _ = try fixture.collect();
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(old_segment.segment.?, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(old_segment.metadata, &name)) == null);
+    try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(rewritten.segment.?, &name)) != null);
+    try stream.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    stream = try s.StreamPartition.open(t.allocator, fixture.data.log(), fixture.data.objects(), initial, fixture.guard(), .{ .resident_pages = 1 });
+    while (!(try stream.recoverStep(fixture.guard(), 1)).complete) {}
+    const latest = try stream.beginRead(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 106 }, .group = null, .from = 0, .until = null, .timestamp = null }, fixture.guard());
+    var page = try stream.readPage(try stream.readCursor(latest.handle(), authority, fixture.guard()), authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, fixture.guard());
+    defer page.deinit();
+    try t.expect(page.count == 1 and page.rows()[0].offset == 2 and page.cursor.coverage.complete);
     try t.expectEqualDeep(receipt, (try stream.operation(op, fixture.guard())).?.outcome.append);
 }
 

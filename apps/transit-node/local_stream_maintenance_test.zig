@@ -91,6 +91,18 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, policy: 
         try t.expectEqual(@as(u64, 0), stream.root.retained_from); // Unlimited retention.
         try t.expectEqual(@as(u64, 1), stream.root.hidden.cardinality);
         try t.expect(stream.root.compaction == null and stream.root.maintenance.archive_target == null);
+        try t.expect(stream.root.maintenance.rewrite_target == null);
+        try t.expectEqual(stream.root.maintenance.rewrite_source_lsn, stream.root.maintenance.rewritten_source_lsn);
+        const tree: c.storage.TreeStore.pages.Tree(c.storage.TreeStore) = .{ .store = &stream.store };
+        const placement = try c.storage.LogSegment.Descriptor.decode((try tree.get(stream.root.segments, try c.storage.LogPartitionRecord.integerKey(2))).?);
+        try t.expect(placement.layout == .sparse and placement.rows == 1);
+        var batch = (try stream.readBatch(declaration.stored, 0, authority.guard())).?;
+        defer batch.deinit();
+        var decoded = try c.storage.LogDeclaration.load(t.allocator, data.objects(), declaration.stored);
+        defer decoded.deinit();
+        var rows = try batch.iterator(decoded.definition.schema);
+        try t.expectEqual(@as(u32, 1), (try rows.next()).?.ordinal);
+        try t.expect(try rows.next() == null);
         try t.expect(stream.root.archive.through > 1 and stream.root.recovery != null);
         try t.expectError(error.WalHistoryTrimmed, data.log().read(t.allocator, initial.partition, 0, 1));
     }

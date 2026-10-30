@@ -1463,23 +1463,40 @@ obligation. Publication advances only the physical WAL frontier; logical offsets
 producer state and original receipts do not change. Unknown publication follows
 normal partition recovery before retry.
 
-`LogSegment.Descriptor` binds the original evidence, `.tseg` content and delivery
-metadata content. The paged segment directory is keyed by the original exclusive
-batch end. Its value stores those three contents in order, each as big-endian
-`u64` byte length followed by SHA-256, totaling 120 bytes. Segment IDs are the
+`LogSegment.Descriptor` binds the original evidence, optional `.tseg` content,
+delivery metadata and materialized view content. The paged segment directory is
+keyed by the original exclusive batch end. Its 165-byte value stores a layout
+byte (`1` complete, `2` sparse), big-endian `u32` physical row count, then those
+four contents in order, each as big-endian `u64` byte length followed by SHA-256.
+Only an empty sparse view has no segment, encoded as 40 zero bytes. Segment IDs are the
 original append's exclusive physical frontier. User columns preserve the declared
 schema, codecs and collations. Row identities preserve principal/operation/ordinal
 order within that append; no Table primary-key uniqueness semantics are added.
 
 `log-segments/{sha256}.tseg` uses the shared segment format.
 `log-segment-metadata/{sha256}.data` contains `LBMETA01`, the shared definition,
-original evidence SHA-256, big-endian `u32` row count, then one big-endian `u64`
-visibility time and one tombstone byte per original row. Only zero and one are
+original evidence SHA-256, big-endian `u32` physical row count, then a big-endian
+`u32` original ordinal, `u64` visibility time and one tombstone byte per physical
+row. Original ordinals are strictly increasing and remain the row identities;
+physical row positions may differ. Only zero and one are
 valid tombstone bytes; Stream/Queue metadata rules remain unchanged. The metadata
 bound is 76 bytes plus the maximum WAL payload size. Neither object establishes
 acceptance. The owner reads back both, validates identities and reconstructs the
-original `LOGBAT01` digest before publishing their locator. A missing object,
+original `LOGBAT01` digest for a complete placement. A missing object,
 foreign receipt, changed payload or unsupported lossless reconstruction refuses.
+
+Sparse placement uses internal `LOGVIEW1` bytes: the eight-byte magic, shared
+definition, schema layout fingerprint, Stream kind byte (`1`), and big-endian
+`u32` retained row count form a 77-byte header. Each retained row contains its
+big-endian `u32` original ordinal, `u32` encoded length, `u64` visibility time,
+tombstone byte and unchanged encoded Table row. Zero retained rows are valid.
+This format is not accepted as an append. A sparse view retains at most half
+the original rows and cannot exceed the original payload byte budget. Its own
+digest supplies the cache binding, while the original receipt remains unchanged.
+Every omitted offset must be hidden in the exact retained visibility root;
+read pins and collection walks cannot substitute current visibility for that
+basis. Sparse timestamp reads use exact row predicates without dense ordinal
+zone-map shortcuts. These storage codecs do not themselves publish rewrites.
 
 Build and cold reconstruction share an explicit simultaneous allocation budget
 (64 MiB by default, configurable up to 1 GiB). Segment row groups default to 1,024
@@ -1487,7 +1504,7 @@ rows and cannot exceed 1,024 for this owner. A refusal leaves the original WAL
 placement usable and any private objects collectible. Each finite read base
 retains both its batch and segment directories. The bounded read iterator keeps
 the original cut and returns owned rows across WAL and segment boundaries; cache
-admission verifies the complete original batch. Physical copies may be reclaimed
+admission verifies the placement's bound complete batch or sparse view. Physical copies may be reclaimed
 only after the retained graph no longer needs their placement, independently of
 logical payload retention.
 
@@ -1542,10 +1559,37 @@ append receipts, offsets and producer state remain unchanged.
 `cancelCompaction` closes only unpublished work and can use the control reserve.
 Expiry refuses while a pass owns its frozen source. Recovery and native collection
 retain active work, full-key child directories, bitmap containers and pinned
-visibility roots. This logical compaction does not yet rewrite sparse segment
-payloads; original sealed batch bytes remain retained until their payload owners
-permit physical reclamation. Component batch borrows expose original storage
-bytes; consumers use the visibility-aware finite reader.
+visibility roots. Component batch borrows expose placement bytes
+and a typed iterator preserving original identities; consumers use the
+visibility-aware finite reader.
+
+`rewriteMaintenanceUnit` follows published logical compaction with a finite
+physical pass. Mandatory `rewrite_source_lsn`, `rewritten_source_lsn` and nullable
+`rewrite_target {source_lsn, through_offset, after_offset}` fields retain its
+source and cursor. Only logical compaction publication selects new rewrite work.
+Starting a pass captures the current sealed frontier; later appends cannot extend
+it. Each call accepts at most one transition: start, skip an expired prefix,
+inspect/rewrite one accepted batch, complete, or cancel unpublished work after
+retirement. These publications require archive coverage but cannot trigger
+another logical compaction or rewrite pass themselves.
+
+A batch is rewritten only when at most half its original rows remain visible
+and at least one physically present row can be removed. Surviving encoded rows
+must equal the accepted old placement exactly. The owner reads back the staged
+view, verifies every omission against current accepted visibility, then publishes
+its descriptor and cursor in one WAL record. Recovery repeats that comparison;
+an accepted checkpoint permits later recovery without the superseded placement.
+Empty placements retain original range and receipt evidence with no `.tseg`.
+Sparse work uses the same finite segment allocation budget as flush. Logical
+compaction counts omitted offsets against its step budget and can cross an empty
+placement without inventing a row or stalling progress.
+
+`compactionMaintenanceUnit` resumes pending physical rewrite work before selecting
+another logical pass. Read pins and in-flight compaction sources keep their exact
+earlier placement roots and masks. Collection validates omissions against each
+root's own mask; closure and a later recovery baseline must release the earlier
+placement before its segment and sidecar can be reclaimed. Original append and
+producer receipts remain unchanged after that reclamation.
 
 ### Retained Stream reads and offset settlement
 

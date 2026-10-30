@@ -1102,6 +1102,117 @@ fn compactAppend(owner: *Stream, declaration: *const s.LogDeclaration.Owned, pol
     return owner.append(declared, .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = operation(id), .kind = .stream, .producer = null, .rows = rows.len, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
 }
 
+test "stream partition sparse rewrites resume exact cuts and preserve old pins through empty placements" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.partitioning.key_column = null;
+    definition.configuration.policy.stream.compact_key_column = 1;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const Case = struct {
+        fn row(key: []const u8) [2]f.Types.Values.Cell {
+            return .{ .{ .value = .{ .atom = .{ .bytes = key } } }, cells[1] };
+        }
+    };
+    const first = try compactAppend(&owner, &declaration, &policy, 2, &.{ .{ .cells = &Case.row("a") }, .{ .cells = &Case.row("b") }, .{ .cells = &Case.row("A") }, .{ .cells = &Case.row("c") } });
+    _ = try compactAppend(&owner, &declaration, &policy, 3, &.{.{ .cells = &Case.row("a") }});
+    const old = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(10), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    const flush_cut = owner.root.position();
+    while (!(try owner.flush(flush_cut, policy.guard())).complete) {}
+    const cut = owner.root.position();
+    while ((try owner.compactStep(initial.declared, cut, 1, policy.guard())).status != .complete) {}
+    try t.expectEqual(@as(u64, 2), owner.root.hidden.cardinality);
+    const middle = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(11), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.rewriteMaintenanceUnit(initial.declared, policy.guard()));
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    try t.expectEqual(@as(u64, 5), owner.root.maintenance.rewrite_target.?.through_offset);
+    _ = try compactAppend(&owner, &declaration, &policy, 4, &.{.{ .cells = &Case.row("d") }});
+    const before = owner.root;
+    owner.options.segment_work_bytes = 4096;
+    try t.expectError(error.LogSegmentBudgetExceeded, owner.rewriteMaintenanceUnit(initial.declared, policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    owner.options.segment_work_bytes = 64 * 1024 * 1024;
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.rewriteMaintenanceUnit(initial.declared, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(@as(u64, 4), owner.root.maintenance.rewrite_target.?.after_offset);
+    try t.expectEqual(@as(u64, 5), owner.root.maintenance.rewrite_target.?.through_offset);
+    var units: usize = 0;
+    while (try owner.rewriteMaintenanceUnit(initial.declared, policy.guard())) : (units += 1) try t.expect(units < 4);
+    var batch = (try owner.readBatch(initial.declared, 0, policy.guard())).?;
+    try t.expectEqual(s.LogSegment.Layout.sparse, batch.layout);
+    var rows = try batch.iterator(declaration.definition.schema);
+    try t.expectEqual(@as(u32, 1), (try rows.next()).?.ordinal);
+    try t.expectEqual(@as(u32, 3), (try rows.next()).?.ordinal);
+    try t.expect(try rows.next() == null);
+    batch.deinit();
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    for ([_]p.StreamRead.Receipt{ old, middle }, [_]u32{ 5, 3 }) |pin, count| {
+        var page = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 8, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+        defer page.deinit();
+        try t.expect(page.count == count and page.cursor.coverage.complete);
+    }
+    const current = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(12), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    var cursor = try owner.readCursor(current.handle(), authority, policy.guard());
+    var at: usize = 0;
+    const expected = [_]u64{ 1, 3, 4, 5 };
+    while (!cursor.coverage.complete) {
+        var page = try owner.readPage(cursor, authority, .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 }, t.allocator, policy.guard());
+        defer page.deinit();
+        for (page.rows()) |row| {
+            try t.expectEqual(expected[at], row.offset);
+            at += 1;
+        }
+        cursor = page.cursor;
+    }
+    try t.expectEqual(expected.len, at);
+    _ = try compactAppend(&owner, &declaration, &policy, 5, &.{ .{ .cells = &Case.row("a") }, .{ .cells = &Case.row("b") }, .{ .cells = &Case.row("c") }, .{ .cells = &Case.row("d") } });
+    const sealed = owner.root.position();
+    while (!(try owner.flush(sealed, policy.guard())).complete) {}
+    units = 0;
+    while (try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard())) : (units += 1) try t.expect(units < 64);
+    try t.expectEqual(@as(u64, 6), owner.root.hidden.cardinality);
+    batch = (try owner.readBatch(initial.declared, 0, policy.guard())).?;
+    rows = try batch.iterator(declaration.definition.schema);
+    try t.expect(try rows.next() == null);
+    batch.deinit();
+    // New compaction traverses empty placements with bounded logical progress.
+    const again = owner.root.position();
+    units = 0;
+    while ((try owner.compactStep(initial.declared, again, 1, policy.guard())).status != .complete) : (units += 1) try t.expect(units < 32);
+    while (try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard())) {}
+    while (try owner.archiveMaintenanceUnit(.{ .frames = 4 }, policy.guard())) {}
+    _ = try owner.trimArchived(policy.guard());
+    try owner.deinit();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(first, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
+    for ([_]p.StreamRead.Receipt{ old, middle, current }, [_]u32{ 5, 3, 4 }) |pin, count| {
+        var page = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 8, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+        defer page.deinit();
+        try t.expect(page.count == count and page.cursor.coverage.complete);
+    }
+}
+
 test "stream partition compaction freezes collation supersession tombstones and retained reads across disk restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -1362,6 +1473,20 @@ test "stream partition maintenance rejects invented completion and closes retire
     while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
     try t.expect(owner.root.compaction == null and owner.root.hidden.cardinality == 0);
 
+    while (owner.root.compacted == null) _ = try owner.compactionMaintenanceUnit(initial.declared, 1, policy.guard());
+    try t.expect(try owner.rewriteMaintenanceUnit(initial.declared, policy.guard()));
+    const visibility = owner.root.hidden;
+    const placements = owner.root.segments;
+    try t.expect(try owner.compactionMaintenanceUnit(retired, 1, policy.guard()));
+    try t.expect(owner.root.maintenance.rewrite_target == null);
+    try t.expectEqualDeep(visibility, owner.root.hidden);
+    try t.expectEqualDeep(placements, owner.root.segments);
+    try t.expect(!try owner.compactionMaintenanceUnit(retired, 1, policy.guard()));
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(placements, owner.root.segments);
+
     // This root is locally well formed, but no archive/checkpoint target has
     // completed. Replay must reject its invented scheduling progress.
     var forged = owner.root;
@@ -1371,6 +1496,49 @@ test "stream partition maintenance rejects invented completion and closes retire
     const encoded = try s.LogPartitionRecord.encode(.{ .definition = p.Growth.current_definition, .previous = owner.commitment, .root = forged, .action = .{ .maintenance = .complete_archive } }, &.{}, &bytes);
     _ = try wal.log().append(91, owner.root.next_lsn, policy.epoch, policy.epoch, .manifest_checkpoint, encoded);
     try t.expectError(error.InvalidStreamMaintenance, owner.recoverStep(policy.guard(), 1));
+    try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
+}
+
+test "stream partition rewrite replay rejects a valid sparse segment that changes surviving bytes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var definition = support.definition(.stream);
+    definition.configuration.policy.stream.compact_key_column = 1;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const receipt = try compactAppend(&owner, &declaration, &policy, 2, &.{ .{ .cells = &cells }, .{ .cells = &cells } });
+    _ = try owner.flush(owner.root.position(), policy.guard());
+    const cut = owner.root.position();
+    while ((try owner.compactStep(initial.declared, cut, 1, policy.guard())).status != .complete) {}
+    try t.expect(try owner.rewriteMaintenanceUnit(initial.declared, policy.guard()));
+    const evidence = (try owner.operation(operation(2), policy.guard())).?;
+    var changed = cells;
+    changed[1] = .{ .value = .{ .atom = .{ .bytes = "changed" } } };
+    const row: f.TableRow.Row = .{ .identity = .{ .origin = 1, .operation = 2, .ordinal = 1 }, .cells = &changed };
+    var row_bytes: [4096]u8 = undefined;
+    var view_bytes: [8192]u8 = undefined;
+    var encoder = try s.LogView.Encoder.init(declaration.definition.schema, 2, 1, &view_bytes);
+    try encoder.append(.{ .ordinal = 1, .visible_ms = 0, .tombstone = false, .bytes = try row.encode(declaration.definition.schema, &row_bytes) });
+    const replacement = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, try encoder.finish(), 1);
+    var forged = owner.root;
+    forged.next_lsn += 1;
+    forged.maintenance.archive_source_lsn = forged.next_lsn;
+    forged.maintenance.rewrite_target.?.after_offset = receipt.next;
+    try owner.store.begin(options.index_work_bytes);
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.store };
+    forged.segments = try tree.put(forged.segments, try s.LogPartitionRecord.integerKey(receipt.next), try replacement.encode());
+    owner.store.end();
+    var bytes: [s.LogPartitionRecord.max_metadata_bytes + s.LogPartitionRecord.header_bytes]u8 = undefined;
+    const record = try s.LogPartitionRecord.encode(.{ .definition = p.Growth.current_definition, .previous = owner.commitment, .root = forged, .action = .{ .rewrite = .{ .receipt = receipt, .segment = replacement } } }, &.{}, &bytes);
+    _ = try wal.log().append(91, owner.root.next_lsn, policy.epoch, policy.epoch, .manifest_checkpoint, record);
+    try t.expectError(error.LogPayloadConflict, owner.recoverStep(policy.guard(), 1));
     try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
 }
 

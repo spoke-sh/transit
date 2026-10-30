@@ -504,7 +504,7 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, cut: d.Position,
     };
     const receipt = evidence.outcome.append;
     const complete = try self.flushCandidate(receipt.next, cut) == null;
-    var borrowed = (try self.borrowAt(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, receipt.first, guard)) orelse return error.LogHistoryUnavailable;
+    var borrowed = (try self.borrowWithinBudget(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, self.root.hidden, receipt.first, guard, allocator)) orelse return error.LogHistoryUnavailable;
     defer borrowed.deinit();
     var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
     defer declaration.deinit();
@@ -595,24 +595,35 @@ fn compactionRows(self: *Self, work: Compaction.State, maximum: u16, output: std
     const schema = declaration.definition.schema;
     const column = schema.columns[try schema.index(declaration.definition.configuration.policy.stream.compact_key_column.?)];
     const column_index = try schema.index(column.id);
-    var batch = (try self.borrowAt(work.source.cut, work.source.batches, work.source.segments, work.next, guard)) orelse return error.LogHistoryUnavailable;
+    var batch = (try self.borrowAt(work.source.cut, work.source.batches, work.source.segments, work.source.hidden, work.next, guard)) orelse return error.LogHistoryUnavailable;
     defer batch.deinit();
-    var iterator = try Batch.Iterator.init(try batch.payload.bytes(), schema, .stream, batch.receipt.append.rows);
+    var iterator = try batch.iterator(schema);
     var result: CompactionRows = .{ .through = work.next };
     defer _ = self.scratch.reset(.retain_capacity);
+    var visibility: Bitmap = .{ .store = &self.store, .objects = self.objects };
+    const until = @min(work.until(), batch.receipt.next, work.next +| maximum);
     while (try iterator.next()) |encoded| {
         const offset = try std.math.add(u64, batch.receipt.first, encoded.ordinal);
         if (offset < work.next) continue;
+        while (result.through < @min(offset, until)) : (result.through += 1)
+            if (!try visibility.contains(work.source.hidden, result.through)) return error.LogHistoryUnavailable;
+        if (result.through == until) break;
         if (offset != result.through) return error.LogHistoryUnavailable;
+        if (try visibility.contains(work.source.hidden, offset)) {
+            result.through += 1;
+            continue;
+        }
         _ = self.scratch.reset(.retain_capacity);
         const row = try encoded.decode(self.scratch.allocator(), schema, batch.receipt.append.operation);
         const key = try f.Collation.encodeSortKey(row.cells[column_index], column.type, column.collation, self.key_buffer);
         result.values[result.count] = .{ .offset = offset, .key = try output.dupe(u8, key), .tombstone = row.tombstone };
         result.count += 1;
         result.through += 1;
-        if (result.count == maximum or result.through == work.until()) break;
+        if (result.through == until) break;
     }
-    if (result.count == 0) return error.InvalidStreamCompaction;
+    while (result.through < until) : (result.through += 1)
+        if (!try visibility.contains(work.source.hidden, result.through)) return error.LogHistoryUnavailable;
+    if (result.through == work.next) return error.InvalidStreamCompaction;
     return result;
 }
 fn superseded(index: Keys, work: Compaction.State, row: CompactionRow) !bool {
@@ -782,6 +793,107 @@ fn publishMaintenance(self: *Self, action: @import("StreamMaintenanceState.zig")
     try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .maintenance = action } }, &.{}, guard);
 }
 
+fn rewriteCandidate(self: *Self) !Evidence.Record {
+    const target = self.root.maintenance.rewrite_target orelse return error.InvalidStreamMaintenance;
+    if (target.after_offset < self.root.retained_from or target.after_offset >= target.through_offset) return error.InvalidStreamMaintenance;
+    const evidence = try self.flushCandidate(target.after_offset, self.root.position()) orelse return error.LogHistoryUnavailable;
+    if (evidence.outcome.append.next > target.through_offset) return error.InvalidStreamMaintenance;
+    return evidence;
+}
+
+/// Build only from the accepted old placement. Missing rows must already be
+/// hidden; surviving canonical bytes are copied without changing identities.
+fn rewriteView(self: *Self, allocator: std.mem.Allocator, declaration: *const Declaration.Owned, evidence: Evidence.Record, guard: Guard) !?[]u8 {
+    const receipt = evidence.outcome.append;
+    var batch = (try self.borrowWithinBudget(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, self.root.hidden, receipt.first, guard, allocator)) orelse return error.LogHistoryUnavailable;
+    defer batch.deinit();
+    const schema = declaration.definition.schema;
+    var visibility: Bitmap = .{ .store = &self.store, .objects = self.objects };
+    var rows = try batch.iterator(schema);
+    var kept: u32 = 0;
+    var present: u32 = 0;
+    while (try rows.next()) |row| {
+        present += 1;
+        if (!try visibility.contains(self.root.hidden, receipt.first + row.ordinal)) kept += 1;
+    }
+    if (kept == present or kept > receipt.append.rows / 2) return null;
+    const buffer = try allocator.alloc(u8, @intCast(receipt.append.payload.bytes));
+    defer allocator.free(buffer);
+    var encoder = try @import("LogView.zig").Encoder.init(schema, @intCast(receipt.append.rows), kept, buffer);
+    rows = try batch.iterator(schema);
+    while (try rows.next()) |row| if (!try visibility.contains(self.root.hidden, receipt.first + row.ordinal)) try encoder.append(row);
+    return try allocator.dupe(u8, try encoder.finish());
+}
+
+fn rewriteWithinBudget(self: *Self, allocator: std.mem.Allocator, guard: Guard) !void {
+    const evidence = try self.rewriteCandidate();
+    var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
+    defer declaration.deinit();
+    const view = try self.rewriteView(allocator, &declaration, evidence, guard);
+    defer if (view) |bytes| allocator.free(bytes);
+    var segment: ?Segment.Descriptor = null;
+    if (view) |bytes| {
+        segment = try Segment.stageSparse(allocator, self.objects, &declaration, evidence, bytes, self.options.segment_rows_per_group);
+        const rebuilt = try Segment.materialize(allocator, self.objects, segment.?, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
+        if (!std.mem.eql(u8, bytes, rebuilt)) return error.LogPayloadConflict;
+        try Segment.requireVisibility(segment.?, rebuilt, declaration.definition.schema, evidence.outcome.append, &self.store, self.root.hidden);
+    }
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var next = self.root;
+    next.next_lsn = (try self.nextPosition()).next_lsn;
+    if (segment) |value| next.segments = try self.tree().put(next.segments, try r.integerKey(evidence.outcome.append.next), try value.encode());
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .rewrite = .{ .receipt = evidence.outcome.append, .segment = segment } } }, &.{}, guard);
+}
+
+fn verifyRewrite(self: *Self, allocator: std.mem.Allocator, record: r.Record, guard: Guard) !void {
+    const value = record.action.rewrite;
+    const evidence = try self.rewriteCandidate();
+    if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogSegment;
+    var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
+    defer declaration.deinit();
+    const expected = try self.rewriteView(allocator, &declaration, evidence, guard);
+    defer if (expected) |bytes| allocator.free(bytes);
+    if ((expected != null) != (value.segment != null)) return error.InvalidLogSegment;
+    if (value.segment) |segment| {
+        try self.verifyValue(record.root.segments, try r.integerKey(value.receipt.next), try segment.encode());
+        const bytes = try Segment.materialize(allocator, self.objects, segment, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
+        if (!std.mem.eql(u8, expected.?, bytes)) return error.LogPayloadConflict;
+        try Segment.requireVisibility(segment, bytes, declaration.definition.schema, value.receipt, &self.store, self.root.hidden);
+    } else if (!std.meta.eql(record.root.segments, self.root.segments)) return error.InvalidLogSegment;
+}
+
+/// One accepted rewrite or cursor transition per call. The retained upper bound
+/// is finite even with concurrent appends. Read pins keep their old directories.
+pub fn rewriteMaintenanceUnit(self: *Self, declared: Declaration.Stored, guard: Guard) !bool {
+    try authorize(guard);
+    try self.requireReady();
+    try self.root.requireControlDeclaration(declared);
+    if (declared.retired) {
+        if (self.root.maintenance.rewrite_target != null) {
+            try self.publishMaintenance(.cancel_rewrite, guard);
+            return true;
+        }
+        return false;
+    }
+    const target = self.root.maintenance.rewrite_target orelse {
+        if (self.root.maintenance.rewrite_source_lsn <= self.root.maintenance.rewritten_source_lsn) return false;
+        try self.publishMaintenance(.begin_rewrite, guard);
+        return true;
+    };
+    if (target.after_offset == target.through_offset) {
+        try self.publishMaintenance(.complete_rewrite, guard);
+        return true;
+    }
+    if (target.after_offset < self.root.retained_from) {
+        try self.publishMaintenance(.skip_expired_rewrite, guard);
+        return true;
+    }
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+    self.rewriteWithinBudget(memory.allocator(), guard) catch |err| return if (memory.exhausted) error.LogSegmentBudgetExceeded else err;
+    return true;
+}
+
 /// Advance a retained archive/checkpoint target with at most one publication.
 /// Recovering the root resolves a lost reply. Bookkeeping alone cannot select
 /// another target after the finite workload has settled.
@@ -820,9 +932,11 @@ pub fn compactionMaintenanceUnit(self: *Self, declared: Declaration.Stored, maxi
             try self.cancelCompaction(work.source.cut.accepted, guard);
             return true;
         }
-        return false;
+        return self.rewriteMaintenanceUnit(declared, guard);
     }
     if (declared.declaration.configuration.policy.stream.compact_key_column == null) return false;
+    if (self.root.maintenance.rewrite_target != null or self.root.maintenance.rewrite_source_lsn > self.root.maintenance.rewritten_source_lsn)
+        return self.rewriteMaintenanceUnit(declared, guard);
     const cut = if (self.root.compaction) |work| work.source.cut.accepted else selected: {
         if (self.root.maintenance.compaction_source_lsn <= self.root.maintenance.compacted_through_lsn) return false;
         break :selected self.root.position();
@@ -983,11 +1097,16 @@ fn verifyTransition(self: *Self, record: r.Record, guard: Guard) !void {
             },
             .flush => |value| {
                 const evidence = try self.flushCandidate(self.root.sealed_through, value.cut) orelse return error.InvalidLogSegment;
-                if (!std.meta.eql(evidence.outcome.append, value.receipt)) return error.InvalidLogSegment;
+                if (!std.meta.eql(evidence.outcome.append, value.receipt) or value.segment.layout != .complete) return error.InvalidLogSegment;
                 try self.verifyValue(next.segments, try r.integerKey(value.receipt.next), try value.segment.encode());
                 _ = try self.materialize(value.segment, evidence);
                 expected.segments = next.segments;
                 expected.sealed_through = value.receipt.next;
+            },
+            .rewrite => {
+                var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
+                self.verifyRewrite(memory.allocator(), record, guard) catch |err| return if (memory.exhausted) error.LogSegmentBudgetExceeded else err;
+                expected.segments = next.segments;
             },
             .expire => |value| {
                 const evidence = try self.flushCandidate(self.root.retained_from, value.cut) orelse return error.InvalidLogExpiration;
@@ -1094,6 +1213,14 @@ pub const BorrowedBatch = struct {
     cut: q.Cut,
     receipt: q.AppendReceipt,
     payload: Tail.Borrow,
+    layout: Segment.Layout,
+    pub fn iterator(self: *BorrowedBatch, schema: f.TableSchema.Schema) !@import("LogView.zig").Rows {
+        const bytes = try self.payload.bytes();
+        return switch (self.layout) {
+            .complete => .{ .complete = try Batch.Iterator.init(bytes, schema, if (self.receipt.append.kind == .stream) .stream else .queue, self.receipt.append.rows) },
+            .sparse => .{ .sparse = try @import("LogView.zig").Iterator.init(bytes, schema, self.receipt.append.rows) },
+        };
+    }
     pub fn deinit(self: *BorrowedBatch) void {
         self.payload.release() catch unreachable;
         self.* = undefined;
@@ -1106,7 +1233,7 @@ pub fn readBatch(self: *Self, declared: Declaration.Stored, offset: u64, guard: 
     try authorize(guard);
     try self.requireReady();
     const cut = try self.root.cut(declared);
-    return self.borrowAt(cut, self.root.batches, self.root.segments, offset, guard);
+    return self.borrowAt(cut, self.root.batches, self.root.segments, self.root.hidden, offset, guard);
 }
 fn materialize(self: *Self, segment: Segment.Descriptor, evidence: Evidence.Record) ![]const u8 {
     var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.segment_work_bytes };
@@ -1117,7 +1244,10 @@ fn materializeWithinBudget(self: *Self, allocator: std.mem.Allocator, segment: S
     defer declaration.deinit();
     return Segment.materialize(allocator, self.objects, segment, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
 }
-fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages.Reference, offset: u64, guard: Guard) !?BorrowedBatch {
+fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages.Reference, hidden: Bitmap.Root, offset: u64, guard: Guard) !?BorrowedBatch {
+    return self.borrowWithinBudget(cut, batches, segments, hidden, offset, guard, null);
+}
+fn borrowWithinBudget(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages.Reference, hidden: Bitmap.Root, offset: u64, guard: Guard, work_allocator: ?std.mem.Allocator) !?BorrowedBatch {
     try cut.requireOffset(offset);
     if (offset == cut.next) {
         try authorize(guard);
@@ -1130,11 +1260,17 @@ fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages
     const receipt = evidence.outcome.append;
     try self.requireTarget(receipt.append.target);
     if (receipt.first > offset or receipt.next <= offset or receipt.next > cut.next or receipt.accepted.partition != cut.accepted.partition or receipt.accepted.next_lsn > cut.accepted.next_lsn or !std.meta.eql(entry.key, try r.integerKey(receipt.next))) return error.InvalidLogHistory;
-    const binding: Tail.Binding = .{ .position = receipt.accepted, .content = receipt.append.payload };
+    const segment: ?Segment.Descriptor = if (try self.tree().get(segments, entry.key)) |value| try Segment.Descriptor.decode(value) else null;
+    if (segment) |value| {
+        if (!std.meta.eql(value.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogSegment;
+        if (value.layout == .complete and (value.rows != receipt.append.rows or !std.meta.eql(value.view, receipt.append.payload))) return error.InvalidLogSegment;
+    }
+    const binding: Tail.Binding = .{ .position = receipt.accepted, .content = receipt.append.payload, .view = if (segment) |value| (if (value.layout == .sparse) value.view else null) else null };
     var borrowed = try self.cache.borrow(binding);
     if (borrowed == null) {
-        if (try self.tree().get(segments, entry.key)) |value| {
-            try self.cache.admit(binding, try self.materialize(try Segment.Descriptor.decode(value), evidence));
+        if (segment) |value| {
+            const payload = if (work_allocator) |allocator| try self.materializeWithinBudget(allocator, value, evidence) else try self.materialize(value, evidence);
+            try self.cache.admit(binding, payload);
         } else {
             var frames = try self.historyFrame(receipt.accepted.next_lsn - 1);
             defer frames.deinit();
@@ -1147,8 +1283,13 @@ fn borrowAt(self: *Self, cut: q.Cut, batches: ?pages.Reference, segments: ?pages
     }
     const result = borrowed orelse return error.LogHistoryUnavailable;
     errdefer result.release() catch unreachable;
+    if (segment) |value| if (value.layout == .sparse) {
+        var declaration = try Declaration.load(work_allocator orelse self.allocator, self.objects, evidence.declared);
+        defer declaration.deinit();
+        try Segment.requireVisibility(value, try result.bytes(), declaration.definition.schema, receipt, &self.store, hidden);
+    };
     try authorize(guard);
-    return .{ .cut = cut, .receipt = receipt, .payload = result };
+    return .{ .cut = cut, .receipt = receipt, .payload = result, .layout = if (segment) |value| value.layout else .complete };
 }
 
 pub fn readCursor(self: *Self, handle: read.Handle, authority: Read.Authority, guard: Guard) !read.Cursor {
@@ -1220,13 +1361,21 @@ pub fn readPage(self: *Self, cursor: read.Cursor, authority: Read.Authority, lim
                 continue;
             }
         }
-        var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, retained.basis.segments, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
+        var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, retained.basis.segments, retained.basis.hidden, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
         defer batch.deinit();
-        var iterator = try Batch.Iterator.init(try batch.payload.bytes(), declaration.definition.schema, .stream, batch.receipt.append.rows);
+        var iterator = try batch.iterator(declaration.definition.schema);
         var advanced = false;
         while (try iterator.next()) |row| {
             const offset = try std.math.add(u64, batch.receipt.first, row.ordinal);
             if (offset < coverage.through) continue;
+            while (coverage.through < offset) {
+                if (!try visibility.contains(retained.basis.hidden, coverage.through)) return error.LogHistoryUnavailable;
+                coverage.through += 1;
+                result.examined += 1;
+                coverage.complete = coverage.through == coverage.until;
+                advanced = true;
+                if (coverage.complete or result.examined == limits.scanned_rows) break :outer;
+            }
             if (offset != coverage.through) return error.LogHistoryUnavailable;
             if (try visibility.contains(retained.basis.hidden, offset)) {
                 coverage.through += 1;

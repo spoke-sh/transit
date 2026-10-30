@@ -5,7 +5,14 @@ const std = @import("std");
 const d = @import("transit_protocol").DataLifecycle;
 const Self = @This();
 
-pub const Binding = struct { position: d.Position, content: d.Content };
+pub const Binding = struct {
+    position: d.Position,
+    content: d.Content,
+    view: ?d.Content = null,
+    fn payload(self: Binding) d.Content {
+        return self.view orelse self.content;
+    }
+};
 pub const Options = struct { slots: u16, borrow_slots: u16, slot_bytes: u32, resident_bytes: u64 };
 const Slot = struct { binding: ?Binding = null, pins: u32 = 0 };
 const Held = struct { serial: u64, slot: usize };
@@ -49,6 +56,10 @@ fn validate(self: *const Self, binding: Binding) !void {
     try binding.position.validate();
     try binding.content.validate();
     if (binding.position.next_lsn == 0 or binding.content.bytes > self.slot_bytes) return error.InvalidTailBinding;
+    if (binding.view) |view| {
+        try view.validate();
+        if (view.bytes > binding.content.bytes) return error.InvalidTailBinding;
+    }
 }
 
 fn find(self: *const Self, binding: Binding) !?usize {
@@ -56,7 +67,7 @@ fn find(self: *const Self, binding: Binding) !?usize {
     for (self.slots, 0..) |slot, index| if (slot.binding) |present| {
         if (std.meta.eql(present.position, binding.position)) {
             if (!std.meta.eql(present.content, binding.content)) return error.TailContentConflict;
-            return index;
+            if (std.meta.eql(present.view, binding.view)) return index;
         }
     };
     return null;
@@ -67,7 +78,7 @@ fn find(self: *const Self, binding: Binding) !?usize {
 /// pressure refuses cache admission; it never discards a durable log record.
 pub fn admit(self: *Self, binding: Binding, bytes: []const u8) !void {
     try self.validate(binding);
-    if (bytes.len != binding.content.bytes) return error.InvalidTailContent;
+    if (bytes.len != binding.payload().bytes) return error.InvalidTailContent;
     if (try self.find(binding) != null) return;
     var destination: ?usize = null;
     for (0..self.slots.len) |distance| {
@@ -80,7 +91,7 @@ pub fn admit(self: *Self, binding: Binding, bytes: []const u8) !void {
     const index = destination orelse return error.TailCachePinned;
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    if (!std.mem.eql(u8, &digest, &binding.content.sha256)) return error.InvalidTailContent;
+    if (!std.mem.eql(u8, &digest, &binding.payload().sha256)) return error.InvalidTailContent;
     const target = self.slab[index * self.stride ..][0..self.stride];
     // A caller may admit a slice borrowed from a different cache slot.
     std.mem.copyForwards(u8, target[0..bytes.len], bytes);
@@ -107,7 +118,7 @@ pub const Borrow = struct {
     pub fn bytes(self: Borrow) ![]const u8 {
         const held = try self.current();
         const binding = self.owner.slots[held.slot].binding.?;
-        return self.owner.slab[held.slot * self.owner.stride ..][0..@intCast(binding.content.bytes)];
+        return self.owner.slab[held.slot * self.owner.stride ..][0..@intCast(binding.payload().bytes)];
     }
 
     /// Copies of a released handle cannot release a later borrow's pin.

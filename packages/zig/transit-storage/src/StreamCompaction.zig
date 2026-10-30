@@ -57,7 +57,7 @@ pub const State = struct {
             self.candidate.cardinality < self.source.hidden.cardinality or self.candidate.cardinality > self.source.cut.next or
             (self.phase == .index and !std.meta.eql(self.candidate, self.source.hidden)) or
             (self.phase == .ready and self.next != self.until()) or
-            ((self.phase != .index or self.next != self.source.cut.retained_from) and self.latest == null)) return error.InvalidStreamCompaction;
+            (self.phase != .index and self.latest == null)) return error.InvalidStreamCompaction;
     }
     pub fn advance(self: *State, through: u64) !void {
         if (self.phase == .ready or through <= self.next or through > self.until() or through - self.next > max_rows) return error.InvalidStreamCompaction;

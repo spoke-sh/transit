@@ -105,6 +105,7 @@ pub const Record = struct {
         operation: Evidence.Record,
         archive: struct { cut: d.Position, from_lsn: u64 },
         flush: struct { cut: d.Position, receipt: q.AppendReceipt, segment: @import("LogSegment.zig").Descriptor },
+        rewrite: struct { receipt: q.AppendReceipt, segment: ?@import("LogSegment.zig").Descriptor },
         expire: struct { cut: d.Position, receipt: q.AppendReceipt, observed_ms: u64, clock_ms: u64, protected_next: u64 },
         compaction_start,
         compaction_step: struct { from: u64, through: u64 },
@@ -144,6 +145,14 @@ pub const Record = struct {
                 try value.receipt.validate();
                 try value.segment.validate();
                 if (value.cut.partition != self.root.initialization.partition or value.cut.next_lsn > lsn or value.receipt.accepted.partition != value.cut.partition or value.receipt.accepted.next_lsn > value.cut.next_lsn or value.receipt.next != self.root.sealed_through) return error.InvalidLogSegment;
+            },
+            .rewrite => |value| {
+                try value.receipt.validate();
+                if (value.receipt.accepted.partition != self.root.initialization.partition or value.receipt.accepted.next_lsn > lsn or value.receipt.next > self.root.sealed_through) return error.InvalidLogSegment;
+                if (value.segment) |segment| {
+                    try segment.validate();
+                    if (segment.layout != .sparse) return error.InvalidLogSegment;
+                }
             },
             .expire => |value| {
                 try value.cut.validate();

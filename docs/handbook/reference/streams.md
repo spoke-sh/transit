@@ -80,8 +80,10 @@ positional and group reads remain finite after a wait. See the
 The local node's maintenance executor seals accepted batches, archives and
 checkpoints history, trims covered WAL files and compacts declared keys when
 those physical operations are enabled. Compaction preserves logical offsets and
-tombstones; existing finite reads retain their earlier visibility. Sparse segment
-payload rewriting remains unfinished. Unlimited retention is the default.
+tombstones; existing finite reads retain their earlier visibility and placements.
+When at least half an append's rows are hidden, bounded rewriting removes those
+payloads from the current placement. Physical cleanup waits for earlier read pins
+and recovery dependencies to close. Unlimited retention is the default.
 A positive declared retention age permits bounded expiry only after trusted time
 and consumer progress allow it; read pins still retain their original data.
 Maintenance resumes accepted targets after restart and rechecks current native

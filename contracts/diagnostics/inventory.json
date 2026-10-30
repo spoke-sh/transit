@@ -5179,7 +5179,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 352,
+        "try": 353,
         "catch": 1
       },
       "imports": [
@@ -31423,7 +31423,7 @@
         "InvalidLogHistory": 8,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 1,
-        "InvalidLogSegment": 1,
+        "InvalidLogSegment": 3,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
@@ -31435,6 +31435,7 @@
           "operation",
           "archive",
           "flush",
+          "rewrite",
           "expire",
           "compaction_start",
           "compaction_step",
@@ -31463,7 +31464,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -31560,37 +31561,49 @@
       "errors": {
         "BufferTooSmall": 1,
         "IncompatibleDefinition": 1,
-        "InvalidLogSegment": 22,
-        "LogPayloadConflict": 2,
+        "InvalidLogSegment": 33,
+        "LogHistoryUnavailable": 2,
+        "LogPayloadConflict": 4,
         "LogSegmentMissing": 1,
         "StreamTimestampNotDeclared": 1,
         "WriteFailed": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Layout": [
+          "complete",
+          "sparse"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Descriptor.decode()": "<inferred>",
         "Descriptor.encode()": "<inferred>",
+        "Descriptor.iterator()": "<inferred>",
         "Descriptor.validate()": "<inferred>",
         "Source.read()": "<inferred>",
         "Source.verify()": "<inferred>",
         "materialize()": "<inferred>",
         "metadataKey()": "<inferred>",
         "put()": "<inferred>",
+        "requireVisibility()": "<inferred>",
         "segmentKey()": "<inferred>",
         "skipTimestamp()": "<inferred>",
         "stage()": "<inferred>",
+        "stageLayout()": "<inferred>",
+        "stageSparse()": "<inferred>",
         "verifyHead()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 73,
         "catch": 1
       },
       "imports": [
+        "BitmapDirectory.zig",
         "LogBatch.zig",
         "LogDeclaration.zig",
         "LogEvidence.zig",
+        "LogView.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -31643,7 +31656,7 @@
     },
     "packages/zig/transit-storage/src/LogTail.zig": {
       "errors": {
-        "InvalidTailBinding": 1,
+        "InvalidTailBinding": 2,
         "InvalidTailBorrow": 3,
         "InvalidTailBudget": 3,
         "InvalidTailContent": 2,
@@ -31668,7 +31681,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 1
       },
       "imports": [
@@ -31696,6 +31709,40 @@
         "catch": 1
       },
       "imports": [
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogView.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidLogSegment": 9,
+        "LogSegmentBudgetExceeded": 1,
+        "TableSchemaChanged": 1
+      },
+      "outcomes": {
+        "Rows": [
+          "complete",
+          "sparse"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Encoder.append()": "<inferred>",
+        "Encoder.finish()": "<inferred>",
+        "Encoder.init()": "<inferred>",
+        "Iterator.init()": "<inferred>",
+        "Iterator.next()": "<inferred>",
+        "Rows.next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "LogBatch.zig",
+        "std",
+        "transit_fuze",
         "transit_protocol"
       ]
     },
@@ -31870,12 +31917,16 @@
     },
     "packages/zig/transit-storage/src/StreamMaintenanceState.zig": {
       "errors": {
-        "InvalidStreamMaintenance": 10
+        "InvalidStreamMaintenance": 20
       },
       "outcomes": {
         "Action": [
           "begin_archive",
-          "complete_archive"
+          "complete_archive",
+          "begin_rewrite",
+          "skip_expired_rewrite",
+          "complete_rewrite",
+          "cancel_rewrite"
         ]
       },
       "error_sets": {},
@@ -31898,11 +31949,11 @@
         "InvalidLogHistory": 30,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
-        "InvalidLogSegment": 3,
+        "InvalidLogSegment": 8,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
         "InvalidStreamCompactionBudget": 3,
-        "InvalidStreamMaintenance": 1,
+        "InvalidStreamMaintenance": 4,
         "InvalidStreamReadBudget": 2,
         "InvalidStreamTimestampColumn": 1,
         "InvalidWalEpoch": 1,
@@ -31914,13 +31965,13 @@
         "LogCompactionConsumerProtected": 1,
         "LogGroupFenced": 3,
         "LogGroupRequired": 1,
-        "LogHistoryUnavailable": 14,
+        "LogHistoryUnavailable": 19,
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
         "LogOperationConflict": 6,
         "LogPartitionConflict": 4,
-        "LogPayloadConflict": 1,
+        "LogPayloadConflict": 3,
         "LogPositionExhausted": 1,
         "LogProducerConflict": 1,
         "LogRangeExpired": 1,
@@ -31928,7 +31979,7 @@
         "LogRecoveryRequired": 2,
         "LogRetentionNotDeclared": 2,
         "LogRetentionWindowElapsed": 1,
-        "LogSegmentBudgetExceeded": 3,
+        "LogSegmentBudgetExceeded": 5,
         "LogTimeRegression": 1,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
@@ -31950,6 +32001,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "BorrowedBatch.iterator()": "<inferred>",
         "activePin()": "<inferred>",
         "advanceGroup()": "<inferred>",
         "append()": "<inferred>",
@@ -31960,6 +32012,7 @@
         "authorize()": "<inferred>",
         "beginRead()": "<inferred>",
         "borrowAt()": "<inferred>",
+        "borrowWithinBudget()": "<inferred>",
         "cancelCompaction()": "<inferred>",
         "candidate()": "<inferred>",
         "checkpoint()": "<inferred>",
@@ -32009,6 +32062,10 @@
         "requireReady()": "<inferred>",
         "requireTarget()": "<inferred>",
         "retainedRead()": "<inferred>",
+        "rewriteCandidate()": "<inferred>",
+        "rewriteMaintenanceUnit()": "<inferred>",
+        "rewriteView()": "<inferred>",
+        "rewriteWithinBudget()": "<inferred>",
         "selectCheckpoint()": "<inferred>",
         "skipTimestamp()": "<inferred>",
         "skipTimestampWithinBudget()": "<inferred>",
@@ -32018,13 +32075,14 @@
         "validateExpiration()": "<inferred>",
         "verifyCompactionStep()": "<inferred>",
         "verifyGroup()": "<inferred>",
+        "verifyRewrite()": "<inferred>",
         "verifyTransition()": "<inferred>",
         "verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 462,
-        "catch": 13
+        "try": 514,
+        "catch": 15
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -32039,6 +32097,7 @@
         "LogSegment.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogView.zig",
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
         "StreamCompaction.zig",
@@ -33284,6 +33343,7 @@
         "LogStorageRoots.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogView.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",

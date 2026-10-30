@@ -25,6 +25,9 @@ cannot release a later borrow. All cache operations reuse initialization storage
 Cache pressure may refuse admission without affecting the durable log. Callers
 serialize access, retain the owner through release, and check current rights
 before disclosing buffered bytes. A cache pin is not a durable retention pin.
+Complete and sparse placements can coexist under one original append identity;
+their view digests distinguish cache entries without weakening original-content
+conflict checks.
 
 `LogDeclaration` validates schema-bound partition/FIFO/compaction keys and stores
 immutable schema, policy, limits and catalog property bytes. `LogInitialization`
@@ -110,6 +113,16 @@ frontiers let both become idle after finite input; their own bookkeeping does
 not create another pass. Lost replies and restart recover those same targets.
 Later appends and consumer progress can select further work. Retirement closes
 unpublished compaction without discarding accepted payloads or read pins.
+
+After logical compaction, `rewriteMaintenanceUnit` replaces one sparse accepted
+batch per unit under a retained sealed frontier. It preserves original encoded
+row identities and removes only offsets proven hidden. Batches with at most half
+their original rows still visible qualify; empty placements retain range and
+receipt evidence without a segment. `LogView` encodes sparse ordinals in bounded
+caller buffers. Reads and collection validate omitted offsets against each
+retained visibility root. Prior pins and replay keep the old placement until
+closure and a later checkpoint permit collection. The node composes rewriting
+with logical compaction under the same maintenance budget.
 
 An optional control store must address the same physical namespace and current
 authority with the deployment's reserved capacity. Offset settlement, read

@@ -158,7 +158,9 @@ The existing flush, archive and compact settings enable corresponding Stream
 work. Stream flushing seals one whole accepted batch, bounded by append limits,
 instead of Table's partial-row or age thresholds. Archive units honor
 `archive.work_frames`; key compaction uses at most 64 rows or the smaller
-`compaction_rows` setting. Accepted fixed targets survive restart and become
+`compaction_rows` setting. Physical rewriting then inspects at most one accepted
+batch per unit under the segment allocation budget, removing proven hidden rows
+when at least half the original batch is hidden. Accepted fixed targets survive restart and become
 idle after finite work. With native maintenance enabled, only a declaration's
 positive retention age enables Stream expiry. Each expiry unit handles at most
 one sealed batch under trusted clock bounds and consumer protection. Current

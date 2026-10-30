@@ -18,10 +18,11 @@ const LogContext = struct {
     next_lsn: u64,
     next_offset: u64,
     segments: ?s.TreeStore.pages.Reference,
+    hidden: s.BitmapDirectory.Root,
     archive: s.LogHistory.Coverage,
     fn fromRoot(root: s.StreamPartition.Root, archive: s.LogHistory.Coverage) !LogContext {
         try root.validate();
-        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .archive = archive };
+        return .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .archive = archive };
     }
     fn requireTarget(self: LogContext, target: c.protocol.StreamQueue.Partition) !void {
         try target.validate();
@@ -622,6 +623,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 context.next_lsn = state.source.cut.accepted.next_lsn;
                 context.next_offset = state.source.cut.next;
                 context.segments = state.source.segments;
+                context.hidden = state.source.hidden;
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
             }
             value.slot += 1;
@@ -638,6 +640,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             context.next_lsn = basis.cut.accepted.next_lsn;
             context.next_offset = basis.cut.next;
             context.segments = basis.segments;
+            context.hidden = basis.hidden;
             if (basis.hidden.containers) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .bitmap } });
             if (basis.batches) |reference| {
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .batches } });
@@ -659,8 +662,9 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             defer declaration.deinit();
             const output = try allocator.alloc(u8, @intCast(evidence.outcome.append.append.payload.bytes));
             defer allocator.free(output);
-            _ = try s.LogSegment.materialize(allocator, index.store, value.descriptor, &declaration, evidence, output);
-            try markContent(workspace, try s.LogSegment.segmentKey(value.descriptor.segment, &key_buffer), value.descriptor.segment);
+            const payload = try s.LogSegment.materialize(allocator, index.store, value.descriptor, &declaration, evidence, output);
+            try s.LogSegment.requireVisibility(value.descriptor, payload, declaration.definition.schema, evidence.outcome.append, index, value.context.hidden);
+            if (value.descriptor.segment) |segment| try markContent(workspace, try s.LogSegment.segmentKey(segment, &key_buffer), segment);
             try markContent(workspace, try s.LogSegment.metadataKey(value.descriptor.metadata, &key_buffer), value.descriptor.metadata);
         },
         .log_wal => |value| {
