@@ -97,6 +97,14 @@ trim floors; the catalog retained graph keeps live pins, original receipts and
 required archive frames through physical collection. Service payload maintenance
 still requires its authorization and scheduling composition.
 
+An optional control store must address the same physical namespace and current
+authority with the deployment's reserved capacity. Offset settlement, read
+release, reassignment, archive and checkpoint use it; fresh append, read-pin and
+group admission use ordinary capacity. Native disk tests fill ordinary quota,
+complete progress and closure, and verify that revocation still refuses both
+mutation and original-outcome disclosure. Reserved capacity grants no expiry or
+permission, and remains finite.
+
 The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's

@@ -34,6 +34,9 @@ pub const Options = struct {
     key_bytes: u32 = 64 * 1024,
     segment_work_bytes: usize = 64 * 1024 * 1024,
     segment_rows_per_group: u32 = 1024,
+    /// Same physical namespace and authority, with deployment control reserve.
+    /// Only progress/closure and physical recovery use this capability.
+    control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
     tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
 };
 
@@ -77,6 +80,25 @@ pub fn deinit(self: *Self) !void {
 }
 fn tree(self: *Self) pages.Tree(TreeStore) {
     return .{ .store = &self.store };
+}
+const IoScope = struct {
+    log: Log.Log,
+    objects: Objects.ObjectStore,
+    index_objects: Objects.ObjectStore,
+};
+fn enterControl(self: *Self, enabled: bool) IoScope {
+    const previous: IoScope = .{ .log = self.log, .objects = self.objects, .index_objects = self.store.store };
+    if (enabled) if (self.options.control) |control| {
+        self.log = control.log;
+        self.objects = control.objects;
+        self.store.store = control.objects;
+    };
+    return previous;
+}
+fn leaveControl(self: *Self, previous: IoScope) void {
+    self.log = previous.log;
+    self.objects = previous.objects;
+    self.store.store = previous.index_objects;
 }
 fn loadEvidence(self: *Self, value: pages.Value) !Evidence.Record {
     defer _ = self.scratch.reset(.retain_capacity);
@@ -352,6 +374,13 @@ fn candidate(self: *Self, evidence: Evidence.Record) !Root {
     return result;
 }
 fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
+    const reserve = switch (evidence.outcome) {
+        .release, .offset => true,
+        .assignment => |value| value.assignment.expected != null,
+        .append, .read => false,
+    };
+    const ordinary = self.enterControl(reserve);
+    defer self.leaveControl(ordinary);
     try self.store.begin(self.options.index_work_bytes);
     defer self.store.end();
     const next = try self.candidate(evidence);
@@ -444,6 +473,8 @@ pub fn archive(self: *Self, cut: d.Position, limits: History.Limits, guard: Guar
         try authorize(guard);
         return .{ .through = .{ .partition = cut.partition, .next_lsn = self.root.archive.through }, .frames = 0, .encoded_bytes = 0, .complete = true };
     }
+    const ordinary = self.enterControl(true);
+    defer self.leaveControl(ordinary);
     try self.store.begin(self.options.index_work_bytes);
     defer self.store.end();
     const staged = try History.stage(self.allocator, &self.store, self.log, cut.partition, self.root.archive, cut, limits);
@@ -464,6 +495,8 @@ pub fn checkpoint(self: *Self, cut: d.Position, guard: Guard) !Checkpoint.Refere
         try authorize(guard);
         return reference;
     };
+    const ordinary = self.enterControl(true);
+    defer self.leaveControl(ordinary);
     const reference = try Checkpoint.stage(self.objects, .{ .root = self.root, .commitment = self.commitment });
     const stored = try Checkpoint.load(self.allocator, self.objects, reference, (try self.nextPosition()).next_lsn, self.root.initialization);
     if (!std.meta.eql(stored, Checkpoint.Basis{ .root = self.root, .commitment = self.commitment })) return error.InvalidLogRecovery;

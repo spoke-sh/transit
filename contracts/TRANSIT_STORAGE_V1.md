@@ -1384,6 +1384,16 @@ producer progress and original receipt together. Exact retries inspect original
 outcomes before fresh producer/declaration checks, while still requiring current
 permission. Conflict and uncertainty never allocate a replacement identity.
 
+`Options.control`, when supplied, is a trusted adapter capability for the same
+physical namespace and authorization owner using reserved deployment capacity.
+Offset commits, read release, existing-group reassignment, archive and checkpoint
+stage and publish through it. Fresh append, initial group assignment and read-pin
+admission use ordinary capacity. Every operation retains its current-policy
+checks and normal uncertainty semantics. Restoring ordinary I/O after each
+control operation prevents subsequent admission from consuming that reserve.
+The reserve is finite; exhausting it is an explicit failure, never permission
+to expire payloads, discard progress or forge an outcome.
+
 An unknown or malformed append result marks the resident owner unready. Recovery
 reads at most the requested 1–256 records, verifies the hash chain, declaration
 and index/outcome agreement, and advances only through validated history. Reads
