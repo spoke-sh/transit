@@ -56,6 +56,7 @@ const Access = struct {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
+            .stream, .queue => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -68,6 +69,7 @@ const Access = struct {
                 .database => null,
                 .schema => a.reference(profile.database),
                 .table => a.reference(profile.initial_schema_authority),
+                .stream, .queue => return null,
             },
             .revision = 1,
         };

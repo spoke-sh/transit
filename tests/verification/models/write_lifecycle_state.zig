@@ -191,6 +191,7 @@ const CatAccess = struct {
             .database => cat_profile.database,
             .schema => if (id == 1) cat_profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
+            .stream, .queue => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -203,6 +204,7 @@ const CatAccess = struct {
                 .database => null,
                 .schema => a.reference(cat_profile.database),
                 .table => a.reference(cat_profile.initial_schema_authority),
+                .stream, .queue => return null,
             },
             .revision = 1,
         };
