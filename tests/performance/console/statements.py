@@ -27,7 +27,7 @@ def phases(timing):
     return int(match[1]), result
 
 
-def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_observer=None, cycles=1):
+def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_observer=None, cycles=1, warm_reads=1):
     shell = Console(fixture, mode='table', config=config)
     samples = defaultdict(list)
     expected = []
@@ -97,13 +97,15 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
         # With repeat=1 this keeps every steady-state case at zero or one row.
         for cycle in range(cycles):
             verify_table(call('select_cold' if cycle == 0 else 'select_empty', 'SELECT * FROM items;'), expected)
-            verify_table(call(('select_empty_warm' if not expected else 'select_one_warm') if cycles > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
+            for _ in range(warm_reads):
+                verify_table(call('select_empty_warm' if cycles > 1 or warm_reads > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
             for index in range(1, repeat + 1):
                 output = call('insert', f'INSERT INTO items (id, value) VALUES ({index}, {index * 10});')
                 assert output == 'Statement completed. Matched 1; changed 1.\n', output
                 expected.append((index, index * 10))
                 verify_table(call('select_after_write', 'SELECT * FROM items;'), expected)
-                verify_table(call(('select_empty_warm' if not expected else 'select_one_warm') if cycles > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
+                for _ in range(warm_reads):
+                    verify_table(call('select_one_warm' if cycles > 1 or warm_reads > 1 else 'select_warm', 'SELECT * FROM items;'), expected)
             typed_readback('select_json_after_insert')
             # Exercise changed/no-op/zero-match outcomes and read-after-write for
             # the other executable DML kinds. TRUNCATE has no execution contract.

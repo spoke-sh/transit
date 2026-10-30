@@ -112,7 +112,11 @@ readbacks, and returns the same persistent session to an empty table. The
 `select_empty_warm` and `select_one_warm` distributions keep cardinality fixed;
 only the first cycle's first SELECT is `select_cold`. Later cycles include a
 separate `select_empty` observation. Records include the zero-based cycle ordinal.
-This is a bounded, sequential workload, not a concurrent throughput experiment.
+Use `--statements --repeat 1 --warm-reads 50` to qualify unchanged reads separately
+from the mutation workload: it takes 50 empty and 50 one-row warm samples, with
+one verified INSERT/UPDATE/DELETE cycle. That run cannot qualify write latency
+distributions. Both profiles are bounded, sequential workloads, not concurrent
+throughput experiments.
 
 Add `--resources` to sample the persistent console and the owned installation
 process tree after each timed statement. Linux `/proc` supplies actual thread
