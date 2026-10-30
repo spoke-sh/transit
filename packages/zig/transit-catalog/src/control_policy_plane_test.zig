@@ -1,0 +1,562 @@
+const std = @import("std");
+const testing = std.testing;
+const c = @import("root.zig");
+const Access = c.AccessAndIdentity;
+const Delegation = c.DelegationAndSecrets;
+const ManagedDataflow = c.ManagedDataflow;
+
+test "AccessContext (ACTX1) validation, OIDC/JWKS rotation, and cross-issuer subject collision resistance" {
+    const now_ns: i64 = 1_700_000_000 * std.time.ns_per_s;
+    const ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 101,
+        .actor_kind = .human,
+        .subject_principal = 101,
+        .subject_kind = .human,
+        .login_role = 10,
+        .active_role = 10,
+        .credential_epoch = 1,
+        .policy_epoch = 5,
+        .assurance_level = .aal2_multi_factor,
+        .authenticated_at_ns = now_ns,
+        .verified_attributes = &.{
+            .{ .key = "tenant", .value = .{ .utf8 = "acme" } },
+            .{ .key = "clearance", .value = .{ .int64 = 3 } },
+        },
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    try ctx.validate();
+    try testing.expectEqualStrings("acme", ctx.lookupUtf8Attribute("tenant").?);
+    try testing.expectEqual(@as(i64, 3), ctx.lookupInt64Attribute("clearance").?);
+    const digest1 = try ctx.contextDigest();
+    var ctx_diff = ctx;
+    ctx_diff.policy_epoch = 6;
+    const digest2 = try ctx_diff.contextDigest();
+    try testing.expect(!std.mem.eql(u8, &digest1, &digest2));
+
+    // OIDC Issuer Profile & JWKS rotation
+    const idp: Access.OidcIssuerProfile = .{
+        .issuer_id = 10,
+        .realm_id = 1,
+        .issuer_uri = "https://idp.acme.example",
+        .expected_audiences = &.{"https://transit.acme.example/sql"},
+        .jwks_keys = &.{
+            .{ .issuer_id = 10, .kid = "key-2026-active", .key_epoch = 2, .state = .active, .expires_at_ns = now_ns + 3600 * std.time.ns_per_s },
+            .{ .issuer_id = 10, .kid = "key-2025-retired", .key_epoch = 1, .state = .revoked_or_retired, .expires_at_ns = now_ns + 3600 * std.time.ns_per_s },
+        },
+    };
+
+    const valid_claims: Access.OidcTokenClaims = .{
+        .issuer_uri = "https://idp.acme.example",
+        .external_subject = "alice@acme.example",
+        .audience = "https://transit.acme.example/sql",
+        .kid = "key-2026-active",
+        .token_kind = .api_access_token,
+        .issued_at_ns = now_ns - 60 * std.time.ns_per_s,
+        .not_before_ns = now_ns - 60 * std.time.ns_per_s,
+        .expires_at_ns = now_ns + 600 * std.time.ns_per_s,
+    };
+    try idp.validateToken(valid_claims, now_ns, true);
+
+    // Reject login id_token on API/query endpoints
+    var id_token_claims = valid_claims;
+    id_token_claims.token_kind = .login_id_token;
+    try testing.expectError(error.IdTokenNotPermittedForApiAccess, idp.validateToken(id_token_claims, now_ns, true));
+
+    // Reject wrong audience
+    var wrong_aud = valid_claims;
+    wrong_aud.audience = "https://other.service.example";
+    try testing.expectError(error.InvalidTokenAudience, idp.validateToken(wrong_aud, now_ns, true));
+
+    // Reject retired JWKS kid
+    var retired_kid = valid_claims;
+    retired_kid.kid = "key-2025-retired";
+    try testing.expectError(error.UnknownOrRevokedJwksKey, idp.validateToken(retired_kid, now_ns, true));
+
+    // PrincipalBindingDirectory collision resistance across issuers
+    var dir: Access.PrincipalBindingDirectory = .{};
+    try dir.bindPrincipal(1, 10, "alice", 101);
+    try dir.bindPrincipal(1, 20, "alice", 202); // Same external "sub", different issuer -> distinct PrincipalId
+    try testing.expectEqual(@as(u64, 101), try dir.resolvePrincipal(1, 10, "alice"));
+    try testing.expectEqual(@as(u64, 202), try dir.resolvePrincipal(1, 20, "alice"));
+    // Attempting to bind issuer 20's "alice" onto issuer 10's principal 101 must fail
+    try testing.expectError(error.IdentitySubjectCollision, dir.bindPrincipal(1, 20, "alice", 101));
+}
+
+test "SCIM 2.0 membership sync non-override of local restrictions and freshness/outage fail-closed guard" {
+    const now_ns: i64 = 1_700_000_000 * std.time.ns_per_s;
+    var dir: Access.PrincipalBindingDirectory = .{};
+    try dir.bindPrincipal(1, 10, "bob", 102);
+
+    const rules = [_]Access.RoleSyncRule{
+        .{ .role_id = 50, .external_group_name = "idp_analysts", .allow_external_membership_sync = true, .locally_revoked_principals = &.{999} },
+        .{ .role_id = 1, .external_group_name = "idp_admins", .allow_external_membership_sync = false },
+    };
+
+    // Valid SCIM sync preserves native local roles
+    const sync_ok = try Access.ScimProvisioningEngine.syncMemberships(
+        &dir,
+        102,
+        true,
+        &.{"idp_analysts"},
+        &rules,
+        &.{77},
+    );
+    try testing.expectEqual(@as(usize, 1), sync_ok.granted_external_count);
+    try testing.expectEqual(@as(u64, 50), sync_ok.granted_external_roles[0]);
+    try testing.expectEqual(@as(usize, 1), sync_ok.preserved_native_local_count);
+    try testing.expectEqual(@as(u64, 77), sync_ok.preserved_native_local_roles[0]);
+
+    // Mapping external group onto local-only role (`allow_external_membership_sync = false`) rejects
+    try testing.expectError(
+        error.ConflictingManagementSource,
+        Access.ScimProvisioningEngine.syncMemberships(&dir, 102, true, &.{"idp_admins"}, &rules, &.{77}),
+    );
+
+    // Local restriction hold (`ALTER PRINCIPAL ... DISABLE`) cannot be overridden by SCIM sync
+    try dir.setLocalRestrictionHold(102, true);
+    try testing.expectError(
+        error.LocalRestrictionOverridesExternalSync,
+        Access.ScimProvisioningEngine.syncMemberships(&dir, 102, true, &.{"idp_analysts"}, &rules, &.{77}),
+    );
+    try dir.setLocalRestrictionHold(102, false);
+
+    // Freshness watermark & fail-closed IdP outage guard
+    var guard: Access.MembershipFreshnessGuard = .{
+        .max_membership_staleness_ms = 60_000,
+        .idp_reachable = false,
+        .current_policy_epoch = 10,
+    };
+    var audit_log: Access.AccessAuditLog = .{};
+
+    // Stale external membership (verified 120s ago > 60s max, even though JWT expires in 600s) during IdP outage -> fails closed
+    const stale_ext_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 102,
+        .actor_kind = .human,
+        .subject_principal = 102,
+        .subject_kind = .human,
+        .login_role = 50,
+        .active_role = 50,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .authenticated_at_ns = now_ns - 120 * std.time.ns_per_s,
+        .enterprise_binding = .{
+            .issuer_id = 10,
+            .external_subject_digest = Access.PrincipalBindingDirectory.subjectDigest(10, "bob"),
+            .management_source = .external_iam_scim,
+            .membership_verified_at_ns = now_ns - 120 * std.time.ns_per_s,
+            .token_expires_at_ns = now_ns + 600 * std.time.ns_per_s,
+        },
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    try testing.expectError(
+        error.IdentityProviderUnavailable,
+        guard.verifyAccessAndFreshness(stale_ext_ctx, now_ns, &audit_log),
+    );
+    try testing.expectEqual(@as(usize, 1), audit_log.len);
+    try testing.expectEqual(Access.PolicyDenialCode.identity_provider_unavailable, audit_log.records[0].denial_code);
+    try testing.expect(!audit_log.records[0].containsRawCredentialsOrPayloads());
+
+    // Native local Ed25519 principal succeeds even while external IdP is unreachable
+    const native_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 1,
+        .actor_kind = .human,
+        .subject_principal = 1,
+        .subject_kind = .human,
+        .login_role = 1,
+        .active_role = 1,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .authenticated_at_ns = now_ns,
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    try guard.verifyAccessAndFreshness(native_ctx, now_ns, &audit_log);
+
+    // Offboarding advances `policy_epoch` and halts mid-stream disclosure
+    const new_epoch = try guard.offboardAndAdvanceEpoch(&dir, 102);
+    try testing.expectEqual(@as(u64, 11), new_epoch);
+    try testing.expectError(error.AccessRevoked, guard.verifyAccessAndFreshness(native_ctx, now_ns, &audit_log));
+}
+
+test "Delegation (DLG1) attenuation, human-only approval (APV1) separation of duties, and 8-action branch protection across all adapters" {
+    const now_ns: i64 = 1_700_000_000 * std.time.ns_per_s;
+
+    // Cannot mint a delegation hop containing human-only actions (`approve_proposal` or `execute_erasure`)
+    try testing.expectError(
+        error.CannotDelegateHumanOnlyAction,
+        Delegation.exchangeTokenToDelegationHop(1, .{
+            .subject_principal = 100,
+            .actor_principal = 201,
+            .requested_audience = 1000,
+            .requested_actions = .{ .select_data = true, .approve_proposal = true },
+            .requested_objects = &.{500},
+            .requested_branches = &.{ 1, 2 },
+            .current_policy_epoch = 10,
+            .expires_at_ns = now_ns + 3600 * std.time.ns_per_s,
+        }),
+    );
+
+    // Valid RFC 8693 token exchange -> Hop 1 (`human 100 -> agent 201`, restricted to NA)
+    const hop1 = try Delegation.exchangeTokenToDelegationHop(1, .{
+        .subject_principal = 100,
+        .actor_principal = 201,
+        .requested_audience = 1000,
+        .requested_actions = .{ .select_data = true, .propose_branch = true },
+        .requested_objects = &.{500},
+        .requested_branches = &.{ 1, 2 },
+        .requested_regions = &.{"NA"},
+        .current_policy_epoch = 10,
+        .expires_at_ns = now_ns + 3600 * std.time.ns_per_s,
+    });
+
+    const delegated_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 201,
+        .actor_kind = .agent,
+        .subject_principal = 100,
+        .subject_kind = .human,
+        .login_role = 10,
+        .active_role = 10,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .authenticated_at_ns = now_ns,
+        .has_delegation = true,
+        .delegation_depth = 1,
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 2 },
+    };
+
+    const chain: Delegation.DelegationChain = .{ .hops = &.{hop1} };
+    const subject_rights: Delegation.DelegationActionMask = .{
+        .select_data = true,
+        .mutate_data = true,
+        .propose_branch = true,
+        .approve_proposal = true,
+    };
+
+    // Permitted within attenuated scope (`select_data`, object 500, branch 2, region "NA")
+    try chain.evaluateAttenuatedAccess(
+        delegated_ctx,
+        subject_rights,
+        &.{ 500, 600 },
+        &.{ "NA", "EU" },
+        .{ .select_data = true },
+        500,
+        2,
+        "NA",
+        10,
+        now_ns,
+        true,
+    );
+
+    // Denied when requesting region "EU" (subject has "EU", but delegation hop attenuated to "NA")
+    try testing.expectError(
+        error.AccessDenied,
+        chain.evaluateAttenuatedAccess(
+            delegated_ctx,
+            subject_rights,
+            &.{ 500, 600 },
+            &.{ "NA", "EU" },
+            .{ .select_data = true },
+            500,
+            2,
+            "EU",
+            10,
+            now_ns,
+            true,
+        ),
+    );
+
+    // Denied when agent attempts to borrow human approval power
+    try testing.expectError(
+        error.DelegatedAgentCannotApprove,
+        chain.evaluateAttenuatedAccess(
+            delegated_ctx,
+            subject_rights,
+            &.{500},
+            &.{"NA"},
+            .{ .approve_proposal = true },
+            500,
+            2,
+            "NA",
+            10,
+            now_ns,
+            true,
+        ),
+    );
+
+    // Protected destination branch rejects direct writes across ALL 9 adapters
+    const head_digest: [32]u8 = @splat(0xAA);
+    const cand_digest: [32]u8 = @splat(0xBB);
+    const human_reviewer_ctx: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 105,
+        .actor_kind = .human,
+        .subject_principal = 105,
+        .subject_kind = .human,
+        .login_role = 10,
+        .active_role = 10,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .assurance_level = .aal2_multi_factor,
+        .authenticated_at_ns = now_ns,
+        .step_up_verified_at_ns = now_ns,
+        .target = .{ .audience = 1000, .target_object = 500, .branch_id = 1 },
+    };
+    const all_branch_actions = [_]Delegation.BranchCollaborationAction{
+        .inspect, .create_branch, .edit, .share, .propose, .approve, .merge, .external_activation,
+    };
+    const adapters = [_]Delegation.AdapterSurface{
+        .sql_session,         .direct_table_v1,    .direct_stream_v1,
+        .direct_queue_v1,     .document_partition, .kv_partition,
+        .arrow_flight_do_put, .sdk_client,         .mcp_tool,
+    };
+    for (adapters) |surface| {
+        try testing.expectError(
+            error.ProtectedBranchDirectWriteDenied,
+            Delegation.authorizeBranchOperation(
+                .protected_destination,
+                surface,
+                .edit,
+                human_reviewer_ctx,
+                &all_branch_actions,
+                10,
+                now_ns,
+                null,
+                head_digest,
+                cand_digest,
+            ),
+        );
+    }
+
+    // `branching_only` rejects all merges
+    try testing.expectError(
+        error.InstallationProhibitsMerge,
+        Delegation.authorizeBranchOperation(
+            .branching_only,
+            .sql_session,
+            .merge,
+            human_reviewer_ctx,
+            &all_branch_actions,
+            10,
+            now_ns,
+            null,
+            head_digest,
+            cand_digest,
+        ),
+    );
+
+    // Self-approval (proposer == approver) fails Separation of Duties
+    const self_approval: Delegation.ApprovalAttestation = .{
+        .realm_id = 1,
+        .approver_principal = 105,
+        .approver_role = 10,
+        .proposer_principal = 105,
+        .policy_epoch = 10,
+        .step_up_verified_at_ns = now_ns,
+        .target_object = 500,
+        .target_branch_id = 1,
+        .expected_target_head_digest = head_digest,
+        .candidate_manifest_digest = cand_digest,
+    };
+    try testing.expectError(
+        error.SeparationOfDutiesViolation,
+        Delegation.authorizeBranchOperation(
+            .protected_destination,
+            .sql_session,
+            .merge,
+            human_reviewer_ctx,
+            &all_branch_actions,
+            10,
+            now_ns,
+            self_approval,
+            head_digest,
+            cand_digest,
+        ),
+    );
+
+    // Distinct human reviewer (105 != proposer 100) with AAL2 step-up succeeds on reviewed merge
+    var valid_approval = self_approval;
+    valid_approval.proposer_principal = 100;
+    try Delegation.authorizeBranchOperation(
+        .protected_destination,
+        .sql_session,
+        .merge,
+        human_reviewer_ctx,
+        &all_branch_actions,
+        10,
+        now_ns,
+        valid_approval,
+        head_digest,
+        cand_digest,
+    );
+}
+
+test "SecretManager (SEC1) dual authorization and OAuth 2.1 + PKCE S256 challenge-response dataflow state machine" {
+    const now_ns: i64 = 1_700_000_000 * std.time.ns_per_s;
+
+    // 1. Plaintext secret literal in SQL declaration is rejected
+    const bad_plaintext_secret: Delegation.SecretDeclaration = .{
+        .secret_id = 1,
+        .name = "bad_inline_s3",
+        .kind = .s3,
+        .provider = .kms_envelope,
+        .provider_ref = "AKIA_RAW_PLAINTEXT",
+        .has_unsealed_plaintext_literal = true,
+        .scope_prefixes = &.{"s3://bucket/"},
+    };
+    try testing.expectError(error.PlaintextSecretLiteralForbidden, bad_plaintext_secret.validateForCatalog());
+
+    // 2. OAuth2 secret starts in `.pending_challenge` while dependent ManagedDataflow is `Suspended (credential_pending)`
+    var github_mcp_secret: Delegation.SecretDeclaration = .{
+        .secret_id = 42,
+        .name = "github_mcp_oauth",
+        .kind = .oauth2_bearer,
+        .provider = .oauth2_authorization_code_pkce,
+        .provider_ref = "vault://secrets/github/client_secret",
+        .scope_prefixes = &.{"https://api.githubcopilot.com/mcp/"},
+        .expected_audience = "https://api.githubcopilot.com/mcp/",
+        .rotation_epoch = 0,
+        .lease_state = .pending_challenge,
+        .usage_granted_principals = &.{100},
+        .policy_epoch = 10,
+    };
+    try github_mcp_secret.validateForCatalog();
+    const redacted = github_mcp_secret.inspectRedacted();
+    try testing.expectEqualStrings("REDACTED", redacted.secret_value_display);
+
+    var df = try ManagedDataflow.DataflowRuntime.publish(.{
+        .catalog_id = 1,
+        .dataflow_id = 700,
+        .name = "mcp_issue_sync_flow",
+        .definition_id = 1,
+        .kind = .dataflow,
+        .sources = &.{.{ .object_id = 10, .definition_id = 1 }},
+    });
+    try df.authorize(10);
+    df.state = .suspended;
+    df.blocked_reason = .credential_pending;
+
+    // 3. RFC 7636 Appendix B test vector for PKCE `S256`
+    const rfc7636_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    const expected_s256 = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
+    const computed_s256 = try Delegation.OauthChallengeGame.computePkceS256Challenge(rfc7636_verifier);
+    try testing.expectEqualStrings(expected_s256, &computed_s256);
+
+    const state_digest: [32]u8 = @splat(0x5A);
+    const challenges = [_]Delegation.OauthChallengeRecord{
+        .{
+            .challenge_id = 9001,
+            .secret_id = 42,
+            .principal_id = 100,
+            .state_digest = state_digest,
+            .pkce_code_challenge_s256 = computed_s256,
+            .issued_at_ns = now_ns - 30 * std.time.ns_per_s,
+            .expires_at_ns = now_ns + 300 * std.time.ns_per_s,
+        },
+    };
+
+    var game: Delegation.OauthChallengeGame = .{};
+
+    // Wrong PKCE verifier rejects without consuming the challenge
+    try testing.expectError(
+        error.OauthPkceVerificationFailed,
+        game.evaluateCallbackTurn(&challenges, .{
+            .callback_id = 1,
+            .state_digest = state_digest,
+            .authorization_code_handle = 555,
+            .pkce_code_verifier = "wrong_verifier_string_that_is_at_least_43_chars_long_12345",
+            .received_at_ns = now_ns,
+        }),
+    );
+
+    // Valid callback turn verifies PKCE S256 and emits a TokenExchangeOutboxIntent
+    const intent = try game.evaluateCallbackTurn(&challenges, .{
+        .callback_id = 2,
+        .state_digest = state_digest,
+        .authorization_code_handle = 555,
+        .pkce_code_verifier = rfc7636_verifier,
+        .received_at_ns = now_ns,
+    });
+    try testing.expectEqual(@as(u64, 42), intent.secret_id);
+    try testing.expectEqual(@as(u64, 9001), intent.challenge_id);
+
+    // Replaying the same callback/challenge is deterministically rejected by anti-replay (`NOT EXISTS`)
+    try testing.expectError(
+        error.OauthChallengeReplayDetected,
+        game.evaluateCallbackTurn(&challenges, .{
+            .callback_id = 3,
+            .state_digest = state_digest,
+            .authorization_code_handle = 555,
+            .pkce_code_verifier = rfc7636_verifier,
+            .received_at_ns = now_ns + 1,
+        }),
+    );
+
+    // 4. Connector seals token lease (`rotation_epoch = 1`), schedules proactive refresh, and wakes `df` to `.active`
+    const refresh_entry = try Delegation.OauthChallengeGame.sealTokenLeaseAndWakeDataflow(
+        &github_mcp_secret,
+        now_ns + 3600 * std.time.ns_per_s,
+        300 * std.time.ns_per_s,
+        &df,
+    );
+    try testing.expectEqual(@as(u64, 1), github_mcp_secret.rotation_epoch);
+    try testing.expectEqual(Delegation.SecretLeaseState.active_lease, github_mcp_secret.lease_state);
+    try testing.expectEqual(ManagedDataflow.LifecycleState.active, df.state);
+    try testing.expectEqual(ManagedDataflow.BlockedReason.none, df.blocked_reason);
+    try testing.expectEqual(now_ns + 3300 * std.time.ns_per_s, refresh_entry.visible_at_ns);
+
+    // 5. Dual authorization (`USAGE ON SECRET` + `SCOPE` + `AUDIENCE` match)
+    const authorized_caller: Access.AccessContext = .{
+        .realm_id = 1,
+        .actor_principal = 100,
+        .actor_kind = .human,
+        .subject_principal = 100,
+        .subject_kind = .human,
+        .login_role = 10,
+        .active_role = 10,
+        .credential_epoch = 1,
+        .policy_epoch = 10,
+        .authenticated_at_ns = now_ns,
+        .target = .{ .audience = 1000, .target_object = 42, .branch_id = 1 },
+    };
+    const handle = try github_mcp_secret.resolveForDestination(
+        authorized_caller,
+        "https://api.githubcopilot.com/mcp/v1/tools",
+        "https://api.githubcopilot.com/mcp/",
+        true,
+        10,
+        now_ns,
+    );
+    try testing.expectEqual(@as(u64, 1), handle.rotation_epoch);
+
+    // Mismatched URI scope prefix rejects (`error.SecretScopeMismatch`)
+    try testing.expectError(
+        error.SecretScopeMismatch,
+        github_mcp_secret.resolveForDestination(
+            authorized_caller,
+            "https://evil.example.com/mcp/",
+            "https://api.githubcopilot.com/mcp/",
+            true,
+            10,
+            now_ns,
+        ),
+    );
+
+    // Caller without `USAGE ON SECRET` rejects (`error.MissingSecretUsagePrivilege`) even when URI matches `SCOPE`
+    var unauthorized_caller = authorized_caller;
+    unauthorized_caller.actor_principal = 999;
+    unauthorized_caller.subject_principal = 999;
+    try testing.expectError(
+        error.MissingSecretUsagePrivilege,
+        github_mcp_secret.resolveForDestination(
+            unauthorized_caller,
+            "https://api.githubcopilot.com/mcp/v1/tools",
+            "https://api.githubcopilot.com/mcp/",
+            true,
+            10,
+            now_ns,
+        ),
+    );
+}
