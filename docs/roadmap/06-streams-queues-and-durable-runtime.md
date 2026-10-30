@@ -353,7 +353,8 @@ R2's typed declaration lifecycle now passes its local catalog/native service
 gate, with [executed evidence](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29).
 R0/R1 retain contract/model and integrated maintenance obligations. R3 has a
 disk-backed storage owner, signed typed payload/consumer operations and bounded
-wait composition. Automatic maintenance and full exit qualification remain open.
+wait composition and automatic local maintenance. Sparse physical payload
+rewriting and full exit qualification remain open.
 R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
 storage and catalog integration without enabling Queue execution or SQL verbs.
@@ -390,9 +391,14 @@ The current progress slice delivers:
   concurrent host tests for timeout without acceptance, original cut recovery,
   append wakeup, cancellation and revocation after parking. The rebased
   [HTTP and contract checks](../history/qualification/catalog.md#bounded-stream-consume-waits-and-main-integration--2026-10-30)
-  pass, including reserved wait admission and original read recovery. Automatic
-  service scheduling, sparse payload rewriting and installed
-  qualification remain open.
+  pass, including reserved wait admission and original read recovery.
+  Automatic local scheduling passes a
+  [native disk schedule](../history/qualification/catalog.md#automatic-local-stream-maintenance--2026-10-30)
+  covering bounded recovery, executor replacement, finite archive/compaction
+  completion, retained reads, clock refusal and opted-in expiry under quota.
+  Table and Stream work share a measured allocation budget; disposable validated
+  prefix hints avoid repeated historical replay between units. Sparse payload
+  rewriting and installed qualification remain open.
 
 The next implementation work is to finish that R3 service slice, then implement
 R4's durable Queue claim/lease/timer/FIFO/DLQ owner, R5's direct KV and common
@@ -405,7 +411,7 @@ their declarations or neutral data types.
 | R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
 | R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
-| R3 | Partial: storage append, retained reads, groups and maintenance; service composition open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
+| R3 | Partial: signed payload/read/group operations, bounded waits and local maintenance; sparse rewriting and full qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
 | R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |

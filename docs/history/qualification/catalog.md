@@ -9,6 +9,68 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Automatic local Stream maintenance — 2026-10-30
+
+The working implementation subsequently committed as `1a9c87274`, including
+the recovery-prefix change `f87b54771`, passes the native `log privileges`
+schedule on local disk. It drives the real catalog and shared maintenance
+executor through **195 units**, with **20,268,442 peak private allocated bytes**
+inside a 32 MiB budget. The setup accepts and releases 130 reads, creating a
+history longer than one replay budget without an unbounded active-pin set.
+Executor replacement discards its caches and hints; later units resume accepted
+work, finish both partitions, and become idle. Original finite reads remain
+usable after compaction, archive, checkpoint and physical WAL trim.
+
+The same schedule changes retention through the signed catalog. Missing trusted
+time refuses expiry without advancing the data log. With an authoritative
+interval, timed eligible history expires using the control reserve after
+ordinary quota is filled. The other partition's previously untimed data remains
+retained. Current native authorization still gates final disclosure.
+
+The first combined native attempt was stopped incomplete after diagnosing
+repeated full recovery between archive units. It is not a pass. The final
+executor keeps at most 64 same-process prefix hints, verifies their accepted
+boundaries, and replays at most 16 frames per turn. Storage disk controls reject
+altered hint roots and commitments, recheck current permission, and prefer newer
+accepted checkpoints after WAL trim. Catalog traversal tests cover every
+partition in a fixed object pass, later high-ID creation, Queue/private skips,
+and denial before returning a selection or definition.
+
+The native test executable's SHA-256 is
+`0b5a9aded0daea2e1f5fd846fb111dad1f5f9db7d1518e046942b3281530a73d`.
+Logs are `/var/tmp/transit-stream-maintenance-native-hints.log`,
+`/var/tmp/transit-stream-maintenance-hints.log` and
+`/var/tmp/transit-stream-maintenance-catalog.log`. The workspace fast check
+passes all 48 checks. These executions do not establish a committed-source clean
+lane, installed background-loop qualification, sparse physical payload
+rewriting, or Queue execution.
+
+## Retained Stream maintenance targets — 2026-10-30
+
+The storage change `b30758a87` passes the pinned-shell Stream partition and log
+read suites. New disk cases lose archive replies with archive and compaction
+targets active, reopen the providers, admit later input outside the original
+cuts, and run bounded units until both become idle. WAL trim and another reopen
+preserve original append receipts and earlier pinned visibility. Every unit
+publishes at most one record. Further idle calls accept none. A separate replay
+control rejects a locally well-formed root that invents archive completion.
+Retirement closes only an unpublished compaction candidate.
+
+The committed-source core attempt at that revision stopped in the fast query
+fixture check: the shared definition had changed but the independently hashed
+Table descriptor fingerprint had not been regenerated. `107e9bc9e` regenerates
+that fingerprint and its query-policy reference with the Python owner. The
+subsequent workspace fast check passes all 48 checks. This is not a completed
+clean-core result. The failed clean checkout and phase evidence remain at
+`/var/tmp/transit-ci-5j06uv3u`.
+
+Logs are `/var/tmp/transit-stream-maintenance-storage.log`,
+`/var/tmp/transit-stream-maintenance-all-storage.log`,
+`/var/tmp/transit-stream-clean-core.log` and
+`/var/tmp/transit-stream-maintenance-fast.log`. These results qualify storage
+transitions and fixture reconciliation; they do not yet qualify the automatic
+native scheduler or sparse physical payload rewriting.
+
 ## Bounded Stream consume waits and main integration — 2026-10-30
 
 The bounded-wait implementation `4caf380fa` is rebased on `a4e695de6`, including
