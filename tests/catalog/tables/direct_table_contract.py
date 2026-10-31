@@ -390,7 +390,7 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-resource-v1.jso
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.
-native_intent = {"namespace": 1, "name": {"len": 6, "bytes": "events" + "\0" * 57}, "action": {"drop": {}}}
+native_intent = {"kind": "table", "namespace": 1, "name": {"len": 6, "bytes": "events" + "\0" * 57}, "action": {"drop": {}}}
 intent_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(native_intent)).digest()
 target = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
 binding = {
