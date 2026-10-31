@@ -214,11 +214,15 @@ def main():
                         help='measure fresh startup and this many retained restarts, with phase logs and verified readback')
     parser.add_argument('--startup-ui', action='store_true',
                         help='include Board in the installed startup/readback workload')
+    parser.add_argument('--startup-default', action='store_true',
+                        help='use embedded roles with Board and the application manager enabled')
     parser.add_argument('--startup-debug', action='store_true',
                         help='attribute startup operations in a separate debug diagnostic run')
     args = parser.parse_args()
-    if (args.startup_ui or args.startup_debug) and args.startup_restarts is None:
-        parser.error('--startup-ui and --startup-debug require --startup-restarts')
+    if (args.startup_ui or args.startup_default or args.startup_debug) and args.startup_restarts is None:
+        parser.error('--startup-ui, --startup-default and --startup-debug require --startup-restarts')
+    if args.startup_default and (args.resident_pages is not None or args.worker_interval_ms is not None):
+        parser.error('--startup-default uses the embedded roles without executable overrides')
     if args.startup_restarts is not None and (args.statements or args.rows or args.single or args.age_queries or args.representations or args.historical_result_profile or args.instrument or args.local_trace or args.remote_sql or args.repeat != 1):
         parser.error('--startup-restarts is a separate startup/readback workload')
     if args.cycles > 1 and (not args.statements or args.repeat != 1):
@@ -235,9 +239,11 @@ def main():
         parser.error('--historical-result-profile requires --binary-revision')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Fixture(args.cli, args.node, args.host)
-    if args.startup_ui:
+    if args.startup_ui or args.startup_default:
         fixture.no_ui = False
         fixture.config['board'] = dict(port=fixture.reserve_port())
+    if args.startup_default:
+        fixture.config['applications'] = dict(port=fixture.reserve_port())
     success = False
     probes = {}
     try:
@@ -262,6 +268,9 @@ def main():
         override(fixture, 'node', node_fields, stderr_path=trace_path)
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                                        'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
+        if args.startup_default:
+            del fixture.config['executables']
+            binaries = {'cli': fixture.cli}
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
               'driver_helpers': {name: digest(ROOT / 'tests' / name) for name in (
@@ -282,6 +291,7 @@ def main():
               'local_trace': args.local_trace,
               'startup_restarts': args.startup_restarts,
               'startup_ui': args.startup_ui,
+              'startup_default': args.startup_default,
               'startup_debug': args.startup_debug,
               'cache_condition': 'new process for each start; OS caches are not evicted' if args.startup_restarts is not None else 'post-bootstrap; later queries share the node cache',
               'probe_scope': ('SQL gateway HTTP upstream only' if args.remote_sql else 'co-hosted SQL typed attempts; no per-operation HTTP trace') if args.instrument else None,

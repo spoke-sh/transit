@@ -45,6 +45,9 @@ restart with the same installation identity and provisioning receipts. It never
 opens the user's installation. A failed run retains its private fixture.
 Add `--startup-ui` to include Board and verify its public atlas before measuring
 the SQL result. Keep these samples separate from the headless profile.
+Use `--startup-default` for embedded roles in the single executable with Board
+and the application manager enabled. It removes executable overrides and records
+only the CLI digest; keep this profile separate from standalone role binaries.
 
 Each raw `startup` sample reports external `ready_ns`, separate console
 `verification_ns`, launch-inclusive `first_verified_result_ns`, phase durations
