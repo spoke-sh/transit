@@ -37,12 +37,32 @@ export function validateReadResponse(value: unknown): value is ReadResponse {
   );
 }
 
-/** One bounded same-origin request. No implicit execute, next-window or SQL retry. */
+/** Retry only explicit pre-dispatch throttling with the exact same request. */
 export const readTransport: ReadTransport = async (request, signal) => {
   if (!boundedQueryJson(request) || !validRequest(request))
     throw new QueryError(0, "InvalidRequest");
   const body = JSON.stringify(request);
   if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
+  for (let attempt = 0; ; attempt++) {
+    signal?.throwIfAborted();
+    try {
+      return await readAttempt(body, signal);
+    } catch (cause) {
+      if (
+        !(cause instanceof QueryError) ||
+        cause.status !== 429 ||
+        cause.code !== "RateLimited" ||
+        attempt >= 3 ||
+        signal?.aborted
+      )
+        throw cause;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+};
+
+/** One bounded attempt; unknown outcomes never cause implicit SQL replay. */
+async function readAttempt(body: string, signal?: AbortSignal): Promise<ReadResponse> {
   const response = await fetch("/api/v1/sql-read", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -85,7 +105,7 @@ export const readTransport: ReadTransport = async (request, signal) => {
   }
   if (!validateReadResponse(value)) throw new QueryError(0, "InvalidResponse");
   return value;
-};
+}
 
 export async function describeReads(
   signal?: AbortSignal,

@@ -1,13 +1,15 @@
-import { describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import {
   StatementReader,
   readDefinition,
+  readTransport,
   validateReadResponse,
   type ReadTransport,
   type ResultView,
 } from "./read";
 import type { ReadRequest, ReadResponse } from "./read-types";
 const id = "a".repeat(32);
+afterEach(() => vi.unstubAllGlobals());
 function result(overrides: Partial<ResultView> = {}): ReadResponse {
   return {
     result: {
@@ -29,6 +31,54 @@ function result(overrides: Partial<ResultView> = {}): ReadResponse {
   };
 }
 describe("shared statement reader", () => {
+  test("pre-dispatch throttling preserves the original statement and has a finite retry budget", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ err: "RateLimited" }, { status: 429 }))
+      .mockResolvedValueOnce(Response.json(result()));
+    vi.stubGlobal("fetch", fetcher);
+    const reader = new StatementReader("SHOW TABLES", readTransport, id);
+    await reader.run();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[0]?.[1].body).toBe(fetcher.mock.calls[1]?.[1].body);
+    fetcher.mockImplementation(async () => Response.json({ err: "RateLimited" }, { status: 429 }));
+    await expect(reader.refresh()).rejects.toMatchObject({ status: 429, code: "RateLimited" });
+    expect(fetcher).toHaveBeenCalledTimes(6);
+  });
+
+  test("capacity refusals and uncertain responses never replay SQL", async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    for (const [status, err] of [
+      [429, "ReadWorkspaceCapacity"],
+      [503, "IncompleteResult"],
+      [403, "Forbidden"],
+    ] as const) {
+      fetcher.mockResolvedValueOnce(Response.json({ err }, { status }));
+      await expect(
+        new StatementReader("SHOW TABLES", readTransport, id).run(),
+      ).rejects.toMatchObject({ status, code: err });
+    }
+    fetcher.mockRejectedValueOnce(new Error("reply lost"));
+    await expect(new StatementReader("SHOW TABLES", readTransport, id).run()).rejects.toThrow(
+      "reply lost",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
+  test("cancelling a throttled request prevents another dispatch", async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn(async () => {
+      setTimeout(() => controller.abort(), 10);
+      return Response.json({ err: "RateLimited" }, { status: 429 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await expect(
+      readTransport({ definition: readDefinition, action: { describe: {} } }, controller.signal),
+    ).rejects.toThrow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   test("validates full-width cells, terminal coverage and empty results", () => {
     expect(validateReadResponse(result())).toBe(true);
     expect(validateReadResponse(result({ rows: [], delivered: "0", complete_rows: "0" }))).toBe(
