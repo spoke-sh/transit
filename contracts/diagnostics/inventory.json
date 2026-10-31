@@ -783,7 +783,8 @@
           "node",
           "query_host",
           "sql_gateway",
-          "board"
+          "board",
+          "browser"
         ]
       },
       "error_sets": {},
@@ -800,6 +801,7 @@
         "builtin",
         "std",
         "transit_board_role",
+        "transit_browser_role",
         "transit_node_role",
         "transit_query_host_role",
         "transit_sql_gateway_role"
@@ -1302,7 +1304,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 17
       },
       "imports": [
@@ -1612,6 +1614,7 @@
           "courier",
           "gateway",
           "board",
+          "browser",
           "sql"
         ],
         "worker().Common.role": [
@@ -1633,13 +1636,14 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 92,
+        "try": 96,
         "catch": 9
       },
       "imports": [
         "../Diagnostic.zig",
         "../Options.zig",
         "../Output.zig",
+        "../RuntimeRole.zig",
         "../Signals.zig",
         "Applications.zig",
         "Board.zig",
@@ -1654,6 +1658,7 @@
         "Sql.zig",
         "Tables.zig",
         "std",
+        "transit_browser_role",
         "transit_query",
         "transit_sql_host"
       ]
