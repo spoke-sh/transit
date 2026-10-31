@@ -499,10 +499,12 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const staged_bytes_before = engine.journal.observe.metrics.request_payload_bytes;
     const staged = try dispatch(&service, .{ .stage = .{ .namespace = 1, .intent = saved.parsed.value } });
     defer staged.deinit();
-    // Staging appends no native transition. Its exact immutable intent bytes
-    // must nevertheless appear in the Table request's provider diagnostics.
+    // Staging appends no native transition. Both the immutable intent and its
+    // original operation binding are charged to the Table request diagnostics.
     try t.expectEqual(native_before_stage, engine.head.position);
-    try t.expectEqual(staged.value.result.staged.content.bytes, engine.journal.observe.metrics.request_payload_bytes - staged_bytes_before);
+    var binding_bytes: [c.OperationBinding.max_bytes]u8 = undefined;
+    const staged_binding = try c.OperationBinding.encodeData(statement.binding, &binding_bytes);
+    try t.expectEqual(staged.value.result.staged.content.bytes + staged_binding.bytes.len, engine.journal.observe.metrics.request_payload_bytes - staged_bytes_before);
     try (try saved.reference(1)).requireSame(staged.value.result.staged);
     const token_binding: c.DirectClientToken.Binding = .{
         .key = .{ .definition = g.current_definition, .connection = saved.parsed.value.connection, .account = @splat(4), .token = @splat(5) },

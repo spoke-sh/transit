@@ -8,8 +8,13 @@ the same owning definitions. This package does not compile SQL or confer authori
 `StatementReader` and `describeReads` bind the shared Zig SQL client's
 `ReadWorkspace` through its generated schema. `run` submits once; `refresh` checks
 the original reader; `next` requests a bounded display window; `close` releases it.
-A failed response never implicitly executes SQL again. Runtime validation checks
-typed cells, full-width counts, result identity and completion. Requests are
+A failed response never implicitly executes SQL again.
+Pre-dispatch `429 RateLimited` responses retry the identical request at most
+three times, waiting 250 ms between attempts within one six-second deadline.
+Capacity refusals, lost responses,
+other errors and cancellation do not retry or create replacement statements.
+Runtime validation checks typed cells, full-width counts, result identity and
+completion. Requests are
 limited to 64 KiB and replies to 4 MiB. The facade defaults to Board's same-origin
 `/api/v1/sql-read`; an injected `ReadTransport` must preserve that contract.
 Consumers clear cached presentation on every failed observation and close on

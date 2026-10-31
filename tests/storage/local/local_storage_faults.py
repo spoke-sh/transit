@@ -109,53 +109,72 @@ def run(binary):
                 assert call(directory, "wal-advance") == {"tail": len(payloads) + 1}
                 rows(directory, floor, [*payloads, "successor"])
 
-        for operation in ("replace", "immutable"):
-            for point in [*(f"sync-{i}" for i in range(1, 6)), "content-link-1", "content-link-2", "publish", "ack"]:
-                directory = root / f"objects-{operation}-{point}"
-                assert call(directory, "objects-init") == {"initialized": True}
-                kill(directory, f"objects-{operation}", point)
-                published = point in ("sync-5", "publish", "ack")
-                key = "head" if operation == "replace" else "new.tseg"
-                expected = ("after" if published else "before") if operation == "replace" else (
-                    "immutable" if published else None)
-                result = call(directory, "objects-inspect", key)
-                assert result["value"] == expected, (operation, point, result)
-                if expected is None:
-                    assert result["meta"] is None
-                else:
-                    assert result["meta"]["size"] == len(expected)
-                    assert bytes(result["meta"]["sha256"]) == hashlib.sha256(expected.encode()).digest()
-                # Recover using the same content/condition, not an unconditional
-                # overwrite. Immutable retries must verify previously linked bytes.
-                retried = call(directory, f"objects-{operation}")
-                assert retried == {"accepted": operation == "immutable" or not published}
-                assert call(directory, "objects-inspect", key)["value"] == (
-                    "after" if operation == "replace" else "immutable")
-                if operation == "immutable":
-                    assert call(directory, "objects-conflict") == {"conflict": True}
-        for point in [*(f"sync-{i}" for i in range(1, 9)),
-                      *(f"content-link-{i}" for i in range(1, 5)),
-                      "publish", "publish-2", "ack"]:
-            directory = root / f"objects-batch-{point}"
-            assert call(directory, "objects-init") == {"initialized": True}
-            kill(directory, "objects-batch", point)
-            for index, (key, value) in enumerate((("batch-a", "first"), ("batch-b", "second"))):
-                visible = point in ({"sync-7", "sync-8", "publish", "publish-2", "ack"}
-                                    if index == 0 else {"sync-8", "publish-2", "ack"})
-                result = call(directory, "objects-inspect", key)
-                assert result["value"] == (value if visible else None), (point, key, result)
-            assert call(directory, "objects-batch") == {"accepted": True}
-            for key, value in (("batch-a", "first"), ("batch-b", "second")):
-                result = call(directory, "objects-inspect", key)
-                assert result["value"] == value, (point, key, result)
-                assert bytes(result["meta"]["sha256"]) == hashlib.sha256(value.encode()).digest()
+        # Small objects derive chunk checksums from their descriptor; larger
+        # objects also publish a checks file. Cover every barrier in both paths.
+        for scale in (1, 16384):
+            large = scale != 1
+            suffix = "-large" if large else ""
+            def object_call(directory, operation, point="none"):
+                return call(directory, f"objects-{operation}{suffix}", point)
+            for operation in ("replace", "immutable"):
+                for point in [*(f"sync-{i}" for i in range(1, 6 if large else 5)), *(f"content-link-{i}" for i in range(1, 3 if large else 2)), "publish", "ack"]:
+                    directory = root / f"objects-{scale}-{operation}-{point}"
+                    assert object_call(directory, "init") == {"initialized": True}
+                    kill(directory, f"objects-{operation}{suffix}", point)
+                    published = point in ("sync-5" if large else "sync-4", "publish", "ack")
+                    key = "head" if operation == "replace" else "new.tseg"
+                    expected = ("after" if published else "before") if operation == "replace" else (
+                        "immutable" if published else None)
+                    expected = expected * scale if expected is not None else None
+                    result = object_call(directory, "inspect", key)
+                    assert result["value"] == expected, (operation, point, result)
+                    if expected is None:
+                        assert result["meta"] is None
+                    else:
+                        assert result["meta"]["size"] == len(expected)
+                        assert bytes(result["meta"]["sha256"]) == hashlib.sha256(expected.encode()).digest()
+                    # Recover using the same content/condition, not an unconditional
+                    # overwrite. Immutable retries must verify previously linked bytes.
+                    retried = object_call(directory, operation)
+                    assert retried == {"accepted": operation == "immutable" or not published}
+                    assert object_call(directory, "inspect", key)["value"] == (
+                        "after" if operation == "replace" else "immutable") * scale
+                    if operation == "immutable":
+                        assert object_call(directory, "conflict") == {"conflict": True}
+            for point in [*(f"sync-{i}" for i in range(1, 9 if large else 7)),
+                          *(f"content-link-{i}" for i in range(1, 5 if large else 3)),
+                          "publish", "publish-2", "ack"]:
+                directory = root / f"objects-{scale}-batch-{point}"
+                assert object_call(directory, "init") == {"initialized": True}
+                kill(directory, f"objects-batch{suffix}", point)
+                for index, (key, value) in enumerate((("batch-a", "first"), ("batch-b", "second"))):
+                    visible = point in ({f"sync-{7 if large else 5}", f"sync-{8 if large else 6}", "publish", "publish-2", "ack"}
+                                        if index == 0 else {f"sync-{8 if large else 6}", "publish-2", "ack"})
+                    result = object_call(directory, "inspect", key)
+                    assert result["value"] == (value * scale if visible else None), (point, key, result)
+                assert object_call(directory, "batch") == {"accepted": True}
+                for key, value in (("batch-a", "first"), ("batch-b", "second")):
+                    result = object_call(directory, "inspect", key)
+                    assert result["value"] == value * scale, (point, key, result)
+                    assert bytes(result["meta"]["sha256"]) == hashlib.sha256((value * scale).encode()).digest()
 
-        def table_rows(directory, archived):
+        def table_rows(directory, archived, next_segment=1):
             result = call(directory, "table-inspect")
             assert result == dict(archived=archived, tail=3 + archived, rows=2,
-                                  pinned=1, receipt=1, history=2, current=[1, 2], next_segment=1), result
+                                  pinned=1, receipt=1, history=2, current=[1, 2], next_segment=next_segment), result
 
-        archive_points = ["sync-1", "sync-4", "sync-5", "sync-9", "sync-10",
+        def staging_points(operation, initialize="init"):
+            directory = root / f"staging-probe-{operation}"
+            assert call(directory, f"table-{initialize}") == {"tail": 3}
+            # Discover only the physical cut points, never the expected result.
+            # The child exits at the second guard, before WAL acceptance.
+            count = call(directory, f"table-{operation}", "staging-boundaries")["syncs"]
+            assert 0 < count <= 32, (operation, count)
+            table_rows(directory, 0, next_segment=3 if initialize == "compact-init" else 1)
+            return [f"stage-sync-{i}" for i in range(1, count + 1)]
+
+        archive_staging = staging_points("archive")
+        archive_points = [*archive_staging,
                           "before-accept", "accept-write", "accept-sync-1",
                           "accept-sync-2", "accept-sync-3", "accept-publish",
                           "accept-sync-4", "ack"]
@@ -184,11 +203,10 @@ def run(binary):
                 assert not (directory / "wal" / f"part-17-{lsn}.twal").exists()
             table_rows(directory, 3)
 
-        # Cross-tree index batching ends staging at sync 13. The old global
-        # syncs 14/15 now belong to WAL acceptance, covered explicitly below.
+        # Staging and WAL acceptance have separate fault selectors.
         # Keep the last two staging barriers before any acceptance frame exists.
-        compact_points = ["sync-1", "sync-4", "sync-5", "sync-9", "sync-10",
-                          "sync-12", "sync-13", "before-accept", "accept-write",
+        compact_staging = staging_points("compact", "compact-init")
+        compact_points = [*compact_staging, "before-accept", "accept-write",
                           "accept-sync-1", "accept-sync-2", "accept-sync-3",
                           "accept-publish", "accept-sync-4", "ack"]
         for point in compact_points:
@@ -206,7 +224,8 @@ def run(binary):
             assert call(directory, "table-compact-inspect") == expected
             assert call(directory, "table-compact") == dict(next_segment=4, rows=0)
             assert call(directory, "table-compact-inspect") == expected
-        checkpoint_points = [*(f"sync-{i}" for i in range(1, 6)), "before-accept",
+        checkpoint_staging = staging_points("checkpoint")
+        checkpoint_points = [*checkpoint_staging, "before-accept",
                              "accept-write", "accept-sync-1", "accept-sync-2",
                              "accept-sync-3", "accept-publish", "accept-sync-4", "ack"]
         for point in checkpoint_points:
@@ -288,9 +307,8 @@ def run(binary):
                 assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
                 assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
                 assert metadata(directory / "wal")["floor"] == 0
-    # The original 150 schedules plus all eight batch syncs, four content links,
-    # two descriptor replacements and the grouped acknowledgement.
-    assert schedules == 165, schedules
+    # Both small and multi-chunk object publication schedules are required.
+    assert schedules == 173 + len(archive_staging) + len(compact_staging) + len(checkpoint_staging), schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
           "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "

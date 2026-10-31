@@ -230,12 +230,20 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   page,
 }) => {
   let unavailable = false,
+    throttleRetry = false,
+    throttles = 0,
     runs = 0;
   await page.route("**/api/v1/sql-read", async (route) => {
     const action = route.request().postDataJSON().action;
     if (action.run) runs++;
     if (unavailable && action.describe) {
       await route.fulfill({ status: 503, json: { err: "Unavailable", diagnostic: null } });
+      return;
+    }
+    if (throttleRetry && action.describe) {
+      throttleRetry = false;
+      throttles++;
+      await route.fulfill({ status: 429, json: { err: "RateLimited", diagnostic: null } });
       return;
     }
     await route.continue();
@@ -253,8 +261,10 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   await expect(inspector).toBeHidden();
   await expect(page.getByText(/Population:/)).toHaveCount(0);
   unavailable = false;
+  throttleRetry = true;
   await page.getByRole("button", { name: "Retry read", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(inspector).toBeHidden();
   expect(runs).toBe(1);
+  expect(throttles).toBe(1);
 });

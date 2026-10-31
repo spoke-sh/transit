@@ -29,7 +29,7 @@ fn main()->Result<()>{
     for line in io::stdin().lock().lines(){let action:Value=serde_json::from_str(&line?)?;let (command,_)=action.as_object().unwrap().iter().next().unwrap();if command=="close"{break}
         let result=match command.as_str(){
             "prepare"=>{
-                let description=client.describe()?;assert_eq!(description.subject.principal,number(c,"principal"));assert_eq!((description.configuration.authority.stream_domain,description.configuration.authority.queue_domain),(31,32));assert_eq!(client.namespace(1)?.unwrap().name,"public");assert!(client.namespaces(None)?.entries.iter().any(|n|n.id==1));
+                let description=client.describe()?;assert_eq!(description.subject.principal,number(c,"principal"));assert_eq!((description.configuration.authority.stream_domain,description.configuration.authority.queue_domain),(number(&config["expected_authority"],"stream_domain"),number(&config["expected_authority"],"queue_domain")));assert_eq!(client.namespace(1)?.unwrap().name,"public");assert!(client.namespaces(None)?.entries.iter().any(|n|n.id==1));
                 let work=compile(&mut client,&format!("CREATE TABLE {name} (id BIGINT PRIMARY KEY, payload BINARY)"),1,Some(object))?;complete(&mut client,work,&directory)?;
                 eprintln!("Rust direct prepare: current definition");let current=client.lookup(name,1)?.unwrap();assert_eq!(current.row_count,0);assert_eq!(current.basis.object(),object);
                 let rows=(0..9).map(|i|vec![assignment(1,atom(l::Atom::Signed(i))),assignment(2,atom(l::Atom::Binary(vec![i as u8;32768])))]).collect();

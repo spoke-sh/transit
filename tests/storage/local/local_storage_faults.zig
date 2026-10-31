@@ -30,7 +30,7 @@ const Fault = struct {
     fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
         try real.vtable.fileSync(context, file);
         sync_count += 1;
-        if (numbered("sync", sync_count)) stop();
+        if (numbered("sync", sync_count) or numbered("stage-sync", sync_count)) stop();
     }
     fn write(context: ?*anyopaque, file: std.Io.File, header: []const u8, data: []const []const u8, splat: usize, offset: u64) std.Io.File.WritePositionalError!usize {
         if (std.mem.eql(u8, point, "write")) {
@@ -159,35 +159,50 @@ fn wal(init: std.process.Init, io: std.Io, directory: []const u8, operation: []c
     try emit(init, .{ .tail = try log.tail(17) });
 }
 
-fn objects(init: std.process.Init, io: std.Io, directory: []const u8, operation: []const u8, point: []const u8) !void {
+fn objectValue(comptime bytes: []const u8, large: bool) []const u8 {
+    const Expanded = struct {
+        const value = blk: {
+            @setEvalBranchQuota(32768);
+            var output: [bytes.len * 16384]u8 = undefined;
+            for (0..16384) |i| @memcpy(output[i * bytes.len ..][0..bytes.len], bytes);
+            break :blk output;
+        };
+    };
+    return if (large) &Expanded.value else bytes;
+}
+
+fn objects(init: std.process.Init, io: std.Io, directory: []const u8, selected: []const u8, point: []const u8) !void {
+    const large = std.mem.endsWith(u8, selected, "-large");
+    const operation = if (large) selected[0 .. selected.len - 6] else selected;
     var owner = try storage.LocalSegmentStore.LocalSegmentStore.openDisk(init.gpa, io, directory);
     defer owner.deinit();
     const store = owner.objectStore();
     if (std.mem.eql(u8, operation, "init")) {
-        if (!try store.putConditional("head", .if_none_match, "before")) return error.WrongCondition;
+        if (!try store.putConditional("head", .if_none_match, objectValue("before", large))) return error.WrongCondition;
         return emit(init, .{ .initialized = true });
     }
     if (std.mem.eql(u8, operation, "inspect")) {
         const meta = try store.head(point);
-        var bytes: [32]u8 = undefined;
-        const value = if (meta != null) try store.getRange(point, 0, bytes.len, &bytes) else null;
+        const bytes = try init.gpa.alloc(u8, if (meta) |value| @intCast(value.size) else 0);
+        defer init.gpa.free(bytes);
+        const value = if (meta != null) try store.getRange(point, 0, @intCast(bytes.len), bytes) else null;
         return emit(init, .{ .value = value, .meta = meta });
     }
     Fault.arm(point);
     if (std.mem.eql(u8, operation, "replace")) {
-        const accepted = try store.putConditional("head", .{ .if_match = digest("before") }, "after");
+        const accepted = try store.putConditional("head", .{ .if_match = digest(objectValue("before", large)) }, objectValue("after", large));
         Fault.acknowledged();
         return emit(init, .{ .accepted = accepted });
     }
     if (std.mem.eql(u8, operation, "immutable")) {
-        _ = try store.putImmutable("new.tseg", "immutable", digest("immutable"));
+        _ = try store.putImmutable("new.tseg", objectValue("immutable", large), digest(objectValue("immutable", large)));
         Fault.acknowledged();
         return emit(init, .{ .accepted = true });
     }
     if (std.mem.eql(u8, operation, "batch")) {
         const batch = [_]storage.TransitObjectStore.ImmutablePut{
-            .{ .key = "batch-a", .bytes = "first", .sha256 = digest("first") },
-            .{ .key = "batch-b", .bytes = "second", .sha256 = digest("second") },
+            .{ .key = "batch-a", .bytes = objectValue("first", large), .sha256 = digest(objectValue("first", large)) },
+            .{ .key = "batch-b", .bytes = objectValue("second", large), .sha256 = digest(objectValue("second", large)) },
         };
         var output: [2]storage.TransitObjectStore.ObjectMeta = undefined;
         try store.putImmutableBatch(&batch, &output);
@@ -195,7 +210,7 @@ fn objects(init: std.process.Init, io: std.Io, directory: []const u8, operation:
         return emit(init, .{ .accepted = true });
     }
     if (std.mem.eql(u8, operation, "conflict")) {
-        _ = store.putImmutable("new.tseg", "conflict", digest("conflict")) catch |err| {
+        _ = store.putImmutable("new.tseg", objectValue("conflict", large), digest(objectValue("conflict", large))) catch |err| {
             if (err != error.ImmutableObjectConflict) return err;
             return emit(init, .{ .conflict = true });
         };
@@ -210,6 +225,14 @@ const TableAccess = struct {
         const self: *TableAccess = @ptrCast(@alignCast(context));
         self.calls += 1;
         if (self.calls == 2) {
+            if (std.mem.eql(u8, Fault.point, "staging-boundaries")) {
+                var bytes: [64]u8 = undefined;
+                try std.Io.File.stdout().writeStreamingAll(Fault.real, try std.fmt.bufPrint(&bytes, "{{\"syncs\":{d}}}\n", .{Fault.sync_count}));
+                std.process.exit(0);
+            }
+            // A staging cut must never drift into WAL acceptance when the
+            // object's physical publication needs fewer barriers.
+            if (std.mem.startsWith(u8, Fault.point, "stage-sync-")) return error.BoundaryNotReached;
             if (std.mem.eql(u8, Fault.point, "before-accept")) Fault.stop();
             if (std.mem.startsWith(u8, Fault.point, "accept-")) Fault.arm(Fault.point[7..]);
         }

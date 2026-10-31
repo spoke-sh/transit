@@ -458,6 +458,9 @@ and the catalog's retained dependency graph.
   descriptor publication, immutable content, chunk-verified range reads and no
   whole-object disk cache. A separate memory fixture implements the same typed
   operations. See [object persistence](../../../contracts/TRANSIT_STORAGE_V1.md#local-object-persistence).
+  Payloads of at most 64 KiB derive their chunk hashes from the descriptor and
+  omit the separate `.checks` file. Larger payloads retain that file and its
+  publication barriers; both paths verify touched chunks before disclosure.
   An immutable batch borrows up to eight distinct keys and their bytes until
   return. Success makes every item durable; failure may leave a visible subset
   and writes no output metadata. Exact retry uses the same keys/content. This
@@ -602,7 +605,8 @@ key; physical content collection still requires retained-reader/pin ownership.
 
 `just test::local-storage-faults` kills real local owner processes at WAL
 append/fence/trim, Table archive/compaction/checkpoint acceptance and
-object-publication boundaries.
+object-publication boundaries for small and multi-chunk payloads. Table staging
+cuts stop before the acceptance guard; separate WAL cuts exercise acceptance.
 Fresh processes verify data,
 epochs, trim floors, Table receipts/snapshots/history and exact object retries against an independent Python
 oracle. The root unit task includes this proof. Repeating an already-published
