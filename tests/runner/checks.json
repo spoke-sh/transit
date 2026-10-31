@@ -353,6 +353,16 @@
         ]
       },
       {
+        "id": "inspection-retry",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/inspection/inspection_retry_test.py"
+        ]
+      },
+      {
         "id": "service-harness",
         "phase": "tooling",
         "command": [
