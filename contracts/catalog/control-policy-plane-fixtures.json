@@ -104,6 +104,15 @@
       "id": "S12_revocation_during_flight_and_operation_status_inspection",
       "revocation_terminates_result_disclosure": "error.AccessRevokedOnResultDisclosure",
       "original_caller_can_inspect_settled_operation_status": true
+    },
+    {
+      "id": "S13_declarative_browser_ingress_webhook_admission_and_watermark_watches",
+      "oidc_rs256_verification": "verifySignedJwtRs256",
+      "browser_cookie_mismatch_outcome": "error.OauthBrowserCookieMismatch",
+      "webhook_replay_outcome": "error.WebhookDeliveryReplayDetected",
+      "unbound_session_outcome": "error.UnboundExternalSubject",
+      "bootstrap_owner_binding_outcome": "error.BootstrapOwnerExternalBindingForbidden",
+      "watermark_watch_revocation_close_code": 1008
     }
   ]
 }

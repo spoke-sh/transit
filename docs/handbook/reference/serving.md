@@ -101,3 +101,13 @@ repeating a command. Transport failures preserve exact pending command identity.
 A received native receipt still proves only admission, even if subsequent output
 fails. Unsupported read adapters, malformed integers and unavailable Follow
 templates have separate causes and recovery guidance.
+
+Same-origin browser HTTP snapshot reads and WebSocket reactive watches project
+catalog `PublishedResourceDescriptor` (`PBR1`) definitions through
+`PublishedProjection.evaluatePublishedSnapshotJson` and
+`WatermarkReactiveWatchSession` ([`PUBLISHED_RESOURCE_V1`](../../../contracts/PUBLISHED_RESOURCE_V1.md)):
+64-bit integer and decimal cells serialize as lossless JSON decimal strings,
+post-read authorization is re-verified at `current_policy_epoch` before
+disclosure, and WebSocket watches emit frames only when `source_watermark_lsn`
+advances (closing immediately with RFC 6455 `1008` on session logout, identity
+restriction, or grant revocation).

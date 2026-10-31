@@ -3192,6 +3192,7 @@
     "packages/zig/transit-catalog/src/AccessAndIdentity.zig": {
       "errors": {
         "AccessRevoked": 1,
+        "AmbiguousOidcKey": 1,
         "AuditLogCapacityExceeded": 1,
         "ConflictingManagementSource": 2,
         "DelegationDepthExceeded": 1,
@@ -3207,20 +3208,31 @@
         "InvalidAttributeClaimKey": 1,
         "InvalidAttributeClaimValue": 3,
         "InvalidIdentityBinding": 1,
-        "InvalidIdentityProviderProfile": 1,
-        "InvalidTokenAudience": 1,
-        "InvalidTokenIssuer": 1,
+        "InvalidIdentityProviderProfile": 2,
+        "InvalidJwksDocument": 5,
+        "InvalidOidcClaim": 1,
+        "InvalidOidcKey": 7,
+        "InvalidOidcNonce": 3,
+        "InvalidOidcSignature": 1,
+        "InvalidOidcSubject": 1,
+        "InvalidOidcToken": 15,
+        "InvalidOidcTokenTime": 3,
+        "InvalidTokenAudience": 11,
+        "InvalidTokenIssuer": 2,
         "LocalRestrictionOverridesExternalSync": 2,
+        "MissingOidcClaim": 2,
         "PrincipalDirectoryFull": 1,
         "PrincipalLocallyRestricted": 1,
         "RetiredPrincipalIdReuseForbidden": 2,
         "ServiceCredentialAmplificationForbidden": 1,
         "StaleExternalMembership": 1,
-        "TokenNotYetValid": 1,
+        "TokenNotYetValid": 2,
         "TooManyVerifiedAttributes": 1,
         "UnboundExternalSubject": 3,
         "UndelegatedActorSubjectMismatch": 1,
-        "UnknownOrRevokedJwksKey": 2
+        "UnknownOrRevokedJwksKey": 3,
+        "UnsupportedOidcAlgorithm": 1,
+        "UnsupportedRsaModulusLength": 1
       },
       "outcomes": {
         "AssuranceLevel": [
@@ -3292,16 +3304,23 @@
         "MembershipFreshnessGuard.offboardAndAdvanceEpoch()": "<inferred>",
         "MembershipFreshnessGuard.verifyAccessAndFreshness()": "<inferred>",
         "OidcIssuerProfile.validateToken()": "<inferred>",
+        "OidcIssuerProfile.verifySignedJwtRs256()": "<inferred>",
         "PrincipalBindingDirectory.bindPrincipal()": "<inferred>",
         "PrincipalBindingDirectory.resolvePrincipal()": "<inferred>",
+        "PrincipalBindingDirectory.resolvePrincipalByDigest()": "<inferred>",
         "PrincipalBindingDirectory.retirePrincipal()": "<inferred>",
         "PrincipalBindingDirectory.setLocalRestrictionHold()": "<inferred>",
-        "ScimProvisioningEngine.syncMemberships()": "<inferred>"
+        "ScimProvisioningEngine.syncMemberships()": "<inferred>",
+        "decodeBase64UrlNoPad()": "<inferred>",
+        "jsonRequiredEpochSeconds()": "<inferred>",
+        "jsonRequiredString()": "<inferred>",
+        "verifyJwtAudienceAndAzp()": "<inferred>",
+        "verifyRs256SignatureAgainstJwks()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
-        "catch": 0
+        "try": 29,
+        "catch": 9
       },
       "imports": [
         "std"
@@ -3668,6 +3687,96 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DeclarativeIngress.zig": {
+      "errors": {
+        "AmbientAuthHeaderForbidden": 1,
+        "BootstrapOwnerExternalBindingForbidden": 2,
+        "ChallengeCapacityExceeded": 1,
+        "CrossSiteRequestForbidden": 2,
+        "DuplicateOrEmptyCookie": 1,
+        "DuplicateOrEmptySecurityHeader": 1,
+        "ExpiredOrRevokedSession": 1,
+        "ExternalIdentityDisabled": 2,
+        "IdentityCapacityExceeded": 1,
+        "InsecureForwardedProto": 2,
+        "InsecureProviderEndpoint": 1,
+        "InvalidEndpointUrl": 8,
+        "InvalidHostHeader": 2,
+        "InvalidIdentityProviderProfile": 4,
+        "InvalidOauthCallbackParameters": 1,
+        "InvalidOriginHeader": 3,
+        "InvalidProviderAccessToken": 1,
+        "InvalidProviderDebugToken": 4,
+        "InvalidProviderSubjectId": 3,
+        "InvalidProviderTokenResponse": 2,
+        "InvalidProviderUserInfo": 2,
+        "InvalidPublicOrigin": 9,
+        "MalformedCookieHeader": 1,
+        "MissingCatalogJwksSnapshot": 1,
+        "MissingOidcIdToken": 2,
+        "MissingOriginOrFetchSite": 1,
+        "MissingProviderAccessToken": 1,
+        "MissingProviderDebugToken": 1,
+        "MissingProviderSubjectId": 1,
+        "MissingProviderUserInfo": 2,
+        "OauthChallengeProviderMismatch": 2,
+        "OauthChallengeStateMismatch": 1,
+        "ProviderDebugTokenAppMismatch": 2,
+        "ProviderDebugTokenInvalid": 2,
+        "ProviderDebugTokenSubjectMismatch": 4,
+        "ProviderTokenExchangeRejected": 1,
+        "SessionCapacityExceeded": 1,
+        "UnauthenticatedSession": 3,
+        "UnknownExternalIdentity": 2,
+        "UnsupportedProviderTokenType": 1,
+        "UntrustedTlsTermination": 2
+      },
+      "outcomes": {
+        "HttpMethod": [
+          "get",
+          "post"
+        ],
+        "SubjectVerificationMode": [
+          "oidc_rs256_id_token",
+          "oauth2_user_profile_json",
+          "oauth2_appsecret_proof_debug"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BrowserSessionLedger.beginLoginChallenge()": "<inferred>",
+        "BrowserSessionLedger.bindExternalSubjectToCatalogPrincipal()": "<inferred>",
+        "BrowserSessionLedger.claimLoginCallbackForExchange()": "<inferred>",
+        "BrowserSessionLedger.completeLoginAfterTokenExchange()": "<inferred>",
+        "BrowserSessionLedger.resolveBoundSessionAccessContext()": "<inferred>",
+        "BrowserSessionLedger.setExternalIdentityDisabled()": "<inferred>",
+        "IdentityProviderDeclaration.buildAuthorizationRedirectUrl()": "<inferred>",
+        "IdentityProviderDeclaration.callbackPath()": "<inferred>",
+        "IdentityProviderDeclaration.validate()": "<inferred>",
+        "IdentityProviderDeclaration.verifyProviderExchangePayloads()": "<inferred>",
+        "InboundBoundaryPolicy.extractUniqueCookie()": "<inferred>",
+        "InboundBoundaryPolicy.formatSetCookieHeader()": "<inferred>",
+        "InboundBoundaryPolicy.init()": "<inferred>",
+        "InboundBoundaryPolicy.verifyBrowserRequest()": "<inferred>",
+        "SessionStatusView.formatJson()": "<inferred>",
+        "appendUriComponent()": "<inferred>",
+        "extractBearerAccessToken()": "<inferred>",
+        "extractEndpointHost()": "<inferred>",
+        "parseJsonSubjectId()": "<inferred>",
+        "uniqueHeaderValue()": "<inferred>",
+        "validateEndpointUrl()": "<inferred>",
+        "verifyDebugTokenPayload()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 41,
+        "catch": 7
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DelegationAndSecrets.zig": {
       "errors": {
         "AccessDenied": 7,
@@ -3690,13 +3799,16 @@
         "InvalidDelegationPrincipal": 4,
         "InvalidDelegationTicket": 2,
         "InvalidPkceCodeVerifierLength": 1,
-        "InvalidSecretDeclaration": 1,
+        "InvalidSecretDeclaration": 2,
         "InvalidSecretName": 1,
         "InvalidTokenAudience": 1,
+        "InvalidWebhookDeliveryId": 1,
+        "InvalidWebhookEndpointDeclaration": 3,
         "MissingApprovalAttestation": 1,
         "MissingSecretProviderReference": 1,
         "MissingSecretScopePrefix": 1,
         "MissingSecretUsagePrivilege": 1,
+        "OauthBrowserCookieMismatch": 2,
         "OauthChallengeExpired": 1,
         "OauthChallengeReplayDetected": 1,
         "OauthChallengeStateMismatch": 1,
@@ -3706,13 +3818,20 @@
         "ProtectedDestinationRequiresApproval": 1,
         "SecretAudienceMismatch": 2,
         "SecretChallengePending": 1,
+        "SecretLeaseExpiredOrRevoked": 2,
         "SecretScopeMismatch": 1,
         "SecretTlsPolicyViolation": 1,
         "SeparationOfDutiesViolation": 1,
         "StaleApprovalPolicyEpoch": 1,
         "StepUpAuthenticationExpired": 1,
         "StepUpAuthenticationRequired": 1,
-        "UnsupportedTokenExchangeGrantType": 1
+        "UnsupportedTokenExchangeGrantType": 1,
+        "WebhookDeliveryReplayDetected": 1,
+        "WebhookPayloadBoundsExceeded": 1,
+        "WebhookReplayWindowCapacityExceeded": 1,
+        "WebhookSecretKindMismatch": 1,
+        "WebhookSignatureVerificationFailed": 1,
+        "WebhookTimestampOutsideReplayWindow": 1
       },
       "outcomes": {
         "AdapterSurface": [
@@ -3782,13 +3901,15 @@
         "OauthChallengeGame.sealTokenLeaseAndWakeDataflow()": "<inferred>",
         "SecretDeclaration.resolveForDestination()": "<inferred>",
         "SecretDeclaration.validateForCatalog()": "<inferred>",
+        "WebhookAdmissionEngine.admitDelivery()": "<inferred>",
+        "WebhookEndpointDeclaration.validate()": "<inferred>",
         "authorizeBranchOperation()": "<inferred>",
         "exchangeTokenToDelegationHop()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
-        "catch": 0
+        "try": 11,
+        "catch": 1
       },
       "imports": [
         "AccessAndIdentity.zig",
@@ -7506,19 +7627,26 @@
         "AuthorizationRevokedMidStream": 1,
         "CrossAudienceStreamContinuationForbidden": 1,
         "CrossAudienceTicketReuseForbidden": 1,
-        "DelegationExpiredOrRevoked": 1,
+        "DelegationExpiredOrRevoked": 2,
         "DiscoveryBufferTooSmall": 1,
         "InvalidBatchRowLimit": 1,
         "InvalidDiscoveryLimit": 1,
-        "PublishedResourceWithdrawn": 1,
+        "InvalidWatchLifetime": 1,
+        "NonFinitePublishedFloat": 1,
+        "PublishedResourceWithdrawn": 3,
         "ReaderAlreadyClosed": 1,
-        "ResourceConsumePermissionDenied": 1,
-        "ResourceWorkBoundExceeded": 1,
-        "RowSelectPermissionDenied": 1,
+        "ResourceConsumePermissionDenied": 2,
+        "ResourceWorkBoundExceeded": 3,
+        "RowSelectPermissionDenied": 2,
         "SearchQueryTooLong": 1,
-        "StalePolicyEpoch": 1,
+        "SessionRevokedBeforeDisclosure": 2,
+        "StalePolicyEpoch": 2,
         "SteadyStateHeapAllocationDetected": 1,
-        "UnreleasedInvestigationOrReaderResources": 1
+        "TooManyPublishedColumns": 1,
+        "UnreleasedInvestigationOrReaderResources": 1,
+        "UnresolvedPublishedConflict": 1,
+        "UnscrubbedPublishedTypeError": 1,
+        "UnsupportedPublishedCellType": 1
       },
       "outcomes": {
         "ProjectedInterfaceKind": [
@@ -7527,6 +7655,11 @@
           "openapi_serving",
           "board_workbook",
           "mcp_resource_and_app"
+        ],
+        "ReactiveWatchPollOutcome": [
+          "no_change",
+          "snapshot_frame",
+          "close"
         ]
       },
       "error_sets": {},
@@ -7538,13 +7671,18 @@
         "PublishedResourceStreamReader.close()": "<inferred>",
         "PublishedResourceStreamReader.fetchNextBatch()": "<inferred>",
         "PublishedResourceStreamReader.open()": "<inferred>",
+        "WatermarkReactiveWatchSession.open()": "<inferred>",
+        "WatermarkReactiveWatchSession.pollNextFrame()": "<inferred>",
+        "appendJsonEscapedString()": "<inferred>",
+        "appendPublishedCellJson()": "<inferred>",
         "discoverPublishedResources()": "<inferred>",
+        "evaluatePublishedSnapshotJson()": "<inferred>",
         "projectResourceSurface()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
-        "catch": 2
+        "try": 59,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -7937,6 +8075,7 @@
         "AuthorizationLowering.zig",
         "BranchLifecycle.zig",
         "BranchMergeRestore.zig",
+        "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
         "DirectAuthorizationSql.zig",
         "DirectCatalog.zig",

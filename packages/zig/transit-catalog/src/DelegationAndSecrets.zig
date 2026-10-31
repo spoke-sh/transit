@@ -483,6 +483,8 @@ pub const OauthChallengeRecord = struct {
     principal_id: u64,
     state_digest: [32]u8,
     pkce_code_challenge_s256: [43]u8,
+    browser_cookie_digest: ?[32]u8 = null,
+    nonce_digest: ?[32]u8 = null,
     issued_at_ns: i64,
     expires_at_ns: i64,
 };
@@ -492,6 +494,7 @@ pub const OauthCallbackEvent = struct {
     state_digest: [32]u8,
     authorization_code_handle: u64,
     pkce_code_verifier: []const u8,
+    browser_cookie_digest: ?[32]u8 = null,
     received_at_ns: i64,
 };
 
@@ -532,7 +535,8 @@ pub const OauthChallengeGame = struct {
     }
 
     /// Evaluates one inbound `OauthCallbackEvent` against issued `OauthChallengeRecord`s
-    /// and `consumed_challenge_ids` (`NOT EXISTS` anti-replay join + temporal window + PKCE `S256`).
+    /// and `consumed_challenge_ids` (`NOT EXISTS` anti-replay join + temporal window +
+    /// browser cookie binding + PKCE `S256`).
     pub fn evaluateCallbackTurn(
         self: *OauthChallengeGame,
         challenges: []const OauthChallengeRecord,
@@ -540,12 +544,20 @@ pub const OauthChallengeGame = struct {
     ) !TokenExchangeOutboxIntent {
         var matched_challenge: ?OauthChallengeRecord = null;
         for (challenges) |ch| {
-            if (std.mem.eql(u8, &ch.state_digest, &callback.state_digest)) {
+            if (std.crypto.timing_safe.eql([32]u8, ch.state_digest, callback.state_digest)) {
                 matched_challenge = ch;
                 break;
             }
         }
         const ch = matched_challenge orelse return error.OauthChallengeStateMismatch;
+
+        // Browser cookie binding (`__Host-` login cookie prevents cross-browser login CSRF):
+        if (ch.browser_cookie_digest) |expected_cookie| {
+            const actual_cookie = callback.browser_cookie_digest orelse return error.OauthBrowserCookieMismatch;
+            if (!std.crypto.timing_safe.eql([32]u8, expected_cookie, actual_cookie)) {
+                return error.OauthBrowserCookieMismatch;
+            }
+        }
 
         // Anti-replay (`LEFT ANTI JOIN oauth_consumed_challenges`):
         if (std.mem.indexOfScalar(u64, self.consumed_challenge_ids[0..self.consumed_len], ch.challenge_id) != null) {
@@ -557,7 +569,7 @@ pub const OauthChallengeGame = struct {
 
         // Deterministic PKCE `S256` commitment check:
         const computed_s256 = try computePkceS256Challenge(callback.pkce_code_verifier);
-        if (!std.mem.eql(u8, &computed_s256, &ch.pkce_code_challenge_s256)) {
+        if (!std.crypto.timing_safe.eql([43]u8, computed_s256, ch.pkce_code_challenge_s256)) {
             return error.OauthPkceVerificationFailed;
         }
 
@@ -604,6 +616,166 @@ pub const OauthChallengeGame = struct {
             .rotation_epoch = secret.rotation_epoch,
             .visible_at_ns = new_lease_expires_at_ns - refresh_margin_ns,
             .lease_expires_at_ns = new_lease_expires_at_ns,
+        };
+    }
+};
+
+/// Declarative inbound webhook endpoint bound to a catalog `SecretDeclaration`
+/// with `SecretKind.webhook_hmac` and a target `STREAM`/`QUEUE`/`TABLE`/`DOCUMENT` object (`Step 4`, `D4`).
+pub const WebhookEndpointDeclaration = struct {
+    endpoint_id: u64,
+    realm_id: u64,
+    endpoint_path: []const u8,
+    secret_id: u64,
+    target_object_id: u64,
+    max_timestamp_skew_ns: i64 = 300 * std.time.ns_per_s,
+    max_payload_bytes: usize = 65536,
+
+    pub fn validate(self: WebhookEndpointDeclaration) !void {
+        if (self.endpoint_id == 0 or self.realm_id == 0 or self.secret_id == 0 or self.target_object_id == 0) {
+            return error.InvalidWebhookEndpointDeclaration;
+        }
+        if (self.endpoint_path.len < 2 or self.endpoint_path[0] != '/') {
+            return error.InvalidWebhookEndpointDeclaration;
+        }
+        if (self.max_timestamp_skew_ns <= 0 or self.max_payload_bytes == 0) {
+            return error.InvalidWebhookEndpointDeclaration;
+        }
+    }
+};
+
+pub const WebhookDeliveryEvent = struct {
+    delivery_id: []const u8,
+    timestamp_epoch_s: i64,
+    raw_payload: []const u8,
+    signature_hmac_sha256: [32]u8,
+    received_at_ns: i64,
+};
+
+pub const WebhookAdmittedIntent = struct {
+    intent_id: u64,
+    endpoint_id: u64,
+    target_object_id: u64,
+    secret_rotation_epoch: u64,
+    delivery_id_digest: [32]u8,
+    payload_digest: [32]u8,
+    admitted_at_ns: i64,
+};
+
+/// Deterministic HMAC-SHA256 webhook signature verifier + replay window + delivery ID
+/// deduplicator backed by catalog `SecretDeclaration` (`SecretKind.webhook_hmac`).
+pub const WebhookAdmissionEngine = struct {
+    pub const max_recent_deliveries: usize = 64;
+
+    recent_delivery_digests: [max_recent_deliveries][32]u8 = undefined,
+    recent_delivery_expires_ns: [max_recent_deliveries]i64 = @splat(0),
+    recent_len: usize = 0,
+    next_intent_id: u64 = 1,
+
+    pub fn computeWebhookHmacSha256(
+        secret_key_material: []const u8,
+        timestamp_epoch_s: i64,
+        raw_payload: []const u8,
+    ) [32]u8 {
+        var ts_buf: [32]u8 = undefined;
+        const ts_slice = std.fmt.bufPrint(&ts_buf, "{d}.", .{timestamp_epoch_s}) catch unreachable;
+        var hmac = std.crypto.auth.hmac.sha2.HmacSha256.init(secret_key_material);
+        hmac.update(ts_slice);
+        hmac.update(raw_payload);
+        var out: [32]u8 = undefined;
+        hmac.final(&out);
+        return out;
+    }
+
+    pub fn deliveryDigest(endpoint_id: u64, delivery_id: []const u8) [32]u8 {
+        var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+        hasher.update("transit.catalog.webhook.delivery.v1\x00");
+        var id_buf: [8]u8 = undefined;
+        std.mem.writeInt(u64, &id_buf, endpoint_id, .little);
+        hasher.update(&id_buf);
+        hasher.update(delivery_id);
+        return hasher.finalResult();
+    }
+
+    pub fn admitDelivery(
+        self: *WebhookAdmissionEngine,
+        endpoint: WebhookEndpointDeclaration,
+        secret: SecretDeclaration,
+        sealed_secret_key_material: []const u8,
+        event: WebhookDeliveryEvent,
+    ) !WebhookAdmittedIntent {
+        try endpoint.validate();
+        try secret.validateForCatalog();
+        if (secret.secret_id != endpoint.secret_id) {
+            return error.InvalidSecretDeclaration;
+        }
+        if (secret.kind != .webhook_hmac) {
+            return error.WebhookSecretKindMismatch;
+        }
+        if (secret.lease_state != .active_lease) {
+            return error.SecretLeaseExpiredOrRevoked;
+        }
+        if (secret.lease_expires_at_ns) |exp_ns| {
+            if (event.received_at_ns >= exp_ns) return error.SecretLeaseExpiredOrRevoked;
+        }
+        if (event.delivery_id.len == 0 or event.delivery_id.len > 256) {
+            return error.InvalidWebhookDeliveryId;
+        }
+        if (event.raw_payload.len == 0 or event.raw_payload.len > endpoint.max_payload_bytes) {
+            return error.WebhookPayloadBoundsExceeded;
+        }
+
+        const event_ts_ns = event.timestamp_epoch_s * std.time.ns_per_s;
+        const delta_ns = if (event.received_at_ns >= event_ts_ns)
+            event.received_at_ns - event_ts_ns
+        else
+            event_ts_ns - event.received_at_ns;
+        if (delta_ns > endpoint.max_timestamp_skew_ns) {
+            return error.WebhookTimestampOutsideReplayWindow;
+        }
+
+        const expected_sig = computeWebhookHmacSha256(sealed_secret_key_material, event.timestamp_epoch_s, event.raw_payload);
+        if (!std.crypto.timing_safe.eql([32]u8, expected_sig, event.signature_hmac_sha256)) {
+            return error.WebhookSignatureVerificationFailed;
+        }
+
+        // Reclaim expired delivery slots first so bounded capacity cannot be exhausted by old traffic:
+        var write_idx: usize = 0;
+        for (0..self.recent_len) |idx| {
+            if (self.recent_delivery_expires_ns[idx] > event.received_at_ns) {
+                self.recent_delivery_digests[write_idx] = self.recent_delivery_digests[idx];
+                self.recent_delivery_expires_ns[write_idx] = self.recent_delivery_expires_ns[idx];
+                write_idx += 1;
+            }
+        }
+        self.recent_len = write_idx;
+
+        const deliv_digest = deliveryDigest(endpoint.endpoint_id, event.delivery_id);
+        for (self.recent_delivery_digests[0..self.recent_len]) |existing| {
+            if (std.crypto.timing_safe.eql([32]u8, existing, deliv_digest)) {
+                return error.WebhookDeliveryReplayDetected;
+            }
+        }
+        if (self.recent_len >= max_recent_deliveries) {
+            return error.WebhookReplayWindowCapacityExceeded;
+        }
+        self.recent_delivery_digests[self.recent_len] = deliv_digest;
+        self.recent_delivery_expires_ns[self.recent_len] = event.received_at_ns + endpoint.max_timestamp_skew_ns;
+        self.recent_len += 1;
+
+        var payload_digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(event.raw_payload, &payload_digest, .{});
+
+        const intent_id = self.next_intent_id;
+        self.next_intent_id += 1;
+        return .{
+            .intent_id = intent_id,
+            .endpoint_id = endpoint.endpoint_id,
+            .target_object_id = endpoint.target_object_id,
+            .secret_rotation_epoch = secret.rotation_epoch,
+            .delivery_id_digest = deliv_digest,
+            .payload_digest = payload_digest,
+            .admitted_at_ns = event.received_at_ns,
         };
     }
 };

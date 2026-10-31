@@ -103,3 +103,6 @@ separates three distinct authorities checked at `current_policy_epoch`:
 - **Audience-isolated caching:** Cache entries key by
   `AudienceCacheKey = SHA256(resource_object || publication_revision || basis_digest || params_digest || audience_policy_hash || policy_epoch)`.
   Cross-audience cache reuse is structurally impossible.
+- **Lossless HTTP/Browser Snapshot Reads & Watermark-Driven Reactive Watches (`evaluatePublishedSnapshotJson`, `WatermarkReactiveWatchSession`):**
+  - `evaluatePublishedSnapshotJson` streams bounded batches from `PublishedResourceStreamReader`, formats 64-bit `int64`/`uint64` and `decimal` cells as lossless JSON decimal strings (`"9007199254740993"`), and re-verifies session validity and `DisclosurePolicy` at `current_policy_epoch` **after** reading all rows and **before** disclosing the response.
+  - `WatermarkReactiveWatchSession` binds a WebSocket watch to a `PublishedResourceDescriptor` (`PBR1`) and `InvestigationBasis` (`INV1`), emitting an initial snapshot on upgrade and subsequently emitting frames **only** when `source_watermark_lsn > last_emitted_lsn` (zero row scans or allocations on unchanged ticks). Session logout, external identity hold, resource withdrawal, or `policy_epoch` revocation immediately terminates the watch with RFC 6455 close code `1008` (`Policy Violation`).

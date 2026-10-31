@@ -70,6 +70,7 @@ pub const ManagedDataflow = @import("ManagedDataflow.zig");
 pub const AccessAndIdentity = @import("AccessAndIdentity.zig");
 pub const DelegationAndSecrets = @import("DelegationAndSecrets.zig");
 pub const ErasureAndWorkload = @import("ErasureAndWorkload.zig");
+pub const DeclarativeIngress = @import("DeclarativeIngress.zig");
 test {
     // Keep hash contracts discoverable even when a test filter removes their
     // indirect callers in the catalog lifecycle suite.
@@ -99,6 +100,7 @@ test {
     _ = @import("branch_merge_restore_test.zig");
     _ = @import("managed_dataflow_test.zig");
     _ = @import("control_policy_plane_test.zig");
+    _ = @import("declarative_ingress_test.zig");
     _ = HistoricalCatalog;
     _ = PublishedResource;
     _ = DisclosurePolicy;
@@ -111,6 +113,7 @@ test {
     _ = AccessAndIdentity;
     _ = DelegationAndSecrets;
     _ = ErasureAndWorkload;
+    _ = DeclarativeIngress;
     _ = AuthorizationLowering;
     _ = TableAuthority;
     _ = LogAuthority;

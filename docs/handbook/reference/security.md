@@ -196,7 +196,16 @@ application operators use separate capabilities. See [Board access](board-api.md
 Serving uses scoped native proofs and current service policy. Its provisioned
 public-key configuration is not a grant database. Reactive channels additionally
 bind session, subscription, attachment, lease and source generation. TLS, exact
-Host/Origin policy and native authorization are independent checks.
+Host/Origin policy and native authorization are independent checks. Declarative
+browser sign-in (`DeclarativeIngress`) and inbound webhooks (`WebhookAdmissionEngine`)
+share the [Control & Policy Plane](../../../contracts/CONTROL_POLICY_PLANE_V1.md)
+(`OidcIssuerProfile` `IDF1`, `SecretDeclaration` `SEC1`, `OauthChallengeGame`,
+and `PrincipalBindingDirectory`) rather than introducing a separate static file
+or permission authority: browser PKCE challenges bind the `__Host-` login cookie
+and are claimed before any `TokenExchangeOutboxIntent` is emitted; open sign-in
+(`bound = false`) grants zero catalog or SQL permissions; and session logout,
+identity holds, or `policy_epoch` advancement revoke HTTP snapshot reads and
+close reactive watches (`1008`) immediately without restarting the server.
 
 The local CLI gateway binds IPv4 loopback, accepts its configured exact Host
 authorities and rejects browser Origin and forwarded-identity headers. Additional
