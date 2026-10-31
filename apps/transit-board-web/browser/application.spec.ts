@@ -148,10 +148,14 @@ test("complete definition editing and exact operator recovery", async ({ page, c
     { timeout: 15000 },
   );
   await expect(oldClient.locator(".transit-shell")).toHaveAttribute("data-density", "compact");
-  await expect(oldClient.getByRole("link", { name: "My atlas", exact: true })).toBeVisible();
   await expect(oldClient.getByRole("heading", { name: "Screen unavailable" })).toBeVisible();
-  await oldClient.getByRole("link", { name: "My atlas", exact: true }).click();
+  const applicationEntry = oldClient
+    .getByRole("navigation", { name: "Activities" })
+    .getByRole("link", { name: "Application", exact: true });
+  await expect(applicationEntry).toHaveAttribute("href", "/neighborhood");
+  await applicationEntry.click();
   await expect(oldClient).toHaveURL(/\/neighborhood$/);
+  await expect(oldClient.getByRole("link", { name: "My atlas", exact: true })).toBeVisible();
   await oldClient.reload();
   await expect(oldClient.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
   await oldClient.emulateMedia({ reducedMotion: "reduce" });
@@ -165,8 +169,10 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(oldClient.getByRole("heading", { name: "Processes", exact: true })).toBeVisible();
   await oldClient.getByRole("link", { name: "Activity", exact: true }).click();
   await expect(oldClient.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
-  await oldClient.getByRole("button", { name: "Operations", exact: true }).click();
-  await oldClient.getByRole("link", { name: "Operations", exact: true }).click();
+  await oldClient
+    .getByRole("navigation", { name: "Activities" })
+    .getByRole("link", { name: "Operations", exact: true })
+    .click();
   await expect(
     oldClient.getByRole("heading", { name: "Declared dependencies", exact: true }),
   ).toBeVisible();
@@ -180,12 +186,15 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   expect(header?.height).toBe(56);
   expect(sidebar?.width).toBe(208);
   for (const density of ["comfortable", "compact"]) {
+    if (!(await page.getByLabel("Preview density").isVisible()))
+      await page.getByRole("button", { name: "Navigation", exact: true }).click();
     await page.getByLabel("Preview density").selectOption(density);
     expect(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
     ).toEqual([]);
     await page.setViewportSize({ width: 320, height: 900 });
-    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    if (!(await page.getByLabel("Preview density").isVisible()))
+      await page.getByRole("button", { name: "Navigation", exact: true }).click();
     await expect(page.getByLabel("Preview density")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,

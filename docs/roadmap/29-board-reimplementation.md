@@ -32,9 +32,10 @@ integration, accessibility and real browser acceptance. Backend algorithms,
 transaction truth, retention, authorization and reviewed-publication semantics
 remain with their existing owners. The D2 theme is the visual baseline; open
 interaction questions remain in the [design sequence](../design/board-data/README.md).
-D3 records the selected topology direction while leaving its new figures,
-dimensions and responsive choices under review. It changes no installed
-capability, initial-pass evidence or milestone status.
+D3 records the selected topology direction. Its synthetic storage, execution
+and comparison studies remain proposals. The implementation slice below adopts
+the topology for existing metadata and result capabilities; it does not complete
+the milestone or extend backend evidence.
 
 ## Prerequisites and delivery position
 
@@ -71,6 +72,30 @@ opening a local catalog or querying a supported dataset. Later
 complete mixed-language composition are not prerequisites for this cutover.
 Existing qualified finite Live behavior remains supported; broader subscriptions
 or agent activation require their own contracts.
+
+## Contextual Inspector implementation
+
+Implementation was authorized after the D3 review PR merged on 2026-10-30.
+The delivered slice keeps the theme and replaces the workbench topology:
+horizontal Data/Workbooks/Operations activities, optional dataset/cell navigation,
+one shared Inspector, expansion into the workspace and a narrow-screen replacement
+layout. Dataset definitions, schema columns, bounded result profiles and result
+observation/completion evidence use their existing public clients. Selection
+retains identities only; authorized data stays with its current reader.
+
+The dataset's observed branch/object/definition remains above the workspace.
+Workbook connection scope is not relabeled as a common branch or snapshot.
+Inspection/expansion does not submit SQL, replace a result or discard drafts.
+Published application navigation, definition recovery and the existing Operations
+routes retain their owners and authority. The current interaction is described
+in the [workbench guide](../../apps/transit-board/docs/workbench.md).
+
+Dedicated Changes navigation, exact branch-comparison projections, object storage
+sharing/reclaimability and measured operator metrics remain open delivery work.
+No synthetic study values or unsupported actions enter the installed interface.
+The milestone remains **In Progress**. Executed controls, clean-checkout outcomes
+and remaining qualification limits are recorded in the
+[Inspector proof account](../history/qualification/interfaces.md#board-contextual-inspector--2026-10-30).
 
 ## Initial-pass implementation plan
 
