@@ -17,6 +17,7 @@ const Host = struct {
     invalid_batch: bool = false,
     cache_disclosure: bool = false,
     completion_checks: usize = 0,
+    validations: usize = 0,
     forbid_postwrite_validation: bool = false,
     pub const Prepared = struct {
         write: bool,
@@ -76,6 +77,7 @@ const Host = struct {
         self.allocator.destroy(value);
     }
     pub fn validate(self: *Host, _: *Prepared) !void {
+        self.validations += 1;
         if (self.denied) return error.CatalogDenied;
         if (self.forbid_postwrite_validation and self.writes != 0) return error.ExecutionNoLongerValid;
     }
@@ -338,4 +340,24 @@ test "a resumed successful mutation verifies its original outcome without re-exe
     try std.testing.expectEqualStrings("CZ", observed);
     try std.testing.expectEqual(@as(usize, 1), host.writes);
     try std.testing.expectEqual(@as(usize, 1), host.completion_checks);
+}
+
+test "immediate metadata reuses admission but another command checks current rights" {
+    var host: Host = .{ .allocator = std.testing.allocator };
+    var transport: Transport = .{ .allocator = std.testing.allocator };
+    defer transport.bytes.deinit(std.testing.allocator);
+    var engine = Engine.init(&host, &transport, try pg.Session.init(std.testing.allocator, .{}, 31));
+    defer engine.deinit();
+    _ = try engine.run(.{ 'Q', "READ\x00" });
+    try std.testing.expectEqual(@as(usize, 0), host.validations);
+    _ = try engine.run(.{ 'P', "s\x00READ\x00\x00\x00" });
+    _ = try engine.run(.{ 'D', "Ss\x00" });
+    try std.testing.expectEqual(@as(usize, 1), host.validations);
+    transport.bytes.clearRetainingCapacity();
+    host.denied = true;
+    _ = try engine.run(.{ 'D', "Ss\x00" });
+    try std.testing.expectEqual(@as(usize, 2), host.validations);
+    const observed = try tags(std.testing.allocator, transport.bytes.items);
+    defer std.testing.allocator.free(observed);
+    try std.testing.expectEqualStrings("E", observed);
 }

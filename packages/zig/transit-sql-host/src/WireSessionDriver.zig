@@ -56,12 +56,15 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
             }
             self.disclosure = guard;
         }
-        pub fn perform(self: *Self, request: s.Request) !s.Result {
+        fn invalidateObservations(self: *Self) void {
             self.disclosure = .none;
             if (@hasDecl(Host, "resumeWire")) self.host.resumeWire();
             if (@hasDecl(Host.Read, "resumeWire")) {
                 for (self.reads) |slot| if (slot) |entry| entry.value.resumeWire();
             }
+        }
+        pub fn perform(self: *Self, request: s.Request) !s.Result {
+            self.invalidateObservations();
             return self.performImmediate(request);
         }
         // The installed blocking adapter drains each request directly into the
@@ -70,7 +73,9 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
         fn performImmediate(self: *Self, request: s.Request) !s.Result {
             // Consecutive outputs from one bounded batch share one disclosure.
             // Pulling more rows or scheduling any other owner work ends it.
-            if (request != .output and request != .status) self.disclosure = .none;
+            if (request == .bind) {
+                if (!std.meta.eql(self.disclosure, s.Guard{ .prepared = request.bind.prepared })) self.disclosure = .none;
+            } else if (request != .output and request != .status) self.disclosure = .none;
             return switch (request) {
                 .begin => blk: {
                     try self.host.begin();
@@ -88,6 +93,7 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
                     const id = try self.handle();
                     const value = try self.host.prepare(sql);
                     self.prepared[index] = .{ .id = id, .value = value };
+                    self.disclosure = .{ .prepared = id };
                     break :blk .{ .prepared = .{ .handle = id, .parameters = value.parameters(), .fields = value.fields(), .mutation = value.mutation(), .empty = value.empty() } };
                 },
                 .destroy => |id| blk: {
@@ -100,6 +106,7 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
                 },
                 .validate => |id| blk: {
                     try self.host.validate(try self.preparation(id));
+                    self.disclosure = .{ .prepared = id };
                     break :blk .ok;
                 },
                 .bind => |bound| blk: {
@@ -113,6 +120,7 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
                     const id = try self.handle();
                     const value = try self.host.openRead(try self.preparation(bound.prepared), bound.values);
                     self.reads[index] = .{ .id = id, .value = value };
+                    self.disclosure = .{ .prepared = bound.prepared };
                     break :blk .{ .read = id };
                 },
                 .close_read => |id| blk: {
@@ -151,6 +159,9 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
         }
         pub fn run(self: *Self, args: anytype) !bool {
             errdefer self.session.abort(error.WireSessionClosed);
+            // Receiving another command may have parked indefinitely, including
+            // consecutive Describe messages within one extended cycle.
+            self.invalidateObservations();
             try @call(.auto, Session.start, .{&self.session} ++ args);
             while (true) switch (try self.session.poll()) {
                 .done => |open| return open,
