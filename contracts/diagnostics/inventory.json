@@ -7747,6 +7747,7 @@
         "DirectLog.zig",
         "DirectLogClient.zig",
         "DirectLogProtocol.zig",
+        "DirectMigration.zig",
         "DirectNamespace.zig",
         "DirectQueue.zig",
         "DirectQueueClient.zig",
