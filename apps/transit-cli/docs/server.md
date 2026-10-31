@@ -80,6 +80,10 @@ operation, with its duration and outcome. Checkpoint timing includes serializati
 file sync, rename and directory sync; native request timing includes transport
 and the server's durable processing. These child durations are included in the
 phase duration. The fixed labels contain no requests, keys or SQL text.
+Restart reuses byte-identical derived role/launch configurations and SQL operator
+profiles. Changed files still publish atomically with file and directory sync.
+Accepted-operation journals and configuration generations retain their durable
+checkpoint boundaries.
 
 `server.startup.complete` reports the attempt's total duration and outcome.
 The first attempt includes configuration capture; a retry starts a new attempt

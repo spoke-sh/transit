@@ -9,7 +9,7 @@ const Provider = @import("Provider.zig");
 pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) ![]const u8 {
     const board = installation.config.board.?;
     const path = try installation.path("board.json");
-    try Files.json(installation.init.io, allocator, path, .{
+    _ = try Files.jsonIfChanged(installation.init.io, allocator, path, .{
         .profile = "native_v1",
         .upstream = installation.wire.url,
         .realm = installation.config.realm,
