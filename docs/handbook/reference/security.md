@@ -197,15 +197,17 @@ Serving uses scoped native proofs and current service policy. Its provisioned
 public-key configuration is not a grant database. Reactive channels additionally
 bind session, subscription, attachment, lease and source generation. TLS, exact
 Host/Origin policy and native authorization are independent checks. Declarative
-browser sign-in (`DeclarativeIngress`) and inbound webhooks (`WebhookAdmissionEngine`)
-share the [Control & Policy Plane](../../../contracts/CONTROL_POLICY_PLANE_V1.md)
-(`OidcIssuerProfile` `IDF1`, `SecretDeclaration` `SEC1`, `OauthChallengeGame`,
-and `PrincipalBindingDirectory`) rather than introducing a separate static file
-or permission authority: browser PKCE challenges bind the `__Host-` login cookie
-and are claimed before any `TokenExchangeOutboxIntent` is emitted; open sign-in
-(`bound = false`) grants zero catalog or SQL permissions; and session logout,
-identity holds, or `policy_epoch` advancement revoke HTTP snapshot reads and
-close reactive watches (`1008`) immediately without restarting the server.
+browser sign-in uses the [browser contract](../../../contracts/BROWSER_V1.md):
+challenge claims and session revocation are durable, provider effects dispatch
+only after a successful one-use claim, and open sign-in grants no native rights.
+Bindings select explicitly provisioned non-bootstrap native readers; public
+publications explicitly select their publisher credential. Identity restriction,
+logout, expiry and native grant revocation are checked on reads and during open
+watches, including after buffering. A watch observes idle changes at its next
+500 ms check; revocation cannot retract bytes already sent. Exact Host/Origin,
+scoped proxy-peer trust and provider token verification are independent gates.
+`DeclarativeIngress` and `WebhookAdmissionEngine` also contain model components;
+those do not themselves provide durable runtime composition for other ingress.
 
 The local CLI gateway binds IPv4 loopback, accepts its configured exact Host
 authorities and rejects browser Origin and forwarded-identity headers. Additional

@@ -794,6 +794,20 @@
           "tests/runner/launch.py",
           "tests/sdk/binding_schema_types.py"
         ]
+      },
+      {
+        "id": "browser-contract",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/http/browser_contract.py"
+        ],
+        "generator": {
+          "name": "browser",
+          "args": []
+        }
       }
     ],
     "native-all": [

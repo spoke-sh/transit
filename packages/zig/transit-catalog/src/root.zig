@@ -125,6 +125,8 @@ test {
     _ = DirectQueueMutation;
     _ = DirectQueue;
     _ = DirectMigration;
+    _ = BrowserRecordStore;
+    _ = BrowserDeclarations;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
@@ -134,6 +136,10 @@ pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
 pub const DirectMigration = @import("DirectMigration.zig");
+pub const BrowserRecordStore = @import("BrowserRecordStore.zig");
+pub const BrowserContract = @import("BrowserContract.zig");
+pub const BrowserAdministration = @import("BrowserAdministration.zig");
+pub const BrowserDeclarations = @import("BrowserDeclarations.zig");
 pub const DirectTransactionCall = @import("DirectTransactionCall.zig");
 pub const DirectTransactionSavepoint = @import("DirectTransactionSavepoint.zig");
 pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig");

@@ -1358,8 +1358,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
-        "catch": 17
+        "try": 42,
+        "catch": 18
       },
       "imports": [
         "../Diagnostic.zig",
@@ -1372,7 +1372,8 @@
         "SqlSettings.zig",
         "builtin",
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_serving_http"
       ]
     },
     "apps/transit-cli/server/Configuration.zig": {
@@ -3639,6 +3640,183 @@
       "propagation": {
         "try": 45,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/BrowserAdministration.zig": {
+      "errors": {
+        "BrowserNamespaceMismatch": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidBrowserRecord": 1,
+        "TableNotFound": 1,
+        "UnsupportedBrowserPublication": 1
+      },
+      "outcomes": {
+        "Request.action": [
+          "inspect",
+          "list",
+          "change",
+          "prepare_publication"
+        ],
+        "Response": [
+          "inspected",
+          "page",
+          "accepted",
+          "proposed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "execute()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/BrowserContract.zig": {
+      "errors": {},
+      "outcomes": {
+        "Attribution.retention": [
+          "current_cut_unpinned"
+        ],
+        "Snapshot.type": [
+          "snapshot"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Cell.jsonSchema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/BrowserDeclarations.zig": {
+      "errors": {
+        "BootstrapBindingForbidden": 1,
+        "BrowserNamespaceMismatch": 2,
+        "CallbackAlreadyClaimed": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidBrowserIdentity": 1,
+        "InvalidBrowserName": 2,
+        "InvalidBrowserRecord": 1,
+        "InvalidCallback": 1,
+        "InvalidCallbackBinding": 1,
+        "InvalidJwksEndpoint": 2,
+        "InvalidJwksPolicy": 1,
+        "InvalidProviderAudience": 1,
+        "InvalidPublicationBudget": 1,
+        "InvalidPublishedResourceRevisionLineage": 2,
+        "JwksMustBeAcquired": 1,
+        "LoginExpired": 1,
+        "MissingJwksEndpoint": 1,
+        "PkceRequired": 2,
+        "PublicationIdentityChanged": 1,
+        "PublicationRevisionRequired": 1,
+        "PublicationSourceMismatch": 1,
+        "PublishedResourceRetired": 1,
+        "SessionExpired": 1,
+        "UnsupportedBrowserColumn": 1,
+        "UnsupportedBrowserPublication": 1
+      },
+      "outcomes": {
+        "Challenge.state": [
+          "issued",
+          "claimed",
+          "complete",
+          "failed"
+        ],
+        "Declaration": [
+          "provider",
+          "secret",
+          "binding",
+          "publication"
+        ],
+        "Provider.pkce": [
+          "s256",
+          "confidential_client"
+        ],
+        "Publication.audience": [
+          "public",
+          "bound_identity"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.validate()": "<inferred>",
+        "Challenge.claim()": "<inferred>",
+        "Change.apply()": "<inferred>",
+        "Credential.validate()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Provider.validate()": "<inferred>",
+        "Publication.validate()": "<inferred>",
+        "Secret.validate()": "<inferred>",
+        "Session.requireLive()": "<inferred>",
+        "name()": "<inferred>",
+        "read()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/BrowserRecordStore.zig": {
+      "errors": {
+        "BrowserMutationConflict": 1,
+        "BrowserRecordCapacity": 1,
+        "BrowserRecordKeyConflict": 1,
+        "BrowserRevisionConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidBrowserRecord": 6
+      },
+      "outcomes": {
+        "Kind": [
+          "provider",
+          "secret",
+          "binding",
+          "publication",
+          "identity",
+          "challenge",
+          "session"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.validate()": "<inferred>",
+        "load()": "<inferred>",
+        "page()": "<inferred>",
+        "put()": "<inferred>",
+        "putOnce()": "<inferred>",
+        "read()": "<inferred>",
+        "readProgress()": "<inferred>",
+        "reconcilePage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -7816,7 +7994,7 @@
         "UnreleasedInvestigationOrReaderResources": 1,
         "UnresolvedPublishedConflict": 1,
         "UnscrubbedPublishedTypeError": 1,
-        "UnsupportedPublishedCellType": 1
+        "UnsupportedPublishedCellType": 2
       },
       "outcomes": {
         "ProjectedInterfaceKind": [
@@ -7961,7 +8139,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -8212,6 +8390,23 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/browser_export.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-catalog/src/direct_export.zig": {
       "errors": {},
       "outcomes": {},
@@ -8245,6 +8440,10 @@
         "AuthorizationLowering.zig",
         "BranchLifecycle.zig",
         "BranchMergeRestore.zig",
+        "BrowserAdministration.zig",
+        "BrowserContract.zig",
+        "BrowserDeclarations.zig",
+        "BrowserRecordStore.zig",
         "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
         "DirectAuthorizationSql.zig",
@@ -16836,7 +17035,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 3
       },
       "imports": [
@@ -18407,7 +18606,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d\""
+          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
         ],
         "Effect.phase": [
           "pending",
@@ -18873,7 +19072,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 64,
+        "try": 66,
         "catch": 0
       },
       "imports": [
@@ -22982,6 +23181,235 @@
         "transit_query"
       ]
     },
+    "packages/zig/transit-serving-http/src/BrowserProviders.zig": {
+      "errors": {
+        "Canceled": 1,
+        "ClockUnavailable": 1,
+        "InvalidJwksDocument": 2,
+        "InvalidOidcToken": 2,
+        "InvalidProviderAccessToken": 1,
+        "InvalidProviderEndpoint": 3,
+        "JwksRefreshThrottled": 1,
+        "MissingOidcIdToken": 1,
+        "MissingProviderAccessToken": 1,
+        "ProviderAddressUnavailable": 1,
+        "ProviderExchangeRejected": 2,
+        "ProviderResponseTooLarge": 1,
+        "RetiredJwksKey": 1,
+        "UnknownJwksKey": 1,
+        "UnknownOrRevokedJwksKey": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Capture.segment()": "<inferred>",
+        "JwksCache.get()": "<inferred>",
+        "address4()": "<inferred>",
+        "authorize()": "<inferred>",
+        "encode()": "<inferred>",
+        "exchange()": "<inferred>",
+        "fetch()": "<inferred>",
+        "keyRecords()": "<inferred>",
+        "requireKid()": "<inferred>",
+        "timeMillis()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 57,
+        "catch": 2
+      },
+      "imports": [
+        "std",
+        "transit_catalog",
+        "transit_station_http"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/BrowserRequest.zig": {
+      "errors": {
+        "AmbientAuthHeaderForbidden": 1,
+        "BrowserNotFound": 5,
+        "CallbackAlreadyClaimed": 1,
+        "ClockUnavailable": 1,
+        "DuplicateBrowserParameter": 1,
+        "EmptyBrowserSecret": 1,
+        "IdentityRestricted": 1,
+        "InsecureForwardedProto": 1,
+        "InvalidBrowserMethod": 1,
+        "InvalidBrowserQuery": 3,
+        "InvalidBrowserReaderKey": 1,
+        "InvalidBrowserRecord": 2,
+        "InvalidBrowserResponse": 1,
+        "InvalidCallback": 3,
+        "InvalidSession": 2,
+        "LoginDeclarationChanged": 2,
+        "MissingCallbackCode": 1,
+        "MissingCallbackState": 1,
+        "MissingLoginCookie": 1,
+        "ProviderDisabled": 1,
+        "ProviderExchangeRejected": 1,
+        "SecretDisabled": 1,
+        "SessionProviderChanged": 1,
+        "TooManyBrowserHeaders": 1,
+        "UntrustedTlsTermination": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "callback()": "<inferred>",
+        "cookie()": "<inferred>",
+        "declaration()": "<inferred>",
+        "decode()": "<inferred>",
+        "derive()": "<inferred>",
+        "discovery()": "<inferred>",
+        "login()": "<inferred>",
+        "logout()": "<inferred>",
+        "mutation()": "<inferred>",
+        "now()": "<inferred>",
+        "parameter()": "<inferred>",
+        "provider()": "<inferred>",
+        "reader()": "<inferred>",
+        "respond()": "<inferred>",
+        "run()": "<inferred>",
+        "secret()": "<inferred>",
+        "session()": "<inferred>",
+        "status()": "<inferred>",
+        "token()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 95,
+        "catch": 0
+      },
+      "imports": [
+        "BrowserProviders.zig",
+        "BrowserRuntime.zig",
+        "BrowserSnapshot.zig",
+        "BrowserWatch.zig",
+        "std",
+        "transit_http_server"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/BrowserRuntime.zig": {
+      "errors": {
+        "AuthorityTimeout": 1,
+        "AuthorityUnavailable": 1,
+        "BrowserNotFound": 1,
+        "BrowserRevisionConflict": 1,
+        "CallbackAlreadyClaimed": 1,
+        "InvalidBrowserConfiguration": 1,
+        "InvalidBrowserProxyTrust": 4,
+        "MissingBrowserProxyTrust": 1,
+        "OutOfMemory": 1,
+        "ProviderExchangeRejected": 1,
+        "ProviderTokenExchangeRejected": 1,
+        "ResourceWorkBoundExceeded": 1,
+        "UntrustedBrowserProxy": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Cidr.parse()": "<inferred>",
+        "Config.boundary()": "<inferred>",
+        "Config.validate()": "<inferred>",
+        "Host.admitPeer()": "<inferred>",
+        "Host.handle()": "<inferred>",
+        "Running.open()": "<inferred>",
+        "Running.run()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 17,
+        "catch": 1
+      },
+      "imports": [
+        "BrowserProviders.zig",
+        "BrowserRequest.zig",
+        "std",
+        "transit_catalog",
+        "transit_http_server"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/BrowserSnapshot.zig": {
+      "errors": {
+        "BindingRequired": 3,
+        "BrowserNotFound": 1,
+        "IdentityBindingChanged": 1,
+        "IdentityRestricted": 1,
+        "MissingPublishedCell": 1,
+        "PublicationSourceMismatch": 2,
+        "PublishedResourceReset": 3,
+        "PublishedResourceWithdrawn": 2,
+        "PublishedSourceChanged": 2,
+        "ResourceWorkBoundExceeded": 5,
+        "TableDefinitionChanged": 2,
+        "UnsupportedBrowserPublication": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "current()": "<inferred>",
+        "read()": "<inferred>",
+        "sessionCredential()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 42,
+        "catch": 3
+      },
+      "imports": [
+        "BrowserRequest.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/BrowserWatch.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "BindingRequired": 1,
+        "CatalogDenied": 1,
+        "IdentityBindingChanged": 1,
+        "IdentityRestricted": 1,
+        "InvalidSession": 1,
+        "ProviderDisabled": 1,
+        "PublishedResourceReset": 1,
+        "PublishedResourceWithdrawn": 2,
+        "PublishedSourceChanged": 1,
+        "SecretDisabled": 1,
+        "SessionExpired": 1,
+        "SessionProviderChanged": 1,
+        "TableDataChanged": 1,
+        "TableDefinitionChanged": 1,
+        "WebSocketProtocol": 1
+      },
+      "outcomes": {
+        "Socket.joined().Result": [
+          "input",
+          "events"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Socket.close()": "<inferred>",
+        "Socket.closeReason()": "<inferred>",
+        "Socket.events()": "anyerror",
+        "Socket.joined()": "<inferred>",
+        "Socket.receive()": "anyerror",
+        "Socket.write()": "anyerror",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 22,
+        "catch": 3
+      },
+      "imports": [
+        "BrowserRequest.zig",
+        "BrowserRuntime.zig",
+        "BrowserSnapshot.zig",
+        "std",
+        "transit_http_server"
+      ]
+    },
     "packages/zig/transit-serving-http/src/PrivateClient.zig": {
       "errors": {
         "ClockUnavailable": 3,
@@ -23105,6 +23533,7 @@
         "catch": 2
       },
       "imports": [
+        "BrowserRuntime.zig",
         "PrivateClient.zig",
         "ReactiveTransport.zig",
         "std",

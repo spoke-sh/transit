@@ -28,6 +28,18 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const key = try wire.readKey(init.gpa, init.io, args[2]);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    if (std.mem.eql(u8, command, "browser")) {
+        if (args.len != 5) return error.ExpectedAuthorityUrl;
+        const catalog = @import("transit_catalog");
+        var arena = std.heap.ArenaAllocator.init(init.gpa);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+        const request = try std.json.parseFromSlice(catalog.BrowserAdministration.Request, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
+        var client = wire.Client.init(allocator, init.io, args[4]);
+        defer client.deinit();
+        const store: catalog.BrowserRecordStore = .{ .client = .{ .allocator = allocator, .authority = &client, .service = &client, .connection = request.value.connection, .key = key }, .namespace = request.value.namespace };
+        return print(init.io, try catalog.BrowserAdministration.execute(store, request.value));
+    }
     if (std.mem.eql(u8, command, "query") or std.mem.eql(u8, command, "sign-query")) {
         const query = try std.json.parseFromSlice(transit.Growth.Query, init.gpa, bytes, .{});
         defer query.deinit();

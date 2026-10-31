@@ -46,10 +46,11 @@ pub const Application = struct {
     fn handle(context: ?*anyopaque, turn: *station.Turn, frame: station.Frame) !void {
         const self: *Application = @ptrCast(@alignCast(context.?));
         return self.dispatch(turn, frame) catch |err| {
-            // Foreign resource reads cannot fabricate a failed application turn
-            // when their authority observation is unavailable or has advanced.
+            // Native reads and direct operations cannot fabricate a failed
+            // application turn when their observation is unavailable or contended.
+            // Direct dispatch reopens its committed intent on the next turn.
             const rejection = self.resources.wire.last_rejection;
-            if (err == error.InvalidLedgerDataBinding or err == error.LedgerDataBindingChanged or err == error.MissingLedgerDataBinding or err == error.IncompatibleDefinition or station.client.Client.unavailable(err) or ((err == error.Rejected or err == error.Conflict) and (rejection == .StaleStateResource or rejection == .QueryExpired or rejection == .StateViewExpired))) turn.read_error = err;
+            if (err == error.InvalidLedgerDataBinding or err == error.LedgerDataBindingChanged or err == error.MissingLedgerDataBinding or err == error.IncompatibleDefinition or station.client.Client.unavailable(err) or self.resources.wire.contended(err) or ((err == error.Rejected or err == error.Conflict) and (rejection == .StaleStateResource or rejection == .QueryExpired or rejection == .StateViewExpired))) turn.read_error = err;
             return err;
         };
     }

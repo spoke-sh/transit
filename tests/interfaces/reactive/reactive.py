@@ -39,13 +39,13 @@ def reactive(tag, payload):
 
 
 class WebSocket:
-    def __init__(self, port, host, tls, headers=None, expected=101, timeout=5):
+    def __init__(self, port, host, tls, headers=None, expected=101, timeout=5, path="/reactive/v1/websocket", subprotocol="transit.reactive.v1"):
         self.socket = socket.create_connection(('127.0.0.1', tls[port].port if port in tls else port), timeout=timeout)
         if port in tls: self.socket = tls[port].context.wrap_socket(self.socket, server_hostname='127.0.0.1')
         key = base64.b64encode(os.urandom(16)).decode()
-        fields = dict(Host=host, Origin='https://' + host, Upgrade='websocket', Connection='Upgrade', **{'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Protocol': 'transit.reactive.v1', 'Sec-WebSocket-Extensions': 'permessage-deflate'})
+        fields = dict(Host=host, Origin='https://' + host, Upgrade='websocket', Connection='Upgrade', **{'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Protocol': subprotocol, 'Sec-WebSocket-Extensions': 'permessage-deflate'})
         fields.update(headers or {})
-        self.socket.sendall(('GET /reactive/v1/websocket HTTP/1.1\r\n' + ''.join(f'{k}: {v}\r\n' for k, v in fields.items()) + '\r\n').encode())
+        self.socket.sendall(('GET ' + path + ' HTTP/1.1\r\n' + ''.join(f'{k}: {v}\r\n' for k, v in fields.items()) + '\r\n').encode())
         head = bytearray()
         while not head.endswith(b'\r\n\r\n'):
             byte = self.socket.recv(1)
@@ -54,7 +54,7 @@ class WebSocket:
         assert int(head.split()[1]) == expected, head
         if expected != 101: return
         response = dict((line.split(b': ', 1)[0].lower(), line.split(b': ', 1)[1]) for line in bytes(head).split(b'\r\n')[1:] if b':' in line)
-        assert response[b'sec-websocket-protocol'] == b'transit.reactive.v1'
+        assert response[b'sec-websocket-protocol'] == subprotocol.encode()
         assert response[b'sec-websocket-accept'] == base64.b64encode(hashlib.sha1((key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest())
         assert b'sec-websocket-extensions' not in response
 

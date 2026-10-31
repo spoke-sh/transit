@@ -5,6 +5,7 @@ const http = @import("transit_http_server");
 const s = serving.station;
 const p = s.protocol;
 const telemetry = s.client.observability.telemetry;
+pub const BrowserRuntime = @import("BrowserRuntime.zig");
 pub const Caller = struct { principal: u64, public_key: [32]u8 };
 pub const Gateway = struct {
     service: u64,

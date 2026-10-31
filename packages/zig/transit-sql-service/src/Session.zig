@@ -533,6 +533,10 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .native => |*statement| {
             if (statement.namespace != self.namespace) return error.CatalogIdentityConflict;
             try self.fresh(g.Statement.validate, .{ statement, &self.table });
+            // Revalidating a retained handle checks its definition and rights,
+            // not the data frontier observed at preparation. A later execution
+            // must observe that frontier before selecting a cached read pin.
+            if (statement.plan == .select) statement.plan.select.metadata = null;
         },
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),

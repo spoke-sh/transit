@@ -221,3 +221,22 @@ unchanged. Every fetch, including terminal observation, requires current grants;
 filter evaluation reports `QueryTypeError` and `QueryConflict` rather than
 silently excluding those cells. These borrowed fixtures do not establish disk
 paging, a SQL historical selector or runtime policy integration.
+
+Browser declaration administration is a typed public interface in
+`BrowserAdministration`: inspect a key, list an eight-entry page, conditionally
+change a declaration, or prepare a publication against a live Table schema.
+`BrowserDeclarations` owns provider, secret-reference, explicit native-reader
+binding and generic `PublishedResource` declarations. The preparing operation
+compiles the declared SELECT and records its actual source definition and output
+schema; it neither publishes nor executes it. These operations do not invent
+SQL declaration forms.
+
+`BrowserRecordStore` uses public `DirectRecord` immutable bodies and
+`DirectClientToken` conditional revisions. Retained identity/session cardinality
+is independent of resident directories. A write carries an explicit mutation
+identity and expected revision; lost replies require inspecting the original
+record/history. Pending admission bookkeeping can be reconciled in bounded pages,
+without dispatching an exchange. Expiry and disablement never delete accepted
+history. Native owner quotas still apply. Private secret bytes stay outside these
+records. Signing in confers no native privilege; bindings refer to an existing
+reader's actual credential and reject the bootstrap owner/root role.

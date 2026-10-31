@@ -391,7 +391,7 @@
         },
         "LiteralOutOfRange": {
           "code": "sql.literal_out_of_range",
-          "category": "binding"
+          "category": "limit"
         },
         "LiteralTooLarge": {
           "code": "sql.literal_too_large",

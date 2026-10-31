@@ -162,8 +162,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_serving_http", serving_http.module("transit_serving_http"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
+        if (std.mem.eql(u8, name, "transit-admin")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
         if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
@@ -250,6 +252,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);
     transit_cli.root_module.addImport("transit_board_role", board.root_module);
     transit_cli.root_module.addImport("transit_sql_gateway_role", sql_gateway_app.root_module);
+    transit_cli.root_module.addImport("transit_serving_http", serving_http.module("transit_serving_http"));
     transit_cli.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);

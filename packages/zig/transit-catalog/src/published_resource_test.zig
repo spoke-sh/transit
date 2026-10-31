@@ -98,7 +98,7 @@ fn sampleDeliveryResource(state: PublishedResource.ResourceLifecycleState) !Publ
         .canonical_name = "regional_delivery_assessment_without_any_21_byte_station_kv_cap",
         .business_title = "Regional Delivery Risk Assessment",
         .business_meaning = "Aggregates shipment SLA delays and contractual financial penalties by operating region.",
-        .tzdb_version = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb_version = try DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .backing_kind = .managed_dataflow,
         .canonical_plan_or_sql = "SELECT region, COUNT(*) AS delayed_shipments, SUM(penalty_usd) AS sla_penalty_usd FROM shipments JOIN contracts ON ... WHERE region = $1 GROUP BY region",
         .dependencies = deps,
@@ -115,6 +115,20 @@ fn sampleDeliveryResource(state: PublishedResource.ResourceLifecycleState) !Publ
             .mcp_ui_template_uri = "ui://logistics/delivery-assessment/v1",
         },
     };
+}
+
+test "publication identity distinguishes absent timezone rules and exact timezone identity" {
+    const t_std = std.testing;
+    var resource = try sampleDeliveryResource(.published);
+    const original = try resource.definitionDigest();
+    resource.tzdb_version = null;
+    const absent = try resource.definitionDigest();
+    try t_std.expect(!std.mem.eql(u8, &original, &absent));
+    resource.tzdb_version = try DecimalArithmetic.TzdbVersion.init("other-fixture", @splat(1));
+    const relabeled = try resource.definitionDigest();
+    try t_std.expect(!std.mem.eql(u8, &original, &relabeled));
+    resource.tzdb_version.?.digest = @splat(0);
+    try t_std.expectError(error.InvalidTzdbVersion, resource.validate());
 }
 
 test "published resource validates headless PBR1 descriptor without screens or themes and enforces parameter domain constraints" {

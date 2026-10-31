@@ -144,6 +144,7 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
             connection(worker_io, alloc, stream, limits, admission, ctx, &handler_started) catch |err| ctx.connectionError(err, handler_started);
         }
         fn connection(worker_io: Io, alloc: std.mem.Allocator, stream: Io.net.Stream, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) !void {
+            if (@hasDecl(Context, "admitPeer")) try ctx.admitPeer(stream.socket.address);
             var input: [8192]u8 = undefined;
             var output: [4096]u8 = undefined;
             var transport: Transport = undefined;

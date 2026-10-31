@@ -92,7 +92,9 @@ def run(node, cli, worker, courier):
             raise AssertionError(("no delivered input", pid))
 
         control = {"mode": "drop", "bodies": [], "changed_basis": 0,
-                   "initialization_refused": 0, "admission_lost": 0, "expired_view": 0}
+                   "initialization_refused": 0, "admission_lost": 0, "expired_view": 0,
+                   "operation_fenced_before": 0, "operation_fenced_after": 0,
+                   "fenced_binding": None, "fenced_reinspected": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -122,6 +124,23 @@ def run(node, cli, worker, courier):
                     return
                 initializing = self.path == '/table/v1' and 'initialize' in envelope.get('action', {})
                 admitting = self.path == '/table/v1' and 'admit_saved' in envelope.get('action', {})
+                operation = envelope.get('action', {}).get('operation', {})
+                executing = self.path == '/table/v1' and operation.get('command') == 'execute'
+                if operation.get('command') == 'inspect' and control['operation_fenced_after'] and not control['fenced_reinspected']:
+                    assert operation['binding'] == control['fenced_binding'], 'Uncertain execution was replaced before inspection'
+                    control['fenced_reinspected'] += 1
+                if executing and not control['operation_fenced_before']:
+                    control['operation_fenced_before'] += 1
+                    control['fenced_binding'] = operation['binding']
+                    refused = b'{"err":"Conflict"}'
+                    self.send_response(409)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(refused)))
+                    self.end_headers()
+                    self.wfile.write(refused)
+                    return
+                if executing and not control['operation_fenced_after']:
+                    assert operation['binding'] == control['fenced_binding'], 'Contention replaced the accepted direct intent'
                 if initializing and not control['initialization_refused']:
                     control['initialization_refused'] += 1
                     refused = b'{"err":"HttpCapacity"}'
@@ -143,6 +162,17 @@ def run(node, cli, worker, courier):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
+                    if executing and response.status == 200 and not control['operation_fenced_after']:
+                        # The operation may have advanced before its response was
+                        # replaced. Recovery must inspect the same saved binding.
+                        control['operation_fenced_after'] += 1
+                        refused = b'{"err":"Conflict"}'
+                        self.send_response(409)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Content-Length', str(len(refused)))
+                        self.end_headers()
+                        self.wfile.write(refused)
+                        return
                     if admitting and response.status == 200 and not control['admission_lost']:
                         control['admission_lost'] += 1
                         self.close_connection = True
@@ -193,7 +223,9 @@ def run(node, cli, worker, courier):
             assert control['expired_view'] == 1
             assert control['initialization_refused'] == 1
             assert control['admission_lost'] == 1
-            print('Station recovery: fresh view sequence, refused direct initialization, lost direct admission and exact audit/reply receipt recovery.', flush=True)
+            assert control['operation_fenced_before'] == control['operation_fenced_after'] == 1
+            assert control['fenced_reinspected'] == 1
+            print('Station recovery: fresh view sequence, refused direct initialization, lost direct admission, fenced original operation and exact audit/reply receipt recovery.', flush=True)
 
             # The held native turn publishes audit/reply only after the original
             # direct Table receipt. Queue admission cannot satisfy this fault.

@@ -36,7 +36,7 @@ test "full-data and schema-only branch creation captures unflushed TWAL1 tail ro
         .commit_lsn = 10,
         .branch_id = 1,
         .branch_name = "main",
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .tables = &main_tables,
     };
 
@@ -212,7 +212,7 @@ test "T6 multi-branch GC reachability preserves shared .tseg segments and WAL pa
         .commit_lsn = 10,
         .branch_id = 1,
         .branch_name = "main",
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .tables = &tables_v1,
     };
 

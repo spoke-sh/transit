@@ -307,7 +307,9 @@ pub const PublishedResourceDescriptor = struct {
     canonical_name: []const u8,
     business_title: []const u8,
     business_meaning: []const u8,
-    tzdb_version: DecimalArithmetic.TzdbVersion,
+    /// Null explicitly declares that this resource uses no timezone rules.
+    /// Temporal computation must bind an actual immutable database identity.
+    tzdb_version: ?DecimalArithmetic.TzdbVersion,
     backing_kind: BackingKind = .compiled_sql_plan,
     canonical_plan_or_sql: []const u8,
     dependencies: []const HistoricalCatalog.DependencyColumnBinding,
@@ -360,6 +362,7 @@ pub const PublishedResourceDescriptor = struct {
             _ = try self.result_schema.index(sem.column_id);
             try sem.unit.validate();
         }
+        if (self.tzdb_version) |version| try version.validate();
         try self.freshness_requirement.validate();
         try self.work_bound.validate();
         try self.presentation.validate(self.result_schema);
@@ -387,7 +390,12 @@ pub const PublishedResourceDescriptor = struct {
         hasher.update("\x00");
         hasher.update(self.business_meaning);
         hasher.update("\x00");
-        hasher.update(&self.tzdb_version.digest);
+        if (self.tzdb_version) |version| {
+            hasher.update(&.{1});
+            hasher.update(version.version_id);
+            hasher.update("\x00");
+            hasher.update(&version.digest);
+        } else hasher.update(&.{0});
         hasher.update(self.canonical_plan_or_sql);
         hasher.update("\x00");
         for (self.dependencies) |dep| {

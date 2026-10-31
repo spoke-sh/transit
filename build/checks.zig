@@ -97,7 +97,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("apps/transit-cli/Support.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     });
     const file_capture = test_modules.get(.operations_file_capture);
     const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
@@ -763,6 +763,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
     // Compile schema exporters in one graph; the independent validators receive
     // immutable artifact paths, without overwriting any shared install prefix.
+    b.step("browser-contract", "Export browser declarations and public responses").dependOn(&b.addRunArtifact(catalog.artifact("transit-browser-contract")).step);
     const contract_checks = b.addSystemCommand(&.{ "python3", "-B" });
     contract_checks.addFileArg(b.path("tests/runner/checks.py"));
     contract_checks.addArg("contracts");
@@ -773,6 +774,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ "station", station_bindings.artifact("transit-station-contract") },
         .{ "logical", fuze.artifact("transit-logical-contract") },
         .{ "direct-table", catalog.artifact("transit-direct-table-contract") },
+        .{ "browser", catalog.artifact("transit-browser-contract") },
         .{ "configuration", query.artifact("transit-configuration-contract") },
         .{ "settings-reference", settings_reference },
         .{ "sql-session", sql_protocol.artifact("transit-sql-contract") },
@@ -912,6 +914,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
+        .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
     } }) }));
     faults_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove console recovery and bounded local process mechanics").dependOn(&lifecycle_test.step);
@@ -1098,6 +1101,27 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     migrate_lifecycle_test.has_side_effects = true;
     migrate_lifecycle_test.stdio = .inherit;
     b.step("test-migrate-lifecycle", "Qualify reviewable, resumable application schema and data migrations").dependOn(&migrate_lifecycle_test.step);
+    const browser_fault_host = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/http/browser_fault_host.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "serving_http", .module = serving_http.module("transit_serving_http") }},
+    });
+    const browser_fault_module = b.createModule(.{ .root_source_file = b.path("apps/transit-node/main.zig"), .target = target, .optimize = optimize, .link_libc = true });
+    // Keep Debug fixture DWARF outside the installation's executable-byte cap.
+    // Runtime assertions and the selected optimization mode remain unchanged.
+    browser_fault_module.strip = true;
+    var browser_imports = node_artifact.root_module.import_table.iterator();
+    while (browser_imports.next()) |entry| browser_fault_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_serving_http")) browser_fault_host else entry.value_ptr.*);
+    const browser_fault_node = b.addExecutable(.{ .name = "transit-node-browser-fixture", .root_module = browser_fault_module });
+    b.step("browser-fault-fixture", "Build browser buffered-read fault boundary").dependOn(&b.addInstallArtifact(browser_fault_node, .{}).step);
+    const browser_test = b.addSystemCommand(&.{ "python3", "-B" });
+    browser_test.addFileArg(b.path("tests/runner/launch.py"));
+    browser_test.addFileArg(b.path("tests/interfaces/http/declarative_browser.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, cli_artifact, browser_fault_node }) |artifact| browser_test.addArtifactArg(artifact);
+    browser_test.has_side_effects = true;
+    browser_test.stdio = .inherit;
+    b.step("test-declarative-browser", "Qualify durable browser sessions, provider exchanges and native publications").dependOn(&browser_test.step);
     // Same production node, with only the SQL host import decorated by a
     // test-owned typed-boundary fault injector. No fault switch ships at runtime.
     const fault_host = b.createModule(.{
@@ -1745,7 +1769,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     }) });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");

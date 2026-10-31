@@ -999,3 +999,7 @@ vector-files output:
 vector-pipelines output:
     zig build vector-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/performance/query/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+
+# Independent provider peers, durable browser claims and native read disclosure.
+declarative-browser:
+    zig build test-declarative-browser -Doptimize=ReleaseSafe

@@ -20,6 +20,10 @@ Credential and scope denial are checked before waiting for account recovery
 readiness, so revocation is reported even when it also stops background recovery.
 Readiness and activation fencing still gate execution.
 
+Prepared Table reads retain their definitions and parameter types. Each later
+execution observes the current data frontier before selecting a cached snapshot;
+an already open result keeps its original snapshot through completion.
+
 Native SQL and the database wire adapters attempt accepted INSERT, UPDATE and
 DELETE in the submitting request. Successful responses carry the owner's verified
 terminal outcome and matched/changed counts. The foreground also settles pending

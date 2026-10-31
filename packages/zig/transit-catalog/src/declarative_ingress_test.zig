@@ -517,7 +517,7 @@ test "Open sign-in vs bound catalog principal, lossless 64-bit JSON snapshots, a
         .canonical_name = "member_feed",
         .business_title = "Member Feed",
         .business_meaning = "Bound member metrics with 64-bit precision",
-        .tzdb_version = try fuze.DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb_version = try fuze.DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .backing_kind = .managed_dataflow,
         .canonical_plan_or_sql = "SELECT label, exact_i64 FROM member_items ORDER BY label",
         .dependencies = &deps,

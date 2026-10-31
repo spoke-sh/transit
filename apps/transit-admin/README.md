@@ -35,3 +35,19 @@ See the [native contract](../../contracts/TRANSIT_V1.md) and
 Diagnostics use [bounded telemetry](../../packages/zig/telemetry/README.md) on
 stderr. Machine results remain on stdout. Logs exclude seeds, signed requests,
 payloads and URLs. An uncertain submission still requires exact reconciliation.
+
+Browser declarations use the existing signed catalog client:
+
+```sh
+zig-out/bin/transit-admin browser PRIVATE_SEED_FILE BROWSER_REQUEST.json http://127.0.0.1:8080
+```
+
+The request is the public `transit-catalog.BrowserAdministration.Request` type:
+`definition`, native `connection`, `namespace`, and one `action` (`inspect`,
+`list`, `prepare_publication`, or `change`). Development provider URLs require
+explicit `development: true`. Prepare returns a typed proposed change for review;
+change uses its saved mutation identity and expected catalog revision. Inspect/list
+include retained record references and revisions. Disablement is a conditional
+replacement with `enabled: false`, or `state: withdrawn` for a publication.
+Provider/secret/binding/publication SQL declarations are not executable yet;
+`transit migrate` remains the schema/data migration interface.
