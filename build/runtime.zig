@@ -245,6 +245,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     // One implementation module per role is shared by the standalone artifact
     // and the local executable. Process isolation and acceptance owners stay
     // unchanged; `transit` dispatches only the selected private role at startup.
+    const browser = b.dependency("transit_browser", .{ .target = target, .optimize = optimize });
+    const browser_app = b.addExecutable(.{ .name = "transit-browser", .root_module = b.addModule("transit_browser_role", .{ .root_source_file = b.path("apps/transit-browser/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_browser", .module = browser.module("transit_browser") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } } }) });
+    b.step("transit-browser", "Build the browser authentication and read gateway").dependOn(&b.addInstallArtifact(browser_app, .{}).step);
+    transit_cli.root_module.addImport("transit_browser_role", browser_app.root_module);
     transit_cli.root_module.addImport("transit_node_role", node_artifact.root_module);
     transit_cli.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
     transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);

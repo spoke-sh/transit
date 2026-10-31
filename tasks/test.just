@@ -358,6 +358,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-browser && zig build test
     cd packages/zig/transit-bitmap && zig build test
     cd packages/zig/transit-memory && zig build test
     cd packages/zig/transit-io && zig build test
@@ -999,3 +1000,11 @@ vector-files output:
 vector-pipelines output:
     zig build vector-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/performance/query/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+
+# Browser provider verification and origin/cookie decisions.
+browser-unit:
+    zig build test-browser-unit
+
+# Real Transit persistence with independent OAuth and WebSocket peers.
+browser-auth:
+    zig build test-browser-auth -Doptimize=ReleaseSafe -j2

@@ -78,3 +78,7 @@ sdks-managed:
 # Browser qualification remains explicit for local developers.
 browser:
     python3 -B tests/runner/ci.py browser
+
+# Browser authentication and same-origin HTTP/WebSocket snapshots.
+browser-auth:
+    python3 -B tests/runner/ci.py browser-auth

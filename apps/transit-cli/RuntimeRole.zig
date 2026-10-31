@@ -1,6 +1,6 @@
 //! Private executable roles, separate from the two public CLI commands.
 const std = @import("std");
-pub const Role = enum { node, query_host, sql_gateway, board };
+pub const Role = enum { node, query_host, sql_gateway, board, browser };
 pub const argument = "__transit_role_v1";
 
 /// The resulting vector borrows the executable and arguments. The installation
@@ -28,6 +28,7 @@ pub fn run(init: std.process.Init, role: Role) !void {
         .node => @import("transit_node_role").main(selected),
         .query_host => @import("transit_query_host_role").main(selected),
         .sql_gateway => @import("transit_sql_gateway_role").main(selected),
+        .browser => @import("transit_browser_role").main(selected),
         .board => @import("transit_board_role").main(selected),
     };
 }

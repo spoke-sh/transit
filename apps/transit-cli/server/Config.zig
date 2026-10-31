@@ -18,6 +18,7 @@ executables: Executables = .{},
 applications: ?Applications = null,
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
+browser_file: ?[]const u8 = null,
 query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
@@ -140,6 +141,10 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         board.public_origin = origin;
         if (board.workbench_file) |path| board.workbench_file = try std.fs.path.resolve(allocator, &.{ base, path });
         self.board = board;
+    }
+    if (self.browser_file) |path| {
+        if (path.len == 0 or path.len > 4096 or std.mem.indexOfScalar(u8, path, 0) != null) return diagnostic.invalidField("browser_file", "must reference a browser configuration file", null);
+        self.browser_file = try std.fs.path.resolve(allocator, &.{ base, path });
     }
     if (self.applications) |apps| {
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return diagnostic.invalidField("applications.port and ports." ++ name, "must be different", null);

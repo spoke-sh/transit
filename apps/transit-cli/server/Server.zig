@@ -12,7 +12,7 @@ const Sql = @import("Sql.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { node, source, requester, courier, gateway, board, sql };
+const Role = enum { node, source, requester, courier, gateway, board, browser, sql };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -22,7 +22,7 @@ diagnostics: *telemetry.Runtime,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
-processes: [6]Process = @splat(.{}),
+processes: [7]Process = @splat(.{}),
 active_role: Role = .node,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const loaded = try Config.capture(init, options.path, diagnostic, true);
@@ -245,6 +245,12 @@ fn cycle(self: *Self) !void {
             };
             break;
         }
+    }
+    if (config.browser_file) |path| {
+        const health = try @import("transit_browser_role").healthAddress(allocator, self.init.io, path);
+        const arguments = try @import("../RuntimeRole.zig").arguments(allocator, self.executable, null, .browser, &.{path});
+        try self.start(allocator, .browser, arguments, &.{}, false);
+        try self.ready(health);
     }
     const report = try std.json.Stringify.valueAlloc(allocator, .{
         .ready = true,

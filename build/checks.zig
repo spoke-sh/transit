@@ -913,6 +913,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     } }) }));
     faults_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove console recovery and bounded local process mechanics").dependOn(&lifecycle_test.step);
+    const browser_module = b.dependency("transit_browser", .{ .target = target, .optimize = optimize }).module("transit_browser");
+    b.step("test-browser-unit", "Test browser authentication and origin checks").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = browser_module })).step);
+    const browser_test = b.addSystemCommand(&.{ "python3", "-B" });
+    browser_test.addFileArg(b.path("tests/runner/launch.py"));
+    browser_test.addFileArg(b.path("tests/interfaces/http/browser_auth.py"));
+    browser_test.addArtifactArg(transit_cli);
+    browser_test.has_side_effects = true;
+    browser_test.stdio = .inherit;
+    b.step("test-browser-auth", "Qualify browser providers, durable sessions and HTTP/WS origins").dependOn(&browser_test.step);
     const diagnostics_test = b.addSystemCommand(&.{ "python3", "-B" });
     diagnostics_test.addFileArg(b.path("tests/runner/launch.py"));
     diagnostics_test.addFileArg(b.path("tests/interfaces/cli/cli_diagnostics.py"));

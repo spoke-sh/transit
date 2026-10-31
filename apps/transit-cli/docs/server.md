@@ -522,3 +522,12 @@ and recovery. The ready
 record points to an atomically replaced SQL status file while enrollment runs;
 core readiness does not imply that SQL is accepting connections. Disabling a
 listener preserves accepted operations and their account recovery identities.
+
+## Browser authentication listener
+
+Set `browser_file` to a JSON file to run the supervised browser authentication
+and published-read listener from the same Transit executable. Its HTTP and
+WebSocket routes are separate from the native control gateway. See the
+[browser configuration guide](../../../packages/zig/transit-browser/docs/configuration.md)
+for Google, Facebook and GitHub setup, schema migration, explicit native account
+bindings and exact-origin reverse-proxy requirements.

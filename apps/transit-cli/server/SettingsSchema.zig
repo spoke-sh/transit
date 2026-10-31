@@ -71,6 +71,7 @@ pub const descriptors = [_]D{
     .{ .name = "applications.max_applications", .default_json = "8", .description = "Application deployment quota", .owner = "applications", .kind = .unsigned, .change = .restart, .minimum = 1, .maximum = 64 },
     .{ .name = "applications.max_roles", .default_json = "32", .description = "Roles per application quota", .owner = "applications", .kind = .unsigned, .change = .restart, .minimum = 1, .maximum = 256 },
     .{ .name = "gateway_allowed_hosts", .default_json = "[]", .description = "Additional exact native gateway Host authorities", .owner = "gateway", .kind = .strings, .change = .reload },
+    .{ .name = "browser_file", .default_json = "null", .description = "Explicit browser authentication and read publication configuration", .owner = "browser", .kind = .string, .change = .restart, .nullable = true, .sensitive = true },
     .{ .name = "board", .default_json = "{}", .description = "Board listener configuration", .owner = "board", .kind = .object, .change = .restart, .nullable = true },
     port("board.port", "board"),
     .{ .name = "board.public_origin", .default_json = "null", .description = "Exact Board browser origin", .owner = "board", .kind = .string, .change = .restart, .nullable = true },

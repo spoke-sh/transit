@@ -1087,6 +1087,22 @@
       "items_schema": null
     },
     {
+      "name": "browser_file",
+      "description": "Explicit browser authentication and read publication configuration",
+      "owner": "browser",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "board",
       "description": "Board listener configuration",
       "owner": "board",
@@ -2072,6 +2088,15 @@
         "x-transit-owner": "gateway",
         "x-transit-change": "reload",
         "default": []
+      },
+      "browser_file": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Explicit browser authentication and read publication configuration",
+        "x-transit-owner": "browser",
+        "x-transit-change": "restart"
       },
       "board": {
         "type": [

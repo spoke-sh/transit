@@ -6,6 +6,7 @@
     .dependencies = .{
         .transit_sdk = .{ .path = "sdks/zig", .lazy = true },
         .transit_station_app = .{ .path = "packages/zig/transit-station-app" },
+        .transit_browser = .{ .path = "packages/zig/transit-browser" },
         .transit_http_server = .{ .path = "packages/zig/transit-http-server" },
         .transit_serving_http = .{ .path = "packages/zig/transit-serving-http" },
         .transit_serving = .{ .path = "packages/zig/transit-serving" },

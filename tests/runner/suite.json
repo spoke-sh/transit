@@ -151,6 +151,10 @@
       "test::reactive-views",
       "test::reactive-views-lifecycle",
       "transit-board::workbench-browser"
+    ],
+    "browser-auth": [
+      "test::browser-unit",
+      "test::browser-auth"
     ]
   },
   "tiers": {
@@ -164,7 +168,8 @@
       "sdks-conformance",
       "sdks-scripting",
       "sdks-systems",
-      "sdks-managed"
+      "sdks-managed",
+      "browser-auth"
     ],
     "complete": [
       "formal",
@@ -177,7 +182,8 @@
       "sdks-scripting",
       "sdks-systems",
       "sdks-managed",
-      "browser"
+      "browser",
+      "browser-auth"
     ],
     "sdks": [
       "sdks-conformance",
@@ -493,6 +499,19 @@
           "transit-board::install"
         ]
       ]
+    },
+    "browser-auth": {
+      "shell": "default",
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ],
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
     }
   },
   "recipe_nested_tasks": {
@@ -571,6 +590,10 @@
     "sdks-managed": {
       "cache": "bindings",
       "timeout": 360
+    },
+    "browser-auth": {
+      "cache": "core",
+      "timeout": 60
     }
   },
   "selection": {
@@ -912,6 +935,21 @@
         ],
         "resources": [
           "formal-cpu"
+        ]
+      },
+      "browser-auth": {
+        "paths": [
+          "packages/zig/transit-browser/**",
+          "apps/transit-browser/**",
+          "tests/interfaces/http/browser_auth.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "test::browser-unit",
+          "test::browser-auth"
+        ],
+        "resources": [
+          "core-cpu"
         ]
       }
     }
