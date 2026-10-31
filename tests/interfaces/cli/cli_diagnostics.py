@@ -44,7 +44,7 @@ NO_TOOLS_ENV = ENV | dict(PATH=str(NO_TOOLS), TRANSIT_STARTUP__REQUIRE_EXISTING=
     TRANSIT_SQL__HEALTH_PORT=isolated_ports[4])
 
 
-def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None, stdout_contains=()):
+def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None, stdout_contains=(), startup=False):
     global CASES
     result = subprocess.run([binary or CLI, *map(str, args)], input=data, capture_output=True,
                             timeout=10, env=ENV if env is None else env, cwd=cwd or ISOLATED.name)
@@ -56,7 +56,20 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
         else:
             assert result.stdout == b'', (args, result.stdout)
         prefix = b'Usage: ' if stderr is not None and stderr.startswith('Usage: ') else b'error: '
-        assert result.stderr.startswith(prefix), (args, result.stderr)
+        diagnostic = result.stderr
+        if startup:
+            # Runtime startup emits bounded telemetry before its human error.
+            # Only these server events may precede it; argument/configuration
+            # failures and console diagnostics still start with the error.
+            lines = diagnostic.splitlines(keepends=True)
+            while lines and not lines[0].startswith(prefix):
+                assert re.fullmatch(
+                    rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z '
+                    rb'(?:INFO|ERROR) \[transit\] server\.startup\.'
+                    rb'(?:phase\.begin|phase|complete) [^\r\n]+\n', lines[0]), (args, lines[0])
+                lines.pop(0)
+            diagnostic = b''.join(lines)
+        assert diagnostic.startswith(prefix), (args, result.stderr)
         for label in (b'\n  at: ', b'\n  cause: ', b'\n  next: ', b'\n  help: '):
             assert label not in result.stderr, (args, label, result.stderr)
         assert b'private-must-not-appear' not in result.stderr, result.stderr
@@ -75,7 +88,7 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
 
 for command in ('server',):
     invoke([command], 1, contains=('startup requires an existing installation',),
-           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI))
+           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI), startup=True)
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
@@ -134,7 +147,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     installation = root / 'installation'
     def server(config, contains, expected=2):
         path.write_text(json.dumps(config))
-        return invoke(['server', '--config', path, '--no-ui'], expected, contains)
+        return invoke(['server', '--config', path, '--no-ui'], expected, contains, startup=expected == 1)
 
     for command in ('server', 'console'):
         invoke([command, '--config', root / 'missing.json'], contains=('configuration file', 'missing.json', 'was not found'))
@@ -145,7 +158,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invoke(['server', '--config', path], contains=(explanation, 'server.json'))
     path.write_text('{}')
     invoke(['server', '--config', path], 1, contains=('startup requires an existing installation',),
-           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI))
+           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI), startup=True)
     path.write_text('{\n  "version": !\n}')
     invoke(['server', '--config', path], contains=('server.json":2:14',))
     path.write_bytes(b' ' * 65537)
@@ -230,7 +243,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['endpoint'] == SQL_ENDPOINT
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['server'], 1, contains=('startup requires an existing installation',),
-           env=NO_TOOLS_ENV | dict(TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
+           env=NO_TOOLS_ENV | dict(TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI), startup=True)
     invoke(['console', '--no-rc', '--config', path, '-c', 'SELECT typo FROM items'], 1, ('Unknown column',))
     for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
         before = len(SESSION_ACTIONS)
@@ -255,7 +268,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         'applications': {'port': ports[5]}}))
     def convention(**values):
         return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('startup requires an existing installation',),
-                      env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli))
+                      env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli), startup=True)
     convention()  # No external role selection.
     for name in names: (search/name).touch(mode=0o700)
     convention()  # Invalid PATH files cannot shadow built-in roles.
