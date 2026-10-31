@@ -10,6 +10,7 @@ beside their implementation in [sdks/](../../sdks/README.md).
 | Raw clients and incompatible native definitions | [Shared schedule](sdk_raw_client.py), [ABI](client_abi.py), [recovery](client_abi_growing.py), [port host](client_host.py) |
 | Station callbacks, saved work and lifetime ownership | [Station schedule](sdk_station_runner.py), [native growth](station_growing_abi.py), [query failures](sdk_query_failures.py) |
 | Installed language programs and their builders | [Consumer directory](consumers/README.md) |
+| Focused installed feedback | [feedback.py](feedback.py), [failure/isolation controls](test_feedback.py), `just bindings::feedback LANGUAGE --scope raw` |
 | Shared schedules' explicit language dispatch | [Consumer registry](consumer_registry.py) |
 | Query and direct catalog callers | [Unified consumers](sdk_unified.py), [catalog consumers](direct_sdk_catalog.py), [relational consumers](sdk_relational.py) |
 | HTTP/gRPC effects and Documents | [Exchange schedule](sdk_exchange_runner.py), [gRPC entry point](sdk_grpc_runner.py), [Document entry point](sdk_document_runner.py) |
@@ -24,6 +25,16 @@ nested execution. Run repository drivers through
 matching native binaries and package directories. Copied programs run directly
 inside their private installed environments.
 
+For a focused edit loop, run `just bindings::feedback rust` in the bindings shell.
+The default `raw` scope packages the language and runs its installed raw-client
+schedule, including native-definition rejection and recovery. Use `--scope station`
+for Station, `--scope catalog` for direct catalog callers, or `--scope full` for
+the owning language suite. Go supports `raw` and `full`. The command uses current
+Zig outputs, records scope and phase costs automatically, and propagates failures.
+A focused pass establishes only that boundary; CI still owns the full selected
+language suite and shared consumers. Warm native preparation is required for the
+three-minute local feedback target; a cold build is measured separately.
+
 Native inputs come from [immutable fixture sets](../harness/README.md), with
 separate Debug and ReleaseSafe package directories. The query-failure driver
 requires both a client `--native-prefix` and an explicit `--node`; the Rust
@@ -35,6 +46,13 @@ first invokes it. Each peer still compiles against private installed headers and
 libraries; unrelated schedules do not compile unused peers. Station/header and
 incompatible-native checks remain in each installation. Preparation and peer
 compilation have separate automatic phase records.
+
+The Rust installed suite builds its core, Arrow and example programs once before
+running Station, HTTP and gRPC schedules. Compilation, dependency isolation and
+all negative type/lifetime checks still run on every invocation. Each schedule
+copies those immutable executables into a fresh private installation; no service,
+configuration, durable state or test outcome is reused. The temporary compiled
+programs disappear when the invocation finishes.
 
 Query/storage and interface fixtures own their semantic assertions. The SDK
 installers expose those same schedules to language callers; a codec-only check

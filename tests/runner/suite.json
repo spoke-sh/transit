@@ -314,7 +314,8 @@
       "test::release-board",
       "bindings::release-build",
       "bindings::release-test",
-      "bindings::release-zig"
+      "bindings::release-zig",
+      "bindings::feedback"
     ]
   },
   "nested_tasks": {

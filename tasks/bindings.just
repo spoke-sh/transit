@@ -5,6 +5,11 @@ set working-directory := ".."
 _default:
     @just --list bindings
 
+# Focus on one installed SDK boundary; raw is the shortest live feedback loop.
+[positional-arguments]
+feedback language *args:
+    python3 -B tests/runner/launch.py tests/sdk/feedback.py "$@"
+
 # Resolve the immutable Debug client fixture set and record its identity.
 build:
     python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug
@@ -182,8 +187,7 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
     python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust
-    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/Debug --language rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust "${native_prefix}/bin/transit-station-http-worker" "${native_prefix}/bin/transit-station-grpc-worker"
     just bindings::direct-catalog-rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.

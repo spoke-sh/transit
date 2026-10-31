@@ -534,6 +534,16 @@
           "diff",
           "--check"
         ]
+      },
+      {
+        "id": "sdk-feedback-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/sdk/test_feedback.py"
+        ]
       }
     ],
     "contracts": [
