@@ -300,6 +300,9 @@ pub fn hasPending(self: *Self) bool {
 /// merely a core gateway or another account's running SQL listener.
 pub fn localReady(self: *const Self) bool {
     if (self.status != .accepting or self.local == null) return false;
+    return self.localAccountReady();
+}
+fn localAccountReady(self: *const Self) bool {
     for (self.entries.items) |entry| {
         if (std.mem.eql(u8, entry.record.name, Settings.local_account.name)) return entry.record.initialized and entry.state == .bound;
     }
@@ -340,12 +343,21 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         }
         if (observed.value.state != .running or observed.value.fingerprint == null or !std.mem.eql(u8, &fingerprint, &observed.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
+        if (!self.service_was_ready) {
+            const wait_started = std.Io.Clock.awake.now(self.installation.init.io);
+            while (!Provider.health(self.installation.init, recovery) and !@import("../Signals.zig").interrupted() and wait_started.durationTo(std.Io.Clock.awake.now(self.installation.init.io)).toMilliseconds() < 1000) {
+                try self.installation.init.io.sleep(.fromMilliseconds(10), .awake);
+            }
+        }
         if (Provider.health(self.installation.init, recovery)) {
             self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
             self.service_was_ready = true;
-            const native_ready = self.local != null or self.installation.config.sql.native.http != null;
+            const native_ready = (self.local != null and self.localAccountReady()) or self.installation.config.sql.native.http != null;
             self.status = if (native_ready or (self.installation.config.sql.wireListening() and self.transportReady())) .accepting else .recovery;
             self.last_error = null;
+            if (self.status == .accepting and self.localAccountReady()) if (self.local) |local| {
+                _ = try Files.jsonIfChanged(self.installation.init.io, allocator, local.rendezvous, Discovery.Record{ .version = 1, .definition = p.Growth.current_definition, .instance = self.meta.installation, .socket = local.socket, .account = Settings.local_account.name, .database = Settings.local_account.database });
+            };
         } else {
             self.status = if (self.service_was_ready) .unavailable else .starting;
             if (self.service_started.?.durationTo(std.Io.Clock.awake.now(self.installation.init.io)).toMilliseconds() > 30000) return error.GatewayOwnerUnavailable;

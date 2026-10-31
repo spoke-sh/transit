@@ -1724,11 +1724,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 88,
         "catch": 7
       },
       "imports": [
         "../Diagnostic.zig",
+        "../Signals.zig",
         "Files.zig",
         "Installation.zig",
         "Provider.zig",
@@ -4789,6 +4790,111 @@
       "propagation": {
         "try": 21,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectMigration.zig": {
+      "errors": {
+        "ClientTokenConflict": 2,
+        "Conflict": 6,
+        "DataIdentityConflict": 2,
+        "DuplicateMigrationVersion": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidColumnCount": 1,
+        "InvalidMigrationLedger": 2,
+        "InvalidMigrationStepCount": 1,
+        "InvalidMigrationStepIndex": 1,
+        "InvalidMigrationVersion": 3,
+        "InvalidPrimaryKey": 1,
+        "InvalidTableNamespace": 2,
+        "MigrationClaimConflict": 4,
+        "MigrationDirectoryCapacity": 2
+      },
+      "outcomes": {
+        "DriftAspect": [
+          "column_count",
+          "missing_column",
+          "extra_column",
+          "column_order",
+          "column_type",
+          "max_characters",
+          "nullability",
+          "default_value",
+          "encoding",
+          "collation",
+          "primary_key"
+        ],
+        "Reconciliation": [
+          "satisfied",
+          "drift"
+        ],
+        "StepEffect": [
+          "create_table",
+          "alter_table",
+          "drop_table",
+          "create_schema",
+          "alter_schema",
+          "drop_schema",
+          "insert_rows",
+          "update_rows",
+          "delete_rows",
+          "grant_privilege",
+          "publish_resource",
+          "verify_query"
+        ],
+        "StepOwner": [
+          "schema_ddl",
+          "data_transform",
+          "authorization_grant",
+          "publication",
+          "verification"
+        ],
+        "StepState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "blocked_by_policy",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ],
+        "VersionState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Directory.validate()": "<inferred>",
+        "VersionEntry.validate()": "<inferred>",
+        "ensureVersionListed()": "<inferred>",
+        "listVersions()": "<inferred>",
+        "logicalFingerprint()": "<inferred>",
+        "readDirectory()": "<inferred>",
+        "readVersion()": "<inferred>",
+        "reconcileCreate()": "<inferred>",
+        "reconcileSchemas()": "<inferred>",
+        "saveVersion()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 6
       },
       "imports": [
         "root.zig",
@@ -13371,7 +13477,7 @@
         "MutationBatchTooLarge": 3,
         "NonFiniteValue": 2,
         "NullPrimaryKey": 2,
-        "OutOfMemory": 2,
+        "OutOfMemory": 3,
         "ParameterCountMismatch": 2,
         "ParameterGap": 2,
         "ParameterTypeConflict": 2,
@@ -13434,8 +13540,8 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 59,
-        "catch": 31
+        "try": 60,
+        "catch": 32
       },
       "imports": [
         "AuthorizationSql.zig",
@@ -13445,6 +13551,7 @@
         "SqlTyped.zig",
         "TableDdl.zig",
         "TableDml.zig",
+        "TableSelect.zig",
         "std",
         "transit_protocol"
       ]
