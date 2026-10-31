@@ -25,7 +25,16 @@ const Self = @This();
 pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 8 * 1024 * 1024,
-    read_secret: [32]u8 = @splat(7),
+    /// Stable owner-supplied key; reopening must preserve retained cursor authority.
+    read_secret: [32]u8,
+    /// Maximum replay records examined by open before returning a fenced owner.
+    recovery_records: u16 = 64,
+};
+
+pub const RecoveryProgress = struct {
+    examined: u16,
+    position: d.Position,
+    complete: bool,
 };
 
 pub const DocumentHead = struct {
@@ -76,10 +85,10 @@ pub fn open(
     guard: Guard,
     options: Options,
 ) !Self {
+    try requireRecoveryBudget(options.recovery_records);
     const authority = try Read.Authority.init(options.read_secret);
     const initial = try Initialization.observe(allocator, log, objects, request, guard);
-    var store = try TreeStore.init(allocator, objects, options.resident_pages);
-    errdefer store.deinit();
+    const store = try TreeStore.init(allocator, objects, options.resident_pages);
     var self: Self = .{
         .allocator = allocator,
         .log = log,
@@ -105,7 +114,7 @@ pub fn open(
         .ready = false,
     };
     errdefer self.deinit();
-    try self.recover(guard);
+    _ = try self.recoverStep(guard, options.recovery_records);
     return self;
 }
 
@@ -115,15 +124,26 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn recover(self: *Self, guard: Guard) !void {
+/// Resume bounded replay. All operations remain fenced until a step reports
+/// complete against a freshly observed tail. Checkpoint lookup is fixed work
+/// in addition to the replay record budget.
+pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !RecoveryProgress {
     defer _ = self.scratch.reset(.retain_capacity);
+    self.ready = false;
+    try requireRecoveryBudget(budget);
     try authorize(guard);
     const end = try self.log.tail(self.root.initialization.partition);
     if (end == 0) return error.DocumentInitializationMissing;
+    if (end < self.root.next_lsn) return error.InvalidDocumentPartitionRecord;
     if (end > 1) {
         try self.selectCheckpoint(end, guard);
     }
-    while (self.root.next_lsn < end) {
+    _ = self.scratch.reset(.retain_capacity);
+    var examined: u16 = 0;
+    while (examined < budget and self.root.next_lsn < end) : (examined += 1) {
+        // Decoded records contain values only. Release frame/JSON scratch on
+        // every iteration, after the batch's own deinit, not once per WAL tail.
+        defer _ = self.scratch.reset(.retain_capacity);
         var batch = try self.log.read(self.scratch.allocator(), self.root.initialization.partition, self.root.next_lsn, 1);
         defer batch.deinit();
         if (batch.frames.len != 1) return error.DocumentHistoryUnavailable;
@@ -140,11 +160,30 @@ pub fn recover(self: *Self, guard: Guard) !void {
         if (decoded.record.evidence) |ev| {
             _ = try Evidence.load(self.scratch.allocator(), self.objects, ev);
         }
+        try authorize(guard);
         self.root = decoded.record.root;
         self.commitment = decoded.commitment;
     }
+    // Bound readiness validation to directory root pages. Descendants and state
+    // objects retain their normal integrity checks when accessed.
+    for ([_]?pages.Reference{
+        self.root.documents_root,
+        self.root.revisions_root,
+        self.root.replicas_root,
+        self.root.operations_root,
+        self.root.reads_root,
+    }) |reference| if (reference) |value| {
+        _ = try self.store.load(value);
+    };
     try authorize(guard);
-    self.ready = true;
+    const current_end = try self.log.tail(self.root.initialization.partition);
+    if (current_end < self.root.next_lsn) return error.InvalidDocumentPartitionRecord;
+    self.ready = self.root.next_lsn == current_end;
+    return .{ .examined = examined, .position = self.root.position(), .complete = self.ready };
+}
+
+fn requireRecoveryBudget(budget: u16) !void {
+    if (budget == 0 or budget > 256) return error.InvalidDocumentRecoveryBudget;
 }
 
 pub fn applyMutation(

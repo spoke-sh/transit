@@ -2016,3 +2016,18 @@ and `TransitObjectStore`:
   preserving the checkpoint-publishing WAL record and allowing
   `DocumentInitialization.observe` and `DocumentStorageRoots.Cursor` to verify
   the original initialization and retained roots after WAL prefix trim.
+
+`DocumentPartition.open` requires an owner-supplied, nonzero `read_secret` and
+performs at most `Options.recovery_records` replay records (default 64, range
+1–256). A returned owner may still require recovery. `recoverStep(guard, budget)`
+returns `examined`, the recovered `position`, and `complete`; callers resume
+until complete before serving operations. Checkpoint selection adds at most two
+WAL frame reads and one bounded checkpoint load to a step. Replay reuses scratch
+per record and verifies the current directory root pages; it does not eagerly
+traverse all descendants or state objects. Those retain checks on access.
+
+Every recovery attempt clears readiness before validation or I/O. Authorization
+is checked before replay, before installing each record and before readiness;
+completion requires the recovered position to match a fresh WAL tail. Failures
+and incomplete steps leave the owner fenced with `DocumentRecoveryRequired`.
+The same signing key must be supplied after reopen to resume retained cursors.

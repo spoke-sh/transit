@@ -262,6 +262,15 @@ M6/M7 cycle: M6 can qualify Table/KV turns first, M7 supplies its participant
 without requiring a finished Station adapter, then both qualify Document turns.
 Neither a Table-only transaction nor two recoverable commits opens that gate.
 
+**Independent delivery scope:** keep M6 R5/R7 and the dependent public/Station
+cutover gates open. The first storage increment enforces cumulative retained-read
+budgets, exact receipt/target binding, explicit owner signing keys and bounded
+replay with per-record scratch reuse. Its current API and limits are in the
+[partition guide](../../packages/zig/transit-storage/docs/document-partitions.md).
+It supplies parts of C0/C3 without completing either: canonical evaluation,
+persisted tree/shredder integration, within-revision paging and the remaining
+C1–C8 obligations below still require their own implementation and evidence.
+
 ### Selected delivery profile and decisions
 
 Use one local catalog, branch one, disk-backed WAL/object storage and fenced
