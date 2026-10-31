@@ -16,6 +16,10 @@ an authority accepted it. The installed direct Table owner and its
 and acceptance records. The types themselves expose no SQL syntax, branch
 operation or transaction session.
 
+The [branch publication contract](BRANCH_V1.md) adds the neutral `branch` schema
+group for exact manifest ancestry, frozen candidates and forward decisions.
+Its validation does not enable multi-branch execution or acquire retention pins.
+
 The separate [direct Table request contract](DIRECT_TABLE_V1.md) supplies signed
 envelopes and binary schema/row payloads for the internal node dispatcher. It
 reuses these identities and the current native authorization proof.
