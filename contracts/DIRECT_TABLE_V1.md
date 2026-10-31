@@ -621,10 +621,11 @@ Wait capacity returns `ControlCapacity`. These
 classes describe a failed attempt, not rejection of earlier accepted work.
 
 This standalone operation profile does not enable SQL Queue verbs, common
-transactions or DLQ transfer. Native maintenance processes lease expiry and
-physical timer cleanup in bounded accepted steps. Terminal payload cleanup
-remains unfinished; an expired observation alone neither releases the acquired
-bit nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
+transactions or DLQ transfer. Native maintenance processes lease expiry,
+physical timer cleanup and opt-in terminal payload expiry in bounded accepted
+steps. Original claim reads retain their payload dependencies until explicitly
+closed. An expired lease observation alone neither releases the acquired bit
+nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
 lease, retry, original-selection and remaining composition contracts.
 
 ### Namespace lifecycle
