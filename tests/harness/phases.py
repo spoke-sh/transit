@@ -22,7 +22,8 @@ class Recorder:
         self.directory = Path(tempfile.mkdtemp(prefix=f"process-{os.getpid()}-", dir=destination))
         self.parents = ContextVar("phase_parents", default=())
         write_json(self.directory / "source.json", {"version": 1, **provenance(root),
-                                                   "pid": os.getpid(), "parent_pid": os.getppid()})
+                                                   "pid": os.getpid(), "parent_pid": os.getppid(),
+                                                   "task": os.getenv("CI_FEEDBACK_TASK")})
 
     @contextmanager
     def phase(self, kind, owner):

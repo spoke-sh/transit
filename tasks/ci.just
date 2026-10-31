@@ -67,6 +67,11 @@ launchers:
 cost run:
     python3 -B tests/runner/ci_cost.py --run {{quote(run)}}
 
+# Isolated Rust clean/no-op/SDK-edit/shared-native-edit feedback measurements.
+[positional-arguments]
+benchmark *args:
+    python3 -B tests/runner/build_feedback.py "$@"
+
 # Run all SDK conformance and language suites sequentially.
 sdks:
     python3 -B tests/runner/ci.py sdks

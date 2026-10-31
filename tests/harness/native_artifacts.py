@@ -118,11 +118,13 @@ def export(family, optimize, output, root=ROOT):
     assert not output.exists(), "Native publication already exists"
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(".partial")
-    with tarfile.open(temporary, "w:gz", compresslevel=1) as archive:
-        for path in sorted(record["files"]):
-            archive.add(prefix / path, arcname=f"{name}/{path}", recursive=False)
-        archive.add(record_path, arcname=f"{name}/record.json", recursive=False)
-    temporary.replace(output)
+    with Recorder(root).phase("artifact-export", family) as row:
+        with tarfile.open(temporary, "w:gz", compresslevel=1) as archive:
+            for path in sorted(record["files"]):
+                archive.add(prefix / path, arcname=f"{name}/{path}", recursive=False)
+            archive.add(record_path, arcname=f"{name}/record.json", recursive=False)
+        temporary.replace(output)
+        row["bytes"] = output.stat().st_size
     return record
 
 

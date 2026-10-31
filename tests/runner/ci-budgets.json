@@ -46,5 +46,24 @@
     "A changed scenario inventory or lane allocation requires explicit recalibration. Historical 33-task limits remain attributed separately.",
     "No paid runner, cache quota increase or weaker scenario deadline is selected by these budgets.",
     "An inventory hash checks task and lane registration, not every internal assertion or workload size. Source, toolchain and workload changes still need review before attributing a timing difference."
-  ]
+  ],
+  "targets": {
+    "status": "Uncalibrated implementation targets; successful comparable hosted runs must establish the improvement.",
+    "inventory": {
+      "sha256": "739f7293fd10fadc1c6697b1d110559a84e97c6ca47e2de398b7327db8dfccfb",
+      "ordinary_tasks": 129,
+      "ordinary_lanes": 13,
+      "browser_tasks": 8
+    },
+    "feedback_seconds": 2400,
+    "aggregate_runner_seconds": 17280,
+    "local_sdk_warm_seconds": 180,
+    "affected_sdk_seconds": 900
+  },
+  "regressions": {
+    "minimum_samples": 3,
+    "relative": 0.15,
+    "absolute_seconds": 30,
+    "confirmation": "Two consecutive comparable successful runs; comparison includes inventory, cache profile and runner labels."
+  }
 }

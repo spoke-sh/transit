@@ -116,17 +116,19 @@ def main():
                 log = artifacts / f"{len(results) + 1:03d}.log"
                 active_task = {"lane": lane, "task": task, "log": log.name}
                 result = {"lane": lane, "task": task, "log": log.name,
-                          "command": ["just", task], "exit_code": None, "completed": False}
+                          "command": ["just", task], "exit_code": None, "completed": False,
+                          "started_unix": time.time()}
                 checkpoint()
                 try:
-                    process = run(["just", task], cwd=ROOT, log=log, result=result)
+                    process = run(["just", task], cwd=ROOT, log=log, result=result,
+                                  env=os.environ | {"CI_FEEDBACK_TASK": task})
                     code = process.returncode
                 except BaseException:
                     code = 130
                     raise
                 finally:
                     elapsed = round(time.monotonic() - started, 2)
-                    result.update(seconds=elapsed)
+                    result.update(seconds=elapsed, finished_unix=time.time())
                     results.append(result)
                     active_task = None
                     checkpoint()

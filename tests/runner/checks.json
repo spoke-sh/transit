@@ -544,6 +544,15 @@
           "tests/runner/launch.py",
           "tests/sdk/test_feedback.py"
         ]
+      },
+      {
+        "id": "build-feedback-cost-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_feedback_cost.py"
+        ]
       }
     ],
     "contracts": [

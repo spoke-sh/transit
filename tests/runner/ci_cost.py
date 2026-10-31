@@ -8,6 +8,9 @@ import json
 import os
 import re
 import subprocess
+import io
+import statistics
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITE = json.loads((ROOT / 'tests/runner/suite.json').read_text())
@@ -64,7 +67,9 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
         if full_inventory and job['name'] == 'Documentation site' and job['conclusion'] == 'skipped':
             continue
         # Missing/incomplete jobs remain explicit, with no invented duration.
-        row = dict(name=job['name'], conclusion=job['conclusion'], seconds=None, phases={})
+        row = dict(name=job['name'], conclusion=job['conclusion'], seconds=None, phases={},
+                   queue_seconds=seconds(run['created_at'], job['started_at']) if job.get('started_at') else None,
+                   runner_labels=sorted(job.get('labels', [])))
         if job.get('started_at') and job.get('completed_at'):
             row['seconds'] = seconds(job['started_at'], job['completed_at'])
         for step in job['steps']:
@@ -127,11 +132,58 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
                            and cache_bytes <= limits['restored_cache_bytes'])
 
 
+def archive_report(data):
+    # Reports are untrusted data. Never extract or execute PR artifact contents.
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        members = archive.infolist()
+        assert len(members) == 1 and members[0].filename.endswith('.json'), 'Unexpected feedback archive'
+        assert members[0].file_size <= 2_000_000, 'Oversized feedback report'
+        result = json.loads(archive.read(members[0]))
+        assert result['version'] == 1
+        return result
+
+
+def evaluate(result, budgets, history):
+    target = budgets.get('targets', {})
+    matched = result['inventory'] == target.get('inventory')
+    result['targets'] = target if matched else None
+    result['target_met'] = (matched and result['status'] == 'measured'
+                            and result['feedback_seconds'] <= target['feedback_seconds']
+                            and result['aggregate_runner_seconds'] <= target['aggregate_runner_seconds'])
+    policy = budgets.get('regressions', {})
+    labels = sorted({tuple(lane['runner_labels']) for lane in result['lanes']})
+    comparable = [row for row in history if row.get('status') == 'measured'
+                  and row['inventory'] == result['inventory']
+                  and row['cache_profile'] == result['cache_profile']
+                  and sorted({tuple(lane.get('runner_labels', [])) for lane in row['lanes']}) == labels]
+    result['sdk_feedback_targets'] = [dict(lane=lane['name'],
+        seconds=(lane['queue_seconds'] + lane['seconds']) if lane.get('queue_seconds') is not None and lane['seconds'] is not None else None,
+        target_seconds=target.get('affected_sdk_seconds'),
+        completed=lane['conclusion'] == 'success') for lane in result['lanes'] if lane['name'].startswith('sdks-')]
+    result['comparison_runs'] = [row['run_id'] for row in comparable]
+    result['regressions'] = []
+    eligible = (result['status'] == 'measured' and result['cache_profile'] in {'warm', 'cold'}
+                and len(comparable) >= policy.get('minimum_samples', 3))
+    if eligible:
+        for metric in ('feedback_seconds', 'aggregate_runner_seconds'):
+            baseline = statistics.median(row[metric] for row in comparable)
+            excess = result[metric] - baseline
+            if excess > max(policy.get('absolute_seconds', 30), baseline * policy.get('relative', .15)):
+                result['regressions'].append(dict(metric=metric, baseline=baseline, observed=result[metric]))
+    previous = comparable[0] if comparable else {}
+    # A single slow hosted runner is a candidate. Enforce only consecutive
+    # comparable regressions after a complete baseline exists.
+    result['regression_confirmed'] = bool({r['metric'] for r in result['regressions']}
+                                          & {r['metric'] for r in previous.get('regressions', [])})
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', required=True, type=int)
     parser.add_argument('--repo', default='spoke-sh/transit')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--enforce-regressions', action='store_true')
     args = parser.parse_args()
     def api(path):
         return json.loads(subprocess.check_output(['gh', 'api', f'repos/{args.repo}/{path}'], text=True))
@@ -166,13 +218,51 @@ def main():
     result['unavailable_job_logs'] = missing_logs
     if missing_logs:
         result.update(status='inconclusive', budget_met=False)
+    result['feedback_reports'], result['unavailable_feedback'] = [], []
+    artifacts = api(f'actions/runs/{args.run}/artifacts?per_page=100')
+    assert artifacts['total_count'] == len(artifacts['artifacts']), 'Artifact pagination is incomplete'
+    for artifact in artifacts['artifacts']:
+        if not artifact['name'].startswith('feedback-') or not artifact['name'].endswith(f'-{run["run_attempt"]}'):
+            continue
+        try:
+            assert artifact['size_in_bytes'] <= 2_000_000, 'Oversized feedback artifact'
+            data = subprocess.check_output(['gh', 'api', f'repos/{args.repo}/actions/artifacts/{artifact["id"]}/zip'])
+            report = archive_report(data)
+            assert str(report['run_id']) == str(args.run) and str(report['run_attempt']) == str(run['run_attempt'])
+            assert report['inventory'] == result['inventory'], 'Feedback inventory mismatch'
+            result['feedback_reports'].append(report)
+        except (subprocess.CalledProcessError, ValueError, AssertionError, KeyError, zipfile.BadZipFile) as error:
+            result['unavailable_feedback'].append(dict(artifact=artifact['name'], error=type(error).__name__))
+    # Reuse prior reports, never rerun old source or download its native files.
+    history = []
+    recent = api('actions/workflows/ci.yml/runs?branch=main&status=success&per_page=10')
+    for previous in recent['workflow_runs']:
+        if previous['id'] >= args.run:
+            continue
+        try:
+            candidates = api(f'actions/artifacts?name=ci-cost-{previous["id"]}&per_page=100')['artifacts']
+            candidate = next(a for a in candidates if a['name'] == f'ci-cost-{previous["id"]}' and not a['expired'])
+            assert candidate['size_in_bytes'] <= 2_000_000, 'Oversized cost artifact'
+            history.append(archive_report(subprocess.check_output([
+                'gh', 'api', f'repos/{args.repo}/actions/artifacts/{candidate["id"]}/zip'])))
+        except (subprocess.CalledProcessError, ValueError, AssertionError, KeyError, StopIteration, zipfile.BadZipFile):
+            continue
+    evaluate(result, budgets, history)
     destination = args.output or ROOT / f'.cache/ci/cost-{args.run}.json'
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
     if summary := os.getenv('GITHUB_STEP_SUMMARY'):
         with open(summary, 'a') as out:
-            out.write(f"\nCI cost evidence: {result['status']}; budget met: {result['budget_met']}.\n")
+            out.write(f"\nCI cost evidence: {result['status']}; calibrated budget met: {result['budget_met']}; "
+                      f"current target met: {result['target_met']}.\n\n")
+            out.write('| Lane | Queue/dependency wait | Job seconds |\n| --- | ---: | ---: |\n')
+            for lane in result['lanes']:
+                out.write(f"| {lane['name']} | {lane['queue_seconds']} | {lane['seconds']} |\n")
+            out.write(f"\nComparable baseline runs: `{result['comparison_runs']}`. "
+                      f"Confirmed regression: `{result['regression_confirmed']}`.\n")
+    if args.enforce_regressions and result['regression_confirmed']:
+        raise SystemExit('CI feedback regressed on consecutive comparable successful runs')
 
 
 if __name__ == '__main__':
