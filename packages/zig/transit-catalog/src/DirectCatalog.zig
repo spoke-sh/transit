@@ -1536,7 +1536,7 @@ const CutFence = struct {
     }
 };
 
-fn transactionTableGuard(root: P.Root) p.Transaction.TableGuard {
+fn transactionTableGuard(root: P.Root) p.Transaction.StateGuard {
     return .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn };
 }
 
@@ -1575,13 +1575,13 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     const begin = state.receipt.binding.intent.transaction.begin;
     var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer selected.deinit();
-    try selected.restore(begin.tables);
+    try selected.restore(begin.objects);
     var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer sources.deinit();
     const previous = if (state.record != null) try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, state) else null;
     if (previous) |acquired| try sources.restore(acquired.cut.sources);
     var count: u64 = 0;
-    var after: ?u64 = null;
+    var after: ?s.TransactionDirectory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |slot| if (slot) |entry_value| {
@@ -1613,17 +1613,17 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
                 // forward. All old logical/definition bases must still agree.
                 if (access.view.table.root.retired) return error.TransactionConflict;
                 try basis.requireUnchanged(transactionTableGuard(access.view.table.root));
-                try sources.put(.{ .source = .{ .guard = basis, .pin = pin } });
+                try sources.put(.{ .source = .{ .guard = .{ .state = .{ .kind = .table, .basis = basis } }, .pin = pin } });
             } else {
-                const source = (try sources.get(entry_value.object().object) orelse return error.IncompleteTransactionCut).source;
-                if (!std.meta.eql(source.guard, basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
+                const source = (try sources.getTable(entry_value.object().object) orelse return error.IncompleteTransactionCut).source;
+                if (!std.meta.eql((try source.guard.requireTable()), basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
             }
             count = try std.math.add(u64, count, 1);
-            if (count > begin.tables.count) return error.InvalidTransactionDirectory;
+            if (count > begin.objects.count) return error.InvalidTransactionDirectory;
         };
         after = page.next orelse break;
     }
-    if (count != begin.tables.count or sources.root.count != count) return error.IncompleteTransactionCut;
+    if (count != begin.objects.count or sources.root.count != count) return error.IncompleteTransactionCut;
     _ = scratch.reset(.retain_capacity);
     var publication: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, null, null, .database), .epoch = &epoch };
     if (previous) |acquired| {
@@ -1697,9 +1697,10 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
     var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, identity, .participants, request.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer selected.deinit();
     switch (request.selection) {
-        .explicit_tables => |ids| for (ids) |id| {
+        .explicit_objects => |objects| for (objects) |object| {
             _ = scratch.reset(.retain_capacity);
-            const target = try self.entry(id) orelse return error.CatalogDenied;
+            if (object.kind != .table) return error.UnsupportedTransactionParticipant;
+            const target = try self.entry(object.object.object) orelse return error.CatalogDenied;
             if (target.resource != null or target.log != null) return error.UnsupportedTransactionParticipant;
             if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
         },
@@ -1719,7 +1720,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
             }
         },
     }
-    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_tables) .explicit_tables else .authorized_catalog_tables, .tables = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
 }
@@ -1841,10 +1842,10 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer sources.deinit();
     try sources.restore(head.acquired.cut.sources);
-    const source = (try sources.get(request.binding.target.object) orelse return error.TransactionObjectNotSelected).source;
+    const source = (try sources.getTable(request.binding.target.object) orelse return error.TransactionObjectNotSelected).source;
     var frozen = try access.view.table.inspectSnapshot(self.allocator, source.pin, read_fence.guard());
     defer frozen.deinit();
-    if (!std.meta.eql(source.guard, transactionTableGuard(frozen.root))) return error.InvalidTransactionCut;
+    if (!std.meta.eql((try source.guard.requireTable()), transactionTableGuard(frozen.root))) return error.InvalidTransactionCut;
     var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
     var index = try s.TreeStore.init(self.allocator, staging.objects(), self.options.resident_pages);
     defer index.deinit();
@@ -2160,7 +2161,7 @@ fn transactionTableStateBounded(self: *Self, progress: c.DirectClientToken.Progr
     var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer sources.deinit();
     try sources.restore(head.acquired.cut.sources);
-    const source = (try sources.get(object.object) orelse return error.TransactionObjectNotSelected).source;
+    const source = (try sources.getTable(object.object) orelse return error.TransactionObjectNotSelected).source;
     var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
     defer index.deinit();
     const previous = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, head.tables, object.object, progress.receipt.binding.key.scope(), TransactionWorkspace.table_format);
@@ -2190,17 +2191,17 @@ fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransaction
     var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer sources.deinit();
     try sources.restore(head.acquired.cut.sources);
-    const source = (try sources.get(object.object) orelse return error.TransactionObjectNotSelected).source;
+    const source = (try sources.getTable(object.object) orelse return error.TransactionObjectNotSelected).source;
     var frozen = try view.table.inspectSnapshot(self.allocator, source.pin, current);
     defer frozen.deinit();
-    if (!std.meta.eql(transactionTableGuard(frozen.root), source.guard)) return error.InvalidTransactionCut;
+    if (!std.meta.eql(transactionTableGuard(frozen.root), (try source.guard.requireTable()))) return error.InvalidTransactionCut;
     var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
     defer index.deinit();
     const prior = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, head.tables, object.object, context.key.scope(), TransactionWorkspace.table_format);
     var evaluator = try s.TableWorkspace.init(self.allocator, &view.table, begin, source.pin, prior, current);
     defer evaluator.deinit();
     const state = evaluator.state();
-    const observation = try c.DirectTransactionRead.view(context, head, source.guard, state);
+    const observation = try c.DirectTransactionRead.view(context, head, (try source.guard.requireTable()), state);
     var declaration = try s.TableDeclaration.load(self.allocator, self.data_objects, state.root.declared());
     defer declaration.deinit();
     var options = self.options.table;
@@ -2355,16 +2356,16 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
     }
     var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, if (head != null) .sources else .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer selected.deinit();
-    try selected.restore(if (head) |value| value.acquired.cut.sources else begin.tables);
+    try selected.restore(if (head) |value| value.acquired.cut.sources else begin.objects);
     var participants = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer participants.deinit();
     var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
     defer index.deinit();
-    var after: ?u64 = null;
+    var after: ?s.TransactionDirectory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |slot| if (slot) |entry_value| {
-            const guard_basis = if (head != null) entry_value.source.guard else entry_value.participant.state.guard;
+            const guard_basis = if (head != null) (try entry_value.source.guard.requireTable()) else entry_value.participant.state.guard;
             const private = if (head) |value| try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, value.tables, entry_value.object().object, progress.receipt.binding.key.scope(), TransactionWorkspace.table_format) else null;
             try participants.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = guard_basis, .access = if (private != null) .write else .read } } });
         };
@@ -2374,8 +2375,8 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
         .definition = p.Growth.current_definition,
         .transaction = begin.identity,
         .operation = operation,
-        .cut = if (head) |value| (try value.acquired.stage(self.data_objects, progress.receipt)).content else begin.tables.content,
-        .workspace = if (progress.record) |reference| reference.content else begin.tables.content,
+        .cut = if (head) |value| (try value.acquired.stage(self.data_objects, progress.receipt)).content else begin.objects.content,
+        .workspace = if (progress.record) |reference| reference.content else begin.objects.content,
         .participants = try participants.seal(),
         .writes = participants.root.writes,
         .last_statement = if (head) |value| value.last_statement else 0,
@@ -2449,7 +2450,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                     if (view.table.root.transaction != null) return error.TransactionConflict;
                     try participant.guard.requireUnchanged(transactionTableGuard(view.table.root));
                 }
-                control.prepared_after = entry_value.object().object;
+                control.prepared_after = entry_value.cursor();
                 remaining -= 1;
             };
             if (complete and page.next == null) control.preparation_complete = true;
@@ -2489,7 +2490,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
             }
             const pinned = try view.table.pinState(begin.identity.begin, guard_value);
             if (pinned.handle) |handle| if (!pinned.released) try view.table.releaseSnapshot(handle, guard_value);
-            control.cleanup_after = entry_value.object().object;
+            control.cleanup_after = entry_value.cursor();
             remaining -= 1;
         };
         if (complete and page.next == null) control.cleanup_complete = true;
@@ -2502,7 +2503,7 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
     var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, control.binding.begin.identity, .participants, control.binding.begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer selected.deinit();
     try selected.restore(control.binding.attempt.participants);
-    var after: ?u64 = null;
+    var after: ?s.TransactionDirectory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |slot| if (slot) |entry_value| {
@@ -2554,7 +2555,8 @@ const TransactionVerification = struct {
     }
     fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
-        var view = try self.catalog.transactionView(value.object);
+        _ = try value.predecessor.requireTable();
+        var view = try self.catalog.transactionView(value.target.object);
         defer view.deinit();
         const reference = view.table.root.transaction orelse return error.TransactionPreparationMissing;
         const preparation = try s.TableTransaction.load(self.catalog.allocator, self.catalog.data_objects, reference);

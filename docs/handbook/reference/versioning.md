@@ -107,10 +107,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The declarative browser cutover replaces the shared definition with
-`d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e`.
-Browser placement extends the retained configuration descriptor layout; typed
-browser catalog records and request resources are definition-bound. Earlier
+The partitioned transaction participant cutover replaces the shared definition with
+`7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e`.
+Transaction selection, kind-specific guards, prepared evidence and paged
+directory keys now bind logical owner partitions. Stream/Queue actions share one
+preparation per partition. This neutral vocabulary does not enable their runtime
+transaction participation; the installed owner still accepts Tables only.
+Browser placement, retained configuration and typed request resources remain
+definition-bound. Earlier
 checkpoints, signed requests and histories reject rather than being silently
 extended or interpreted with new defaults. Preserve old storage and resolve
 accepted work with its matching build. This change provides no in-place import

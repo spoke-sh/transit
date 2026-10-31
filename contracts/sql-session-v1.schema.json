@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e",
+  "definition": "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+          "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e"
         ]
       },
       "T3": {
@@ -804,7 +804,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+          "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e"
         ]
       },
       "T3": {
@@ -1591,7 +1591,7 @@
           "selection": {
             "$ref": "#/$defs/T42"
           },
-          "tables": {
+          "objects": {
             "$ref": "#/$defs/T43"
           },
           "catalog": {
@@ -1606,7 +1606,7 @@
           "identity",
           "mode",
           "selection",
-          "tables",
+          "objects",
           "catalog",
           "limits"
         ]
@@ -1621,7 +1621,7 @@
       "T42": {
         "type": "string",
         "enum": [
-          "explicit_tables",
+          "explicit_objects",
           "authorized_catalog_tables"
         ]
       },
@@ -3673,7 +3673,7 @@
       "T21": {
         "type": "string",
         "enum": [
-          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+          "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e"
         ]
       },
       "T22": {
@@ -3766,7 +3766,7 @@
           "selection": {
             "$ref": "#/$defs/T29"
           },
-          "tables": {
+          "objects": {
             "$ref": "#/$defs/T30"
           },
           "catalog": {
@@ -3781,7 +3781,7 @@
           "identity",
           "mode",
           "selection",
-          "tables",
+          "objects",
           "catalog",
           "limits"
         ]
@@ -3796,7 +3796,7 @@
       "T29": {
         "type": "string",
         "enum": [
-          "explicit_tables",
+          "explicit_objects",
           "authorized_catalog_tables"
         ]
       },

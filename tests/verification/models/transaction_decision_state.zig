@@ -42,8 +42,8 @@ fn beginRecord(directory: x.Directory) x.Begin {
         .definition = p.Growth.current_definition,
         .identity = identity,
         .mode = .serializable,
-        .selection = .explicit_tables,
-        .tables = directory,
+        .selection = .explicit_objects,
+        .objects = directory,
         .catalog = .{ .partition = 1, .next_lsn = 1 },
         .limits = .{ .resident_bytes = 65536, .workspace_bytes = 1048576, .participants = 1000, .statements = 1000, .savepoints = 32 },
     };
@@ -66,8 +66,8 @@ fn preparation(object: u64, frozen: x.Attempt) D.Entry {
     const state = participant(object).participant.state;
     return .{ .prepared = .{
         .attempt = frozen,
-        .object = state.guard.source.interpretation.object,
-        .predecessor = state.guard,
+        .target = participant(object).target(),
+        .predecessor = participant(object).participant.guard(),
         .position = .{ .partition = state.guard.source.accepted.partition, .next_lsn = 6 },
         .successor = content,
     } };

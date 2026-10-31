@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+definition = "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -414,8 +414,8 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1
 transaction_begin = {
     "definition": definition,
     "identity": {"begin": binding["identity"], "branch": 1},
-    "mode": "serializable", "selection": "explicit_tables",
-    "tables": {"content": {"bytes": 512, "sha256": [31] * 32}, "count": 17},
+    "mode": "serializable", "selection": "explicit_objects",
+    "objects": {"content": {"bytes": 512, "sha256": [31] * 32}, "count": 17},
     "catalog": {"partition": 1, "next_lsn": 19},
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
@@ -435,6 +435,32 @@ for field in transaction_begin:
     assert not validator.is_valid(invalid), field
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-v1.json",
         (json.dumps({"request": transaction_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Partition selection is signed independently of frozen-directory admission.
+# Queue targets exercise the neutral shape; the installed owner refuses them.
+target_object = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
+selected_begin = {
+    "key": token_binding["key"], "fingerprint": token_binding["fingerprint"],
+    "operation": binding["identity"], "namespace": 1, "mode": "serializable",
+    "selection": {"explicit_objects": [
+        {"object": target_object, "kind": "queue", "partition": 0},
+        {"object": target_object, "kind": "queue", "partition": 2**32 - 1},
+    ]},
+    "limits": transaction_begin["limits"], "budget": token_binding["budget"],
+}
+selected_input = {**request_input, "action": {"transaction": {"begin": selected_begin}}}
+selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(selected_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-selection-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    selected_request = {**selected_input, "proof": {"claim": selected_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
+validator.validate(selected_request)
+for field in ("object", "kind", "partition"):
+    invalid = copy.deepcopy(selected_request)
+    del invalid["action"]["transaction"]["begin"]["selection"]["explicit_objects"][0][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-begin-v1.json",
+        (json.dumps({"request": selected_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"

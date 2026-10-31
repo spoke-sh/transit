@@ -790,6 +790,16 @@ Split the remaining implementation into reviewable changes with these gates:
 | R5c: durable preparations and decisions | `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog`, workspaces/savepoints and participant adapters in `transit-storage` | Table/KV state, Stream/Queue append and Stream offset/Queue ACK consult one decision. Prepared roots, reservations and receipts survive faults, trim and collection; rollback publishes no partial effect |
 | R5d: installed composition and DLQ | Public typed transaction calls, Queue maintenance/settlement and retained graph | One accepted decision settles input, changes state and publishes output; DLQ transfer atomically makes the recorded destination reachable and the source terminal |
 
+The R5a implementation replaces object-only directory keys with scoped
+object/kind/logical-partition targets, kind-specific guards and owner-grouped
+preparations. Its ordered action vocabulary covers append, offset commit, ACK
+and terminal transfer, separating expired maintenance from live worker NACK.
+The current-v1 definition cutover migrates existing Table consumers; non-Table
+execution remains refused before admission. R5b/R5c still need real direct KV,
+log retention pins, durable action directories/reservations and participant
+adapters. Shape validation and neutral directory membership are not evidence
+of a completed mixed transaction or DLQ transfer.
+
 R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,
 specify both explicit NACK transfer and maintenance transfer of an already
 exhausted/expired item. The latter needs a guarded source-state/terminal

@@ -4369,7 +4369,7 @@
         "TransactionWorkspaceLimit": 2,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2,
-        "UnsupportedTransactionParticipant": 1
+        "UnsupportedTransactionParticipant": 2
       },
       "outcomes": {
         "CurrentRead.selection": [
@@ -4588,7 +4588,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1316,
+        "try": 1322,
         "catch": 20
       },
       "imports": [
@@ -6095,7 +6095,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 424,
+        "try": 425,
         "catch": 1
       },
       "imports": [
@@ -7215,7 +7215,7 @@
       },
       "outcomes": {
         "Begin.selection": [
-          "explicit_tables",
+          "explicit_objects",
           "authorized_catalog_tables"
         ],
         "Request": [
@@ -7251,7 +7251,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -18653,7 +18653,7 @@
           "deadline"
         ],
         "Definition": [
-          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+          "@\"7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e\""
         ],
         "Effect.phase": [
           "pending",
@@ -19468,17 +19468,21 @@
         "InvalidTransactionAttempt": 1,
         "InvalidTransactionBegin": 1,
         "InvalidTransactionDecision": 1,
-        "InvalidTransactionGuard": 2,
+        "InvalidTransactionGuard": 3,
         "InvalidTransactionHandle": 2,
         "InvalidTransactionLimits": 1,
+        "InvalidTransactionParticipant": 1,
         "InvalidTransactionPreparation": 1,
         "InvalidTransactionRead": 2,
-        "InvalidTransactionStatement": 1,
+        "InvalidTransactionSettlement": 2,
+        "InvalidTransactionStatement": 2,
+        "InvalidTransactionTarget": 1,
+        "InvalidTransactionTransfer": 5,
         "ReadOnlyTransaction": 1,
-        "TransactionConflict": 1,
-        "TransactionIdentityConflict": 3,
+        "TransactionConflict": 2,
+        "TransactionIdentityConflict": 6,
         "UnsupportedTransactionDomain": 1,
-        "UnsupportedTransactionParticipant": 2
+        "UnsupportedTransactionParticipant": 3
       },
       "outcomes": {
         "CallRefusal": [
@@ -19493,6 +19497,20 @@
           "committed",
           "aborted"
         ],
+        "Guard": [
+          "state",
+          "log"
+        ],
+        "LogAction.action": [
+          "append",
+          "stream_offset",
+          "queue_ack",
+          "queue_terminal"
+        ],
+        "LogKind": [
+          "stream",
+          "queue"
+        ],
         "Mode": [
           "serializable",
           "read_only"
@@ -19506,29 +19524,31 @@
         ],
         "Participant": [
           "state",
-          "append",
-          "settlement"
-        ],
-        "Participant.append.kind": [
-          "stream",
-          "queue"
-        ],
-        "Participant.settlement.kind": [
-          "stream_offset",
-          "queue_ack"
+          "log"
         ],
         "Participant.state.access": [
           "read",
           "write"
         ],
-        "Participant.state.kind": [
+        "Selection": [
+          "explicit_objects",
+          "authorized_catalog_tables"
+        ],
+        "StateKind": [
           "table",
           "kv",
           "document"
         ],
-        "Selection": [
-          "explicit_tables",
-          "authorized_catalog_tables"
+        "Target.kind": [
+          "table",
+          "kv",
+          "document",
+          "stream",
+          "queue"
+        ],
+        "TerminalTransfer.source": [
+          "nack",
+          "exhausted"
         ]
       },
       "error_sets": {},
@@ -19541,23 +19561,30 @@
         "Decision.requireAttempt()": "<inferred>",
         "Decision.validate()": "<inferred>",
         "Directory.validate()": "<inferred>",
+        "Guard.requireTable()": "<inferred>",
+        "Guard.validate()": "<inferred>",
         "Handle.validate()": "<inferred>",
         "Identity.requireObject()": "<inferred>",
         "Identity.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
+        "LogAction.validate()": "<inferred>",
+        "LogGuard.requireUnchanged()": "<inferred>",
+        "LogGuard.validate()": "<inferred>",
         "Observation.validate()": "<inferred>",
         "Participant.requireLocalTable()": "<inferred>",
         "Participant.validate()": "<inferred>",
         "Prepared.validate()": "<inferred>",
         "ReadView.validate()": "<inferred>",
+        "StateGuard.requireUnchanged()": "<inferred>",
+        "StateGuard.source.validate()": "<inferred>",
+        "StateGuard.validate()": "<inferred>",
         "Statement.validate()": "<inferred>",
-        "TableGuard.requireUnchanged()": "<inferred>",
-        "TableGuard.source.validate()": "<inferred>",
-        "TableGuard.validate()": "<inferred>"
+        "Target.validate()": "<inferred>",
+        "TerminalTransfer.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 73,
         "catch": 0
       },
       "imports": [
@@ -35521,12 +35548,13 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "IncompleteTransactionPreparation": 2,
-        "InvalidTransactionDirectory": 19,
+        "InvalidTransactionDirectory": 20,
         "InvalidTransactionLimits": 1,
         "MissingTransactionDirectory": 1,
         "OutOfMemory": 1,
+        "ReadOnlyTransaction": 1,
         "TransactionDecodeLimit": 1,
-        "TransactionIdentityConflict": 4,
+        "TransactionIdentityConflict": 6,
         "TransactionParticipantLimit": 2
       },
       "outcomes": {
@@ -35550,8 +35578,9 @@
         "encode()": "<inferred>",
         "entryKey()": "<inferred>",
         "get()": "<inferred>",
+        "getTable()": "<inferred>",
         "init()": "<inferred>",
-        "keyObject()": "<inferred>",
+        "keyCursor()": "<inferred>",
         "load()": "<inferred>",
         "loadEntry()": "<inferred>",
         "objectKey()": "<inferred>",
@@ -35566,11 +35595,10 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 56,
+        "try": 61,
         "catch": 1
       },
       "imports": [
-        "TableSnapshot.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",

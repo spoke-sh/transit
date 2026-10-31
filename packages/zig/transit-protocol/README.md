@@ -20,6 +20,13 @@ shared by named resource declarations and Document storage. Its
 authorized durable acceptance. The generated schema describes those types;
 it does not add a native route or implement a storage cutover.
 
+[`Transaction`](src/Transaction.zig) freezes explicit scoped object/partition
+targets and kind-specific state/log guards. Appends and settlements for one log
+partition share an action directory and one preparation. Its neutral membership
+and terminal-transfer types do not enable non-Table runtime participation; the
+[transaction contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
+states the remaining owner and publication obligations.
+
 [`IndexLifecycle`](src/IndexLifecycle.zig) supplies offline index declarations,
 build identities, exact source coverage and conditional publication bindings.
 Its [contract](../../../contracts/INDEX_LIFECYCLE_V1.md) pins column comparison

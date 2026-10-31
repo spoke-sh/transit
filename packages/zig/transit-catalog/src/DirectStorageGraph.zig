@@ -96,7 +96,7 @@ pub const Work = union(enum) {
     transaction_savepoints: struct { root: r.Root, head: W.Head, scope: c.DirectRecord.Scope, next: ?c.DirectRecord.Reference, depth: u64 },
     table_preparation: struct { reference: s.TableTransaction.Reference, archive: ?s.TableArchive.Coverage = null },
     transaction_journal: u64,
-    transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?u64 = null, started: bool = false },
+    transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?s.TransactionDirectory.Cursor = null, started: bool = false },
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
@@ -395,8 +395,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.slot == 0) {
                 var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
                 defer selected.deinit();
-                try selected.restore(begin.tables);
-                try markContent(workspace, try s.TransactionDirectory.objectKey(begin.tables.content, &key_buffer), begin.tables.content);
+                try selected.restore(begin.objects);
+                try markContent(workspace, try s.TransactionDirectory.objectKey(begin.objects.content, &key_buffer), begin.objects.content);
                 if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
             } else {
                 if (progress.record == null) return true;
@@ -537,8 +537,9 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.kind != .preparations) return true;
             const page = try directory.page(value.after);
             const entry = page.entries[0] orelse return true;
+            _ = try entry.prepared.predecessor.requireTable();
             try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
-            value.after = entry.object().object;
+            value.after = entry.cursor();
             return false;
         },
         .table_preparation => |value| {
