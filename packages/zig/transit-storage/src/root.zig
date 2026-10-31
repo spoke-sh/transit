@@ -6,6 +6,8 @@ pub const TransitObjectStore = @import("TransitObjectStore.zig");
 pub const LocalWal = @import("LocalWal.zig");
 pub const LocalSegmentStore = @import("LocalSegmentStore.zig");
 pub const TableManifest = @import("TableManifest.zig");
+pub const BranchSnapshot = @import("BranchSnapshot.zig");
+pub const BranchAncestry = @import("BranchAncestry.zig");
 pub const NvmeCache = @import("NvmeCache.zig");
 pub const S3ObjectStore = @import("S3ObjectStore.zig");
 pub const PartitionLease = @import("PartitionLease.zig");
@@ -77,6 +79,8 @@ test {
     _ = LocalWal;
     _ = LocalSegmentStore;
     _ = TableManifest;
+    _ = BranchSnapshot;
+    _ = BranchAncestry;
     _ = NvmeCache;
     _ = S3ObjectStore;
     _ = PartitionLease;

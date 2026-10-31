@@ -51,6 +51,8 @@ All references use the same scope. A same-branch reference must precede the new
 version; foreign-branch version numbers impose no ordering. The publishing owner
 must verify parent existence, content and ancestry. Restore publishes a forward
 successor and preserves the current authority and earlier accepted history.
+Only `parent` and `merge_parent` are merge-ancestry edges. `restored_from`
+attributes restored data; it does not claim that the source's history was merged.
 
 `Head.generation` independently guards name, policy and retirement transitions as
 well as data movement. `requireSame` compares the full head, including content and
