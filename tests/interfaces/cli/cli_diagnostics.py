@@ -145,9 +145,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     root = Path(directory)
     path = root / 'server.json'
     installation = root / 'installation'
-    def server(config, contains, expected=2):
+    def server(config, contains, expected=2, startup=False):
         path.write_text(json.dumps(config))
-        return invoke(['server', '--config', path, '--no-ui'], expected, contains, startup=expected == 1)
+        return invoke(['server', '--config', path, '--no-ui'], expected, contains, startup=startup or expected == 1)
 
     for command in ('server', 'console'):
         invoke([command, '--config', root / 'missing.json'], contains=('configuration file', 'missing.json', 'was not found'))
@@ -186,7 +186,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     empty = root / 'empty-executable'
     empty.touch(mode=0o700)
     invalid['executables']['query_host'] = str(empty)
-    server(invalid, ('executables.query_host', 'InvalidExecutable'))
+    server(invalid, ('executables.query_host', 'InvalidExecutable'), startup=True)
     server(dict(config, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
     server(dict(config, executables=dict(config['executables'], sql_gateway='absent-sql')), ('executables.sql_gateway',))
     for sql, expected in [
