@@ -1,6 +1,6 @@
 # 19. Branches, merges and restore
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-31); [delivered evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-31); [foundation increment](#foundation-increment--2026-10-31); [earlier component evidence](#delivered-implementation-evidence--2026-10-30))
 
 Add isolated application-state branching, three-way merging and point-in-time
 restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
@@ -679,6 +679,51 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
    qualify transfer only after local lifetime/recovery gates pass. Close R10 on
    the resulting common revision, without treating M28's future approvals as an
    existing authorization mechanism.
+
+## Foundation increment — 2026-10-31
+
+The first implementation increment adds these owners without enabling branch
+operations in the installed service:
+
+- [`Branch`](../../packages/zig/transit-protocol/src/Branch.zig) and the
+  [neutral contract](../../contracts/BRANCH_V1.md): full-width branch identities,
+  content-bound manifests, branch-local ancestry, frozen source/target attempts,
+  exact retries, complete candidate-validation bindings and forward decisions.
+  The reflected lifecycle schema and independently authored fixtures include
+  these types. Existing execution and persisted formats are unchanged; their
+  incompatible runtime extension still requires R0's coordinated cutover.
+- [`BranchSnapshot`](../../packages/zig/transit-storage/src/BranchSnapshot.zig):
+  immutable canonical manifests and paged Table source directories, exact-root
+  pagination, explicit object/index-work bounds, original Table pin handles and
+  stored interpretation/frontier verification. The
+  [owner tests](../../packages/zig/transit-storage/src/branch_snapshot_test.zig)
+  cover 137 entries with a one-page cache, old-root disk reopen, quota/work
+  refusal, missing artifacts and a real unflushed Table pin that excludes a later
+  accepted write. Staging supplies neither live retention nor catalog publication.
+- [`BranchAncestry`](../../packages/zig/transit-storage/src/BranchAncestry.zig):
+  bounded manifest visits with paged frontier/visited sets and a complete result
+  distinguishing a unique maximal common ancestor, unrelated histories and
+  ambiguous criss-cross bases. Restore-source provenance is not a merge edge.
+  [Tests](../../packages/zig/transit-storage/src/branch_ancestry_test.zig) cover
+  disk history deeper than the old 256-cut array, missing/contradictory parents,
+  budget refusal and an independent materialized transitive-closure oracle.
+- The existing bounded `BranchMergeRestore` model now keeps published rows in
+  explicit caller-owned storage, binds retries to all request inputs and checks
+  receipt capacity before advancing its head. Schema-only changes requiring
+  conversion refuse rather than copying incompatible cell positions. The
+  `BranchLifecycle` model no longer fabricates latency or physical-byte metrics.
+  These repairs do not turn either model into a durable catalog owner.
+
+R0–R2 remain **partial**, and no end-to-end completion gate is closed by this
+increment. In particular, R1 still needs branch directories and recoverable
+decisions in `DirectCatalog`; R2/R3 need a coherent catalog/data decision and
+accepted pin transfer before ordinary branch writes can be enabled. Current
+Table acceptance is independent of catalog-head movement. Connecting private
+manifests to head pointers alone would misrepresent that visibility boundary.
+R4–R9 still require streaming logical diffs, whole-candidate publication,
+multi-model integration, actual execution fencing, caller APIs and remote I/O.
+The new private artifacts are not storage-collector roots. Their authorization,
+retention and cleanup remain caller responsibilities until owner integration.
 
 ## Implementation plan — 2026-10-30
 
