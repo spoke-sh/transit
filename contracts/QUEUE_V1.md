@@ -121,6 +121,15 @@ The common transaction must establish destination durability before transfer.
 
 ## Claim selection and original results
 
+The public signed Queue `wait` action schedules the same claim for at most
+1000 milliseconds. It uses current eligibility, FIFO, capacity and trusted-time
+checks and returns the original receipt if that claim was already accepted.
+While no item is eligible it publishes no empty claim. Timeout returns an
+observed cut; it is neither a retention pin nor proof that a concurrent attempt
+was rejected. Publication notifications and the next delayed visibility deadline
+trigger fresh authorized checks. See the [direct action contract](DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+for admission, cancellation and recovery semantics.
+
 `Claim` freezes the exact target, original operation, positive maximum row count
 and positive lease duration. The owner applies declaration limits and current
 rights at publication. `ClaimReceipt` records the original claim, accepted WAL

@@ -4563,6 +4563,9 @@ const QueueClock = struct {
     }
 };
 fn queueCall(catalog: *D, access: *Access, cached: *?c.DirectQueue.Cached, clock: *QueueClock, request: c.DirectQueue.Request, steps: u16) !c.DirectQueue.Result {
+    return queueCallWaiting(catalog, access, cached, clock, request, steps, null);
+}
+fn queueCallWaiting(catalog: *D, access: *Access, cached: *?c.DirectQueue.Cached, clock: *QueueClock, request: c.DirectQueue.Request, steps: u16, waiting: ?c.DirectLog.Waiting) !c.DirectQueue.Result {
     var scratch: std.heap.ArenaAllocator = .init(t.allocator);
     defer scratch.deinit();
     return c.DirectQueue.apply(scratch.allocator(), t.allocator, catalog, cached, .{
@@ -4570,7 +4573,95 @@ fn queueCall(catalog: *D, access: *Access, cached: *?c.DirectQueue.Cached, clock
         .batch_bytes = 8192,
         .key_bytes = 256,
         .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 },
-    }, .{ .clock = clock.source(), .recovery_steps = steps }, request, access.policy());
+    }, .{ .clock = clock.source(), .recovery_steps = steps, .waiting = waiting }, request, access.policy());
+}
+
+test "direct Queue waits preserve timeout absence delayed eligibility and original empty claims through restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var clock: QueueClock = .{};
+    var cached: ?c.DirectQueue.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const create = try logCreation(.queue, 10, 1, "waiting", 1);
+    _ = try catalog.admitLog(create, access.policy());
+    _ = try catalog.logOperation(create.binding, .execute, access.policy());
+    const declared = (try catalog.logOperation(create.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.stored.declaration.interpretation, .partition = 0 };
+    const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 100 }, .maximum = 1, .lease_ms = 100 };
+    var request: c.DirectQueue.Request = .{ .wait = .{ .claim = claim, .milliseconds = 1000 } };
+    var wake_after_ms: ?u64 = null;
+    const active: c.DirectLog.Waiting = .{ .expired = false, .registrations = 1, .wake_after_ms = &wake_after_ms };
+    const expired: c.DirectLog.Waiting = .{ .expired = true, .registrations = 1 };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .principal = 1, .audience = 3, .role = null };
+    try t.expectError(error.QueueWaitUnavailable, queueCall(&catalog, &access, &cached, &clock, request, 256));
+    try t.expectError(error.QueueWaitPending, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    try t.expect(wake_after_ms == null);
+    try t.expect((try c.OperationBinding.lookupQueue(t.allocator, objects.objectStore(), claim.operation)) == null);
+    const timeout = try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired);
+    try c.DirectQueueResponse.validate(t.allocator, connection, request, timeout);
+    try t.expectEqual(@as(u64, 0), timeout.timed_out.next);
+    try t.expect((try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .claim = claim } }, 256)).operation == null);
+    try t.expectError(error.QueueWaitCapacity, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, .{ .expired = false, .registrations = declared.stored.declaration.limits.waiters + 1 }));
+    access.denied_privileges = .{ .id = declared.properties.authorization, .mask = c.LogAuthority.acquire };
+    try t.expectError(error.CatalogDenied, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired));
+    access.denied_privileges = null;
+    clock.now = null;
+    try t.expectError(error.QueueTimeUnavailable, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired));
+    clock.now = .exact(100);
+    var empty_claim = claim;
+    empty_claim.operation.operation = 101;
+    const empty = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = empty_claim }, .payload = null } }, 256)).operation.?.claim;
+    try t.expectEqual(@as(u32, 0), empty.rows);
+    const append_operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 102 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(create.intent.action.create.schema, append_operation, .queue, &.{.{ .cells = &cells, .visible_ms = 1200 }}, &bytes);
+    const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(encoded.base64);
+    _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = append_operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
+    try t.expectError(error.QueueWaitPending, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    try t.expectEqual(@as(?u64, 1100), wake_after_ms);
+    const delayed_timeout = try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired);
+    try c.DirectQueueResponse.validate(t.allocator, connection, request, delayed_timeout);
+    try t.expectEqual(@as(u64, 1), delayed_timeout.timed_out.next);
+    try t.expect((try c.OperationBinding.lookupQueue(t.allocator, objects.objectStore(), claim.operation)) == null);
+    // Offset availability is not eligibility: the trusted lower bound must
+    // reach visible_at. A local wakeup cannot establish that fact.
+    clock.now = .{ .earliest_ms = 1199, .latest_ms = 1201 };
+    try t.expectError(error.QueueWaitPending, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    try t.expectEqual(@as(?u64, 1), wake_after_ms);
+    clock.now = .exact(1201);
+    const accepted = try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired);
+    try c.DirectQueueResponse.validate(t.allocator, connection, request, accepted);
+    try t.expectEqual(@as(u32, 1), accepted.operation.?.claim.rows);
+    request.wait.milliseconds = 1;
+    clock.now = null;
+    try t.expectEqualDeep(accepted, try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    request.wait.claim = empty_claim;
+    try t.expectEqualDeep(empty, (try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active)).operation.?.claim);
+    request.wait.claim = claim;
+    request.wait.claim.maximum = 2;
+    try t.expectError(error.DataIdentityConflict, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    request.wait.claim = claim;
+    cached.?.deinit();
+    cached = null;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(accepted, try queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, active));
+    access.denied_privileges = .{ .id = declared.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, queueCallWaiting(&catalog, &access, &cached, &clock, request, 256, expired));
+    try t.expectError(error.InvalidQueueResponse, c.DirectQueueResponse.validate(t.allocator, connection, .{ .observe = target }, timeout));
+    var invalid = timeout;
+    invalid.timed_out.target.partition = 1;
+    try t.expectError(error.LogPartitionConflict, c.DirectQueueResponse.validate(t.allocator, connection, request, invalid));
 }
 
 test "direct Queue composition preserves original claims current rights and settlements across edits and reopen" {

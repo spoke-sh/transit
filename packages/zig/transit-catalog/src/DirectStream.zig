@@ -143,7 +143,7 @@ pub const Environment = struct {
     authority: s.LogRead.Authority,
     clock: ?s.LogTime.Source,
     recovery_steps: u16 = 256,
-    waiting: ?struct { expired: bool, registrations: u32 } = null,
+    waiting: ?c.DirectLog.Waiting = null,
 };
 fn authorize(guard: s.PublicationGuard) !void {
     _ = try guard.acquire(guard.context);

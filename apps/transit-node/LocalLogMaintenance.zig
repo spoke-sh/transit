@@ -160,7 +160,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             runtime(stream).options.clock = @import("LocalLogClock.zig").source(engine);
             defer runtime(stream).options.clock = null;
             const before = runtime(stream).root.next_lsn;
-            defer if (kind == .stream and (runtime(stream).root.next_lsn != before or !runtime(stream).ready)) host.notifyStreams();
+            defer if (runtime(stream).root.next_lsn != before or !runtime(stream).ready) host.notifyLogs();
             switch (selected) {
                 .archive => return stream.archiveMaintenanceUnit(.{ .frames = settings.archive.work_frames }, authority.guard()),
                 .compact => return if (kind == .stream)

@@ -117,6 +117,20 @@ test "direct caller attempt evidence survives reads and service rejection" {
     try t.expect(attempt.mutation == null);
 }
 
+test "Queue wait cancellation retains its original claim identity as unknown work" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-queue-wait-v1.json"));
+    defer fixture.deinit();
+    var attempt: Attempt = .{};
+    attempt.begin(fixture.value.request);
+    const identity = fixture.value.request.action.queue.wait.claim.operation;
+    try t.expectEqualDeep(identity, attempt.mutation.?.identity.?);
+    const diagnostic = (try attempt.failure(error.Canceled, null)).?;
+    try t.expectEqual(.unknown, diagnostic.outcome);
+    try t.expectEqual(.saved_intent, diagnostic.evidence);
+    try t.expectEqual(identity.operation, try diagnostic.identity.?.id.value());
+}
+
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
 
 test "observed signing epoch needs no identity round trip and binds the complete request" {

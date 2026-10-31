@@ -8,6 +8,9 @@ const q = p.StreamQueueDeclaration;
 const r = @import("DirectCatalogRecords.zig");
 const s = c.storage;
 pub const Kind = q.Kind;
+/// Request-scoped host wait state. The optional timer output is only a wakeup
+/// hint; neither elapsed local time nor a notification grants acceptance.
+pub const Waiting = struct { expired: bool, registrations: u32, wake_after_ms: ?*?u64 = null };
 pub const IntentStore = @import("CatalogIntentCodec.zig").Codec(Request, "catalog-log-intents", "LCATREQ1");
 pub const Intent = struct {
     kind: Kind,

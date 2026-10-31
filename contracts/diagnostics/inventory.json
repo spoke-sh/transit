@@ -5563,8 +5563,14 @@
         "InvalidLogRecoveryBudget": 1,
         "InvalidQueuePayload": 1,
         "InvalidQueueReadBudget": 1,
+        "InvalidQueueWait": 1,
         "LogOperationConflict": 1,
-        "LogPayloadConflict": 1
+        "LogPayloadConflict": 1,
+        "QueueNotEligible": 1,
+        "QueueTimeUnavailable": 1,
+        "QueueWaitCapacity": 1,
+        "QueueWaitPending": 1,
+        "QueueWaitUnavailable": 1
       },
       "outcomes": {
         "Receipt": [
@@ -5577,13 +5583,15 @@
           "observe",
           "mutate",
           "operation",
-          "page"
+          "page",
+          "wait"
         ],
         "Result": [
           "recovering",
           "cut",
           "operation",
-          "page"
+          "page",
+          "timed_out"
         ]
       },
       "error_sets": {},
@@ -5595,8 +5603,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
-        "catch": 1
+        "try": 42,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -5615,13 +5623,15 @@
           "observe",
           "mutate",
           "operation",
-          "page"
+          "page",
+          "wait"
         ],
         "Result": [
           "recovering",
           "cut",
           "operation",
-          "page"
+          "page",
+          "timed_out"
         ]
       },
       "error_sets": {},
@@ -5676,7 +5686,7 @@
     },
     "packages/zig/transit-catalog/src/DirectQueueResponse.zig": {
       "errors": {
-        "InvalidQueueResponse": 12
+        "InvalidQueueResponse": 13
       },
       "outcomes": {},
       "error_sets": {},
@@ -5686,7 +5696,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 1
       },
       "imports": [
@@ -33207,6 +33217,7 @@
         "QueueClaimMissing": 2,
         "QueueItemMissing": 4,
         "QueueLeaseExpired": 1,
+        "QueueNotEligible": 1,
         "QueueReadBudgetExceeded": 1,
         "QueueReadReleased": 3,
         "QueueTimeUnavailable": 5,
@@ -33252,7 +33263,10 @@
         "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
+        "Owner().<return>.claimNonempty()": "<inferred>",
         "Owner().<return>.claimReadReleased()": "<inferred>",
+        "Owner().<return>.claimReadiness()": "<inferred>",
+        "Owner().<return>.claimSelected()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
         "Owner().<return>.compactStep()": "<inferred>",
         "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
@@ -33330,7 +33344,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 674,
+        "try": 682,
         "catch": 18
       },
       "imports": [
@@ -33873,7 +33887,7 @@
         "InvalidQueueHead": 9,
         "InvalidQueueItem": 4,
         "InvalidQueueRoot": 2,
-        "InvalidQueueSchedule": 9,
+        "InvalidQueueSchedule": 10,
         "InvalidQueueTimerBudget": 1,
         "LogPartitionConflict": 1,
         "QueueItemMissing": 1,
@@ -33904,6 +33918,7 @@
         "head()": "<inferred>",
         "item()": "<inferred>",
         "itemAt()": "<inferred>",
+        "nextVisibleMs()": "<inferred>",
         "prepareVisibility()": "<inferred>",
         "putItem()": "<inferred>",
         "putSidecar()": "<inferred>",
@@ -33923,7 +33938,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 123,
+        "try": 126,
         "catch": 1
       },
       "imports": [
@@ -34015,6 +34030,8 @@
         "archiveMaintenanceUnit()": "<inferred>",
         "checkpoint()": "<inferred>",
         "claim()": "<inferred>",
+        "claimNonempty()": "<inferred>",
+        "claimReadiness()": "<inferred>",
         "deinit()": "<inferred>",
         "enqueue()": "<inferred>",
         "expireOne()": "<inferred>",

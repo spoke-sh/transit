@@ -66,7 +66,7 @@ consumer progress. See the [Stream contract](../../../contracts/DIRECT_TABLE_V1.
 for current service budgets and grants.
 
 `Catalog.callQueue(output, action)` exposes `DirectQueueClient.Action` for enqueue,
-claim, original-operation inspection, bounded original-claim pages and explicit
+claim, bounded claim waits, original-operation inspection, bounded original-claim pages and explicit
 ACK/NACK/extension settlement. `DirectQueueClient.save` preserves exact mutation
 bytes before dispatch; `load` verifies the mandatory definition, connection and
 payload commitment. `QueueOutcome` preserves the original mutation identity and
@@ -74,8 +74,10 @@ unknown-outcome evidence. Decoded rows retain their original leases and payloads
 the separately observed status is not authority to execute or settle them.
 Pages use selection ordinals and explicit completion, including empty terminal
 pages. Closing the client or output arena performs no ACK, NACK or renewal.
+Wait timeout accepts no empty claim. Save the underlying claim before waiting;
+its original identity survives cancellation, lost replies and changed wait duration.
 The [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
-owns current limits, grants and unavailable scheduling/transaction capabilities.
+owns current limits, grants and remaining DLQ/transaction limitations.
 
 Pass a separate output arena. Successful results and their strings/collections
 belong to that arena and remain valid across subsequent calls and client close.

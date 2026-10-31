@@ -304,6 +304,8 @@ This updates the original `ba177f4acb52` plan against the checked-in owners,
 contracts, tests and qualification ledger. It is a source assessment, not a new
 runtime qualification. The dated records below qualify their own revisions;
 neither their union nor the presence of a test establishes a pass at this HEAD.
+The table records that audit revision; subsequent Queue wait implementation is
+tracked in [R4](#r4-implement-queue-leasing-and-scheduling).
 
 | Area | Delivered basis | Remaining obligation |
 | --- | --- | --- |
@@ -538,7 +540,7 @@ not complete these gates.
 | R1 | Implemented foundations; integrated qualification open | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
-| R4 | Partial: claims, retries, delays, maintenance and retention delivered; claim waits and atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
+| R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
 | R5 | Partial: KV storage/authority delivered; named KV and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
@@ -548,7 +550,7 @@ not complete these gates.
 
 The remaining critical path is R0 mixed contracts → R5 named KV and executable
 participants → R7 transactional Station → R8 consumer/effect cutover → R10.
-Reuse R1–R4's delivered foundations. R4 claim waits can proceed now; R4 atomic
+Reuse R1–R4's delivered foundations, including bounded claim waits. R4 atomic
 DLQ transfer joins after R5's durable decision gate. R6 standalone SQL verbs and
 finite analytical reads can proceed over their qualified owners without waiting
 for the Station migration; mixed SQL transactions depend on R5. R9 continues
@@ -715,8 +717,9 @@ physical maintenance.
 ### R4 Implement queue leasing and scheduling
 
 The payload, claim, settlement, timer, affinity and retention owners described
-below are implemented. The next functional work is claim waits and atomic DLQ
-transfer; the remaining exit work is integrated evidence.
+below are implemented. Bounded public claim waits now use those owners through
+the signed Queue caller and shared native wait admission. The next functional
+work is atomic DLQ transfer; the remaining exit work is integrated evidence.
 
 Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
 The Queue owns its internal payload log; reusing storage must not expose a Stream
@@ -743,16 +746,20 @@ and recovery work; large clock jumps and a backlog larger than memory cannot
 force a whole-queue scan in one operation. Authoritative deadlines, not wakeup
 delivery, decide expiry. Test backward/unavailable time and restart downtime.
 
-Add a bounded public claim-wait operation through `DirectQueue`,
-`DirectQueueClient`, `transit-data-client` and native dispatch. Reuse the Stream
-register/recheck pattern, but observe Queue eligibility: enqueue, a delayed head
+The bounded public claim-wait operation is implemented through `DirectQueue`,
+`DirectQueueClient`, `transit-data-client` and native dispatch. It reuses the Stream
+register/recheck pattern and checks Queue eligibility: enqueue, a delayed head
 becoming visible, retry/expiry, and ACK exposing the next FIFO head can all make
-work available. Freeze the original claim request before parking. Specify timeout
-as no accepted claim, distinct from an accepted empty claim, and resolve the
-original identity after cancellation or a lost reply. Bound waiters and wake work;
-use trusted deadlines and durable eligibility rechecks when a hint is coalesced,
-lost or the service restarts. Prove no missed wakeup, current-policy checks after
-parking, cancellation joins, timer-driven eligibility and no idle polling loop.
+work available. It freezes the original claim before parking and returns timeout
+without accepting an empty claim. The current implementation shares 64 active
+registrations and four wait admission lanes with Streams, honors declaration
+budgets, and bounds each wait to 1000 ms. The next accepted visibility timestamp
+supplies an early timer wake; eligibility still requires fresh trusted time.
+Original claims, including empty ones, recover without selecting new work.
+The [public contract](../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+owns cancellation, timeout and recovery semantics. Qualify register/recheck races,
+current-policy checks after parking, cancellation joins, timer-driven eligibility
+and installed lost-reply/restart recovery together at the milestone exit gate.
 
 ACK, NACK and renewal revalidate current authority, receipt and live epoch at
 publication. Original accepted settlement is still recoverable after later

@@ -11,6 +11,7 @@ pub const Action = union(enum) {
     mutate: struct { work: c.DirectQueueMutation.Request, payload: ?[]const u8 = null },
     operation: c.DirectQueueMutation.Request,
     page: @FieldType(wire.Request, "page"),
+    wait: @FieldType(wire.Request, "wait"),
     pub fn encode(self: Action, scratch: std.mem.Allocator) !wire.Request {
         return switch (self) {
             .mutate => |value| .{ .mutate = .{ .work = value.work, .payload = if (value.payload) |bytes| try w.Binary.encode(scratch, bytes) else null } },
@@ -31,6 +32,7 @@ pub const Result = union(enum) {
     cut: p.StreamQueue.Cut,
     operation: ?wire.Receipt,
     page: Page,
+    timed_out: p.StreamQueue.Cut,
 };
 pub const Saved = struct {
     definition: p.Growth.Definition,

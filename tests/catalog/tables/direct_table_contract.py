@@ -221,6 +221,10 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_request = {**queue_input, "proof": {"claim": queue_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_claim)).digest())}}
     queue_digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_work)).digest()
     queue_fixture = {"request": queue_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    queue_wait_input = {**request_input, "action": {"queue": {"wait": {"claim": queue_work["claim"], "milliseconds": 1000}}}}
+    queue_wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_wait_input)).digest())}
+    queue_wait_request = {**queue_wait_input, "proof": {"claim": queue_wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_wait_claim)).digest())}}
+    queue_wait_fixture = {"request": queue_wait_request, "public_key": public_key, "intent_digest": list(queue_digest)}
     queue_release_work = {"release": {
         "operation": {**log_binding["identity"], "operation": 2**64-2},
         "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
@@ -258,6 +262,11 @@ validator.validate(resource_request)
 validator.validate(log_request)
 validator.validate(stream_request)
 validator.validate(queue_request)
+validator.validate(queue_wait_request)
+for field in ("claim", "milliseconds"):
+    invalid = copy.deepcopy(queue_wait_request)
+    del invalid["action"]["queue"]["wait"][field]
+    assert not validator.is_valid(invalid), field
 validator.validate(queue_release_request)
 for field in ("operation", "claim"):
     invalid = copy.deepcopy(queue_release_request)
@@ -319,6 +328,8 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json"
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",
         (json.dumps(queue_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-wait-v1.json",
+        (json.dumps(queue_wait_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-wait-v1.json",
         (json.dumps(wait_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-v1.json",

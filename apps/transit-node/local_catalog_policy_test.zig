@@ -1975,7 +1975,7 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
         }
     };
     var native_id = found.value.result.log_lookup.?.declaration.properties.authorization;
-    try @import("local_stream_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
+    try @import("local_log_wait_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
     const maintenance_context: [32]u8 = @splat(19);
     var maintenance_policy = try Policy.init(engine, config, try proof(engine, maintenance_context), maintenance_context, null);
     try @import("local_stream_maintenance_test.zig").exercise(&service, found.value.result.log_lookup.?.declaration, maintenance_policy.policy());
@@ -2010,6 +2010,19 @@ fn logLifecycleDispatch(engine: *Engine, config: D.Configuration, role: u64) !vo
     service.before_reply = null;
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(queue_native_id), .owner = role } });
     try @import("local_queue_maintenance_test.zig").exercise(&service, queue_declared, queue_intent.action.create.schema, maintenance_policy.policy());
+    var wait_intent = queue_intent;
+    wait_intent.name = try .init("waiting_queue");
+    wait_intent.action.create.schema.object = 302;
+    wait_intent.action.create.configuration.partitioning.count = 1;
+    var wait_binding = queue_binding;
+    wait_binding.identity.operation = 649;
+    wait_binding.target.object = 302;
+    wait_binding.intent = try wait_intent.digest(t.allocator);
+    const wait_ddl = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = wait_binding, .intent = wait_intent });
+    (try dispatch(&service, .{ .log_admit = wait_ddl })).deinit();
+    const wait_created = try dispatch(&service, .{ .log_operation = .{ .binding = wait_binding, .command = .execute, .steps = 32 } });
+    defer wait_created.deinit();
+    try @import("local_log_wait_test.zig").exerciseQueue(&service, wait_created.value.result.log_operation.operation.resulting.?, wait_intent.action.create.schema, role, Revoke.prepare, Revoke.publish, Revoke.transfer);
     const disclosures = [_]c.DirectTableProtocol.Action{
         .{ .stream = retained_page },
         .{ .log_lookup = .{ .namespace = 1, .name = "registered_stream" } },

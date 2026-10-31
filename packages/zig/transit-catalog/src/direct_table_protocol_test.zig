@@ -344,6 +344,30 @@ test "direct log consumes independent signed intent and preserves saved full-wid
     try t.expectError(error.MissingField, c.DirectLogClient.load(t.allocator, missing));
 }
 
+test "direct Queue wait binds its scheduling duration while preserving the claim intent" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-queue-wait-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const work: c.DirectQueueMutation.Request = .{ .claim = request.action.queue.wait.claim };
+    try t.expectEqualDeep(parsed.value.intent_digest, (try work.binding(t.allocator)).intent);
+    try t.expectEqualDeep(c.client.WaitHint{ .after = 0, .milliseconds = 1000 }, request.transport().wait.?);
+    try t.expect(request.transport().mutation and request.transport().control == null);
+    var changed = request;
+    changed.action.queue.wait.milliseconds = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = request;
+    changed.action.queue.wait.claim.maximum = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    var action = request.action.queue;
+    action.wait.milliseconds = 0;
+    try t.expectError(error.InvalidQueueWait, action.validate(request.connection.principal, request.connection.scope));
+    action.wait.milliseconds = 1001;
+    try t.expectError(error.InvalidQueueWait, action.validate(request.connection.principal, request.connection.scope));
+}
+
 test "direct dependency consumes independently signed full-width registration and binary digest" {
     const Fixture = struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));

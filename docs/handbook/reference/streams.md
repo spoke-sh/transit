@@ -47,6 +47,15 @@ response requires inspection of that original work; retrying an accepted claim
 never selects different messages. An accepted empty claim remains empty even
 after more messages become eligible.
 
+Use Queue `wait` with the same complete claim to wait up to 1000 milliseconds
+for eligible work. The service rechecks FIFO order, leases, trusted visibility
+time and current rights after a notification or delayed-item deadline. A timeout
+reports an observed cut without accepting an empty claim. An already accepted
+claim still returns its original selection, including an empty one. Save the
+underlying claim before dispatch: cancellation or a lost response cannot prove
+it was unaccepted. Waits have separate bounded admission and do not hold data
+locks while parked.
+
 Enqueue requires current append rights. Claims, original claim inspection and
 payload pages require read plus acquire; settlement requires settle. The service
 checks grants after buffering, including empty and terminal pages. Returned rows

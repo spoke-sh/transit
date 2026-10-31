@@ -5,7 +5,7 @@ const std = @import("std");
 const c = @import("transit_catalog");
 const backend = @import("transit_backend_local");
 const Service = @import("LocalTableService.zig");
-const StreamWaits = @import("LocalStreamWaits.zig");
+const LogWaits = @import("LocalLogWaits.zig");
 const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
@@ -38,11 +38,11 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// Retained caches and owner work have a separate aggregate bound from parsed
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
-stream_waits: ?*StreamWaits = null,
+log_waits: ?*LogWaits = null,
 
 /// The embedding owner joins every request before closing retained workspaces.
 pub fn deinit(self: *Self) void {
-    if (self.stream_waits) |waits| waits.destroy();
+    if (self.log_waits) |waits| waits.destroy();
     for (&self.residents) |*slot| if (slot.value) |resident| resident.destroy();
     for (&self.control_residents) |*slot| if (slot.value) |resident| resident.destroy();
     std.debug.assert(self.resident_memory.data.used.load(.acquire) == 0);
@@ -70,11 +70,11 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
     const recovered = try catalog.recoveryState();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .stream_waits = try StreamWaits.create(allocator, io) };
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .log_waits = try LogWaits.create(allocator, io) };
 }
 /// Publication, policy changes and maintenance only prompt current checks.
-pub fn notifyStreams(self: *Self) void {
-    if (self.stream_waits) |waits| waits.notify();
+pub fn notifyLogs(self: *Self) void {
+    if (self.log_waits) |waits| waits.notify();
 }
 pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
     const owner = engine.journal.backend;
@@ -151,17 +151,31 @@ pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engi
     return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null);
 }
 fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) !Service.Result(format) {
-    if (request.action != .stream or request.action.stream != .wait) {
+    const milliseconds: ?u32 = switch (request.action) {
+        .stream => |value| if (value == .wait) value.wait.milliseconds else null,
+        .queue => |value| if (value == .wait) value.wait.milliseconds else null,
+        else => null,
+    };
+    if (milliseconds == null) {
         // Wake even when accepted work loses its reply. Read-only probes never
         // wake other probes; this is notification, not an idle polling loop.
-        defer if ((request.action == .stream and request.action.stream.mutation()) or exclusive(request.action)) self.notifyStreams();
+        defer if ((request.action == .stream and request.action.stream.mutation()) or (request.action == .queue and request.action.queue.mutation()) or exclusive(request.action)) self.notifyLogs();
         return self.executeSingle(format, io, engine, arena, output_allocator, request, control, memory_report, null);
     }
     if (control) return error.InvalidRequest;
-    const waits = self.stream_waits orelse return error.StreamWaitUnavailable;
-    const input = request.action.stream.wait;
-    try request.action.stream.validate(request.connection.principal, request.connection.scope);
-    const deadline = (std.Io.Timeout{ .duration = .{ .raw = .fromMilliseconds(input.milliseconds), .clock = .awake } }).toDeadline(io);
+    const waits = self.log_waits orelse return if (request.action == .queue) error.QueueWaitUnavailable else error.StreamWaitUnavailable;
+    const wait_target = switch (request.action) {
+        .stream => |value| blk: {
+            try value.validate(request.connection.principal, request.connection.scope);
+            break :blk value.target();
+        },
+        .queue => |value| blk: {
+            try value.validate(request.connection.principal, request.connection.scope);
+            break :blk value.target();
+        },
+        else => unreachable,
+    };
+    const deadline = (std.Io.Timeout{ .duration = .{ .raw = .fromMilliseconds(milliseconds.?), .clock = .awake } }).toDeadline(io);
     // The parsed request belongs to arena. Reuse independent scratch for each
     // recheck so unrelated publications cannot accumulate request allocations.
     var scratch: std.heap.ArenaAllocator = .init(arena.child_allocator);
@@ -170,21 +184,28 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
     while (true) {
         _ = scratch.reset(.retain_capacity);
         expired = expired or deadline.toDurationFromNow(io).?.raw.nanoseconds <= 0;
-        const ticket = try waits.register(input.consume.target);
+        const ticket = try waits.register(wait_target);
         defer waits.release(ticket);
-        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket) }) catch |err| {
-            if (err != error.StreamWaitPending) {
-                self.notifyStreams(); // Acceptance may precede a failed reply.
+        var wake_after_ms: ?u64 = null;
+        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket), .wake_after_ms = &wake_after_ms }) catch |err| {
+            if (err != error.StreamWaitPending and err != error.QueueWaitPending) {
+                self.notifyLogs(); // Acceptance may precede a failed reply.
                 return err;
             }
-            switch (try waits.wait(ticket, deadline)) {
-                .changed => {},
-                .timeout => expired = true,
-                .closed => return error.StreamWaitUnavailable,
+            // A scheduled visibility deadline can precede the caller deadline.
+            // Both only trigger a fresh authorized, trusted-time recheck.
+            const park: std.Io.Timeout = if (wake_after_ms) |hint| .{ .duration = .{
+                .raw = .fromMilliseconds(@min(hint, milliseconds.?)),
+                .clock = .awake,
+            } } else deadline;
+            const bounded = if (park.toDurationFromNow(io).?.raw.nanoseconds < deadline.toDurationFromNow(io).?.raw.nanoseconds) park else deadline;
+            switch (try waits.wait(ticket, bounded)) {
+                .changed, .timeout => {},
+                .closed => return if (request.action == .queue) error.QueueWaitUnavailable else error.StreamWaitUnavailable,
             }
             continue;
         };
-        self.notifyStreams();
+        self.notifyLogs();
         return result;
     }
 }
@@ -228,7 +249,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     };
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
-        if (err == error.StreamWaitPending) discard_on_error = false;
+        if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;
