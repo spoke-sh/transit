@@ -70,6 +70,14 @@ pub fn digest(name: []const u8) [32]u8 {
 pub fn key(self: Self, kind: Kind, identity: [32]u8) c.DirectClientToken.Key {
     return .{ .definition = p.Growth.current_definition, .connection = self.client.connection, .account = self.account(kind), .token = identity[0..16].* };
 }
+pub fn operation(self: Self, kind: Kind, identity: [32]u8) u64 {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.browser.operation.v1\x00");
+    hash.update(&self.account(kind));
+    hash.update(&identity);
+    const bytes = hash.finalResult();
+    return std.mem.readInt(u64, bytes[0..8], .little) | 1;
+}
 pub fn read(self: Self, kind: Kind, identity: [32]u8) !?Read {
     const progress = try c.DirectClientToken.inspect(self.client, self.key(kind, identity)) orelse return null;
     return try self.readProgress(kind, identity, progress);
@@ -151,7 +159,7 @@ pub fn put(self: Self, kind: Kind, identity: [32]u8, mutation: [16]u8, expected:
     const receipt = try c.DirectClientToken.bind(self.client, .{
         .key = token,
         .fingerprint = reference.content.sha256,
-        .intent = .{ .external = .{ .connection = self.client.connection, .namespace = self.namespace, .operation = (std.mem.readInt(u64, identity[0..8], .little) % p.max_counter) + 1, .record = reference } },
+        .intent = .{ .external = .{ .connection = self.client.connection, .namespace = self.namespace, .operation = self.operation(kind, identity), .record = reference } },
         .budget = .{ .limits = self.limits, .bytes = @max(4608, bytes.len) },
     });
     try receipt.binding.intent.external.record.requireSame(reference);
@@ -167,4 +175,12 @@ test "browser durable records require an explicit definition and separate key fr
     invalid.mutation = @splat(0);
     try t.expectError(error.InvalidBrowserRecord, invalid.validate());
     try t.expectError(error.MissingField, std.json.parseFromSlice(Record, t.allocator, "{\"namespace\":1,\"kind\":\"challenge\",\"payload\":\"{}\"}", .{}));
+}
+
+test "browser record kinds and namespaces do not alias native external operation identities" {
+    const store: Self = .{ .client = undefined, .namespace = 1 };
+    const other: Self = .{ .client = undefined, .namespace = 2 };
+    const identity = digest("same external identity");
+    try std.testing.expect(store.operation(.identity, identity) != store.operation(.binding, identity));
+    try std.testing.expect(store.operation(.identity, identity) != other.operation(.identity, identity));
 }

@@ -40,7 +40,7 @@ pub const Provider = struct {
         try self.profile.validate(development);
         try name(self.profile.provider_name);
         try name(self.secret);
-        if (self.profile.cached_jwks_json != null) return error.JwksMustBeAcquired;
+        if (self.profile.cached_jwks_json != null or self.profile.issuer_profile.jwks_keys.len != 0) return error.JwksMustBeAcquired;
         if (self.profile.verification_mode == .oidc_rs256_id_token) {
             const url = self.jwks_endpoint orelse return error.MissingJwksEndpoint;
             if (!std.mem.startsWith(u8, url, "https://") and !(development and std.mem.startsWith(u8, url, "http://127.0.0.1:"))) return error.InvalidJwksEndpoint;
@@ -90,6 +90,10 @@ pub const Publication = struct {
         if (self.descriptor.parameters.len != 0 or self.descriptor.backing_kind != .compiled_sql_plan or self.descriptor.dependencies.len != 1) return error.UnsupportedBrowserPublication;
         const dependency = self.descriptor.dependencies[0];
         if (dependency.source_object != self.source.object.object or dependency.source_revision != self.source.revision or self.descriptor.branch_id != self.source.object.branch) return error.PublicationSourceMismatch;
+        for (self.descriptor.result_schema.columns) |column| switch (column.type) {
+            .int8, .int16, .int32, .int64, .uint8, .uint16, .uint32, .uint64, .float32, .float64, .boolean, .utf8, .decimal => {},
+            else => return error.UnsupportedBrowserColumn,
+        };
         if (self.source_name.len == 0 or self.source_name.len > 255 or self.max_rows == 0 or self.max_rows > 10_000 or self.max_bytes < 1024 or self.max_bytes > 4 * 1024 * 1024) return error.InvalidPublicationBudget;
     }
 };
@@ -130,6 +134,32 @@ pub const Change = struct {
         try self.declaration.validate(development);
         const bytes = try p.Json.valueAlloc(store.client.allocator, self.declaration);
         defer store.client.allocator.free(bytes);
+        if (self.declaration == .publication) {
+            const publication = self.declaration.publication;
+            try store.client.connection.object(publication.source.object);
+            if (publication.descriptor.namespace_id != store.namespace) return error.BrowserNamespaceMismatch;
+            var previous = try read(Declaration, store, .publication, self.declaration.key());
+            defer if (previous) |*value| value.deinit();
+            if (previous) |value| {
+                if (std.mem.eql(u8, &value.record.value().mutation, &self.mutation))
+                    return store.put(self.declaration.kind(), self.declaration.key(), self.mutation, self.expected, bytes);
+                if (value.value() != .publication) return error.InvalidBrowserRecord;
+                const prior = value.value().publication;
+                if (prior.descriptor.state == .retired) return error.PublishedResourceRetired;
+                if (publication.descriptor.resource_object != prior.descriptor.resource_object) return error.PublicationIdentityChanged;
+                if (publication.descriptor.publication_revision != prior.descriptor.publication_revision) {
+                    if (publication.descriptor.previous_revision != prior.descriptor.publication_revision) return error.InvalidPublishedResourceRevisionLineage;
+                } else {
+                    var without_state = publication;
+                    without_state.descriptor.state = prior.descriptor.state;
+                    const old_bytes = try p.Json.valueAlloc(store.client.allocator, prior);
+                    defer store.client.allocator.free(old_bytes);
+                    const new_bytes = try p.Json.valueAlloc(store.client.allocator, without_state);
+                    defer store.client.allocator.free(new_bytes);
+                    if (!std.mem.eql(u8, old_bytes, new_bytes)) return error.PublicationRevisionRequired;
+                }
+            } else if (publication.descriptor.publication_revision != 1) return error.InvalidPublishedResourceRevisionLineage;
+        }
         return store.put(self.declaration.kind(), self.declaration.key(), self.mutation, self.expected, bytes);
     }
 };
@@ -137,7 +167,6 @@ pub const Change = struct {
 pub const Identity = struct {
     provider: []const u8,
     subject: []const u8,
-    created_ms: u64,
     pub fn digest(issuer: []const u8, client_id: []const u8, subject: []const u8) Digest {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.browser.identity.v1\x00");
@@ -154,6 +183,7 @@ pub const Challenge = struct {
     provider: []const u8,
     provider_revision: Store.Revision,
     secret_revision: Store.Revision,
+    secret_commitment: Digest,
     cookie_digest: Digest,
     pkce_digest: Digest,
     nonce_digest: Digest,
@@ -219,7 +249,7 @@ test "browser claim binds cookie PKCE nonce expiry and refuses replay without re
     const cookie = &@as([43]u8, @splat('c'));
     const verifier = &@as([43]u8, @splat('v'));
     const nonce = &@as([43]u8, @splat('n'));
-    const challenge: Challenge = .{ .provider = "example", .provider_revision = .{ .partition = 1, .next_lsn = 2 }, .secret_revision = .{ .partition = 1, .next_lsn = 3 }, .cookie_digest = Store.digest(cookie), .pkce_digest = Store.digest(verifier), .nonce_digest = Store.digest(nonce), .expires_ms = 100, .state = .issued };
+    const challenge: Challenge = .{ .provider = "example", .provider_revision = .{ .partition = 1, .next_lsn = 2 }, .secret_revision = .{ .partition = 1, .next_lsn = 3 }, .secret_commitment = @splat(7), .cookie_digest = Store.digest(cookie), .pkce_digest = Store.digest(verifier), .nonce_digest = Store.digest(nonce), .expires_ms = 100, .state = .issued };
     try t.expectError(error.InvalidCallbackBinding, challenge.claim(&@as([43]u8, @splat('x')), verifier, nonce, "code", 99, @splat(1)));
     try t.expectError(error.InvalidCallbackBinding, challenge.claim(cookie, &@as([43]u8, @splat('x')), nonce, "code", 99, @splat(1)));
     try t.expectError(error.InvalidCallbackBinding, challenge.claim(cookie, verifier, &@as([43]u8, @splat('x')), "code", 99, @splat(1)));
