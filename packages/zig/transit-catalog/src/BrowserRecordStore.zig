@@ -121,10 +121,23 @@ pub fn reconcilePage(self: Self, kind: Kind, after: ?u64) !?u64 {
 }
 
 /// The caller freezes mutation, payload and expected revision before dispatch.
-/// A lost response requires read/history inspection; this method never retries.
+/// A bounded native conflict can rebuild a candidate under the same identity.
+/// Every repeat first inspects the original key; an already observed mutation
+/// returns changed=false and cannot authorize a callback's external dispatch.
+/// Transport uncertainty is returned to the caller without automatic replay.
 /// Acceptance and settling the generic token's pending quota are separate: a
 /// crash between them leaves an inspectable accepted initial record.
 pub fn put(self: Self, kind: Kind, identity: [32]u8, mutation: [16]u8, expected: ?Revision, payload: []const u8) !Accepted {
+    for (0..3) |attempt| {
+        return self.putOnce(kind, identity, mutation, expected, payload) catch |err| {
+            if (attempt == 2 or !self.client.service.contended(err)) return err;
+            continue;
+        };
+    }
+    unreachable;
+}
+
+fn putOnce(self: Self, kind: Kind, identity: [32]u8, mutation: [16]u8, expected: ?Revision, payload: []const u8) !Accepted {
     var current = try self.read(kind, identity);
     defer if (current) |*value| value.deinit();
     if (current) |value| {

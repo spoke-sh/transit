@@ -11,7 +11,7 @@ The authoritative types are [BrowserDeclarations](../packages/zig/transit-catalo
 [BrowserAdministration](../packages/zig/transit-catalog/src/BrowserAdministration.zig)
 and [BrowserContract](../packages/zig/transit-catalog/src/BrowserContract.zig).
 [The generated schema](browser-v1.schema.json) contains `AdminRequest`,
-`AdminResponse`, `ProviderDiscovery`, `Session`, `LoggedOut`, `Failure` and
+`AdminResponse`, `Readiness`, `ProviderDiscovery`, `Session`, `LoggedOut`, `Failure` and
 `Snapshot`. Regenerate with `just contract::generate`. Administrative requests
 require `definition: "transit.browser.v1.2026-10-30"`; their native envelopes and
 retained records independently require the current shared Transit definition.
@@ -41,6 +41,13 @@ Each request carries `connection`, `namespace`, `development` and one `action`:
   Preserve that request through uncertainty and inspect its mutation/reference;
   do not create a new mutation to conceal an unknown outcome. Concurrent changes
   conflict. Repeating the latest identical mutation reports `changed: false`.
+
+A native storage-epoch fence is a conflict, not evidence of rejection. The
+record owner can rebuild at most three candidates under the same frozen key,
+mutation, payload and expected revision, inspecting the original key before each
+repeat. An observed mutation always returns `changed: false`, including a claim
+whose acceptance acknowledgement was lost; it cannot authorize another exchange.
+Transport uncertainty is returned without automatic replay.
 
 Disable providers/secrets/bindings by conditionally setting `enabled: false`;
 restrict an identity with `binding.restricted: true`. Publication states are
@@ -157,7 +164,7 @@ there is no credential failure fallback to anonymous access.
 
 ## Browser HTTP and WebSocket contract
 
-All paths are relative to one exact configured public origin. HTTP responses use
+Browser data and authentication paths use one exact configured public origin. HTTP responses use
 `Cache-Control: no-store`; successful JSON uses the generated schemas. No CORS
 cross-origin access is provided. Unsupported methods/routes fail closed.
 
@@ -245,6 +252,12 @@ placement settings. See [configuration reference](../docs/handbook/reference/con
 Startup loads keys, settles pending catalog bookkeeping and binds the listener
 before reporting native readiness. Shutdown joins listener/socket tasks.
 
+`GET /health` on the browser listener returns `200 {"ready":true}` after that
+startup gate. This infrastructure probe discloses no catalog/session data and
+needs no browser Origin, cookie or TLS-forwarding header. Production still
+requires the actual socket peer to match `trusted_proxy_cidr`. It reports listener
+readiness, not current provider availability or a grant to read data.
+
 For one ECS task behind HTTPS ALB, bind the browser listener on the private task
 interface, use the exact CloudFront origin, `development_loopback: false`, and a
 restricted IPv4 `trusted_proxy_cidr` for actual ALB peers. The accepted socket
@@ -256,6 +269,11 @@ authority. Same-origin CloudFront routes must forward cookies, Origin, Fetch
 Metadata, query parameters and WS upgrade, disable caching, and preserve the
 callback path. The static application stays separately hosted. AWS provisioning
 and live ALB/CloudFront behavior are outside this runtime proof.
+Configure the target group's HTTP health check to use `/health` and expect 200.
+ALB probes send the target's private address in Host, as described in the
+[AWS health-check guidance](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html);
+the separate readiness route accepts that probe while browser routes retain
+their exact public Host/Origin checks.
 
 Task replacement must retain the native log/object storage, browser namespace,
 connection, mounted secrets and cookie key with a matching shared definition.

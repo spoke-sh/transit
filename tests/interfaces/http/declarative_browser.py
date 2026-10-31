@@ -337,11 +337,22 @@ def run(binary, admin, fault_node=None):
     if fault_node:
         boundary = f.root / 'browser-boundary'
         boundary.mkdir()
-        f.env['TRANSIT_EXECUTABLES__NODE'] = str(Path(fault_node).resolve())
+        # Keep native refusal diagnostics private and available after the
+        # supervisor joins its child. Its bounded in-memory log is otherwise
+        # intentionally not forwarded into the CLI's machine output.
+        real_node = str(Path(fault_node).resolve())
+        wrapper = f.root / 'browser-node'
+        wrapper.write_text(f'#!{sys.executable}\nimport os, sys\n'
+                           f'fd = os.open({str(f.root / "node.stderr")!r}, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)\n'
+                           'os.dup2(fd, 2)\nos.close(fd)\n'
+                           f'os.execv({real_node!r}, [{real_node!r}, *sys.argv[1:]])\n')
+        wrapper.chmod(0o700)
+        f.env['TRANSIT_EXECUTABLES__NODE'] = str(wrapper)
     print('Browser listener qualification:', f.root, flush=True)
     success = False
     try:
         f.provision()
+        assert f.http('GET', '/health', headers={'Origin': None})[0] == 200
         status, _, body = f.http('GET', '/published/catalog/snapshot')
         assert status == 200, (status, body)
         value = json.loads(body)
@@ -352,6 +363,17 @@ def run(binary, admin, fault_node=None):
             status, _, body = f.http('GET', '/auth/session', cookie)
             assert status == 200 and json.loads(body)['authenticated'] and not json.loads(body)['bound'], (status, body)
         print('Real listener: public source and three provider modes passed', flush=True)
+        if fault_node:
+            before = f.login('github', 'claim-before-fence')
+            (boundary / 'conflict-before').write_text('refuse one unpublished candidate')
+            f.session_cookie(f.finish(before))
+            assert f.peers.calls.count('claim-before-fence') == 1
+            after = f.login('github', 'claim-after-acceptance')
+            (boundary / 'conflict-after').write_text('lose one accepted claim acknowledgement')
+            assert f.finish(after)[0] == 409
+            assert f.finish(after)[0] == 409
+            assert 'claim-after-acceptance' not in f.peers.calls
+            print('Original claim recovery: fenced candidate and lost acceptance acknowledgement passed', flush=True)
         for method, path in (('POST', '/auth/login'), ('POST', '/auth//login'), ('GET', '/auth/callback'), ('GET', '/published/watch'), ('GET', '/published//snapshot')):
             assert f.http(method, path)[0] == 404, (method, path)
         # Header/credential ambiguity cannot create an anonymous fallback.
@@ -556,7 +578,6 @@ def run(binary, admin, fault_node=None):
             f.stop()
             boundary = f.root / 'browser-boundary'
             boundary.mkdir(exist_ok=True)
-            f.env['TRANSIT_EXECUTABLES__NODE'] = str(Path(fault_node).resolve())
             f.start()
             for index in range(10):
                 f.command('console', '--no-rc', '-c', "INSERT INTO catalog_items (id, category, slug, title, description, href, visibility, status) VALUES ("+str(200+index)+", 'example', 'page-"+str(index)+"', 'Page', 'Description', '/page', 'public', 'active');")
@@ -616,17 +637,19 @@ def run(binary, admin, fault_node=None):
         # Production forwarding is accepted only from the configured socket
         # peer subnet and still requires the exact public Host and Origin.
         f.configure(public_origin='https://app.example.test', development_loopback=False, trusted_proxy_cidr='127.0.0.1/32')
+        assert json.loads(f.http('GET', '/health', headers={'Origin': None})[2]) == {'ready': True}
         headers = {'Host':'app.example.test','Origin':'https://app.example.test','X-Forwarded-Proto':'https'}
         assert f.http('GET','/auth/providers',headers=headers)[0] == 200
         for overrides in ({'X-Forwarded-Proto':None},{'X-Forwarded-Proto':'http'},{'Host':'wrong.example'},{'Origin':None},{'X-Forwarded-Host':'app.example.test'}):
             assert f.http('GET','/auth/providers',headers=dict(headers,**overrides))[0] == 403, overrides
         f.configure(trusted_proxy_cidr='10.0.0.0/8')
-        try:
-            f.http('GET','/auth/providers',headers=headers)
-        except (OSError, ConnectionError):
-            pass
-        else:
-            raise AssertionError('untrusted socket peer reached browser HTTP')
+        for route in ('/auth/providers', '/health'):
+            try:
+                f.http('GET', route, headers=headers)
+            except (OSError, ConnectionError):
+                pass
+            else:
+                raise AssertionError('untrusted socket peer reached browser HTTP')
         print('Production exact origin and actual proxy-peer subnet checks passed', flush=True)
         success = True
     finally:

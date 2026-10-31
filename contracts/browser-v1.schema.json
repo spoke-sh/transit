@@ -6881,6 +6881,30 @@
         }
       }
     },
+    "Readiness": {
+      "$ref": "#/$defs/Readiness/$defs/T0",
+      "$defs": {
+        "T0": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "ready"
+          ],
+          "properties": {
+            "ready": {
+              "$ref": "#/$defs/Readiness/$defs/T1"
+            }
+          },
+          "required": [
+            "ready"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T1": {
+          "type": "boolean"
+        }
+      }
+    },
     "ProviderDiscovery": {
       "$ref": "#/$defs/ProviderDiscovery/$defs/T0",
       "$defs": {

@@ -3808,6 +3808,7 @@
         "load()": "<inferred>",
         "page()": "<inferred>",
         "put()": "<inferred>",
+        "putOnce()": "<inferred>",
         "read()": "<inferred>",
         "readProgress()": "<inferred>",
         "reconcilePage()": "<inferred>"
@@ -3815,7 +3816,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 19,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "root.zig",

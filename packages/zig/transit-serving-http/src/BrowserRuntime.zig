@@ -75,9 +75,14 @@ pub const Host = struct {
         return std.mem.endsWith(u8, request.head.target, "/watch");
     }
     pub fn isControl(_: *Host, request: *std.http.Server.Request) bool {
-        return std.mem.eql(u8, request.head.target, "/auth/logout") or std.mem.eql(u8, request.head.target, "/auth/session");
+        return std.mem.eql(u8, request.head.target, "/health") or std.mem.eql(u8, request.head.target, "/auth/logout") or std.mem.eql(u8, request.head.target, "/auth/session");
     }
     pub fn handle(self: *Host, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+        // Deployment probes use the target's private Host, without browser
+        // credentials or forwarding headers. admitPeer has already enforced
+        // the configured private boundary. No catalog data is disclosed here.
+        if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health"))
+            return http.respond(request, .ok, "{\"ready\":true}");
         // A finite reservation bounds parsing, provider bodies, declarations and
         // response preparation. Watch iterations reset their own scratch arena.
         const memory = try allocator.alloc(u8, 16 * 1024 * 1024);

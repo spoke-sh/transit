@@ -18,6 +18,7 @@ def validate(name, value):
     jsonschema.validate(value, dict(schema, **{'$ref':'#/$defs/'+name}))
 
 validate('Session', dict(authenticated=False, provider=None, identity=None, bound=False))
+validate('Readiness', dict(ready=True))
 value = dict(type='snapshot', view='catalog', columns=[dict(name='id', type={'uint64':{}}, nullable=False)], rows=[['9007199254740993']], attribution=dict(resource_object='2001', publication_revision='1', source_object='7', source_revision='1', source_partition='9', source_next_lsn='12', watermark_lsn='11', row_count='1', retention='current_cut_unpinned', complete=True))
 validate('Snapshot', value)
 for field in ('source_next_lsn','row_count'):

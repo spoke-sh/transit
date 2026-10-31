@@ -2,6 +2,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 pub const subprotocol = "transit.published.v1";
+pub const Readiness = struct { ready: bool };
 pub const ProviderDiscovery = struct { providers: []const []const u8, next: ?[]const u8 };
 pub const Session = struct { authenticated: bool, provider: ?[]const u8, identity: ?[]const u8, bound: bool };
 pub const LoggedOut = struct { authenticated: bool };

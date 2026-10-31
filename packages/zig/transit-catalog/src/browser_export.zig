@@ -14,7 +14,7 @@ pub fn main(init: std.process.Init) !void {
         try out.objectField("Admin" ++ name);
         try c.protocol.Schema.writeRecursiveAt(@field(c.BrowserAdministration, name), &out, .{ .text_max_length = 65536, .sequence_max_length = 128, .output = comptime std.mem.eql(u8, name, "Response") }, "/$defs/Admin" ++ name);
     }
-    inline for (.{ "ProviderDiscovery", "Session", "LoggedOut", "Failure", "Snapshot" }) |name| {
+    inline for (.{ "Readiness", "ProviderDiscovery", "Session", "LoggedOut", "Failure", "Snapshot" }) |name| {
         try out.objectField(name);
         try c.protocol.Schema.writeRecursiveAt(@field(c.BrowserContract, name), &out, .{ .text_max_length = 4 * 1024 * 1024, .sequence_max_length = 128, .output = true }, "/$defs/" ++ name);
     }

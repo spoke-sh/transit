@@ -32,9 +32,21 @@ const Boundary = struct {
     directory: []const u8,
     mutex: std.Io.Mutex = .init,
     reads: u64 = 0,
+    fn take(self: *@This(), flag: []const u8) !bool {
+        var directory = try std.Io.Dir.cwd().openDir(self.init.io, self.directory, .{});
+        defer directory.close(self.init.io);
+        directory.deleteFile(self.init.io, flag) catch |err| switch (err) {
+            error.FileNotFound => return false,
+            else => return err,
+        };
+        return true;
+    }
     fn invoke(raw: *anyopaque, invocation: *c.client.LocalEndpoint.Invocation) anyerror!void {
         const self: *@This() = @ptrCast(@alignCast(raw));
-        const read = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.request(c.DirectTableProtocol.Request)).action == .read_current else false;
+        const action = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.request(c.DirectTableProtocol.Request)).action else null;
+        const read = if (action) |value| value == .read_current else false;
+        const progress = if (action) |value| value == .client_progress and value.client_progress == .update else false;
+        if (progress and try self.take("conflict-before")) return invocation.client.reject(.conflict, .Conflict);
         self.endpoint.invoke(self.endpoint.context, invocation) catch |err| {
             var directory = try std.Io.Dir.cwd().openDir(self.init.io, self.directory, .{});
             defer directory.close(self.init.io);
@@ -42,6 +54,7 @@ const Boundary = struct {
             try directory.writeFile(self.init.io, .{ .sub_path = "refusal", .data = try std.fmt.bufPrint(&buffer, "{s}: {s}", .{ @errorName(err), if (invocation.client.last_rejection) |code| @tagName(code) else "no_native_refusal" }) });
             return err;
         };
+        if (progress and try self.take("conflict-after")) return invocation.client.reject(.conflict, .Conflict);
         if (!read) return;
         var directory = try std.Io.Dir.cwd().openDir(self.init.io, self.directory, .{});
         defer directory.close(self.init.io);
