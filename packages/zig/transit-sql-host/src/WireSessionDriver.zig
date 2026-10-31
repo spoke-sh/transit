@@ -5,6 +5,14 @@ const s = @import("transit_postgres").wire.Session;
 pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: type) type {
     return struct {
         const Self = @This();
+        // Keep a concrete signature for std.Io task/deadline reflection. Session
+        // start takes self followed by its protocol-specific command arguments.
+        const Arguments = blk: {
+            const parameters = @typeInfo(@TypeOf(Session.start)).@"fn".param_types;
+            var types: [parameters.len - 1]type = undefined;
+            for (parameters[1..], 0..) |parameter, i| types[i] = parameter.?;
+            break :blk @Tuple(&types);
+        };
         session: Session,
         host: *Host,
         transport: *Transport,
@@ -157,7 +165,7 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
                 },
             };
         }
-        pub fn run(self: *Self, args: anytype) !bool {
+        pub fn run(self: *Self, args: Arguments) !bool {
             errdefer self.session.abort(error.WireSessionClosed);
             // Receiving another command may have parked indefinitely, including
             // consecutive Describe messages within one extended cycle.
