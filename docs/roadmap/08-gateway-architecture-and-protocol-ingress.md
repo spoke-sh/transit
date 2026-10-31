@@ -178,7 +178,48 @@ This is an implementation plan, not a new runtime or benchmark qualification.
 Milestone 8 remains **In Progress**. Earlier dated audits above describe their
 own revisions; use this inventory to select new work.
 
+#### Wire foundation implementation — 2026-10-31
+
+Commits `2bed40609` and `a9054f549` deliver the neutral dependency and incremental
+framing portion of steps 1 and 3 below. This is an implementation slice,
+not completion of P0/P4 or the milestone:
+
+- `transit-sql-protocol.Wire` owns shared limits, scalar/byte codecs, read-batch
+  types and an allocation-free framing continuation. PostgreSQL/MySQL manifests
+  depend on this neutral package; build-time transitive import checks reject
+  execution, storage, Station and transport dependencies.
+- Synchronous SQL session engines, transport reads and their existing tests
+  move to `transit-sql-host`. The service aliases the same neutral types;
+  accepted identities, wire bytes, current-v1 definition and SQL semantics do
+  not change.
+- PostgreSQL/MySQL command input emits input/capacity/complete-frame events.
+  Headers validate before body capacity or reads. Complete input remains
+  borrowed through command execution and joined cancellation, then is erased.
+  The host reuses bounded high-water capacity within the existing session
+  reserve; truncated or malformed input cannot become another command.
+- The [protocol package](../../packages/zig/transit-sql-protocol/README.md),
+  [SQL host](../../packages/zig/transit-sql-host/README.md) and
+  [database protocol reference](../handbook/reference/database-protocols.md)
+  describe the current boundary and its lifetimes. M4's source links follow
+  the relocated owners without changing its recorded outcome.
+
+The implementation is rebased onto `origin/main` at `ae96f4af4`, including
+M6's bounded Queue claim waits (PR #292) and installed startup attribution
+(PR #293). Queue waits now reuse the qualified direct wait/claim owner; they do
+not complete mixed transaction participants, Queue SQL or Station replacement.
+The startup workload and its separate recovery gates remain in step 1 below.
+
+The execution engines still call their host synchronously. SQL work, partial
+output, authentication, cancellation generations and late completion need the
+remaining session-event contract before reducing worker counts or removing
+command timer races. Coarse remote SQL, configuration handoff, Flight/Serving
+integration, owner-qualified M6/M7 routes and paired latency acceptance remain
+open. No direct data-kind capability or broader protocol profile is added.
+
 #### Current implementation and evidence
+
+The following inventory describes the plan source `0e2fba447`, before the wire
+foundation commits above.
 
 | Boundary | Present at this source | Remaining M8 obligation |
 | --- | --- | --- |
@@ -358,8 +399,8 @@ Gate transitive dependencies against socket/TLS/clock/thread/storage owners.
 Preserve PG deferred writes until valid Sync, failed-cycle draining and suspended
 portal cuts; preserve MySQL sequence/capability/parameter-type state and
 `CLIENT_FOUND_ROWS`; retain TSR1 commitments, ordinal retries and completion.
-Keep native result batch limits separate from the current PG/MySQL eight-row
-read batches. Seal warmed backing allocators for actual encode/decode/event
+Keep the shared 32-row wire batch budget separate from smaller source read
+pages and from native result byte budgets. Seal warmed backing allocators for actual encode/decode/event
 cycles, including refused admission and reset/reuse, rather than only testing
 reserve construction. Wider type or protocol coverage remains a separate gate.
 
@@ -472,7 +513,7 @@ already permitted explicit settings identically in both arms.
 | Adapter migration | Registered Flight/ADBC, Serving/reactive/browser and affected direct SDK/ABI tests; actual clients, explicit unsupported capabilities and disclosure revocation |
 | Storage/authority changes | Relevant contract/core/storage/retained-graph and model/disk fault checks, including original token and pin recovery; logical publication and physical durability evidence reported separately |
 | Resource/performance | Paired uninstrumented console runs plus separate bounded traces; zero settled-idle SQL calls, zero local database loopback calls, counted coarse remote exchanges, warmed allocation boundary, core-bounded workers and fair progress under saturation; sustained maintenance debt measured |
-| Common revision | Select complete affected clean lanes from the current suite, including `just ci clean --lane interfaces` and `--lane experience`; add core/storage/bindings/browser lanes when affected. Run deployment placement separately. Record skipped/incomplete cases and source/binary identity. |
+| Common revision | Select complete affected clean lanes from the current suite, including `just ci clean --lane interfaces-sql` and `--lane installation-ui`; add core/storage/bindings/browser lanes when affected. Run deployment placement separately. Record skipped/incomplete cases and source/binary identity. |
 
 Run these through pinned `nix develop` and the registered task-specific shells.
 Fully qualified local changes can ship before remote/service/data-kind gates,
@@ -881,7 +922,7 @@ task-specific shells. New split-task names become instructions only after their
 registration and implementation.
 
 At committed implementation HEAD, select affected clean lanes from the suite
-inventory, including `just ci clean --lane interfaces` and dependent contract/core,
+inventory, including `just ci clean --lane interfaces-sql` and dependent contract/core,
 storage/growth, bindings, Board and launcher checks where changed. Run placement
 separately. A focused pass, skipped check or another revision's evidence cannot
 stand in for this gate.
