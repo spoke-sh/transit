@@ -1657,7 +1657,7 @@
         "ProcessUnavailable": 1,
         "RestartBudgetExhausted": 1,
         "RoleReadinessTimeout": 1,
-        "ServerStopped": 6,
+        "ServerStopped": 8,
         "StorageIdentityMismatch": 1,
         "UnsafeBoardPrincipal": 2
       },
@@ -1679,6 +1679,7 @@
       "error_sets": {},
       "error_returns": {
         "cycle()": "<inferred>",
+        "launch()": "<inferred>",
         "node()": "<inferred>",
         "provision()": "<inferred>",
         "provision().operation()": "anyerror",
@@ -1691,7 +1692,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 92,
-        "catch": 9
+        "catch": 10
       },
       "imports": [
         "../Diagnostic.zig",
@@ -1709,6 +1710,7 @@
         "Process.zig",
         "Provider.zig",
         "Sql.zig",
+        "Startup.zig",
         "Tables.zig",
         "std",
         "transit_query",
@@ -1921,6 +1923,41 @@
         "std",
         "transit_query",
         "transit_tls_server"
+      ]
+    },
+    "apps/transit-cli/server/Startup.zig": {
+      "errors": {},
+      "outcomes": {
+        "Phase": [
+          "configuration",
+          "installation",
+          "storage",
+          "node",
+          "journal_recovery",
+          "application_recovery",
+          "provisioning",
+          "node_restart",
+          "board_provisioning",
+          "workers",
+          "table_readiness",
+          "configuration_checkpoint",
+          "gateway",
+          "sql_setup",
+          "board",
+          "sql_readiness",
+          "retry_delay"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_query"
       ]
     },
     "apps/transit-cli/server/Tables.zig": {
