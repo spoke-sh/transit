@@ -66,6 +66,10 @@ const Boundary = struct {
             try directory.writeFile(self.init.io, .{ .sub_path = "reads.pending", .data = try std.fmt.bufPrint(&buffer, "{d}", .{self.reads}) });
             try directory.rename("reads.pending", directory, "reads", self.init.io);
         }
+        // This fixture has two pages. Pause the final native page so the
+        // schedule exercises authorization after buffering the whole result,
+        // independently of the work-budget check before the next page.
+        if (action.?.read_current.selection.rows.after == null) return;
         const flag = directory.openFile(self.init.io, "hold", .{}) catch |err| switch (err) {
             error.FileNotFound => return,
             else => return err,

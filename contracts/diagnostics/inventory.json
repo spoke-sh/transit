@@ -23215,7 +23215,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 58,
+        "try": 57,
         "catch": 2
       },
       "imports": [
@@ -23338,9 +23338,9 @@
         "MissingPublishedCell": 1,
         "PublicationSourceMismatch": 2,
         "PublishedResourceReset": 3,
-        "PublishedResourceWithdrawn": 1,
+        "PublishedResourceWithdrawn": 2,
         "PublishedSourceChanged": 2,
-        "ResourceWorkBoundExceeded": 4,
+        "ResourceWorkBoundExceeded": 5,
         "TableDefinitionChanged": 2,
         "UnsupportedBrowserPublication": 1
       },

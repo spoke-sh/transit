@@ -139,7 +139,8 @@ pub fn read(request: Request, name: []const u8, cookie: ?[]const u8, previous: ?
     // an old binding nor a completed scan substitutes for current rights.
     var latest = try request.declaration(.publication, b.Store.digest(name));
     defer latest.deinit();
-    if (!std.meta.eql(latest.record.revision, record.record.revision) or latest.value().publication.descriptor.state != .published) return error.PublishedResourceReset;
+    if (latest.value().publication.descriptor.state != .published) return error.PublishedResourceWithdrawn;
+    if (!std.meta.eql(latest.record.revision, record.record.revision)) return error.PublishedResourceReset;
     const latest_credential = try sessionCredential(request, publication.audience, cookie);
     if (!sameCredential(credential, latest_credential)) return error.IdentityBindingChanged;
     // Resolve enabled secret references again too. Native checks independently
@@ -156,6 +157,10 @@ pub fn read(request: Request, name: []const u8, cookie: ?[]const u8, previous: ?
         const authorized = try current(request, publication, final_publisher);
         authorized.deinit();
     }
+    // Exhaustion does not exempt the final page (or the final authority reads)
+    // from the declared elapsed-work bound. Check authority first so a revoked
+    // buffered result retains its policy refusal rather than a budget outcome.
+    if (started.durationTo(std.Io.Clock.awake.now(request.io)).toMilliseconds() >= @min(publication.descriptor.work_bound.execution_timeout_ms, publication.descriptor.work_bound.max_cpu_micros / 1000)) return error.ResourceWorkBoundExceeded;
     return .{ .bytes = try output.toOwnedSlice(output_allocator), .cursor = cursor };
 }
 

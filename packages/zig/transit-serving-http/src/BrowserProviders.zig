@@ -92,12 +92,15 @@ pub const JwksCache = struct {
     pub fn deinit(self: *JwksCache, allocator: std.mem.Allocator) void {
         for (self.entries) |entry| if (entry) |value| allocator.free(value.bytes);
     }
-    pub fn get(self: *JwksCache, allocator: std.mem.Allocator, io: std.Io, provider: b.Provider, revision: b.Store.Revision, now: u64, force: bool, ca: ?[]const u8) ![]u8 {
+    pub fn get(self: *JwksCache, allocator: std.mem.Allocator, io: std.Io, provider: b.Provider, revision: b.Store.Revision, force: bool, ca: ?[]const u8) ![]u8 {
         const canonical = try c.protocol.Json.valueAlloc(allocator, .{ provider, revision });
         defer allocator.free(canonical);
         const key = b.Store.digest(canonical);
         try self.mutex.lock(io);
         defer self.mutex.unlock(io);
+        // Another provider's acquisition may have held the cache lock. Its
+        // wait cannot preserve freshness from before that acquisition.
+        const now = try timeMillis(io);
         var slot: usize = 0;
         for (self.entries, 0..) |entry, index| {
             if (entry) |value| {
@@ -159,13 +162,13 @@ pub fn exchange(allocator: std.mem.Allocator, cache_allocator: std.mem.Allocator
         const token = parsed.value.id_token orelse return error.MissingOidcIdToken;
         try requireKid(allocator, token, provider.retired_kids);
         var profile = provider.profile;
-        const jwks = try cache.get(cache_allocator, io, provider, revision, try timeMillis(io), false, ca);
+        const jwks = try cache.get(cache_allocator, io, provider, revision, false, ca);
         defer cache_allocator.free(jwks);
         profile.cached_jwks_json = jwks;
         profile.issuer_profile.jwks_keys = try keyRecords(allocator, provider, revision, jwks, try timeMillis(io));
         return profile.verifyProviderExchangePayloads(allocator, tokens, null, null, nonce, @intCast(try timeMillis(io) / 1000)) catch |err| {
             if (err != error.UnknownOrRevokedJwksKey and err != error.UnknownJwksKey) return err;
-            const refreshed = try cache.get(cache_allocator, io, provider, revision, try timeMillis(io), true, ca);
+            const refreshed = try cache.get(cache_allocator, io, provider, revision, true, ca);
             defer cache_allocator.free(refreshed);
             profile.cached_jwks_json = refreshed;
             profile.issuer_profile.jwks_keys = try keyRecords(allocator, provider, revision, refreshed, try timeMillis(io));

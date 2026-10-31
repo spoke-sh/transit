@@ -43,6 +43,7 @@ class Peers:
         self.codes = {}
         self.calls = []
         self.jwks_calls = 0
+        self.jwks_unavailable = False
         self.kid = "peer-key"
         self.dispatched = threading.Event()
         self.release_exchange = threading.Event()
@@ -113,6 +114,8 @@ class Peers:
                 target = urlsplit(self.path)
                 if target.path == '/jwks':
                     parent.jwks_calls += 1
+                    if parent.jwks_unavailable:
+                        return self.reply({'error': 'unavailable'}, 503)
                     return self.reply(parent.jwks)
                 if target.path == '/facebook/debug':
                     fields = parse_qs(target.query)
@@ -430,6 +433,20 @@ def run(binary, admin, fault_node=None):
         provider_value['retired_kids'] = ['rotated-key']
         f.change('provider', provider_value, provider['revision'])
         assert f.finish(f.login('google', 'retired-key'))[0] == 403
+        provider = f.inspect('provider', 'google')
+        provider_value.update(retired_kids=[], jwks_ttl_ms=1000)
+        f.change('provider', provider_value, provider['revision'])
+        f.session_cookie(f.finish(f.login('google', 'short-lived-keys')))
+        time.sleep(1.05)
+        f.peers.jwks_unavailable = True
+        calls = f.peers.jwks_calls
+        stale = f.login('google', 'expired-keys')
+        assert f.finish(stale)[0] == 502
+        assert f.peers.jwks_calls > calls
+        assert f.finish(stale)[0] == 409
+        assert f.peers.calls.count('expired-keys') == 1
+        f.peers.jwks_unavailable = False
+        f.session_cookie(f.finish(f.login('google', 'reacquired-keys')))
         # SIGKILL after remote dispatch cannot release the durable one-use claim.
         pending_crash = f.login('github', 'crash-after-dispatch')
         with ThreadPoolExecutor(1) as pool:
@@ -594,9 +611,9 @@ def run(binary, admin, fault_node=None):
                 ws.close()
             grant = dict(object=dict(kind='domain', id=authority['table']), grantee=role, privileges=1, grant_options=0)
             f.authorize(dict(grant=grant))
-            for action in ('revoke', 'withdraw', 'source-change'):
+            for action in ('revoke', 'withdraw', 'source-change', 'work-budget'):
                 (boundary / 'buffered').unlink(missing_ok=True)
-                (boundary / 'hold').write_text('hold after actual native row read')
+                (boundary / 'hold').write_text('hold after the final native row page')
                 with ThreadPoolExecutor(1) as pool:
                     response = pool.submit(f.http, 'GET', '/published/protected/snapshot', live_cookie)
                     deadline = time.monotonic() + 10
@@ -610,18 +627,27 @@ def run(binary, admin, fault_node=None):
                         value = json.loads(record['record']['payload'])['publication']
                         value['descriptor']['state'] = 'withdrawn'
                         f.change('publication', value, record['revision'])
-                    else:
+                    elif action == 'source-change':
                         f.command('console', '--no-rc', '-c', "UPDATE catalog_items SET title = 'During read' WHERE id = 9007199254740993;")
+                    else:
+                        # The final page must obey the same elapsed-work bound
+                        # even when no later page triggers another loop check.
+                        time.sleep(1.05)
                     (boundary / 'hold').unlink()
                     denied = response.result(timeout=10)
-                    assert denied[0] == 403 and 'rows' not in json.loads(denied[2]), (action, denied)
+                    expected = 503 if action == 'work-budget' else 403
+                    assert denied[0] == expected and 'rows' not in json.loads(denied[2]), (action, denied)
+                    if action == 'work-budget':
+                        assert json.loads(denied[2])['err'] == 'ResourceWorkBoundExceeded', denied
+                    if action == 'withdraw':
+                        assert json.loads(denied[2])['err'] == 'PublishedResourceWithdrawn', denied
                 if action == 'revoke':
                     f.authorize(dict(grant=grant))
                 if action == 'withdraw':
                     record = f.inspect('publication', 'protected')
                     value['descriptor']['state'] = 'published'
                     f.change('publication', value, record['revision'])
-            print('Native read counters and buffered revocation/withdrawal/source-change schedules passed', flush=True)
+            print('Native read counters, buffered policy/source changes and final-page work bounds passed', flush=True)
             ws = f.socket()
             try:
                 assert ws.receive()[0] == 1
@@ -660,5 +686,43 @@ def run(binary, admin, fault_node=None):
             print('Private failure state retained:', f.root, flush=True)
 
 
+def example(binary, admin):
+    """Run the documented helper against the unmodified embedded node."""
+    f = Fixture(binary, admin)
+    success = False
+    try:
+        f.start()
+        f.command('migrate', 'plan', '--dir', str(ROOT / 'examples/declarative-browser/migrations'), '--out', str(f.root / 'plan.json'), '--format', 'json')
+        f.command('migrate', 'apply', '--plan', str(f.root / 'plan.json'), '--format', 'json')
+        result = subprocess.run([
+            sys.executable, str(ROOT / 'examples/declarative-browser/configure.py'),
+            '--installation', str(f.root), '--admin', str(f.admin),
+            '--node', f'http://127.0.0.1:{f.ports["node"]}',
+            '--origin', f.origin, '--port', str(f.ports['browser']),
+        ], cwd=f.root, env=f.env, capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, (result.stdout, result.stderr)
+        f.stop()
+        shutil.copyfile(f.root / 'browser-private/placement.json', f.root / 'transit.yaml')
+        f.start()
+        assert f.http('GET', '/health', headers={'Origin': None})[0] == 200
+        status, _, body = f.http('GET', '/published/catalog/snapshot')
+        assert status == 200 and json.loads(body)['rows'][0][0] == '9007199254740993', (status, body)
+        ws = f.socket()
+        try:
+            opcode, body = ws.receive()
+            assert opcode == 1 and len(json.loads(body)['rows']) == 1
+        finally:
+            ws.close()
+        print('Documented migration/configure helper and embedded production HTTP/WS listener passed', flush=True)
+        success = True
+    finally:
+        f.close()
+        if success:
+            shutil.rmtree(f.root)
+        else:
+            print('Private example failure state retained:', f.root, flush=True)
+
+
 if __name__ == '__main__':
     run(*sys.argv[1:])
+    example(*sys.argv[1:3])
