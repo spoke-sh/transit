@@ -2,7 +2,7 @@
 //! builder. The session supplies negotiated capabilities and current authority.
 const std = @import("std");
 const m = @import("root.zig");
-const g = m.gateway;
+const g = m.wire;
 const Self = @This();
 allocator: std.mem.Allocator,
 maximum: u32 = g.Limits.max_frame_bytes,

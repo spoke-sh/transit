@@ -1,14 +1,24 @@
 # transit-mysql
 
-MySQL classic packet framing, exported as `transit_mysql` over the shared
-`transit-sql-gateway` library.
+MySQL classic packet framing, exported as `transit_mysql` over the neutral
+`transit-sql-protocol.Wire` types. The package has no SQL service, storage,
+socket, TLS, timer or task dependency; its build checks the transitive runtime
+import boundary.
 
 `Frame.decode` checks the three-byte little-endian payload length and expected
 sequence before borrowing a complete packet. Incomplete network fragments return
-no message; trailing coalesced packets remain unconsumed. `Frame.read` allocates
-one bounded payload only after checking its header; its `Owned` result requires
-`deinit`. The caller owns command/authentication sequence transitions and supplies
-a transport with bounded `readExact`.
+no message; trailing coalesced packets remain unconsumed. `Frame.frameSize`
+validates a header before the host reserves or reads its body. The caller owns
+command/authentication sequence transitions and transport operations.
+
+`Frame.Input` is an incremental continuation over caller-owned storage. `next`
+returns an input slice, a validated capacity request or one complete borrowed
+frame. Commit partial reads with `advance`, or copy fragments with `feed`, which
+reports the consumed count and leaves coalesced trailing bytes unconsumed.
+Capacity replacement preserves the received prefix. End every frame borrow
+before `release`; it erases used bytes and retains capacity. Invalid headers,
+EOF or host cancellation close the decoder; the owner erases its full allocation
+before freeing it. Framing does not authenticate or authorize execution.
 
 `Command` validates command bodies and typed prepared execution. Its `Parameters`
 object retains the last fully validated parameter type vector; failed executions
@@ -34,17 +44,18 @@ two; affected rows retain full uint64 values. Status reports configured autocomm
 flag, without a generated ID or additional results. Returned packets borrow a
 bounded reusable buffer; the session owns sequencing and negotiated EOF choice.
 
-`Session.Engine` owns bounded prepared handles, validated parameter type vectors,
+[`transit-sql-host`](../transit-sql-host/README.md) owns the MySQL
+session engine and its bounded prepared handles, validated parameter type vectors,
 result sequencing and command errors. Statement reset retains parameter types;
 connection reset and database selection clear ephemeral handles. IDs do not
 repeat within a connection. The host supplies execution and current rights;
-accepted writes belong to its account runtime. UPDATE returns changed rows by
+accepted writes belong to its database runtime. UPDATE returns changed rows by
 default and matched rows with negotiated `CLIENT_FOUND_ROWS`. The
 [gateway application](../../../apps/transit-sql-gateway/README.md) supplies the
 transport policy, authentication and host. Full-password requests require TLS;
 explicit loopback trust uses the same native admission without a password exchange.
 
-Reads request at most eight rows per disclosure. The host checks current rights
+Reads request at most 32 rows per disclosure. The host checks current rights
 after materialization and before transmitting that batch. Empty results and
 completion use the same gate; later batches perform fresh checks.
 

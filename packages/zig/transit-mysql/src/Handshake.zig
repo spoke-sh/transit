@@ -2,7 +2,7 @@
 //! caller enforces transport policy before requesting a password.
 const std = @import("std");
 const m = @import("root.zig");
-const g = m.gateway;
+const g = m.wire;
 pub const found_rows: u32 = 1 << 1;
 pub const connect_database: u32 = 1 << 3;
 pub const protocol_41: u32 = 1 << 9;

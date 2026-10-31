@@ -1,5 +1,5 @@
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Scalar = @import("Scalar.zig");
 const Codec = @import("Codec.zig");
 const Atom = g.fuze.Types.Values.Atom;

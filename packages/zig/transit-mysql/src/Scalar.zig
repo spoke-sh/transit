@@ -1,6 +1,6 @@
 //! Exact prepared values and result scalars for the selected MySQL matrix.
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Codec = @import("Codec.zig");
 const Atom = g.fuze.Types.Values.Atom;
 pub const WireType = struct { code: u8, unsigned: bool = false };

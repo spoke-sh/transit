@@ -2,7 +2,7 @@
 //! before account selection. Session settings are validated by their owner.
 const std = @import("std");
 const pg = @import("root.zig");
-const g = pg.gateway;
+const g = pg.wire;
 const Self = @This();
 pub const maximum_bytes = 8192;
 pub const max_parameters = 16;
@@ -38,27 +38,13 @@ pub fn get(self: *const Self, name: []const u8) ?[]const u8 {
 pub fn database(self: *const Self) []const u8 {
     return self.get("database") orelse self.get("user").?;
 }
-pub const Owned = struct {
-    allocator: std.mem.Allocator,
-    code: u32,
-    payload: []u8,
-    pub fn deinit(self: *Owned) void {
-        self.allocator.free(self.payload);
-        self.* = undefined;
-    }
-};
-pub fn read(allocator: std.mem.Allocator, transport: anytype) !Owned {
-    var header: [8]u8 = undefined;
-    try transport.readExact(&header);
+pub fn frameSize(header: *const [8]u8) !usize {
     const length = std.mem.readInt(u32, header[0..4], .big);
     if (length < 8 or length > maximum_bytes) return error.InvalidStartupLength;
     const code = std.mem.readInt(u32, header[4..8], .big);
     if ((code == pg.Frame.ssl_request or code == pg.Frame.gss_request) and length != 8) return error.InvalidUpgradeRequest;
     if (code == pg.Frame.cancel_request and length != 16) return error.InvalidCancelRequest;
-    const payload = try allocator.alloc(u8, length - 8);
-    errdefer allocator.free(payload);
-    try transport.readExact(payload);
-    return .{ .allocator = allocator, .code = code, .payload = payload };
+    return length;
 }
 test "startup selects a bounded explicit account and rejects duplicates and ambiguous endings" {
     const t = std.testing;

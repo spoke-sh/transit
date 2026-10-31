@@ -1,6 +1,6 @@
 //! MySQL length-encoded primitives. SQL NULL belongs to row/parameter framing.
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 pub const Reader = g.Bytes;
 pub fn length(reader: *Reader) !u64 {
     return switch (try reader.byte()) {

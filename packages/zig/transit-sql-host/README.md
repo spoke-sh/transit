@@ -7,6 +7,21 @@ listeners. It owns bounded connection memory, TLS lifetimes, recovery wakeups,
 listener shutdown and joined worker tasks. It does not own catalog authority or
 storage.
 
+`PostgresSession` and `MysqlSession` own synchronous command execution, prepared
+handles, portals, disclosure checks and transport writes. The PostgreSQL and
+MySQL packages supply pure framing and protocol transitions. Authentication
+input, TLS upgrades, deadlines and connection cleanup belong to this host.
+Command input uses the codecs' incremental continuations. Each connection starts
+with at most 8 KiB from its existing admitted session reserve, grows to a checked
+frame length only when needed, and reuses its high-water capacity. Initial command
+state and input capacity are admitted before the successful login/ready reply.
+A command owns
+its input until execution and joined cancellation finish; release erases used
+bytes. Failure closes the decoder and cleanup erases the whole buffer, including
+bytes from partial failed reads. Handshake input retains separate bounded owners.
+The session engines are synchronous; this separation does not make them
+resumable across SQL execution or output backpressure.
+
 Native SQL request slots retain their scratch workspaces across requests. Slot
 reassignment clears the used high-water range, including freed allocations and
 failed requests, without repeatedly clearing untouched reserve capacity. Data

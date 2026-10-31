@@ -25,7 +25,7 @@ test "independent MySQL handshake, metadata, text/binary rows and command reply 
         .{ .name = "b", .type = .{ .kind = .boolean, .nullable = false } },
         .{ .name = "i", .type = .{ .kind = .int64, .nullable = false } },
     };
-    const cells = [_]m.gateway.fuze.Types.Values.Cell{
+    const cells = [_]m.wire.fuze.Types.Values.Cell{
         .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u64) } } }, .null,
         .{ .value = .{ .atom = .{ .bytes = "a\x00\xff" } } },             .{ .value = .{ .atom = .{ .float = -1.25 } } },
         .{ .value = .{ .atom = .{ .boolean = true } } },                  .{ .value = .{ .atom = .{ .signed = std.math.minInt(i64) } } },

@@ -1,6 +1,6 @@
 const std = @import("std");
-const pg = @import("root.zig");
-const g = pg.gateway;
+const pg = @import("transit_postgres");
+const g = pg.wire;
 const f = g.fuze;
 const Host = struct {
     allocator: std.mem.Allocator,
@@ -102,7 +102,7 @@ const Transport = struct {
         try self.bytes.appendSlice(self.allocator, bytes);
     }
 };
-const Engine = pg.Session.Engine(Host, Transport);
+const Engine = @import("PostgresSession.zig").Engine(Host, Transport);
 const bind_body = "\x00s\x00\x00\x00\x00\x00\x00\x00";
 const execute_all = "\x00\x00\x00\x00\x00";
 test "command frames require a successful typed completion with valid owner counts" {

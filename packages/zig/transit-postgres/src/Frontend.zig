@@ -1,6 +1,6 @@
 //! Exact frontend bodies. All byte slices borrow the bounded frame owner.
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Reader = g.Bytes;
 const maximum = g.Limits.max_parameters;
 pub const Format = enum(u16) { text = 0, binary = 1 };
