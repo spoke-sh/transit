@@ -688,3 +688,41 @@ test "native page batches reopen original references and preserve budget failure
     defer reader.deinit();
     for (refs) |reference| try t.expectEqualDeep(page, try reader.load(reference));
 }
+
+test "private candidate pages stay bounded and seal before cross-owner reads" {
+    const pages = core.pages;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var writer = try backend.PageStore.init(&owner, 0);
+    defer writer.deinit();
+    var reader = try backend.PageStore.init(&owner, 0);
+    defer reader.deinit();
+    var page: pages.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = try pages.Key.init("key"), .value = try pages.Value.init("private") };
+    var references: [pages.mutation_batch + 1]pages.Reference = undefined;
+    const resident = writer.residentBytes();
+    try writer.begin(1, false);
+    defer writer.discard();
+    for (&references, 0..) |*reference, i| {
+        reference.* = try writer.stage(try page.reference(), &page);
+        // A zero-sized cache must still resolve its own buffered children.
+        try t.expectEqualDeep(page, try writer.load(reference.*));
+        try t.expectEqual(resident, writer.residentBytes());
+        try t.expect(writer.pending_count <= pages.mutation_batch);
+        if (i < pages.mutation_batch) try t.expectError(error.MissingStorageObject, reader.load(reference.*));
+    }
+    // A full buffer can publish private objects, but the remaining page still
+    // cannot be loaded by another owner until finish establishes durability.
+    try t.expectEqualDeep(page, try reader.load(references[0]));
+    try t.expectError(error.MissingStorageObject, reader.load(references[references.len - 1]));
+    try writer.finish();
+    for (references) |reference| try t.expectEqualDeep(page, try reader.load(reference));
+
+    try writer.begin(1, false);
+    const discarded = try writer.stage(try page.reference(), &page);
+    writer.discard();
+    try t.expectError(error.MissingStorageObject, writer.load(discarded));
+    try t.expectError(error.MissingStorageObject, reader.load(discarded));
+}

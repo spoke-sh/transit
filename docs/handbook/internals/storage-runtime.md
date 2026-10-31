@@ -63,8 +63,8 @@ directory sync. A new object therefore requires three file and two directory
 sync calls, compared with three of each when each content name was published
 separately. These are application I/O barriers, not measured device commands.
 The fixed pair requires no queue, retained allocation, timer or second writer.
-The stage call remains individually durable; page batches do not gain an
-implicit deferred-completion contract.
+The physical object stage call remains individually durable. A page owner may
+buffer private candidate pages only behind its explicit preparation barrier.
 
 The reasoning assumes truthful successful file/directory synchronization,
 atomic descriptor replacement, the existing per-key lock and exclusion of
@@ -91,6 +91,13 @@ descriptor file is synced separately, and one final directory barrier covers
 their names. For `n` new objects this requires `3n + 2` sync calls instead of
 `5n`; eight objects use 26 instead of 40. These counts exclude allocation
 inventory and accepted WAL publication. The single-object ordering is unchanged.
+Independent file syncs within a group use a bounded set of eight futures. Every
+started future is joined before success or failure returns, so stack buffers and
+file handles outlive the work. All content syncs finish before content links;
+the content-directory barrier still precedes descriptor replacement, and all
+descriptor syncs finish before their names are replaced. Failure cannot skip a
+required barrier or report a partial output as complete. Concurrency changes the
+scheduling of independent barriers, not their durability requirements.
 
 Native and direct index owners use already available page groups rather than
 waiting for another command. Multi-tree candidate mutations in
@@ -110,8 +117,18 @@ group can leave a visible subset of complete private objects; it returns no page
 references and installs no new publication confirmations. Exact retries repeat
 the required barriers, and quota reservations remain charged after uncertainty.
 This grouping changes neither stored bytes nor the accepting owner or decision.
-Bounded stack buffers hold encoded pages, without a resident backlog or new
-heap allocation. The finite model checks one- and two-object groups; disk tests
+Bounded stack buffers hold encoded pages. The native
+[`PageStore`](../../../packages/zig/transit-backend-local/src/PageStore.zig)
+preallocates an additional eight-page private buffer per owner and coalesces
+successive tree/path stages across one candidate. Its own reads resolve buffered
+children independently of read-cache capacity. It flushes when full and in
+`finish`, which native preparation calls before returning a publishable candidate.
+No timer or later command completes this work. Discard may drop unflushed pages;
+flushed private objects remain inventoried until ordinary reclamation. A sync,
+quota or encoding failure prevents preparation from returning a candidate for
+WAL acceptance. The buffer does not grow with retained history and its memory is
+included in the owner's resident accounting.
+The finite model checks one- and two-object groups; disk tests
 cover the eight-object bound, overlapping groups, partial failures and restart.
 These checks do not prove arbitrary batch sizes or physical power-loss behavior.
 

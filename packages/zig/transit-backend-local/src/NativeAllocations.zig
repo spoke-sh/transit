@@ -181,9 +181,10 @@ pub fn recordBatchTrackedWithExisting(self: *Self, allocations: []const Allocati
         staged[staged_count] = try Files.stage(self.io, self.directory, &names[idx], &encoded[idx], false);
         staged_count += 1;
     }
-    for (staged[0..staged_count]) |*temp| {
-        try Files.publishStaged(self.io, temp, false);
-    }
+    var files: [Objects.max_put_batch]std.Io.File = undefined;
+    for (staged[0..staged_count], files[0..staged_count]) |temp, *file| file.* = temp.file;
+    try storage.SyncBatch.sync(self.io, files[0..staged_count]);
+    for (staged[0..staged_count]) |*temp| try temp.link(self.io);
     try Files.sync(self.io, self.directory);
 }
 pub fn read(self: *Self, name: Name) !?Allocation {

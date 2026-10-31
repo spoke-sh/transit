@@ -473,13 +473,17 @@ test "immutable object batches share directory barriers and retain exact per-obj
     const Probe = struct {
         var real: std.Io = undefined;
         var enabled = false;
-        var files: usize = 0;
-        var directories: usize = 0;
+        var files: std.atomic.Value(usize) = .init(0);
+        var directories: std.atomic.Value(usize) = .init(0);
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
             try real.vtable.fileSync(context, file);
             if (!enabled) return;
             const stat = file.stat(real) catch return error.InputOutput;
-            if (stat.kind == .directory) directories += 1 else files += 1;
+            if (stat.kind == .directory) {
+                _ = directories.fetchAdd(1, .monotonic);
+            } else {
+                _ = files.fetchAdd(1, .monotonic);
+            }
         }
     };
     Probe.real = t.io;
@@ -499,14 +503,14 @@ test "immutable object batches share directory barriers and retain exact per-obj
             const key = try std.fmt.bufPrint(name, "batch/{d}", .{i});
             item.* = .{ .key = key, .bytes = key, .sha256 = hash(key) };
         }
-        Probe.files = 0;
-        Probe.directories = 0;
+        Probe.files.store(0, .monotonic);
+        Probe.directories.store(0, .monotonic);
         Probe.enabled = true;
         defer Probe.enabled = false;
         try owner.objectStore().putImmutableBatch(batch[0..count], output[0..count]);
         Probe.enabled = false;
-        try t.expectEqual(2 * count, Probe.files);
-        try t.expectEqual(@as(usize, 2), Probe.directories);
+        try t.expectEqual(2 * count, Probe.files.load(.monotonic));
+        try t.expectEqual(@as(usize, 2), Probe.directories.load(.monotonic));
         try t.expectEqual(count, owner.puts);
         var reader = try open(tmp.dir);
         defer reader.deinit();
@@ -530,12 +534,17 @@ test "immutable object batch failure never returns partial output and exact retr
     const Objects = @import("TransitObjectStore.zig");
     const Fault = struct {
         var real: std.Io = undefined;
-        var sync_remaining: usize = 0;
+        var sync_remaining: std.atomic.Value(usize) = .init(0);
         var write_remaining: usize = 0;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
-            if (sync_remaining != 0) {
-                sync_remaining -= 1;
-                if (sync_remaining == 0) return error.InputOutput;
+            var remaining = sync_remaining.load(.monotonic);
+            while (remaining != 0) {
+                if (sync_remaining.cmpxchgWeak(remaining, remaining - 1, .monotonic, .monotonic)) |observed| {
+                    remaining = observed;
+                } else {
+                    if (remaining == 1) return error.InputOutput;
+                    break;
+                }
             }
             return real.vtable.fileSync(context, file);
         }
@@ -569,9 +578,9 @@ test "immutable object batch failure never returns partial output and exact retr
             var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
             defer owner.deinit();
             var output: [2]Objects.ObjectMeta = @splat(sentinel);
-            if (write_failure) Fault.write_remaining = failure else Fault.sync_remaining = failure;
+            if (write_failure) Fault.write_remaining = failure else Fault.sync_remaining.store(failure, .monotonic);
             try t.expectError(if (write_failure) error.NoSpaceLeft else error.InputOutput, owner.objectStore().putImmutableBatch(&batch, &output));
-            try t.expectEqual(@as(usize, 0), Fault.write_remaining + Fault.sync_remaining);
+            try t.expectEqual(@as(usize, 0), Fault.write_remaining + Fault.sync_remaining.load(.monotonic));
             try t.expectEqualDeep([2]Objects.ObjectMeta{ sentinel, sentinel }, output);
             var reader = try open(tmp.dir);
             defer reader.deinit();

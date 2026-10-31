@@ -2682,7 +2682,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 51,
         "catch": 2
       },
       "imports": [
@@ -2710,6 +2710,7 @@
       "error_returns": {
         "begin()": "<inferred>",
         "finish()": "<inferred>",
+        "flush()": "<inferred>",
         "init()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
@@ -2726,7 +2727,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -33098,6 +33099,7 @@
         "confirmImmutable()": "<inferred>",
         "delete()": "<inferred>",
         "head()": "<inferred>",
+        "linkContentFile()": "<inferred>",
         "lockKey()": "<inferred>",
         "open()": "<inferred>",
         "prepareContent()": "<inferred>",
@@ -33124,10 +33126,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
+        "try": 113,
         "catch": 10
       },
       "imports": [
+        "SyncBatch.zig",
         "TransitObjectStore.zig",
         "std",
         "transit_protocol"
@@ -35326,6 +35329,23 @@
         "LogPartition.zig"
       ]
     },
+    "packages/zig/transit-storage/src/SyncBatch.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "run()": "<inferred>",
+        "sync()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/TableArchive.zig": {
       "errors": {
         "InvalidTableArchive": 9,
@@ -36594,6 +36614,7 @@
         "S3ObjectStore.zig",
         "StreamCompaction.zig",
         "StreamPartition.zig",
+        "SyncBatch.zig",
         "TableArchive.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
