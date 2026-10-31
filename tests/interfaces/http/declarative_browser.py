@@ -142,9 +142,16 @@ class Fixture:
     def __init__(self, binary, admin):
         self.binary, self.admin = Path(binary).resolve(), Path(admin).resolve()
         self.root = Path(tempfile.mkdtemp(prefix='transit-browser-', dir='/var/tmp'))
-        self.ports = {name: free_port() for name in ('node', 'gateway', 'application', 'board', 'sql', 'browser')}
+        self.ports = {}
+        for name in ('node', 'gateway', 'application', 'board', 'sql', 'browser'):
+            port = free_port()
+            while port in self.ports.values():
+                port = free_port()
+            self.ports[name] = port
         self.origin = f'http://127.0.0.1:{self.ports["browser"]}'
-        self.env = dict(os.environ, HOME=str(self.root), TRANSIT_LOGGING__LEVEL="debug", TRANSIT_PORTS__NODE=str(self.ports['node']), TRANSIT_PORTS__GATEWAY=str(self.ports['gateway']), TRANSIT_APPLICATIONS__PORT=str(self.ports['application']), TRANSIT_BOARD__PORT=str(self.ports['board']), TRANSIT_SQL__HEALTH_PORT=str(self.ports['sql']))
+        self.env = {key: value for key, value in os.environ.items()
+                    if not key.startswith('TRANSIT_') and key != 'XDG_CONFIG_HOME'}
+        self.env.update(HOME=str(self.root), XDG_CONFIG_HOME=str(self.root / 'config'), TRANSIT_LOGGING__LEVEL="debug", TRANSIT_PORTS__NODE=str(self.ports['node']), TRANSIT_PORTS__GATEWAY=str(self.ports['gateway']), TRANSIT_APPLICATIONS__PORT=str(self.ports['application']), TRANSIT_BOARD__PORT=str(self.ports['board']), TRANSIT_SQL__HEALTH_PORT=str(self.ports['sql']))
         self.process = None
         self.counter = 0
         self.peers = Peers(self.root)
