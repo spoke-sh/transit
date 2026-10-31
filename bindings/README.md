@@ -79,7 +79,9 @@ inputs. Every resolver invocation verifies the native source closure, pinned
 compiler, host target, baseline CPU, optimization profile, shared definition and
 all file hashes. Missing or mismatched publications fail; they never silently
 fall back to compilation. C/C++ wrappers still build through their owning graph
-with the matching portable target. Local commands use Zig's normal cache unless
+with the matching portable target. Direct catalog checks also receive the verified
+ReleaseSafe authority explicitly, avoiding another node compilation in each SDK
+lane; their scenario-specific native probe still builds from current source. Local commands use Zig's normal cache unless
 this input is explicitly supplied; clean qualification removes it. Each SDK still
 installs its packages and starts fresh private services for every schedule.
 
