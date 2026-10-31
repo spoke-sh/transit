@@ -844,12 +844,14 @@ at `120..120+length`; zeros through byte `479`; and descriptor SHA-256 at
 
 Payloads are raw immutable files in `objects/`, named by key and payload hashes.
 They retain `.tseg`, `.tdel` or `.tman` suffixes when present in the logical key;
-other payloads use `.data`. Each has a `.checks` file containing one SHA-256 per
-64 KiB payload chunk. The descriptor commits the checksum file itself. Staging
+other payloads use `.data`. Payloads larger than 64 KiB have a `.checks` file
+containing one SHA-256 per 64 KiB payload chunk. Payloads of at most 64 KiB derive the
+chunk hash from the descriptor's payload hash; empty payloads have no chunks.
+The descriptor commits the chunk-hash sequence in either case. Staging
 links content without replacing an existing file and verifies an existing exact
 copy on retry. All content is synced before its descriptor can become visible.
-The payload and checksum files each receive a file sync, followed by one shared
-`objects/` directory sync covering both names. An observed existing name on
+The payload and any checksum file each receive a file sync, followed by one shared
+`objects/` directory sync covering their names. An observed existing name on
 retry still requires content verification and synchronization. Descriptor
 publication retains its own file and `keys/` directory barriers. These barriers
 complete within each put; a lone writer does not wait for another operation.
@@ -865,7 +867,7 @@ An error after replacement is uncertain; reread the owning application operation
 and original intent, rather than treating a failed retry precondition as rejection.
 
 Reads capture one descriptor and open its immutable content. They validate the
-checksum file and each touched payload chunk, using a bounded scratch buffer;
+chunk-hash sequence and each touched payload chunk, using a bounded scratch buffer;
 they do not load or cache whole objects. Head returns committed descriptor
 metadata. A missing descriptor is absence; missing/corrupt referenced content is
 an error. The 32 MiB object limit gives at most 16 KiB of chunk hashes and a 64 KiB

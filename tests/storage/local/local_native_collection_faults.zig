@@ -75,7 +75,11 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
     var pages = try local.PageStore.init(&owner, 1);
     defer pages.deinit();
     var journal: local.Store = .{ .backend = &owner };
-    const initialize = std.mem.eql(u8, args[2], "init");
+    const large = std.mem.eql(u8, args[2], "init-large");
+    const initialize = large or std.mem.eql(u8, args[2], "init");
+    // Native blocks acquire a 40-byte envelope; direct bytes have no envelope.
+    const large_orphan: [if (direct) 65537 else 65536]u8 = @splat('x');
+    const orphan_bytes: []const u8 = if (large) &large_orphan else "unaccepted bytes";
     const genesis: core.growing.Genesis = .{ .realm = 42, .root_key = (try key()).public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true };
     var engine = if (initialize) try Engine.bootstrap(&journal, &pages, genesis) else try Engine.open(&journal, &pages, genesis);
     var now: u64 = @max(100, engine.head.time_floor_ms);
@@ -104,11 +108,11 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
         try owner.put("table/untouched.data", "independent owner bytes", false);
         const orphan = if (direct) blk: {
             _ = try table.apply(binding, &.{}, .point, guard);
-            try owner.put("table-segments/unaccepted.tseg", "unaccepted bytes", false);
+            try owner.put("table-segments/unaccepted.tseg", orphan_bytes, false);
             break :blk "table-segments/unaccepted.tseg";
         } else blk: {
             try pages.begin(engine.head.storage_epoch, false);
-            const staged = try pages.stageBlock(try core.protocol.Blocks.Spec.of("unaccepted bytes"), "unaccepted bytes");
+            const staged = try pages.stageBlock(try core.protocol.Blocks.Spec.of(orphan_bytes), orphan_bytes);
             try pages.finish();
             break :blk staged;
         };
