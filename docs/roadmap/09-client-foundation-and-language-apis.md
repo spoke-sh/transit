@@ -1,6 +1,6 @@
 # 9. Shared client foundation and language-native APIs
 
-[Roadmap](README.md) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-29))
+[Roadmap](README.md) · **Status:** In Progress ([remaining implementation plan](#remaining-implementation-plan--2026-10-31))
 
 Let ordinary applications use data, queries and transactions through idiomatic
 language clients without adopting Station. Establish reusable package ownership,
@@ -77,10 +77,227 @@ competing interface first. None of the split marks existing work complete.
    first, including concurrent facets through the shared host. Existing consumers
    in every affected language migrate coherently; the representative set does
    not excuse a broken existing binding. Broader new operation/platform coverage
-   remains milestone 19; full mixed and Station ergonomics remain milestone 32.
+   remains [M20](20-service-and-sdk-coverage.md); full mixed and Station ergonomics
+   remain [M33](33-programming-model.md).
    Apply the current-v1 cutover policy to incompatible ABI/stored semantics,
    regenerate fixtures, reject incompatible saved artifacts, and publish current
    behavior in caller/component/SDK owners as each slice lands.
+
+## Remaining implementation plan — 2026-10-31
+
+**Source basis:** `40917354507bdc38658ad5dca8c8448da6807f02`. This refresh
+sequences the remaining P0–P8 work against the checked-in implementation. The
+[initial plan and extraction records](#implementation-plan--2026-10-29) retain
+their dated evidence; their earlier incoming-gate assessments are historical.
+This planning change establishes no new runtime qualification.
+
+The first installed outcome remains a Linux x86_64 application using the public
+Zig, Python sync/async or TypeScript/Node client to declare a Table, inspect its
+definition, write typed values, stream SQL results, commit a local multi-Table
+transaction and recover the original uncertain operation. It requires no Station
+artifact, caller actor or application-managed staging/poll queue. Full M9 closure
+also requires the qualified KV, Document, Stream and Queue facets; Table delivery
+alone does not complete the milestone.
+
+### Current implementation and gaps
+
+| Boundary at this source | Available implementation | Remaining M9 work |
+| --- | --- | --- |
+| Independent data caller | [`transit-data-client.Catalog`](../../packages/zig/transit-data-client/src/Catalog.zig) owns explicit Catalog calls and per-attempt evidence; its build rejects transitive Station imports | Shared context, admission, principal coordination, ordinary completion and durable recovery-store integration. The current handle returns `Busy` on overlap and creates no pool. |
+| Values and direct readers | Fuze `QueryValues` / `NeutralEncoding` and `transit-query-direct` own the extracted deterministic values and retained Table readers | Preserve exact shared types and qualified source lifetimes; remove remaining ordinary data binding/package coupling without moving native-turn helpers indiscriminately. |
+| SQL and transactions | M4's `Executor`/`ResultSet` and M5's local Table transactions are implemented; the Zig SDK exports their owners | Bind them once into the common data context and language APIs. Expose a pre-dispatch persistence boundary for SQL attempts and transaction controls. |
+| Stream and Queue | `Catalog.callLog`, `callStream` and `callQueue` already provide typed lifecycle/payload/recovery operations, finite reads, fenced settlements and bounded waits | Compose these operations into the context and representative clients. New primitive semantics, SQL verbs, atomic DLQ and mixed participants remain M6 work. |
+| KV and Document | M6 has `KVPartition` and KV authority; M7 has direct Document contracts, algebra, `DocumentPartition`, authority and storage-graph foundations | Named direct KV and public direct Document dispatch/caller cutovers remain incoming gates. Neither a storage type nor a generated descriptor establishes an installed API. |
+| Native bindings and ports | Raw ABI/host remain independent. Catalog/relational language APIs still live under Station; Station host modes remain exclusive | Independent data ABI, composable data host, generated resources, language ownership and coherent migration of every affected consumer. |
+| Packaging and qualification | Existing installed SDK schedules and the earlier SQL resource baseline are reusable | Demonstrate actual client-only dependency closure, simultaneous facets, caller-loss recovery and common-revision correctness/resource evidence. |
+
+The [Queue wait evidence](../history/qualification/catalog.md#bounded-public-queue-claim-waits--2026-10-31)
+includes a passing focused installed Queue schedule, a failed clean core lane
+and a later failed Station service deadline. The separate successful recovery
+of that service's original input does not turn either failed run into a pass.
+Reproduce affected baselines before attributing new failures to M9; preserve
+original recovery material and unchanged correctness/deadline assertions.
+
+### Previous milestones and incoming gates
+
+| Owner | What M9 consumes | Dependency boundary |
+| --- | --- | --- |
+| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), Completed | Scoped object/definition identities, frozen work, retention and bounded durable storage contracts | Reuse identities and public callers. No client-owned catalog, storage access, implicit expiry or total-cardinality resident queue. |
+| [M3](03-live-storage-and-sql-cutover.md), In Progress | Installed direct lifecycle, definition changes, retained reads and restart paths | Run client journeys against those installed owners. Remaining M3 qualification stays with M3; a client wrapper cannot repair an unqualified service profile. |
+| [M4](04-statement-results-and-consumption.md), Completed | Command outcomes, one logical result, typed batches, observation and verified terminal coverage | P5 adapts these types rather than introducing another result protocol or parsing SQL text to infer command kind. |
+| [M5](05-transactions-and-atomic-composition.md), Completed for local Tables | Common cuts, provisional DML, savepoints, original decisions and explicit reattachment | Deliver Table transaction APIs now. KV/Document/append/settlement participation requires the separate M6/M7 handoff. |
+| [M6](06-streams-queues-and-durable-runtime.md#work-packages-and-dependencies), In Progress | Existing direct database separation and typed Stream/Queue operations, including waits | Start standalone Stream/Queue composition after the context boundary. Named KV, mixed transactions and the Station consumer replacement remain separately gated. |
+| [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates), In Progress | Delivered internal Document foundation; future public caller and atomic consumer replacement | M7 supplies the minimal shared caller/ABI with its cutover. It must not wait for M9's complete host or language redesign; M9 subsequently composes that caller. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md#remaining-implementation-plan--2026-10-29), In Progress | Event-driven recovery, typed local dispatch and selected node SQL co-hosting | Use the delivered local service seam. Configuration handoff, coarse remote execution, transport scheduling and integrated performance remain owner work; qualify each placement before claiming it. |
+
+Do not turn these milestones into an all-or-nothing start gate. P0/P1 and
+deterministic P2 work can proceed immediately. Table/SQL delivery uses the
+implemented M3–M5 owners and selected M8 placement. Standalone Stream/Queue
+facets need their public operation evidence, not a completed Station migration.
+Only mixed participant exposure and dependent Station changes wait for M6/M7
+atomicity. M9 stays open while any promised facet remains unqualified.
+
+### Ordered implementation changes
+
+Keep the existing P0–P8 identifiers. Each change below carries its owning public
+documentation and focused verification; generated declarations are never the
+sole evidence that an operation executes.
+
+1. **Complete P0 with executable contracts and a measured baseline.** Extend
+   `transit-data-client` with neutral context configuration, scoped facet handles,
+   operation knowledge, ownership and recovery-store types. Specify them in a
+   package-owned contract guide before exporting an ABI. Retain domain meanings
+   in `DATA_LIFECYCLE_V1`, `DIRECT_TABLE_V1`, `SQL_RESULTS_V1` and
+   `SQL_SESSION_V1`. Generate shared fixtures for validation failure,
+   pre-dispatch refusal, possible acceptance, known terminal outcome and cleanup
+   failure. Review the existing language sketches against these exact cases.
+   Measure current native, Python and Node startup, processes/threads, reserved
+   memory, copies, completion latency and close/cancel cost with matching
+   installed inputs; the historical console baseline cannot stand in for these
+   client measurements. **Exit:** neutral transitions and negative fixtures
+   execute, package ownership is acyclic, and comparison workloads/budgets are
+   recorded before implementation claims.
+2. **Finish P1 and implement P2's context independently of an ABI.** Keep Catalog
+   below `transit-data-client` and the raw client below Catalog. Compose the
+   existing SQL client and shared `transit-io`/memory reserves above those owners.
+   Supply Zig allocator/I/O injection and one host-owned resource configuration
+   for foreign callers. Add bounded data and control admission, generation-checked
+   handles, per-scope sequence coordination, and `open -> closing -> joined`
+   ownership. A slow SQL fetch or parked Queue/Stream wait must leave capacity
+   for control and unrelated facets. A store claim alone does not allocate a
+   native principal sequence across processes: require explicit exclusive
+   principal ownership or an owner-qualified external allocator.
+   **Exit:** deterministic saturation/cancellation/close tests, counting-allocator
+   checks after warmup and existing Catalog/value/reader regressions pass; one
+   context does not allocate a worker pool per facet.
+3. **Implement P4's frozen-attempt and store boundary before convenience APIs.**
+   Add shared ordinary Catalog preparation/staging/admission/settlement over
+   the existing explicit calls. First extend the shared SQL executor so the
+   original account/instance/token and canonical request can be persisted before
+   its first potentially accepting send. Today
+   [`Executor.execute`](../../packages/zig/transit-sql-client/src/Executor.zig)
+   generates the token immediately before dispatch; saving only its returned
+   `Outcome` leaves a caller-crash gap. Make ordinary `execute` and advanced
+   prepare/persist/submit consume the same implementation. Freeze the owning
+   fingerprint inputs, selected database/source, parameters, execution mode and
+   applicable transaction/session binding without serializing credentials.
+   Persist subsequent owner references before dependent dispatch. Lost initial
+   SQL replies use the original token and observation owner; a missing status
+   is not permission to recompile or send a replacement statement. Interactive
+   SELECT results remain non-resumable after session loss. Apply this ordering
+   to BEGIN, statements and COMMIT, not only Table writes.
+   Ship the explicitly configured local durable store with atomic update, fenced
+   ownership, bounded paging and private permissions. **Exit:** injected failure
+   at each store/send/receipt boundary preserves the original identity; known
+   commitment and failed receipt persistence remain separate observations.
+4. **Implement P5's SQL/result/transaction facet in Zig.** Compose existing
+   `Executor`, `ResultSet`, `Window`, `Pending` and explicit transaction controls
+   under context permits. Keep schema/observation ownership separate from batch
+   borrows, bounded retained copies and transport buffers. A retained result
+   cannot silently monopolize the control connection. Preserve incomplete
+   prefixes, authoritative counts, provisional transaction statements, stale
+   workspace-cursor rejection, original commit decisions and cleanup progress.
+   Define transaction-scope exit before adding context-manager conveniences:
+   explicit commit/rollback can remain unresolved; host cancellation or close
+   establishes neither. Never retry an application callback.
+   **Exit:** real local SQL tests cover empty/multi-batch/nested results, early
+   close, current authorization, lost commit replies and replacement-session
+   reattachment through this composed caller.
+5. **Implement P3's independent data boundary and perform the P6 cutover.**
+   Add the proposed `transit-data-bindings` package with generated context,
+   operation, result/batch, cancellation and shutdown resources. Preserve the
+   lightweight raw-only `transit-client-host`; compose all data facets in one
+   proposed `transit-data-host` executable rather than expanding raw-only
+   dependencies or starting one process per facet. The data host may also expose
+   raw operations through their existing owner. Station's behavior host consumes
+   shared types/bindings where needed; it does not remain the ordinary data API
+   entry point. Bound multiplexed request IDs, frames, queued work and output;
+   prove control progress under blocked reads and a slow stdout consumer.
+   Native borrowed batches and port-owned copies have distinct explicit bounds.
+   Migrate Python and Node public client packages, native distributions and the
+   public Zig SDK with every incompatible affected SDK/runtime/generated
+   consumer in one coordinated current-v1 cutover. Internal components can land
+   first; do not leave old public data exports as forwarding compatibility
+   shims. **Exit:** isolated installed declare/write/query/transaction/recovery
+   programs run with Station artifacts absent; raw and existing affected
+   capabilities still work with matching definitions and type identity.
+6. **Integrate P7 per qualified data kind.** First compose delivered `callLog`,
+   `callStream` and `callQueue` into the same context/store and representative
+   clients. Wait timeout, an accepted empty claim, an incomplete read and a
+   completed read remain different outcomes. Preserve original claim selection,
+   current lease/generation checks and explicit Stream offset settlement.
+   Distinguish Queue payload-read `release` from NACK and from freeing a local
+   page. Iterator close frees local buffers; remote payload-read release and
+   lease settlement remain explicit operations. Add direct KV and Document after
+   M6/M7 deliver their public caller and replacement gates. Qualify each
+   standalone facet separately, then expose transaction participation only when
+   the owning mixed envelope executes. **Exit:** declaration, mutation,
+   bounded read, lost-reply recovery and revocation pass for each promised kind;
+   generated participant variants alone remain refused.
+7. **Complete P8 on one integrated committed revision.** Run the affected
+   installed language matrix, actual local and claimed remote gateway paths,
+   caller/store/process-loss faults and resource comparisons. Carry the
+   [acceptance matrix](#acceptance-matrix) into registered schedules, including
+   preserved raw/Station consumers and incompatible-definition rejection.
+   Promote supported APIs and limits to caller/SDK references, component guides
+   and language docs as each slice lands. **Exit:** all P0–P8 obligations,
+   including gated P7 facets, have attributed evidence; update the milestone
+   header and roadmap index together only then.
+
+The immediate reviewable change is step 1 plus deterministic context admission
+types from step 2, followed by the SQL frozen-attempt seam from step 3. Do not
+begin by moving Python/Node imports: their package boundary cannot become
+independent until the shared data ABI and its complete dependency closure exist.
+P3 follows the shared P4/P5 semantics even though its numeric label is earlier;
+those labels identify work packages, not a requirement to publish adapters first.
+
+### Later milestones and extension boundaries
+
+| Later owner | Foundation M9 must leave usable | Work retained by that owner |
+| --- | --- | --- |
+| [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Lossless logical values and orthogonal type/collation/codec descriptors; exact definitions, pins, operation progress and diagnostics | Historical interpretation, constraints and index/rewrite operations. Support follows the executed owner, not a type tag or parser capability. |
+| [M12](12-sql-and-dataflows.md), [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Bounded result batches, transferable ownership, measured bridge costs and distinct computation lifetimes | Managed computation activation, query/search operators, resource policies and compilation. No SDK scheduler, result-materialization requirement or baked-in storage/vector page size. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md)–[M19](19-branches-merges-and-restore.md) | Exact kind/definition/branch attribution, five-state values and owner-extensible typed codecs | Document profiles, spatial types, foreign relations and branches. Preserve branch fields while refusing unsupported branches; do not add executable placeholders or silently assume all references mean branch one. |
+| [M20](20-service-and-sdk-coverage.md) | Independent client packages, shared ABI/port contracts and representative installed journeys | New language, service, browser, Flight/ADBC and platform breadth. Existing affected bindings still migrate in M9; Node filesystem recovery proves no browser profile. |
+| [M21](21-formal-semantics-and-correspondence.md), [M22](22-storage-providers-and-concurrency.md)–[M25](25-clustered-execution.md) | Replayable deterministic context/knowledge transitions and original authority/instance identity | Formal correspondence and distributed/provider/failover qualification. Reconnecting to a different authority never silently resubmits accepted work. |
+| [M26](26-control-and-policy-plane.md)–[M30](30-mcp-service-and-apps.md) | Current authorization and source-bound, bounded observations through shared public operations | Enterprise identity, published resources/investigations, reviewed changes, Board and MCP. Runtime consumers use shared packages; Board inspection keeps its read-only grant. |
+| [M31](31-reactive-context-and-agent-activation.md)–[M33](33-programming-model.md) | Composable facets, shared values, original-operation recovery and explicit transaction/effect boundaries | Durable subscriptions, standalone recorded effects, typed Station calls and full direct/Station/mixed journeys. Finite Stream waits do not establish continuous subscriptions. |
+| [M34](34-sql-grammar-and-dialect-ergonomics.md), [M35](35-qualification-and-benchmarks.md), [M36](36-releases.md) | Version-bound generated resources, precise capability reporting, installed examples and reproducible measurements | Grammar harmonization, combined qualification and distribution. M9 cannot defer its own installed correctness or matching artifact checks to release work. |
+
+### Verification and delivery checklist
+
+Use the pinned development shells and existing owners in
+[installed SDK checks](../../tests/sdk/README.md),
+[SQL interfaces](../../tests/interfaces/README.md) and the
+[task reference](../../tasks/README.md). Extend their scenarios and inventory
+with the new context/store/data-client journeys; do not invent successful
+placeholder tasks. Planned checks below are not executed evidence.
+
+| Change | Focused checks and required evidence |
+| --- | --- |
+| P0/P1/P2/P4 shared types, context and store | Owning package `zig build test`/`check`; independent failure-transition fixtures; allocator fault injection; real disk store reopen/torn-write/disk-full/concurrent-owner tests; retained Catalog and direct-reader regressions |
+| P3 boundary/cutover | `just check contracts`, `just bindings::check`, independent ABI and port consumers, foreign/missing-definition refusal, stale handles, malformed values, bounded frames and joined close |
+| P5 SQL/transactions | SQL client/result package checks and existing gateway/transaction schedules; inspect original receipts after lost replies, verify denied buffered disclosure, no snapshot splice and no callback replay |
+| P6 installed consumers | `just bindings::feedback python --scope catalog` and `just bindings::feedback node --scope catalog` for the existing boundary; extend installed schedules for new context/SQL/store journeys; run the public Zig SDK and full affected language suites before claiming the cutover |
+| P7 facets | `just test::direct-table-service tables` (includes Stream operations), `just test::direct-table-service queues` and `just test::direct-table-service stream-maintenance`, plus new representative language schedules; add KV/Document/mixed-participant schedules only with those public owners |
+| P8 integration | Selected `just ci clean --lane core`, `--lane storage-query`, `--lane interfaces`, `--lane sdks` and installation/consumer lanes affected by the final diff, at committed HEAD; retain failed and skipped results distinctly |
+| Documentation and packaging | `python3 -B tests/runner/docs.py`, whitespace checks and affected handbook checks; `python3 -B tasks/version.py` after manifests change; isolated installation and loaded-artifact checks |
+
+Resource acceptance compares identical data, server revision, durability,
+authorization and result consumption. Report cold startup separately from warm
+steady state, native backing allocations separately from language objects/GC,
+and completion/settlement separately from transport latency. Increase retained
+rows and operations past cache/page capacity at a fixed resident budget; no
+resident-memory term may grow with retained cardinality. Exercise slow reads
+alongside Catalog work, parked waits, transaction controls and multiple principals. Record
+concurrency, byte/queue limits and maximum observed control delay; do not call
+admission fair merely because a single request completes. Set regression budgets
+from the P0 baseline before comparing candidates, and retain regressions openly.
+
+Record runtime results in [SDK qualification](../history/qualification/sdk.md)
+with source, artifact hashes, toolchains, commands, workloads and raw reports;
+link SQL/transaction/catalog/performance owners for their evidence. The repository
+documentation check validates this plan's links and fences only.
 
 ## Implementation plan — 2026-10-29
 
@@ -232,17 +449,19 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 
 Keep the low-level `transit-client` implementation independent of Catalog:
 Catalog already imports it. Adding Catalog back into that package would create
-a cycle. The following new names are proposed implementation packages, not
-existing artifacts or frozen public APIs; P0 confirms their dependency closure.
+a cycle. The data client now exists; the data bindings and data host below remain
+proposed artifacts. The 2026-10-31 refresh selects a separate data host to preserve
+the existing raw-only artifact's dependency closure. P0 confirms the complete
+build and installed-load graph before the public cutover.
 
 | Package or boundary | Intended responsibility |
 | --- | --- |
 | Existing `transit-protocol`, Fuze types and domain contracts | Canonical identities, values, definitions, cells, collation/encoding descriptors and operation evidence. One reflected source per neutral type. |
 | Existing `transit-client` | Low-level signed native operations, signatures, exact frozen requests and application-owned native loops. Preserve raw-only use. |
 | Existing Catalog, direct Query, storage and Document owners | Their current data operations and reusable mechanisms. Extract only genuinely shared code from Station into the appropriate existing owner; create another library only when the dependency audit demonstrates a separate reusable responsibility. |
-| Proposed `packages/zig/transit-data-client` | Bounded client context and typed data/lifecycle orchestration over public Catalog/native callers and `transit-sql-client`; operation preparation/settlement and recovery-store hooks. No new execution authority or application workflow scheduler. |
+| Existing `packages/zig/transit-data-client` | Extend the explicit Catalog caller into a bounded client context over public Catalog/native callers and `transit-sql-client`, with operation preparation/settlement and recovery-store hooks. No new execution authority or application workflow scheduler. |
 | Proposed `packages/zig/transit-data-bindings` | Shared data context/operation/result ABI and native port schemas, consuming the data client. Extract ordinary catalog/query/logical codecs from Station bindings; behavior and turn actions stay with Station. |
-| Existing `apps/transit-client-host` | Compose raw and data bindings into one bounded host for an application context. `transit-station-host` adds only the behavior-facing composition it still needs. These are local host artifacts, not additional network services. |
+| Existing `apps/transit-client-host`; proposed `apps/transit-data-host` | Preserve the lightweight raw port. Compose all data facets, with optional raw operations, in one data host per application context. `transit-station-host` retains behavior composition and consumes shared types/bindings. These are local host artifacts, not additional network services. |
 | `sdks/<language>/` client and native distribution packages | Language-native values, iteration, scheduling and packaging. A client-only installation contains the necessary data bridge but no Station native library or runner. Station SDKs depend on shared client types. |
 
 Require real manifests, module interfaces and package tests. No sibling source
@@ -278,7 +497,7 @@ dependent public adapter cannot advertise an unqualified operation.
 | P0 | Contract inventory, language sketches, capability matrix and measured baseline | Current M3–M8 owners | Operation, ownership, recovery and package decisions are explicit before moves/adapters |
 | P1 | Reusable data ownership and acyclic package graph | P0; coordinate M6/M7 extraction | Existing affected semantics preserved; direct foundation builds without Station |
 | P2 | Bounded shared context and principal coordination | P0/P1; M8/M13 resource agreement | Concurrent facets, fair control progress and joined close under deterministic faults |
-| P3 | Data ABI/port and generated resources | P0–P2 | Independent native/port consumers validate handles, values, errors and compatibility |
+| P3 | Data ABI/port and generated resources | P0–P2; P4/P5 shared semantics before public adapters | Independent native/port consumers validate handles, values, errors and compatibility |
 | P4 | Ordinary data operations and exact recovery-store integration | P0–P2; relevant M8/Catalog handoff | One shared prepare/dispatch/settle implementation survives caller/store/transport failures |
 | P5 | Shared SQL and transaction consumption | P0–P2; delivered M4/M5 and M8 execution boundary | Complete/incomplete results and original transaction decisions preserved through the bridge |
 | P6 | Installed Zig, Python and Node foundation; affected-binding migration | P3–P5 | Direct Table/query/transaction/recovery applications run without Station artifacts |
@@ -597,7 +816,9 @@ not help the caller. Native/port negotiation rejects incompatible definitions
 before creating usable handles; operation support cannot be inferred from the
 ABI's numeric version or from a generated enum.
 
-Replace exclusive catalog/query host modes with facet handles in one context.
+Replace exclusive catalog/query host modes with facet handles in one data context,
+using the data host selected in the refreshed package decisions. Preserve the
+independent raw-only host and its existing dependency closure.
 Specify bounded request IDs, demultiplexing, frame budgets and outstanding work
 if the port multiplexes requests. Control/cancel progress must remain possible
 while a query is slow; changing the configuration alone does not establish
