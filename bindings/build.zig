@@ -5,6 +5,7 @@ const builtin = @import("builtin");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const runtime_library_path = b.option([]const u8, "fixture-rpath", "Pinned runtime library directory for portable CI fixtures");
     const settings = .{ .target = target, .optimize = optimize };
     const client = b.dependency("client", settings);
     const station = b.dependency("station", settings);
@@ -21,6 +22,7 @@ pub fn build(b: *std.Build) void {
     const files = b.addWriteFiles();
     var names: std.array_list.Managed([]const u8) = .init(b.allocator);
     for (artifacts) |artifact| {
+        if (runtime_library_path) |path| artifact.compile.root_module.addRPath(.{ .cwd_relative = path });
         _ = files.addCopyFile(artifact.compile.getEmittedBin(), artifact.path);
         names.append(artifact.path) catch @panic("OOM");
     }
@@ -34,6 +36,7 @@ pub fn build(b: *std.Build) void {
         .cpu = target.query.serializeCpuAlloc(b.allocator) catch @panic("OOM"),
         .resolved_cpu = std.Target.Query.fromTarget(&target.result).serializeCpuAlloc(b.allocator) catch @panic("OOM"),
         .compiler = builtin.zig_version_string,
+        .runtime_library_path = runtime_library_path,
         .artifacts = names.items,
     }, .{ .whitespace = .indent_2 }) catch @panic("OOM"));
     const inspect = b.addSystemCommand(&.{ "python3", "-B", "../tests/runner/launch.py", "tests/harness/native_artifacts.py", "inspect" });

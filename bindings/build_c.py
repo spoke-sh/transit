@@ -20,7 +20,7 @@ def build(output, native_prefix, sdk_prefix):
     sdk_prefix = Path(sdk_prefix).resolve()
     native_build = json.loads((native_prefix / 'build.json').read_text())
     sdk_build = json.loads((sdk_prefix / 'build.json').read_text())
-    for name in ('optimize', 'target', 'cpu', 'resolved_cpu', 'compiler'):
+    for name in ('optimize', 'target', 'cpu', 'resolved_cpu', 'compiler', 'runtime_library_path'):
         if native_build[name] != sdk_build[name]:
             raise SystemExit(f'Mismatched native/C SDK build input: {name}')
     if native_build['set'] != 'clients' or sdk_build['set'] != 'c-sdk':

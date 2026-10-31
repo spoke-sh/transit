@@ -24,7 +24,7 @@ class Artifacts(unittest.TestCase):
             path.write_text(json.dumps({'definition': 'ab' * 32}) if name in CONTRACTS else 'original binary')
         (prefix / 'build.json').write_text(json.dumps(dict(
             version=1, set=family, optimize='debug', target='x86_64-linux-gnu',
-            cpu='native', resolved_cpu='x86_64', compiler='fixture', artifacts=sorted(EXPECTED[family]))))
+            cpu='native', resolved_cpu='x86_64', compiler='fixture', runtime_library_path='/fixture/lib', artifacts=sorted(EXPECTED[family]))))
         return prefix
 
     def test_c_packages_reject_mixed_profiles_and_changed_definitions(self):
@@ -105,25 +105,32 @@ class Artifacts(unittest.TestCase):
             prefix.rename(root / 'authority-Debug')
             prefix = root / 'authority-Debug'
             metadata = prefix / 'build.json'
-            metadata.write_text(metadata.read_text().replace('"native"', '"baseline"').replace('x86_64-linux-gnu', 'x86_64-linux.5.10...7.2-gnu.2.31'))
-            record = describe(prefix) | {'source_sha256': source_identity(root, 'authority')}
+            metadata.write_text(metadata.read_text().replace('"native"', '"baseline"').replace('x86_64-linux-gnu', 'x86_64-linux.5.10...7.2-gnu.2.42'))
+            record = describe(prefix) | {'source_sha256': source_identity(root, 'authority'),
+                                         'command': ['-Ddynamic-linker=/fixture/loader']}
             (prefix / 'record.json').write_text(json.dumps(record))
             compiler = root / 'zig'
             compiler.write_text(f'#!{sys.executable}\nimport sys\nassert sys.argv[1:] == ["version"]\nprint("fixture")\n')
             compiler.chmod(0o700)
             with patch.dict(os.environ, {'PATH': str(root) + os.pathsep + os.environ['PATH'],
                                          'CI_NATIVE_BUNDLE_DIR': str(root)}), \
-                    patch('harness.native_artifacts.portable_target', return_value='x86_64-linux-gnu'):
+                    patch('harness.native_artifacts.portable_target', return_value='x86_64-linux.5.10-gnu.2.42'), \
+                    patch('harness.native_artifacts.nix_linker', return_value=('/fixture/loader', '2.42')), \
+                    patch('harness.native_artifacts.runtime_library_path', return_value='/fixture/lib'):
                 actual, invocation = prepare('authority', 'Debug', root)
                 self.assertEqual(actual, prefix)
                 self.assertEqual(json.loads(invocation.read_text())['preparation'], 'import')
                 for field, value, message in [('cpu', 'native', 'portable CPU'),
                         ('compiler', 'another-compiler', 'compiler'),
+                        ('runtime_library_path', '/foreign/lib', 'runtime libraries'),
                         ('target', 'aarch64-linux-gnu', 'target')]:
                     changed = record | {'build': record['build'] | {field: value}}
                     (prefix / 'record.json').write_text(json.dumps(changed))
                     with self.subTest(field=field), self.assertRaisesRegex(AssertionError, message):
                         prepare('authority', 'Debug', root)
+                (prefix / 'record.json').write_text(json.dumps(record | {'command': ['-Ddynamic-linker=/foreign']}))
+                with self.assertRaisesRegex(AssertionError, 'loader'):
+                    prepare('authority', 'Debug', root)
                 (prefix / 'record.json').write_text(json.dumps(record))
                 (prefix / 'bin/transit-node').write_text('corrupt binary')
                 with self.assertRaisesRegex(AssertionError, 'artifacts changed'):

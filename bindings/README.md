@@ -76,7 +76,8 @@ The package directories are generated outputs, not cached test results.
 Hosted SDK lanes download portable native publications built once per family and
 profile by the same workflow. `CI_NATIVE_BUNDLE_DIR` explicitly selects these
 inputs. Every resolver invocation verifies the native source closure, pinned
-compiler, host target, baseline CPU, optimization profile, shared definition and
+compiler, Linux 5.10 kernel floor, pinned Nix glibc/loader and OpenSSL runtime path,
+baseline CPU, optimization profile, shared definition and
 all file hashes. Missing or mismatched publications fail; they never silently
 fall back to compilation. C/C++ wrappers still build through their owning graph
 with the matching portable target. Direct catalog checks also receive the verified
