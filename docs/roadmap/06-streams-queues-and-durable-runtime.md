@@ -532,7 +532,7 @@ Named direct KV now has catalog declaration, signed mutation/read/pin operations
 rename/DROP and shared data-client support. The native writer-backed named KV
 path is removed; Documents retain that separate owner. Focused storage, signed
 dispatch, bounded-memory and cross-kind dependency checks pass. Installed
-current-definition recovery and clean qualification remain open. The common
+current-definition KV recovery passes; clean qualification remains open. The common
 state/append/settlement decision, including atomic DLQ transfer, is outstanding. R6's dedicated SQL/shared
 caller/finite analytical surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
@@ -800,7 +800,8 @@ preparations. Its ordered action vocabulary covers append, offset commit, ACK
 and terminal transfer, separating expired maintenance from live worker NACK.
 The current-v1 definition cutover migrates existing Table consumers; non-Table
 execution remains refused before admission. R5b implements named direct KV
-under a separate v1 cutover; its installed and clean gates are still pending.
+under a separate v1 cutover; its installed KV recovery gate passes and clean
+qualification is pending.
 R5c still needs log retention pins, durable action directories/reservations and
 participant adapters. Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
@@ -1148,7 +1149,7 @@ identities and use this order for the next implementation changes:
    a starting point. Reconcile stale baseline claims in contracts/references with
    their owning code and evidence as part of each affected change.
 2. **Finish named direct KV and executable participant adapters (R5b/R5c).**
-   Complete the named KV installed/clean qualification, preserving its new
+   Complete the named KV clean qualification, preserving its new
    catalog/storage/caller ownership and explicit Document boundary. Generalize the existing coordinator, read cuts, private workspaces, savepoints,
    graph roots and decision log. The first complete vertical test is: claim an
    inbox item, commit Table/KV state plus Stream/Queue output plus its ACK, kill
