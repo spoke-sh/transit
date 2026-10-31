@@ -1,6 +1,6 @@
 //! Lossless scalar adaptation; decoded text/binary borrows input except bytea hex.
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Atom = g.fuze.Types.Values.Atom;
 const Format = @import("Frontend.zig").Format;
 const Reader = g.Bytes;

@@ -5,6 +5,11 @@ Pure messages, logical codecs and SCRAM authentication for the
 public protocol definitions and Fuze logical types. It has no service, storage,
 account runtime or socket dependency.
 
+`Wire` supplies common database-wire scalar types, byte decoding, bounded read
+batches and session limits. PostgreSQL, MySQL and SQL execution share these
+definitions without importing the execution service into a codec. The package
+build walks transitive imports and rejects runtime and transport dependencies.
+
 `Request` and `JsonResponse` own the reflected JSON control contract. `Response`
 adds binary result frames through `ResultFrame`, which validates bounded aligned
 framing, initial descriptors and subsequent commitments. `ResultColumns` reuses

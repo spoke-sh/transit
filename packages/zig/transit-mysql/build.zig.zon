@@ -3,6 +3,6 @@
     .fingerprint = 0x534bd77d98349701,
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
-    .dependencies = .{ .transit_sql_service = .{ .path = "../transit-sql-service" } },
+    .dependencies = .{ .transit_sql_protocol = .{ .path = "../transit-sql-protocol" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }

@@ -7,7 +7,7 @@ const Probe = memory.AllocationProbe;
 const rows = 10000;
 fn columns(comptime Column: type) [7]Column {
     var result: [7]Column = undefined;
-    for ([_]pg.gateway.Type.Kind{ .int64, .uint64, .float64, .boolean, .utf8, .binary, .int64 }, &result) |kind, *column| {
+    for ([_]pg.wire.Type.Kind{ .int64, .uint64, .float64, .boolean, .utf8, .binary, .int64 }, &result) |kind, *column| {
         column.* = .{ .name = @tagName(kind), .type = .{ .kind = kind, .nullable = true } };
     }
     return result;
@@ -21,7 +21,7 @@ pub fn main(init: std.process.Init) !void {
     const my_columns = columns(my.Backend.Column);
     var binary: [256]u8 = undefined;
     for (&binary, 0..) |*byte, i| byte.* = @intCast(i);
-    var cells = [_]pg.gateway.fuze.Types.Values.Cell{
+    var cells = [_]pg.wire.fuze.Types.Values.Cell{
         .{ .value = .{ .atom = .{ .signed = 0 } } },
         .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u64) } } },
         .{ .value = .{ .atom = .{ .float = -1.25 } } },
@@ -56,8 +56,8 @@ pub fn main(init: std.process.Init) !void {
     try nativeResults(init, cells);
 }
 
-fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values.Cell) !void {
-    const api = pg.gateway.session_protocol;
+fn nativeResults(init: std.process.Init, values: [7]pg.wire.fuze.Types.Values.Cell) !void {
+    const api = pg.protocol;
     const r = api.results;
     const fields = [_]r.Types.Field{
         .{ .name = "signed", .type = .int64 },

@@ -6,14 +6,18 @@ const tls = @import("transit_tls_server");
 const Host = g.Session;
 const Native = @import("Native.zig");
 const Connection = @import("Connection.zig");
+const FrameInput = @import("FrameInput.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const memory = @import("transit_memory");
 const bounded_io = @import("transit_io");
 const telemetry = g.query.wire.observability.telemetry;
 test {
+    _ = @import("mysql_session_test.zig");
+    _ = @import("postgres_session_test.zig");
     _ = g.Session;
     _ = Native;
+    _ = @import("frame_input_test.zig");
 }
 const Worker = struct {
     reserve: memory.Slab,
@@ -153,11 +157,11 @@ const Server = struct {
         defer if (authentication_pending) self.authenticated();
         var transport: tls.Transport = .{ .io = self.io, .stream = stream, .deadline = .none };
         try transport.resetDeadline(self.config.limits.handshake_ms);
-        var upgrade = try pg.Startup.read(allocator, &transport);
+        var upgrade = try @import("PostgresStartup.zig").read(allocator, &transport);
         defer upgrade.deinit();
         if (upgrade.code == pg.Frame.gss_request) {
             try transport.writeAll("N");
-            const next = try pg.Startup.read(allocator, &transport);
+            const next = try @import("PostgresStartup.zig").read(allocator, &transport);
             upgrade.deinit();
             upgrade = next;
         }
@@ -170,7 +174,7 @@ const Server = struct {
                 try transport.writeAll("S");
                 try channel.upgrade(self.tls_context orelse return error.TlsRequired);
             }
-            const next = try pg.Startup.read(allocator, &channel);
+            const next = try @import("PostgresStartup.zig").read(allocator, &channel);
             upgrade.deinit();
             upgrade = next;
         }
@@ -211,7 +215,7 @@ const Server = struct {
         var proof: [46]u8 = undefined;
         if (account.authentication == .password) {
             try tx.writeAll(try backend.authenticate(.mechanisms, ""));
-            var initial = try pg.Frame.read(allocator, &channel, 1024);
+            var initial = try @import("PostgresInput.zig").read(allocator, &channel, 1024);
             defer initial.deinit();
             defer std.crypto.secureZero(u8, initial.payload);
             if (initial.tag != 'p') return error.InvalidAuthentication;
@@ -220,7 +224,7 @@ const Server = struct {
             var scram = try g.Authentication.Scram.init(credential.verifier.?, try pg.Frontend.saslInitial(initial.payload), random);
             defer scram.deinit();
             try tx.writeAll(try backend.authenticate(.challenge, scram.challenge()));
-            var final = try pg.Frame.read(allocator, &channel, 1024);
+            var final = try @import("PostgresInput.zig").read(allocator, &channel, 1024);
             defer final.deinit();
             defer std.crypto.secureZero(u8, final.payload);
             if (final.tag != 'p') return error.InvalidAuthentication;
@@ -246,6 +250,12 @@ const Server = struct {
         host.active = &slot.active;
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
+        // Admit command state before announcing a ready authenticated session.
+        // A reserve refusal closes startup without accepting a first command.
+        var engine = try @import("PostgresSession.zig").Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
+        defer engine.deinit();
+        var input = try FrameInput.Reader(pg.Frame.Input).init(allocator, .{ .maximum = self.config.limits.frame_bytes });
+        defer input.deinit();
         if (account.authentication == .password) try tx.writeAll(try backend.authenticate(.final, &proof));
         try tx.writeAll(try backend.authenticate(.ok, ""));
         self.authenticated();
@@ -254,8 +264,6 @@ const Server = struct {
         for ([_][2][]const u8{ .{ "server_version", "18.0-Transit" }, .{ "server_encoding", "UTF8" }, .{ "client_encoding", "UTF8" }, .{ "standard_conforming_strings", "on" }, .{ "integer_datetimes", "on" }, .{ "application_name", startup.get("application_name") orelse "" } }) |parameter| try tx.writeAll(try backend.parameter(parameter[0], parameter[1]));
         try tx.writeAll(try backend.key(slot.id, slot.secret));
         try tx.writeAll(try backend.ready(.idle));
-        var engine = try pg.Session.Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
-        defer engine.deinit();
         while (true) {
             const idle = engine.cycle.state == .idle;
             if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
@@ -263,14 +271,15 @@ const Server = struct {
                 if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
                 try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
             }
-            var frame = pg.Frame.read(allocator, &channel, self.config.limits.frame_bytes) catch |err| {
+            const bytes = input.read(&channel) catch |err| {
                 if (err == error.Timeout and idle and transport.input_timeout_ms != null) {
                     try transport.resetDeadline(self.config.limits.write_ms);
                     try tx.writeAll(try backend.failure(true, "57P05".*, "Terminating connection due to idle-session timeout", null));
                 }
                 return err;
             };
-            defer frame.deinit();
+            defer input.release();
+            const frame = (try pg.Frame.decode(bytes, self.config.limits.frame_bytes)).?;
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.tag, frame.payload })) break;
@@ -291,7 +300,7 @@ const Server = struct {
         for (&nonce) |*byte| while (byte.* == 0) try self.io.randomSecure(std.mem.asBytes(byte));
         const capabilities = if (self.config.tls_mode == .disabled) mysql.Handshake.capabilities & ~mysql.Handshake.ssl else mysql.Handshake.capabilities;
         try transport.writeAll(try backend.greeting(slot.id, nonce, capabilities));
-        var response = try mysql.Frame.read(allocator, &transport, 1, 8192);
+        var response = try @import("MysqlInput.zig").read(allocator, &transport, 1, 8192);
         defer response.deinit();
         defer std.crypto.secureZero(u8, response.payload);
         var channel: Connection = .{ .transport = &transport };
@@ -301,7 +310,7 @@ const Server = struct {
             const request = try mysql.Handshake.upgrade(response.payload);
             if (self.config.tls_mode == .disabled) return error.TlsRequired;
             try channel.upgrade(self.tls_context orelse return error.TlsRequired);
-            const next = try mysql.Frame.read(allocator, &channel, 2, 8192);
+            const next = try @import("MysqlInput.zig").read(allocator, &channel, 2, 8192);
             response.deinit();
             response = next;
             backend.sequence = 3;
@@ -335,7 +344,7 @@ const Server = struct {
                 return error.TlsRequired;
             }
             try tx.writeAll(try backend.fullAuthentication());
-            var password = try mysql.Frame.read(allocator, &channel, backend.sequence, g.Authentication.max_password_bytes + 1);
+            var password = try @import("MysqlInput.zig").read(allocator, &channel, backend.sequence, g.Authentication.max_password_bytes + 1);
             defer password.deinit();
             defer std.crypto.secureZero(u8, password.payload);
             backend.sequence += 1;
@@ -365,15 +374,17 @@ const Server = struct {
         var limits = self.config.limits;
         if (prefix.maximum_packet != 0) limits.frame_bytes = @min(limits.frame_bytes, prefix.maximum_packet);
         try limits.validate();
-        var engine = try mysql.Session.Engine(Host, Output).init(allocator, host, &tx, limits, prefix.negotiated());
+        var engine = try @import("MysqlSession.zig").Engine(Host, Output).init(allocator, host, &tx, limits, prefix.negotiated());
         defer engine.deinit();
+        var input = try FrameInput.Reader(mysql.Frame.Input).init(allocator, .{ .expected = 0, .maximum = limits.frame_bytes });
+        defer input.deinit();
         try tx.writeAll(try backend.ok(0, false));
         self.authenticated();
         authentication_pending = false;
         slot.authenticated.store(true, .release);
         while (true) {
             try transport.idle(limits.idle_ms, host.commandMilliseconds());
-            var frame = mysql.Frame.read(allocator, &channel, 0, limits.frame_bytes) catch |err| {
+            const bytes = input.read(&channel) catch |err| {
                 if (err == error.Timeout and transport.input_timeout_ms != null) {
                     try transport.resetDeadline(limits.write_ms);
                     backend.sequence = 0;
@@ -381,7 +392,8 @@ const Server = struct {
                 }
                 return err;
             };
-            defer frame.deinit();
+            defer input.release();
+            const frame = (try mysql.Frame.decode(bytes, 0, limits.frame_bytes)).?;
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;

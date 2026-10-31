@@ -2,9 +2,10 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const gateway = b.dependency("transit_sql_service", .{ .target = target, .optimize = optimize });
-    const module = b.addModule("transit_postgres", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_sql_service", .module = gateway.module("transit_sql_service") }} });
+    const protocol = b.dependency("transit_sql_protocol", .{ .target = target, .optimize = optimize });
+    const module = b.addModule("transit_postgres", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_sql_protocol", .module = protocol.module("transit_sql_protocol") }} });
+    @import("transit_sql_protocol").requireSansIo(b, module);
     const tests = b.addTest(.{ .root_module = module });
-    b.step("test", "Check database frames and session admission").dependOn(&b.addRunArtifact(tests).step);
+    b.step("test", "Check pure database frames and admission").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile the database adapter").dependOn(&tests.step);
 }

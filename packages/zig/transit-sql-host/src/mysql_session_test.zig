@@ -1,10 +1,10 @@
 const std = @import("std");
-const m = @import("root.zig");
-const f = m.gateway.fuze;
+const m = @import("transit_mysql");
+const f = m.wire.fuze;
 const Host = struct {
     allocator: std.mem.Allocator,
     writes: usize = 0,
-    outcome: m.gateway.results.Outcome = .applied,
+    outcome: m.wire.results.Outcome = .applied,
     invalid_counts: bool = false,
     value: u64 = 0,
     allocation_failed: bool = false,
@@ -25,7 +25,7 @@ const Host = struct {
     };
     pub const Read = struct {
         pub fn validateDisclosure(_: *Read) !void {}
-        pub fn nextBatch(_: *Read, _: u8) !m.gateway.ReadBatch {
+        pub fn nextBatch(_: *Read, _: u8) !m.wire.ReadBatch {
             return .{ .complete = true };
         }
     };
@@ -44,12 +44,12 @@ const Host = struct {
         return error.UnexpectedRead;
     }
     pub fn closeRead(_: *Host, _: *Read) void {}
-    pub fn write(self: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !m.gateway.results.CommandCompletion {
+    pub fn write(self: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !m.wire.results.CommandCompletion {
         self.writes += 1;
         self.value = @intCast(values[0].?.unsigned);
         return .{ .kind = .update, .outcome = self.outcome, .counts = .{ .matched = 1, .changed = if (self.invalid_counts) 2 else 0 }, .operation = .{ .account = @splat(7), .id = 42 }, .pending_restart = false, .diagnostic = null };
     }
-    pub fn transactionStatus(_: *Host) m.gateway.results.Transaction.SessionState {
+    pub fn transactionStatus(_: *Host) m.wire.results.Transaction.SessionState {
         return .idle;
     }
     pub fn begin(_: *Host) !void {}
@@ -70,12 +70,12 @@ const Transport = struct {
         try self.bytes.appendSlice(self.allocator, bytes);
     }
 };
-const Engine = m.Session.Engine(Host, Transport);
+const Engine = @import("MysqlSession.zig").Engine(Host, Transport);
 const execute_new = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x01\x08\x80\xff\xff\xff\xff\xff\xff\xff\xff";
 const execute_again = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
 test "OK requires a successful typed completion with valid owner counts" {
     const t = std.testing;
-    for ([_]m.gateway.results.Outcome{ .rejected, .cancelled, .applied }) |outcome| {
+    for ([_]m.wire.results.Outcome{ .rejected, .cancelled, .applied }) |outcome| {
         var host: Host = .{ .allocator = t.allocator, .outcome = outcome, .invalid_counts = outcome == .applied };
         var transport: Transport = .{ .allocator = t.allocator };
         defer transport.bytes.deinit(t.allocator);
@@ -84,7 +84,7 @@ test "OK requires a successful typed completion with valid owner counts" {
         _ = try engine.handle("\x16UPDATE");
         transport.bytes.clearRetainingCapacity();
         _ = try engine.handle(execute_new);
-        const packet = (try m.Frame.decode(transport.bytes.items, 1, m.gateway.Limits.max_frame_bytes)).?;
+        const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
         try t.expectEqual(@as(u8, 255), packet.payload[0]);
         try t.expectEqual(@as(usize, 1), host.writes);
     }
@@ -96,7 +96,7 @@ test "native capacity refusal projects a MySQL resource error without execution"
     var engine = try Engine.init(std.testing.allocator, &host, &transport, .{}, m.Handshake.required);
     defer engine.deinit();
     _ = try engine.handle("\xff");
-    const packet = (try m.Frame.decode(transport.bytes.items, 1, m.gateway.Limits.max_frame_bytes)).?;
+    const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
     try std.testing.expectEqual(@as(u8, 255), packet.payload[0]);
     try std.testing.expectEqual(@as(u16, 1041), std.mem.readInt(u16, packet.payload[1..3], .little));
     try std.testing.expectEqualStrings("#HY000", packet.payload[3..9]);
@@ -114,8 +114,8 @@ test "MySQL commands preserve unsigned values and remembered types, with exact a
         transport.bytes.clearRetainingCapacity();
         _ = try engine.handle(execute_new);
         try t.expectEqual(std.math.maxInt(u64), host.value);
-        const packet = (try m.Frame.decode(transport.bytes.items, 1, m.gateway.Limits.max_frame_bytes)).?;
-        var result: m.gateway.Bytes = .{ .bytes = packet.payload };
+        const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
+        var result: m.wire.Bytes = .{ .bytes = packet.payload };
         try t.expectEqual(@as(u8, 0), try result.byte());
         try t.expectEqual(@as(u64, @intFromBool(found)), try m.Codec.length(&result));
         _ = try engine.handle("\x1a\x01\x00\x00\x00");

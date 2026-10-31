@@ -1,5 +1,5 @@
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Scalar = @import("Scalar.zig");
 const Atom = g.fuze.Types.Values.Atom;
 const Case = struct { kind: g.Type.Kind, value: []const u8, binary: []const u8, text: []const u8 };

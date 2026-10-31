@@ -1,8 +1,8 @@
 //! Authenticated command engine. Host owns SQL preparation, current authority,
 //! execution, cancellation and credentials; transport owns deadlines/backpressure.
 const std = @import("std");
-const pg = @import("root.zig");
-const g = pg.gateway;
+const pg = @import("transit_postgres");
+const g = pg.wire;
 const f = g.fuze;
 const Name = struct {
     bytes: [g.Limits.max_name_bytes]u8 = undefined,
