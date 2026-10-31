@@ -17422,23 +17422,26 @@
     "packages/zig/transit-mysql/src/Frame.zig": {
       "errors": {
         "FrameTooLarge": 2,
-        "InvalidFrameBudget": 1,
+        "InvalidFrameBudget": 2,
         "PacketSequenceMismatch": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "<struct>.capacity()": "<inferred>",
+        "<struct>.frameSize()": "<inferred>",
         "decode()": "<inferred>",
+        "frameSize()": "<inferred>",
         "header()": "<inferred>",
-        "length()": "<inferred>",
-        "read()": "<inferred>"
+        "length()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
+        "try": 2,
         "catch": 0
       },
       "imports": [
+        "Frame.zig",
         "root.zig",
         "std"
       ]
@@ -17501,40 +17504,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-mysql/src/Session.zig": {
-      "errors": {
-        "EmptyWireQuery": 2,
-        "InvalidWireColumns": 1,
-        "InvalidWireCompletion": 1,
-        "TooManyWireParameters": 2,
-        "TooManyWireStatements": 1,
-        "UnknownWireStatement": 2,
-        "UnsupportedWireCapabilities": 1,
-        "WireSessionExhausted": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Engine().<return>.columns()": "<inferred>",
-        "Engine().<return>.execute()": "<inferred>",
-        "Engine().<return>.handle()": "<inferred>",
-        "Engine().<return>.init()": "<inferred>",
-        "Engine().<return>.metadataEnd()": "<inferred>",
-        "Engine().<return>.prepare()": "<inferred>",
-        "Engine().<return>.process()": "<inferred>",
-        "Engine().<return>.resultEnd()": "<inferred>",
-        "Engine().<return>.send()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 62,
-        "catch": 1
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-mysql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -17552,8 +17521,7 @@
         "Frame.zig",
         "Handshake.zig",
         "Scalar.zig",
-        "Session.zig",
-        "transit_sql_service"
+        "transit_sql_protocol"
       ]
     },
     "packages/zig/transit-postgres/src/Backend.zig": {
@@ -17654,25 +17622,28 @@
       "errors": {
         "FrameTooLarge": 2,
         "InvalidCancelRequest": 1,
-        "InvalidFrameBudget": 1,
+        "InvalidFrameBudget": 2,
         "InvalidMessageLength": 1,
         "InvalidUpgradeRequest": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "<struct>.capacity()": "<inferred>",
+        "<struct>.frameSize()": "<inferred>",
         "decode()": "<inferred>",
+        "frameSize()": "<inferred>",
         "header()": "<inferred>",
         "length()": "<inferred>",
-        "read()": "<inferred>",
         "startup()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 3,
         "catch": 0
       },
       "imports": [
+        "Frame.zig",
         "root.zig",
         "std"
       ]
@@ -17762,49 +17733,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-postgres/src/Session.zig": {
-      "errors": {
-        "CompletedWirePortal": 1,
-        "DuplicateWirePortal": 1,
-        "DuplicateWireStatement": 1,
-        "InvalidWireColumns": 1,
-        "InvalidWireCompletion": 1,
-        "InvalidWireName": 1,
-        "TooManyWirePortals": 1,
-        "TooManyWireStatements": 1,
-        "UnknownWirePortal": 3,
-        "UnknownWireStatement": 2,
-        "WireParameterCountMismatch": 2,
-        "WireSessionExhausted": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Engine().<return>.bind()": "<inferred>",
-        "Engine().<return>.bindInner()": "<inferred>",
-        "Engine().<return>.columns()": "<inferred>",
-        "Engine().<return>.describe()": "<inferred>",
-        "Engine().<return>.describeInner()": "<inferred>",
-        "Engine().<return>.execute()": "<inferred>",
-        "Engine().<return>.executeInner()": "<inferred>",
-        "Engine().<return>.handle()": "<inferred>",
-        "Engine().<return>.init()": "<inferred>",
-        "Engine().<return>.parse()": "<inferred>",
-        "Engine().<return>.process()": "<inferred>",
-        "Engine().<return>.send()": "<inferred>",
-        "Engine().<return>.simple()": "<inferred>",
-        "Name.init()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 72,
-        "catch": 1
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-postgres/src/Startup.zig": {
       "errors": {
         "DuplicateStartupOption": 1,
@@ -17823,11 +17751,11 @@
       "error_sets": {},
       "error_returns": {
         "decode()": "<inferred>",
-        "read()": "<inferred>"
+        "frameSize()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 3,
         "catch": 0
       },
       "imports": [
@@ -17851,9 +17779,8 @@
         "Frame.zig",
         "Frontend.zig",
         "Scalar.zig",
-        "Session.zig",
         "Startup.zig",
-        "transit_sql_service"
+        "transit_sql_protocol"
       ]
     },
     "packages/zig/transit-protocol/src/Authorization.zig": {
@@ -25425,6 +25352,76 @@
         "transit_tls_server"
       ]
     },
+    "packages/zig/transit-sql-host/src/FrameInput.zig": {
+      "errors": {
+        "FrameStillBorrowed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reader().<return>.init()": "<inferred>",
+        "Reader().<return>.read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/MysqlInput.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_mysql"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/MysqlSession.zig": {
+      "errors": {
+        "EmptyWireQuery": 2,
+        "InvalidWireColumns": 1,
+        "InvalidWireCompletion": 1,
+        "TooManyWireParameters": 2,
+        "TooManyWireStatements": 1,
+        "UnknownWireStatement": 2,
+        "UnsupportedWireCapabilities": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Engine().<return>.columns()": "<inferred>",
+        "Engine().<return>.execute()": "<inferred>",
+        "Engine().<return>.handle()": "<inferred>",
+        "Engine().<return>.init()": "<inferred>",
+        "Engine().<return>.metadataEnd()": "<inferred>",
+        "Engine().<return>.prepare()": "<inferred>",
+        "Engine().<return>.process()": "<inferred>",
+        "Engine().<return>.resultEnd()": "<inferred>",
+        "Engine().<return>.send()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 62,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_mysql"
+      ]
+    },
     "packages/zig/transit-sql-host/src/Native.zig": {
       "errors": {
         "EndOfStream": 1,
@@ -25479,6 +25476,83 @@
       "imports": [
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/PostgresInput.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_postgres"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/PostgresSession.zig": {
+      "errors": {
+        "CompletedWirePortal": 1,
+        "DuplicateWirePortal": 1,
+        "DuplicateWireStatement": 1,
+        "InvalidWireColumns": 1,
+        "InvalidWireCompletion": 1,
+        "InvalidWireName": 1,
+        "TooManyWirePortals": 1,
+        "TooManyWireStatements": 1,
+        "UnknownWirePortal": 3,
+        "UnknownWireStatement": 2,
+        "WireParameterCountMismatch": 2,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Engine().<return>.bind()": "<inferred>",
+        "Engine().<return>.bindInner()": "<inferred>",
+        "Engine().<return>.columns()": "<inferred>",
+        "Engine().<return>.describe()": "<inferred>",
+        "Engine().<return>.describeInner()": "<inferred>",
+        "Engine().<return>.execute()": "<inferred>",
+        "Engine().<return>.executeInner()": "<inferred>",
+        "Engine().<return>.handle()": "<inferred>",
+        "Engine().<return>.init()": "<inferred>",
+        "Engine().<return>.parse()": "<inferred>",
+        "Engine().<return>.process()": "<inferred>",
+        "Engine().<return>.send()": "<inferred>",
+        "Engine().<return>.simple()": "<inferred>",
+        "Name.init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 72,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_postgres"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/PostgresStartup.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_postgres"
       ]
     },
     "packages/zig/transit-sql-host/src/Shutdown.zig": {
@@ -25567,13 +25641,19 @@
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 159,
+        "try": 163,
         "catch": 20
       },
       "imports": [
         "Connection.zig",
         "Deployment.zig",
+        "FrameInput.zig",
+        "MysqlInput.zig",
+        "MysqlSession.zig",
         "Native.zig",
+        "PostgresInput.zig",
+        "PostgresSession.zig",
+        "PostgresStartup.zig",
         "Shutdown.zig",
         "builtin",
         "std",
@@ -25802,6 +25882,150 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-protocol/src/Wire.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "WireBytes.zig",
+        "WireInput.zig",
+        "WireLimits.zig",
+        "WireReadBatch.zig",
+        "WireType.zig",
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireBytes.zig": {
+      "errors": {
+        "InvalidWireMessage": 3,
+        "WireValueTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendInt()": "<inferred>",
+        "byte()": "<inferred>",
+        "cstring()": "<inferred>",
+        "finish()": "<inferred>",
+        "int()": "<inferred>",
+        "take()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireInput.zig": {
+      "errors": {
+        "FrameIncomplete": 1,
+        "FrameInputClosed": 2,
+        "InvalidFrameAdvance": 1,
+        "InvalidFrameCapacity": 2,
+        "InvalidFrameSize": 1,
+        "UnexpectedFrameCapacity": 1
+      },
+      "outcomes": {
+        "Decoder().<return>.Event": [
+          "input",
+          "capacity",
+          "frame"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Decoder().<return>.advance()": "<inferred>",
+        "Decoder().<return>.feed()": "<inferred>",
+        "Decoder().<return>.init()": "<inferred>",
+        "Decoder().<return>.next()": "<inferred>",
+        "Decoder().<return>.release()": "<inferred>",
+        "Decoder().<return>.supply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireLimits.zig": {
+      "errors": {
+        "InvalidGatewayLimits": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-sql-protocol/src/WireReadBatch.zig": {
+      "errors": {
+        "InvalidReadBatch": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireType.zig": {
+      "errors": {
+        "MissingWireValue": 1,
+        "NullNotAllowed": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "UnsupportedWireType": 2
+      },
+      "outcomes": {
+        "Kind": [
+          "int64",
+          "uint64",
+          "float64",
+          "boolean",
+          "utf8",
+          "binary"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "from()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-protocol/src/root.zig": {
       "errors": {
         "IncompatibleSqlDefinition": 3,
@@ -25961,6 +26185,7 @@
         "Migration.zig",
         "ResultColumns.zig",
         "ResultFrame.zig",
+        "Wire.zig",
         "std",
         "transit_fuze",
         "transit_protocol",
@@ -26968,30 +27193,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Bytes.zig": {
-      "errors": {
-        "InvalidWireMessage": 3,
-        "WireValueTooLarge": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "appendInt()": "<inferred>",
-        "byte()": "<inferred>",
-        "cstring()": "<inferred>",
-        "finish()": "<inferred>",
-        "int()": "<inferred>",
-        "take()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 5,
-        "catch": 0
-      },
-      "imports": [
-        "std"
-      ]
-    },
     "packages/zig/transit-sql/src/Client.zig": {
       "errors": {
         "DataIdentityConflict": 2,
@@ -27128,22 +27329,6 @@
         "root.zig"
       ]
     },
-    "packages/zig/transit-sql/src/Limits.zig": {
-      "errors": {
-        "InvalidGatewayLimits": 5
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "validate()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": []
-    },
     "packages/zig/transit-sql/src/MigrationRunner.zig": {
       "errors": {
         "AuthorizationStepBudget": 1,
@@ -27249,24 +27434,6 @@
       "imports": [
         "root.zig",
         "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/ReadBatch.zig": {
-      "errors": {
-        "InvalidReadBatch": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "validate()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig"
       ]
     },
     "packages/zig/transit-sql/src/ReadCache.zig": {
@@ -27578,39 +27745,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Type.zig": {
-      "errors": {
-        "MissingWireValue": 1,
-        "NullNotAllowed": 1,
-        "QueryConflict": 1,
-        "QueryTypeError": 1,
-        "UnsupportedWireType": 2
-      },
-      "outcomes": {
-        "Kind": [
-          "int64",
-          "uint64",
-          "float64",
-          "boolean",
-          "utf8",
-          "binary"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "from()": "<inferred>",
-        "value()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 1,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-sql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -27623,16 +27757,13 @@
       },
       "imports": [
         "AccountIdentity.zig",
-        "Bytes.zig",
         "Client.zig",
         "DatabaseAccount.zig",
         "DatabaseRuntime.zig",
         "IntentReference.zig",
-        "Limits.zig",
         "MigrationRunner.zig",
         "OperationRecords.zig",
         "Probe.zig",
-        "ReadBatch.zig",
         "ReadCache.zig",
         "RecoveryWork.zig",
         "SessionOperations.zig",
@@ -27640,7 +27771,6 @@
         "Terminal.zig",
         "TransactionSql.zig",
         "TransactionWork.zig",
-        "Type.zig",
         "transit_catalog",
         "transit_client",
         "transit_query_direct",
