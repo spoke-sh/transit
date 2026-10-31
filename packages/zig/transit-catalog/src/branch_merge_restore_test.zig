@@ -86,6 +86,7 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
 
     var token_journal: M.MergeTokenJournal = .{};
     var out_tables: [2]H.HistoricalTableBinding = undefined;
+    var out_rows: M.MergeRows = .{};
     var out_segs: [2]H.HistoricalSegment = undefined;
 
     const base_acct_rows = [_]BranchDiff.RowEntry{ .{ .cells = &a_r1 }, .{ .cells = &a_r2 } };
@@ -129,6 +130,7 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
             .fail_on_conflict,
             &dup_candidates,
             &.{},
+            &out_rows,
             &out_tables,
             &out_segs,
             grants,
@@ -173,6 +175,7 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
             .fail_on_conflict,
             &fk_skew_candidates,
             &.{},
+            &out_rows,
             &out_tables,
             &out_segs,
             grants,
@@ -216,11 +219,50 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
             .fail_on_conflict,
             &clean_candidates,
             &.{},
+            &out_rows,
             &out_tables,
             &out_segs,
             grants,
         ),
     );
+
+    var changed_schema = clean_candidates;
+    changed_schema[0].source_snap.schema.revision += 1;
+    try std.testing.expectError(error.SchemaOnlyMergeRequiresConversion, M.validateAndPublishThreeWayMerge(
+        &registry,
+        &token_journal,
+        @splat(0x10),
+        1010,
+        "feat_branch",
+        "main",
+        1,
+        .promote_schema_only,
+        &changed_schema,
+        &.{},
+        &out_rows,
+        &out_tables,
+        &out_segs,
+        grants,
+    ));
+    const oversized_rows: [33]BranchDiff.RowEntry = @splat(.{ .cells = &a_r1 });
+    var oversized = clean_candidates;
+    oversized[0].target_snap.rows = &oversized_rows;
+    try std.testing.expectError(error.MergeCandidateBufferTooSmall, M.validateAndPublishThreeWayMerge(
+        &registry,
+        &token_journal,
+        @splat(0x11),
+        1011,
+        "feat_branch",
+        "main",
+        1,
+        .promote_schema_only,
+        &oversized,
+        &.{},
+        &out_rows,
+        &out_tables,
+        &out_segs,
+        grants,
+    ));
 
     const token_clean: [16]u8 = @splat(0xAA);
     const receipt1 = try M.validateAndPublishThreeWayMerge(
@@ -234,6 +276,7 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
         .fail_on_conflict,
         &clean_candidates,
         &.{},
+        &out_rows,
         &out_tables,
         &out_segs,
         grants,
@@ -253,12 +296,76 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
         .fail_on_conflict,
         &clean_candidates,
         &.{},
+        &out_rows,
         &out_tables,
         &out_segs,
         grants,
     );
     try std.testing.expectEqual(receipt1.published_manifest_version, receipt_retry.published_manifest_version);
     try std.testing.expectEqualSlices(u8, &receipt1.published_manifest_digest, &receipt_retry.published_manifest_digest);
+
+    // Published rows reside in the caller's retained output, not a dead callee
+    // stack frame. Reading the cut after another call must retain the values.
+    const published = try registry.getCut(receipt1.published_manifest_version);
+    for (published.tables, 0..) |table, i| {
+        try std.testing.expectEqual(@intFromPtr(&out_rows.rows[i]), @intFromPtr(table.segments[0].rows.ptr));
+        for (table.segments[0].rows, 0..) |row, j| {
+            try std.testing.expectEqual(@intFromPtr(&out_rows.cells[i][j]), @intFromPtr(row.cells.ptr));
+        }
+    }
+    try std.testing.expectEqual(@as(i128, 1), published.tables[0].segments[0].rows[0].cells[0].value.atom.signed);
+    try std.testing.expectError(error.MergeIdentityConflict, M.validateAndPublishThreeWayMerge(
+        &registry,
+        &token_journal,
+        token_clean,
+        1005,
+        "feat_branch",
+        "main",
+        1,
+        .fail_on_conflict,
+        &clean_candidates,
+        &.{},
+        &out_rows,
+        &out_tables,
+        &out_segs,
+        grants,
+    ));
+    try std.testing.expectError(error.MergeIdentityConflict, M.validateAndPublishThreeWayMerge(
+        &registry,
+        &token_journal,
+        token_clean,
+        1004,
+        "feat_branch",
+        "main",
+        1,
+        .source_wins,
+        &clean_candidates,
+        &.{},
+        &out_rows,
+        &out_tables,
+        &out_segs,
+        grants,
+    ));
+    const head_before = registry.cuts[registry.cut_count - 1];
+    token_journal.receipts = @splat(receipt1);
+    token_journal.count = token_journal.receipts.len;
+    try std.testing.expectError(error.MergeTokenJournalFull, M.validateAndPublishThreeWayMerge(
+        &registry,
+        &token_journal,
+        @splat(0xBB),
+        1006,
+        "feat_branch",
+        "main",
+        2,
+        .fail_on_conflict,
+        &clean_candidates,
+        &.{},
+        &out_rows,
+        &out_tables,
+        &out_segs,
+        grants,
+    ));
+    try std.testing.expectEqualDeep(head_before, registry.cuts[registry.cut_count - 1]);
 }
 
 test "Document versioned BP-tree and causal_crdt branch merges, Forward Restore under current policy_epoch, and Git-like remote incremental sync" {

@@ -104,7 +104,6 @@ test "full-data and schema-only branch creation captures unflushed TWAL1 tail ro
     try std.testing.expectEqual(B.IndexReadiness.ready_verified_coverage, feat_branch.index_readiness);
     try std.testing.expectEqual(@as(u32, 0), feat_branch.live_process_pids_copied);
     try std.testing.expectEqual(@as(u32, 1), feat_branch.metrics.pinned_unflushed_wal_rows);
-    try std.testing.expect(feat_branch.metrics.snapshot_pin_prepare_ns > feat_branch.metrics.head_cas_publish_ns);
 
     // If-None-Match CAS rejects duplicate branch name
     try std.testing.expectError(

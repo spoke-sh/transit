@@ -104,15 +104,11 @@ pub const PinnedTailFrontier = struct {
     }
 };
 
-/// Separates snapshot preparation/pinning cost from $O(1)$ branch-head CAS publication
-/// and tracks shared vs. branch-owned `.tseg` bytes for the M13 performance scorecard.
+/// Descriptive counts in the bounded model. The helper performs no storage I/O
+/// and supplies no latency measurements or durable pin-acquisition evidence.
 pub const BranchPublicationMetrics = struct {
-    snapshot_pin_prepare_ns: u64,
-    head_cas_publish_ns: u64,
     pinned_segment_count: u32,
     pinned_unflushed_wal_rows: u32,
-    shared_tseg_bytes: u64,
-    branch_owned_tseg_bytes: u64,
 };
 
 pub const BranchDescriptor = struct {
@@ -161,12 +157,8 @@ pub const BranchRegistry = struct {
         reg.cut_count = 1;
 
         var seg_count: u32 = 0;
-        var shared_bytes: u64 = 0;
         for (initial_cut.tables) |tbl| {
             seg_count += @intCast(tbl.segments.len);
-            for (tbl.segments) |seg| {
-                shared_bytes += @as(u64, seg.rows.len) * 64;
-            }
         }
 
         reg.branches[0] = .{
@@ -183,12 +175,8 @@ pub const BranchRegistry = struct {
             .delta_wal_partition = main_wal_partition,
             .index_readiness = .ready_verified_coverage,
             .metrics = .{
-                .snapshot_pin_prepare_ns = 100,
-                .head_cas_publish_ns = 10,
                 .pinned_segment_count = seg_count,
                 .pinned_unflushed_wal_rows = 0,
-                .shared_tseg_bytes = shared_bytes,
-                .branch_owned_tseg_bytes = 0,
             },
         };
         reg.branch_active[0] = true;
@@ -259,12 +247,8 @@ pub const BranchRegistry = struct {
         }
 
         var pinned_seg_count: u32 = 0;
-        var shared_bytes: u64 = 0;
         for (base_cut.tables) |tbl| {
             pinned_seg_count += @intCast(tbl.segments.len);
-            for (tbl.segments) |seg| {
-                shared_bytes += @as(u64, seg.rows.len) * 64;
-            }
         }
 
         const assigned_branch_id = self.next_branch_id;
@@ -314,12 +298,7 @@ pub const BranchRegistry = struct {
             head_ver = next_ver;
             head_lsn = highest_lsn;
             pinned_seg_count = 0;
-            shared_bytes = 0;
         }
-
-        // Snapshot preparation cost scales with pinned tables/tails; O(1) CAS head publication is constant
-        const prep_ns: u64 = 500 + @as(u64, @intCast(base_cut.tables.len)) * 100 + @as(u64, unflushed_row_count) * 25;
-        const cas_ns: u64 = 15;
 
         const desc: BranchDescriptor = .{
             .branch_id = assigned_branch_id,
@@ -339,12 +318,8 @@ pub const BranchRegistry = struct {
             .index_readiness = if (mode == .full_data) .ready_verified_coverage else .rebuild_required,
             .live_process_pids_copied = 0,
             .metrics = .{
-                .snapshot_pin_prepare_ns = prep_ns,
-                .head_cas_publish_ns = cas_ns,
                 .pinned_segment_count = pinned_seg_count,
                 .pinned_unflushed_wal_rows = if (mode == .full_data) unflushed_row_count else 0,
-                .shared_tseg_bytes = shared_bytes,
-                .branch_owned_tseg_bytes = 0,
             },
         };
 
@@ -384,6 +359,7 @@ pub const BranchRegistry = struct {
         if (next_cut.manifest_version != self.cut_count + 1) {
             return error.InvalidNextManifestVersion;
         }
+        if (self.cut_count >= self.cuts.len) return error.BranchCutRegistryFull;
         const highest_lsn = self.cuts[self.cut_count - 1].commit_lsn;
         if (next_cut.commit_lsn <= highest_lsn) {
             return error.NonMonotonicManifestLsn;
