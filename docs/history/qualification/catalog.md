@@ -9,6 +9,56 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded public Queue claim waits — 2026-10-31
+
+Storage readiness is implemented in `b890907b2`, the signed Queue wait and native
+notification owner in `bee5f14ad`, and installed caller coverage in `dc3b85697`.
+`3acbddc8e` additionally corrects the existing terminal-retention documentation.
+The [direct Queue contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
+owns timeout, original identity, authorization and current service limits.
+
+The focused storage check `zig build test -Dtest-filter="queue partition wait readiness"
+-Doptimize=ReleaseSafe` passes in `transit-storage`. It withdraws eligibility by
+widening a trusted clock interval between readiness and claim, verifies no WAL
+acceptance or empty claim, and then recovers the original nonempty outcome without
+a clock. The catalog's `-Dtest-filter="Queue wait" -Doptimize=ReleaseSafe` checks
+pass, including independent signatures, unknown-outcome identity, timeout without
+an operation reservation, delayed visibility, current rights and disk reopen.
+Raw logs are `/var/tmp/transit-m6-queue-clock.log` and
+`/var/tmp/transit-m6-queue-waits-all.log`.
+
+The native `test-local-catalog` target with
+`-Dlocal-catalog-filter="log privileges enforce separate native domains and current disclosure rights"`
+and `-Doptimize=ReleaseSafe` passes in
+`/var/tmp/transit-m6-native-wait-release-safe.log`. Independent caller engines
+exercise publication wakeup, a delayed item becoming eligible without a new
+publication, original receipt recovery, parked cancellation and revocation.
+The default Debug attempt was interrupted during the broader lifecycle schedule
+and is not a pass; `/var/tmp/transit-m6-native-wait.log` retains that interruption.
+No assertion or wait deadline was relaxed.
+
+`just test::direct-table-service queues` passes in
+`/var/tmp/transit-m6-installed-queue.log`: 379 public requests, four lost replies
+including waited claim acceptance, matching wait headers and rejection of missing
+or conflicting hints, timeout without acceptance, original empty outcomes, FIFO,
+ACK, automatic expiry, explicit read closure and terminal retention through node
+SIGKILL/restarts. The recorded node and caller SHA-256s are
+`186e5c6fb988816339830af641c7ca42bccd00090831adfdce8cea304b13bded`
+and `d636a6870b627cc697b4fa437f81e7f8b423559e4ffed4e5f7bec326fdb867a1`.
+
+All 19 generated-contract checks, 57 fast checks, diagnostic mappings and inferred
+error-boundary checks pass, as does the handbook check/build. The initial fast
+run refused the changed diagnostic inventory; the new boundaries were reviewed
+and recorded before the passing run. These component and installed checks do not
+qualify mixed transactions, DLQ transfer, SQL Queue syntax, Station migration or
+the complete clean CI inventory.
+
+The unmodified-code baseline at `c43fef806` passes fast, contract and native
+checks, including 193 storage SIGKILL schedules. The remaining clean core lane
+was interrupted to run implementation qualification instead; it is a partial
+baseline, not a complete lane pass. Its log is
+`/var/tmp/transit-m6-completion-baseline-core.log`.
+
 ## Rebased storage crash boundary and installed SDK attempts — 2026-10-30
 
 The clean core run at `37111b927` passes fast checks, contract reflection and the

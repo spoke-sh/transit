@@ -757,9 +757,10 @@ budgets, and bounds each wait to 1000 ms. The next accepted visibility timestamp
 supplies an early timer wake; eligibility still requires fresh trusted time.
 Original claims, including empty ones, recover without selecting new work.
 The [public contract](../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
-owns cancellation, timeout and recovery semantics. Qualify register/recheck races,
-current-policy checks after parking, cancellation joins, timer-driven eligibility
-and installed lost-reply/restart recovery together at the milestone exit gate.
+owns cancellation, timeout and recovery semantics. [Executed wait evidence](../history/qualification/catalog.md#bounded-public-queue-claim-waits--2026-10-31)
+covers signatures, clock uncertainty, current policy after parking, cancellation,
+timer-driven eligibility and installed lost-reply/restart recovery. The complete
+milestone still requires its common-revision qualification gate.
 
 ACK, NACK and renewal revalidate current authority, receipt and live epoch at
 publication. Original accepted settlement is still recoverable after later
@@ -855,7 +856,7 @@ until M7 supplies the same obligations.
 Deliver four independently testable slices: declaration/inspection SQL over R2;
 standalone producer/consumer/lease SQL over R3/R4; finite retained `STREAM_SLICE`
 through Fuze; then mixed transaction SQL over R5. The first three do not depend
-on completing Station. Claim `WAIT` waits for R4's public wait contract, and
+on completing Station. Claim `WAIT` can lower through R4's public wait contract;
 transactional append/settlement syntax waits for R5c/R5d. Each slice updates the
 shared grammar, compiler, client, results and actual service callers together.
 
