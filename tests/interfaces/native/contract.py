@@ -17,6 +17,8 @@ if sys.argv[1:] == ["--data-lifecycle"]:
     fixture = json.loads((root / "packages/zig/transit-protocol/src/fixtures/data-lifecycle-v1.json").read_text())
     validator.validate(fixture)
     for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",),
+                 ("branch", "manifest"), ("branch", "attempt"),
+                 ("branch", "validation", "attempt"), ("branch", "decision", "attempt"),
                  ("stream_queue", "append", "append", "target"),
                  ("stream_queue", "declaration"),
                  ("stream_queue", "producer", "target"),

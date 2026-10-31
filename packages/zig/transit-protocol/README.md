@@ -20,6 +20,12 @@ shared by named resource declarations and Document storage. Its
 authorized durable acceptance. The generated schema describes those types;
 it does not add a native route or implement a storage cutover.
 
+[`Branch`](src/Branch.zig) supplies exact branch identities, immutable manifest
+references, frozen merge/restore attempts, complete-validation bindings and
+forward publication decisions. Its [contract](../../../contracts/BRANCH_V1.md)
+separates neutral validation from retained cuts, current authority and atomic
+catalog publication. These types do not enable multi-branch service execution.
+
 [`IndexLifecycle`](src/IndexLifecycle.zig) supplies offline index declarations,
 build identities, exact source coverage and conditional publication bindings.
 Its [contract](../../../contracts/INDEX_LIFECYCLE_V1.md) pins column comparison
