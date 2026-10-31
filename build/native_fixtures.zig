@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const Runtime = @import("runtime.zig").Context;
 
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, runtime: Runtime) void {
+    const runtime_library_path = b.option([]const u8, "fixture-rpath", "Pinned runtime library directory for portable CI fixtures");
     const Artifact = struct { path: []const u8, compile: *std.Build.Step.Compile };
     const clients = [_]Artifact{
         .{ .path = "lib/libtransit_client.so", .compile = runtime.client.artifact("transit_client") },
@@ -19,6 +20,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const files = b.addWriteFiles();
         var names: std.array_list.Managed([]const u8) = .init(b.allocator);
         for (set[1]) |artifact| {
+            if (runtime_library_path) |path| artifact.compile.root_module.addRPath(.{ .cwd_relative = path });
             _ = files.addCopyFile(artifact.compile.getEmittedBin(), artifact.path);
             names.append(artifact.path) catch @panic("OOM");
         }
@@ -32,6 +34,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .cpu = target.query.serializeCpuAlloc(b.allocator) catch @panic("OOM"),
             .resolved_cpu = std.Target.Query.fromTarget(&target.result).serializeCpuAlloc(b.allocator) catch @panic("OOM"),
             .compiler = builtin.zig_version_string,
+            .runtime_library_path = runtime_library_path,
             .artifacts = names.items,
         }, .{ .whitespace = .indent_2 }) catch @panic("OOM");
         _ = files.add("build.json", metadata);

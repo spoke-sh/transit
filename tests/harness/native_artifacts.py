@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
@@ -89,22 +90,43 @@ def validate(record, *, source, optimize, family, definition):
     return Path(record["prefix"])
 
 
+def nix_linker():
+    # Explicit Zig targets bypass the native Nix wrapper. Use the same pinned
+    # loader and libc as OpenSSL instead of Zig's older cross-target defaults.
+    support = Path(os.environ["NIX_CC"]) / "nix-support"
+    linker = (support / "dynamic-linker").read_text().strip()
+    libc = Path((support / "orig-libc").read_text().strip())
+    assert Path(linker).is_file() and Path(linker).is_relative_to(libc), "Foreign Nix libc loader"
+    description = subprocess.check_output([linker, "--version"], text=True)
+    version = re.search(r"stable release version (\d+\.\d+)", description)
+    assert version, "Cannot identify pinned Nix libc"
+    return linker, version[1]
+
+
 def portable_target():
     machine = platform.machine()
     assert platform.system() == "Linux" and machine in {"x86_64", "aarch64"}, "Unsupported native bundle host"
-    return f"{machine}-linux-gnu"
+    _, glibc = nix_linker()
+    return f"{machine}-linux.5.10-gnu.{glibc}"
+
+
+def runtime_library_path():
+    path = subprocess.check_output(["pkg-config", "--variable=libdir", "openssl"], text=True).strip()
+    assert Path(path).is_absolute() and Path(path).is_dir(), "Missing pinned OpenSSL runtime libraries"
+    return path
 
 
 def publication(bundle, family, optimize, source, compiler, definition):
     prefix = bundle.resolve(strict=True) / f"{family}-{optimize}"
     record = json.loads((prefix / "record.json").read_text())
     record["prefix"] = str(prefix)
-    # Zig expands the requested triple with the pinned compiler's default OS
-    # range and glibc floor (e.g. linux.5.10...7.2-gnu.2.31).
+    # Zig may expand the OS maximum; the kernel floor and pinned libc must match.
     arch, system, abi = record["build"]["target"].split("-")
-    assert f"{arch}-{system.split('.')[0]}-{abi.split('.')[0]}" == portable_target(), "Wrong native bundle target"
+    assert f"{arch}-{system.split('...')[0]}-{abi}" == portable_target(), "Wrong native bundle target"
     assert record["build"]["cpu"] == "baseline", "Native bundle must use a portable CPU"
     assert record["build"]["compiler"] == subprocess.check_output([compiler, "version"], text=True).strip(), "Wrong native bundle compiler"
+    assert f"-Ddynamic-linker={nix_linker()[0]}" in record["command"], "Wrong native bundle loader"
+    assert record["build"]["runtime_library_path"] == runtime_library_path(), "Wrong native bundle runtime libraries"
     validate(record, source=source, optimize=optimize, family=family, definition=definition)
     return record
 
@@ -114,11 +136,19 @@ def export(family, optimize, output, root=ROOT):
     # installed consumer/service state. Tar retains executable mode bits.
     prefix, record_path = prepare(family, optimize, root, portable=True, imported=False)
     record = json.loads(record_path.read_text())
+    attempt = Recorder(root)
+    with attempt.phase("runtime-linkage", family) as row:
+        # Resolve every dynamic dependency before publishing. An ELF file can
+        # link successfully yet fail immediately on the consuming runner.
+        for name in sorted(EXPECTED[family]):
+            if not name.endswith(".a"):
+                run([nix_linker()[0], "--list", str(prefix / name)], cwd=root,
+                    log=attempt.directory / (Path(name).name + ".linkage.log"), result=row).check_returncode()
     name = f"{family}-{optimize}"
     assert not output.exists(), "Native publication already exists"
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(".partial")
-    with Recorder(root).phase("artifact-export", family) as row:
+    with attempt.phase("artifact-export", family) as row:
         with tarfile.open(temporary, "w:gz", compresslevel=1) as archive:
             for path in sorted(record["files"]):
                 archive.add(prefix / path, arcname=f"{name}/{path}", recursive=False)
@@ -163,7 +193,8 @@ def prepare(family, optimize, root=ROOT, *, portable=False, imported=True):
     target = ["prefix"] if family == "c-sdk" else [f"fixture-{family}", "-Dsdk-examples=false"]
     command = [compiler, "build", *target, f"-Doptimize={optimize}"]
     if portable or bundle:
-        command += [f"-Dtarget={portable_target()}", "-Dcpu=baseline"]
+        command += [f"-Dtarget={portable_target()}", "-Dcpu=baseline", f"-Ddynamic-linker={nix_linker()[0]}",
+                    f"-Dfixture-rpath={runtime_library_path()}"]
     with attempt.phase("build-graph", family) as row:
         result = run(command, cwd=build_root, log=attempt.directory / "build.log", result=row, capture_stdout=True)
         result.check_returncode()
