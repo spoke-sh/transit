@@ -113,9 +113,10 @@ pub const JwksCache = struct {
         // A failed refresh never extends the old keyset's TTL.
         const bytes = try fetch(allocator, io, provider.jwks_endpoint.?, null, null, ca);
         errdefer allocator.free(bytes);
+        const refreshed = try timeMillis(io);
         const copy = try allocator.dupe(u8, bytes);
         if (self.entries[slot]) |old| allocator.free(old.bytes);
-        self.entries[slot] = .{ .key = key, .bytes = copy, .refreshed = now, .expires = now + provider.jwks_ttl_ms };
+        self.entries[slot] = .{ .key = key, .bytes = copy, .refreshed = refreshed, .expires = refreshed + provider.jwks_ttl_ms };
         return bytes;
     }
 };
@@ -158,13 +159,13 @@ pub fn exchange(allocator: std.mem.Allocator, cache_allocator: std.mem.Allocator
         const token = parsed.value.id_token orelse return error.MissingOidcIdToken;
         try requireKid(allocator, token, provider.retired_kids);
         var profile = provider.profile;
-        const jwks = try cache.get(cache_allocator, io, provider, revision, now, false, ca);
+        const jwks = try cache.get(cache_allocator, io, provider, revision, try timeMillis(io), false, ca);
         defer cache_allocator.free(jwks);
         profile.cached_jwks_json = jwks;
-        profile.issuer_profile.jwks_keys = try keyRecords(allocator, provider, revision, jwks, now);
+        profile.issuer_profile.jwks_keys = try keyRecords(allocator, provider, revision, jwks, try timeMillis(io));
         return profile.verifyProviderExchangePayloads(allocator, tokens, null, null, nonce, @intCast(try timeMillis(io) / 1000)) catch |err| {
             if (err != error.UnknownOrRevokedJwksKey and err != error.UnknownJwksKey) return err;
-            const refreshed = try cache.get(cache_allocator, io, provider, revision, now, true, ca);
+            const refreshed = try cache.get(cache_allocator, io, provider, revision, try timeMillis(io), true, ca);
             defer cache_allocator.free(refreshed);
             profile.cached_jwks_json = refreshed;
             profile.issuer_profile.jwks_keys = try keyRecords(allocator, provider, revision, refreshed, try timeMillis(io));
