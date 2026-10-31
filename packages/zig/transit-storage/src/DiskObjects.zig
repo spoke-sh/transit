@@ -130,7 +130,15 @@ fn readRecord(self: *Self, key: []const u8) !?Record {
     if (result.meta.size > object.max_object_bytes) return error.ObjectTooLarge;
     return result;
 }
-fn saveRecordName(self: *Self, key: []const u8, record: Record) !void {
+const StagedRecord = struct {
+    name: [64]u8,
+    atomic: std.Io.File.Atomic,
+
+    fn deinit(self: *StagedRecord, io: std.Io) void {
+        self.atomic.deinit(io);
+    }
+};
+fn prepareRecordName(self: *Self, key: []const u8, record: Record, out: *StagedRecord) !void {
     var bytes: [512]u8 = @splat(0);
     bytes[0..8].* = "TOBJ\x01\x00\x00\x00".*;
     bytes[8..40].* = definition();
@@ -141,7 +149,20 @@ fn saveRecordName(self: *Self, key: []const u8, record: Record) !void {
     bytes[88..120].* = record.checks;
     @memcpy(bytes[120..][0..key.len], key);
     bytes[480..512].* = digest(bytes[0..480]);
-    try publishName(self.io, self.keys_dir, &keyName(key), &bytes, true);
+    out.name = keyName(key);
+    out.atomic = try self.keys_dir.createFileAtomic(self.io, &out.name, .{ .replace = true, .permissions = .fromMode(0o600) });
+    errdefer out.atomic.deinit(self.io);
+    try out.atomic.file.writeStreamingAll(self.io, &bytes);
+}
+fn publishRecordName(self: *Self, staged: *StagedRecord) !void {
+    try staged.atomic.file.sync(self.io);
+    try staged.atomic.replace(self.io);
+}
+fn saveRecordName(self: *Self, key: []const u8, record: Record) !void {
+    var staged: StagedRecord = undefined;
+    try self.prepareRecordName(key, record, &staged);
+    defer staged.deinit(self.io);
+    try self.publishRecordName(&staged);
 }
 fn saveRecord(self: *Self, key: []const u8, record: Record) !void {
     try self.saveRecordName(key, record);
@@ -157,23 +178,24 @@ fn verify(file: std.Io.File, io: std.Io, bytes: []const u8) !void {
         position += part.len;
     }
 }
-fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []const u8) !void {
-    publishName(self.io, directory, filename, bytes, false) catch |err| switch (err) {
-        error.PathAlreadyExists => {
-            const file = try directory.openFile(self.io, filename, .{ .follow_symlinks = false });
-            defer file.close(self.io);
-            try verify(file, self.io, bytes);
-            // A retry can meet an earlier uncertain link. Establish durability
-            // of that same content before publishing a new descriptor.
-            try file.sync(self.io);
-        },
-        else => return err,
-    };
-}
 inline fn needsChecksFile(size: u64) bool {
     return size > chunk_bytes;
 }
-fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
+const StagedContent = struct {
+    record: Record,
+    data_name: [144]u8,
+    data_name_len: usize,
+    checks_name: [144]u8,
+    checks_name_len: usize,
+    data_file: std.Io.File.Atomic,
+    checks_file: ?std.Io.File.Atomic,
+
+    fn deinit(self: *StagedContent, io: std.Io) void {
+        if (self.checks_file) |*file| file.deinit(io);
+        self.data_file.deinit(io);
+    }
+};
+fn prepareContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind, out: *StagedContent) !void {
     var chunks: [checks_bytes]u8 = undefined;
     const count = std.math.divCeil(usize, bytes.len, chunk_bytes) catch unreachable;
     for (0..count) |i| {
@@ -181,17 +203,64 @@ fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Re
         chunks[i * 32 ..][0..32].* = digest(bytes[start..@min(start + chunk_bytes, bytes.len)]);
     }
     const checks = chunks[0 .. count * 32];
-    const record: Record = .{
+    out.record = .{
         .kind = kind,
         .meta = .{ .size = bytes.len, .sha256 = if (count == 1) chunks[0..32].* else digest(bytes) },
         .checks = digest(checks),
     };
-    var filename: [144]u8 = undefined;
-    try self.content(self.objects_dir, contentName(key, record.meta.sha256, false, &filename), bytes);
+    const data_slice = contentName(key, out.record.meta.sha256, false, &out.data_name);
+    out.data_name_len = data_slice.len;
+    out.data_file = try self.objects_dir.createFileAtomic(self.io, data_slice, .{ .replace = false, .permissions = .fromMode(0o600) });
+    errdefer out.data_file.deinit(self.io);
+    try out.data_file.file.writeStreamingAll(self.io, bytes);
     if (needsChecksFile(bytes.len)) {
-        try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
+        const checks_slice = contentName(key, out.record.meta.sha256, true, &out.checks_name);
+        out.checks_name_len = checks_slice.len;
+        var checks_file = try self.objects_dir.createFileAtomic(self.io, checks_slice, .{ .replace = false, .permissions = .fromMode(0o600) });
+        errdefer checks_file.deinit(self.io);
+        try checks_file.file.writeStreamingAll(self.io, checks);
+        out.checks_file = checks_file;
+    } else {
+        out.checks_name_len = 0;
+        out.checks_file = null;
     }
-    return record;
+}
+fn publishContentFile(self: *Self, temporary: *std.Io.File.Atomic, filename: []const u8, bytes: []const u8, is_checks: bool) !void {
+    try temporary.file.sync(self.io);
+    temporary.link(self.io) catch |err| switch (err) {
+        error.PathAlreadyExists => {
+            const file = try self.objects_dir.openFile(self.io, filename, .{ .follow_symlinks = false });
+            defer file.close(self.io);
+            if (is_checks) {
+                var chunks: [checks_bytes]u8 = undefined;
+                const count = std.math.divCeil(usize, bytes.len, chunk_bytes) catch unreachable;
+                for (0..count) |i| {
+                    const start = i * chunk_bytes;
+                    chunks[i * 32 ..][0..32].* = digest(bytes[start..@min(start + chunk_bytes, bytes.len)]);
+                }
+                try verify(file, self.io, chunks[0 .. count * 32]);
+            } else {
+                try verify(file, self.io, bytes);
+            }
+            // A retry can meet an earlier uncertain link. Establish durability
+            // of that same content before publishing a new descriptor.
+            try file.sync(self.io);
+        },
+        else => return err,
+    };
+}
+fn publishStagedContent(self: *Self, bytes: []const u8, staged: *StagedContent) !void {
+    try self.publishContentFile(&staged.data_file, staged.data_name[0..staged.data_name_len], bytes, false);
+    if (staged.checks_file) |*checks_file| {
+        try self.publishContentFile(checks_file, staged.checks_name[0..staged.checks_name_len], bytes, true);
+    }
+}
+fn stageContent(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
+    var staged: StagedContent = undefined;
+    try self.prepareContent(key, bytes, kind, &staged);
+    defer staged.deinit(self.io);
+    try self.publishStagedContent(bytes, &staged);
+    return staged.record;
 }
 fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     const record = try self.stageContent(key, bytes, kind);
@@ -242,12 +311,29 @@ pub fn putImmutableBatch(self: *Self, batch: []const object.ImmutablePut, output
     for (batch) |item| if (try self.readRecord(item.key)) |existing| {
         if (existing.kind != .immutable or existing.meta.size != item.bytes.len or !std.mem.eql(u8, &existing.meta.sha256, &item.sha256)) return error.ImmutableObjectConflict;
     };
-    var records: [object.max_put_batch]Record = undefined;
-    for (batch, records[0..batch.len]) |item, *record| record.* = try self.stageContent(item.key, item.bytes, .immutable);
+    var staged_content: [object.max_put_batch]StagedContent = undefined;
+    var staged_count: usize = 0;
+    defer for (staged_content[0..staged_count]) |*item| item.deinit(self.io);
+    for (batch) |item| {
+        try self.prepareContent(item.key, item.bytes, .immutable, &staged_content[staged_count]);
+        staged_count += 1;
+    }
+    for (batch, staged_content[0..staged_count]) |item, *staged| {
+        try self.publishStagedContent(item.bytes, staged);
+    }
     try syncIterated(self.io, self.objects_dir);
-    for (batch, records[0..batch.len]) |item, record| try self.saveRecordName(item.key, record);
+    var staged_records: [object.max_put_batch]StagedRecord = undefined;
+    var record_count: usize = 0;
+    defer for (staged_records[0..record_count]) |*item| item.deinit(self.io);
+    for (batch, staged_content[0..staged_count]) |item, staged| {
+        try self.prepareRecordName(item.key, staged.record, &staged_records[record_count]);
+        record_count += 1;
+    }
+    for (staged_records[0..record_count]) |*record_file| {
+        try self.publishRecordName(record_file);
+    }
     try syncIterated(self.io, self.keys_dir);
-    for (output, records[0..batch.len]) |*meta, record| meta.* = record.meta;
+    for (output, staged_content[0..staged_count]) |*meta, staged| meta.* = staged.record.meta;
 }
 pub fn putConditional(self: *Self, key: []const u8, condition: object.Condition, bytes: []const u8) !bool {
     try object.validateKey(key);

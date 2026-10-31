@@ -196,8 +196,15 @@ pub fn recordBatchTrackedWithPrevious(self: *Self, allocations: []const Allocati
     errdefer self.head = null;
     _ = try self.queue.appendFrames(0, head.tail, 1, 1, .manifest_checkpoint, payloads[0..active_count]);
     self.head = next_head;
+    var staged: [Objects.max_put_batch]std.Io.File.Atomic = undefined;
+    var staged_count: usize = 0;
+    defer for (staged[0..staged_count]) |*temp| temp.deinit(self.io);
     for (active[0..active_count], replace[0..active_count]) |idx, is_replace| {
-        try Files.saveWithoutDirSync(self.io, self.directory, &names[idx], &encoded[idx], is_replace);
+        staged[staged_count] = try Files.stage(self.io, self.directory, &names[idx], &encoded[idx], is_replace);
+        staged_count += 1;
+    }
+    for (staged[0..staged_count], replace[0..active_count]) |*temp, is_replace| {
+        try Files.publishStaged(self.io, temp, is_replace);
     }
     try Files.sync(self.io, self.directory);
 }
