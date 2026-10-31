@@ -179,8 +179,12 @@ test "decimal extreme scale multiplication and division return typed overflow" {
 }
 
 test "PAD SPACE comparison and sort keys preserve prefix control-byte ordering" {
-    const cases = [_][]const u8{ "", " ", "  ", "\x00", "\x01", "a", "a ", "a  ", "a\x00", "a \x00", "a  \x00", "a b", "a  b", "a b ", "A", "0" };
+    const cases = [_][]const u8{ "", " ", "  ", "\x00", "\x01", "a", "a ", "a  ", "a\x00", "a \x00", "a  \x00", "a b", "a  b", "a b ", "A", "0", "abcd", "abcd\x00", "abcdefghijkl", "abcdefghijkl\x00", "abcdefghijkl \x00", "abcdefghijkl A" };
+    var backing: [4096]u8 = undefined;
+    const strings = @import("GermanString.zig");
+    var arena = try strings.StringArena.init(&backing);
     for (cases) |left| for (cases) |right| {
+        arena.reset();
         // Independent oracle: convert both to CP037, pad to equal length,
         // and compare unsigned bytes. Do not derive expected from sort keys.
         var l: [64]u8 = @splat(0x40);
@@ -190,8 +194,15 @@ test "PAD SPACE comparison and sort keys preserve prefix control-byte ordering" 
         const n = @max(ll, rl);
         const expected = std.mem.order(u8, l[0..n], r[0..n]);
         try testing.expectEqual(expected, try Collation.compareBytesProfile(left, right, .ebcdic_037_pad));
-        var lk: [128]u8 = undefined;
-        var rk: [128]u8 = undefined;
+        const prefix_l = try Collation.computeSortPrefix4BProfile(left, .ebcdic_037_pad);
+        const prefix_r = try Collation.computeSortPrefix4BProfile(right, .ebcdic_037_pad);
+        const prefix_order = Collation.compareSortPrefix4B(prefix_l, prefix_r);
+        if (prefix_order != .eq) try testing.expectEqual(expected, prefix_order);
+        const compact_l = try strings.GermanString.init(left, .ebcdic_037_pad, &arena);
+        const compact_r = try strings.GermanString.init(right, .ebcdic_037_pad, &arena);
+        try testing.expectEqual(expected, try compact_l.order(compact_r, .ebcdic_037_pad, &arena));
+        var lk: [Collation.max_sort_key_bytes]u8 = undefined;
+        var rk: [Collation.max_sort_key_bytes]u8 = undefined;
         const lc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = left } } };
         const rc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = right } } };
         const encoded_l = try Collation.encodeSortKeyProfile(lc, .utf8, .ebcdic_037_pad, &lk);
