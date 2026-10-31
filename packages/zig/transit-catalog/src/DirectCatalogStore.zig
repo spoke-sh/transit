@@ -13,6 +13,7 @@ const header_bytes = 40;
 /// This value owns all its fields. It is not a persisted checkpoint, a caller
 /// snapshot, or authorization to skip initial recovery after owner replacement.
 pub const RecoveryState = struct { root: r.Root, chain: [32]u8 };
+const CachedToken = struct { partition: u64, lsn: u64, state: c.DirectClientToken.Progress };
 
 allocator: std.mem.Allocator,
 log: s.TransitLog.Log,
@@ -22,6 +23,8 @@ root: r.Root,
 chain: [32]u8 = @splat(0),
 recovery_required: bool = true,
 lose_reply: bool = false,
+recent_tokens: [16]?CachedToken = @splat(null),
+recent_token_next: usize = 0,
 
 pub fn init(allocator: std.mem.Allocator, configuration: r.Configuration, log: s.TransitLog.Log, objects: s.TransitObjectStore.ObjectStore, resident_pages: usize) !Self {
     const root = try r.Root.empty(configuration);
@@ -56,6 +59,8 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
 
 fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !void {
     self.recovery_required = true;
+    self.recent_tokens = @splat(null);
+    self.recent_token_next = 0;
     if (!retain_cache) self.index.clearCache();
     errdefer self.index.clearCache();
     const end = try self.log.tail(self.root.configuration.partition);
@@ -155,13 +160,26 @@ pub fn publish(self: *Self, next: r.Root, action: @FieldType(r.Record, "action")
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (fence.writer_epoch == 0 or fence.policy_epoch == 0) return error.InvalidPartitionLease;
-    _ = self.log.append(next.configuration.partition, self.root.next_lsn, fence.writer_epoch, fence.policy_epoch, .catalog_ddl, encoded) catch |err| {
+    const before_lsn = self.root.next_lsn;
+    _ = self.log.append(next.configuration.partition, before_lsn, fence.writer_epoch, fence.policy_epoch, .catalog_ddl, encoded) catch |err| {
         self.recovery_required = true;
         return err;
     };
     self.root = next;
     self.chain = chain;
+    if (action == .client_token) self.cacheToken(next.configuration.partition, before_lsn, action.client_token);
     if (self.lose_reply) return error.LostAcknowledgement;
+}
+
+fn cacheToken(self: *Self, partition: u64, lsn: u64, state: c.DirectClientToken.Progress) void {
+    for (&self.recent_tokens) |*slot| if (slot.*) |*cached| {
+        if (cached.partition == partition and cached.lsn == lsn) {
+            cached.state = state;
+            return;
+        }
+    };
+    self.recent_tokens[self.recent_token_next] = .{ .partition = partition, .lsn = lsn, .state = state };
+    self.recent_token_next = (self.recent_token_next + 1) % self.recent_tokens.len;
 }
 
 pub fn operation(self: *Self, binding: p.DataLifecycle.Binding) !?r.Operation {
@@ -251,11 +269,15 @@ fn tokenRecord(self: *Self, basis: r.Root, value: pages.Value) !c.DirectClientTo
     if (value.len != 8) return error.InvalidClientToken;
     const at = std.mem.readInt(u64, value.data[0..8], .little);
     if (at == 0 or at >= basis.next_lsn) return error.InvalidClientToken;
+    for (self.recent_tokens) |slot| if (slot) |cached| {
+        if (cached.partition == basis.configuration.partition and cached.lsn == at) return cached.state;
+    };
     var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
     defer batch.deinit();
     if (batch.frames.len != 1) return error.CatalogHistoryMissing;
     const record = try decodeFrame(self.allocator, batch.frames[0], basis.configuration.partition, at);
     if (record.action != .client_token or !std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidClientToken;
+    self.cacheToken(basis.configuration.partition, at, record.action.client_token);
     return record.action.client_token;
 }
 fn tokenFromIndexValue(self: *Self, basis: r.Root, value: pages.Value) !c.DirectClientToken.Progress {
