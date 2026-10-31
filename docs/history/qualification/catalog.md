@@ -9,6 +9,44 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Named direct KV cutover — 2026-10-31
+
+Implementation `cebc19fe7d1df0fb0ba1a376af74d1da79660d4a` moves named KV
+declarations and typed operations onto the database partition owner. The shared
+definition is `7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
+The [KV package reference](../../../packages/zig/transit-catalog/docs/direct-kv.md)
+owns its current behavior and limits; this record does not qualify mixed
+transactions, Station migration or performance.
+
+`zig build test-direct-kv -Doptimize=ReleaseSafe` passed at the clean source above.
+The installed proof made 39 requests and withheld replies for original operations
+641001 and 641002. Two SIGKILL/restarts preserved an eight-key mutation with
+1 KiB values and the original retained pin. Checks covered exact retry, owned
+read values across calls, replacement, current READ revocation, rename, DROP,
+retained reads after DROP and explicit pin release. The node SHA-256 was
+`15e31b5408a88d0d9300f91e93a003950133bbb7d45117180caf7d163d41a91c` and
+the caller SHA-256 was
+`ae86cfecd6c3de8ed3230d2f8e11d9909671d2f995a79db272ff718d192e87c7`.
+Raw output is `/var/tmp/transit-m6-r5b-native-kv-current.log`.
+
+The affected installed named Document proof passed with 107 typed catalog calls,
+eight withheld initialization-stage replies, four withheld dependency replies
+and eleven abrupt node replacements. It preserved saved declarations, original
+allocation, three-phase Document initialization, current data revocation,
+dependency recovery, DROP RESTRICT and original-edge closure. Its following
+139-object growth check is still running; the combined task is not yet a pass.
+Raw output is `/var/tmp/transit-m6-r5b-native-documents.log`.
+
+Local fast checks (58), contract checks (19), all independent fixture checks and
+the documentation site build passed. The full catalog suite initially passed
+194 of 196 tests. The two failures consumed a saved DDL fixture whose independent
+writer omitted the newly mandatory object kind from its hash.
+`2d2cd5c93` corrects that writer and regenerates the saved intent, host reference
+and client token. All 13 affected tests then passed in
+`/var/tmp/transit-m6-r5b-intent-final.log`; the original failure is retained in
+`/var/tmp/transit-m6-r5b-catalog.log`. Clean dependent-lane qualification remains
+pending. No failed or incomplete run is counted as passed.
+
 ## Bounded public Queue claim waits — 2026-10-31
 
 Storage readiness is implemented in `b890907b2`, the signed Queue wait and native
