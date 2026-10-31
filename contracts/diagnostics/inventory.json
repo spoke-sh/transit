@@ -32524,8 +32524,9 @@
         "DocumentOperationConflict": 5,
         "DocumentPartitionConflict": 2,
         "DocumentPositionExhausted": 1,
-        "DocumentReadConflict": 2,
-        "DocumentReadMissing": 1,
+        "DocumentReadConflict": 4,
+        "DocumentReadLimitExceeded": 1,
+        "DocumentReadMissing": 2,
         "DocumentReadReleased": 1,
         "DocumentRecoveryMissing": 1,
         "DocumentRecoveryRequired": 2,
@@ -32580,7 +32581,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 181,
+        "try": 185,
         "catch": 3
       },
       "imports": [

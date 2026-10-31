@@ -2005,6 +2005,11 @@ and `TransitObjectStore`:
 - `DocumentRead` (`DREAD001`) stores immutable retained read bases in
   `document-reads/{sha256}.data` and authenticates cumulative revision coverage
   cursors with `HMAC-SHA256(secret, "transit.document.read.coverage.v1\x00" || definition_bytes || canonical_json({read, coverage}))`.
+  The owner binds cursor creation to the recorded receipt and release to the
+  retained source's logical target. Fetches enforce cumulative request byte and
+  revision budgets before allocating a whole revision's state, and reauthorize
+  before disclosing data or terminal completion. Budget exhaustion refuses with
+  `DocumentReadLimitExceeded`; it does not establish complete coverage.
 - `DocumentRecovery` (`DCHECK01`) stages immutable recovery baselines in
   `document-checkpoints/{sha256}.data`. `trimArchived` requires both accepted
   `LogHistory` archive coverage and an accepted `DocumentRecovery` checkpoint,

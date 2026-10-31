@@ -116,3 +116,15 @@ cumulative `Coverage` (`cut`, `from_revision`, `through_revision`,
 `next_revision`, `steps`, `bytes`, `complete`), and a non-zero 32-byte
 `authentication` tag (`HMAC-SHA256` in storage). `Release` and `ReleaseReceipt`
 record explicit pin release by the owning principal using a distinct operation.
+
+The direct storage owner enforces `max_steps` and `max_bytes` cumulatively across
+the pinned range. It refuses the next revision with `DocumentReadLimitExceeded`
+before allocating its state if either budget would be exceeded; a delivered
+prefix is not complete coverage. State bytes returned by a successful fetch
+belong to the caller and survive subsequent fetches. The current implementation
+loads one whole revision within these budgets; it does not page within a revision.
+
+Cursor creation requires the exact recorded read receipt. Release must name the
+same logical target as the retained source, as well as its owning principal.
+Every fetch checks current authorization before reading and before disclosure,
+including repeated cursors and empty terminal observations.

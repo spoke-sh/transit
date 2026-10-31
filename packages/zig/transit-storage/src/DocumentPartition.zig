@@ -459,6 +459,8 @@ pub fn readCursor(self: *Self, receipt: doc.Read.Receipt, guard: Guard) !doc.Rea
     try authorize(guard);
     try self.requireReady();
     _ = try self.requireLivePin(receipt.handle());
+    const outcome = (try self.findOutcome(receipt.request.operation)) orelse return error.DocumentReadMissing;
+    if (outcome != .read or !std.meta.eql(outcome.read, receipt)) return error.DocumentReadConflict;
     const coverage = try receipt.initialCoverage();
     const cursor = try self.authority.sign(receipt.handle(), coverage);
     try authorize(guard);
@@ -477,9 +479,14 @@ pub fn readNextRevision(
     try self.authority.verify(cursor);
     const pin = try self.requireLivePin(cursor.read);
     const source = try Read.load(self.scratch.allocator(), self.objects, pin.source);
+    try self.requirePartition(source.cut.target.partition);
     if (!std.meta.eql(source.cut, cursor.coverage.cut) or
         source.request.from_revision != cursor.coverage.from_revision or
-        source.through_revision != cursor.coverage.through_revision)
+        source.through_revision != cursor.coverage.through_revision or
+        !std.meta.eql(source.request.operation, cursor.read.owner) or
+        cursor.coverage.steps != cursor.coverage.next_revision - cursor.coverage.from_revision or
+        cursor.coverage.steps > source.request.max_steps or
+        cursor.coverage.bytes > source.request.max_bytes)
     {
         return error.DocumentReadConflict;
     }
@@ -494,13 +501,20 @@ pub fn readNextRevision(
         try revisionKey(source.cut.target.document, rev),
     )) orelse return error.DocumentHistoryUnavailable;
     const rev_entry = try self.decodeValue(RevisionEntry, rev_val);
+    // These are cumulative request budgets. Refuse before loading or allocating
+    // the next state; exhausting a budget is not successful read completion.
+    if (cursor.coverage.steps == source.request.max_steps or
+        rev_entry.state.bytes > source.request.max_bytes - cursor.coverage.bytes)
+    {
+        return error.DocumentReadLimitExceeded;
+    }
     const state_bytes = try self.loadBytes(output, "document-states", rev_entry.state);
     errdefer output.free(state_bytes);
 
     var next_coverage = cursor.coverage;
     next_coverage.next_revision = rev + 1;
     next_coverage.steps += 1;
-    next_coverage.bytes +|= @intCast(state_bytes.len);
+    next_coverage.bytes += @intCast(state_bytes.len);
     next_coverage.complete = next_coverage.next_revision == next_coverage.through_revision + 1;
     const next_cursor = try self.authority.sign(cursor.read, next_coverage);
     try authorize(guard);
@@ -530,6 +544,9 @@ pub fn releaseRead(
     }
 
     const pin = try self.requireLivePin(release.read);
+    const source = try Read.load(self.scratch.allocator(), self.objects, pin.source);
+    try source.request.target.requireSame(release.target);
+    if (!std.meta.eql(source.request.operation, release.read.owner)) return error.DocumentReadConflict;
     const accepted_pos = try self.nextPosition();
     const receipt: doc.Read.ReleaseReceipt = .{
         .release = release,

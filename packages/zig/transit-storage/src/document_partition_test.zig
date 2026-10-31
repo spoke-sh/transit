@@ -285,6 +285,64 @@ test "document partition disk recovery preserves mutations checkpoints retained 
     try t.expectEqualStrings(state3, step2.state);
     try t.expect(step2.cursor.coverage.complete);
     try t.expectEqual(@as(?s.DocumentPartition.RevisionStep, null), try owner.readNextRevision(t.allocator, step2.cursor, policy.guard()));
+    // A later fetch must not invalidate the earlier caller-owned state.
+    try t.expectEqualStrings(state2, step1.state);
+
+    // A live handle does not allow its receipt to be relabelled or another
+    // Document to release it.
+    var relabelled = read_rec;
+    relabelled.accepted.next_lsn += 1;
+    try t.expectError(error.DocumentReadConflict, owner.readCursor(relabelled, policy.guard()));
+    var wrong_target = target;
+    wrong_target.document = @splat(0x22);
+    try t.expectError(error.DocumentTargetConflict, owner.releaseRead(.{
+        .target = wrong_target,
+        .operation = operation(20),
+        .read = read_rec.handle(),
+    }, policy.guard()));
+
+    // Both budgets are cumulative. Refusal preserves the caller's cursor and
+    // cannot turn the delivered prefix into successful terminal coverage.
+    var bounded_req = read_req;
+    bounded_req.operation = operation(21);
+    bounded_req.max_steps = 1;
+    const bounded_read = try owner.beginRead(bounded_req, policy.guard());
+    const bounded_start = try owner.readCursor(bounded_read, policy.guard());
+    var bounded_step = (try owner.readNextRevision(t.allocator, bounded_start, policy.guard())).?;
+    defer bounded_step.deinit(t.allocator);
+    try t.expect(!bounded_step.cursor.coverage.complete);
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(t.allocator, bounded_step.cursor, policy.guard()));
+    var repeated = (try owner.readNextRevision(t.allocator, bounded_start, policy.guard())).?;
+    defer repeated.deinit(t.allocator);
+    try t.expectEqualDeep(bounded_step.cursor, repeated.cursor);
+    try t.expectEqualStrings(bounded_step.state, repeated.state);
+
+    bounded_req.operation = operation(22);
+    bounded_req.max_steps = 16;
+    bounded_req.max_bytes = state2.len + state3.len - 1;
+    const byte_read = try owner.beginRead(bounded_req, policy.guard());
+    var byte_step = (try owner.readNextRevision(t.allocator, try owner.readCursor(byte_read, policy.guard()), policy.guard())).?;
+    defer byte_step.deinit(t.allocator);
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(t.allocator, byte_step.cursor, policy.guard()));
+
+    // The rejected revision must not allocate its payload even when it alone
+    // exceeds the request budget.
+    bounded_req.operation = operation(23);
+    bounded_req.max_bytes = state2.len - 1;
+    const tiny_read = try owner.beginRead(bounded_req, policy.guard());
+    const tiny_cursor = try owner.readCursor(tiny_read, policy.guard());
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(failing.allocator(), tiny_cursor, policy.guard()));
+    try t.expectEqual(@as(usize, 0), failing.alloc_index);
+
+    // Current authorization gates both a buffered state and an empty terminal
+    // observation. The failed buffered read releases its output allocation.
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readNextRevision(t.allocator, cursor0, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readNextRevision(t.allocator, step2.cursor, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
 
     const release_req: doc.Read.Release = .{
         .target = target,
