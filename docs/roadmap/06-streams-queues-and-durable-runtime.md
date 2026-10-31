@@ -1020,13 +1020,49 @@ errors, startup and original-operation recovery separately. Attribute foreground
 requests, background traffic, staging, syncs and final decisions without adding
 instrumented timings into an invented end-to-end sample.
 
-For Streams, Queues and Station, establish workload-specific budgets before
-optimization: single/batch append, hot/cold consumption, contended claims,
-key skew, delayed backlog, transaction turns, wait wakeup and restart. Record
-latency distributions, offered/completed throughput, allocation counts, peak
-resident memory, bytes/IOPS and amplification under fixed correctness oracles.
-Do not claim global fastest, O(1) recovery or one-WAL-write multi-object turns
-from component timings.
+Table latency is the priority for optimization and the numeric performance gate.
+Streams, Queues and Station require an initial measured baseline and recorded
+resource budgets so later changes have a comparison basis; no absolute latency
+or throughput target is selected for those owners yet. Baseline capture remains
+required work, rather than an inferred pass from their correctness tests.
+
+Start with these bounded workloads through the installed public callers, on the
+local disk profile with unlimited retention. Freeze the exact configuration,
+seed, warmup, sample count and correctness oracle with each report:
+
+| Owner | Initial measurement workload | Required independent outcome checks |
+| --- | --- | --- |
+| Stream | Single-row and 128-row append with 128-byte payloads; finite consumption from a hot tail and after sealing/reopen; empty wait and publication wakeup | Exact payloads and offsets, original duplicate receipts, complete finite coverage and recovered consumer progress |
+| Queue | Single-row and 128-row enqueue; claims of one and 16 rows with ACK; uniform 64-key and single-key FIFO workloads; delayed visibility and wait wakeup | Every accepted item accounted for, lease fencing, per-key ordering, no duplicate successful settlement and original outcomes after restart |
+| Station | Current installed handler turn with one input, one 128-byte state value and one outbound intent; repeat the same logical workload on the replacement runtime when R7 lands | Atomic input/state/output publication, exact output count, original committed outcome after restart and no replay dispatch |
+
+Use sequential samples first, with setup, warmup, measured operations and recovery
+reported separately. Record all samples and report empirical p50; report p95 only
+with at least 20 successful samples and p99 only with at least 100. A failed or
+uncertain operation fails that measurement run and retains its original recovery
+evidence; it must not disappear from the denominator. Sequential completed work
+per elapsed second is not saturated throughput. Follow it with explicitly offered
+load and worker-count profiles, retaining admitted, refused, completed and unknown
+counts as well as generator delay. Keep payload rows/s separate from calls/s and
+completed turns/s.
+
+Record latency distributions, allocation attempts/bytes after warmup, peak
+resident memory, storage bytes/IOPS and amplification with the source, toolchain,
+binary/driver hashes, CPU, filesystem, cache conditions and background load.
+Record configured resident/cache/lease/waiter budgets separately from measured
+use. Missing counters remain unmeasured, never zero. Do not run timing comparisons
+alongside heavy builds or durability proofs. The existing
+[offered-load runner](../../tests/performance/load/growing_load.py) reports native
+admission and aggregate drain costs; it does not yet measure Station handler-turn
+latency. Its results cannot fill that baseline row. The initial baseline report
+must identify any missing workload or instrumentation before freezing regression
+budgets; this plan itself records no measurements.
+
+After the baseline, extend coverage to contended claims, larger payloads, delayed
+backlogs, cold storage, and transactional turns with values above 256 bytes and
+more than four keys. Compare the common workload across the runtime cutover and
+report newly supported larger turns separately. Do not claim global fastest,
+O(1) recovery or one-WAL-write multi-object turns from component timings.
 
 **Exit gate:** matched installed evidence meets the selected targets without
 weaker durability, raised deadlines, silent incomplete outcomes or reclassified
@@ -1131,8 +1167,9 @@ identities and use this order for the next implementation changes:
    cost, wakeup races, replacement and joined shutdown.
 7. **Close performance and final qualification (R9/R10).** R9 starts alongside
    step 1 with M8; do not defer token fencing, publication and read-after-write
-   measurement until the runtime is rewritten. Select explicit Stream/Queue/turn
-   budgets and reproduce matched installed SQL targets. On one final committed
+   measurement until the runtime is rewritten. Capture the initial Stream/Queue/turn
+   baselines and resource budgets, and reproduce matched installed Table SQL targets.
+   On one final committed
    revision run the complete acceptance matrix, generated-contract/caller cutover
    checks and affected clean lanes. Publish commands, binary hashes, outcomes and
    omissions in qualification history; promote supported behavior to its public
