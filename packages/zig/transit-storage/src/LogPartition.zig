@@ -304,7 +304,32 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
             return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;
         }
+        pub const ClaimReadiness = struct { available: bool, wake_after_ms: ?u64 };
+
+        /// No operation binding, selection artifact or WAL record is published.
+        /// Hosts serialize this probe with the subsequent claim. Running the
+        /// actual selection also preserves budget, capacity and time refusals.
+        pub fn claimReadiness(self: *Self, declared: Declaration.Stored, request: q.Claim, guard: Guard) !ClaimReadiness {
+            try request.validate();
+            try self.requireTarget(request.target);
+            try authorize(guard);
+            try self.requireReady();
+            const now = try self.queueTime(self.root.clock_ms);
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const leases = try QueueClaims.select(index, self.root, declared, request, now, self.queue_leases);
+            const next = if (leases.len == 0) try index.nextVisibleMs(self.root.queue.?) else null;
+            try authorize(guard);
+            return .{ .available = leases.len != 0, .wake_after_ms = if (next) |at| @max(1, at -| now.earliest_ms) else null };
+        }
+
         pub fn claim(self: *Self, declared: Declaration.Stored, request: q.Claim, guard: Guard) !q.ClaimReceipt {
+            return self.claimSelected(declared, request, guard, true);
+        }
+        pub fn claimNonempty(self: *Self, declared: Declaration.Stored, request: q.Claim, guard: Guard) !q.ClaimReceipt {
+            return self.claimSelected(declared, request, guard, false);
+        }
+        fn claimSelected(self: *Self, declared: Declaration.Stored, request: q.Claim, guard: Guard, accept_empty: bool) !q.ClaimReceipt {
             try request.validate();
             try self.requireTarget(request.target);
             try authorize(guard);
@@ -318,6 +343,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const now = try self.queueTime(self.root.clock_ms);
             var bitmap: Bitmap = undefined;
             const leases = try QueueClaims.select(self.queueIndex(&bitmap), self.root, declared, request, now, self.queue_leases);
+            // A wider trusted-time interval between readiness and acceptance
+            // can withdraw eligibility. Never turn that into an empty claim.
+            if (!accept_empty and leases.len == 0) return error.QueueNotEligible;
             const meta = try QueueClaims.metadata(self.root, declared, request, now, @intCast(leases.len));
             const receipt = try QueueClaims.receipt(meta, leases, self.queue_selection);
             if (receipt.leases) |content| {
