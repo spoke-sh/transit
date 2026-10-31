@@ -1,4 +1,4 @@
-//! Bounded active wait registrations, independent of durable Stream population.
+//! Bounded active wait registrations, independent of durable Stream/Queue population.
 //! A notification only prompts another currently authorized predicate check.
 const std = @import("std");
 const c = @import("transit_catalog");
@@ -68,7 +68,7 @@ pub fn close(self: *Self) void {
     self.notification.close(self.io);
 }
 
-test "Stream wait registrations use stable partition budgets and retain pre-park publications" {
+test "Log wait registrations use stable partition budgets and retain pre-park publications" {
     const t = std.testing;
     const waits = try Self.create(t.allocator, t.io);
     defer waits.destroy();

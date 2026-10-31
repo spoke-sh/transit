@@ -22,16 +22,28 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         if (progress.complete or progress.examined == 0 or progress.examined > 256 or progress.position.next_lsn == 0) return error.InvalidQueueResponse;
         return;
     }
+    if (result == .timed_out) {
+        if (request != .wait) return error.InvalidQueueResponse;
+        try result.timed_out.validate();
+        try request.wait.claim.target.requireSame(result.timed_out.target);
+        return;
+    }
     const expected: std.meta.Tag(queue.Result) = switch (request) {
-        .mutate, .operation => .operation,
+        .mutate, .operation, .wait => .operation,
         .observe => .cut,
         .page => .page,
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidQueueResponse;
     switch (result) {
-        .recovering => unreachable,
+        .recovering, .timed_out => unreachable,
         .operation => |maybe| if (maybe) |value| {
-            try requireReceipt(if (request == .operation) request.operation else request.mutate.work, value);
+            const work = switch (request) {
+                .operation => |work| work,
+                .mutate => |work| work.work,
+                .wait => |work| c.DirectQueueMutation.Request{ .claim = work.claim },
+                else => unreachable,
+            };
+            try requireReceipt(work, value);
         } else if (request != .operation) return error.InvalidQueueResponse,
         .cut => |value| {
             try value.validate();

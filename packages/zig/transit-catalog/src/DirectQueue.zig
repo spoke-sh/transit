@@ -16,9 +16,10 @@ pub const Request = union(enum) {
     mutate: struct { work: Mutation.Request, payload: ?w.Binary },
     operation: Mutation.Request,
     page: struct { cursor: read.Cursor, limits: Queue.ClaimReadLimits },
+    wait: struct { claim: q.Claim, milliseconds: u32 },
 
     pub fn mutation(self: Request) bool {
-        return self == .mutate;
+        return self == .mutate or self == .wait;
     }
     pub fn control(self: Request) bool {
         return switch (self) {
@@ -33,6 +34,7 @@ pub const Request = union(enum) {
             .mutate => |value| value.work.target(),
             .operation => |value| value.target(),
             .page => |value| value.cursor.receipt.claim.target,
+            .wait => |value| value.claim.target,
         };
     }
     pub fn access(self: Request) c.LogAuthority.Access {
@@ -40,7 +42,7 @@ pub const Request = union(enum) {
             .mutate => |value| value.work.access(),
             .operation => |value| value.access(),
             .observe => .inspect,
-            .page => .acquire,
+            .page, .wait => .acquire,
         };
     }
     pub fn identity(self: Request) ?d.Operation {
@@ -48,6 +50,7 @@ pub const Request = union(enum) {
             .mutate => |value| value.work.identity(),
             .operation => |value| value.identity(),
             .page => |value| value.cursor.receipt.claim.operation,
+            .wait => |value| value.claim.operation,
             .observe => null,
         };
     }
@@ -69,6 +72,10 @@ pub const Request = union(enum) {
                 if (value.limits.rows == 0 or value.limits.rows > s.QueueSelection.max_rows or value.limits.encoded_bytes == 0 or value.limits.encoded_bytes > 4 * 1024 * 1024) return error.InvalidQueueReadBudget;
             },
             .observe => {},
+            .wait => |value| {
+                try value.claim.validate();
+                if (value.milliseconds == 0 or value.milliseconds > c.client.WaitHint.max_ms) return error.InvalidQueueWait;
+            },
         }
     }
 };
@@ -93,6 +100,9 @@ pub const Result = union(enum) {
     cut: q.Cut,
     operation: ?Receipt,
     page: Page,
+    /// No claim was accepted by this attempt. Another concurrent attempt with
+    /// the same identity can still require original-operation reconciliation.
+    timed_out: q.Cut,
     pub fn deinit(self: Result, allocator: std.mem.Allocator) void {
         if (self == .page) {
             allocator.free(self.page.source.schema.base64);
@@ -109,7 +119,7 @@ pub const Cached = struct {
         self.* = undefined;
     }
 };
-pub const Environment = struct { clock: ?s.LogTime.Source, recovery_steps: u16 = 256 };
+pub const Environment = struct { clock: ?s.LogTime.Source, recovery_steps: u16 = 256, waiting: ?c.DirectLog.Waiting = null };
 fn authorize(guard: s.PublicationGuard) !void {
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
@@ -135,6 +145,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     const binding: ?Mutation.Binding = switch (request) {
         .mutate => |value| try value.work.binding(scratch),
         .operation => |value| try value.binding(scratch),
+        .wait => |value| try (Mutation.Request{ .claim = value.claim }).binding(scratch),
         else => null,
     };
     if (binding) |original| if (try c.OperationBinding.lookupQueue(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
@@ -156,7 +167,27 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         const recovered = try owner.recoverStep(current.guard, environment.recovery_steps);
         if (!recovered.complete) return .{ .recovering = recovered };
     }
-    const result: Result = switch (request) {
+    var selected = request;
+    if (request == .wait) {
+        const waiting = environment.waiting orelse return error.QueueWaitUnavailable;
+        const work: Mutation.Request = .{ .claim = request.wait.claim };
+        if (try owner.operation(work.identity(), current.guard) != null) {
+            selected = .{ .operation = work };
+        } else {
+            const readiness = try owner.claimReadiness(current.definition.stored, request.wait.claim, current.guard);
+            if (!readiness.available) {
+                const cut = try owner.observe(current.definition.stored, current.guard);
+                try authorize(current.guard);
+                if (waiting.expired) return .{ .timed_out = cut };
+                if (waiting.registrations == 0 or waiting.registrations > current.definition.stored.declaration.limits.waiters) return error.QueueWaitCapacity;
+                if (waiting.wake_after_ms) |hint| hint.* = readiness.wake_after_ms;
+                return error.QueueWaitPending;
+            }
+            selected = .{ .mutate = .{ .work = work, .payload = null } };
+        }
+    }
+    const result: Result = switch (selected) {
+        .wait => unreachable,
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
         .operation => |value| .{ .operation = if (try owner.operation(value.identity(), current.guard)) |record| try originalReceipt(value, record) else null },
         .page => |value| blk: {
@@ -189,7 +220,10 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             try c.OperationBinding.claimQueue(scratch, objects, binding.?);
             const accepted: Receipt = switch (value.work) {
                 .enqueue => |work| .{ .enqueue = try owner.enqueue(current.definition.stored, work, payload, current.guard) },
-                .claim => |work| .{ .claim = try owner.claim(current.definition.stored, work, current.guard) },
+                .claim => |work| .{ .claim = if (request == .wait)
+                    owner.claimNonempty(current.definition.stored, work, current.guard) catch |err| return if (err == error.QueueNotEligible) error.QueueTimeUnavailable else err
+                else
+                    try owner.claim(current.definition.stored, work, current.guard) },
                 .settle => |work| .{ .settle = try owner.settle(current.definition.stored, work, current.guard) },
                 .release => |work| .{ .release = try owner.releaseClaimRead(current.definition.stored, work, current.guard) },
             };

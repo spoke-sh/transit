@@ -317,7 +317,7 @@ pub fn Host(comptime Provider: type) type {
                             self.position.* = @max(self.position.*, self.engine.head.position);
                             self.context.syncFromLane(self.lane);
                             self.changed.publishAll(self.io);
-                            owner.notifyStreams();
+                            owner.notifyLogs();
                         }
                     }
                     break :execution owner.executeMeasured(self.io, self.engine, &arena, backing, parsed.value, control, &self.owner_memory);
@@ -438,7 +438,7 @@ pub fn Host(comptime Provider: type) type {
                         self.position.* = @max(self.position.*, self.engine.head.position);
                         self.context.syncFromLane(self.lane);
                         self.changed.publish(self.io, parsed.value.request.command);
-                        if (comptime @hasDecl(Provider, "TableHost")) if (self.lane.table) |owner| owner.notifyStreams();
+                        if (comptime @hasDecl(Provider, "TableHost")) if (self.lane.table) |owner| owner.notifyLogs();
                     }
                     self.observation.protocol_outcome = .receipt;
                     self.observation.realm = parsed.value.request.realm;
@@ -566,7 +566,7 @@ pub fn Host(comptime Provider: type) type {
                             self.position = @max(self.position, lane.engine.head.position);
                             self.syncFromLane(lane);
                             self.changed.publishAll(io);
-                            owner.notifyStreams();
+                            owner.notifyLogs();
                         };
                         const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control) catch |err| {
                             if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
@@ -602,7 +602,7 @@ pub fn Host(comptime Provider: type) type {
                 self.position = @max(self.position, lane.engine.head.position);
                 self.syncFromLane(lane);
                 self.changed.publish(io, request.request.command);
-                if (comptime @hasDecl(Provider, "TableHost")) if (lane.table) |owner| owner.notifyStreams();
+                if (comptime @hasDecl(Provider, "TableHost")) if (lane.table) |owner| owner.notifyLogs();
                 return invocation.respond(wire.Receipt{ .position = position });
             }
             noinline fn localBlocks(server: *Server, invocation: *wire.LocalEndpoint.Invocation) !void {

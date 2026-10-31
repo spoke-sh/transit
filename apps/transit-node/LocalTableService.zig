@@ -178,6 +178,7 @@ fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy:
     defer if (temporary) |*cached| cached.deinit();
     const slot = if (self.resident) |resident| &resident.queue else &temporary;
     return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+        .waiting = self.waiting,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
     }, request, policy);
 }

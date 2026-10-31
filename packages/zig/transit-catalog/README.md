@@ -21,7 +21,7 @@ owns roles, grants, current credentials and resource lifetime.
 ## Lifecycle owner
 
 `DirectQueue.apply` composes durable enqueue, exact original claims, fenced
-settlements and bounded claim pages with current catalog declarations and native
+settlements, bounded claim waits and pages with current catalog declarations and native
 grants. Its host supplies one serialized, bounded resident slot and trusted time;
 neither the time capability nor request authorization is retained. Queue work
 uses the common operation namespace, so an identity cannot be reused for another

@@ -336,6 +336,16 @@ pub fn firstEligible(self: Self, root: Root, earliest_ms: u64) !?Item {
     return self.eligibleAfter(root, null, earliest_ms);
 }
 
+/// A wakeup hint from the accepted schedule, never permission to acquire an
+/// item. The caller rechecks trusted time and the complete claim predicate.
+pub fn nextVisibleMs(self: Self, root: Root) !?u64 {
+    try root.validate();
+    if (root.scheduled == 0) return null;
+    const event = try self.timers(.visible).nextEvent(root.eligible, null, timerBasis(root), self.timer_read_work, TimerFilter{ .index = self }) orelse return error.InvalidQueueSchedule;
+    _ = try self.scheduledItem(root, .{ .at_ms = event.at_ms, .offset = event.offset });
+    return event.at_ms;
+}
+
 /// One bounded directory step for an original claim selection. The exclusive
 /// cursor belongs to the frozen root; it does not mutate or skip a FIFO head.
 pub fn eligibleAfter(self: Self, root: Root, after: ?pages.Key, earliest_ms: u64) !?Item {

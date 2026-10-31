@@ -22,6 +22,7 @@ pub const ArchiveProgress = Owner.ArchiveProgress;
 pub const ClaimReadLimits = Owner.ClaimReadLimits;
 pub const ClaimReadRow = Owner.ClaimReadRow;
 pub const ClaimReadPage = Owner.ClaimReadPage;
+pub const ClaimReadiness = Owner.ClaimReadiness;
 
 owner: Owner,
 
@@ -52,6 +53,12 @@ pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard)
 }
 pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
     return self.owner.claim(declared, request, guard);
+}
+pub fn claimReadiness(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !ClaimReadiness {
+    return self.owner.claimReadiness(declared, request, guard);
+}
+pub fn claimNonempty(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
+    return self.owner.claimNonempty(declared, request, guard);
 }
 pub fn readClaimPage(self: *Self, declared: Declaration.Stored, cursor: p.QueueRead.Cursor, limits: ClaimReadLimits, output: std.mem.Allocator, guard: Guard) !ClaimReadPage {
     return self.owner.readClaimPage(declared, cursor, limits, output, guard);

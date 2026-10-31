@@ -589,6 +589,44 @@ test "queue partition claim time and capacity refusals cannot publish empty succ
     try t.expectError(error.LogTimeRegression, owner.claim(initial.declared, claim, policy.guard()));
 }
 
+test "queue partition wait readiness cannot publish an empty claim when clock uncertainty widens" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "entity" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
+    const payload = try s.LogBatch.encode(declared.definition.schema, operation(2), .queue, &.{.{ .cells = &cells, .visible_ms = 200 }}, &bytes);
+    _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(2), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 };
+    const before = owner.owner.root;
+    clock.value = .exact(200);
+    try t.expect((try owner.claimReadiness(initial.declared, claim, policy.guard())).available);
+    clock.value = .{ .earliest_ms = 199, .latest_ms = 201 };
+    try t.expectError(error.QueueNotEligible, owner.claimNonempty(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    try t.expect(try owner.operation(claim.operation, policy.guard()) == null);
+    const pending = try owner.claimReadiness(initial.declared, claim, policy.guard());
+    try t.expect(!pending.available);
+    try t.expectEqual(@as(?u64, 1), pending.wake_after_ms);
+    clock.value = .exact(201);
+    const accepted = try owner.claimNonempty(initial.declared, claim, policy.guard());
+    try t.expectEqual(@as(u32, 1), accepted.rows);
+    clock.value = null;
+    try t.expectEqualDeep(accepted, try owner.claimNonempty(initial.declared, claim, policy.guard()));
+}
+
 test "queue partition replay refuses a canonical claim selecting an ineligible FIFO successor" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

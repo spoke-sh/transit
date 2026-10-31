@@ -480,7 +480,7 @@ HTTP waits require the exact `x-transit-wait: 0:MILLISECONDS` header matching
 the signed body, and cannot carry a control hint. Missing, conflicting or
 unsupported hints reject before execution. HTTP and typed local waits share
 the four dedicated wait lanes, leaving ordinary/control capacity available.
-The host bounds active registrations to 64 across all objects and enforces the
+The host bounds active Stream and Queue registrations to 64 in total and enforces the
 current declaration's waiter limit per stable object/partition; a revision
 change does not reset this count. Capacity refusal is `ControlCapacity`.
 
@@ -531,7 +531,7 @@ inspection; its error class cannot establish rejection.
 ### Queue payloads, claims and settlements
 
 The signed `queue` action carries `DirectQueue.Request`: `observe`, `mutate`,
-`operation` or `page`. A mutation carries `DirectQueueMutation.Request`:
+`operation`, `page` or `wait`. A mutation carries `DirectQueueMutation.Request`:
 `enqueue` with a binary `LogBatch`, `claim`, `settle` with ACK, NACK or an
 extension, or explicit original payload-read `release`. Stream partitions reject
 this action. Each operation reserves its
@@ -557,6 +557,32 @@ refuses rather than recording a false empty result. An accepted empty claim stay
 empty on retry. Nonempty selections, per-message epochs, deadlines and attempts
 are accepted atomically; original inspection and open payload reads survive expiry,
 compatible declaration changes, DROP and unavailable time.
+
+`wait` carries the complete `Claim` and a 1–1000 millisecond scheduling bound.
+Its durable intent is the underlying claim; changing the duration does not
+change its operation identity. An accepted claim returns its original receipt
+immediately under current read and acquire rights, including an empty original,
+after DROP or without a clock. Fresh work uses the same bounded FIFO selection,
+trusted-time checks, claim limits and lease capacity as an ordinary claim.
+Pending visibility, leased heads and retry-exhausted heads do not constitute
+available work merely because the append frontier advanced. Capacity, scheduling
+budget or clock failures remain failures rather than empty success.
+
+The host registers before checking and parks without retaining catalog/object
+locks or a data-owner lane. Publication and policy notifications prompt a fresh
+authorized check. The next accepted visibility timestamp supplies a bounded
+timer wakeup; only a new trusted-time sample establishes eligibility. One
+monotonic caller deadline covers all rechecks. A ready selection can be accepted
+on the final check. Otherwise `timed_out` returns the observed partition cut,
+without accepting an empty claim or pinning the cut. This does not prove
+nonacceptance by another concurrent attempt with the same identity. A widening
+clock interval cannot convert readiness into a newly accepted empty claim.
+
+Queue waits share Stream waits' signed HTTP hint, four dedicated admission
+lanes, aggregate registration limit and per-declaration waiter budget. They
+cannot use reserved control admission. Cancellation releases the registration
+but cannot undo acceptance; a missing or unvalidated reply still requires
+inspection of the original claim. Save that underlying claim before dispatch.
 
 `page` carries a `QueueRead.Cursor` containing the exact original claim receipt
 and a selection ordinal, plus row and encoded-byte budgets. Pages allow at most
@@ -590,14 +616,16 @@ use it for both original inspection and mutation.
 Lease/identity conflicts and expiry return `Conflict`; unavailable or uncertain
 time returns `ClockUnavailable`, and regression returns `ClockRollback`. Active
 lease or private candidate capacity returns `StorageQuota`. Invalid payloads,
-claim limits, lease durations or page budgets return `InvalidRequest`. These
+claim limits, lease durations, page budgets or wait durations return `InvalidRequest`.
+Wait capacity returns `ControlCapacity`. These
 classes describe a failed attempt, not rejection of earlier accepted work.
 
 This standalone operation profile does not enable SQL Queue verbs, common
-transactions or DLQ transfer. Native maintenance processes lease expiry and
-physical timer cleanup in bounded accepted steps. Terminal payload cleanup
-remains unfinished; an expired observation alone neither releases the acquired
-bit nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
+transactions or DLQ transfer. Native maintenance processes lease expiry,
+physical timer cleanup and opt-in terminal payload expiry in bounded accepted
+steps. Original claim reads retain their payload dependencies until explicitly
+closed. An expired lease observation alone neither releases the acquired bit
+nor transfers its FIFO head. See [Queue v1](QUEUE_V1.md) for
 lease, retry, original-selection and remaining composition contracts.
 
 ### Namespace lifecycle

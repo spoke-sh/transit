@@ -419,7 +419,7 @@ pub const Request = struct {
             else => false,
         };
         const control = (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
-        return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else null };
+        return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;

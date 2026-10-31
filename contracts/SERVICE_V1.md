@@ -204,11 +204,12 @@ pending signed work and use bounded read retries or polling after unavailable
 waits. The local gateway forwards the validated hint through a separate bounded
 upstream pool.
 
-The direct Stream `wait` action at `/table/v1` uses the same dedicated wait
+The direct Stream and Queue `wait` actions at `/table/v1` use the same dedicated wait
 admission with a required `x-transit-wait: 0:MILLISECONDS` header matching its
-signed request. Its offset predicate, original consume identity, timeout and
-cancellation semantics belong to the
-[direct Stream contract](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress).
+signed request. Their readiness predicates, original operation identities,
+timeouts and cancellation semantics belong to the
+[direct Stream](DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress) and
+[direct Queue](DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements) contracts.
 Other direct actions reject wait hints. The hint cannot grant rights or change
 the signed wait duration.
 
