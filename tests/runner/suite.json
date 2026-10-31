@@ -913,6 +913,216 @@
         "resources": [
           "formal-cpu"
         ]
+      },
+      "python-installed-sdk": {
+        "prefixes": [
+          "sdks/python/",
+          "tests/sdk/consumers/python/",
+          "examples/station-sdk/python/"
+        ],
+        "paths": [
+          "bindings/build_python.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::python-test",
+          "bindings::check",
+          "bindings::sdk-interop",
+          "bindings::logical-test",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation",
+          "test::sql"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "node-installed-sdk": {
+        "prefixes": [
+          "sdks/ts/",
+          "tests/sdk/consumers/node/",
+          "examples/station-sdk/node/",
+          "examples/station-sdk/typescript/"
+        ],
+        "paths": [
+          "bindings/build_node.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::node-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop",
+          "bindings::logical-test",
+          "bindings::node-check"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "rust-installed-sdk": {
+        "prefixes": [
+          "sdks/rust/",
+          "tests/sdk/consumers/rust/",
+          "examples/station-sdk/rust/"
+        ],
+        "paths": [
+          "bindings/build_rust.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::rust-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "ruby-installed-sdk": {
+        "prefixes": [
+          "sdks/ruby/",
+          "tests/sdk/consumers/ruby/",
+          "examples/station-sdk/ruby/"
+        ],
+        "paths": [
+          "bindings/build_ruby.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::ruby-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "c-installed-sdk": {
+        "prefixes": [
+          "sdks/c/",
+          "tests/sdk/consumers/c/",
+          "examples/station-sdk/c/",
+          "sdks/cpp/",
+          "tests/sdk/consumers/cpp/",
+          "examples/station-sdk/cpp/"
+        ],
+        "paths": [
+          "bindings/build_c.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::c-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "java-installed-sdk": {
+        "prefixes": [
+          "sdks/java/",
+          "tests/sdk/consumers/java/",
+          "examples/station-sdk/java/"
+        ],
+        "paths": [
+          "bindings/build_java.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::java-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "dotnet-installed-sdk": {
+        "prefixes": [
+          "sdks/dotnet/",
+          "tests/sdk/consumers/dotnet/",
+          "examples/station-sdk/dotnet/"
+        ],
+        "paths": [
+          "bindings/build_dotnet.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::dotnet-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "beam-installed-sdk": {
+        "prefixes": [
+          "sdks/beam/",
+          "tests/sdk/consumers/beam/",
+          "examples/station-sdk/beam/",
+          "tests/sdk/consumers/elixir/"
+        ],
+        "paths": [
+          "bindings/build_beam.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::beam-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "board-frontend": {
+        "prefixes": [
+          "apps/transit-board-web/",
+          "packages/ts/transit-board-client/",
+          "packages/ts/transit-query-client/",
+          "packages/ts/transit-diagnostics/"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "test::server-logging",
+          "test::server-single-executable",
+          "test::server-direct-tables",
+          "test::server-direct-faults",
+          "test::server-sql-lifetimes",
+          "test::server-sql",
+          "test::server-sql-local",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station",
+          "transit-board::workbench-test"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "browser"
+        ]
       }
     }
   }

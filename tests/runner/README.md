@@ -149,7 +149,7 @@ recipe nesting and required tier ownership before expensive qualification.
 
 `just ci select BASE HEAD` reports the changed inputs, transitive consumer groups,
 proposed tasks and enforced lanes from `suite.json`. Changes confined to the
-reviewed formal-model or Go SDK inputs execute their dependent tasks. Other code
+reviewed formal-model, language SDK or Board frontend inputs execute their dependent tasks. Other code
 changes retain the full ordinary inventory; documentation-only changes run the
 documentation checks. Main, release, merge-group and manually dispatched qualification stay full.
 Both ends of a rename are inputs; a missing comparison revision fails planning.
@@ -163,8 +163,12 @@ Changes to Go's generated ABI declarations also select `bindings::check` for
 generation drift; shared generators and authoritative contracts select full CI.
 The [task recipes](../../tasks/bindings.just), [native registration](../../build/checks.zig)
 and [consumer registry](../sdk/consumer_registry.py) are the audited callers; Go
-does not participate in the Station interoperability ring. Other SDKs and native
-packages still select full qualification. Shared harnesses, contracts, fixtures,
+does not participate in the Station interoperability ring. Each other language keeps
+its installed suite, generated-contract checks and the shared interoperability ring.
+Python and Node also retain logical-value consumers; Python retains SQL and connector
+consumers, and Node retains its separate adapter check. Board frontend changes keep
+the installation/UI lane and every browser scenario. Native packages still select
+full qualification. Shared harnesses, contracts, fixtures,
 active budgets, build/runner policy and unknown files also stay full.
 
 Adding a reviewed group requires its input owners, dependency edges, executable

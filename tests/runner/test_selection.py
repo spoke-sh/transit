@@ -37,7 +37,7 @@ class Selection(unittest.TestCase):
             self.assertEqual(affected([path])["tasks"], ["bindings::go-sdk-test"])
 
     def test_shared_unknown_budget_fixture_and_policy_changes_remain_full(self):
-        for path in ("packages/zig/transit-client/src/root.zig", "sdks/rust/transit-client/src/lib.rs",
+        for path in ("packages/zig/transit-client/src/root.zig", "tests/sdk/consumer_registry.py",
                      "contracts/client.json", "tests/harness/services.py", "tests/sdk/sdk-codecs-v1.json",
                      "tests/performance/query/budgets/new.json", "tests/runner/suite.json", "build/checks.zig",
                      "pnpm-lock.yaml", "unknown", "../sdks/go/client/types.go", "/sdks/go/client/types.go"):
@@ -45,6 +45,23 @@ class Selection(unittest.TestCase):
                 self.assertTrue(select([path], mode="enabled")["full"])
         for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
             self.assertTrue(select(["sdks/go/client/types.go"], event, mode="enabled")["full"])
+
+    def test_installed_languages_preserve_shared_consumers_without_unrelated_runtime(self):
+        for language, task in (("rust", "rust-sdk-test"), ("java", "java-sdk-test"),
+                               ("python", "python-test"), ("ts", "node-sdk-test")):
+            with self.subTest(language=language):
+                plan = select([f"sdks/{language}/new-source"])
+                self.assertFalse(plan["full"])
+                tasks = {task for selected in plan["lanes"].values() for task in selected}
+                self.assertTrue({f"bindings::{task}", "bindings::check", "bindings::sdk-interop"} <= tasks)
+                self.assertNotIn("core", plan["lanes"])
+        for path in ("apps/transit-board-web/src/data-workbench.tsx",
+                     "packages/ts/transit-query-client/src/read.ts"):
+            plan = select([path])
+            self.assertEqual(list(plan["lanes"]), ["installation-ui"])
+            self.assertEqual(plan["additional_lanes"], {"browser": SUITE["lanes"]["browser"]})
+        # A mixed change cannot hide a shared native dependency behind a known SDK path.
+        self.assertTrue(select(["sdks/rust/transit-client/src/lib.rs", "packages/zig/transit-client/src/root.zig"])["full"])
 
     def test_shadow_keeps_full_qualification_and_records_proposal(self):
         plan = select(["sdks/go/client/types.go"], mode="shadow")
