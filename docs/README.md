@@ -6,46 +6,6 @@ Read the [published handbook](https://spoke-sh.github.io/transit/), starting wit
 [data model](handbook/reference/data-model.md) and
 [your first dataset](handbook/guides/quickstart.md).
 
-## Handbook structure
-
-The handbook organizes Transit's database, `Fuze` query engine and `Station`
-durable runtime into seven pillars:
-
-1. **Overview and quickstart:** [What is Transit?](handbook/guides/introduction.md),
-   [Architecture and system planes](handbook/reference/architecture.md),
-   [Run Transit locally](handbook/guides/quickstart.md),
-   [Choose an interface](handbook/guides/choose-interface.md) and
-   [workload examples](handbook/guides/workload-examples.md).
-2. **Data model and type system:** [Data, computation and policies](handbook/reference/data-model.md),
-   [Tables](handbook/reference/tables.md), [Documents](handbook/reference/documents.md),
-   [KV resources](handbook/reference/state.md), [Streams](handbook/reference/streams.md),
-   [Data types, encodings and 5-state cells](handbook/reference/sql/types.md) and
-   [Storage boundary](handbook/reference/storage.md).
-3. **Query engine (`Fuze`) and SQL:** [Query execution and recovery](handbook/reference/queries.md),
-   [SQL reference](handbook/reference/sql.md), [grammar surface](handbook/reference/sql/grammar-surface.md),
-   joins, transactions, `FOR SYSTEM_TIME AS OF`, DDL and introspection.
-4. **Durable execution (`Station`) and apps:** [Processes and turns](handbook/reference/processes.md),
-   [Build your first application](handbook/guides/applications.md),
-   [Connectors](handbook/reference/connectors.md) and
-   [application installation](handbook/reference/applications.md).
-5. **Client protocols, CLI and gateways:** [Transit CLI](handbook/reference/cli.md),
-   [SQL sessions](handbook/reference/sql-sessions.md),
-   [PostgreSQL and MySQL](handbook/reference/database-protocols.md),
-   [Flight SQL and ADBC](handbook/reference/flight.md),
-   [OpenAPI](handbook/reference/openapi.md), [AsyncAPI](handbook/reference/asyncapi.md)
-   and [Native signed protocol](handbook/reference/native.md).
-6. **Security, governance and operations:** [Identity and permissions](handbook/reference/security.md),
-   [Retention](handbook/reference/retention.md), [Board](handbook/guides/inspect-board.md),
-   [Deployment](handbook/reference/deployment.md), [Observability](handbook/reference/observability.md),
-   [Performance](handbook/reference/performance.md) and [Benchmarks](handbook/reference/benchmarks.md).
-7. **Verification, contracts and contributing:** [Guarantees and verification limits](handbook/reference/verification.md),
-   [Contracts](handbook/reference/contracts.md), [Versioning](handbook/reference/versioning.md),
-   [Components](handbook/reference/components.md) and [Contributing](handbook/guides/contributing.md).
-
-Use [Internals](handbook/internals/README.md) for the computer-science models,
-storage and query mechanisms, formal invariants and empirical evidence behind
-those interfaces.
-
 ## Where documentation lives
 
 | Section | Contents |
