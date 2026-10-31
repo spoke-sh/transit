@@ -1,6 +1,6 @@
 //! PostgreSQL v3 framing, independent of SQL and transport ownership.
 const std = @import("std");
-const limits = @import("root.zig").gateway.Limits;
+const limits = @import("root.zig").wire.Limits;
 pub const ssl_request = 80877103;
 pub const gss_request = 80877104;
 pub const cancel_request = 80877102;
@@ -22,10 +22,12 @@ pub fn startup(bytes: []const u8, maximum: u32) !?Startup {
     if (code == cancel_request and n != 16) return error.InvalidCancelRequest;
     return .{ .code = code, .payload = bytes[8..n], .consumed = n };
 }
+pub fn frameSize(prefix: *const [5]u8, maximum: u32) !usize {
+    return @as(usize, try length(prefix[1..5], maximum, 4)) + 1;
+}
 pub fn decode(bytes: []const u8, maximum: u32) !?Message {
     if (bytes.len < 5) return null;
-    const n = try length(bytes[1..5], maximum, 4);
-    const total: usize = @as(usize, n) + 1;
+    const total = try frameSize(bytes[0..5], maximum);
     if (bytes.len < total) return null;
     return .{ .tag = bytes[0], .payload = bytes[5..total], .consumed = total };
 }
@@ -35,24 +37,6 @@ pub fn header(tag: u8, payload_bytes: usize, maximum: u32) ![5]u8 {
     out[0] = tag;
     std.mem.writeInt(u32, out[1..5], @intCast(payload_bytes + 4), .big);
     return out;
-}
-pub const Owned = struct {
-    allocator: std.mem.Allocator,
-    tag: u8,
-    payload: []u8,
-    pub fn deinit(self: *Owned) void {
-        self.allocator.free(self.payload);
-        self.* = undefined;
-    }
-};
-pub fn read(allocator: std.mem.Allocator, transport: anytype, maximum: u32) !Owned {
-    var prefix: [5]u8 = undefined;
-    try transport.readExact(&prefix);
-    const n = try length(prefix[1..5], maximum, 4);
-    const payload = try allocator.alloc(u8, n - 4);
-    errdefer allocator.free(payload);
-    try transport.readExact(payload);
-    return .{ .allocator = allocator, .tag = prefix[0], .payload = payload };
 }
 test "PostgreSQL frame prefixes, coalescing and signed lengths" {
     const t = std.testing;

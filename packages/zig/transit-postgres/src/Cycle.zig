@@ -1,7 +1,7 @@
 //! Admission gate for the selected autocommit extended-query profile. Never
 //! dispatch a write from Execute; only a validated Sync may release it.
 const std = @import("std");
-const Limits = @import("root.zig").gateway.Limits;
+const Limits = @import("root.zig").wire.Limits;
 const Self = @This();
 pub const Action = enum { handle, ignore, flush, sync_empty, sync_write, terminate };
 limits: Limits,

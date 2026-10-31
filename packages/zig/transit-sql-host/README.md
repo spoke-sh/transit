@@ -7,6 +7,13 @@ listeners. It owns bounded connection memory, TLS lifetimes, recovery wakeups,
 listener shutdown and joined worker tasks. It does not own catalog authority or
 storage.
 
+`PostgresSession` and `MysqlSession` own synchronous command execution, prepared
+handles, portals, disclosure checks and transport writes. The PostgreSQL and
+MySQL packages supply pure framing and protocol transitions. Authentication
+input, TLS upgrades, deadlines and connection cleanup belong to this host.
+The session engines are synchronous; this separation does not make them
+resumable across SQL execution or output backpressure.
+
 Native SQL request slots retain their scratch workspaces across requests. Slot
 reassignment clears the used high-water range, including freed allocations and
 failed requests, without repeatedly clearing untouched reserve capacity. Data

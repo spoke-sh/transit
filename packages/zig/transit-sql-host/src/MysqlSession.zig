@@ -1,7 +1,7 @@
 //! Authenticated classic-command engine over a host's shared SQL owner.
 const std = @import("std");
-const m = @import("root.zig");
-const g = m.gateway;
+const m = @import("transit_mysql");
+const g = m.wire;
 pub fn Engine(comptime Host: type, comptime Transport: type) type {
     return struct {
         const Self = @This();

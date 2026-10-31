@@ -1,13 +1,15 @@
 # transit-postgres
 
 PostgreSQL v3 frame decoding and deterministic extended-query admission, exported
-as `transit_postgres` over the shared `transit-sql-gateway` library.
+as `transit_postgres` over the neutral `transit-sql-protocol.Wire` types. The package has no
+SQL service, storage, socket, TLS, timer or task dependency; its build checks
+the transitive runtime import boundary.
 
 `Frame.startup` and `Frame.decode` borrow complete input frames and distinguish
 incomplete prefixes from invalid lengths. They reject oversized lengths before
 allocation and retain trailing bytes for a caller's next frame. Upgrade and
-cancellation frames require their exact sizes. `Frame.read` owns one bounded
-message from a transport supplying `readExact`; release it with `deinit`.
+cancellation frames require their exact sizes. `Frame.frameSize` validates a
+header before the host reserves or reads its body.
 
 `Cycle` admits one execution per extended cycle. A write remains deferred until
 Sync. A second execution, Flush or other message after the deferred write marks
@@ -22,11 +24,11 @@ framing errors close the connection. Cycle decisions alone grant no authority.
 reject NUL. The caller retains statement/portal bytes, owns bytea hex decoding
 allocations, validates statement counts and supplies bounded row framing.
 
-`Startup` reads at most 8192 bytes and validates up to 16 name/value pairs,
+`Startup` decodes at most 8192 bytes and validates up to 16 name/value pairs,
 mandatory account selection, duplicate keys and exact termination. It retains
 the requested minor version so the session can explicitly negotiate protocol
 3.0; it does not silently apply startup settings. Decoded fields borrow the
-owned startup payload.
+caller-owned startup payload.
 
 `Backend` builds bounded authentication, parameter, metadata, row, completion and
 error frames. It preserves full uint64 counts, binary numeric metadata, NULL
@@ -35,7 +37,8 @@ buffer. Failed encodings expose no partial result; the caller supplies current
 authorization and observed completion before writing any frame. Error messages
 must already be classified and safe for disclosure.
 
-`Session.Engine` owns named and unnamed prepared statements, copied bindings and
+[`transit-sql-host`](../transit-sql-host/README.md) owns the PostgreSQL
+session engine and its named and unnamed prepared statements, copied bindings and
 portals. The host supplies shared SQL execution, current authorization and safe
 diagnostics. Writes dispatch only after a valid Sync; read suspension retains one
 cut until completion, Close, error or Sync. Closing a statement closes dependent
@@ -49,7 +52,7 @@ savepoint rollback. Connection loss does not synthesize an abort. The
 [transaction reference](../../../docs/handbook/reference/sql/transactions.md)
 defines the supported scope and original-operation recovery boundary.
 
-Read execution requests at most eight rows at a time. Each batch checks current
+Read execution requests at most 32 rows at a time. Each batch checks current
 rights after materialization and before transmission. An Execute row limit also
 bounds the batch request; suspension retains no already authorized output batch.
 The next Execute checks rights again against the retained source cut.

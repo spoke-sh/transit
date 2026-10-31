@@ -2,7 +2,7 @@
 //! them before the next call. Encoding supplies no authority or SQL completion.
 const std = @import("std");
 const pg = @import("root.zig");
-const g = pg.gateway;
+const g = pg.wire;
 const Self = @This();
 allocator: std.mem.Allocator,
 maximum: u32 = g.Limits.max_frame_bytes,

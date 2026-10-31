@@ -20,7 +20,7 @@ test "independent PostgreSQL backend frames cover metadata, binary NULL, uint64 
     var formats: pg.Frontend.Formats = .{ .count = 1 };
     formats.values[0] = .binary;
     const columns = [_]pg.Backend.Column{ .{ .name = "value", .type = .{ .kind = .uint64, .nullable = false } }, .{ .name = "label", .type = .{ .kind = .utf8, .nullable = true } } };
-    const cells = [_]pg.gateway.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u64) } } }, .null };
+    const cells = [_]pg.wire.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u64) } } }, .null };
     try check(expected.metadata, try backend.describe(&columns, &formats));
     try check(expected.binary_row, try backend.row(&columns, &formats, &cells));
     formats.count = 0;

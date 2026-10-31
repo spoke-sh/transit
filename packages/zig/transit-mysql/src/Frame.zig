@@ -1,7 +1,7 @@
 //! Classic packet framing. Sequence belongs to one command/authentication
 //! exchange. SQL requests fit below the protocol's continuation-packet size.
 const std = @import("std");
-const limits = @import("root.zig").gateway.Limits;
+const limits = @import("root.zig").wire.Limits;
 pub const Message = struct { sequence: u8, payload: []const u8, consumed: usize };
 fn length(prefix: *const [4]u8, expected: u8, maximum: u32) !u32 {
     if (maximum == 0 or maximum > limits.max_frame_bytes) return error.InvalidFrameBudget;
@@ -12,10 +12,12 @@ fn length(prefix: *const [4]u8, expected: u8, maximum: u32) !u32 {
     if (n > maximum) return error.FrameTooLarge;
     return n;
 }
+pub fn frameSize(prefix: *const [4]u8, expected: u8, maximum: u32) !usize {
+    return @as(usize, try length(prefix, expected, maximum)) + 4;
+}
 pub fn decode(bytes: []const u8, expected: u8, maximum: u32) !?Message {
     if (bytes.len < 4) return null;
-    const n = try length(bytes[0..4], expected, maximum);
-    const total: usize = @as(usize, n) + 4;
+    const total = try frameSize(bytes[0..4], expected, maximum);
     if (bytes.len < total) return null;
     return .{ .sequence = expected, .payload = bytes[4..total], .consumed = total };
 }
@@ -25,24 +27,6 @@ pub fn header(sequence: u8, payload_bytes: usize, maximum: u32) ![4]u8 {
     std.mem.writeInt(u24, out[0..3], @intCast(payload_bytes), .little);
     out[3] = sequence;
     return out;
-}
-pub const Owned = struct {
-    allocator: std.mem.Allocator,
-    sequence: u8,
-    payload: []u8,
-    pub fn deinit(self: *Owned) void {
-        self.allocator.free(self.payload);
-        self.* = undefined;
-    }
-};
-pub fn read(allocator: std.mem.Allocator, transport: anytype, expected: u8, maximum: u32) !Owned {
-    var prefix: [4]u8 = undefined;
-    try transport.readExact(&prefix);
-    const n = try length(&prefix, expected, maximum);
-    const payload = try allocator.alloc(u8, n);
-    errdefer allocator.free(payload);
-    try transport.readExact(payload);
-    return .{ .allocator = allocator, .sequence = expected, .payload = payload };
 }
 test "MySQL fragmentation, sequence and continuation bounds precede allocation" {
     const t = std.testing;

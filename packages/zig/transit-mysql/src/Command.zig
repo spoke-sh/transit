@@ -1,6 +1,6 @@
 //! Bounded classic command bodies, without query attributes or cursor flags.
 const std = @import("std");
-const g = @import("root.zig").gateway;
+const g = @import("root.zig").wire;
 const Codec = @import("Codec.zig");
 const Scalar = @import("Scalar.zig");
 const maximum = g.Limits.max_parameters;

@@ -2,6 +2,7 @@
 pub const Json = @import("transit_protocol").Json;
 const std = @import("std");
 pub const fuze = @import("transit_fuze");
+pub const Wire = @import("Wire.zig");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
