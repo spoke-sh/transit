@@ -5,6 +5,7 @@ import http.client
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import socketserver
 import subprocess
@@ -290,6 +291,50 @@ def gateway(fixture):
     print(f"Transit gateway: native denial/status, private headers, body limit and stalled-data control passed; health {elapsed * 1000:.2f} ms, sampled RSS {rss} bytes", flush=True)
 
 
+def worker_rotation(fixture):
+    """Recover an accepted rotation, then prove restart preserves revocation."""
+    from interfaces.installation.server_application_faults import ExistingKey, arm, native, post, wait_file
+    enrolled = [worker['enrollment'] for worker in fixture.record()['workers']]
+    keys = [worker['public_key'] for worker in fixture.record()['workers']]
+    fixture.stop()
+    arm(fixture, 'rotate_worker', 'builtin-rotation', principal=0)
+    fixture.start()
+    wait_file(fixture.root / 'dropped-builtin-rotation.json')
+    dropped = json.loads((fixture.root / 'dropped-builtin-rotation.json').read_text())
+    original = json.loads(bytes.fromhex(dropped['body']))
+    pending = fixture.record()['pending']
+    assert pending['signed'] == original and pending['effect'] == 'activation'
+    assert original['request']['command']['rotate_worker']['expected_public_key'] == keys[0]
+    fixture.stop(kill=True)
+    assert fixture.record()['pending'] == pending
+    (fixture.root / 'release-builtin-rotation').touch()
+    fixture.start()
+    fixture.ready()
+    wait_file(fixture.root / 'retried-builtin-rotation')
+    assert [worker['enrollment'] for worker in fixture.record()['workers']] == enrolled
+    assert all(worker['public_key'] != key for worker, key in zip(fixture.record()['workers'], keys))
+    receipt = post(fixture.config['ports']['node'], '/v1/command', original, retry_unavailable=True)
+    assert receipt == json.loads(bytes.fromhex(dropped['receipt']))
+    fixture.console('SELECT COUNT(*) FROM items;\n')
+
+    # Freeze the supervisor's root writer while an explicit administrative
+    # revocation commits. Restart must never manufacture a replacement grant.
+    os.kill(fixture.process.pid, signal.SIGSTOP)
+    root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    basis = post(fixture.config['ports']['node'], '/v1/query',
+                 native(root, fixture.config['realm'], 0, {'capabilities': {}}), retry_unavailable=True)
+    post(fixture.config['ports']['node'], '/v1/command',
+         native(root, fixture.config['realm'], 0, {'revoke': 20}, basis['principal_sequence'] + 1), retry_unavailable=True)
+    fixture.stop(kill=True)
+    fixture.start()
+    assert fixture.process.wait(timeout=30) != 0
+    assert not fixture.process.stdout.read(), 'Revoked worker reached core readiness'
+    record = fixture.record()
+    assert [worker['enrollment'] for worker in record['workers']] == enrolled
+    assert set(record['pending']['signed']['request']['command']) == {'rotate_worker'}
+    print('Built-in workers: original rotation receipt recovered after manager death; revoked principal was not re-granted.', flush=True)
+
+
 def unavailable_bootstrap(cli, node, host):
     """Lost provisioning receipts preserve the live node and exact request."""
     from interfaces.installation.server_application_faults import arm, install_peer, wait_file
@@ -312,6 +357,7 @@ def unavailable_bootstrap(cli, node, host):
         assert json.loads(bytes.fromhex(original['receipt']))['position'] == fixture.record()['provision'][0]
         assert 'server.retry' not in Path(fixture.logs[-1].name).read_text()
         fixture.console('SELECT COUNT(*) FROM items;\n')
+        worker_rotation(fixture)
         success = True
         print('Transit provisioning: a lost accepted provisioning receipt retries byte-for-byte on the same live node and reaches SQL readiness.', flush=True)
     finally:

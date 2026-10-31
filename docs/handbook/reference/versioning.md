@@ -107,11 +107,15 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The durable Table branch cutover replaces the shared definition with
-`b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c`.
+The installed worker rotation and durable Table branch cutovers use the shared
+definition `04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6`.
 Catalog roots require branch identity, name and retention-owner directories;
-typed branch operations share the original client-token decision owner. Earlier
-checkpoints, signed requests and histories reject rather than being silently
+typed branch operations share the original client-token decision owner.
+Installation records require per-worker enrollment receipts and the last accepted
+public key. Restart conditionally rotates that key and ownership without
+re-granting permissions. Earlier installations cannot synthesize these fields;
+they reject before starting authority. Earlier checkpoints, signed requests and
+histories reject rather than being silently
 extended or interpreted with new defaults. Preserve old storage and resolve
 accepted work with its matching build. This change provides no in-place import
 of an earlier definition. Replacements of the same current definition retain

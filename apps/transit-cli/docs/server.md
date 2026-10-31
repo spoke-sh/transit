@@ -381,8 +381,10 @@ position supplies a PID or resource identity. An installation-record write
 failure stops management; it cannot authorize another operation from volatile
 progress. Ordinary startup resolves frozen operations before preparing fresh
 ones. Worker registration records contain public keys only; each physical
-replacement creates its own fresh in-memory key, receives scoped grants and an
-exact ownership generation. Foreign resource access is granted separately from
+replacement creates its own fresh in-memory key and conditionally rotates the
+recorded prior key and ownership generation. Each worker's credential and resource
+grants are enrolled once, with retained receipts; restart never restores revoked
+rights. Foreign resource access is granted separately from
 the source's optional requester association. Activation markers are never removed.
 
 The server first establishes the native catalog identities, then configures the
@@ -449,8 +451,8 @@ ownership and live disaster recovery are outside this profile.
 | Authority | Genesis public root key, exclusive local storage directory | 512 decoded pages per bounded request lane; ten lanes, 16 sockets, four data/two control/four wait requests; 256 KiB native body/reply, two-second HTTP deadline |
 | Maintenance | Separate admin/effect/delivery grant inside the node owner | Private 512-page cache; one bounded scan/transition at a time, one-second idle interval, two-second operation deadline; immutable objects retained |
 | Direct Table owner | Node-local storage and a dedicated native domain registrar; every operation checks its original caller | Separate catalog/Table partitions, bounded pages and 64 Table lock stripes; 8 MiB request/16 MiB response bounds |
-| Query source | Fresh PID-scoped inspect/execute/publish grant and own resource | Bounded captured-query work; its native turns do not carry direct Table row mutations |
-| Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
+| Query source | Retained PID-scoped inspect/execute/publish grant, conditional key/ownership rotation and own resource | Bounded captured-query work; its native turns do not carry direct Table row mutations |
+| Requester | Retained PID-scoped inspect/execute/publish grant, conditional key/ownership rotation and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | 16 sockets, four data/two control/four wait requests, six ordinary and four wait upstream clients; 8 KiB headers, 256 KiB native body/reply or 8 MiB/16 MiB direct Table body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |

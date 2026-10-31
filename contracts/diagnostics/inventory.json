@@ -1514,9 +1514,11 @@
         "InstallationSyncFailed": 2,
         "InvalidInstallationAuthority": 2,
         "InvalidInstallationDirectory": 1,
-        "ServerStopped": 3,
+        "InvalidRegistration": 1,
+        "ServerStopped": 4,
         "StorageIdentityMismatch": 1,
-        "UnresolvedProvisioning": 4
+        "UnresolvedProvisioning": 4,
+        "UnsupportedWorkerRotation": 1
       },
       "outcomes": {
         "DirectoryState": [
@@ -1528,6 +1530,7 @@
           "provision",
           "initialize",
           "activation",
+          "worker_enrollment",
           "installer",
           "board",
           "authority",
@@ -1548,6 +1551,7 @@
         "provision()": "<inferred>",
         "provisionAuthorization()": "<inferred>",
         "provisionBoard()": "<inferred>",
+        "provisionWorkers()": "<inferred>",
         "query()": "<inferred>",
         "releaseRoot()": "<inferred>",
         "reserveRoot()": "<inferred>",
@@ -1557,7 +1561,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 73,
         "catch": 4
       },
       "imports": [
@@ -19117,7 +19121,7 @@
           "deadline"
         ],
         "Definition": [
-          "b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c"
+          "@\"04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6\""
         ],
         "Effect.phase": [
           "pending",

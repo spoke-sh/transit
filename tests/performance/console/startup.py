@@ -82,6 +82,7 @@ def start(fixture, index, started, retained, sample):
     fixture.ready()
     ready_ns = time.perf_counter_ns() - started
     sample['ready_ns'] = ready_ns
+    sample['health_attempts'] = fixture.health_attempts
     # Keep readiness and first verified result separately observable. The
     # latter includes launch, readiness and the complete checked read.
     verified = time.perf_counter_ns()
