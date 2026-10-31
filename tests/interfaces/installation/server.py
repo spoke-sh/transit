@@ -40,7 +40,14 @@ class Fixture(LocalInstallation):
                 port = self.config["ports"]["gateway"]
                 assert report["gateway_url"] == self.url, report
                 assert report["allowed_hosts"] == [f"127.0.0.1:{port}", f"localhost:{port}"] + self.config.get("gateway_allowed_hosts", []), report
-                assert report["ui"] == "disabled" and report["board_url"] is None, report
+                assert report["ui"] == ('disabled' if self.no_ui else 'ready'), report
+                board_url = None if self.no_ui else f"http://127.0.0.1:{self.config['board']['port']}"
+                assert report["board_url"] == board_url, report
+                if board_url:
+                    with self.http.open(board_url + '/api/v1/atlas', timeout=5) as response:
+                        atlas = json.load(response)
+                        assert atlas['realm'] == self.config['realm'], atlas
+                        assert atlas['identity']['principal'] == 25, atlas
                 activation = self.record()["registration"]
                 markers = {path.name for path in (self.installation / "activations").glob("*.activation")}
                 if self.activation is not None:

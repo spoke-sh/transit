@@ -43,15 +43,25 @@ existing readiness deadlines. Every start must serve a complete independently
 checked console result; a row inserted after the first start must survive every
 restart with the same installation identity and provisioning receipts. It never
 opens the user's installation. A failed run retains its private fixture.
+Add `--startup-ui` to include Board and verify its public atlas before measuring
+the SQL result. Keep these samples separate from the headless profile.
 
 Each raw `startup` sample reports external `ready_ns`, separate console
-`verification_ns`, phase durations and all terminal attempt outcomes. The external
+`verification_ns`, launch-inclusive `first_verified_result_ns`, phase durations
+and all terminal attempt outcomes. Failed launches emit a failed sample before
+the runner exits; they remain in the attempted-launch denominator. The external
 timer includes process launch and the readiness observer's polling (up to 100 ms
 for core output and 50 ms for SQL status). Internal monotonic spans attribute
 the supervisor's phases; they are elapsed work including waits, not CPU or fsync
 measurements. The attempt total contains its phases. Automatic retries remain
 visible. Missing completion, telemetry loss, orphaned phases and overlapping
 durations fail the diagnostic sample. Child logs and credentials stay private.
+`--startup-debug` adds bounded child spans for executable validation, installation
+journal checkpoints, native queries/submissions, and worker spawn/registration.
+Count those records to distinguish request count from elapsed operation cost.
+Their times are already included in their parent phase; never add them to its
+duration. Debug runs include instrumentation overhead and are diagnostic controls,
+separate from the info-level latency comparison.
 
 Artifact preparation, the retained-row setup write, verification and shutdown
 are outside startup timing. No OS page-cache eviction is performed: `fresh` means

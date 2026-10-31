@@ -6,6 +6,7 @@ const p = q.protocol;
 const native = p.Growth;
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
+const Startup = @import("Startup.zig");
 const Self = @This();
 receipts: [24]?u64 = @splat(null),
 pending: ?Pending = null,
@@ -14,7 +15,7 @@ change: ?u64 = null,
 const Pending = struct { signed: native.SignedRequest, index: u8 };
 
 pub fn save(installation: *Installation, path: []const u8, record: anytype) !void {
-    Files.json(installation.init.io, installation.init.gpa, path, record) catch |err| {
+    Startup.measure(installation.startup, .journal_checkpoint, Files.json, .{ installation.init.io, installation.init.gpa, path, record }) catch |err| {
         installation.failed = true;
         return err;
     };
@@ -22,7 +23,7 @@ pub fn save(installation: *Installation, path: []const u8, record: anytype) !voi
 pub fn flush(self: *Self, installation: *Installation, path: []const u8, record: anytype) !void {
     const pending = self.pending orelse return;
     try installation.reserveRoot(pending.signed);
-    const receipt = installation.wire.submit(pending.signed) catch |err| receipt: {
+    const receipt = Startup.measure(installation.startup, .native_submit, q.wire.Client.submit, .{ installation.wire, pending.signed }) catch |err| receipt: {
         const cause = installation.wire.last_rejection orelse return err;
         // A negative attempt may follow an earlier accepted request. Resolve
         // the exact receipt before releasing the shared root sequence.

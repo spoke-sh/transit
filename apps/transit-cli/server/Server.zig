@@ -46,7 +46,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
 fn launch(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, diagnostics: *telemetry.Runtime, startup: *Startup) !void {
     const config = loaded.config;
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
-    const identity = try config.identities(init, executable, diagnostic);
+    const identity = try Startup.measure(startup, .artifact_validation, Config.identities, .{ config, init, executable, diagnostic });
     // The sibling lock also serializes first initialization before the directory exists.
     diagnostic.field = "installation";
     const lock_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.lock", .{config.installation});
@@ -76,6 +76,7 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
     defer wire.deinit();
     wire.timeout_ms = 2000;
     var installation: Installation = .{ .init = init, .config = config, .record = record, .record_path = record_path, .wire = &wire, .root = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "root.seed" })), .caller_key = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "caller.seed" })) };
+    installation.startup = startup;
     defer {
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.root));
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.caller_key));
@@ -396,9 +397,9 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const tables = installation.directCatalog();
     const config: Common = .{ .tables = if (role == .source) .{ .url = installation.wire.url, .scope = tables.scope, .branch = tables.branch, .audience = tables.audience } else null, .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .unified_source = .{ .peer = connection.requester, .initializer = Installation.caller } } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
-    try self.start(allocator, role, try installation.config.command(allocator, self.executable, .query_host, &.{ "--bootstrap-json", json }), &.{}, true);
+    try Startup.measure(self.startup, .worker_spawn, Self.start, .{ self, allocator, role, try installation.config.command(allocator, self.executable, .query_host, &.{ "--bootstrap-json", json }), @as([]const Process.Variable, &.{}), true });
     var bytes: [1024]u8 = undefined;
-    const registration = try self.processes[@backingInt(role)].registration(self.init.io, &bytes);
+    const registration = try Startup.measure(self.startup, .worker_registration, Process.registration, .{ &self.processes[@backingInt(role)], self.init.io, @as([]u8, &bytes) });
     const parsed = try std.json.parseFromSlice(struct { growing_bootstrap: q.wire.bootstrap.GrowingRegistration }, allocator, registration, .{});
     const observed = parsed.value.growing_bootstrap;
     if (observed.version != 1 or observed.realm != connection.realm or observed.pid != pid or observed.principal != principal or observed.generation != generation) return error.InvalidRegistration;

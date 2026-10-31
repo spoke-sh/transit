@@ -1565,6 +1565,7 @@
         "Config.zig",
         "Files.zig",
         "Provider.zig",
+        "Startup.zig",
         "std",
         "transit_query"
       ]
@@ -1876,6 +1877,7 @@
         "../Signals.zig",
         "Files.zig",
         "Installation.zig",
+        "Startup.zig",
         "std",
         "transit_query"
       ]
@@ -1946,6 +1948,14 @@
           "board",
           "sql_readiness",
           "retry_delay"
+        ],
+        "Work": [
+          "artifact_validation",
+          "journal_checkpoint",
+          "native_query",
+          "native_submit",
+          "worker_spawn",
+          "worker_registration"
         ]
       },
       "error_sets": {},
@@ -1953,7 +1963,7 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "std",

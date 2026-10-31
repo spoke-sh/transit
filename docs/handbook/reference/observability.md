@@ -65,6 +65,9 @@ when enabled; failed/retried attempts remain separate. Use these timings to
 distinguish installation validation, recovery, provisioning, worker activation
 and SQL setup before profiling inside an owner. See
 [startup timing semantics](../../../apps/transit-cli/docs/server.md#logging-and-readiness).
+Debug `server.startup.work` spans separate native attempts, journal checkpoints,
+executable validation and worker spawn/registration within those phases. Their
+elapsed time is already included in the parent phase.
 
 At debug level, co-hosted SQL attaches client spans to typed local owner calls.
 `transit.local.request` reports bounded route/operation tags, owner admission wait

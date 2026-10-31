@@ -73,6 +73,14 @@ Installation validation includes executable identity hashing. Node readiness
 includes child startup and recovery; these supervisor timings do not separate
 the child's CPU, storage I/O and scheduling costs.
 
+At debug level, `server.startup.work` attributes executable validation,
+installation/SQL journal checkpoints, native queries and submissions, and worker
+spawn/registration to their parent phase. Each record counts one attempted
+operation, with its duration and outcome. Checkpoint timing includes serialization,
+file sync, rename and directory sync; native request timing includes transport
+and the server's durable processing. These child durations are included in the
+phase duration. The fixed labels contain no requests, keys or SQL text.
+
 `server.startup.complete` reports the attempt's total duration and outcome.
 The first attempt includes configuration capture; a retry starts a new attempt
 including its backoff. Phase completion spans share the attempt's trace and

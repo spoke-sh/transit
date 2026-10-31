@@ -40,6 +40,8 @@ pub const Record = struct {
 };
 const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer, board, authority, table_registrar }, index: u8 };
 const Self = @This();
+const Startup = @import("Startup.zig");
+startup: ?*Startup = null,
 init: std.process.Init,
 config: Config,
 record: Record,
@@ -89,13 +91,13 @@ pub fn path(self: *const Self, name: []const u8) ![]const u8 {
     return std.fs.path.join(self.init.arena.allocator(), &.{ self.config.installation, name });
 }
 pub fn save(self: *Self) !void {
-    Files.json(self.init.io, self.init.gpa, self.record_path, self.record) catch |err| {
+    Startup.measure(self.startup, .journal_checkpoint, Files.json, .{ self.init.io, self.init.gpa, self.record_path, self.record }) catch |err| {
         self.failed = true;
         return err;
     };
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    const response = try self.wire.query(.{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root);
+    const response = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;
@@ -106,7 +108,7 @@ pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
 }
 pub fn flush(self: *Self) !void {
     const pending = self.record.pending orelse return;
-    const receipt = try self.wire.submit(pending.signed);
+    const receipt = try Startup.measure(self.startup, .native_submit, q.wire.Client.submit, .{ self.wire, pending.signed });
     switch (pending.effect) {
         .provision => self.record.provision[pending.index] = receipt.position,
         .initialize => self.record.initialized[pending.index] = true,
@@ -134,7 +136,7 @@ pub fn flush(self: *Self) !void {
 pub fn submit(self: *Self, principal: u64, command: g.Command, effect: @FieldType(Pending, "effect"), index: u8) !void {
     if (self.record.pending != null) return error.UnresolvedProvisioning;
     const key = if (principal == 0) self.root else self.caller_key;
-    const basis = try self.wire.query(.{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key);
+    const basis = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key });
     if (basis.position < self.record.position) return error.AuthorityRollback;
     self.record.position = basis.position;
     self.record.pending = .{ .signed = try g.sign(.{ .realm = self.config.realm, .principal = principal, .sequence = try std.math.add(u64, basis.principal_sequence, 1), .command = command }, key), .effect = effect, .index = index };

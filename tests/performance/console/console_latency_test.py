@@ -11,10 +11,22 @@ from unittest.mock import patch
 import pyarrow as pa
 from performance.console.console_latency import representation_sample, local_trace
 from performance.console import resources
-from performance.console.startup import timings as startup_timings
+from performance.console.startup import timings as startup_timings, run as startup_run
 
 
 class StartupTimings(unittest.TestCase):
+    def test_failed_launch_is_reported_without_private_exception_text(self):
+        fixture = type('Fixture', (), {'no_ui': True})()
+        output = io.StringIO()
+        with patch('performance.console.startup.start', side_effect=TimeoutError('private')), redirect_stdout(output):
+            with self.assertRaises(TimeoutError):
+                startup_run(fixture, 2)
+        sample, = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual(sample['outcome'], 'failed')
+        self.assertEqual(sample['error_type'], 'TimeoutError')
+        self.assertNotIn('private', output.getvalue())
+        self.assertNotIn('first_verified_result_ns', sample)
+
     def trace(self, entries):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'startup.jsonl'
@@ -22,9 +34,9 @@ class StartupTimings(unittest.TestCase):
             return startup_timings(path)
 
     def entries(self):
-        return [dict(duration_ns=30, parent_span_id='a',
+        return [dict(duration_ns=30, span_id='p1', parent_span_id='a',
                      event=dict(name='server.startup.phase', operation='node', outcome='ok')),
-                dict(duration_ns=40, parent_span_id='a',
+                dict(duration_ns=40, span_id='p2', parent_span_id='a',
                      event=dict(name='server.startup.phase', operation='sql_readiness', outcome='ok')),
                 dict(duration_ns=80, span_id='a',
                      event=dict(name='server.startup.complete', outcome='ok'))]
@@ -37,6 +49,21 @@ class StartupTimings(unittest.TestCase):
         self.assertEqual(result['attempts'][0]['duration_ns'], 80)
         self.assertEqual(result['attempts'][0]['unattributed_ns'], 10)
         self.assertNotIn('private', json.dumps(result))
+
+    def test_work_is_nested_not_added_to_elapsed_time(self):
+        entries = self.entries()
+        child = dict(duration_ns=20, span_id='w', parent_span_id='p1',
+                     event=dict(name='server.startup.work', operation='native_submit', outcome='ok'))
+        entries.insert(0, child)
+        result = self.trace(entries)
+        self.assertEqual(result['attempts'][0]['unattributed_ns'], 10)
+        self.assertEqual(result['work'][0]['duration_ns'], 20)
+        child['duration_ns'] = 31
+        with self.assertRaisesRegex(ValueError, 'overlapping startup work'):
+            self.trace(entries)
+        child['parent_span_id'] = 'missing'
+        with self.assertRaisesRegex(ValueError, 'no terminal phase'):
+            self.trace(entries)
 
     def test_missing_completion_losses_and_wrong_parent_cannot_pass(self):
         for changed in ('empty', 'terminal', 'loss', 'parent', 'overlap', 'duration', 'failed', 'restarted_after_ready'):
