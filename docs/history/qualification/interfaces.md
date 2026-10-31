@@ -9,6 +9,88 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board contextual Inspector — 2026-10-30
+
+The question is whether one contextual Inspector can replace nested detail panels
+without changing query execution, result identity or authorized disclosure. The
+[workbench guide](../../../apps/transit-board/docs/workbench.md#activities-and-contextual-inspection)
+owns current behavior. Implementation starts from `04f6c692b`; final interaction
+source is `c3af94b18`, including the local-navigation return from expanded detail.
+No native contract or runtime owner changes in this slice.
+
+The final `nix develop --command just transit-board::workbench-browser` passes
+from clean committed source `c3af94b18`. All five installed binaries are
+ReleaseSafe builds of that revision, using the ordinary disk-backed `/var/tmp`
+fixture. All three Chromium scenarios pass in 24.2 seconds, including the final
+expanded-detail/navigation assertion. The installed API schedule passes exact
+145-row traversal, verified empty/metadata results, definition guards, read-only
+admission, bounded reader capacity and terminal-result revocation. The screenshot
+was visually inspected; logs, screenshot and binary hashes remain locally under
+`.cache/board-workbench/contextual-inspector/final-manifest.json` and sibling files.
+
+At `462ecc541`, a functional control runs the real installed CLI, node, query host,
+SQL gateway and embedded Board, with fixture storage under `/tmp` (tmpfs on this
+host). Board is Debug; other roles are ReleaseSafe binaries built before the final
+frontend refinements, with unchanged runtime owners. This mixed build control is
+not disk durability or uniform-source release qualification. All three Chromium
+scenarios pass in 23.9 seconds, and the installed API schedule passes exact
+145-row traversal, verified empty/metadata results, definition guards, read-only
+admission, bounded reader capacity and actual terminal-result revocation.
+
+The [browser scenarios](../../../apps/transit-board-web/browser/workbench.spec.ts)
+cover one Inspector switching between dataset, schema column, result column and
+result evidence; 100/45-row window updates; expansion without replacing the result;
+unchanged drafts; multiple cells and selected-cell removal; Escape/focus return;
+390/720/1280-pixel layouts; original-result recovery after a lost reply; denied
+result clearing; and unavailable workbook metadata removing portal content.
+Catalog/dataset/workbook accessibility scans report no violations, with no
+external requests or browser storage and at most five JavaScript assets below
+900,000 bytes each. The runtime screenshot was visually inspected. The final
+navigation-return assertion is an addition after this first control.
+
+The ordinary disk-backed workbench attempt stopped before browser assertions:
+`transit console failed: ReadFailed` while creating fixture Tables, following
+startup authority timeouts. Its installation remains at
+`/var/tmp/transit-server-proof-tz5msi8h`. The control script, binary/artifact hashes,
+logs and screenshot are retained locally under
+`.cache/board-workbench/contextual-inspector/manifest.json` and sibling files.
+
+Clean `installation-ui` at `462ecc541` passes thirteen checks: Board contract,
+format/type/unit checks (including all 108 frontend tests), handbook checks and
+production build, Node checks, observability, server logging, single-executable
+installation, direct Table lifecycle/fault schedules, SQL lifetimes/access/local
+authentication, Board inspection and Board query recovery. It then fails
+`launchers::local::test-station` during courier readiness recovery with
+`transit-admin` `ReadFailed` while waiting for an Arrow reply. The last workbench
+API task does not run. This is an incomplete lane. Raw preparation and task
+records remain at `/var/tmp/transit-ci-8exfjodd`, including
+`src/.cache/ci/runs/installation-ui-pvcmo2ew` and the private Station fixture.
+
+Clean `browser` at `c3af94b18` passes the Board inspection/relational, query,
+HTTP and gRPC tasks: five native inspection browser scenarios, one relational,
+one query, one HTTP and one gRPC scenario, alongside their owning API/fault
+schedules. It stops in `test::reactive-browser` before that browser scenario:
+the serving fixture's operation remains `service_admitted`/`admitted` without
+a recorded result until its existing wait bound expires. Reactive-view and
+workbench tasks later in the lane do not run. This is an incomplete lane;
+raw records remain at `/var/tmp/transit-ci-efnkr_2z`, including
+`src/.cache/ci/runs/browser-34uz0j7j`.
+
+The [published-application scenario](../../../apps/transit-board-web/browser/application.spec.ts)
+passes in 53.5 seconds against the same `c3af94b18` native binaries with the
+navigation assertions in `47b86e75a`. The first attempt expected a workspace link
+while the Operations sidebar remained selected after a route was removed. The
+updated test enters through **Application**, checks its declared destination and
+then verifies the published label. It retains SQL/Form/Canvas editing, frozen
+publication/recovery, current read denial, desktop/mobile density, 320-pixel layout
+and zoom assertions. Only the test changes; production code remains `c3af94b18`.
+The direct fixture rerun is recorded separately from the interrupted clean lane.
+
+These passes qualify the implemented topology against existing metadata and
+result contracts. They do not complete either interrupted clean lane, establish
+their failure causes, or qualify proposed branch comparisons, storage accounting,
+operator metrics or Milestone 29 as a whole.
+
 ## Board catalog and bounded read workbench — 2026-10-28
 
 The question is whether installed Board can discover Table definitions and

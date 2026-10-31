@@ -93,7 +93,9 @@ in the [workbench guide](../../apps/transit-board/docs/workbench.md).
 Dedicated Changes navigation, exact branch-comparison projections, object storage
 sharing/reclaimability and measured operator metrics remain open delivery work.
 No synthetic study values or unsupported actions enter the installed interface.
-The milestone remains **In Progress**.
+The milestone remains **In Progress**. Executed controls, clean-checkout outcomes
+and remaining qualification limits are recorded in the
+[Inspector proof account](../history/qualification/interfaces.md#board-contextual-inspector--2026-10-30).
 
 ## Initial-pass implementation plan
 
