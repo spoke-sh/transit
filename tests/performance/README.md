@@ -53,6 +53,9 @@ Each raw `startup` sample reports external `ready_ns`, separate console
 `verification_ns`, launch-inclusive `first_verified_result_ns`, phase durations
 and all terminal attempt outcomes. Failed launches emit a failed sample before
 the runner exits; they remain in the attempted-launch denominator. The external
+observer records gateway and Board attempt counts, including transient 503s and
+Board read-rate 429s, and requires a verified successful response within the
+original deadline. The external
 timer includes process launch and the readiness observer's polling (up to 100 ms
 for core output and 50 ms for SQL status). Internal monotonic spans attribute
 the supervisor's phases; they are elapsed work including waits, not CPU or fsync

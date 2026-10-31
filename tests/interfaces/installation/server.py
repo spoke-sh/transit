@@ -71,15 +71,31 @@ class Fixture(LocalInstallation):
                             raise
                         error.close()
                         time.sleep(min(.05, max(0, deadline - time.monotonic())))
+                self.board_attempts = 0
                 if board_url:
-                    remaining = deadline - time.monotonic()
-                    assert remaining > 0, 'Board did not become ready'
-                    with self.http.open(board_url + '/api/v1/atlas', timeout=min(5, remaining)) as response:
-                        atlas = json.load(response)
-                        assert atlas['realm'] == self.config['realm'], atlas
-                        assert atlas['identity']['principal'] == 25, atlas
+                    self.ready_board(board_url, deadline)
                 return report
         raise TimeoutError(f"Server readiness at {self.root}")
+
+    def ready_board(self, board_url, deadline):
+        # The supervisor has just read this same route. Respect Board's finite
+        # read interval; neither a 429 nor a transient 503 establishes readiness.
+        while True:
+            assert self.process.poll() is None, 'Manager exited before Board readiness'
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'Board did not become ready'
+            self.board_attempts += 1
+            try:
+                with self.http.open(board_url + '/api/v1/atlas', timeout=min(5, remaining)) as response:
+                    atlas = json.load(response)
+                    assert atlas['realm'] == self.config['realm'], atlas
+                    assert atlas['identity']['principal'] == 25, atlas
+                    return
+            except urllib.error.HTTPError as error:
+                if error.code not in (429, 503):
+                    raise
+                error.close()
+                time.sleep(min(.1, max(0, deadline - time.monotonic())))
 
     def ready_sql(self, deadline):
         # The core ready record precedes SQL admission. Fault schedules must
