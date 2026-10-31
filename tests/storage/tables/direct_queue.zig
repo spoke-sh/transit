@@ -74,11 +74,19 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     operation.operation = 633002;
     var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
     try save(init, path, state);
+    const timed_out = try call(&caller, &output, .{ .wait = .{ .claim = state.claim, .milliseconds = 1 } });
+    try t.expectEqual(@as(u64, 0), timed_out.timed_out.next);
+    try t.expect((try call(&caller, &output, .{ .operation = .{ .claim = state.claim } })).operation == null);
     try unknown(&caller, &output, .{ .work = enqueue, .payload = payload });
     const enqueued = (try call(&caller, &output, .{ .operation = enqueue })).operation.?.enqueue;
     try t.expectEqual(@as(u64, 3), enqueued.next);
     try t.expectEqualDeep(enqueued, (try call(&caller, &output, .{ .mutate = .{ .work = enqueue, .payload = payload } })).operation.?.enqueue);
-    try unknown(&caller, &output, .{ .work = .{ .claim = state.claim } });
+    const uncertain = try caller.callQueue(&output, .{ .wait = .{ .claim = state.claim, .milliseconds = 1000 } });
+    try t.expect(uncertain.value == .failure);
+    try t.expectEqual(error.InvalidTableResponse, uncertain.value.failure.cause);
+    try t.expect(uncertain.mutationAttempted());
+    try t.expectEqualDeep(state.claim.operation, uncertain.attempt.mutation.?.identity.?);
+    try t.expectEqual(.unknown, uncertain.value.failure.diagnostic.?.outcome);
     state.claimed = (try call(&caller, &output, .{ .operation = .{ .claim = state.claim } })).operation.?.claim;
     try save(init, path, state);
     try t.expectEqual(@as(u32, 2), state.claimed.?.rows);
@@ -101,6 +109,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     state.acked = (try call(&caller, &output, .{ .operation = ack })).operation.?.settle;
     try save(init, path, state);
     try t.expectEqualDeep(empty, (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = empty_request } } })).operation.?.claim);
+    try t.expectEqualDeep(empty, (try call(&caller, &output, .{ .wait = .{ .claim = empty_request, .milliseconds = 1 } })).operation.?.claim);
     empty_request.operation.operation = 633005;
     const successor = (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = empty_request } } })).operation.?.claim;
     try t.expectEqual(@as(u32, 1), successor.rows);
@@ -132,6 +141,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectEqual(@as(u64, 3), original.next);
     try t.expectEqualDeep(original, (try call(&caller, &output, .{ .mutate = .{ .work = enqueued.value.work.work, .payload = payload } })).operation.?.enqueue);
     try t.expectEqualDeep(state.claimed.?, (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = state.claim } } })).operation.?.claim);
+    try t.expectEqualDeep(state.claimed.?, (try call(&caller, &output, .{ .wait = .{ .claim = state.claim, .milliseconds = 1 } })).operation.?.claim);
     const ack = try c.DirectQueueClient.load(init.gpa, state.ack.?);
     defer ack.deinit();
     try t.expectEqualDeep(state.acked.?, (try call(&caller, &output, .{ .mutate = .{ .work = ack.value.work.work } })).operation.?.settle);

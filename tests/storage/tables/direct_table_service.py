@@ -75,7 +75,7 @@ def run(node, caller, mode="tables", *artifacts):
         dependency_faults = set()
         stream_faults = set()
         queue_faults = set()
-        stream_wait_checks = set()
+        log_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
@@ -113,11 +113,13 @@ def run(node, caller, mode="tables", *artifacts):
                 for name in ("x-transit-control", "x-transit-wait"):
                     if name in self.headers:
                         headers[name] = self.headers[name]
-                stream_action = envelope.get("action", {}).get("stream") if isinstance(envelope.get("action"), dict) else None
-                if mode == "tables" and stream_action and "wait" in stream_action:
-                    waiting = stream_action["wait"]
+                log_kind = "queue" if mode == "queues" else "stream"
+                log_action = envelope.get("action", {}).get(log_kind) if isinstance(envelope.get("action"), dict) else None
+                if mode in ("tables", "queues") and log_action and "wait" in log_action:
+                    waiting = log_action["wait"]
                     assert headers.get("x-transit-wait") == f'0:{waiting["milliseconds"]}'
-                    if int(waiting["consume"]["operation"]["operation"]) == 621007:
+                    original = waiting["claim" if mode == "queues" else "consume"]
+                    if int(original["operation"]["operation"]) == (633002 if mode == "queues" else 621007):
                         # A signed wait cannot occupy an ordinary lane, and its
                         # scheduling hint cannot disagree with its signed bound.
                         for invalid in ({"Content-Type": "application/json"},
@@ -130,7 +132,7 @@ def run(node, caller, mode="tables", *artifacts):
                                 assert json.loads(rejected.read()) == {"err": "InvalidRequest"}
                             finally:
                                 probe.close()
-                        stream_wait_checks.add("admission")
+                        log_wait_checks.add("admission")
                 connection = HTTPConnection("127.0.0.1", port, timeout=70)
                 try:
                     connection.request("POST", self.path, body, headers)
@@ -186,10 +188,14 @@ def run(node, caller, mode="tables", *artifacts):
                             dependency_faults.add(dependency["binding"]["operation"])
                         log_admit = envelope["action"].get("log_admit")
                         queue = envelope["action"].get("queue", {}).get("mutate")
+                        queue_wait = envelope["action"].get("queue", {}).get("wait")
+                        if queue_wait:
+                            queue = {"work": {"claim": queue_wait["claim"]}}
                         if mode == "queues" and queue and response.status == 200:
                             kind, work = next(iter(queue["work"].items()))
                             selected = work["operation"]["operation"]
-                            if selected in (633001, 633002, 633004, 633008) and selected not in queue_faults:
+                            if (selected in (633001, 633002, 633004, 633008) and selected not in queue_faults
+                                    and "operation" in json.loads(data)["result"]["queue"]):
                                 parsed = json.loads(data)
                                 assert kind in parsed["result"]["queue"]["operation"], parsed
                                 parsed["context"][0] ^= 1
@@ -416,11 +422,12 @@ def run(node, caller, mode="tables", *artifacts):
                 assert terminal_observation(), "Restart lost terminal expiry or original claim payload"
                 assert Path(str(profile) + ".terminal").read_bytes() == terminal_saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                assert log_wait_checks == {"admission"}
                 print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
                                       requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
                                       passed=True)), flush=True)
-                print("Direct Queue HTTP: FIFO heads, original empty claims, four lost replies, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
+                print("Direct Queue HTTP: FIFO heads, wait admission/timeout, original empty claims, four lost replies including wait acceptance, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
                 return
             if mode in ("maintenance", "stream-maintenance"):
                 def restart(flush, physical=False, pressure=False, foreground=False):
@@ -761,7 +768,7 @@ def run(node, caller, mode="tables", *artifacts):
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             assert fault["log_admit"] and fault["log_publish"]
             assert stream_faults == {621001, 621002, 621005, 621006}
-            assert stream_wait_checks == {"admission"}
+            assert log_wait_checks == {"admission"}
             stop(authority)
             authority = None
             authority = start()
