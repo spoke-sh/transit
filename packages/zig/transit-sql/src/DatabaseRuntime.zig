@@ -366,12 +366,12 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true, false);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true, false, false, false);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool, fresh_nonce: bool) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_fenced: bool) !c.DirectClientToken.Progress {
     try deadline.check(self.io);
-    try self.available(observer, deadline, Self.fence, .{ self, observer });
+    if (!fresh_fenced) try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
     const expected_fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint;
     if (!fresh_nonce) {
@@ -381,11 +381,12 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
             return previous;
         }
     }
-    try statement.checkValues(allocator, values);
+    if (!fresh_prepared) try statement.checkValues(allocator, values);
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-    var intent = self.available(observer, deadline, g.Statement.bindWrite, .{ statement, allocator, table, values, id }) catch |err| {
+    var fresh = fresh_prepared;
+    var intent = self.available(observer, deadline, g.Statement.bindWritePrepared, .{ statement, allocator, table, values, id, &fresh }) catch |err| {
         if (expected_fingerprint != null) {
             if (try self.available(observer, deadline, Self.lookupState, .{ observer, nonce, expected_fingerprint })) |previous| {
                 operation.* = previous.id();
@@ -423,11 +424,14 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
 /// DML completion. Interrupted work remains pending under its original identity;
 /// recovery is notified if foreground execution cannot settle the original work.
 pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
+    return self.submitPrepared(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false, false);
+}
+pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
     const selected = self.claim(nonce);
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false, true);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false, true, fresh_prepared, fresh_fenced);
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal|
         return self.project(state, terminal, null);
@@ -471,7 +475,11 @@ fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, sta
     };
     return terminal;
 }
-pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
+pub const Execution = struct { terminal: g.Terminal, completion: g.results.CommandCompletion };
+pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !Execution {
+    return self.executePrepared(allocator, observer, table, statement, values, deadline, operation, false, false);
+}
+pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool) !Execution {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);
@@ -479,7 +487,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
     var claimed = true;
     defer if (claimed) selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false, true);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false, true, fresh_prepared, fresh_fenced);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };

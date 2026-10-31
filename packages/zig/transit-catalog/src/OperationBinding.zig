@@ -226,7 +226,14 @@ fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, bindi
     const encoded = bytes[0 .. header_bytes + writer.end];
     const digest = hash(encoded);
     var name: [96]u8 = undefined;
-    const accepted = objects.putImmutable(try key(binding.identity(), &name), encoded, digest) catch |err| {
+    const object_key = try key(binding.identity(), &name);
+    if (try objects.head(object_key)) |existing| {
+        const previous = try lookupStored(allocator, objects, binding.identity()) orelse return error.InvalidOperationBinding;
+        try previous.requireSame(binding);
+        if (existing.size != encoded.len or !std.mem.eql(u8, &existing.sha256, &digest)) return error.InvalidOperationBinding;
+        return;
+    }
+    const accepted = objects.putImmutable(object_key, encoded, digest) catch |err| {
         if (err != error.ImmutableObjectConflict) return err;
         const previous = try lookupStored(allocator, objects, binding.identity()) orelse return error.InvalidOperationBinding;
         try previous.requireSame(binding);
@@ -249,6 +256,7 @@ fn claimStoredInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, 
         const previous = try lookupStored(allocator, index.store, binding.identity()) orelse return error.InvalidOperationBinding;
         try previous.requireSame(binding);
         if (existing.size != encoded.len or !std.mem.eql(u8, &existing.sha256, &digest)) return error.InvalidOperationBinding;
+        return;
     }
     const accepted = try index.stageObject(object_key, encoded, digest);
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &digest)) return error.InvalidOperationBinding;

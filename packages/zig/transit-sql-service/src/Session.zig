@@ -562,7 +562,8 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
 
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     try g.SessionTransaction.require(self, prepared);
-    if (self.fresh_prepared == prepared) {
+    const is_fresh = self.fresh_prepared == prepared;
+    if (is_fresh) {
         self.fresh_prepared = null;
     } else {
         try self.validate(prepared);
@@ -603,7 +604,8 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     snapshots[i] = snapshots[j];
                     continue;
                 }
-                read.pins[i] = try self.runtime.read_pins.?.acquireCurrent(self.table, binding);
+                const known_metadata = if (is_fresh and statement.plan == .select) statement.plan.select.metadata else null;
+                read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
                 snapshots[i] = try read.pins[i].?.snapshot();
             }
             if (statement.plan == .relational) {
@@ -657,7 +659,8 @@ fn releasePins(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
-    if (self.fresh_prepared == prepared) {
+    const is_fresh = self.fresh_prepared == prepared;
+    if (is_fresh) {
         self.fresh_prepared = null;
     } else {
         try self.validate(prepared);
@@ -671,7 +674,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
         if (prepared.probe.kind != .set) return error.ExpectedGatewayWrite;
         return .{ .kind = .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
     }
-    const result = try self.runtime.execute(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation);
+    const result = try self.runtime.executePrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
     self.terminal = result.terminal;
     switch (result.terminal.state) {
         .applied, .unchanged => {},

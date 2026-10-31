@@ -2283,7 +2283,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 54,
         "catch": 1
       },
       "imports": [
@@ -2516,15 +2516,17 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "publishStaged()": "<inferred>",
         "read()": "<inferred>",
         "remove()": "<inferred>",
         "save()": "<inferred>",
         "saveWithoutDirSync()": "<inferred>",
+        "stage()": "<inferred>",
         "sync()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 13,
         "catch": 2
       },
       "imports": [
@@ -2571,7 +2573,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 2
       },
       "imports": [
@@ -6169,6 +6171,7 @@
       "error_returns": {
         "assertion()": "<inferred>",
         "bind()": "<inferred>",
+        "bindPrepared()": "<inferred>",
         "encodeChange()": "<inferred>",
         "prepare()": "<inferred>",
         "validate()": "<inferred>",
@@ -6194,6 +6197,7 @@
       "error_sets": {},
       "error_returns": {
         "bind()": "<inferred>",
+        "bindPrepared()": "<inferred>",
         "prepare()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -7554,7 +7558,7 @@
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
-        "InvalidOperationBinding": 9
+        "InvalidOperationBinding": 11
       },
       "outcomes": {
         "Stored": [
@@ -7614,7 +7618,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 35,
         "catch": 1
       },
       "imports": [
@@ -26212,6 +26216,7 @@
         "checkFence()": "<inferred>",
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
+        "executePrepared()": "<inferred>",
         "fence()": "<inferred>",
         "foreground()": "<inferred>",
         "init()": "<inferred>",
@@ -26226,6 +26231,7 @@
         "resumeTransactionSubmission()": "<inferred>",
         "status()": "<inferred>",
         "submit()": "<inferred>",
+        "submitPrepared()": "<inferred>",
         "submitTransaction()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
@@ -26378,6 +26384,7 @@
         "Record.snapshot()": "<inferred>",
         "Record.validate()": "<inferred>",
         "acquireCurrent()": "<inferred>",
+        "acquireCurrentWithMetadata()": "<inferred>",
         "close()": "<inferred>",
         "init()": "<inferred>",
         "inspect()": "<inferred>",
@@ -26390,7 +26397,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 2
       },
       "imports": [
@@ -26469,7 +26476,7 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 3,
+        "CatalogIdentityConflict": 4,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
@@ -26509,6 +26516,7 @@
         "Write.stage()": "<inferred>",
         "Write.workBytes()": "<inferred>",
         "bindWrite()": "<inferred>",
+        "bindWritePrepared()": "<inferred>",
         "checkValues()": "<inferred>",
         "openRelational()": "<inferred>",
         "openSelect()": "<inferred>",
@@ -31397,13 +31405,17 @@
       "error_sets": {},
       "error_returns": {
         "confirmImmutable()": "<inferred>",
-        "content()": "<inferred>",
         "delete()": "<inferred>",
         "head()": "<inferred>",
         "lockKey()": "<inferred>",
         "open()": "<inferred>",
+        "prepareContent()": "<inferred>",
+        "prepareRecordName()": "<inferred>",
         "publish()": "<inferred>",
+        "publishContentFile()": "<inferred>",
         "publishName()": "<inferred>",
+        "publishRecordName()": "<inferred>",
+        "publishStagedContent()": "<inferred>",
         "putConditional()": "<inferred>",
         "putImmutable()": "<inferred>",
         "putImmutableBatch()": "<inferred>",
@@ -31421,8 +31433,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
-        "catch": 9
+        "try": 109,
+        "catch": 10
       },
       "imports": [
         "TransitObjectStore.zig",

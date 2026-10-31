@@ -6,6 +6,7 @@ const c = q.catalog;
 const f = q.fuze;
 const Self = @This();
 binding: c.DirectTableBinding,
+metadata: ?c.DirectTableProtocol.Definition = null,
 template: f.LogicalPrepared,
 output: f.Types.Decoded,
 
@@ -33,7 +34,9 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     defer prototype.deinit();
     var output_fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     const output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
-    return .{ .binding = binding, .template = template, .output = output };
+    var stored_metadata = metadata;
+    stored_metadata.schema = .{ .base64 = "" };
+    return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output };
 }
 pub fn parameterTypes(self: *const Self) []const f.Types.Type {
     return self.template.parameterTypes();

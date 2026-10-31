@@ -291,15 +291,20 @@ directory reopens, and deduplicate unchanged `client_operations` and
 `0453946b7` elide single-chunk `.checks` sidecar files (`2n + 2` instead of
 `3n + 2` syncs per single-chunk batch), coalesce DML intent and operation-binding
 staging into one `putImmutableBatch` call, and remove redundant `pin_status` and
-`lookup` RPCs on warm `ReadCache` eviction. The
+`lookup` RPCs on warm `ReadCache` eviction, and commits `37685ecb7`, `2b61da3cd`,
+and `5c4081e95` pipeline multi-file batch writes before `fsync`, cache recent
+client-token progress records in `DirectCatalogStore`, skip duplicate
+`OperationBinding` writes on `.client_token = .bind` and `.commit_saved`, and
+reuse same-turn prepared metadata and session fencing across `transit-catalog`,
+`transit-query-direct`, `transit-sql`, and `transit-sql-service` (reducing
+per-statement `local:table` RPCs from 17 to 9 on `INSERT`/`UPDATE`/`DELETE` and
+from 16 to 15 on warm `SELECT`, with warm `SELECT` p50 down to 29–34 ms and
+per-statement node CPU down to 60–70 ms on DML). The
 [qualification account](../history/qualification/storage.md#bounded-immutable-publication-groups--2026-10-30)
 records finite models, disk failures, retries and process-death schedules, and
-the [updated console and native gateway results](../history/qualification/performance.md#single-chunk-checks-elision-coalesced-dml-intent-staging-and-warm-readcache-eviction--2026-10-30)
-record passing `test-sql-gateway` execution (26.07 s, 968 Table requests, down
-from 104.20 s at `4d0a98b6b`) and five-cycle persistent console medians (warm
-`SELECT` 36–45 ms, `INSERT` 130 ms, `SELECT` after `INSERT` 123 ms, changed
-`UPDATE` 192 ms, unchanged `UPDATE` 157 ms, `DELETE` 166 ms, `SELECT` after
-`DELETE` 158 ms). Reconstructible bookkeeping
+the [updated console and native gateway results](../history/qualification/performance.md#pipelined-batch-writes-cached-client-token-progress-deduplicated-operationbinding-claims-and-same-turn-sql-coordination--2026-10-30)
+record passing `test-local-storage-faults` (193/193 schedules), `test-sql-gateway`
+execution, and persistent console profiles. Reconstructible bookkeeping
 (W5b), the account-wide token/commit envelope (W6), and the third delivery's
 end-to-end latency/recovery exit remain open.
 

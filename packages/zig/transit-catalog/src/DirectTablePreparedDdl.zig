@@ -12,6 +12,7 @@ compiled: f.TableDdl.Owned,
 definition: ?c.DirectTableBinding,
 schema: ?f.TableSchema.Owned,
 conditional_intent: [32]u8,
+create_owner: ?u64 = null,
 
 pub const Write = union(enum) {
     table: c.DirectTableIntent,
@@ -39,8 +40,9 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     }
     var compiled = try f.TableDdl.compileDialect(allocator, text, if (schema) |value| value.schema else null, location, dialect);
     errdefer compiled.deinit();
+    var create_owner: ?u64 = null;
     if (target.kind == .create) {
-        _ = try client.require(.{ .namespace = namespace, .target = null, .access = .create_table });
+        create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
     } else if (definition) |value| {
         _ = try value.require(client, if (target.kind == .alter) .alter else .drop);
     }
@@ -51,7 +53,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     hash.update(@tagName(dialect));
     hash.update("\x00");
     hash.update(text);
-    return .{ .connection = client.connection, .namespace = namespace, .compiled = compiled, .definition = definition, .schema = schema, .conditional_intent = hash.finalResult() };
+    return .{ .connection = client.connection, .namespace = namespace, .compiled = compiled, .definition = definition, .schema = schema, .conditional_intent = hash.finalResult(), .create_owner = create_owner };
 }
 
 pub fn deinit(self: *Self) void {
@@ -83,17 +85,20 @@ fn assertion(self: *const Self, operation: u64, name: []const u8, expected: ?c.p
 /// CREATE requires an explicit new object ID. Other forms require null. The
 /// operation ID is independent; neither binding nor loading admits that work.
 pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTableClient, operation: u64, create_object: ?u64) !Write {
+    return self.bindPrepared(allocator, client, operation, create_object, false);
+}
+pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTableClient, operation: u64, create_object: ?u64, fresh_prepared: bool) !Write {
     if (operation == 0) return error.InvalidDataOperation;
     if ((self.compiled.statement == .create) != (create_object != null)) return error.InvalidTableIntent;
     if (create_object) |object| if (object == 0) return error.InvalidDataIdentity;
-    if (self.compiled.statement != .create) try self.validate(client) else if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.compiled.statement != .create and !fresh_prepared) try self.validate(client) else if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
     var ddl: w.Ddl = .{ .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = self.connection.scope, .principal = self.connection.principal, .operation = operation }, .target = .{ .scope = self.connection.scope, .branch = self.connection.branch, .object = create_object orelse 0 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) }, .namespace = self.namespace, .name = undefined, .action = undefined };
     switch (self.compiled.statement) {
         .create => |create| {
-            const subject = try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table });
+            const owner_role = if (fresh_prepared and self.create_owner != null) self.create_owner.? else (try client.require(.{ .namespace = self.namespace, .target = null, .access = .create_table })).role;
             if (create.if_not_exists) {
                 const response = try client.call(.{ .lookup = .{ .namespace = self.namespace, .name = create.name } });
                 defer response.deinit();
@@ -101,7 +106,7 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTab
             }
             var buffer: [f.TableSchema.max_bytes]u8 = undefined;
             ddl.name = create.name;
-            ddl.action = .{ .create = .{ .owner = subject.role, .schema = try .encode(a, try (try create.bind(create_object.?)).encode(&buffer)) } };
+            ddl.action = .{ .create = .{ .owner = owner_role, .schema = try .encode(a, try (try create.bind(create_object.?)).encode(&buffer)) } };
         },
         .alter, .drop => {
             const definition = self.definition orelse {

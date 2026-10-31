@@ -121,13 +121,22 @@ pub fn inspect(self: *Self, client: c.DirectTableClient, index: usize) !?Record 
 /// Current definition and logical change frontier qualify a cached exact cut.
 /// Current authority is checked by lookup and again on every buffered disclosure.
 pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding) !Record {
+    return self.acquireCurrentWithMetadata(client, table, null);
+}
+pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding, known_metadata: ?w.Definition) !Record {
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     if (!std.meta.eql(client.connection, table.connection)) return error.CatalogIdentityConflict;
-    const response = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-    defer response.deinit();
-    const metadata = response.value.result.lookup orelse return error.TableDefinitionChanged;
-    try table.check(client.connection, metadata);
+    const metadata = if (known_metadata) |known| blk: {
+        try table.check(client.connection, known);
+        break :blk known;
+    } else blk: {
+        const response = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+        defer response.deinit();
+        const found = response.value.result.lookup orelse return error.TableDefinitionChanged;
+        try table.check(client.connection, found);
+        break :blk found;
+    };
     for (&self.entries) |*slot| if (slot.*) |*entry| {
         if (std.meta.eql(entry.record.table, table) and entry.record.changed_lsn == metadata.changed_lsn) {
             entry.users = try std.math.add(u32, entry.users, 1);

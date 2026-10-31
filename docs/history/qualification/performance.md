@@ -9,6 +9,95 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Pipelined batch writes, cached client-token progress, deduplicated `OperationBinding` claims, and same-turn SQL coordination — 2026-10-30
+
+Building on `1db733365`, commits `37685ecb7`, `2b61da3cd`, and `5c4081e95`
+pipeline multi-file batch writes before `fsync`, cache recent client-token
+progress records in [`DirectCatalogStore`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig),
+skip duplicate [`OperationBinding`](../../../packages/zig/transit-catalog/src/OperationBinding.zig)
+object writes when `.stage` has already persisted the binding, and reuse
+same-turn prepared metadata and session fencing across [`transit-catalog`](../../../packages/zig/transit-catalog/README.md),
+[`transit-query-direct`](../../../packages/zig/transit-query-direct/README.md),
+[`transit-sql`](../../../packages/zig/transit-sql/README.md), and
+[`transit-sql-service`](../../../packages/zig/transit-sql-service/README.md):
+
+- **Pipelined batch writes before `fsync` (`37685ecb7`):**
+  [`LocalFiles`](../../../packages/zig/transit-backend-local/src/LocalFiles.zig)
+  exposes `stage` and `publishStaged` so [`DataAllocations`](../../../packages/zig/transit-backend-local/src/DataAllocations.zig)
+  and [`NativeAllocations`](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+  pipeline `createFileAtomic` + `writeStreamingAll` across all allocation records
+  in a batch before issuing per-file `sync` + `link` and the shared directory
+  barrier. [`DiskObjects`](../../../packages/zig/transit-storage/src/DiskObjects.zig)
+  pipelines `prepareContent` / `publishStagedContent` and `prepareRecordName` /
+  `publishRecordName` across `putImmutableBatch` while preserving single-chunk
+  `.checks` elision (`needsChecksFile`) and multi-chunk `.checks` staging
+  verified by
+  [`local_storage_faults.py`](../../../tests/storage/local/local_storage_faults.py).
+- **Bounded recent client-token cache and duplicate `OperationBinding` elision (`2b61da3cd`):**
+  [`DirectCatalogStore`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig)
+  maintains a 16-entry ring buffer (`recent_tokens`) of `ClientToken.Progress`
+  records populated on `publish` (`.client_token`) and `tokenRecord` and cleared
+  on `recoverSinceOptions`, avoiding repeated catalog WAL reads and JSON parses
+  during `client_progress.inspect` and `client_progress.update`.
+  [`OperationBinding.claimStored`](../../../packages/zig/transit-catalog/src/OperationBinding.zig)
+  and `claimStoredInTree` check `objects.head(object_key)` and verify the
+  existing stored binding via `lookupStored` + `requireSame` before calling
+  `putImmutable` / `stageObject`, eliminating two redundant `"TOPBIND1"`
+  object writes on `.client_token = .bind` and `.commit_saved` after
+  [`DirectTableIntentStore.stageWithBinding`](../../../packages/zig/transit-catalog/src/DirectTableIntentStore.zig)
+  has already persisted the binding during `.stage`.
+- **Same-turn prepared metadata and session fencing reuse (`5c4081e95`):**
+  [`DirectTablePreparedDml`](../../../packages/zig/transit-catalog/src/DirectTablePreparedDml.zig),
+  [`DirectTablePreparedDdl`](../../../packages/zig/transit-catalog/src/DirectTablePreparedDdl.zig),
+  and [`DirectTablePrepared`](../../../packages/zig/transit-query-direct/src/DirectTablePrepared.zig)
+  retain the table `Definition` metadata and `create_owner` validated during
+  `prepare` and expose `bindPrepared(..., fresh_prepared: bool)`.
+  [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig) adds
+  `acquireCurrentWithMetadata` so `Session.acquireRead` reuses the `metadata`
+  from `DirectTablePrepared.prepare` without a second `.lookup` RPC.
+  [`Statement`](../../../packages/zig/transit-sql/src/Statement.zig),
+  [`DatabaseRuntime`](../../../packages/zig/transit-sql/src/DatabaseRuntime.zig),
+  [`Session`](../../../packages/zig/transit-sql-service/src/Session.zig), and
+  [`Registry`](../../../packages/zig/transit-sql-service/src/Registry.zig) add
+  `bindWritePrepared`, `submitPrepared`, and `executePrepared` so ad-hoc SQL
+  execution reuses the `fence`, `checkValues`, `.lookup`, and `.check`
+  performed during `host.begin()` and `host.prepare()` in the same command turn.
+  Per-statement instrumented RPC counts (`attempts`) drop from
+  `{"local:table": 17, "local:native": 1}` to
+  **`{"local:table": 9, "local:native": 1}`** across `INSERT`, `UPDATE`, and
+  `DELETE` (a 47% reduction in `local:table` RPCs), and from
+  `{"local:table": 16, "local:native": 3}` to
+  **`{"local:table": 15, "local:native": 3}`** on warm `SELECT`.
+
+At `5c4081e95`:
+
+- `just test::storage-io-faults` passes **11/11**.
+- `zig build test-local-storage-faults` passes **193/193** SIGKILL crash-recovery
+  schedules.
+- `zig build test-sql-gateway -Doptimize=ReleaseSafe` passes completely with
+  **999** Table requests (`exact_token_recovery: true`, `station_sends: 0`,
+  `station_turns: 0`).
+- `just test::console-latency --statements --repeat 1 --cycles 1 --warm-reads 50`
+  and `--statements --repeat 5 --resources` pass all statements on the shared
+  Linux x86_64 host (`ReleaseSafe`, pinned Zig `0.17.0-dev.2267+48abf1a34`;
+  sampled under concurrent host NVMe `fsync` load `load_average` 6.23–12.09,
+  with per-statement `node_cpu_seconds` of `0.03–0.04 s` on warm `SELECT` and
+  `0.06–0.07 s` on `INSERT`/`UPDATE`/`DELETE`):
+
+| Statement | Samples | Min (ms) | Median p50 (ms) | p95 (ms) | Max (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Warm empty `SELECT` (`--warm-reads 50`) | 50 | 24.0 | 29.0 | 38.0 | 51.0 |
+| Warm one-row `SELECT` (`--warm-reads 50`) | 50 | 22.0 | 29.0 | 32.0 | 51.0 |
+| Warm `SELECT` (`--repeat 5 --resources`) | 6 | 31.0 | 34.0 | — | 45.0 |
+| `SELECT` JSON after `INSERT` / `UPDATE` / `DELETE` | 3 | 26.0 | 29.0 | — | 29.0 |
+| `INSERT` (host NVMe `fsync` load avg 6.2–12.1; `node_cpu` 60–70 ms) | 5 | 903.0 | 925.0 | — | 989.0 |
+| `SELECT` after `INSERT` (`node_cpu` 80–110 ms) | 5 | 570.0 | 599.0 | — | 1646.0 |
+| Changed `UPDATE` (`node_cpu` 70–80 ms) | 5 | 843.0 | 1420.0 | — | 1578.0 |
+| Unchanged `UPDATE` (`node_cpu` 60–70 ms) | 5 | 783.0 | 989.0 | — | 1197.0 |
+| `SELECT` after `UPDATE` (`node_cpu` 80–90 ms) | 5 | 557.0 | 726.0 | — | 1418.0 |
+| `DELETE` (`node_cpu` 60–70 ms) | 5 | 911.0 | 1134.0 | — | 1997.0 |
+| `SELECT` after `DELETE` (`node_cpu` 80–90 ms) | 5 | 594.0 | 732.0 | — | 1381.0 |
+
 ## Single-chunk `.checks` elision, coalesced DML intent staging, and warm `ReadCache` eviction — 2026-10-30
 
 Building on `4adae5c04`, commits `b07e9b559`, `08699352b`, `0453946b7`, and

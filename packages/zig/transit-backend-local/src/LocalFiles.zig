@@ -12,9 +12,19 @@ pub fn save(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const 
 }
 
 pub fn saveWithoutDirSync(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const u8, replace: bool) !void {
-    var temporary = try directory.createFileAtomic(io, name, .{ .replace = replace, .permissions = .fromMode(0o600) });
+    var temporary = try stage(io, directory, name, bytes, replace);
     defer temporary.deinit(io);
+    try publishStaged(io, &temporary, replace);
+}
+
+pub fn stage(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const u8, replace: bool) !std.Io.File.Atomic {
+    var temporary = try directory.createFileAtomic(io, name, .{ .replace = replace, .permissions = .fromMode(0o600) });
+    errdefer temporary.deinit(io);
     try temporary.file.writeStreamingAll(io, bytes);
+    return temporary;
+}
+
+pub fn publishStaged(io: std.Io, temporary: *std.Io.File.Atomic, replace: bool) !void {
     try temporary.file.sync(io);
     if (replace) try temporary.replace(io) else try temporary.link(io);
 }
