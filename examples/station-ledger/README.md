@@ -9,6 +9,9 @@ Ordinary native publication contention preserves the exact pending command.
 Before a command is frozen, a contended read discards only its private proposal
 and observes current authority again. Expiry, fencing and conflicting retry
 identities are separate outcomes under the shared client classification.
+Direct-operation contention reopens the committed intent and inspects its original
+outcome before resuming. A conflict after acceptance cannot fail the application
+turn or authorize a new operation identity.
 
 For an interactive installation with Board:
 
