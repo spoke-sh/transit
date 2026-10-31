@@ -59,6 +59,44 @@ was interrupted to run implementation qualification instead; it is a partial
 baseline, not a complete lane pass. Its log is
 `/var/tmp/transit-m6-completion-baseline-core.log`.
 
+The implementation's clean core lane at `3acbddc8e` passes 18 tasks, including
+`check::core`, all 43 standalone package builds, the installed Zig SDK, packaged
+runtime boundaries, SQL wire contracts and client ABI schedules. It then fails
+during Station setup: a five-second native request timeout triggers the normal
+WAL-owner reopen, and the fixture immediately rejects an `urllib.error.URLError`
+wrapping connection refusal. `/var/tmp/transit-m6-clean-core.log` and the retained
+clean checkout `/var/tmp/transit-ci-0p_p4mbd` preserve that failed lane. Its
+sequential driver did not start the storage/query or SQL lanes. The original
+fixture's old cleanup removed its installation, so its final mutation outcome
+cannot be established from these logs.
+
+`b6f6085b8` corrects the fixture's narrow transport-retry gap while preserving its
+signed request and existing ten-second recovery bound. It also retains failed
+private installations and individual unresolved native command files. Five new
+independent controls, task-coverage/CI-runner checks and all 58 fast checks pass.
+URL configuration and authorization failures still reject without retry.
+
+The installed Station rerun uses that driver with the exact retained runtime
+binaries from `3acbddc8e`; runtime source is unchanged. Node SHA-256 is
+`c1321fc661d3338930067b7e9f3d2d2767e0241968489042c4b09c774266f83f`,
+and the ledger worker is
+`9ebec3317bf0633130d92310098ff39651e53d84e5e08f7ccd76d15160b541c3`.
+The main Station recovery schedule passes, including original direct receipts,
+lost replies, captured views, authorization, fencing and node/worker replacement.
+The subsequent service scenario fails its unchanged 20-second worker deadline
+after repeated five-second Table-operation timeouts. The overall rerun is failed,
+not passed; its log is `/var/tmp/transit-m6-station-retry.log`, and the private
+failed installation remains at `/var/tmp/transit-storage-4n12_rzx`.
+
+Restarting that exact installation and original worker configuration with the
+same 20-second worker bound consumes the original pending input `102`: consumed
+count advances from five to six and the next input remains `105`. The worker exits
+zero. `/var/tmp/transit-m6-station-original-recovery.log` records this separate
+original-work recovery; it does not convert the earlier deadline or the complete
+Station service suite into a pass. No deadline was raised, and the cause of the
+initial Table-operation latency is not established by these observations. These
+fault schedules are not Stream, Queue or Station performance baselines.
+
 ## Rebased storage crash boundary and installed SDK attempts — 2026-10-30
 
 The clean core run at `37111b927` passes fast checks, contract reflection and the

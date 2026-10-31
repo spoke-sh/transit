@@ -22,6 +22,14 @@ def available_post(post, path, signed):
             status, body = post(path, signed, status=None)
         except (ConnectionError, TimeoutError):
             if time.monotonic() >= deadline: raise
+        except urllib.error.URLError as error:
+            # urllib wraps refused/reset connections while the local owner
+            # closes and reopens its listener after an uncertain WAL append.
+            # Retry only transport failures, using the same signed request and
+            # the existing deadline; malformed URLs/TLS policy errors fail.
+            if (not isinstance(error.reason, (ConnectionError, TimeoutError)) or
+                    time.monotonic() >= deadline):
+                raise
         else:
             if status == 200: return body
             assert (status == 503 and body.get("err") in
@@ -35,7 +43,7 @@ class System:
                  storage_config=None, local=False):
         self.node, self.cli = node, cli
         self.local = local
-        self.store = Fixture(storage_config)
+        self.store = Fixture(storage_config, retain_on_failure=True)
         self.children, self.logs = [], []
         self.sequence = 0
         self.clock_error_ms = clock_error_ms
@@ -113,7 +121,19 @@ class System:
         return self.available_post("/v1/command", self.signed(command, self.sequence))["position"]
 
     def available_post(self, path, signed):
-        return available_post(self.post, path, signed)
+        # The fixture directory is private. Retain the exact request if an
+        # uncertain mutation outlives this caller's bounded recovery wait.
+        pending = None
+        if path == "/v1/command":
+            encoded = json.dumps(signed)
+            directory = self.root / "pending-native-commands"
+            directory.mkdir(exist_ok=True)
+            pending = directory / (hashlib.sha256(encoded.encode()).hexdigest() + ".json")
+            pending.write_text(encoded)
+        result = available_post(self.post, path, signed)
+        if pending is not None:
+            pending.unlink()
+        return result
 
     def native_query(self, kind, principal=0, seed=None, status=200):
         path = self.root / "native-query.json"
