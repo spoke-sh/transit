@@ -63,6 +63,27 @@ readiness. Operational logs default to readable text:
 2026-10-21T12:00:03.000Z INFO [transit] sql.status SQL listeners are accepting connections role="sql" operation="accepting"
 ```
 
+At info level, `server.startup.phase.begin` names the current `operation` before
+work starts; `server.startup.phase` reports its monotonic `duration_ns` and
+outcome. Phases cover configuration, installation validation, storage checks,
+node readiness, journal/application recovery, provisioning, the initial node
+restart, worker activation, Table readiness, configuration publication, gateway,
+SQL setup and local SQL readiness. UI-enabled starts also include Board phases.
+Installation validation includes executable identity hashing. Node readiness
+includes child startup and recovery; these supervisor timings do not separate
+the child's CPU, storage I/O and scheduling costs.
+
+`server.startup.complete` reports the attempt's total duration and outcome.
+The first attempt includes configuration capture; a retry starts a new attempt
+including its backoff. Phase completion spans share the attempt's trace and
+parent span, so retries remain distinct. Total duration includes the phase
+durations: do not add it to them. Failures and interrupted startup report failed
+or canceled outcomes, including the active phase. A successful completion is
+emitted at the existing `server.ready` gate, after local SQL readiness when
+enabled; the earlier machine core-readiness receipt retains its existing meaning.
+These are lossy diagnostics, not new readiness or durable-completion evidence.
+Configuration errors before a logging policy can be loaded retain CLI diagnostics.
+
 Set `logging.format: json` for one structured JSON event per stderr line.
 `logging.level` accepts `debug`, `info` (default), `warn`, `error` and `off`.
 The conventional overrides are `TRANSIT_LOGGING__FORMAT` and

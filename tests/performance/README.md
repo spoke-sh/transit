@@ -9,7 +9,7 @@
 | Storage and ingestion | [Owner measurement guide](storage/storage_benchmark.md), [paired runner](storage/storage_benchmark.py), [ingestion runner](storage/storage_ingest_benchmark.py) |
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
-| Console and mutation latency | [Console runner](console/console_latency.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
+| Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
 | Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
 
 Use the existing `just test` benchmark commands. Python entry points use
@@ -33,6 +33,33 @@ their source, machine, workload and measurement limits. Active budgets remain
 executable inputs and invalidate their owning checks/builds. An older budget's
 recorded driver, toolchain or machine identity does not automatically qualify a
 new run after a path migration; qualify and freeze a matching comparison basis.
+
+## Installed startup
+
+`just test::console-latency --startup-restarts 3` measures one fresh headless
+installation and three sequential graceful restarts of that same retained
+installation. It uses the matching ReleaseSafe artifacts, JSON info logging and
+existing readiness deadlines. Every start must serve a complete independently
+checked console result; a row inserted after the first start must survive every
+restart with the same installation identity and provisioning receipts. It never
+opens the user's installation. A failed run retains its private fixture.
+
+Each raw `startup` sample reports external `ready_ns`, separate console
+`verification_ns`, phase durations and all terminal attempt outcomes. The external
+timer includes process launch and the readiness observer's polling (up to 100 ms
+for core output and 50 ms for SQL status). Internal monotonic spans attribute
+the supervisor's phases; they are elapsed work including waits, not CPU or fsync
+measurements. The attempt total contains its phases. Automatic retries remain
+visible. Missing completion, telemetry loss, orphaned phases and overlapping
+durations fail the diagnostic sample. Child logs and credentials stay private.
+
+Artifact preparation, the retained-row setup write, verification and shutdown
+are outside startup timing. No OS page-cache eviction is performed: `fresh` means
+new installation state and `restart` means reopened state, not cold disk. Run on
+the filesystem being investigated and record its mount/storage and competing
+host load. These few diagnostic observations establish no percentile, regression
+budget or speedup. Unclean recovery, larger retained histories, Board-enabled
+startup and full SDK host costs need separate controlled workloads.
 
 ## SQL result consumption
 
