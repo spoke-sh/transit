@@ -522,3 +522,13 @@ and recovery. The ready
 record points to an atomically replaced SQL status file while enrollment runs;
 core readiness does not imply that SQL is accepting connections. Disabling a
 listener preserves accepted operations and their account recovery identities.
+
+## Optional declarative browser listener
+
+The `browser` configuration group places a listener in the native node. It selects
+its address, exact public origin, explicit proxy trust, native connection,
+namespace, private key paths and bounded capacity/TTL settings. It contains no
+providers, identity bindings or publication definitions; those use typed catalog
+administration. Browser key loading, catalog reconciliation and listener binding
+precede the server readiness record. See [browser v1](../../../contracts/BROWSER_V1.md)
+and the [runnable example](../../../examples/declarative-browser/README.md).

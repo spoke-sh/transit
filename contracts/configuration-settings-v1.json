@@ -1,5 +1,5 @@
 {
-  "definition": "342c874ab8c989576b91b8cde9c8d5f0023ac6a51f0435b04963203d38c41b3d",
+  "definition": "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e",
   "settings": [
     {
       "name": "version",
@@ -1087,6 +1087,486 @@
       "items_schema": null
     },
     {
+      "name": "browser",
+      "description": "Co-hosted browser listener placement and trust; declarations remain in the catalog",
+      "owner": "serving",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.listen",
+      "description": "IPv4 address for the co-hosted listener",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.port",
+      "description": "Private browser listener TCP port",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 65535,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.public_origin",
+      "description": "Exact public browser origin used for Host, Origin and callbacks",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.development_loopback",
+      "description": "Permit insecure cookies and provider HTTP only on explicit IPv4 loopback",
+      "owner": "serving",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.trusted_proxy_cidr",
+      "description": "IPv4 peer subnet allowed to assert HTTPS termination",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.namespace",
+      "description": "Native namespace retaining browser declarations and sessions",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.catalog_seed_file",
+      "description": "Private signing key for catalog administration and session records",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.cookie_seed_file",
+      "description": "Private key binding issued login cookies and challenge commitments",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.secret_directory",
+      "description": "Private mount containing declared secret basenames",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.provider_ca_file",
+      "description": "Optional provider TLS trust file; null uses system roots",
+      "owner": "serving",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.session_ttl_ms",
+      "description": "Fixed session lifetime in milliseconds; no sliding renewal",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1000,
+      "maximum": 86400000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.challenge_ttl_ms",
+      "description": "Login challenge lifetime in milliseconds",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1000,
+      "maximum": 600000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection",
+      "description": "Native catalog placement and execution identity",
+      "owner": "serving",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.scope",
+      "description": "Native realm, resource and catalog scope",
+      "owner": "serving",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.scope.realm",
+      "description": "Native realm matching this installation",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.scope.resource",
+      "description": "Direct resource containing the browser catalog",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.scope.catalog",
+      "description": "Direct catalog identity",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.branch",
+      "description": "Catalog branch for browser records",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.audience",
+      "description": "Native request audience",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.principal",
+      "description": "Native principal signing catalog operations",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.connection.role",
+      "description": "Selected native catalog role",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options",
+      "description": "Bounded listener concurrency and deadlines",
+      "owner": "serving",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.connections",
+      "description": "Maximum accepted browser connections",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.requests",
+      "description": "Concurrent finite browser data requests",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.control_requests",
+      "description": "Reserved session and logout request capacity",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.wait_requests",
+      "description": "Concurrent browser watch capacity",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.header_timeout_ms",
+      "description": "HTTP request-header deadline in milliseconds",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.request_timeout_ms",
+      "description": "Overall request and joined watch deadline in milliseconds",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "browser.options.requests_per_connection",
+      "description": "Maximum HTTP requests per connection",
+      "owner": "serving",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "board",
       "description": "Board listener configuration",
       "owner": "board",
@@ -2072,6 +2552,232 @@
         "x-transit-owner": "gateway",
         "x-transit-change": "reload",
         "default": []
+      },
+      "browser": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "listen": {
+            "type": "string",
+            "description": "IPv4 address for the co-hosted listener",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Private browser listener TCP port",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "public_origin": {
+            "type": "string",
+            "description": "Exact public browser origin used for Host, Origin and callbacks",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "development_loopback": {
+            "type": "boolean",
+            "description": "Permit insecure cookies and provider HTTP only on explicit IPv4 loopback",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "trusted_proxy_cidr": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IPv4 peer subnet allowed to assert HTTPS termination",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "namespace": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Native namespace retaining browser declarations and sessions",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "catalog_seed_file": {
+            "type": "string",
+            "description": "Private signing key for catalog administration and session records",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "cookie_seed_file": {
+            "type": "string",
+            "description": "Private key binding issued login cookies and challenge commitments",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "secret_directory": {
+            "type": "string",
+            "description": "Private mount containing declared secret basenames",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "provider_ca_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional provider TLS trust file; null uses system roots",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "session_ttl_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 86400000,
+            "description": "Fixed session lifetime in milliseconds; no sliding renewal",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "challenge_ttl_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000,
+            "description": "Login challenge lifetime in milliseconds",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "connection": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scope": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "realm": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Native realm matching this installation",
+                    "x-transit-owner": "serving",
+                    "x-transit-change": "restart"
+                  },
+                  "resource": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Direct resource containing the browser catalog",
+                    "x-transit-owner": "serving",
+                    "x-transit-change": "restart"
+                  },
+                  "catalog": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Direct catalog identity",
+                    "x-transit-owner": "serving",
+                    "x-transit-change": "restart"
+                  }
+                },
+                "description": "Native realm, resource and catalog scope",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "branch": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Catalog branch for browser records",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "audience": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Native request audience",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "principal": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Native principal signing catalog operations",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "role": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "description": "Selected native catalog role",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              }
+            },
+            "description": "Native catalog placement and execution identity",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "connections": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum accepted browser connections",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "requests": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Concurrent finite browser data requests",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "control_requests": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Reserved session and logout request capacity",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "wait_requests": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Concurrent browser watch capacity",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "header_timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "HTTP request-header deadline in milliseconds",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Overall request and joined watch deadline in milliseconds",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              },
+              "requests_per_connection": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum HTTP requests per connection",
+                "x-transit-owner": "serving",
+                "x-transit-change": "restart"
+              }
+            },
+            "description": "Bounded listener concurrency and deadlines",
+            "x-transit-owner": "serving",
+            "x-transit-change": "restart"
+          }
+        },
+        "description": "Co-hosted browser listener placement and trust; declarations remain in the catalog",
+        "x-transit-owner": "serving",
+        "x-transit-change": "restart",
+        "default": null
       },
       "board": {
         "type": [

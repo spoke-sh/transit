@@ -75,3 +75,13 @@ from appending a second response after a partial write.
 API descriptions reference one shared diagnostic schema and remain inside the
 existing 256 KiB description budget. Runtime terminal messages retain the 8 KiB
 bound; private finite responses retain their 16 KiB client bound.
+
+## Declarative browser host
+
+`BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
+It reads typed catalog declarations, resolves private mounted secrets, performs
+bounded provider exchanges and obtains published rows through signed native
+Table reads. It does not know application table names or grant social users
+native privileges. See [browser v1](../../../contracts/BROWSER_V1.md) and the
+[example](../../../examples/declarative-browser/README.md). The independent
+listener and buffered-disclosure schedules run with `just test::declarative-browser`.

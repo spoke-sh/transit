@@ -16,7 +16,9 @@ generate:
     zig build application-installation-contract > "$generated/application-installation-v1.schema.json"
     zig build diagnostic-contract > "$generated/diagnostic-v1.schema.json"
     zig build data-lifecycle-contract > "$generated/data-lifecycle-v1.schema.json"
+    zig build browser-contract > "$generated/browser-v1.schema.json"
     zig build index-lifecycle-contract > "$generated/index-lifecycle-v1.schema.json"
+    mv "$generated/browser-v1.schema.json" contracts/browser-v1.schema.json
     mv "$generated/transit-v1.schema.json" contracts/transit-v1.schema.json
     mv "$generated/application-installation-v1.schema.json" contracts/application-installation-v1.schema.json
     mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json

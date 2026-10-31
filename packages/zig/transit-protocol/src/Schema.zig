@@ -72,6 +72,10 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         try field(out, "maxLength", p.Value.max_bytes * 2);
         try field(out, "x-transit-encoding", "lowercase-hex");
     } else switch (@typeInfo(T)) {
+        .float => |info| {
+            try field(out, "type", "number");
+            try field(out, "x-transit-bits", info.bits);
+        },
         .int => |info| {
             try field(out, "type", "integer");
             try field(out, "minimum", if (options.safe_integers) @max(std.math.minInt(T), -p.max_counter) else std.math.minInt(T));

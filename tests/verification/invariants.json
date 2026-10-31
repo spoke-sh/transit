@@ -2632,6 +2632,29 @@
       "limits": "Assumes per-key exclusion, atomic descriptor replacement, truthful successful sync and no concurrent reclamation. Excludes inventory, accepted SQL/WAL composition, payload integrity, CAS competition, arbitrary batching and liveness. No implementation refinement, automatic counterexample replay or physical power-loss claim.",
       "model": "tests/verification/models/ObjectPublication.tla",
       "qualification": "Executed evidence belongs in docs/history/qualification/storage.md; model and disk evidence are distinct."
+    },
+    {
+      "id": "BROWSER-01",
+      "claim": "Durable one-use callback claims and current native authorization fence browser disclosure",
+      "owner": "contracts/BROWSER_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/BrowserRecordStore.zig",
+        "packages/zig/transit-serving-http/src/BrowserRuntime.zig"
+      ],
+      "profile": "browser-v1",
+      "tasks": [
+        "test::declarative-browser"
+      ],
+      "scenarios": [
+        "Independent signed OIDC and OAuth peers",
+        "Concurrent callbacks and process death after dispatch",
+        "Buffered native revocation and publication withdrawal",
+        "Idle watermark reads avoid source scans",
+        "Durable logout, restriction, expiry and paged identity population"
+      ],
+      "limits": "Local disk and independent HTTP provider peers; no live provider consent or AWS deployment proof.",
+      "qualification": "See docs/history/qualification/README.md for executed evidence; registration is not a pass.",
+      "model": null
     }
   ]
 }

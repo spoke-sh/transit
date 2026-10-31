@@ -166,3 +166,12 @@ were cancelled. Inspect the original session and saved commands through an
 authorized connection. Invalid watch declarations supplied by a caller are input
 errors; malformed declarations encountered during a read are integrity failures.
 Neither case authorizes implicit reset or a replacement query generation.
+
+## Declarative browser publications
+
+The co-hosted [browser listener](../../../contracts/BROWSER_V1.md) uses
+`transit.published.v1` for complete bounded snapshots driven by actual native
+Table watermarks. It has a distinct publication/session contract from the native
+`transit.reactive.v1` attachment protocol. Reconnect requests a fresh current cut;
+it does not splice earlier snapshots. See the browser contract for current-rights
+checks, idle invalidation, expiry, deadlines and close codes.

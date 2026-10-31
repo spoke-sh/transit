@@ -18,6 +18,7 @@ executables: Executables = .{},
 applications: ?Applications = null,
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
+browser: ?@import("transit_serving_http").BrowserRuntime.Config = null,
 query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
@@ -162,12 +163,22 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
             };
         }
     };
+    if (self.browser) |*browser| {
+        inline for (.{ "catalog_seed_file", "cookie_seed_file", "secret_directory" }) |field_name| @field(browser, field_name) = try std.fs.path.resolve(allocator, &.{ base, @field(browser, field_name) });
+        if (browser.provider_ca_file) |path| browser.provider_ca_file = try std.fs.path.resolve(allocator, &.{ base, path });
+        browser.validate() catch |err| return diagnostic.invalidFieldCause(err, "browser", "requires a valid listener and scoped deployment trust", null);
+        if (browser.connection.scope.realm != self.realm) return diagnostic.invalidField("browser.connection.scope.realm", "must match realm", null);
+        inline for (@typeInfo(Ports).@"struct".field_names) |field_name| if (browser.port == @field(self.ports, field_name)) return diagnostic.invalidField("browser.port", "must differ from native ports", null);
+        if (self.board) |board| if (browser.port == board.port) return diagnostic.invalidField("browser.port", "must differ from board.port", null);
+        if (self.applications) |apps| if (browser.port == apps.port) return diagnostic.invalidField("browser.port", "must differ from applications.port", null);
+    }
     try self.sql.resolve(allocator, base, diagnostic);
     const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null, if (self.sql.native.http) |http| http.port else null };
     const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port", "sql.native.http.port" };
     for (sql_ports, 0..) |maybe, i| if (maybe) |port| {
         for (sql_ports[0..i]) |previous| if (previous == port) return diagnostic.invalidField(sql_fields[i], "requires distinct SQL listener and health ports", null);
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (port == @field(self.ports, name)) return diagnostic.invalidField(sql_fields[i], "must differ from ports." ++ name, null);
+        if (self.browser) |browser| if (port == browser.port) return diagnostic.invalidField(sql_fields[i], "must differ from browser.port", null);
         if (self.board) |board| if (port == board.port) return diagnostic.invalidField(sql_fields[i], "must differ from board.port", null);
         if (self.applications) |apps| if (port == apps.port) return diagnostic.invalidField(sql_fields[i], "must differ from applications.port", null);
     };
@@ -239,9 +250,10 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     return hash.finalResult();
 }
 pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !void {
-    var listeners: [11]?std.Io.net.Server = @splat(null);
+    var listeners: [12]?std.Io.net.Server = @splat(null);
     defer for (&listeners) |*listener| if (listener.*) |*server| server.deinit(io);
     inline for (@typeInfo(Ports).@"struct".field_names, 0..) |name, i| listeners[i] = try listen(io, @field(self.ports, name), "ports." ++ name, diagnostic);
+    if (self.browser) |browser| listeners[11] = try (try std.Io.net.IpAddress.parseIp4(browser.listen, browser.port)).listen(io, .{ .reuse_address = true });
     if (ui) if (self.board) |board| {
         listeners[6] = try listen(io, board.port, "board.port", diagnostic);
     };

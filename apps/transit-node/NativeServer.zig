@@ -47,21 +47,24 @@ pub fn Host(comptime Provider: type) type {
                 .shared_access = engine.page_store.access,
                 .table_memory = try DirectRequestMemory.init(config.storage.requests),
             };
-            diagnostics.event(.{ .name = "service.ready" });
-            if (comptime @hasField(@TypeOf(config), "sql_control")) {
-                if (config.sql_control) |sql_config| {
-                    const Result = union(enum) { native: anyerror!void, sql: anyerror!void };
-                    var results: [2]Result = undefined;
-                    var services: std.Io.Select(Result) = .init(init.io, &results);
-                    defer services.cancelDiscard();
-                    try services.concurrent(.sql, @import("transit_sql_host").Deployment.serve, .{ init, sql_config, context.endpoint(), diagnostics });
-                    try services.concurrent(.native, serveNative, .{ init, &listener, config.request_timeout_ms, &context });
-                    return switch (try services.await()) {
-                        inline else => |result| result,
-                    };
-                }
+            var browser: ?@import("transit_serving_http").BrowserRuntime.Running = null;
+            if (comptime @hasField(@TypeOf(config), "browser")) {
+                if (config.browser) |browser_config| browser = try @import("transit_serving_http").BrowserRuntime.Running.open(init, browser_config, context.endpoint());
             }
-            return serveNative(init, &listener, config.request_timeout_ms, &context);
+            defer if (browser) |*running| running.deinit();
+            diagnostics.event(.{ .name = "service.ready" });
+            const Result = union(enum) { native: anyerror!void, sql: anyerror!void, browser: anyerror!void };
+            var results: [3]Result = undefined;
+            var services: std.Io.Select(Result) = .init(init.io, &results);
+            defer services.cancelDiscard();
+            if (comptime @hasField(@TypeOf(config), "sql_control")) {
+                if (config.sql_control) |sql_config| try services.concurrent(.sql, @import("transit_sql_host").Deployment.serve, .{ init, sql_config, context.endpoint(), diagnostics });
+            }
+            if (browser) |*running| try services.concurrent(.browser, @import("transit_serving_http").BrowserRuntime.Running.run, .{running});
+            try services.concurrent(.native, serveNative, .{ init, &listener, config.request_timeout_ms, &context });
+            return switch (try services.await()) {
+                inline else => |result| result,
+            };
         }
         fn serveNative(init: std.process.Init, listener: *std.Io.net.Server, timeout_ms: u32, context: *Context) !void {
             return http.serve(init.io, init.gpa, listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, timeout_ms), .request_timeout_ms = timeout_ms, .requests_per_connection = 64 }, context);
@@ -494,6 +497,7 @@ pub fn Host(comptime Provider: type) type {
             fn invokeLocal(raw: *anyopaque, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const self: *Context = @ptrCast(@alignCast(raw));
                 self.localWork(invocation) catch |err| {
+                    self.diagnostics.event(.{ .name = "transit.local.refusal", .level = .debug, .error_type = @errorName(err) });
                     if (err == error.Canceled or err == error.Cancelled or err == error.OutOfMemory) return err;
                     const failure = @import("ServiceFailure.zig");
                     if (err == error.InvalidLocalRequest or err == error.InvalidWaitHint) return invocation.client.reject(.bad_request, .InvalidRequest);

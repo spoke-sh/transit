@@ -758,11 +758,11 @@ fn publishedScalarTypeName(dt: t.Type) []const u8 {
     };
 }
 
-fn appendPublishedCellJson(allocator: std.mem.Allocator, buf: *std.ArrayListUnmanaged(u8), cell: v.Cell) !void {
+pub fn appendPublishedCellJson(allocator: std.mem.Allocator, buf: *std.ArrayListUnmanaged(u8), cell: v.Cell) !void {
     var num_buf: [64]u8 = undefined;
     switch (cell) {
         .null, .missing => try buf.appendSlice(allocator, "null"),
-        .value => |val| switch (val.atom) {
+        .value => |val| switch (if (val == .atom) val.atom else return error.UnsupportedPublishedCellType) {
             .signed => |n| {
                 const s_num = try std.fmt.bufPrint(&num_buf, "\"{d}\"", .{n});
                 try buf.appendSlice(allocator, s_num);

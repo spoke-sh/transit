@@ -88,7 +88,8 @@
       "transit-board::test",
       "transit-board::query-test",
       "launchers::local::test-station",
-      "transit-board::workbench-test"
+      "transit-board::workbench-test",
+      "test::declarative-browser"
     ],
     "launchers": [
       "test::build",

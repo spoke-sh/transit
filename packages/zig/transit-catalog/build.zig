@@ -16,6 +16,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_catalog", .module = module }},
     }) });
+    const browser_contract = b.addExecutable(.{ .name = "transit-browser-contract", .root_module = b.createModule(.{
+        .root_source_file = b.path("src/browser_export.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = module }},
+    }) });
+    b.installArtifact(browser_contract);
+    b.step("browser-contract", "Export the typed browser and declaration administration contract").dependOn(&b.addRunArtifact(browser_contract).step);
     b.installArtifact(direct_contract);
     b.step("direct-contract", "Export the direct Table request contract").dependOn(&b.addRunArtifact(direct_contract).step);
     b.step("test", "Check conditional catalog publication and bounded inspection").dependOn(&b.addRunArtifact(tests).step);

@@ -27,6 +27,7 @@ const Config = struct {
     request_metrics: bool = false,
     maintenance: ?Maintenance.Config = null,
     table: ?TableHost.Config = null,
+    browser: ?@import("transit_serving_http").BrowserRuntime.Config = null,
     sql_control: ?@import("transit_sql_host").Deployment.Config = null,
 };
 
