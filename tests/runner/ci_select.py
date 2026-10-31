@@ -28,6 +28,15 @@ def matrix(tasks, suite=SUITE):
     return rows
 
 
+def native_matrix(tasks, suite=SUITE):
+    selected = set(tasks) & {task for lane in suite['tiers']['sdks'] for task in suite['lanes'][lane]}
+    # Go's raw-client proof has no ReleaseSafe or Station consumer. Do not put
+    # two unused optimized builds on its otherwise short dependency path.
+    profiles = ('Debug',) if selected <= {'bindings::check', 'bindings::go-sdk-test'} else ('Debug', 'ReleaseSafe')
+    return {'include': [dict(family=family, optimize=profile) for profile in profiles
+                        for family in ('clients', 'authority')]} if selected else {'include': []}
+
+
 def affected(paths, suite=SUITE):
     """Follow reviewed reverse dependencies. No match means full, never empty."""
     groups = suite["selection"]["groups"]
@@ -112,6 +121,7 @@ def select(paths, event="pull_request", *, suite=SUITE, mode=None):
             "paths": paths, "groups": reviewed["groups"] if reviewed else [],
             "resources": reviewed["resources"] if reviewed else [],
             "additional_lanes": {},
+            "native_matrix": native_matrix(tasks, suite),
             "proposed_tasks": proposed, "lanes": lanes, "matrix": {"include": matrix(tasks, suite)}}
 
 
@@ -151,6 +161,7 @@ def main():
             output.write(f"sdk_matrix={json.dumps({'include': sdk_rows})}\n")
             output.write(f"runtime_checks={str(bool(runtime_rows)).lower()}\n")
             output.write(f"sdks={str(bool(sdk_rows)).lower()}\n")
+            output.write(f"native_matrix={json.dumps(plan['native_matrix'])}\n")
             output.write(f"selection={json.dumps(plan)}\n")
 
 

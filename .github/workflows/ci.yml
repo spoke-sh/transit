@@ -36,6 +36,7 @@ jobs:
       documentation: ${{ steps.select.outputs.documentation }}
       runtime_matrix: ${{ steps.select.outputs.runtime_matrix }}
       sdk_matrix: ${{ steps.select.outputs.sdk_matrix }}
+      native_matrix: ${{ steps.select.outputs.native_matrix }}
       runtime_checks: ${{ steps.select.outputs.runtime_checks }}
       sdks: ${{ steps.select.outputs.sdks }}
       selection: ${{ steps.select.outputs.selection }}
@@ -87,9 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix:
-        family: [clients, authority]
-        optimize: [Debug, ReleaseSafe]
+      matrix: ${{ fromJSON(needs.plan.outputs.native_matrix) }}
     uses: ./.github/workflows/ci-lane.yml
     with:
       lane: native-${{ matrix.family }}-${{ matrix.optimize }}

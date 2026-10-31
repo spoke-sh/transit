@@ -16,6 +16,7 @@ class Selection(unittest.TestCase):
     def test_transitive_package_and_combined_model_inputs(self):
         plan = select(["sdks/go/client/types.go", "tests/verification/models/Wal.cfg"], mode="enabled")
         self.assertFalse(plan["full"])
+        self.assertEqual({row["optimize"] for row in plan["native_matrix"]["include"]}, {"Debug"})
         self.assertEqual(plan["lanes"], {"formal": ["test::wal-model"], "sdks-systems": ["bindings::go-sdk-test"]})
         self.assertTrue({"go-module", "go-package", "go-installed-consumer"} <= set(plan["groups"]))
         self.assertIn("private-disk-authority", plan["resources"])
