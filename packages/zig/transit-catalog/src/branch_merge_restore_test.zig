@@ -69,7 +69,7 @@ test "reviewed 3-way merge revalidates UNIQUE, 5-state CHECK, cross-table FOREIG
         .commit_lsn = 10,
         .branch_id = 1,
         .branch_name = "main",
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .tables = &base_tables,
     };
 
@@ -341,7 +341,7 @@ test "Document versioned BP-tree and causal_crdt branch merges, Forward Restore 
         .commit_lsn = 10,
         .branch_id = 1,
         .branch_name = "main",
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-tzdb", @splat(1)),
         .tables = &tables_v1,
     };
     var registry = try B.BranchRegistry.initWithMain(cut_v1, 1);

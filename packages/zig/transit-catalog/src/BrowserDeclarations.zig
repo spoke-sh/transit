@@ -87,7 +87,7 @@ pub const Publication = struct {
         try name(self.descriptor.canonical_name);
         try self.source.validate();
         try self.publisher.validate();
-        if (self.descriptor.parameters.len != 0 or self.descriptor.backing_kind != .compiled_sql_plan or self.descriptor.dependencies.len != 1) return error.UnsupportedBrowserPublication;
+        if (self.descriptor.parameters.len != 0 or self.descriptor.backing_kind != .compiled_sql_plan or self.descriptor.dependencies.len != 1 or self.descriptor.tzdb_version != null) return error.UnsupportedBrowserPublication;
         const dependency = self.descriptor.dependencies[0];
         if (dependency.source_object != self.source.object.object or dependency.source_revision != self.source.revision or self.descriptor.branch_id != self.source.object.branch) return error.PublicationSourceMismatch;
         for (self.descriptor.result_schema.columns) |column| switch (column.type) {

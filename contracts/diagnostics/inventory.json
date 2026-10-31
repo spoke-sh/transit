@@ -3675,7 +3675,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -8138,7 +8138,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -23214,7 +23214,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 58,
         "catch": 2
       },
       "imports": [

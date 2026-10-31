@@ -198,6 +198,8 @@ optional LIMIT, scalar integer/float/bool/text/decimal output, no parameters,
 aggregates, joins or external effects. `prepare_publication` records the exact
 source definition, dependency columns, result schema and budgets. The runtime
 recompiles against that same live definition and uses its declared collations.
+This profile performs no timezone conversion and requires explicit
+`descriptor.tzdb_version: null`; it never invents an IANA version or digest.
 
 Snapshot columns carry name, logical type and nullability. Rows are arrays in
 column order. All integer cells and decimal coefficients are decimal strings;

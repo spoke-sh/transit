@@ -28,8 +28,11 @@ Every published resource definition (`PublishedResourceDescriptor`) records:
      discovery questions to typed parameter bindings.
    - Per-column `SemanticUnit` (`none`, `iso4217_currency`, `si_unit`,
      `basis_points`, `percentage`, `spatial_srid`) and manifest-pinned
-     `tzdb_version: TzdbVersion` ($\kappa_{\text{tz}}$ from
-     `transit-fuze.DecimalArithmetic`).
+     `tzdb_version: ?TzdbVersion` ($\kappa_{\text{tz}}$ from
+     `transit-fuze.DecimalArithmetic`). Explicit null means no timezone rules
+     are used. Temporal computation requires the version label and content digest
+     of an actual immutable database; a label cannot invent rules. The descriptor
+     digest commits to presence, label and content digest.
 3. **Typed parameters & domain bounds:**
    - Ordered `ParameterSpec` slice aligned with [`SQL_PARAMETERS_V1`](SQL_PARAMETERS_V1.md)
      (`ordinal`, `name`, logical type $\tau$, required/default flag, and
