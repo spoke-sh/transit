@@ -218,7 +218,7 @@
               tools = import ./nix/bindings-tools.nix { inherit pkgs; };
             in
             pkgs.mkShell {
-              inputsFrom = [ ci-experience ];
+              inputsFrom = [ default ];
               packages = tools.packages;
               TRANSIT_SQL_TOOLS = "${toolchains.${system}.sql-tools}";
               TRANSIT_GSON_JAR = "${tools.gson}";
