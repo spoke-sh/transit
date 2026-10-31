@@ -680,6 +680,36 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
    the resulting common revision, without treating M28's future approvals as an
    existing authorization mechanism.
 
+## Local Table branch increment
+
+The next R1/R2 slice starts from `b60f12154`. Its reviewable outcome is a named,
+immutable branch of one explicitly selected Table, reached through typed direct
+callers. It retains the original definition and data frontier, including unflushed
+WAL rows, and recovers the original outcome while the parent advances.
+
+This slice uses the existing `DirectCatalog` client-token owner for admission,
+name reservations, nonreused branch IDs and publication. One accepted catalog
+successor records both the branch head and terminal operation outcome. A durable
+Table pin belongs to that operation before publication and to its published
+branch afterward; ordinary release cannot take it away. Cancellation records
+abandonment before releasing the original pin and freeing the name.
+
+A single selected Table supplies a coherent definition/data cut through its
+existing acceptance owner. It is an explicitly scoped projection, not an atomic
+snapshot of the whole main catalog or a fabricated main-branch ancestry chain.
+The installed profile remains read-only. Full-data and schema-only results retain
+source attribution; schema-only exposes no rows and initially retains the same
+source pin. Writable roots, whole-catalog cuts, branch fork history and published
+branch deletion remain R2/R3 work.
+
+Required evidence includes typed create/read/recovery, disk reopen after lost
+pin and publication replies, parent advancement, independent copied rows,
+name conflicts/reuse, current-policy denial including empty output, protected
+pin ownership, recoverable cancellation and collector reachability. The stored
+catalog directories require a coordinated current-v1 definition cutover and
+regenerated contracts, signing fixtures and dependent consumers. This scope
+does not close the remaining milestone gates.
+
 ## Foundation increment — 2026-10-31
 
 The first implementation increment adds these owners without enabling branch
