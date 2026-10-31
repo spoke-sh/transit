@@ -23,7 +23,10 @@ def profile(suite, selection):
         return suite["environments"][selection]
     # The complete sequential inventory still needs every language and frontend.
     # A single lane uses its hosted environment, with no unrelated preparation.
-    return {"shell": "bindings", "prepare": [["just", "ci::dependencies"], ["just", "transit-board::install"]]}
+    prepare = [["just", "ci::dependencies"], ["just", "transit-board::install"]]
+    if selection in {"all", "complete"}:
+        prepare.append(["vp", "exec", "--filter", "@transit/board-web", "playwright", "install", "--with-deps", "chromium"])
+    return {"shell": "bindings", "prepare": prepare}
 
 
 def check_profile(scope):
@@ -102,7 +105,7 @@ def main():
         # The shell supplies tools, but checkout-local environment selection
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
-               if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
+               if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT", "CI_NATIVE_BUNDLE_DIR")}
         # Zig 0.17 keeps fetched packages separately from its compiler cache.
         # Share one owned package directory across this clone's nested builds.
         env["ZIG_LOCAL_PKG_DIR"] = str(checkout / ".cache/ci-zig/p")

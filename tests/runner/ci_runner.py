@@ -161,7 +161,7 @@ def main():
     release_workflow()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     strategy = workflow["jobs"]["checks"]["strategy"]
-    assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
+    assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.runtime_matrix) }}"
     assert strategy["max-parallel"] == SUITE["selection"]["max_parallel"]
     workers = matrix({task for lane in SUITE["tiers"]["ordinary"] for task in LANES[lane]})
     selected = [row["lane"] for row in workers]
@@ -169,12 +169,21 @@ def main():
     assert SUITE["tiers"]["sdks"] == ["sdks-conformance", "sdks-scripting", "sdks-systems", "sdks-managed"]
     assert set(SUITE["tiers"]["sdks"]) <= set(selected)
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
-    steps = workflow["jobs"]["checks"]["steps"]
-    assert workflow["jobs"]["checks"]["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
+    lane_workflow = yaml.safe_load((ROOT / '.github/workflows/ci-lane.yml').read_text())
+    execution = lane_workflow['jobs']['execute']
+    steps = execution['steps']
+    assert workflow['jobs']['sdks']['needs'] == ['plan', 'native']
+    assert workflow['jobs']['checks']['needs'] == 'plan'
+    assert workflow['jobs']['sdks']['with']['native_bundle'] is True
+    assert workflow['jobs']['native']['strategy']['matrix'] == '${{ fromJSON(needs.plan.outputs.native_matrix) }}'
+    assert len(select([], 'push')['native_matrix']['include']) == 4
+    assert next(step for step in steps if step.get('name') == 'Download immutable native publications')['if'] == 'inputs.native_bundle'
+    assert next(step for step in steps if step.get('name') == 'Run ${{ inputs.lane }} checks')['if'] == "inputs.native_family == ''"
+    assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
     package_cache = next(step for step in steps if step.get("id") == "zig-cache")
     assert package_cache["with"]["key"].startswith("zig-v3-")
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
-    assert reclaim["if"] == "runner.environment == 'github-hosted' && matrix.cache != 'formal'"
+    assert reclaim["if"] == "runner.environment == 'github-hosted' && inputs.cache != 'formal'"
     # A primary cache hit can fill the disk during extraction, before the shell
     # starts. Large hosted lanes reclaim before either restore or build. Formal
     # uses binary substitutes and does not restore an unrelated SDK closure.
@@ -182,17 +191,17 @@ def main():
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     names = [step.get("name") for step in steps]
     dependencies = next(step for step in steps if step.get("name") == "Fetch pinned Zig dependencies")
-    assert dependencies["if"] == "matrix.lane != 'formal'"
+    assert dependencies["if"] == "inputs.lane != 'formal'"
     assert dependencies["run"].endswith("--command just ci::dependencies")
     assert names.index("Restore Zig standard libraries and fetched packages") < names.index("Fetch pinned Zig dependencies")
-    assert names.index("Fetch pinned Zig dependencies") < names.index("Run ${{ matrix.lane }} checks")
+    assert names.index("Fetch pinned Zig dependencies") < names.index("Run ${{ inputs.lane }} checks")
     for lane, environment in SUITE["environments"].items():
         if lane != "formal":
             assert environment["prepare"][0] == ["just", "ci::dependencies"]
     assert names.index("Prepare development shell") < names.index("Save Nix store")
-    assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
+    assert names.index("Save Nix store") < names.index("Run ${{ inputs.lane }} checks")
     for name in ('Restore Nix store', 'Save Nix store'):
-        assert "matrix.cache != 'formal'" in next(step['if'] for step in steps if step.get('name') == name)
+        assert "inputs.cache != 'formal'" in next(step['if'] for step in steps if step.get('name') == name)
     assert "github.event_name == 'workflow_dispatch' && github.run_id" in workflow['concurrency']['group']
     assert workflow['concurrency']['cancel-in-progress'] is True
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
@@ -201,17 +210,18 @@ def main():
     assert {".cache/ci/runs/", ".cache/checks/runs/"} <= set(artifacts["with"]["path"].splitlines())
     assert ".cache/native-artifacts/" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
-    assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
+    assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "native", "sdks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.documentation == 'true'"
-    assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.checks == 'true'"
+    assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.runtime_checks == 'true'"
     assert "transit-docs::check" in LANES["installation-ui"]
     # Renaming a lane must not omit its frontend preparation or the separately
     # invoked browser continuation from hosted qualification.
     assert next(step["if"] for step in steps if step.get("name") == "Install locked Board frontend dependencies") == (
-        "matrix.lane == 'installation-ui' || matrix.lane == 'launchers'")
-    for name in ("Install browser and host dependencies", "Qualify embedded Board in Chromium"):
-        assert next(step["if"] for step in steps if step.get("name") == name) == "matrix.lane == 'installation-ui'"
-    assert select([], "push")["additional_lanes"] == {"browser": LANES["browser"]}
+        "inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'")
+    for name in ("Install browser and host dependencies",):
+        assert next(step["if"] for step in steps if step.get("name") == name) == "inputs.lane == 'browser'"
+    assert select([], "push")["lanes"]["browser"] == LANES["browser"]
+    assert not select([], "push")["additional_lanes"]
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
@@ -256,6 +266,8 @@ def main():
     full_jobs = [dict(job, name=name) for name in selected]
     full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     measured = summarize(sample, full_jobs, full_log, budgets)
+    nested = summarize(sample, [dict(row, name=row['name'] + ' / execute') for row in full_jobs], full_log.replace('\t', ' / execute\t'), budgets)
+    assert nested['budget_met'] and nested['inventory'] == measured['inventory']
     assert measured['budget_met'] and measured['restored_cache_bytes'] == 300 * len(selected)
     assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9 * len(selected)
     assert not measured['missing_lanes'] and not measured['duplicate_lanes']
@@ -425,6 +437,7 @@ def main():
                     passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
                         "PLAN": plan, "CHECKS": checks, "DOCUMENTATION": documentation,
                         "RESULT": result, "DOCS": docs,
+                        "SDKS": "false", "NATIVE_RESULT": "skipped", "SDK_RESULT": "skipped",
                     }).returncode == 0
                     assert passed == (plan == "success" and (checks, documentation) != ("false", "false")
                                       and (checks, result) in {("true", "success"), ("false", "skipped")}
@@ -449,6 +462,14 @@ def main():
     assert 'b.step("test-compute",' in (ROOT / "packages/zig/transit-fuze/build.zig").read_text()
     # Run the actual entry point with a deterministic failing task executable.
     # Later tasks must not run and the original status/evidence must survive.
+    for native, sdk in (("success", "success"), ("failure", "skipped"),
+                        ("skipped", "success"), ("success", "cancelled"), ("success", "")):
+        passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
+            "PLAN": "success", "CHECKS": "false", "RESULT": "skipped",
+            "SDKS": "true", "NATIVE_RESULT": native, "SDK_RESULT": sdk,
+            "DOCUMENTATION": "false", "DOCS": "skipped",
+        }).returncode == 0
+        assert passed == (native == sdk == "success")
     with tempfile.TemporaryDirectory(prefix="transit-ci-runner-") as directory:
         path = Path(directory)
         script = path / "just"

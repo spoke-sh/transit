@@ -4,6 +4,7 @@ const Runtime = @import("runtime.zig").Context;
 
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, context: Runtime) void {
     @import("native_fixtures.zig").register(b, target, optimize, context);
+    const sdk_authority = b.option([]const u8, "sdk-authority", "Explicit verified node executable for installed SDK catalog checks");
     const sdk_packages = b.option([]const u8, "sdk-packages", "Installed SDK package directory") orelse ".cache/bindings/Debug";
     const http_server = context.http_server;
     const serving_http = context.serving_http;
@@ -376,7 +377,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{ .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") }, .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_observability", .module = observations.module("transit_observability") } },
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
-    components_step.dependOn(&local_catalog_tests.step);
+    // The required storage-query lane owns test-local-catalog. Running it here
+    // as well repeated the same physical catalog workload in the core lane.
     const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
         .target = target,
@@ -1405,7 +1407,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_python = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_python.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_python.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_python.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_python.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_python.addArtifactArg(node_artifact);
+    }
     direct_catalog_python.addArtifactArg(direct_table_client);
     direct_catalog_python.addArgs(&.{ "sdk-python", b.pathJoin(&.{ sdk_packages, "wheels" }) });
     direct_catalog_python.has_side_effects = true;
@@ -1414,7 +1420,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_node = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_node.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_node.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_node.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_node.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_node.addArtifactArg(node_artifact);
+    }
     direct_catalog_node.addArtifactArg(direct_table_client);
     direct_catalog_node.addArgs(&.{ "sdk-node", b.pathJoin(&.{ sdk_packages, "node" }) });
     direct_catalog_node.has_side_effects = true;
@@ -1423,7 +1433,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_ruby = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_ruby.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_ruby.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_ruby.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_ruby.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_ruby.addArtifactArg(node_artifact);
+    }
     direct_catalog_ruby.addArtifactArg(direct_table_client);
     direct_catalog_ruby.addArgs(&.{ "sdk-ruby", b.pathJoin(&.{ sdk_packages, "ruby" }) });
     direct_catalog_ruby.has_side_effects = true;
@@ -1432,7 +1446,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_java = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_java.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_java.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_java.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_java.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_java.addArtifactArg(node_artifact);
+    }
     direct_catalog_java.addArtifactArg(direct_table_client);
     direct_catalog_java.addArgs(&.{ "sdk-java", b.pathJoin(&.{ sdk_packages, "java" }) });
     direct_catalog_java.has_side_effects = true;
@@ -1441,7 +1459,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_dotnet = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_dotnet.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_dotnet.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_dotnet.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_dotnet.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_dotnet.addArtifactArg(node_artifact);
+    }
     direct_catalog_dotnet.addArtifactArg(direct_table_client);
     direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", b.pathJoin(&.{ sdk_packages, "dotnet" }) });
     direct_catalog_dotnet.has_side_effects = true;
@@ -1450,7 +1472,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_rust = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_rust.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_rust.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_rust.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_rust.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_rust.addArtifactArg(node_artifact);
+    }
     direct_catalog_rust.addArtifactArg(direct_table_client);
     direct_catalog_rust.addArgs(&.{ "sdk-rust", b.pathJoin(&.{ sdk_packages, "rust" }) });
     direct_catalog_rust.has_side_effects = true;
@@ -1459,7 +1485,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_beam = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_beam.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_beam.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_beam.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_beam.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_beam.addArtifactArg(node_artifact);
+    }
     direct_catalog_beam.addArtifactArg(direct_table_client);
     direct_catalog_beam.addArgs(&.{ "sdk-beam", b.pathJoin(&.{ sdk_packages, "beam" }) });
     direct_catalog_beam.has_side_effects = true;
@@ -1468,7 +1498,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_c = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_c.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_c.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_c.addArtifactArg(node_artifact);
+    if (sdk_authority) |node| {
+        direct_catalog_c.addFileArg(.{ .cwd_relative = node });
+    } else {
+        direct_catalog_c.addArtifactArg(node_artifact);
+    }
     direct_catalog_c.addArtifactArg(direct_table_client);
     direct_catalog_c.addArgs(&.{ "sdk-c", b.pathJoin(&.{ sdk_packages, "c" }) });
     direct_catalog_c.has_side_effects = true;

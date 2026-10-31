@@ -622,3 +622,8 @@ lifecycle. These commands do not publish. Packaging rejects build/source identit
 mismatch, dynamic executables and nonempty output directories. The release
 workflow uses the same commands and publishes only after tagged qualification.
 The package/Helm archive metadata uses the commit timestamp for repeatable bytes.
+
+The `serving` and `sql-wire` test shells extend `ci-experience` with their own
+nginx and SQL client dependencies. Entering these shells from a browser or SQL
+scenario does not pull the default Kubernetes/provider tool closure. `flight`
+continues to extend `serving` with its declared Flight clients.

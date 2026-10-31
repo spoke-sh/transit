@@ -73,30 +73,6 @@
       "test::table-query-writer",
       "test::catalog"
     ],
-    "interfaces": [
-      "test::sql-wire-tls",
-      "test::sql-result-allocations",
-      "test::sql-gateway",
-      "test::sql-wire-gateway",
-      "test::sql-sessions",
-      "test::sql-transactions",
-      "test::relational-callers",
-      "test::relational-maintenance",
-      "test::relational-exchanges",
-      "test::named-relational",
-      "test::http-transport",
-      "test::tls-alpn",
-      "test::grpc-libraries",
-      "test::grpc-codegen",
-      "test::grpc-transport",
-      "test::grpc-server",
-      "test::flight-metadata",
-      "test::grpc-worker",
-      "test::grpc-faults",
-      "test::http-worker",
-      "examples::http",
-      "examples::grpc"
-    ],
     "installation-ui": [
       "transit-board::check",
       "transit-docs::check",
@@ -151,15 +127,46 @@
       "test::reactive-views",
       "test::reactive-views-lifecycle",
       "transit-board::workbench-browser"
+    ],
+    "interfaces-sql": [
+      "test::sql-wire-tls",
+      "test::sql-result-allocations",
+      "test::sql-wire-gateway",
+      "test::sql-sessions",
+      "test::sql-transactions"
+    ],
+    "interfaces-relational": [
+      "test::sql-gateway",
+      "test::relational-callers",
+      "test::relational-maintenance",
+      "test::relational-exchanges",
+      "test::named-relational"
+    ],
+    "interfaces-connectors": [
+      "test::http-transport",
+      "test::tls-alpn",
+      "test::grpc-libraries",
+      "test::grpc-codegen",
+      "test::grpc-transport",
+      "test::grpc-server",
+      "test::flight-metadata",
+      "test::grpc-worker",
+      "test::grpc-faults",
+      "test::http-worker",
+      "examples::http",
+      "examples::grpc"
     ]
   },
   "tiers": {
     "ordinary": [
-      "formal",
-      "core",
       "storage-query",
-      "interfaces",
+      "core",
+      "interfaces-sql",
       "installation-ui",
+      "browser",
+      "interfaces-relational",
+      "formal",
+      "interfaces-connectors",
       "launchers",
       "sdks-conformance",
       "sdks-scripting",
@@ -167,23 +174,30 @@
       "sdks-managed"
     ],
     "complete": [
-      "formal",
-      "core",
       "storage-query",
-      "interfaces",
+      "core",
+      "interfaces-sql",
       "installation-ui",
+      "browser",
+      "interfaces-relational",
+      "formal",
+      "interfaces-connectors",
       "launchers",
       "sdks-conformance",
       "sdks-scripting",
       "sdks-systems",
-      "sdks-managed",
-      "browser"
+      "sdks-managed"
     ],
     "sdks": [
       "sdks-conformance",
       "sdks-scripting",
       "sdks-systems",
       "sdks-managed"
+    ],
+    "interfaces": [
+      "interfaces-sql",
+      "interfaces-relational",
+      "interfaces-connectors"
     ]
   },
   "external_tasks": {
@@ -314,7 +328,8 @@
       "test::release-board",
       "bindings::release-build",
       "bindings::release-test",
-      "bindings::release-zig"
+      "bindings::release-zig",
+      "bindings::feedback"
     ]
   },
   "nested_tasks": {
@@ -366,15 +381,6 @@
       ]
     },
     "storage-query": {
-      "shell": "default",
-      "prepare": [
-        [
-          "just",
-          "ci::dependencies"
-        ]
-      ]
-    },
-    "interfaces": {
       "shell": "default",
       "prepare": [
         [
@@ -491,6 +497,43 @@
         [
           "just",
           "transit-board::install"
+        ],
+        [
+          "vp",
+          "exec",
+          "--filter",
+          "@transit/board-web",
+          "playwright",
+          "install",
+          "--with-deps",
+          "chromium"
+        ]
+      ]
+    },
+    "interfaces-sql": {
+      "shell": "default",
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ]
+      ]
+    },
+    "interfaces-relational": {
+      "shell": "default",
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
+        ]
+      ]
+    },
+    "interfaces-connectors": {
+      "shell": "default",
+      "prepare": [
+        [
+          "just",
+          "ci::dependencies"
         ]
       ]
     }
@@ -544,10 +587,6 @@
       "cache": "core",
       "timeout": 150
     },
-    "interfaces": {
-      "cache": "core",
-      "timeout": 150
-    },
     "installation-ui": {
       "cache": "experience",
       "timeout": 120
@@ -571,6 +610,22 @@
     "sdks-managed": {
       "cache": "bindings",
       "timeout": 360
+    },
+    "interfaces-sql": {
+      "cache": "core",
+      "timeout": 150
+    },
+    "interfaces-relational": {
+      "cache": "core",
+      "timeout": 150
+    },
+    "interfaces-connectors": {
+      "cache": "core",
+      "timeout": 150
+    },
+    "browser": {
+      "cache": "experience",
+      "timeout": 90
     }
   },
   "selection": {
@@ -912,6 +967,224 @@
         ],
         "resources": [
           "formal-cpu"
+        ]
+      },
+      "python-installed-sdk": {
+        "prefixes": [
+          "sdks/python/",
+          "tests/sdk/consumers/python/",
+          "examples/station-sdk/python/"
+        ],
+        "paths": [
+          "bindings/build_python.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::python-test",
+          "bindings::check",
+          "bindings::sdk-interop",
+          "bindings::logical-test",
+          "bindings::grpc-faults",
+          "bindings::connector-preparation",
+          "test::sql"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "node-installed-sdk": {
+        "prefixes": [
+          "sdks/ts/",
+          "tests/sdk/consumers/node/",
+          "examples/station-sdk/node/",
+          "examples/station-sdk/typescript/"
+        ],
+        "paths": [
+          "bindings/build_node.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::node-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop",
+          "bindings::logical-test",
+          "bindings::node-check"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "rust-installed-sdk": {
+        "prefixes": [
+          "sdks/rust/",
+          "tests/sdk/consumers/rust/",
+          "examples/station-sdk/rust/"
+        ],
+        "paths": [
+          "bindings/build_rust.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::rust-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "ruby-installed-sdk": {
+        "prefixes": [
+          "sdks/ruby/",
+          "tests/sdk/consumers/ruby/",
+          "examples/station-sdk/ruby/"
+        ],
+        "paths": [
+          "bindings/build_ruby.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::ruby-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "c-installed-sdk": {
+        "prefixes": [
+          "sdks/c/",
+          "tests/sdk/consumers/c/",
+          "examples/station-sdk/c/",
+          "sdks/cpp/",
+          "tests/sdk/consumers/cpp/",
+          "examples/station-sdk/cpp/"
+        ],
+        "paths": [
+          "bindings/build_c.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::c-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "java-installed-sdk": {
+        "prefixes": [
+          "sdks/java/",
+          "tests/sdk/consumers/java/",
+          "examples/station-sdk/java/"
+        ],
+        "paths": [
+          "bindings/build_java.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::java-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "dotnet-installed-sdk": {
+        "prefixes": [
+          "sdks/dotnet/",
+          "tests/sdk/consumers/dotnet/",
+          "examples/station-sdk/dotnet/"
+        ],
+        "paths": [
+          "bindings/build_dotnet.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::dotnet-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "beam-installed-sdk": {
+        "prefixes": [
+          "sdks/beam/",
+          "tests/sdk/consumers/beam/",
+          "examples/station-sdk/beam/",
+          "tests/sdk/consumers/elixir/"
+        ],
+        "paths": [
+          "bindings/build_beam.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::beam-sdk-test",
+          "bindings::check",
+          "bindings::sdk-interop"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "installed-consumers"
+        ]
+      },
+      "board-frontend": {
+        "prefixes": [
+          "apps/transit-board-web/",
+          "packages/ts/transit-board-client/",
+          "packages/ts/transit-query-client/",
+          "packages/ts/transit-diagnostics/"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "transit-board::check",
+          "transit-docs::check",
+          "bindings::node-check",
+          "test::observability",
+          "test::server-logging",
+          "test::server-single-executable",
+          "test::server-direct-tables",
+          "test::server-direct-faults",
+          "test::server-sql-lifetimes",
+          "test::server-sql",
+          "test::server-sql-local",
+          "transit-board::test",
+          "transit-board::query-test",
+          "launchers::local::test-station",
+          "transit-board::workbench-test",
+          "transit-board::browser",
+          "transit-board::query-browser",
+          "transit-board::http-browser",
+          "transit-board::grpc-browser",
+          "test::reactive-browser",
+          "test::reactive-views",
+          "test::reactive-views-lifecycle",
+          "transit-board::workbench-browser"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority",
+          "browser"
         ]
       }
     }

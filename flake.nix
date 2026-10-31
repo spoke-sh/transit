@@ -140,7 +140,7 @@
             TRANSIT_FUZE_BENCH_PYTHON = "${pkgs.callPackage ./nix/fuze-benchmark-tools.nix { }}/bin/python3";
           };
           serving = pkgs.mkShell {
-            inputsFrom = [ default ];
+            inputsFrom = [ ci-experience ];
             packages = [ pkgs.nginx ];
           };
           sql-wire =
@@ -148,7 +148,7 @@
               tools = import ./nix/sql-wire-tools.nix { inherit pkgs; };
             in
             pkgs.mkShell {
-              inputsFrom = [ default ];
+              inputsFrom = [ ci-experience ];
               packages = tools.packages;
               PKG_CONFIG_PATH = "${tools.openssl.dev}/lib/pkgconfig";
             };

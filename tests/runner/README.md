@@ -22,6 +22,8 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
 | [zig_dependencies.py](zig_dependencies.py), [test_zig_dependencies.py](test_zig_dependencies.py) | Fetch pinned packages before builds, with bounded transport retries and retained failure diagnostics |
 | [ci_select.py](ci_select.py), [test_selection.py](test_selection.py) | Reviewed dependency selection, source-bound plans and conservative fallback controls |
+| [feedback_cost.py](feedback_cost.py), [test_feedback_cost.py](test_feedback_cost.py) | Exclusive phase costs, incomplete evidence and comparable-run regression controls |
+| [build_feedback.py](build_feedback.py) | Isolated Rust clean, warm no-op, SDK-edit and shared-native-edit measurements (`just ci::benchmark`) |
 | [ci_cost.py](ci_cost.py) | Read hosted setup, execution and cache costs without treating missing lanes as success |
 | [ci_runner.py](ci_runner.py) | Selection, inventory, aggregate gate, interruption and clean-run regression controls |
 | [external_profiles.py](external_profiles.py) | Execute explicit deployment profiles and discovery campaigns with separate completion records |
@@ -104,16 +106,40 @@ from job records. They do not establish isolated workload throughput.
 `just ci cost RUN_ID` reports job/setup/cache costs and the first successfully
 completed ordinary lane. That first-lane time includes queue and preparation;
 it is not the time of the first assertion. Budget eligibility requires the same
-ordered task lists and lane allocation, including the browser continuation.
+ordered task lists and lane allocation, including the browser lane.
 Missing or foreign inventory identities leave the measured costs visible but
 cannot meet a budget. The reporter reads the measured revision's inventory as
 data and records its own source separately; it executes no code from that run.
 An unavailable source inventory leaves the result inconclusive.
 [CI budgets](ci-budgets.json) identify the calibrated inventory and separate warm
 and cold thresholds; the earlier 33-task limits retain their historical source.
-The command reports `budget_met`; a cost overrun alone does not fail the required
-correctness gate. These thresholds allow regression headroom and are distinct
-from faster feedback targets. A matching inventory hash confirms registration,
+The command retains `budget_met` for the historical calibrated inventory. New
+40-minute/288-runner-minute targets are explicitly uncalibrated in `ci-budgets.json`;
+`target_met` requires successful complete current-inventory evidence. Neither
+registration nor a fast failed run qualifies that target. The separate cost
+workflow fails after two consecutive comparable successful runs exceed the median
+of at least three prior samples by both 15% and 30 seconds. Inventory, cache profile
+and runner labels must match; a single slow run remains a candidate.
+
+Every job publishes compact feedback JSON and a summary of exclusive phase wall
+time. Nested compilation/installation time is subtracted from enclosing schedules;
+uninstrumented task time stays explicit. Native build-graph requests include cache
+lookup and linking, so their count is not labelled compiler rebuild count. Queue
+and dependency wait, setup, cache transfer, first completed/failed task, full job
+critical path and aggregate runner seconds remain separate. Missing or interrupted
+phases cannot establish complete phase evidence. Artifact reports are bounded JSON
+data; the trusted cost workflow never executes code from a PR artifact.
+
+`just ci::benchmark` measures the Rust raw-client feedback loop in a disposable
+checkout, once each for clean caches, warm no-op, an SDK source edit and a shared
+native source edit. Edits are comments in isolated copies; they measure input
+invalidation, not semantic-change complexity. The cases preserve package installs,
+negative definition checks and the real recovery schedule. Native Git provenance
+remains an input, so a clean-to-dirty transition can legitimately rebuild a binary
+when only SDK source changed. The weekly `Build feedback experiments` workflow and
+manual dispatch retain these measurements and failures for 30 days. The three-minute
+warm target is reported separately from cold preparation. A matching inventory
+hash confirms registration,
 not identical internal assertions or workload sizes. Review source, toolchain
 and workload changes before attributing a timing difference. The
 [calibration account](../../docs/history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
@@ -149,7 +175,7 @@ recipe nesting and required tier ownership before expensive qualification.
 
 `just ci select BASE HEAD` reports the changed inputs, transitive consumer groups,
 proposed tasks and enforced lanes from `suite.json`. Changes confined to the
-reviewed formal-model or Go SDK inputs execute their dependent tasks. Other code
+reviewed formal-model, language SDK or Board frontend inputs execute their dependent tasks. Other code
 changes retain the full ordinary inventory; documentation-only changes run the
 documentation checks. Main, release, merge-group and manually dispatched qualification stay full.
 Both ends of a rename are inputs; a missing comparison revision fails planning.
@@ -163,8 +189,12 @@ Changes to Go's generated ABI declarations also select `bindings::check` for
 generation drift; shared generators and authoritative contracts select full CI.
 The [task recipes](../../tasks/bindings.just), [native registration](../../build/checks.zig)
 and [consumer registry](../sdk/consumer_registry.py) are the audited callers; Go
-does not participate in the Station interoperability ring. Other SDKs and native
-packages still select full qualification. Shared harnesses, contracts, fixtures,
+does not participate in the Station interoperability ring. Each other language keeps
+its installed suite, generated-contract checks and the shared interoperability ring.
+Python and Node also retain logical-value consumers; Python retains SQL and connector
+consumers, and Node retains its separate adapter check. Board frontend changes keep
+the installation/UI lane and every browser scenario. Native packages still select
+full qualification. Shared harnesses, contracts, fixtures,
 active budgets, build/runner policy and unknown files also stay full.
 
 Adding a reviewed group requires its input owners, dependency edges, executable
@@ -174,17 +204,23 @@ complete successful runs before enabling it. Directory location alone is not
 evidence that no other caller exists. CI records the proposal with the executed
 tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
 different policy. A scoped successful result cannot qualify a full-suite budget.
-Hosted work schedules ten lanes within the existing seven-job ceiling; each
+Hosted work schedules thirteen lanes; each
 lane remains sequential, with isolated mutable state and one writer per selected
 Nix cache group; formal does not write a Nix cache. Storage/catalog/query tasks
 belong to `storage-query`; SQL protocol/relational and HTTP/gRPC tasks belong to
-`interfaces`. Installation, Board and documentation belong to `installation-ui`,
-which also runs the browser continuation. SDK suites separate shared contracts and
+`interfaces-sql`, `interfaces-relational` and `interfaces-connectors`.
+Installation, Board and documentation belong to `installation-ui`; `browser`
+owns all eight Chromium scenarios and runs independently, with its own browser
+preparation. `just ci::interfaces` executes all three interface lanes sequentially. SDK suites separate shared contracts and
 interoperability (`sdks-conformance`), Python/Node/Ruby (`sdks-scripting`),
 Rust/Go/C/C++ (`sdks-systems`), and Java/.NET/Erlang/Elixir (`sdks-managed`).
 `just ci::sdks` runs all four SDK suites sequentially. Every recipe declares its
-own build prerequisites; no lane inherits another lane's outputs. Formal feedback
-stays early. Each job repeats shell/cache and native preparation; cost comparisons
+own build prerequisites. SDK lanes consume verified native publications from four
+family/profile producer jobs; runtime lanes start independently. Formal feedback
+stays early. The runtime matrix allows seven concurrent jobs and the native/SDK
+stage allows four, so a full run may use eleven runners. This additional parallelism
+is explicit; aggregate runner cost includes producers and consumers. Each job
+repeats shell/cache preparation; cost comparisons
 must include that work as well as elapsed-time changes. Renamed or regrouped
 inventories require new measurements; archived names and budget hashes still
 describe their original source revisions.

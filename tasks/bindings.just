@@ -5,6 +5,11 @@ set working-directory := ".."
 _default:
     @just --list bindings
 
+# Focus on one installed SDK boundary; raw is the shortest live feedback loop.
+[positional-arguments]
+feedback language *args:
+    python3 -B tests/runner/launch.py tests/sdk/feedback.py "$@"
+
 # Resolve the immutable Debug client fixture set and record its identity.
 build:
     python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug
@@ -182,8 +187,7 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
     python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust
-    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/Debug --language rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug/rust "${native_prefix}/bin/transit-station-http-worker" "${native_prefix}/bin/transit-station-grpc-worker"
     just bindings::direct-catalog-rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
@@ -516,16 +520,18 @@ direct-catalog-python:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging python -- python3 -B bindings/build_python.py .cache/bindings/ReleaseSafe/wheels transit-native-client transit-native-station transit-client transit-station --native-prefix "$native_prefix"
-    zig build test-direct-catalog-python -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-python -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Build matching ReleaseSafe packages and qualify the TypeScript direct caller.
 direct-catalog-node:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging node -- python3 -B bindings/build_node.py .cache/bindings/ReleaseSafe/node transit-native-client transit-client transit-native-station transit-station-sdk --native-prefix "$native_prefix"
-    zig build test-direct-catalog-node -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-node -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed Python sync/async direct catalog and exact saved-operation recovery.
 catalog-python: direct-catalog-python
@@ -539,8 +545,9 @@ direct-catalog-rust:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging rust -- python3 -B bindings/build_rust.py .cache/bindings/ReleaseSafe/rust transit-native-client transit-client transit-native-station transit-station-sdk --native-prefix "$native_prefix"
-    zig build test-direct-catalog-rust -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-rust -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed Rust catalog caller with exclusive borrows and saved recovery.
 catalog-rust: direct-catalog-rust
@@ -551,8 +558,9 @@ direct-catalog-ruby:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging ruby -- python3 -B bindings/build_ruby.py .cache/bindings/ReleaseSafe/ruby transit-native-client transit-client transit-native-station transit-station --native-prefix "$native_prefix"
-    zig build test-direct-catalog-ruby -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-ruby -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed Ruby catalog caller with immutable values and joined worker ownership.
 catalog-ruby: direct-catalog-ruby
@@ -565,10 +573,11 @@ direct-catalog-c:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     sdk_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare c-sdk --optimize ReleaseSafe)
     (cd sdks/cpp/transit-station-sdk && zig build check -Doptimize=ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging c -- python3 -B bindings/build_c.py .cache/bindings/ReleaseSafe/c --native-prefix "$native_prefix" --sdk-prefix "$sdk_prefix"
-    zig build test-direct-catalog-c -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-c -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
 catalog-c: direct-catalog-c
@@ -578,8 +587,9 @@ direct-catalog-java:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging java -- python3 -B bindings/build_java.py .cache/bindings/ReleaseSafe/java transit-native-client transit-client transit-native-station transit-station-sdk --native-prefix "$native_prefix"
-    zig build test-direct-catalog-java -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-java -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: direct-catalog-java
@@ -589,8 +599,9 @@ direct-catalog-dotnet:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging dotnet -- python3 -B bindings/build_dotnet.py .cache/bindings/ReleaseSafe/dotnet transit-native-client transit-client transit-native-station transit-station-sdk --native-prefix "$native_prefix"
-    zig build test-direct-catalog-dotnet -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-dotnet -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
 catalog-dotnet: direct-catalog-dotnet
@@ -600,8 +611,9 @@ direct-catalog-beam:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
+    authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/harness/phases.py packaging beam -- python3 -B bindings/build_beam.py .cache/bindings/ReleaseSafe/beam transit-native-client transit-client transit-client-elixir transit-native-station transit-station-sdk transit-station-elixir --native-prefix "$native_prefix"
-    zig build test-direct-catalog-beam -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
+    zig build test-direct-catalog-beam -Dsdk-authority="${authority_prefix}/bin/transit-node" -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed Erlang/Elixir catalog values and joined native-port ownership.
 catalog-beam: direct-catalog-beam
