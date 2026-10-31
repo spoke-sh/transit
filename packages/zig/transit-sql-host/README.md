@@ -13,7 +13,9 @@ MySQL packages supply pure framing and protocol transitions. Authentication
 input, TLS upgrades, deadlines and connection cleanup belong to this host.
 Command input uses the codecs' incremental continuations. Each connection starts
 with at most 8 KiB from its existing admitted session reserve, grows to a checked
-frame length only when needed, and reuses its high-water capacity. A command owns
+frame length only when needed, and reuses its high-water capacity. Initial command
+state and input capacity are admitted before the successful login/ready reply.
+A command owns
 its input until execution and joined cancellation finish; release erases used
 bytes. Failure closes the decoder and cleanup erases the whole buffer, including
 bytes from partial failed reads. Handshake input retains separate bounded owners.

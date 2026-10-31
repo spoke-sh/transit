@@ -250,6 +250,12 @@ const Server = struct {
         host.active = &slot.active;
         host.diagnostics = self.diagnostics;
         host.wire.observer = self.diagnostics;
+        // Admit command state before announcing a ready authenticated session.
+        // A reserve refusal closes startup without accepting a first command.
+        var engine = try @import("PostgresSession.zig").Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
+        defer engine.deinit();
+        var input = try FrameInput.Reader(pg.Frame.Input).init(allocator, .{ .maximum = self.config.limits.frame_bytes });
+        defer input.deinit();
         if (account.authentication == .password) try tx.writeAll(try backend.authenticate(.final, &proof));
         try tx.writeAll(try backend.authenticate(.ok, ""));
         self.authenticated();
@@ -258,10 +264,6 @@ const Server = struct {
         for ([_][2][]const u8{ .{ "server_version", "18.0-Transit" }, .{ "server_encoding", "UTF8" }, .{ "client_encoding", "UTF8" }, .{ "standard_conforming_strings", "on" }, .{ "integer_datetimes", "on" }, .{ "application_name", startup.get("application_name") orelse "" } }) |parameter| try tx.writeAll(try backend.parameter(parameter[0], parameter[1]));
         try tx.writeAll(try backend.key(slot.id, slot.secret));
         try tx.writeAll(try backend.ready(.idle));
-        var engine = try @import("PostgresSession.zig").Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
-        defer engine.deinit();
-        var input = try FrameInput.Reader(pg.Frame.Input).init(allocator, .{ .maximum = self.config.limits.frame_bytes });
-        defer input.deinit();
         while (true) {
             const idle = engine.cycle.state == .idle;
             if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
