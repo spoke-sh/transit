@@ -216,10 +216,11 @@ def main():
     # Renaming a lane must not omit its frontend preparation or the separately
     # invoked browser continuation from hosted qualification.
     assert next(step["if"] for step in steps if step.get("name") == "Install locked Board frontend dependencies") == (
-        "inputs.lane == 'installation-ui' || inputs.lane == 'launchers'")
-    for name in ("Install browser and host dependencies", "Qualify embedded Board in Chromium"):
-        assert next(step["if"] for step in steps if step.get("name") == name) == "inputs.lane == 'installation-ui'"
-    assert select([], "push")["additional_lanes"] == {"browser": LANES["browser"]}
+        "inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'")
+    for name in ("Install browser and host dependencies",):
+        assert next(step["if"] for step in steps if step.get("name") == name) == "inputs.lane == 'browser'"
+    assert select([], "push")["lanes"]["browser"] == LANES["browser"]
+    assert not select([], "push")["additional_lanes"]
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}

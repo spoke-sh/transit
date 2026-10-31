@@ -23,7 +23,10 @@ def profile(suite, selection):
         return suite["environments"][selection]
     # The complete sequential inventory still needs every language and frontend.
     # A single lane uses its hosted environment, with no unrelated preparation.
-    return {"shell": "bindings", "prepare": [["just", "ci::dependencies"], ["just", "transit-board::install"]]}
+    prepare = [["just", "ci::dependencies"], ["just", "transit-board::install"]]
+    if selection in {"all", "complete"}:
+        prepare.append(["vp", "exec", "--filter", "@transit/board-web", "playwright", "install", "--with-deps", "chromium"])
+    return {"shell": "bindings", "prepare": prepare}
 
 
 def check_profile(scope):

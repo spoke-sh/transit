@@ -58,8 +58,8 @@ class Selection(unittest.TestCase):
         for path in ("apps/transit-board-web/src/data-workbench.tsx",
                      "packages/ts/transit-query-client/src/read.ts"):
             plan = select([path])
-            self.assertEqual(list(plan["lanes"]), ["installation-ui"])
-            self.assertEqual(plan["additional_lanes"], {"browser": SUITE["lanes"]["browser"]})
+            self.assertEqual(list(plan["lanes"]), ["installation-ui", "browser"])
+            self.assertEqual(plan["lanes"]["browser"], SUITE["lanes"]["browser"])
         # A mixed change cannot hide a shared native dependency behind a known SDK path.
         self.assertTrue(select(["sdks/rust/transit-client/src/lib.rs", "packages/zig/transit-client/src/root.zig"])["full"])
 

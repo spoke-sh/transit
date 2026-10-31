@@ -114,6 +114,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
 | `just bindings::authorization` | Focused aggregate for the eight direct catalog task families (ten SDK languages): explicit roles, current revocation and denied raw resource access; ordinary CI runs each through its language suite |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
+| `just bindings::feedback LANGUAGE [--scope SCOPE]` | Package and execute one installed SDK boundary with phase timings; default raw scope is the local feedback loop |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
@@ -270,13 +271,14 @@ in Debug. Unit tests retain their default Debug build.
 
 `just ci::cost RUN_ID` compares ordinary-suite budgets only when every ordinary
 lane appears exactly once and completes successfully with available cache evidence
-and a matching budget inventory, including the browser continuation.
+and a matching budget inventory, including the browser lane.
 Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
 Hosted execution caps are 120 minutes for core, 150 each for storage-query and
-interfaces, 120 for installation-ui, 45 for launchers, and 360 for each SDK lane.
+the three interface lanes, 120 for installation-ui, 90 for browser, 45 for launchers,
+and 360 for each SDK lane. These are execution ceilings, not feedback targets.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
 hosted setup, and one original 40 KiB SQL mutation takes 56.61 minutes to complete.

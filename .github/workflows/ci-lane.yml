@@ -125,7 +125,7 @@ jobs:
         if: inputs.lane != 'formal'
         run: nix develop .#${{ inputs.shell }} --command just ci::dependencies
       - name: Install locked Board frontend dependencies
-        if: inputs.lane == 'installation-ui' || inputs.lane == 'launchers'
+        if: inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'
         run: nix develop .#${{ inputs.shell }} --command just transit-board::install
       - name: Install locked Node binding dependencies
         if: inputs.cache == 'bindings'
@@ -162,15 +162,12 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 2
+      - name: Install browser and host dependencies
+        if: inputs.lane == 'browser'
+        run: nix develop .#${{ inputs.shell }} --command vp exec --filter @transit/board-web playwright install --with-deps chromium
       - name: Run ${{ inputs.lane }} checks
         if: inputs.native_family == ''
         run: nix develop .#${{ inputs.shell }} --command just ci::${{ inputs.lane }}
-      - name: Install browser and host dependencies
-        if: inputs.lane == 'installation-ui'
-        run: nix develop .#${{ inputs.shell }} --command vp exec --filter @transit/board-web playwright install --with-deps chromium
-      - name: Qualify embedded Board in Chromium
-        if: inputs.lane == 'installation-ui'
-        run: nix develop .#${{ inputs.shell }} --command just ci::browser
       - name: Preserve task timings and completion evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

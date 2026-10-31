@@ -32,9 +32,9 @@ def source_inventory(revision, api):
     assert suite['version'] == 1, 'Unsupported source inventory'
     ordinary = suite['tiers']['ordinary']
     assert isinstance(ordinary, list) and ordinary and all(isinstance(name, str) for name in ordinary)
-    assert len(set(ordinary)) == len(ordinary) and 'browser' not in ordinary
+    assert len(set(ordinary)) == len(ordinary)
     tasks = []
-    for name in [*ordinary, 'browser']:
+    for name in dict.fromkeys([*ordinary, 'browser']):
         owned = suite['lanes'][name]
         assert isinstance(owned, list) and owned and all(isinstance(task, str) for task in owned)
         tasks.extend(owned)

@@ -39,9 +39,21 @@ formal:
 storage-query:
     python3 -B tests/runner/ci.py storage-query
 
-# SQL protocols, relational callers and HTTP/gRPC interfaces.
+# Run all three interface lanes sequentially.
 interfaces:
     python3 -B tests/runner/ci.py interfaces
+
+# SQL wire protocols, statement results and session lifecycle.
+interfaces-sql:
+    python3 -B tests/runner/ci.py interfaces-sql
+
+# Relational SQL gateway and installed callers.
+interfaces-relational:
+    python3 -B tests/runner/ci.py interfaces-relational
+
+# HTTP/gRPC connectors and Flight metadata.
+interfaces-connectors:
+    python3 -B tests/runner/ci.py interfaces-connectors
 
 # Installation, Board, documentation and observability proofs.
 installation-ui:

@@ -376,7 +376,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{ .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") }, .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_observability", .module = observations.module("transit_observability") } },
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
-    components_step.dependOn(&local_catalog_tests.step);
+    // The required storage-query lane owns test-local-catalog. Running it here
+    // as well repeated the same physical catalog workload in the core lane.
     const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
         .target = target,

@@ -33,6 +33,9 @@ package source files.
 Use `zig build test-build` in `nix develop` to compile integration probes.
 Run the affected [test task](../tasks/test.just) to qualify actual behavior;
 compilation alone does not exercise a service, provider or failure schedule.
+The disk-backed catalog policy tests run through `just test::local-catalog` in the
+required `storage-query` lane. The component aggregate does not repeat that same
+workload in `core`; the standalone catalog assertions and workload are unchanged.
 
 For an explicit native fixture prefix, run the harness resolver inside the pinned
 shell:
