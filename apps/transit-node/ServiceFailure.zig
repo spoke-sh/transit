@@ -6,6 +6,8 @@ pub fn table(err: anyerror) Refusal {
     const code: p.ErrorCode = switch (err) {
         error.InvalidBody => .InvalidBody,
         error.InvalidRequest => .InvalidRequest,
+        error.InvalidKVOperation, error.InvalidKVKey, error.KVValueTooLarge, error.KVBatchTooLarge, error.UnsupportedKVAlter => .InvalidRequest,
+        error.KVBuildBudget => .StorageQuota,
         error.InvalidQueueWait, error.InvalidStreamWait, error.InvalidWaitHint => .InvalidRequest,
         error.QueueWaitCapacity, error.StreamWaitCapacity, error.NotificationCapacityExceeded => .ControlCapacity,
         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => .AccessDenied,

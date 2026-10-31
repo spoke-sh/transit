@@ -20,7 +20,6 @@ fn definition(kind: Resource.Kind) !Resource.Definition {
         .deadline_ms = null,
         .history_ms = null,
         .spec = switch (kind) {
-            .kv => .{ .kv = .{ .value_type = .utf8, .nullable = true, .key_encoding = .native_bytes, .value_encoding = .fvl1 } },
             .document => .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
         },
     } };
@@ -32,11 +31,11 @@ fn clean(turn: s.Turn) !void {
 }
 
 test "named resource initialization survives every discarded proposal and exact retry" {
-    inline for (.{ Resource.Kind.kv, Resource.Kind.document }) |kind| {
+    inline for (.{Resource.Kind.document}) |kind| {
         var store: Store = .{};
         defer store.deinit();
         const owner: Owner = .{ .initial = try definition(kind) };
-        const phases: []const Owner.Step = if (kind == .kv) &.{.complete} else &.{ .reserved, .initialized, .complete };
+        const phases: []const Owner.Step = &.{ .reserved, .initialized, .complete };
         for (phases, 0..) |phase, index| {
             var observation = try store.capture();
             const before = try owner.inspect(t.allocator, &observation, 0);
@@ -71,55 +70,8 @@ test "named resource initialization survives every discarded proposal and exact 
     }
 }
 
-test "named resource KV uses owned canonical values and enforces explicit type, key and value bounds" {
-    var store: Store = .{};
-    defer store.deinit();
-    const owner: Owner = .{ .initial = try definition(.kv) };
-    var turn = try store.capture();
-    try t.expectError(error.NamedResourceNotInitialized, owner.put(t.allocator, &turn, 0, "one", .null));
-    try clean(turn);
-    _ = try owner.initialize(t.allocator, &turn, 0);
-    try store.commit(turn);
-    const text = "a canonical owned value";
-    turn = try store.capture();
-    try owner.put(t.allocator, &turn, 0, "one", .{ .value = .{ .atom = .{ .bytes = text } } });
-    try store.commit(turn);
-    turn = try store.capture();
-    var found = (try owner.get(t.allocator, &turn, 0, "one")).?;
-    defer found.deinit();
-    try t.expectEqualStrings(text, found.cell.value.atom.bytes);
-    try clean(turn);
-    // A later mutation cannot overwrite the caller's decoded arena.
-    try owner.put(t.allocator, &turn, 0, "one", .null);
-    try store.commit(turn);
-    try t.expectEqualStrings(text, found.cell.value.atom.bytes);
-    turn = try store.capture();
-    var null_value = (try owner.get(t.allocator, &turn, 0, "one")).?;
-    defer null_value.deinit();
-    try t.expectEqual(.null, null_value.cell);
-    try owner.remove(t.allocator, &turn, 0, "one");
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectEqual(null, try owner.get(t.allocator, &turn, 0, "one"));
-    try t.expectError(error.InvalidNamedResourceKey, Owner.key(""));
-    try t.expectError(error.InvalidNamedResourceKey, Owner.key(&@as([32]u8, @splat(1))));
-    try t.expectEqual(@as(usize, 32), (try Owner.key(&@as([31]u8, @splat(1)))).len);
-    try t.expectError(error.InvalidNamedResourceValue, owner.put(t.allocator, &turn, 0, "one", .missing));
-    try clean(turn);
-    try t.expectError(error.WriteFailed, owner.put(t.allocator, &turn, 0, "one", .{ .value = .{ .atom = .{ .bytes = &@as([256]u8, @splat('x')) } } }));
-    try clean(turn);
-    // Raw native bytes cannot be silently interpreted under another schema.
-    var encoded: [256]u8 = undefined;
-    const foreign = try app.query.fuze.Types.Codec.encode(.{ .value = .{ .atom = .{ .boolean = true } } }, .{ .name = "value", .type = .boolean }, &encoded);
-    try turn.write(try Owner.key("one"), try p.Value.init(foreign));
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectError(error.InvalidNamedResourceValue, owner.get(t.allocator, &turn, 0, "one"));
-    try clean(turn);
-}
-
 test "named resources reject adoption, conflicting initialization and current permission loss" {
-    inline for (.{ Resource.Kind.kv, Resource.Kind.document }) |kind| {
+    inline for (.{Resource.Kind.document}) |kind| {
         var store: Store = .{};
         defer store.deinit();
         const owner: Owner = .{ .initial = try definition(kind) };
@@ -168,22 +120,10 @@ test "named resource Document creation uses the service and cannot adopt an exis
     try clean(turn);
 }
 
-test "named resource KV rejects a partial marker that no atomic initialization can create" {
-    var store: Store = .{};
-    defer store.deinit();
-    const owner: Owner = .{ .initial = try definition(.kv) };
-    var turn = try store.capture();
-    try turn.write(Owner.reservationKey(), try (try owner.initial.initialization(t.allocator)).encode());
-    try store.commit(turn);
-    turn = try store.capture();
-    try t.expectError(error.NamedResourceIdentityConflict, owner.initialize(t.allocator, &turn, 0));
-    try clean(turn);
-}
-
 test "named resource emptiness separates framework proposals from private user writes" {
     var store: Store = .{};
     defer store.deinit();
-    const owner: Owner = .{ .initial = try definition(.kv) };
+    const owner: Owner = .{ .initial = try definition(.document) };
     var turn = try store.capture();
     try turn.write(try p.Value.init("user"), null);
     const before = turn.decision;
@@ -191,8 +131,8 @@ test "named resource emptiness separates framework proposals from private user w
     try t.expectEqualDeep(before, turn.decision);
     turn = try store.capture();
     try turn.write(try p.Value.init("\x00behavior"), try p.Value.init("framework"));
-    try t.expectEqual(Owner.Step.complete, try owner.initialize(t.allocator, &turn, 0));
+    try t.expectEqual(Owner.Step.reserved, try owner.initialize(t.allocator, &turn, 0));
     try store.commit(turn);
     turn = try store.capture();
-    try t.expectEqual(Owner.Step.complete, (try owner.inspect(t.allocator, &turn, 0)).?);
+    try t.expectEqual(Owner.Step.reserved, (try owner.inspect(t.allocator, &turn, 0)).?);
 }

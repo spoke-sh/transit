@@ -59,7 +59,7 @@ pub const Definition = struct {
 pub const ResourceInitialization = struct {
     definition: p.Growth.Definition,
     interpretation: Definition,
-    kind: enum(u8) { kv = 1, document = 2 },
+    kind: enum(u8) { document = 2 },
     resource: u64,
     pub const encoded_bytes = 125;
 

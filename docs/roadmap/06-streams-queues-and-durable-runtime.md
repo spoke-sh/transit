@@ -528,8 +528,12 @@ The native profile and all affected callers now require a distinct KV authority
 domain; bootstrap, generated contracts and strict SDK decoding share that
 profile. The [authority qualification](../history/qualification/catalog.md#direct-kv-authority-and-complete-caller-profiles--2026-10-30)
 records the installed Table regression matrix and its pre-rebase source.
-Named KV catalog/caller migration and the common state/append/settlement decision
-remain outstanding, including atomic DLQ transfer. R6's dedicated SQL/shared
+Named direct KV now has catalog declaration, signed mutation/read/pin operations,
+rename/DROP and shared data-client support. The native writer-backed named KV
+path is removed; Documents retain that separate owner. Focused storage, signed
+dispatch, bounded-memory and cross-kind dependency checks pass. Installed
+current-definition recovery and clean qualification remain open. The common
+state/append/settlement decision, including atomic DLQ transfer, is outstanding. R6's dedicated SQL/shared
 caller/finite analytical surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
@@ -541,7 +545,7 @@ not complete these gates.
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: KV storage/authority delivered; named KV and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R5 | Partial: named direct KV implemented; installed qualification and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
@@ -795,9 +799,10 @@ object/kind/logical-partition targets, kind-specific guards and owner-grouped
 preparations. Its ordered action vocabulary covers append, offset commit, ACK
 and terminal transfer, separating expired maintenance from live worker NACK.
 The current-v1 definition cutover migrates existing Table consumers; non-Table
-execution remains refused before admission. R5b/R5c still need real direct KV,
-log retention pins, durable action directories/reservations and participant
-adapters. Shape validation and neutral directory membership are not evidence
+execution remains refused before admission. R5b implements named direct KV
+under a separate v1 cutover; its installed and clean gates are still pending.
+R5c still needs log retention pins, durable action directories/reservations and
+participant adapters. Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
 R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,
@@ -1143,8 +1148,8 @@ identities and use this order for the next implementation changes:
    a starting point. Reconcile stale baseline claims in contracts/references with
    their owning code and evidence as part of each affected change.
 2. **Finish named direct KV and executable participant adapters (R5b/R5c).**
-   Connect the delivered KV storage and authority to catalog/native/public callers.
-   Generalize the existing coordinator, read cuts, private workspaces, savepoints,
+   Complete the named KV installed/clean qualification, preserving its new
+   catalog/storage/caller ownership and explicit Document boundary. Generalize the existing coordinator, read cuts, private workspaces, savepoints,
    graph roots and decision log. The first complete vertical test is: claim an
    inbox item, commit Table/KV state plus Stream/Queue output plus its ACK, kill
    after decision but before finalization, then recover the same decision without

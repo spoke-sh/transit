@@ -137,7 +137,7 @@ pub const Ddl = struct {
     name: []const u8,
     action: union(enum) { create: struct { owner: u64, schema: Binary }, alter: Change, rename: []const u8, drop },
     fn intent(self: Ddl, allocator: std.mem.Allocator) !D.Intent {
-        return .{ .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
+        return .{ .kind = .table, .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
             .create => |value| .{ .create = .{ .owner = value.owner, .schema = (try f.TableSchema.decode(allocator, try value.schema.decode(allocator, f.TableSchema.max_bytes))).schema } },
             .alter => |value| .{ .alter = try value.native(allocator) },
             .rename => |value| .{ .rename = try .init(value) },
@@ -373,6 +373,10 @@ pub const Action = union(enum) {
     release: Snapshot,
     stream: c.DirectStream.Request,
     queue: c.DirectQueue.Request,
+    kv: c.DirectKV.Request,
+    kv_declaration: c.DirectKV.DeclarationRequest,
+    kv_lookup: struct { namespace: u64, name: []const u8 },
+    kv_list: struct { namespace: u64, after: ?u64 },
 };
 pub const Request = struct {
     definition: p.Growth.Definition,
@@ -404,6 +408,7 @@ pub const Request = struct {
         const mutation = switch (self.action) {
             .stream => |value| value.mutation(),
             .queue => |value| value.mutation(),
+            inline .kv, .kv_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
             .client_token => |value| value == .bind,
@@ -418,7 +423,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -454,6 +459,15 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .kv => |value| {
+                try connection.object(value.target());
+                try value.validate(allocator, connection.principal, connection.scope);
+            },
+            .kv_declaration => |value| try value.validate(allocator, connection),
+            inline .kv_lookup, .kv_list => |value| {
+                try c.Model.nativeId(value.namespace);
+                if (@hasField(@TypeOf(value), "name")) _ = try c.TableAuthority.Name.init(value.name);
+            },
             inline .stream, .queue => |value| {
                 try connection.object(value.target().interpretation.object);
                 try value.validate(connection.principal, connection.scope);
@@ -794,6 +808,7 @@ pub const Point = struct {
     total_rows: u64,
     row: ?Binary,
 };
+pub const StateList = struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } };
 pub const Result = union(enum) {
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
@@ -820,7 +835,7 @@ pub const Result = union(enum) {
     log_pending: c.DirectLogProtocol.PendingPage,
     checked,
     staged: c.DirectTableIntent.Reference,
-    list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
+    list: StateList,
     lookup: ?Definition,
     observation: Current,
     storage: D.StorageObservation,
@@ -846,6 +861,10 @@ pub const Result = union(enum) {
     released,
     stream: c.DirectStream.Result,
     queue: c.DirectQueue.Result,
+    kv: c.DirectKV.Result,
+    kv_declaration: c.DirectKV.DeclarationResult,
+    kv_lookup: ?c.DirectKV.Definition,
+    kv_list: StateList,
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 

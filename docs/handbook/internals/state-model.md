@@ -129,9 +129,37 @@ liveness or automatic abort guarantee.
 
 ## Typed state and causality
 
+### Named direct KV partitions
+
+A named KV object shares catalog identity, name reservation and policy with
+Tables, but its data belongs to `KVPartition`. The catalog persists the data kind
+in its intent and physical declaration; the exact key/value schema fingerprint
+and kind must both match before the partition opens. The native Document marker
+cannot establish a KV object. These checks keep the policy domain and physical
+interpretation aligned without routing database changes through a Station turn.
+
+The key lifecycle question is whether a failed batch or lost response can expose
+only part of the intended state. KV lowers a bounded change list to the shared
+partition engine under one current publication guard. All key expectations and
+optional observed-position guards precede publication; state and original receipt
+share one accepted partition root. Inspection and exact retry recover that receipt
+without accepting another mutation. Missing-key reads disclose their source basis,
+so a caller can guard absence against a concurrent insertion. A retained snapshot
+keeps its original interpretation after rename or DROP and still requires current
+read authority.
+
+The [typed KV contract](../../../contracts/DIRECT_TABLE_V1.md#direct-kv) specifies
+identity, value and batch bounds. The [catalog checks](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+exercise disk reopen, large batches, original receipts, missing-key conflicts,
+revocation and dependencies in both directions with native Documents. The
+[installed caller schedule](../../../tests/catalog/tables/direct_kv.zig) exercises
+the signed service boundary; an executed run is required before claiming its
+fault coverage. Native private state remains a separate Station resource, and
+Table transactions still refuse KV participants before admission.
+
 ### Naming initialized native resources
 
-The question is how a catalog name can identify usable KV or Document state when
+The question is how a catalog name can identify usable Document state when
 metadata acceptance, native allocation and framework initialization have different
 commit owners. The implemented profile uses one direct catalog, one existing
 native resource writer and explicit caller-driven progress. It assumes authentic
@@ -161,8 +189,7 @@ declarations cannot freeze the same next native sequence. Reconciliation or
 cancellation releases that reservation. Independent native activity can still
 conflict; the actual native receipt remains decisive.
 
-KV reservation and completion use one native commit. Document initialization
-needs three: reserve `I`, create the actual Document service state, then verify
+Document initialization needs three commits: reserve `I`, create the actual Document service state, then verify
 its empty accepted head and record completion. Restart between those commits
 reads the same reservation and never adopts an unrelated existing Document.
 Metadata registration does not grant data access; publication checks the original

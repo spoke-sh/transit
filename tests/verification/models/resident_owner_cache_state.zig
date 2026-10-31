@@ -92,7 +92,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
     var access: Access = .{};
     try catalog.initialize(access.policy());
 
-    const create_intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init("selected_0"), .action = .{ .create = .{ .schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} }, .owner = 0 } } };
+    const create_intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init("selected_0"), .action = .{ .create = .{ .schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} }, .owner = 0 } } };
     const create_req: D.Request = .{
         .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 10 }, .target = .{ .scope = scope, .branch = 1, .object = 10 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try create_intent.digest(allocator) },
         .intent = create_intent,

@@ -7,7 +7,7 @@ pub const version = 1;
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
 /// SHA-256 of transit.v1.partitioned-transaction-participants.2026-10-31.
 pub const Definition = enum {
-    @"7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e",
+    @"7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;

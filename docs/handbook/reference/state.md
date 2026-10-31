@@ -21,18 +21,27 @@ one local common cut and commit decision. Native KV/Document state and native
 input acknowledgments do not participate. A handler's independent Table call
 therefore does not extend its native turn boundary.
 
-The database storage package also supplies a direct `KVPartition` foundation:
-typed values, byte-exact keys, atomic batches, original-operation receipts and
-retained reads over paged WAL/segment storage. It has no writer PID or native
-turn value limit. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md)
-defines its bounds. Named KV callers still use the lifecycle below until the
-catalog migration and shared transaction gate are complete.
+Named KV uses `DirectKVClient` and the shared direct catalog. Its `KVPartition`
+accepts typed values, byte-exact keys and atomic batches over paged WAL/segment
+storage without a writer PID. Declare `int64`, `boolean`, `utf8` or `binary`
+values with explicit nullability. Keys contain 1–1024 bytes; batches contain up
+to 1024 puts/removes, with a 4 MiB serialized-work ceiling and deployment memory
+quotas. Values can exceed the native turn envelope. See the
+[direct KV API](../../../packages/zig/transit-catalog/docs/direct-kv.md) for
+value bounds, exact-operation recovery, conditional writes and retained reads.
 
-Named KV and Document declarations use `DirectResourceClient` and the shared
+Creation reserves the shared name and object identity, registers its KV policy
+object, then publishes the initialized partition. Metadata inspection, data reads,
+data writes and ownership are separate current rights. Rename and DROP preserve
+original-operation receipts. Snapshot pins retain a read cut until explicit
+release; they never grant access. KV batches currently commit in one partition;
+KV does not yet participate in the Table transaction service.
+
+Named Document declarations use `DirectResourceClient` and the shared
 direct catalog. Save the complete declaration before admission. Its observable
 phases separate name reservation, preparation of the original caller's native
 allocation, accepted allocation and completed initialization/publication. The
-caller supplies an existing writer, explicit lifetime policy and kind-specific
+caller supplies an existing writer, explicit lifetime policy and Document
 configuration. Preview and inspection publish nothing.
 
 `transit-station-app.NamedResource` initializes the actual resource through
@@ -53,7 +62,7 @@ block logical DROP. Retirement preserves outgoing edges until their owner
 explicitly removes them after resolving any uncertain publication.
 
 A completed definition is publication evidence, not a continuing data-access
-grant. Current reads still enforce native rights, retirement and expiry.
+grant. Current reads enforce the selected data owner's rights and lifetime rules.
 `Declaration.compile` validates offline `CREATE KV` and `CREATE DOCUMENT` syntax;
 console SQL does not execute these named-resource lifecycle operations.
 

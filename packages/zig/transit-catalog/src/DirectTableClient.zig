@@ -40,6 +40,8 @@ pub const Attempt = struct {
             .identity = switch (request.action) {
                 .stream => |value| value.identity(),
                 .queue => |value| value.identity(),
+                .kv => |value| value.identity(),
+                .kv_declaration => |value| value.declaration.binding.identity,
                 // A raced token may select a different original operation. Never
                 // label the proposed operation as the accepted recovery identity.
                 .client_token => null,

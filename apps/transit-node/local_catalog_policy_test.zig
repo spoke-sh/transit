@@ -316,7 +316,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const alloc = arena.allocator();
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: c.fuze.TableSchema.Schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try .init("through_dispatch"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("through_dispatch"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
     const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 200 }, .target = .{ .scope = config.scope, .branch = 1, .object = 10 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
     var buffer: [65536]u8 = undefined;
     const schema_wire = try w.Binary.encode(alloc, try schema.encode(&buffer));
@@ -843,7 +843,7 @@ fn prerequisiteDispatch(engine: *Engine, config: D.Configuration, owner_role: u6
     for ([_]u64{ 20, 21 }) |object| {
         const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
         const name = try std.fmt.allocPrint(alloc, "conditioned_{d}", .{object});
-        const intent: D.Intent = .{ .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+        const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
         const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 400 + object }, .target = .{ .scope = config.scope, .branch = config.branch, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc), .prerequisite = condition };
         const ddl: w.Ddl = .{ .binding = binding, .namespace = 1, .name = name, .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(alloc, try schema.encode(&buffer)) } } };
         (try dispatch(&service, .{ .admit_ddl = ddl })).deinit();
@@ -1005,7 +1005,7 @@ fn dependencyDispatch(engine: *Engine, config: D.Configuration, owner_role: u64)
     const alloc = arena.allocator();
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: c.fuze.TableSchema.Schema = .{ .object = 40, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try .init("dependency_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("dependency_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
     const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 10000 }, .target = .{ .scope = config.scope, .branch = 1, .object = 40 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
     var bytes: [65536]u8 = undefined;
     const admitted = try dispatch(&service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = intent.name.slice(), .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(alloc, try schema.encode(&bytes)) } } } });
@@ -1049,7 +1049,7 @@ fn dependencyDispatch(engine: *Engine, config: D.Configuration, owner_role: u64)
     defer hidden.deinit();
     try t.expect(hidden.value.result.dependencies.entries[0] == null);
     var drop = binding;
-    const drop_intent: D.Intent = .{ .namespace = 1, .name = intent.name, .action = .drop };
+    const drop_intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = intent.name, .action = .drop };
     drop.identity.operation = 10002;
     drop.action = .drop;
     drop.expected_definition = interpretation;
@@ -1416,7 +1416,7 @@ fn catalogSchedule() !void {
     signed = try proof(&engine, request_digest);
     policy = try Policy.init(&engine, config, signed, request_digest, null);
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
-    const intent: D.Intent = .{ .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .owner = role, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try c.TableAuthority.Name.init("events"), .action = .{ .create = .{ .owner = role, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} } } } };
     const request: D.Request = .{ .intent = intent, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 1 }, .target = .{ .scope = scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };
     _ = try catalog.admit(request, policy.policy());
     try t.expectError(error.CatalogRegistrationRequired, catalog.perform(request.binding, policy.policy()));
@@ -1593,7 +1593,7 @@ fn namedResourceDispatch(engine: *Engine, config: D.Configuration, owner_role: u
         .owned = false,
         .deadline_ms = null,
         .history_ms = null,
-        .spec = .{ .kv = .{ .value_type = .int64, .nullable = false, .key_encoding = .native_bytes, .value_encoding = .fvl1 } },
+        .spec = .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
     } } };
     var action: c.DirectTableProtocol.Action = .{ .resource_operation = .{ .binding = binding, .command = .admit, .steps = 64, .signed_allocation = null } };
     // Namespace and resource declarations share one operation identity space.
@@ -1691,7 +1691,7 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
         const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
         const schema: c.fuze.TableSchema.Schema = .{ .object = 100000 + i, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
         var name: [40]u8 = undefined;
-        const intent: D.Intent = .{ .namespace = 1, .name = try .init(try std.fmt.bufPrint(&name, "tx_selected_{d}", .{i})), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+        const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(try std.fmt.bufPrint(&name, "tx_selected_{d}", .{i})), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
         const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 100000 + i }, .target = .{ .scope = scope, .branch = 1, .object = 100000 + i }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) };
         var encoded: [65536]u8 = undefined;
         const admitted = try dispatch(service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = intent.name.slice(), .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(allocator, try schema.encode(&encoded)) } } } });
@@ -1844,6 +1844,8 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     const failure = @import("ServiceFailure.zig");
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTarget).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionParticipant).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidKVKey).code);
+    try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.KVBuildBudget).code);
     // A provider AccessDenied is not itself a native authorization decision.
     try t.expectEqual(std.http.Status.unprocessable_entity, failure.native(error.AccessDenied).status);
     try t.expectEqual(std.http.Status.forbidden, failure.native(error.Forbidden).status);

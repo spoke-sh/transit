@@ -274,20 +274,69 @@ Catalog roots require all token, operation, pending and account directories and
 counters. The shared definition rejects superseded layouts before execution;
 there is no default compatibility field or fallback decoder.
 
+### Direct KV
+
+`kv_declaration`, `kv_lookup`, `kv_list` and `kv` share the database connection,
+current native policy graph and operation identity space. `DirectKVClient` and
+`transit-data-client.Catalog.callKV` expose the same typed operations. These do
+not execute SQL `CREATE KV`, nor accept a writer PID or Station state resource.
+
+A mandatory `kind` in the persisted catalog intent distinguishes `table` and
+`kv`. KV CREATE lowers its value specification to the exact two-column
+`KVDeclaration` physical schema. Its DDL intent digest includes kind, namespace,
+name and action in native field order, with fixed name-byte arrays encoded as
+strings including zero padding, under `transit.catalog.ddl.intent.v1` and a zero
+byte. The signed wire envelope encodes those arrays as JSON numbers. The ordinary catalog admission,
+registration, partition publication and reconciliation stages apply. KV ALTER
+is refused. Table row/read/transaction operations reject a KV interpretation;
+similar column names never establish object kind.
+
+`DirectKV.Mutation` contains a data-lifecycle binding and 1–1024 changes. A put
+has a base64 byte key, a bound FVL1 value and an `absent`, `present` or `any`
+expectation; remove has a byte key. The mutation uses binding action `insert`
+and requires the exact expected definition. Its intent digest is SHA-256 of
+`transit.kv.mutation.v1`, a zero byte, and canonical public JSON of the change
+list. That list must fit 4 MiB. The shared operation binding is claimed only
+after key and value decoding; current policy is checked before claim and again
+at publication. Key, value and builder limits are defined by `KVPartition`.
+
+One partition commit accepts the complete batch and outcome. `operation` returns
+its original evidence, including after rename or retirement. Current inspection
+rights still apply. A missing response does not establish rejection; callers
+preserve and inspect the identical binding. Saved mutations require a mandatory
+current definition, exact connection and digest, with no fallback decoding.
+
+`get` returns interpretation, physical position, last logical-change position,
+value specification, optional retained source and an optional encoded value.
+Absence carries the same basis as presence. NULL remains a logical value.
+`pin`, `pin_status` and `release` use the shared retained-snapshot owner identity.
+A retained read verifies the exact handle and current rights before disclosure,
+even after DROP; it never silently substitutes a new cut. Response validation
+checks KV kind, exact schema fingerprint, object/source attribution and receipt
+binding before the shared client decodes values into caller-owned output.
+
+Catalog CONNECT/namespace USAGE remain mandatory. `KVAuthority` separates
+INSPECT (metadata and receipts), READ (values and retained reads), WRITE (batch
+mutations), and ownership (rename/DROP). CREATE requires namespace CREATE and
+owner eligibility. Dependency registration uses KV source privileges and
+separate dependent metadata authority. Generic Table transaction begin still
+rejects KV participants before admission; the neutral participant shape alone
+does not establish mixed transaction execution.
+
 ### Named native resources
 
 `resource_preview`, `resource_operation`, `resource_lookup` and `resource_list`
 share the direct catalog's object IDs, names, namespace ownership and operation
 identity space. `DirectResourceClient` exposes these typed operations. They do
-not add executable `CREATE KV` or `CREATE DOCUMENT` SQL syntax.
+not add executable `CREATE DOCUMENT` SQL syntax; these operations declare
+Documents. KV uses dedicated direct partition operations.
 
 `DirectResource.Binding` contains the mandatory shared definition, complete
 connection, operation, target object, nullable expected interpretation and
 CREATE, RENAME or DROP action. CREATE has no expectation. RENAME/DROP bind an
 exact definition revision and digest. CREATE freezes namespace/name, owner role,
 an existing writer PID, explicit lifetime ownership, nullable deadline/history
-policies and a kind-specific specification. KV specifies a scalar logical type,
-nullability, native byte keys and FVL1 values. Document specifies its identity,
+policies and a Document specification containing its identity,
 type revision and publication limits. Null retention settings remain unlimited.
 The service does not choose application behavior, grant data access or create a
 writer process.
@@ -318,12 +367,11 @@ then records `allocated` and releases the sequence reservation. A submitted ID
 is never allocation evidence.
 
 Initialization belongs to `transit-station-app.NamedResource`, using the existing
-native resource writer and private Station turns. KV initialization reserves and
-completes its marker atomically. Document initialization reserves the exact initial
+native resource writer and private Station turns. Document initialization reserves the exact initial
 interpretation, runs `Document.Service.create`, verifies the empty accepted head,
 then completes its marker in a later turn. Application associations, worker
 ownership and current native data grants must already authorize those turns.
-Neither a populated KV nor an existing anonymous Document is adopted implicitly.
+Neither a populated resource nor an existing anonymous Document is adopted implicitly.
 
 Catalog completion verifies the actual current native resource lifetime and the
 exact [initialization marker](DATA_LIFECYCLE_V1.md#native-resource-initialization)
@@ -696,7 +744,8 @@ binding, including authority. Transport credential replacement does not change i
 An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
 kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
 nonzero mask of required logical actions. Table sources accept Table action masks;
-named KV/Document sources accept SELECT only, mapped to native INSPECT and READ.
+direct KV sources use `KVAuthority` privileges; named Document sources accept
+SELECT only, mapped to native INSPECT and READ.
 Stream/Queue sources accept their own five-bit action masks; their dependents
 use native metadata inspection or ownership. Queue DLQ publication registers its
 edge atomically as described above and retains it against generic removal.
@@ -708,8 +757,10 @@ or published definition. It does not certify initialization, activation or curre
 data availability. A computation registration remains an explicit owner assertion;
 the query publication adapter must establish its definition separately.
 Registration protects a source from DROP. It does not retain a data
-snapshot or change history. The dependent owner must register before publication
-and remove after retirement or recovery of an abandoned publication. These steps
+snapshot or change history. Document and computation owners register before
+their separate publication; direct KV and log dependents bind an already
+published definition. Owners remove edges after retirement or recovery of an
+abandoned publication. These steps
 across owners are not atomic. Automatic registration by named resource and query
 publication is not part of this operation.
 
@@ -1150,7 +1201,7 @@ All storage identities and positions use canonical decimal strings. The adapter
 makes one public request per action and never publishes or retires a dependent,
 acquires a data pin, replaces loaded work or retries an uncertain mutation.
 
-The host `resources` action uses `DirectCatalogResources` for named KV/Document
+The host `resources` action uses `DirectCatalogResources` for named Document
 preview, explicit operation control, lookup and eight-entry directory pages.
 Save its complete definition-bound `Binding` before admission. Names use text;
 storage IDs, revisions, Document identities and full-width staging byte budgets

@@ -119,3 +119,8 @@ language coverage or physical durability.
 The root `test-direct-table-service -- tables` schedule also uses this package's
 typed Stream/Queue lifecycle over signed HTTP, corrupts admission and publication
 replies, and recovers saved original work after a disk-backed node restart.
+
+`Catalog.callKV` uses the signed [named direct KV API](../transit-catalog/docs/direct-kv.md).
+Its output owns decoded values independently of response cleanup; failures retain
+per-attempt mutation identity and uncertainty. The call does not retry, rebind,
+release pins or start a recovery loop implicitly.

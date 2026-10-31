@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e"
+definition = "7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -170,7 +170,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     dependency_fixture = {"request": dependency_request, "public_key": public_key, "edge_digest": list(edge_digest)}
     resource_create = {"namespace": 1, "name": {"len": 6, "bytes": [*b"values", *([0] * 57)]}, "owner": 19, "writer": 17,
                        "owned": False, "deadline_ms": None, "history_ms": None,
-                       "spec": {"kv": {"value_type": "int64", "nullable": False, "key_encoding": "native_bytes", "value_encoding": "fvl1"}}}
+                       "spec": {"document": {"document": 91, "type_revision": 1, "limits": {"record_bytes": 4096, "staging_bytes": 16384, "staging_records": 4}}}}
     resource_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1,
                         "object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2},
                         "expected": None, "action": {"create": resource_create}}
@@ -198,6 +198,28 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     log_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_input)).digest())}
     log_request = {**log_input, "proof": {"claim": log_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_claim)).digest())}}
     log_fixture = {"request": log_request, "public_key": public_key, "intent_digest": list(log_digest)}
+
+    kv_intent = {"kind": "kv", "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    # DDL intent hashing uses the native canonical representation: fixed u8
+    # arrays are strings, including all zero padding. The signed wire request
+    # independently uses public JSON arrays for those same names.
+    kv_digest_intent = copy.deepcopy(kv_intent)
+    kv_digest_intent["name"]["bytes"] = bytes(kv_intent["name"]["bytes"]).decode()
+    kv_digest_intent["action"]["rename"]["bytes"] = bytes(kv_intent["action"]["rename"]["bytes"]).decode()
+    kv_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(kv_digest_intent)).digest()
+    kv_binding = {**log_binding, "intent": list(kv_digest)}
+    kv_declaration = {"binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    def signed_kv(action):
+        envelope = {**request_input, "action": action}
+        selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(envelope)).digest())}
+        return {**envelope, "proof": {"claim": selected_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
+    kv_declaration_request = signed_kv({"kv_declaration": {"declaration": kv_declaration, "command": "admit", "steps": 1}})
+    kv_changes = [{"remove": {"base64": base64.b64encode(b"\0key").decode()}}]
+    kv_mutation_digest = hashlib.sha256(b"transit.kv.mutation.v1\0" + canonical(kv_changes)).digest()
+    kv_mutation = {"binding": {**kv_binding, "action": "insert", "intent": list(kv_mutation_digest)}, "changes": kv_changes}
+    kv_mutation_request = signed_kv({"kv": {"mutate": kv_mutation}})
+    kv_fixture = {"declaration": kv_declaration_request, "mutation": kv_mutation_request, "public_key": public_key,
+                  "intent_digest": list(kv_digest), "mutation_digest": list(kv_mutation_digest)}
 
     stream_work = {"consume": {
         "target": {"definition": definition, "interpretation": source_definition, "partition": 1},
@@ -260,6 +282,16 @@ for columns in ("abc", [0] * 129):
 validator.validate(dependency_request)
 validator.validate(resource_request)
 validator.validate(log_request)
+validator.validate(kv_declaration_request)
+validator.validate(kv_mutation_request)
+for field in ("binding", "namespace", "name", "action"):
+    invalid = copy.deepcopy(kv_declaration_request)
+    del invalid["action"]["kv_declaration"]["declaration"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("binding", "changes"):
+    invalid = copy.deepcopy(kv_mutation_request)
+    del invalid["action"]["kv"]["mutate"][field]
+    assert not validator.is_valid(invalid), field
 validator.validate(stream_request)
 validator.validate(queue_request)
 validator.validate(queue_wait_request)
@@ -324,6 +356,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-kv-v1.json",
+        (json.dumps(kv_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",

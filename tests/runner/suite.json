@@ -61,6 +61,7 @@
       "test::local-payload-service",
       "test::local-catalog",
       "test::direct-table-service",
+      "test::direct-kv",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",

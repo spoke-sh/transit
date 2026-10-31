@@ -985,3 +985,27 @@ test "retained filter plan admission binds source schema collations and complete
     scan.plan = try w.Binary.encode(a, try f.LogicalPlanCodec.encode(plan, &encoded));
     try t.expectError(error.SourceChanged, scan.decodePlan(a, schema, plan.source_basis));
 }
+
+test "direct KV consumes independently signed declaration and mutation commitments" {
+    const Fixture = struct { declaration: w.Request, mutation: w.Request, public_key: [32]u8, intent_digest: [32]u8, mutation_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-kv-v1.json"));
+    defer parsed.deinit();
+    const value = parsed.value;
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const intent = try value.declaration.action.kv_declaration.declaration.intent(scratch.allocator());
+    try t.expectEqualDeep(value.intent_digest, try intent.digest(t.allocator));
+    try t.expectEqualDeep(value.mutation_digest, try value.mutation.action.kv.mutate.digest(t.allocator));
+    try value.declaration.validate(t.allocator);
+    try value.declaration.proof.verify(value.public_key);
+    try value.mutation.validate(t.allocator);
+    try value.mutation.proof.verify(value.public_key);
+    var changed = value.mutation;
+    changed.action.kv.mutate.binding.identity.operation -= 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    const saved = try c.DirectKVClient.save(t.allocator, value.mutation.connection, value.mutation.action.kv.mutate);
+    defer t.allocator.free(saved);
+    const restored = try c.DirectKVClient.load(t.allocator, saved);
+    defer restored.deinit();
+    try t.expectEqualDeep(value.mutation.action.kv.mutate, restored.value.mutation);
+}

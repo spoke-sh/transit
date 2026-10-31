@@ -28,18 +28,18 @@ CREATE KV counters (INT64);
 
 ## Meaning and current interface
 
-The form refers to a native v1 [KV resource](../state.md).
-Actual reads and mutations use the public client under current resource policy
-and writer ownership. Mutations share a turn's commit decision with input
-progress and outputs; the declaration creates no new transaction boundary.
+The form describes a typed [KV object](../state.md). Its executable typed
+interface is the [direct KV API](../../../../packages/zig/transit-catalog/docs/direct-kv.md):
+explicit catalog declaration, atomic put/remove batches, point reads and retained
+pins. These operations use `KVPartition` and current KV policy without a writer
+PID. They are separate from this offline SQL form; the compiler does not submit
+or execute a declaration.
 
-The typed [named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
-allocate, initialize and publish named KV resources with explicit interpretation,
-writer and current permissions. They are separate from this offline SQL form.
+Native private state used by Station retains its own resource and turn contract.
 [Growing client operations](../../../../packages/zig/transit-client/docs/growing.md)
 and [application installation](../applications.md#installation-and-bootstrap)
-also provision native state. Unified SQL needs an explicitly declared
-KV decoder and schema; arbitrary stored bytes are not implicitly SQL values.
+provision that state. Unified SQL's native KV source still needs an explicitly
+declared decoder and schema; it does not implicitly query named direct KV.
 See [query source profiles](../queries.md#source-declarations).
 The [offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)
 defines owned names, complete-input validation, canonical formatting and bounds.

@@ -85,7 +85,7 @@ pub fn create(store: *Store, sql: []const u8) !root.ReactiveModel.Source {
     var compiled = try f.TableDdl.compile(t.allocator, sql, null, null);
     defer compiled.deinit();
     const command = compiled.statement.create;
-    const intent: D.Intent = .{ .namespace = 1, .name = try .init(command.name), .action = .{ .create = .{ .owner = 0, .schema = try command.bind(100) } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(command.name), .action = .{ .create = .{ .owner = 0, .schema = try command.bind(100) } } };
     try ddl(store, .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = principal, .operation = store.next() }, .target = .{ .scope = scope, .branch = 1, .object = 100 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent });
     var source = try declaration(store);
     defer source.deinit();
@@ -127,7 +127,7 @@ pub fn mutate(store: *Store, sql: []const u8) !void {
 pub fn alter(store: *Store, action: @FieldType(D.Intent, "action")) !void {
     var view = try store.resolve();
     defer view.deinit();
-    const intent: D.Intent = .{ .namespace = 1, .name = view.properties.name, .action = action };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = view.properties.name, .action = action };
     try ddl(store, .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = principal, .operation = store.next() }, .target = view.table.root.interpretation.object, .action = switch (action) {
         .alter => .alter,
         .rename => .rename,

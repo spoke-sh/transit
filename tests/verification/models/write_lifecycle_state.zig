@@ -224,7 +224,7 @@ fn initCatalog(allocator: std.mem.Allocator, wal: *s.LocalWal.LocalWal, objects:
 
 fn createCatTable(allocator: std.mem.Allocator, catalog: *D, access: *CatAccess, object_id: u64, operation: u64, name: []const u8) !void {
     const tbl_schema: f.TableSchema.Schema = .{ .object = object_id, .revision = 1, .next_column = 3, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = tbl_schema, .owner = 0 } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = tbl_schema, .owner = 0 } } };
     const req: D.Request = .{
         .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = cat_scope, .principal = 1, .operation = operation }, .target = .{ .scope = cat_scope, .branch = 1, .object = object_id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) },
         .intent = intent,
@@ -237,7 +237,7 @@ fn createCatTable(allocator: std.mem.Allocator, catalog: *D, access: *CatAccess,
 fn renameCatTable(allocator: std.mem.Allocator, catalog: *D, access: *CatAccess, from: []const u8, to: []const u8, operation: u64) !void {
     var view = (try catalog.resolve(allocator, 1, try a.Name.init(from), access.policy())).?;
     defer view.deinit();
-    const intent: D.Intent = .{ .namespace = 1, .name = view.properties.name, .action = .{ .rename = try a.Name.init(to) } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = view.properties.name, .action = .{ .rename = try a.Name.init(to) } };
     const req: D.Request = .{
         .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = cat_scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = .rename, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = try intent.digest(allocator) },
         .intent = intent,

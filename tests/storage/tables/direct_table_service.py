@@ -18,7 +18,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "queues", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "queues", "kv", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -75,6 +75,7 @@ def run(node, caller, mode="tables", *artifacts):
         dependency_faults = set()
         stream_faults = set()
         queue_faults = set()
+        kv_faults = set()
         log_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
@@ -186,6 +187,17 @@ def run(node, caller, mode="tables", *artifacts):
                             parsed["context"][0] ^= 1
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
+                        kv = envelope["action"].get("kv", {})
+                        if mode == "kv" and response.status == 200:
+                            identity = (kv.get("mutate", {}).get("binding", {}).get("identity")
+                                        or kv.get("pin", {}).get("owner"))
+                            if identity and identity["operation"] in (641001, 641002) and identity["operation"] not in kv_faults:
+                                parsed = json.loads(data)
+                                result = parsed["result"]["kv"]
+                                assert "operation" in result if identity["operation"] == 641001 else "pin" in result
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                kv_faults.add(identity["operation"])
                         log_admit = envelope["action"].get("log_admit")
                         queue = envelope["action"].get("queue", {}).get("mutate")
                         queue_wait = envelope["action"].get("queue", {}).get("wait")
@@ -329,6 +341,30 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "kv":
+                subprocess.run([caller, endpoint, "kv-prepare", str(profile)], check=True, timeout=180)
+                saved = Path(str(profile) + ".kv").read_bytes()
+                assert kv_faults == {641001}
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, "kv-recover", str(profile)], check=True, timeout=180)
+                pin_saved = Path(str(profile) + ".kv.pin").read_bytes()
+                assert kv_faults == {641001, 641002}
+                assert Path(str(profile) + ".kv").read_bytes() == saved
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, "kv-verify", str(profile)], check=True, timeout=180)
+                assert Path(str(profile) + ".kv").read_bytes() == saved
+                assert Path(str(profile) + ".kv.pin").read_bytes() == pin_saved
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="direct_kv_original_recovery", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)],
+                                      requests=fault["requests"], lost_replies=sorted(kv_faults),
+                                      passed=True)), flush=True)
+                print("Direct KV HTTP: eight-key 1 KiB values, original mutation and pin recovery after two lost replies and SIGKILL/restarts, retained reads after replacement and DROP, current read denial, rename and explicit pin release passed.", flush=True)
+                return
             if mode == "queues":
                 subprocess.run([caller, endpoint, "queue-prepare", str(profile)], check=True, timeout=180)
                 saved = Path(str(profile) + ".queue").read_bytes()
@@ -664,7 +700,7 @@ def run(node, caller, mode="tables", *artifacts):
                 assert resource_faults == {(identity, phase) for identity in (80000, 80001) for phase in ("admitted", "prepared", "allocated", "complete")}, resource_faults
                 assert profile.read_bytes() == saved
                 assert dependency_faults == {83000, 83001, 83010, 83011}, dependency_faults
-                print(f"Named resources: {fault['requests']} typed catalog calls, 8 withheld stage replies, 4 withheld dependency replies and 11 abrupt node replacements, unchanged saved declarations and dependency bindings, serialized original caller allocation without data grants, actual Station KV/Document initialization, typed KV writes/deletes, Document publication, current data revocation, both graph directions, DROP RESTRICT and explicit original-edge cleanup passed.")
+                print(f"Named resources: {fault['requests']} typed catalog calls, 8 withheld stage replies, 4 withheld dependency replies and 11 abrupt node replacements, unchanged saved declarations and dependency bindings, serialized original caller allocation without data grants, actual Station Document initialization and publication, current data revocation, both graph directions, DROP RESTRICT and explicit original-edge cleanup passed.")
                 return
             if mode == "dependencies":
                 subprocess.run([caller, endpoint, "dependency-prepare", str(profile)], check=True, timeout=180)

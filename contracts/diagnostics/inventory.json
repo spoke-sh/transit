@@ -4280,17 +4280,17 @@
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "AccessDenied": 2,
-        "CatalogDenied": 59,
+        "CatalogDenied": 62,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
-        "CatalogKindMismatch": 4,
+        "CatalogKindMismatch": 11,
         "CatalogNameHashCollision": 2,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
-        "CatalogObjectBusy": 1,
+        "CatalogObjectBusy": 2,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
-        "CatalogRegistrationRequired": 9,
+        "CatalogRegistrationRequired": 10,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 14,
         "ClientOperationPending": 6,
@@ -4369,7 +4369,7 @@
         "TransactionWorkspaceLimit": 2,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2,
-        "UnsupportedTransactionParticipant": 2
+        "UnsupportedTransactionParticipant": 4
       },
       "outcomes": {
         "CurrentRead.selection": [
@@ -4466,10 +4466,15 @@
         "inspectStorage()": "<inferred>",
         "inspectTransaction()": "<inferred>",
         "intentGuard()": "<inferred>",
+        "kvAccess()": "<inferred>",
+        "kvReady()": "<inferred>",
+        "kvRequirements()": "<inferred>",
         "list()": "<inferred>",
+        "listKV()": "<inferred>",
         "listLogs()": "<inferred>",
         "listNamespaces()": "<inferred>",
         "listResources()": "<inferred>",
+        "listState()": "<inferred>",
         "loadRequest()": "<inferred>",
         "logAuthorization()": "<inferred>",
         "logDefinition()": "<inferred>",
@@ -4537,8 +4542,10 @@
         "requireInitialized()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
+        "resolveKV()": "<inferred>",
         "resolveLog()": "<inferred>",
         "resolveResource()": "<inferred>",
+        "resolveState()": "<inferred>",
         "resolveTransactionRead()": "<inferred>",
         "resourceAllocation()": "<inferred>",
         "resourceAllocationRequirements()": "<inferred>",
@@ -4588,7 +4595,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1322,
+        "try": 1345,
         "catch": 20
       },
       "imports": [
@@ -4816,6 +4823,7 @@
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
         "InvalidDirectCatalogRoot": 4,
+        "UnsupportedKVAlter": 1,
         "WriteFailed": 4
       },
       "outcomes": {
@@ -4877,7 +4885,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 44,
         "catch": 3
       },
       "imports": [
@@ -4912,7 +4920,6 @@
           "operation"
         ],
         "Spec": [
-          "kv",
           "document"
         ]
       },
@@ -5290,6 +5297,159 @@
         "catch": 0
       },
       "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKV.zig": {
+      "errors": {
+        "CatalogDenied": 2,
+        "CatalogKindMismatch": 1,
+        "DataIdentityConflict": 2,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidKVKey": 1,
+        "InvalidKVOperation": 2,
+        "InvalidKVOutcome": 1,
+        "KVBatchTooLarge": 1,
+        "KVBuildBudget": 1,
+        "TableBuildBudget": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Change": [
+          "put",
+          "remove"
+        ],
+        "Declaration.action": [
+          "create",
+          "rename",
+          "drop"
+        ],
+        "DeclarationRequest.command": [
+          "preview",
+          "admit",
+          "inspect",
+          "execute",
+          "cancel"
+        ],
+        "DeclarationResult": [
+          "preview",
+          "operation"
+        ],
+        "Request": [
+          "observe",
+          "mutate",
+          "operation",
+          "get",
+          "pin",
+          "pin_status",
+          "release"
+        ],
+        "Result": [
+          "definition",
+          "operation",
+          "value",
+          "pin",
+          "pin_status",
+          "released"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Declaration.intent()": "<inferred>",
+        "Declaration.request()": "<inferred>",
+        "DeclarationRequest.validate()": "<inferred>",
+        "Mutation.digest()": "<inferred>",
+        "Mutation.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "authorize()": "<inferred>",
+        "definition()": "<inferred>",
+        "keyBytes()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 45,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVClient.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidKVKey": 1,
+        "InvalidKVOperation": 2,
+        "InvalidKVResponse": 1,
+        "KVBatchTooLarge": 2
+      },
+      "outcomes": {
+        "Action": [
+          "declaration",
+          "lookup",
+          "list",
+          "observe",
+          "mutate",
+          "operation",
+          "get",
+          "pin",
+          "pin_status",
+          "release"
+        ],
+        "Result": [
+          "declaration",
+          "lookup",
+          "list",
+          "definition",
+          "operation",
+          "value",
+          "pin",
+          "pin_status",
+          "released"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Action.encode()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "load()": "<inferred>",
+        "prepareDeclaration()": "<inferred>",
+        "prepareMutation()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVResponse.zig": {
+      "errors": {
+        "InvalidKVResponse": 19
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "declaration()": "<inferred>",
+        "definition()": "<inferred>",
+        "frontier()": "<inferred>",
+        "stored()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
+      },
+      "imports": [
+        "DirectTableResponse.zig",
         "root.zig",
         "std"
       ]
@@ -5904,14 +6064,7 @@
           "dependency"
         ],
         "Spec": [
-          "kv",
           "document"
-        ],
-        "Spec.kv.key_encoding": [
-          "native_bytes"
-        ],
-        "Spec.kv.value_encoding": [
-          "fvl1"
         ]
       },
       "error_sets": {},
@@ -6436,7 +6589,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTableDispatch.zig": {
       "errors": {
-        "InvalidCatalogCursor": 5,
+        "InvalidCatalogCursor": 6,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
         "QueueServiceUnavailable": 1,
@@ -6462,7 +6615,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 180,
+        "try": 193,
         "catch": 0
       },
       "imports": [
@@ -6686,7 +6839,11 @@
           "key_range",
           "release",
           "stream",
-          "queue"
+          "queue",
+          "kv",
+          "kv_declaration",
+          "kv_lookup",
+          "kv_list"
         ],
         "Action.operation.command": [
           "inspect",
@@ -6779,15 +6936,19 @@
           "key_range",
           "released",
           "stream",
-          "queue"
-        ],
-        "Result.list.consistency": [
-          "independent"
+          "queue",
+          "kv",
+          "kv_declaration",
+          "kv_lookup",
+          "kv_list"
         ],
         "RowChange": [
           "insert",
           "update",
           "delete"
+        ],
+        "StateList.consistency": [
+          "independent"
         ]
       },
       "error_sets": {},
@@ -6823,7 +6984,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 164,
+        "try": 169,
         "catch": 3
       },
       "imports": [
@@ -6891,6 +7052,7 @@
       "errors": {
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
+        "InvalidKVResponse": 1,
         "InvalidTableResponse": 137
       },
       "outcomes": {},
@@ -6904,6 +7066,8 @@
         "resourceMetadata()": "<inferred>",
         "rows()": "<inferred>",
         "schema()": "<inferred>",
+        "stateDdl()": "<inferred>",
+        "stateEvidence()": "<inferred>",
         "storage()": "<inferred>",
         "validate()": "<inferred>",
         "validatePage()": "<inferred>",
@@ -6912,7 +7076,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 199,
+        "try": 203,
         "catch": 10
       },
       "imports": [
@@ -8506,6 +8670,9 @@
         "DirectClientToken.zig",
         "DirectDependency.zig",
         "DirectIntent.zig",
+        "DirectKV.zig",
+        "DirectKVClient.zig",
+        "DirectKVResponse.zig",
         "DirectLog.zig",
         "DirectLogClient.zig",
         "DirectLogProtocol.zig",
@@ -9485,10 +9652,14 @@
     },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 4,
+        "Busy": 5,
         "InvalidArgument": 1
       },
       "outcomes": {
+        "KVOutcome.value": [
+          "result",
+          "failure"
+        ],
         "LogOutcome.value": [
           "result",
           "failure"
@@ -9510,6 +9681,9 @@
         "call().<error>": [
           "Busy"
         ],
+        "callKV().<error>": [
+          "Busy"
+        ],
         "callLog().<error>": [
           "Busy"
         ],
@@ -9522,6 +9696,7 @@
       },
       "error_returns": {
         "call()": "error { Busy }",
+        "callKV()": "error { Busy }",
         "callLog()": "error { Busy }",
         "callQueue()": "error { Busy }",
         "callStream()": "error { Busy }",
@@ -9530,7 +9705,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 9
+        "catch": 11
       },
       "imports": [
         "std",
@@ -18048,7 +18223,6 @@
           "cancelled"
         ],
         "ResourceInitialization.kind": [
-          "kv",
           "document"
         ]
       },
@@ -18580,7 +18754,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e\""
+          "@\"7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50\""
         ],
         "Effect.phase": [
           "pending",
@@ -28385,13 +28559,10 @@
     "packages/zig/transit-station-app/src/NamedResource.zig": {
       "errors": {
         "DocumentRetired": 1,
-        "InvalidNamedResourceKey": 1,
-        "InvalidNamedResourceValue": 2,
-        "NamedResourceIdentityConflict": 7,
+        "NamedResourceIdentityConflict": 6,
         "NamedResourceIncomplete": 1,
-        "NamedResourceKindMismatch": 2,
         "NamedResourceNotEmpty": 5,
-        "NamedResourceNotInitialized": 4,
+        "NamedResourceNotInitialized": 1,
         "PublicationNamespaceNotFound": 1
       },
       "outcomes": {
@@ -28405,20 +28576,15 @@
       "error_returns": {
         "document()": "<inferred>",
         "documentHead()": "<inferred>",
-        "field()": "<inferred>",
-        "get()": "<inferred>",
         "initialize()": "<inferred>",
         "inspect()": "<inferred>",
-        "key()": "<inferred>",
         "marker()": "<inferred>",
-        "put()": "<inferred>",
-        "remove()": "<inferred>",
         "requireSame()": "<inferred>",
         "rights()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
+        "try": 38,
         "catch": 1
       },
       "imports": [

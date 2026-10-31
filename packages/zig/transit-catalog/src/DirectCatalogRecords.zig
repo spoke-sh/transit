@@ -257,6 +257,7 @@ pub fn fromValue(comptime T: type, allocator: std.mem.Allocator, input: pages.Va
 /// CREATE freezes the selected owner role. Its native registration ID is a
 /// later accepted provisioning result, never part of caller-chosen intent.
 pub const Intent = struct {
+    kind: storage.TableDeclaration.Kind,
     namespace: u64,
     name: a.Name,
     action: union(enum) {
@@ -265,6 +266,12 @@ pub const Intent = struct {
         alter: c.fuze.TableEvolution.Change,
         drop,
     },
+    pub fn authorityKind(self: Intent) a.Kind {
+        return switch (self.kind) {
+            .table => .table,
+            .kv => .kv,
+        };
+    }
     pub fn validate(self: Intent, binding: d.Binding) !void {
         try binding.validate();
         try c.Model.nativeId(self.namespace);
@@ -279,11 +286,13 @@ pub const Intent = struct {
         switch (self.action) {
             .create => |value| {
                 try value.schema.validate();
+                if (self.kind == .kv) _ = try storage.KVDeclaration.validateSchema(value.schema);
                 if (value.owner > p.max_counter) return error.InvalidCatalogIdentity;
                 if (value.schema.object != binding.target.object or value.schema.revision != 1) return error.InvalidDirectCatalogOperation;
             },
             .rename => |name| try name.validate(),
-            .alter, .drop => {},
+            .alter => if (self.kind != .table) return error.UnsupportedKVAlter,
+            .drop => {},
         }
     }
     pub fn digest(self: Intent, _: std.mem.Allocator) ![32]u8 {
@@ -322,12 +331,12 @@ test "streamed DDL hashes preserve canonical identity without allocating maximum
     const t = std.testing;
     var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
     const name = try a.Name.init("x");
-    const drop: Intent = .{ .namespace = 1, .name = name, .action = .drop };
-    // Independent Python hashlib over compact JSON: namespace=1, Name len=1,
+    const drop: Intent = .{ .kind = .table, .namespace = 1, .name = name, .action = .drop };
+    // Independent Python hashlib over compact JSON: kind=table, namespace=1, Name len=1,
     // bytes="x" + 62 NULs, action={drop:{}}; same domain prefix including NUL.
     // Zig JSON encodes this valid UTF-8 byte array as a string.
     const canonical = comptime json: {
-        var bytes: []const u8 = "{\"namespace\":1,\"name\":{\"len\":1,\"bytes\":\"x";
+        var bytes: []const u8 = "{\"kind\":\"table\",\"namespace\":1,\"name\":{\"len\":1,\"bytes\":\"x";
         for (0..62) |_| bytes = bytes ++ "\\u0000";
         break :json bytes ++ "\"},\"action\":{\"drop\":{}}}";
     };
@@ -336,7 +345,7 @@ test "streamed DDL hashes preserve canonical identity without allocating maximum
     try std.json.Stringify.value(drop, .{}, &canonical_writer);
     try t.expectEqualStrings(canonical, canonical_writer.buffered());
     var expected: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&expected, "2b954fe77c9bc081ca58e185ff0df0d20854ed54b7209f2bfa1a54abac792660");
+    _ = try std.fmt.hexToBytes(&expected, "b7108cf4dae439f211dd92274bd8d470a1cbc1d288bae710f08746c1cf18ddb9");
     try t.expectEqual(expected, try drop.digest(failing.allocator()));
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: c.fuze.TableSchema.Schema = .{ .object = 17, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
@@ -348,7 +357,7 @@ test "streamed DDL hashes preserve canonical identity without allocating maximum
         .drop,
     };
     for (actions) |action| {
-        const intent: Intent = .{ .namespace = 1, .name = name, .action = action };
+        const intent: Intent = .{ .kind = .table, .namespace = 1, .name = name, .action = action };
         var buffer: [16384]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         try std.json.Stringify.value(intent, .{}, &writer);
