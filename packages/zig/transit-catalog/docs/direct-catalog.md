@@ -276,7 +276,7 @@ registration receipt. Cursor connection, selection, authority and position stay
 fixed; current authorization still governs every operation and disclosure.
 This adapter neither publishes a dependent nor replaces the session's loaded work.
 
-`DirectCatalogResources` exposes named KV/Document declarations through the
+`DirectCatalogResources` exposes named Document declarations through the
 bridge's `resources` actions. Save the complete binding before explicit
 admission; inspect, execute or cancel that binding to recover its original
 allocation and publication phases. Preview admits nothing. CREATE execution

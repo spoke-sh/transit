@@ -11,11 +11,9 @@ const inspection = c.DirectCatalogInspection;
 const Allocator = std.mem.Allocator;
 
 pub const Spec = union(r.Kind) {
-    kv: @FieldType(r.Spec, "kv"),
     document: struct { document: []const u8, type_revision: u32, limits: struct { record_bytes: u32, staging_bytes: []const u8, staging_records: u32 } },
     pub fn native(self: Spec) !r.Spec {
         const result: r.Spec = switch (self) {
-            .kv => |value| .{ .kv = value },
             .document => |value| .{ .document = .{ .document = try v.unsigned(value.document), .type_revision = value.type_revision, .limits = .{ .record_bytes = value.limits.record_bytes, .staging_bytes = try v.unsigned(value.limits.staging_bytes), .staging_records = value.limits.staging_records } } },
         };
         try result.validate();
@@ -24,7 +22,6 @@ pub const Spec = union(r.Kind) {
     pub fn foreign(allocator: Allocator, value: r.Spec) !Spec {
         try value.validate();
         return switch (value) {
-            .kv => |spec| .{ .kv = spec },
             .document => |spec| .{ .document = .{ .document = try v.decimal(allocator, spec.document), .type_revision = spec.type_revision, .limits = .{ .record_bytes = spec.limits.record_bytes, .staging_bytes = try v.decimal(allocator, spec.limits.staging_bytes), .staging_records = spec.limits.staging_records } } },
         };
     }

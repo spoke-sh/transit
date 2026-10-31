@@ -69,10 +69,10 @@ a prepared mutation binds its original Table and metadata; a maintained result
 records its source revision vector. The direct Table path preserves accepted
 read cuts across rename and DROP. The direct owner separately registers exact
 definition dependencies and enforces DROP RESTRICT for those registrations;
-retained cuts do not register dependencies implicitly. Named KV/Document objects
-can be sources or exact allocated/published dependents; registration uses object
-metadata ownership separately from native data access. Their owners explicitly
-register before publication and remove after retirement or abandoned-publication
+retained cuts do not register dependencies implicitly. Direct KV and named Documents can be sources or exact dependents. KV binds a
+published partition; Document can bind its allocated interpretation before name
+publication. Registration uses object metadata ownership separately from data
+access. Owners remove edges explicitly after retirement or abandoned-publication
 recovery. The typed named-query publication plan freezes the exact bundle and
 source registrations before dispatch, then checks their current membership before
 returning a native publication command. Registration and publication are separate
@@ -136,7 +136,7 @@ operation or query identity, and the meaning of its outcome.
 
 | Question | Current evidence or interface | How to interpret it |
 | --- | --- | --- |
-| Is my Table, KV or Document published with the intended shape? | [Console `SHOW TABLES` and `DESCRIBE`](sql/show.md), typed catalog lookup, or named-resource operation inspection | Table evidence describes its catalog operation. Named KV/Document publication verifies the original native allocation and initialization marker. Current data access and lifetime remain independent checks. |
+| Is my Table, KV or Document published with the intended shape? | [Console `SHOW TABLES` and `DESCRIBE`](sql/show.md), typed catalog lookup, or named-resource operation inspection | Table and direct KV evidence describe catalog and partition acceptance. Named Document publication verifies the original native allocation and initialization marker. Current data access and lifetime remain independent checks. |
 | Which computation definition produced this result? | `NamedRelational.capturedDefinition` or `maintainedDefinition` on a retained result/revision reader | Resolves the original immutable named definition through the actual result snapshot, even after another definition is published. Inspection starts no execution and does not certify unread output or advance a maintained checkpoint. |
 | Will my DDL intent pass admission checks? | Direct catalog `preview` | Checks current rights, exact expectations, name/object conflicts, registered DROP dependencies and schema work without admission or mutation. Row constraints and final publication still require execution; preview is not a reservation. |
 | Did my write or schema change apply? | Direct operation `inspect`, [console statement result](../../../apps/transit-cli/docs/console.md), or `DirectTableIntent.operation` | Admission, execution and committed/rejected/cancelled outcomes are distinct. The original saved identity survives lost replies. Point and bulk data use the direct owner independently of actor turns. |
@@ -185,7 +185,8 @@ interfaces provide different portions of that experience:
 | Declaration | Available today | Remaining public lifecycle |
 | --- | --- | --- |
 | [Tables and schemas](tables.md) | Direct CREATE/ALTER/RENAME/DROP, read-only preview, frozen DML intents, atomic point/bulk acceptance, retained reads and supported physical codecs through configured SQL and typed callers; explicit exact-definition dependency registration and DROP RESTRICT; namespace lifecycle with RESTRICT over live/pending Tables; automatic bounded local point flushing | Automatic tiering; text relational joins/grouping and broader transaction sessions |
-| [KV](state.md) and [Documents](documents.md) | Explicit typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; exact dependency registration and DROP RESTRICT; offline SQL definition compilation | Executable console SQL publication and automatic dependency reconciliation |
+| [KV](state.md) | Typed direct declaration, atomic batches, point reads, retained pins, original-operation recovery, rename and DROP; scoped policy and dependency restrictions | Executable console SQL publication and shared Table transaction participation |
+| [Documents](documents.md) | Typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; exact dependency registration and DROP RESTRICT; offline SQL definition compilation | Executable console SQL publication and automatic dependency reconciliation |
 | [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, saved exact source registrations, separate authorization and explicit activation through typed Zig owners; definition retirement, original result/revision attribution and actual source-vector freshness | Atomic cross-owner publication/reconciliation; SQL view/subscription adapters and automatic service-managed scheduling |
 | [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
 | [Permissions](security.md) and [retention](retention.md) | Native authorization, selected SQL administration plans, `policyReferences` inspection with read-privilege redaction, and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |

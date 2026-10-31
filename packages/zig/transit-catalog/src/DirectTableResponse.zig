@@ -70,6 +70,9 @@ fn storage(connection: w.Connection, object: d.Object, limit: u16, value: c.Dire
     value.maintenance.validate(.{ .next_lsn = value.position.next_lsn, .next_segment = value.next_segment, .archive = .{ .through = value.archive_through } }) catch return error.InvalidTableResponse;
 }
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
+    return stateEvidence(.table, binding, value);
+}
+pub fn stateEvidence(kind: c.storage.TableDeclaration.Kind, binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
     if (value.transaction) |decision| {
         try decision.validate();
@@ -78,7 +81,7 @@ fn evidence(binding: d.Binding, value: P.Evidence) !void {
             !std.mem.eql(u8, &decision.attempt.workspace.sha256, &binding.intent)) return error.InvalidTableResponse;
     }
     try value.resulting.validate();
-    if (value.resulting.kind != .table) return error.InvalidTableResponse;
+    if (value.resulting.kind != kind) return error.InvalidTableResponse;
     try value.outcome.position.validate();
     if (!std.meta.eql(value.resulting.interpretation.object, binding.target) or
         value.outcome.position.next_lsn == 0 or value.outcome.affected > value.outcome.matched or
@@ -95,9 +98,12 @@ fn evidence(binding: d.Binding, value: P.Evidence) !void {
     if (binding.expected_data) |expected| if (value.outcome.position.partition != expected.partition or value.outcome.position.next_lsn <= expected.next_lsn) return error.InvalidTableResponse;
 }
 fn ddl(binding: d.Binding, value: c.DirectCatalog.Observation) !void {
+    return stateDdl(.table, binding, value);
+}
+pub fn stateDdl(kind: c.storage.TableDeclaration.Kind, binding: d.Binding, value: c.DirectCatalog.Observation) !void {
     switch (value) {
         .not_observed => {},
-        .committed => |result| try evidence(binding, result),
+        .committed => |result| try stateEvidence(kind, binding, result),
         inline .admitted, .rejected, .cancelled => |operation, tag| {
             try binding.requireSame(operation.binding);
             try operation.intent.validate();
@@ -144,6 +150,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => .stream,
         .queue => .queue,
         .branch => .branch,
+        .kv => .kv,
+        .kv_declaration => .kv_declaration,
+        .kv_lookup => .kv_lookup,
+        .kv_list => .kv_list,
         .transaction => .transaction,
         .record => .record,
         .client_token => .client_token,
@@ -203,6 +213,13 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
+        .kv => |value| try c.DirectKVResponse.validate(allocator, request.action.kv, value),
+        .kv_declaration => |value| try c.DirectKVResponse.declaration(allocator, request.action.kv_declaration, value),
+        .kv_lookup => |maybe| if (maybe) |value| {
+            try c.DirectKVResponse.definition(allocator, value);
+            try request.connection.object(value.interpretation.interpretation.object);
+            if (value.retired or value.namespace != request.action.kv_lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.kv_lookup.name)) return error.InvalidKVResponse;
+        },
         .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .record => |value| {
             try value.reference.validate();
@@ -634,23 +651,24 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 },
             }
         },
-        .list => |value| {
+        inline .list, .kv_list => |value, tag| {
+            const input = @field(request.action, @tagName(tag));
             try value.directory_position.validate();
-            var previous = request.action.list.after orelse 0;
+            var previous = input.after orelse 0;
             var ended = false;
             for (value.entries) |slot| {
                 const entry = slot orelse {
                     ended = true;
                     continue;
                 };
-                if (ended or entry.interpretation.object.object <= previous or entry.namespace != request.action.list.namespace) return error.InvalidTableResponse;
+                if (ended or entry.interpretation.object.object <= previous or entry.namespace != input.namespace) return error.InvalidTableResponse;
                 try entry.interpretation.validate();
                 try request.connection.object(entry.interpretation.object);
                 try entry.name.validate();
                 try frontier(entry.position, entry.changed_lsn);
                 previous = entry.interpretation.object.object;
             }
-            if (value.next) |next| if (next == 0 or next <= (request.action.list.after orelse 0) or next < previous) return error.InvalidTableResponse;
+            if (value.next) |next| if (next == 0 or next <= (input.after orelse 0) or next < previous) return error.InvalidTableResponse;
         },
         .ddl => |value| {
             const binding = switch (request.action) {

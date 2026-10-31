@@ -205,7 +205,8 @@ Decoded values own their output across later reads or mutations. Authorization
 is supplied by the database adapter and held again through publication.
 
 This storage owner does not itself publish catalog names or a caller route.
-The named KV lifecycle and mixed transaction integration remain separate gates.
+The [named KV lifecycle](DIRECT_TABLE_V1.md#direct-kv) uses this partition.
+Mixed transaction execution remains separate from single-partition batches.
 
 RENAME preserves row interpretation and indexes. ALTER streams the accepted
 source into bounded segments and private replacement indexes, validating all

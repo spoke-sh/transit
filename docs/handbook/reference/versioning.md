@@ -118,6 +118,14 @@ they reject before starting authority. Earlier checkpoints, signed requests and
 histories reject rather than being silently
 The partitioned transaction participant cutover replaces the shared definition with
 `7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e`.
+The named direct KV cutover replaces the shared definition with
+`7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
+Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
+partitions, typed direct requests and KV policy; the native resource declaration
+and initialization marker accept Document only. Earlier named KV artifacts,
+requests and marker kinds are rejected, without adoption or fallback decoding.
+Native private Station state retains its own resource contract.
+
 Transaction selection, kind-specific guards, prepared evidence and paged
 directory keys now bind logical owner partitions. Stream/Queue actions share one
 preparation per partition. This neutral vocabulary does not enable their runtime

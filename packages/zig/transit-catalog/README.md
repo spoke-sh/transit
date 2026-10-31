@@ -105,8 +105,9 @@ cannot substitute for the recorded identity. Missing or invalid destinations
 refuse closure. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, bounded work and permanently retained namespaces.
 
-`DirectResourceClient` uses the same directory for named native KV and Document
-objects. Its saved bindings separate admission, caller-authorized allocation,
+`DirectKVClient` declares and accesses [named direct KV](docs/direct-kv.md) over
+`KVPartition`, without a writer PID. `DirectResourceClient` uses the same directory
+for named native Document objects. Its saved bindings separate admission, caller-authorized allocation,
 writer initialization and completed publication. The
 [named resource guide](../transit-station-app/docs/named-resources.md) explains
 permissions, interpretation, partial outcomes and explicit cleanup.

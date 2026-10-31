@@ -1,8 +1,8 @@
-# Named KV and Document resources
+# Named Document resources
 
 `transit-catalog.DirectResourceClient` saves, previews, admits, executes, inspects
 and cancels named native-resource declarations. `NamedResource` supplies their
-kind-specific initialization and typed KV access on the actual native owner.
+Document initialization on the actual native owner.
 The [direct request contract](../../../../contracts/DIRECT_TABLE_V1.md#named-native-resources)
 defines exact identities and wire semantics.
 
@@ -10,8 +10,7 @@ defines exact identities and wire semantics.
 
 Construct a `DirectResource.Binding` with the current shared definition, catalog
 connection, unique operation and object IDs, and explicit CREATE settings. The
-writer PID must already exist. KV settings select one of the scalar query types,
-nullability, native byte keys and FVL1 values. Document settings select its ID,
+writer PID must already exist. Document settings select its ID,
 type revision and publication limits. The deadline and history policies are
 explicit nullable fields; absence of a finite policy means unlimited retention.
 
@@ -45,8 +44,7 @@ scope. Registration credentials grant none of these rights implicitly.
 The `allocated` operation carries a complete `DirectResource.Definition`. Supply
 its initial revision to `NamedResource{ .initial = definition }`. Run
 `initialize(allocator, turn, original_principal)` on the declared writer, commit
-that private turn, then inspect progress before the next step. KV finishes in one
-turn. Document uses three turns: exact reservation, `Document.Service.create`,
+that private turn, then inspect progress before the next step. Document uses three turns: exact reservation, `Document.Service.create`,
 then verification and completion. A lost reply resumes the same durable marker;
 an existing populated resource is not adopted. A framework descriptor already
 proposed by GenServer is compatible with the committed-state emptiness check;
@@ -56,8 +54,9 @@ If the declaration has explicit source dependencies, use
 `definition.dependent(allocator)` to bind its exact allocated interpretation.
 Save and accept a `DirectDependency.Binding` for each declared source before
 publishing the name. The source is an exact published Table or named KV/Document
-definition in the same catalog. Named resource sources support the SELECT read
-requirement, checked against native INSPECT/READ; mutation masks reject. The
+definition in the same catalog. Direct KV sources use `KVAuthority` privileges;
+Document sources support SELECT, checked against native INSPECT/READ; Document
+mutation masks reject. The
 dependent's metadata ownership authorizes registration, independently of its
 native data permissions. Inspect each original registration after an uncertain
 reply. Registration does not initialize or publish the consumer.
@@ -71,13 +70,7 @@ have continuations. Catalog positions describe metadata, not a data snapshot.
 
 ## Use and recover
 
-KV `put` and `remove` mutate through the writer's private turn. `get` and `inspect`
-also accept a current public `ResourceReader.Reader`; its signed caller must be
-the requested principal. They recheck current rights before returning values or
-absence. `get` returns an owned FVL1 decoding arena that the caller must `deinit`.
-User keys contain 1–31 bytes; the adapter owns a leading `01` byte. Encoded values
-fit the native 256-byte value envelope. Missing keys and explicit NULL remain
-distinct, and values must match the declared scalar type and nullability.
+Named KV uses the database-owned [direct KV API](../../transit-catalog/docs/direct-kv.md).
 
 `document()` returns the existing `Document.Service` for the declared resource
 and document. Use that service's staged changes and public `Document.Client`

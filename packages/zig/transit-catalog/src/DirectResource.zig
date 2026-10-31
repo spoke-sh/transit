@@ -7,12 +7,6 @@ const d = p.DataLifecycle;
 
 pub const Kind = @FieldType(d.ResourceInitialization, "kind");
 pub const Spec = union(Kind) {
-    kv: struct {
-        value_type: c.fuze.Unified.Type,
-        nullable: bool,
-        key_encoding: enum { native_bytes },
-        value_encoding: enum { fvl1 },
-    },
     document: struct {
         document: u64,
         type_revision: u32,
@@ -21,7 +15,6 @@ pub const Spec = union(Kind) {
 
     pub fn validate(self: Spec) !void {
         switch (self) {
-            .kv => {},
             .document => |value| {
                 if (value.document == 0 or value.type_revision == 0 or value.limits.record_bytes < p.DataLifecycle.document_index_node_bytes)
                     return error.InvalidNamedResource;
@@ -146,7 +139,7 @@ pub const Definition = struct {
     }
 
     pub fn dependent(self: Definition, allocator: std.mem.Allocator) !c.DirectDependency.Dependent {
-        return .{ .kind = if (self.creation.spec == .kv) .kv else .document, .interpretation = try self.interpretation(allocator) };
+        return .{ .kind = .document, .interpretation = try self.interpretation(allocator) };
     }
 
     pub fn initial(self: Definition) !Definition {

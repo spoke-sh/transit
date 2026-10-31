@@ -147,6 +147,9 @@ direct-named-resources:
     zig build test-direct-named-resources -Doptimize=ReleaseSafe
     just test::direct-table-service resource-growth
 
+direct-kv:
+    zig build test-direct-kv -Doptimize=ReleaseSafe
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}

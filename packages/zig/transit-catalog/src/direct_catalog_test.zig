@@ -326,7 +326,7 @@ test "direct catalog serializes row admission against DDL without a catalog writ
 
 fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
 }
 
@@ -488,7 +488,7 @@ test "direct client token missing content and current denial cannot manufacture 
     try t.expect(try catalog.clientToken(.{ .lookup = binding.key }, access.policy()) == null);
 }
 fn edit(view: *D.View, operation: u64, action: @FieldType(D.Intent, "action")) !D.Request {
-    const intent: D.Intent = .{ .namespace = view.properties.namespace, .name = view.properties.name, .action = action };
+    const intent: D.Intent = .{ .kind = .table, .namespace = view.properties.namespace, .name = view.properties.name, .action = action };
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = switch (action) {
         .rename => .rename,
         .alter => .alter,
@@ -2079,7 +2079,7 @@ fn namedCreation(object: u64, operation: u64, name: []const u8) !c.DirectResourc
         .owned = false,
         .deadline_ms = null,
         .history_ms = null,
-        .spec = .{ .kv = .{ .value_type = .int64, .nullable = false, .key_encoding = .native_bytes, .value_encoding = .fvl1 } },
+        .spec = .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
     } } };
 }
 
@@ -2091,7 +2091,7 @@ fn namedAllocation(catalog: *D, access: *Access, binding: c.DirectResource.Bindi
 }
 
 test "named dependencies bind actual kinds and metadata authority before publication and preserve RESTRICT after rename" {
-    for ([_]bool{ false, true }) |document_source| {
+    {
         var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
         defer wal.deinit();
         var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
@@ -2100,10 +2100,8 @@ test "named dependencies bind actual kinds and metadata authority before publica
         defer catalog.deinit();
         var access: Access = .{};
         try catalog.initialize(access.policy());
-        var source = try namedCreation(150, 1500, "source");
-        var consumer = try namedCreation(151, 1501, "consumer");
-        const document: c.DirectResource.Spec = .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } };
-        if (document_source) source.action.create.spec = document else consumer.action.create.spec = document;
+        const source = try namedCreation(150, 1500, "source");
+        const consumer = try namedCreation(151, 1501, "consumer");
         _ = try catalog.resourceOperation(source, .admit, access.policy());
         const source_value = try namedAllocation(&catalog, &access, source, 750);
         access.initialization = try source_value.initialization(t.allocator);
@@ -2114,7 +2112,7 @@ test "named dependencies bind actual kinds and metadata authority before publica
         registration.edge.dependent = try consumer_value.dependent(t.allocator);
         var invalid = registration;
         invalid.operation = 1503;
-        invalid.edge.dependent.kind = if (document_source) .document else .kv;
+        invalid.edge.dependent.kind = .kv;
         try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(invalid, .accept, access.policy())).outcome.reason);
         invalid.operation = 1504;
         invalid.edge.dependent.kind = .captured;
@@ -5254,4 +5252,255 @@ test "direct branch directories exceed the old branch model bound with one resid
     catalog = try owner(&wal, &objects);
     try t.expectEqualDeep(first.?, (try catalog.lookupBranch(1, try a.Name.init("branch_0"), access.policy())).?);
     try t.expect((try catalog.lookupBranch(1, try a.Name.init("branch_136"), access.policy())).?.state.branch.branch > first.?.state.branch.branch);
+}
+
+test "direct KV lifecycle survives disk replacement with large atomic batches and separate rights" {
+    const K = c.DirectKV;
+    const Binary = c.DirectTableProtocol.Binary;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const alloc = scratch.allocator();
+    var access: Access = .{};
+    var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
+    var create = try creation(7, 1, "state");
+    create.intent.kind = .kv;
+    create.intent.action.create.schema = spec.schema(7, &kv_columns);
+    create.binding.intent = try create.intent.digest(alloc);
+    var work: K.Mutation = undefined;
+    var pin: P.SnapshotHandle = undefined;
+    var original: P.Evidence = undefined;
+    const payload: [1024]u8 = @splat(0xa5);
+    var encoded_value: [1100]u8 = undefined;
+    const encoded = try c.fuze.Types.Codec.encodeBound(.{ .value = .{ .atom = .{ .bytes = &payload } } }, .{ .name = "value", .type = .binary, .nullable = false }, &encoded_value);
+    var changes: [8]K.Change = undefined;
+    for (&changes, 0..) |*change, index| {
+        const key = [_]u8{@intCast(index + 1)};
+        change.* = .{ .put = .{ .key = try Binary.encode(alloc, &key), .value = try Binary.encode(alloc, encoded), .expect = .absent } };
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        _ = try catalog.admit(create, access.policy());
+        try t.expect(try catalog.perform(create.binding, access.policy()) == .committed);
+        try t.expect(try catalog.resolve(alloc, 1, create.intent.name, access.policy()) == null);
+        const first = (try K.apply(alloc, alloc, &catalog, .{ .observe = create.binding.target }, access.policy())).definition;
+        work = .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 2 }, .target = create.binding.target, .action = .insert, .expected_definition = first.interpretation.interpretation, .expected_data = first.position, .intent = undefined }, .changes = &changes };
+        work.binding.intent = try work.digest(alloc);
+        catalog.lose_table_reply = true;
+        try t.expectError(error.LostAcknowledgement, K.apply(alloc, alloc, &catalog, .{ .mutate = work }, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    original = (try K.apply(alloc, alloc, &catalog, .{ .operation = work.binding }, access.policy())).operation.?;
+    try t.expectEqual(@as(u64, 8), original.outcome.affected);
+    const before = try wal.log().tail(original.outcome.position.partition);
+    try t.expectEqualDeep(original, (try K.apply(alloc, alloc, &catalog, .{ .mutate = work }, access.policy())).operation.?);
+    try t.expectEqual(before, try wal.log().tail(original.outcome.position.partition));
+    const current = (try K.apply(alloc, alloc, &catalog, .{ .observe = create.binding.target }, access.policy())).definition;
+    pin = (try K.apply(alloc, alloc, &catalog, .{ .pin = .{ .object = create.binding.target, .owner = .{ .scope = scope, .principal = 1, .operation = 3 }, .expected = current.position } }, access.policy())).pin;
+    for (changes) |change| {
+        const result = try K.apply(alloc, alloc, &catalog, .{ .get = .{ .object = create.binding.target, .key = change.put.key, .source = pin } }, access.policy());
+        const bytes = try result.value.encoded.?.decode(alloc, c.fuze.Types.Codec.max_bytes);
+        const value = try c.fuze.Types.Codec.decodeBoundInto(alloc, .{ .name = "value", .type = .binary, .nullable = false }, bytes);
+        try t.expectEqualSlices(u8, &payload, value.value.atom.bytes);
+    }
+    access.denied_privileges = .{ .id = 107, .mask = c.KVAuthority.read };
+    try t.expectError(error.CatalogDenied, K.apply(alloc, alloc, &catalog, .{ .get = .{ .object = create.binding.target, .key = changes[0].put.key, .source = pin } }, access.policy()));
+    // Inspect is independent of read; a receipt never restores data authority.
+    try t.expect((try K.apply(alloc, alloc, &catalog, .{ .operation = work.binding }, access.policy())).operation != null);
+    access.denied_privileges = null;
+    _ = try K.apply(alloc, alloc, &catalog, .{ .release = .{ .object = create.binding.target, .source = pin } }, access.policy());
+    try t.expectError(error.CatalogKindMismatch, catalog.readAuthority(create.binding.target, pin.owner, access.policy(), false));
+}
+
+test "direct KV signed dispatch validates typed metadata saved mutations and absent key conflicts" {
+    const K = c.DirectKV;
+    const Client = c.DirectKVClient;
+    const w = c.DirectTableProtocol;
+    const Fixture = struct {
+        fn ddl(_: *anyopaque, catalog: *D, binding: p.DataLifecycle.Binding, policy: D.Policy, _: u16) !D.Observation {
+            return catalog.perform(binding, policy);
+        }
+        fn namespace(_: *anyopaque, _: *D, _: c.DirectNamespace.Binding, _: D.Policy, _: u16) !c.DirectNamespace.Observation {
+            return error.UnexpectedDispatchExecution;
+        }
+        fn call(arena: *std.heap.ArenaAllocator, catalog: *D, access: *Access, action: w.Action) !w.Result {
+            const alloc = arena.allocator();
+            const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+            const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null };
+            const context = try w.Request.context(input, alloc);
+            const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .role = null, .audience = 3, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)));
+            const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof };
+            try request.validate(alloc);
+            const result = try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, .{ .context = access, .ddl = ddl, .namespace = namespace });
+            const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 1, .login_role = 1, .role = 1, .credential_epoch = 1, .audience = 3, .context = context }, .result = result };
+            try c.DirectTableClient.validateResponse(alloc, request, response);
+            return result;
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .int64, .nullable = false };
+    const base = try creation(7, 1, "state");
+    var declared = try Client.prepareDeclaration(t.allocator, .{ .binding = base.binding, .namespace = 1, .name = base.intent.name, .action = .{ .create = .{ .owner = 0, .spec = spec } } });
+    for ([_]@FieldType(K.DeclarationRequest, "command"){ .preview, .admit, .execute }) |command| _ = try Fixture.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+    const metadata = (try Fixture.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "state" } })).kv_lookup.?;
+    try t.expect((try Fixture.call(&arena, &catalog, &access, .{ .kv_list = .{ .namespace = 1, .after = null } })).kv_list.entries[0] != null);
+    const absent = (try Fixture.call(&arena, &catalog, &access, try (Client.Action{ .get = .{ .object = base.binding.target, .key = "absent" } }).encode(arena.allocator()))).kv.value;
+    try t.expect(absent.encoded == null);
+    var binding = base.binding;
+    binding.identity.operation = 2;
+    binding.action = .insert;
+    binding.expected_definition = metadata.interpretation.interpretation;
+    binding.expected_data = absent.position;
+    const mutation = try Client.prepareMutation(&arena, binding, spec, &.{.{ .put = .{ .key = "absent", .value = .{ .value = .{ .atom = .{ .signed = 42 } } }, .expect = .absent } }});
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const saved = try Client.save(arena.allocator(), connection, mutation);
+    var loaded = try Client.load(t.allocator, saved);
+    defer loaded.deinit();
+    _ = try Fixture.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = loaded.value.mutation } });
+    _ = try Fixture.call(&arena, &catalog, &access, .{ .kv = .{ .operation = mutation.binding } });
+    binding.identity.operation = 3;
+    const stale = try Client.prepareMutation(&arena, binding, spec, &.{.{ .remove = "absent" }});
+    try t.expectError(error.TableDataChanged, Fixture.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = stale } }));
+    const read = (try Fixture.call(&arena, &catalog, &access, try (Client.Action{ .get = .{ .object = base.binding.target, .key = "absent" } }).encode(arena.allocator()))).kv.value;
+    const decoded = try c.fuze.Types.Codec.decodeBoundInto(arena.allocator(), .{ .name = "value", .type = .int64 }, try read.encoded.?.decode(arena.allocator(), 100));
+    try t.expectEqual(@as(i64, 42), decoded.value.atom.signed);
+    binding.identity.operation = 4;
+    binding.expected_data = read.position;
+    const conflict = try Client.prepareMutation(&arena, binding, spec, &.{ .{ .put = .{ .key = "new", .value = decoded, .expect = .absent } }, .{ .put = .{ .key = "absent", .value = decoded, .expect = .absent } } });
+    try t.expectError(error.DuplicatePrimaryKey, Fixture.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = conflict } }));
+    try t.expect((try Fixture.call(&arena, &catalog, &access, try (Client.Action{ .get = .{ .object = base.binding.target, .key = "new" } }).encode(arena.allocator()))).kv.value.encoded == null);
+    declared.binding.identity.operation = 5;
+    declared.binding.action = .rename;
+    declared.binding.expected_definition = metadata.interpretation.interpretation;
+    declared.action = .{ .rename = try a.Name.init("renamed") };
+    declared = try Client.prepareDeclaration(t.allocator, declared);
+    for ([_]@FieldType(K.DeclarationRequest, "command"){ .preview, .admit, .execute }) |command| _ = try Fixture.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+    try t.expect((try Fixture.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "state" } })).kv_lookup == null);
+    const renamed = (try Fixture.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "renamed" } })).kv_lookup.?;
+    declared.binding.identity.operation = 6;
+    declared.binding.action = .drop;
+    declared.binding.expected_definition = renamed.interpretation.interpretation;
+    declared.name = renamed.name;
+    declared.action = .drop;
+    declared = try Client.prepareDeclaration(t.allocator, declared);
+    for ([_]@FieldType(K.DeclarationRequest, "command"){ .preview, .admit, .execute }) |command| _ = try Fixture.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+    try t.expect((try Fixture.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "renamed" } })).kv_lookup == null);
+    _ = try Fixture.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = loaded.value.mutation } });
+    try t.expectError(error.TableRetired, Fixture.call(&arena, &catalog, &access, try (Client.Action{ .get = .{ .object = base.binding.target, .key = "absent" } }).encode(arena.allocator())));
+}
+
+test "direct KV and Document dependencies preserve kind rights recovery and DROP restrictions" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .int64, .nullable = false };
+    var kv = try creation(7, 1, "state");
+    kv.intent.kind = .kv;
+    kv.intent.action.create.schema = spec.schema(7, &kv_columns);
+    kv.binding.intent = try kv.intent.digest(alloc);
+    _ = try catalog.admit(kv, access.policy());
+    _ = try catalog.perform(kv.binding, access.policy());
+    const metadata = (try c.DirectKV.apply(alloc, alloc, &catalog, .{ .observe = kv.binding.target }, access.policy())).definition;
+    const document = try namedCreation(8, 2, "document");
+    _ = try catalog.resourceOperation(document, .admit, access.policy());
+    const native = try namedAllocation(&catalog, &access, document, 750);
+    var forward = dependencyBinding(metadata.interpretation.interpretation, 3, 8);
+    forward.edge.dependent = try native.dependent(alloc);
+    forward.edge.privileges = c.KVAuthority.read;
+    access.denied_privileges = .{ .id = metadata.authorization, .mask = c.KVAuthority.read };
+    try t.expectError(error.CatalogDenied, catalog.dependencyOperation(forward, .accept, access.policy()));
+    access.denied_privileges = null;
+    // The unpublished Document owns its metadata independently of data rights.
+    access.denied_resource = native.resource;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.dependencyOperation(forward, .accept, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const first = (try catalog.dependencyOperation(forward, .inspect, access.policy())).outcome;
+    try t.expect(first.changed and first.phase == .applied);
+    try t.expectEqualDeep(first, (try catalog.dependencyOperation(forward, .accept, access.policy())).outcome);
+    access.denied_resource = null;
+    access.initialization = try native.initialization(alloc);
+    _ = try catalog.resourceOperation(document, .execute, access.policy());
+    var reverse = dependencyBinding(try native.interpretation(alloc), 4, 7);
+    reverse.edge.dependent = .{ .kind = .kv, .interpretation = metadata.interpretation.interpretation };
+    reverse.edge.privileges = a.select;
+    access.denied_resource = native.resource;
+    try t.expectError(error.CatalogDenied, catalog.dependencyOperation(reverse, .accept, access.policy()));
+    access.denied_resource = null;
+    access.denied_metadata = metadata.authorization;
+    try t.expectError(error.CatalogDenied, catalog.dependencyOperation(reverse, .accept, access.policy()));
+    access.denied_metadata = null;
+    var wrong = reverse;
+    wrong.operation = 5;
+    wrong.edge.dependent.kind = .document;
+    try t.expectEqual(.stale_definition, (try catalog.dependencyOperation(wrong, .accept, access.policy())).outcome.reason);
+    const second = (try catalog.dependencyOperation(reverse, .accept, access.policy())).outcome;
+    try t.expect(second.changed and second.phase == .applied);
+    try t.expectEqualDeep(reverse.edge, (try catalog.dependencyPage(.{ .dependencies = kv.binding.target }, null, .dependent, access.policy())).entries[0].?);
+    var kv_drop = kv;
+    kv_drop.intent.action = .drop;
+    kv_drop.binding.action = .drop;
+    kv_drop.binding.identity.operation = 6;
+    kv_drop.binding.expected_definition = metadata.interpretation.interpretation;
+    kv_drop.binding.intent = try kv_drop.intent.digest(alloc);
+    try t.expectEqual(.dependency, (try catalog.admit(kv_drop, access.policy())).reason);
+    var document_drop = document;
+    document_drop.operation = 7;
+    document_drop.expected = try native.interpretation(alloc);
+    document_drop.action = .drop;
+    try t.expectEqual(.dependency, (try catalog.resourceOperation(document_drop, .admit, access.policy())).operation.reason);
+    // Closing known edges needs dependent ownership, even after source reads
+    // are revoked. Original registration receipts remain independently visible.
+    access.denied_privileges = .{ .id = metadata.authorization, .mask = c.KVAuthority.read };
+    var close = forward;
+    close.operation = 8;
+    close.action = .remove;
+    try t.expect((try catalog.dependencyOperation(close, .accept, access.policy())).outcome.changed);
+    access.denied_privileges = null;
+    access.denied_resource = native.resource;
+    close = reverse;
+    close.operation = 9;
+    close.action = .remove;
+    try t.expect((try catalog.dependencyOperation(close, .accept, access.policy())).outcome.changed);
+    access.denied_resource = null;
+    try t.expectEqualDeep(first, (try catalog.dependencyOperation(forward, .accept, access.policy())).outcome);
+    try t.expectEqualDeep(second, (try catalog.dependencyOperation(reverse, .accept, access.policy())).outcome);
+    kv_drop.binding.identity.operation = 10;
+    _ = try catalog.admit(kv_drop, access.policy());
+    try t.expect((try catalog.perform(kv_drop.binding, access.policy())) == .committed);
+    document_drop.operation = 11;
+    _ = try catalog.resourceOperation(document_drop, .admit, access.policy());
+    try t.expect((try catalog.resourceOperation(document_drop, .execute, access.policy())).operation.retired);
 }

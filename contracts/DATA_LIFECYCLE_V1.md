@@ -357,7 +357,7 @@ operation. Staging failure must preserve admitted work and its recovery identity
 ## Native resource initialization
 
 `ResourceInitialization` binds an initial named-resource interpretation to its
-actual native resource and kind (`kv = 1`, `document = 2`). It requires the current
+actual native resource and kind (`document = 2`). The removed KV kind is rejected. It requires the current
 shared definition, branch one, interpretation revision one and a valid native
 resource ID. Its native key is the three bytes `00 4e 4c`. The fixed 125-byte value
 is `NSI1`, the 32 definition bytes, six big-endian unsigned 64-bit fields (realm,
@@ -366,7 +366,7 @@ interpretation digest, one kind byte and the big-endian native resource ID.
 Truncation, trailing bytes, unknown kind and foreign definitions are rejected.
 
 The Station owner uses a separate exact reservation under `00 4e 50` with the
-same encoding. A KV reservation and completion share one native commit. Document
+same encoding. Only Document uses this native initialization marker. Document
 creation has separate reservation, actual service initialization and completion
 turns. The marker asserts initialization by the authorized writer; parsing it
 does not establish current access, lifetime or honest computation. The catalog

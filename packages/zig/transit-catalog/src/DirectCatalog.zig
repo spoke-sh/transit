@@ -1114,6 +1114,16 @@ fn guard(self: *Self, allocator: std.mem.Allocator, policy: Policy, namespace: ?
     return policy.make_guard(policy.context, allocator, try self.requirements(policy, namespace, target, access), null);
 }
 
+fn kvRequirements(self: *Self, policy: Policy, namespace: a.Schema, target: ?a.Table, access: c.KVAuthority.Access) !p.Authorization.Guard {
+    _ = try self.requirements(policy, namespace, null, .schema);
+    if (target) |value| try self.verifiedObject(policy, .kv, value.id, value.authorization, a.reference(namespace.authorization));
+    var requested = try c.KVAuthority.requirements(self.config().authority, policy.subject, namespace, target, access);
+    if (access == .create) if (target) |value| {
+        requested.requirements[2] = .{ .object = a.reference(value.authorization), .access = .ownership };
+    };
+    return requested;
+}
+
 fn check(current: P.Guard) !void {
     _ = try current.acquire(current.context);
     current.release(current.context);
@@ -1735,6 +1745,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
 
 fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
     if (target.seed == null) return false;
+    if (target.seed.?.kind != .table) return false;
     var view = try self.openTransaction(self.allocator, target, false, true);
     defer view.deinit();
     if (view.table.root.next_lsn == 0 or view.table.root.retired) return false;
@@ -2629,6 +2640,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     var options = self.options.table;
     options.control = .{ .log = self.store.log, .objects = self.store.objects };
     options.transaction_control = transaction_control;
+    options.kind = seed.definition.kind;
     var table = try P.init(if (resident != null) self.allocator else allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
 
     errdefer table.deinit();
@@ -2652,7 +2664,16 @@ fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
 /// A name candidate alone is not a published object. The returned owner has an
 /// exact observed Table root; it is not a catalog-wide consistent snapshot.
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
-    if (self.transaction_read) |context| return self.resolveTransactionRead(allocator, context, namespace_id, name, policy);
+    return self.resolveState(allocator, namespace_id, name, .table, policy);
+}
+pub fn resolveKV(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    return self.resolveState(allocator, namespace_id, name, .kv, policy);
+}
+fn resolveState(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, kind: s.TableDeclaration.Kind, policy: Policy) !?View {
+    if (self.transaction_read) |context| {
+        if (kind != .table) return error.UnsupportedTransactionParticipant;
+        return self.resolveTransactionRead(allocator, context, namespace_id, name, policy);
+    }
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -2664,7 +2685,7 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, nam
         return null;
     };
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
-    if (target.seed == null) {
+    if (target.seed == null or target.seed.?.kind != kind) {
         try check(initial);
         return null;
     }
@@ -2675,7 +2696,8 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, nam
         try check(initial);
         return null;
     }
-    try check(try self.guard(arena.allocator(), policy, namespace, view.properties.target(target.object), .inspect));
+    const required = if (kind == .table) try self.requirements(policy, namespace, view.properties.target(target.object), .inspect) else try self.kvRequirements(policy, namespace, view.properties.target(target.object), .inspect);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
     return view;
 }
 
@@ -2683,6 +2705,12 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, nam
 /// filtered pages can have a continuation. Recheck every included object in one
 /// native guard before returning any of the page's metadata to its caller.
 pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !Page {
+    return self.listState(namespace_id, after, .table, policy);
+}
+pub fn listKV(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !Page {
+    return self.listState(namespace_id, after, .kv, policy);
+}
+fn listState(self: *Self, namespace_id: u64, after: ?pages.Key, kind: s.TableDeclaration.Kind, policy: Policy) !Page {
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -2696,11 +2724,11 @@ pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
-        if (target.seed == null) continue;
+        if (target.seed == null or target.seed.?.kind != kind) continue;
         var view = try self.open(self.allocator, target, false);
         defer view.deinit();
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != namespace_id) continue;
-        const required = try self.requirements(policy, namespace, view.properties.target(target.object), .inspect);
+        const required = if (kind == .table) try self.requirements(policy, namespace, view.properties.target(target.object), .inspect) else try self.kvRequirements(policy, namespace, view.properties.target(target.object), .inspect);
         check(try policy.make_guard(policy.context, arena.allocator(), required, null)) catch |err| {
             if (err == error.CatalogDenied or err == error.Forbidden) continue;
             return err;
@@ -3012,8 +3040,9 @@ fn original(self: *Self, policy: Policy, binding: d.Binding) !void {
 
 fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, request: Request, view: ?*View, acceptance: bool) !P.Guard {
     const namespace = if (acceptance) try self.schema(request.intent.namespace) else try self.authorizationSchema(request.intent.namespace);
+    if (view) |value| if (value.table.root.kind != request.intent.kind) return error.CatalogKindMismatch;
     const target: ?a.Table = if (view) |value| value.properties.target(request.binding.target.object) else if (request.intent.action == .create) target: {
-        const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse break :target null;
+        const native = try policy.registered(policy.context, request.intent.authorityKind(), request.binding.target.object) orelse break :target null;
         break :target .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
     } else return error.CatalogObjectMissing;
     const access: a.Access = switch (request.intent.action) {
@@ -3021,7 +3050,10 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
         .alter, .rename => .alter,
         .drop => .drop,
     };
-    var requested = try self.requirements(policy, namespace, target, access);
+    var requested = if (request.intent.kind == .table)
+        try self.requirements(policy, namespace, target, access)
+    else
+        try self.kvRequirements(policy, namespace, target, if (request.intent.action == .create) .create else .administer);
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
     return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
@@ -3259,16 +3291,16 @@ pub fn registration(self: *Self, binding: d.Binding, policy: Policy) !?Registrat
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, null, true);
     const namespace = try self.schema(request.value.intent.namespace);
-    const native = try policy.registered(policy.context, .table, binding.target.object);
+    const native = try policy.registered(policy.context, request.value.intent.authorityKind(), binding.target.object);
     const fence = try current.acquire(current.context);
     defer current.release(current.context);
     if (native != null) return null;
     if (fence.policy_epoch == 0) return error.InvalidPartitionLease;
     return .{ .action = .{
-        .domain = self.config().authority.table_domain,
+        .domain = self.config().authority.domain(request.value.intent.authorityKind()),
         .owner = request.value.intent.action.create.owner,
         .schema = a.reference(namespace.authorization),
-        .binding = try a.binding(self.config().scope, .table, binding.target.object),
+        .binding = try a.binding(self.config().scope, request.value.intent.authorityKind(), binding.target.object),
     }, .authorization_revision = fence.policy_epoch - 1 };
 }
 
@@ -3287,12 +3319,12 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     const current = try self.requestGuard(arena.allocator(), policy, request.value, null, true);
     try check(current);
     const namespace = try self.schema(request.value.intent.namespace);
-    const native = try policy.registered(policy.context, .table, binding.target.object) orelse return error.CatalogRegistrationRequired;
-    try a.validateObject(self.config().authority, self.config().scope, .table, binding.target.object, a.reference(namespace.authorization), native);
+    const native = try policy.registered(policy.context, request.value.intent.authorityKind(), binding.target.object) orelse return error.CatalogRegistrationRequired;
+    try a.validateObject(self.config().authority, self.config().scope, request.value.intent.authorityKind(), binding.target.object, a.reference(namespace.authorization), native);
     if (native.owner != request.value.intent.action.create.owner) return error.CatalogIdentityConflict;
     const properties: Properties = .{ .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
-    var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
+    var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = request.value.intent.kind, .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
     defer declaration.deinit();
     target.seed = try s.TableDeclaration.stage(self.store.objects, &declaration);
     var index_batch: s.TreeStore.Batch = .{};
@@ -3375,6 +3407,12 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
             try self.verifiedObject(policy, L.authorityKind(value.kind()), object.object, value.properties.authorization, a.reference(namespace.authorization));
             return c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, value.properties.target(object.object), if (write) .administer else .inspect);
         }
+        if (try self.entry(object.object)) |target| if (target.seed) |seed| {
+            if (seed.kind != .kv) return error.CatalogKindMismatch;
+            var view = try self.open(self.allocator, target, false);
+            defer view.deinit();
+            return self.kvRequirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .administer else .inspect);
+        };
         const known = try self.namedRecord(object.object) orelse return error.CatalogDenied;
         const value = known.resulting orelse return error.CatalogDenied;
         return self.requirements(policy, try self.authorizationSchema(value.namespace), .{ .id = object.object, .schema = value.namespace, .authorization = value.authorization }, if (write) .alter else .inspect);
@@ -3398,10 +3436,17 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
         return known.phase == .complete and !value.stored.retired and
             (dependent.kind == .queue) == (value.kind() == .queue) and std.meta.eql(dependent.interpretation, value.stored.declaration.interpretation);
     }
+    if (dependent.kind == .kv) {
+        const target = try self.entry(object.object) orelse return false;
+        if (target.seed == null or target.seed.?.kind != .kv) return false;
+        var view = try self.open(self.allocator, target, false);
+        defer view.deinit();
+        return view.table.root.next_lsn != 0 and !view.table.root.retired and std.meta.eql(dependent.interpretation, view.table.root.interpretation);
+    }
     const known = try self.namedRecord(object.object) orelse return false;
     if ((known.phase != .allocated and known.phase != .complete) or known.retired) return false;
     const value = known.resulting.?;
-    if ((dependent.kind == .kv) != (value.creation.spec == .kv)) return false;
+    if (dependent.kind != .document) return false;
     return std.meta.eql(dependent.interpretation, try value.interpretation(self.allocator));
 }
 
@@ -3440,7 +3485,7 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
         const value = known.resulting orelse return error.CatalogDenied;
         if (!std.meta.eql(value.object, object)) return error.InvalidDirectCatalogEntry;
         // SELECT is the shared logical read requirement. It maps to native
-        // INSPECT/READ for named KV/Document data; row mutation masks are not
+        // INSPECT/READ for named Document data; row mutation masks are not
         // meaningful for these source kinds and must not be reinterpreted.
         if (privileges != 0 and privileges != a.select) return error.InvalidCatalogDependency;
         var required = try self.requirements(policy, try self.authorizationSchema(value.namespace), .{ .id = object.object, .schema = value.namespace, .authorization = value.authorization }, .inspect);
@@ -3451,11 +3496,16 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
         }
         return .{ .interpretation = try value.interpretation(self.allocator), .live = known.phase == .complete and !known.retired, .requirements = required };
     }
-    if (target.seed == null) return error.CatalogDenied;
-    if (privileges & ~a.table_actions != 0) return error.InvalidCatalogDependency;
+    const seed = target.seed orelse return error.CatalogDenied;
+    const allowed = if (seed.kind == .kv) c.KVAuthority.all_privileges else a.table_actions;
+    if (privileges & ~allowed != 0) return error.InvalidCatalogDependency;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
-    var requested = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .inspect);
+    const namespace = try self.authorizationSchema(view.properties.namespace);
+    var requested = if (seed.kind == .kv)
+        try self.kvRequirements(policy, namespace, view.properties.target(object.object), .inspect)
+    else
+        try self.requirements(policy, namespace, view.properties.target(object.object), .inspect);
     if (privileges != 0) {
         requested.requirements[2].?.privileges = privileges;
         requested.requirements[2].?.access = .all;
@@ -3645,6 +3695,7 @@ pub fn previewRows(self: *Self, request: s.TableDmlIntent.Request, policy: Polic
     const target = try self.entry(request.binding.target.object) orelse return error.CatalogDenied;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const namespace = try self.authorizationSchema(view.properties.namespace);
@@ -3708,6 +3759,7 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, p
     const target = try self.entry(binding.target.object) orelse return error.CatalogDenied;
     var view = try self.open(self.allocator, target, action == .cancel);
     defer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const required = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(target.object), access);
@@ -3725,6 +3777,32 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, p
         .status => view.table.operationState(binding, current),
         .cancel => view.table.cancel(binding, current),
     };
+}
+
+pub const KVAccess = struct { view: View, current: P.Guard };
+
+/// Borrow the common state owner under the KV domain's current policy. The
+/// host serializes access with publication and returns/destroys the owned view.
+pub fn kvAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, access: c.KVAuthority.Access, control: bool, prerequisite: ?p.Authorization.Guard, policy: Policy) !KVAccess {
+    try self.requireInitialized();
+    try object.validate();
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
+    if (self.transaction_read != null) return error.UnsupportedTransactionParticipant;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    if (target.seed.?.kind != .kv) return error.CatalogKindMismatch;
+    var view = try self.open(self.allocator, target, control);
+    errdefer view.deinit();
+    _ = try s.KVDeclaration.fromPhysical(view.table.declaration.definition);
+    const required = try self.kvRequirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), access);
+    const current = try policy.make_guard(policy.context, allocator, required, prerequisite);
+    try check(current);
+    if (view.table.root.next_lsn == 0) return error.CatalogRegistrationRequired;
+    return .{ .view = view, .current = current };
+}
+
+pub fn kvReady(self: *Self, object: d.Object, current: P.Guard) !void {
+    if (try self.pending(object.object, current)) return error.CatalogObjectBusy;
 }
 
 const SnapshotAccess = struct { view: View, current: P.Guard };
@@ -3751,6 +3829,7 @@ fn storageAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, po
     if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, false);
     errdefer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
     const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .alter else .inspect);
     try check(current);
     if (view.table.root.next_lsn == 0) return error.CatalogRegistrationRequired;
@@ -3809,6 +3888,7 @@ fn readAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, polic
     if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, control);
     errdefer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
     const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
     try check(current);
     if (self.transaction_read) |context| try self.overlayTransactionRead(&view, context, current, policy);

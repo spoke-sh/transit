@@ -61,6 +61,8 @@ test "named resource initialization preserves its original interpretation and re
     foreign = encoded;
     foreign.data[116] = 0;
     try t.expectError(error.InvalidResourceInitialization, d.ResourceInitialization.decode(foreign));
+    foreign.data[116] = 1;
+    try t.expectError(error.InvalidResourceInitialization, d.ResourceInitialization.decode(foreign));
     var renamed = value;
     renamed.interpretation.revision = 2;
     try t.expectError(error.InvalidResourceInitialization, renamed.encode());

@@ -57,13 +57,16 @@ when repeated. See [conditional names](DIRECT_TABLE_V1.md) for exact actions.
 
 Typed namespace operations support CREATE, RENAME and bounded DROP RESTRICT.
 They retain explicit expected definitions, original identity and progress.
-A live or pending Table or named native resource blocks namespace retirement.
+A live or pending Table, direct KV, Stream, Queue or named Document blocks namespace retirement.
 Policy SQL prepares native authorization actions with an expected policy revision;
 preparation publishes nothing. Native authorization owns publication and recovery.
 SET ROLE changes connection selection, not the grant store.
 
-Named KV and Document declarations use `DirectResource` bindings in the same
-catalog. Admission, caller-authorized native allocation, writer initialization,
+Named KV uses `DirectKV` declarations and a database-owned partition in this
+catalog. Its INSPECT, READ, WRITE and ownership checks use the existing policy
+graph. See [direct KV](DIRECT_TABLE_V1.md#direct-kv) for batches and retained reads.
+
+Named Document declarations use `DirectResource` bindings in the same catalog. Admission, caller-authorized native allocation, writer initialization,
 publication and retirement remain distinct. Supplied resource IDs are not
 allocation evidence. See [named resources](DIRECT_TABLE_V1.md) and the
 [state contract](STATE_V1.md) for their owners and limits.

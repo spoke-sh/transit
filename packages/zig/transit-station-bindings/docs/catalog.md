@@ -87,7 +87,7 @@ Namespace publication uses explicit saved bindings and admission/execution/
 inspection/cancellation. Policy preparation returns the native authorization
 owner's signed record without submitting it; selecting a role remains explicit.
 `dependencies` and `resources` use their original saved bindings for graph and
-named KV/Document lifecycle operations. Graph membership remains distinct from
+named Document lifecycle operations. Graph membership remains distinct from
 old operation receipts. Resource execution preserves recorded allocation and
 initialization progress; it does not create a second resource authority.
 
