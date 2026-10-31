@@ -88,18 +88,28 @@ for command in ('server',):
     assert b'--initialize' not in help_output
     assert help_output.rstrip().endswith(b'--help         Show this help')
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
-for args in ([], ['--help'], ['console', '--help']):
+for args in ([], ['--help'], ['console', '--help'], ['migrate', '--help'], ['migrate', 'plan', '--help']):
     invoke(args, 0)
 version_output = invoke(['--version'], 0, env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI)).stdout
 release = (ROOT / 'VERSION').read_text().strip().encode()
 assert re.fullmatch(rb'Transit ' + re.escape(release) + rb' \(git (?:[0-9a-f]{40}(?:-dirty)?|unknown); CLI contract 1\)\n', version_output), version_output
 console_help = invoke(['console', '--help'], 0).stdout
 assert console_help.rstrip().endswith(b'--help               Show this help')
+migrate_help = invoke(['migrate', '--help'], 0, ('Usage: transit migrate ACTION [OPTIONS]', 'Actions:', 'Options:')).stdout
+assert migrate_help.rstrip().endswith(b'--help               Show this help')
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout
 assert b'--initialize' not in root_help and b'--config' not in root_help
 commands = root_help.split(b'Commands:\n', 1)[1].split(b'\nOptions:', 1)[0]
-assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console']
+assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console', b'migrate']
 invoke(['private-must-not-appear'], contains=('unknown command', 'argument 1', 'transit --help'))
+invoke(['migrate'], contains=('requires a migration action', 'transit migrate --help'))
+invoke(['migrate', 'private-must-not-appear'], contains=('unknown migrate action', 'argument 2', 'transit migrate --help'))
+invoke(['migrate', 'plan', '--no-ui'], contains=('--no-ui is not supported', 'transit migrate --help'))
+invoke(['migrate', 'plan', '--no-rc'], contains=('--no-rc is not supported', 'transit migrate --help'))
+invoke(['migrate', 'apply', '--dir', 'migrations', '--plan', 'plan.json'], contains=('--dir and --plan cannot be combined',))
+invoke(['migrate', 'apply', '--dir', 'migrations', '--out', 'plan.json'], contains=('--out is only supported with migrate plan',))
+invoke(['migrate', 'plan'], contains=('requires migration sources (--dir, -f or --plan)',))
+invoke(['migrate', 'plan', '--attempt', 'not-hex'], contains=('--attempt requires a 32-character hexadecimal',))
 invoke(['--help', 'extra'], contains=('argument 1',))
 invoke(['console', '--no-rc'], 1, contains=('local SQL',))
 invoke(['console', '--config', 'missing', '--format', 'csv'], stderr='error: --format must be table or json\n')

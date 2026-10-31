@@ -234,6 +234,12 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         } else if (!inspection) {
             result = .{ .kind = .interface, .route = .inspection, .cause = cause, .summary = "SQL inspection is unavailable on this query interface", .hint = "Use DESCRIBE, SHOW TABLES or EXPLAIN in the console. Flight clients can use the supported Flight metadata operations." };
         } else return null;
+    } else if (word(text, first, "SELECT")) {
+        validateTableSyntax(text, .query, &location) catch |err| {
+            if (err != error.OutOfMemory) return parseFailure(text, err, location, read_hint, .query);
+        };
+        // A syntactically valid statement may fail later in literal lowering.
+        return .{ .kind = .binding, .cause = cause, .summary = "SQL literal or construct cannot be compiled", .hint = read_hint };
     } else {
         _ = sql.parseLocated(text, &location) catch |err| return parseFailure(text, err, location, read_hint, .query);
         // A syntactically valid statement may fail later in literal lowering.
@@ -399,7 +405,9 @@ fn validateTableSyntax(text: []const u8, route: Route, location: *sql.Location) 
     var scratch: [256 * 1024]u8 = undefined;
     var fixed: std.heap.FixedBufferAllocator = .init(&scratch);
     var parser = try @import("SqlTyped.zig").init(fixed.allocator(), text, location);
-    if (route == .mutation) {
+    if (route == .query) {
+        _ = try @import("TableSelect.zig").syntax(&parser, null);
+    } else if (route == .mutation) {
         _ = try @import("TableDml.zig").syntax(&parser, null);
     } else {
         _ = try @import("TableDdl.zig").syntax(&parser, null);
@@ -594,6 +602,7 @@ test "query boundaries distinguish parser evidence, grammar families and binding
         .{ "SHOW SOURCES;", error.UnsupportedCatalog, Kind.grammar_only, @as(usize, 1) },
         .{ "SELEC * FROM items;", error.UnsupportedStatement, Kind.unsupported, @as(usize, 1) },
         .{ "SELECT * FROM items JOIN other;", error.UnsupportedConstruct, Kind.unsupported, @as(usize, 21) },
+        .{ "SELECT id, checksum_sha256, status, applied_at_ms FROM platform_migrations ORDER BY id;", error.UnsupportedConstruct, Kind.unsupported, @as(usize, 76) },
         .{ "SELECT value AS copy, value AS copy FROM items;", error.DuplicateProjection, Kind.binding, @as(usize, 1) },
         .{ "SELECT id AS copy, value AS copy FROM items;", error.DuplicateColumn, Kind.binding, @as(usize, 1) },
         .{ "SELECT value FROM items;", error.InvalidOutputNames, Kind.binding, @as(usize, 1) },

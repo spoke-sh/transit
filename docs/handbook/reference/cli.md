@@ -13,12 +13,14 @@ transit --help
 transit --version
 transit server [--config FILE] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
+transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]
 ```
 
 | Command | Input and outcome |
 | --- | --- |
 | `server` | Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
+| `migrate` | Reviewable, resumable application schema and data migration lifecycle (`plan`, `inspect`, `apply`, `status`, `resume`, `verify`) over ordered `.sql` sources or saved plans (`transit_migration_plan_v1`) |
 
 The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`

@@ -6,11 +6,14 @@ Follow the repository's root instructions and the
 
 ## Command scope
 
-The public command policy permits exactly two commands:
+The public command policy permits exactly three commands:
 
 - `transit server` starts and supervises a local Transit installation.
 - `transit console` provides interactive and batch SQL sessions through the
   shared SQL service. Statement execution and recovery belong to shared owners.
+- `transit migrate` plans, inspects, applies, resumes and verifies ordered
+  application schema and data migrations through the shared SQL service and
+  `DirectMigration` ledger without reading `.transitrc` startup files.
 
 ## Statement results and future console work
 

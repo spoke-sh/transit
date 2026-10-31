@@ -4,7 +4,7 @@ const std = @import("std");
 const json = @import("LogicalJson.zig");
 const types = @import("Types.zig");
 const Graph = struct {
-    nodes: [128]type = @splat(void),
+    nodes: [192]type = @splat(void),
     count: usize = 0,
     fn add(self: *Graph, comptime T: type) void {
         for (self.nodes[0..self.count]) |node| if (node == T) return;

@@ -8,7 +8,9 @@ pub const Client = @import("Client.zig");
 pub const Response = @import("Response.zig");
 pub const Pending = @import("Pending.zig");
 pub const Discovery = @import("Discovery.zig");
+pub const MigrationClient = @import("MigrationClient.zig");
 test {
     _ = @import("NativeResult.zig");
+    _ = MigrationClient;
     @import("std").testing.refAllDecls(@This());
 }

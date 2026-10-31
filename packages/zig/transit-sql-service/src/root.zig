@@ -23,6 +23,7 @@ pub const IntentReference = database.IntentReference;
 pub const ReadCache = database.ReadCache;
 pub const Type = database.Type;
 pub const Bytes = database.Bytes;
+pub const MigrationRunner = database.MigrationRunner;
 pub const BatchDisclosure = @import("BatchDisclosure.zig");
 pub const CapturedOperations = @import("CapturedOperations.zig");
 pub const CapturedRecovery = @import("CapturedRecovery.zig");

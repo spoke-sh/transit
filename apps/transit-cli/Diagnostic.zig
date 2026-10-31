@@ -347,6 +347,13 @@ fn adviceFor(err: anyerror) ?Advice {
         error.InteractiveQueryCancelled => .{ "query cancelled", "Run the statement again to start a fresh snapshot." },
         error.ConsoleInterrupted => .{ "statement interrupted", null },
         error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding statement result." },
+        error.MigrationTargetMismatch => .{ "migration target does not match the connected database or schema", "Verify --database, --schema, --branch and --account against the connection." },
+        error.MigrationDriftDetected => .{ "live schema diverges from the declared migration", "Inspect the reported drift with transit migrate inspect and reconcile the schema before applying." },
+        error.MigrationChecksumMismatch => .{ "recorded migration checksum does not match the current source file", "Restore the original migration file; applied migrations are immutable." },
+        error.MigrationClaimConflict => .{ "another migration runner holds an active claim on this version", "Wait for the active attempt to finish or run transit migrate resume with its attempt ID." },
+        error.MigrationOutcomeUnknown => .{ "a migration step has an unresolved durable outcome", "Run transit migrate resume to reconcile the deterministic step token without duplicating changes." },
+        error.MigrationStepFailed => .{ "a migration step failed during execution", "Inspect the step diagnostic in transit migrate status; earlier applied steps remain recorded." },
+        error.MigrationVerificationFailed => .{ "post-migration schema verification failed", "Inspect the reported drift or checksum mismatch with transit migrate status." },
         else => null,
     };
 }

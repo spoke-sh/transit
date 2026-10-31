@@ -3,6 +3,9 @@
 `transit server` starts and supervises a local Transit installation.
 `transit console` opens interactive or batch SQL sessions for queries, Table
 DDL/DML and catalog operations through the shared SQL service.
+`transit migrate` plans, inspects, applies, resumes and verifies ordered
+application schema and data migrations (`<version>-<name>.sql`) against the
+direct catalog without reading `.transitrc` startup files.
 
 The `transit` executable contains the node, query host, SQL gateway and Board,
 including its frontend assets. The local server starts these roles as separate

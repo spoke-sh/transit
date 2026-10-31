@@ -9,6 +9,9 @@ The local server runs on Linux x86_64.
 `transit server [--config PATH] [--no-ui]` runs one local installation in the
 foreground. `transit console [--config PATH] [--format table|json]` opens an
 explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input.
+`transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]` plans,
+applies, resumes and verifies ordered application schema and data migrations
+over the SQL session without reading `.transitrc` startup files.
 These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
@@ -67,6 +70,13 @@ plain language, while untranslated failures retain their identifiers. Exhausted
 restarts remain distinct from the underlying role failure. Root help lists `server` and `console`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
 are not a versioned machine schema. Recovery advice preserves saved identity and
 never treats uncertainty as proof of rejection.
+
+`transit migrate` maps outcomes to deterministic exit statuses: `0` for
+`planned`, `inspected`, `applied`, `already_satisfied` and `verified`; `1` for
+step execution failure; `2` for invalid invocation, configuration or target
+identity mismatch; `3` for schema drift, checksum mismatch or concurrent runner
+claim conflict; `4` for uncertain/pending step outcome; and `5` for
+post-migration verification failure. See [Application schema and data migration v1](MIGRATION_V1.md).
 
 Successful help, version, ordinary disconnect and joined server shutdown return
 0; invalid invocation/configuration returns 2; runtime failure returns 1. A

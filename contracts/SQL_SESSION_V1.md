@@ -449,3 +449,12 @@ unavailable acquisition, never an empty complete result.
 
 The assistance coverage cutover replaces the shared native definition. Missing
 coverage/status and foreign definitions reject; there is no fallback decoder.
+
+## Application schema and data migrations
+
+`migrate` on `/v1/sql/session` executes reviewable, resumable application schema
+and data migration actions (`plan`, `inspect`, `apply`, `status`, `resume`,
+`verify`) in the session's authenticated account and namespace, returning a
+typed `migration` report (`migration_result_v1`). The exact ledger layout,
+deterministic step tokens, schema drift reconciliation and recovery rules are
+specified in [Application schema and data migration v1](MIGRATION_V1.md).

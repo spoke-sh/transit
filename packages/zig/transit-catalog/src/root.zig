@@ -124,6 +124,7 @@ test {
     _ = DirectStream;
     _ = DirectQueueMutation;
     _ = DirectQueue;
+    _ = DirectMigration;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
@@ -132,6 +133,7 @@ pub const testing = if (@import("builtin").is_test) struct {
 pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
+pub const DirectMigration = @import("DirectMigration.zig");
 pub const DirectTransactionCall = @import("DirectTransactionCall.zig");
 pub const DirectTransactionSavepoint = @import("DirectTransactionSavepoint.zig");
 pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig");

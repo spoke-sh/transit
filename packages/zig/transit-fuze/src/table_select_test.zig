@@ -201,6 +201,7 @@ test "general SELECT rejects complete invalid bindings and unsupported construct
         .{ "SELECT * FROM people LIMIT 18446744073709551616", error.LiteralOutOfRange },
         .{ "SELECT * FROM people; DROP TABLE people", error.UnsupportedConstruct },
         .{ "SELECT * FROM people JOIN other ON people.n=other.n", error.UnsupportedConstruct },
+        .{ "SELECT * FROM people ORDER BY n", error.UnsupportedConstruct },
         .{ "SELECT * FROM (SELECT * FROM people) AS q", error.UnsupportedConstruct },
         .{ "SELECT SUM(q.n) FROM (SELECT n AS amount FROM people) AS q", error.UnknownColumn },
     };

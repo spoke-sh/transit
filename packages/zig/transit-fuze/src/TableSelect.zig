@@ -123,9 +123,15 @@ pub fn targetQualifier(allocator: std.mem.Allocator, text: []const u8) ![]const 
     const name = try parser.name();
     return alias(&parser, name);
 }
+fn clauseWord(word: []const u8) bool {
+    inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |reserved| {
+        if (std.ascii.eqlIgnoreCase(word, reserved)) return true;
+    }
+    return false;
+}
 fn alias(parser: *Parser, name: []const u8) ![]const u8 {
     if (try parser.takeWord("AS")) return parser.name();
-    if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text))) return parser.name();
+    if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) return parser.name();
     return name;
 }
 pub const Syntax = struct {
