@@ -25045,17 +25045,20 @@
         "IncompatibleSqlDefinition": 1,
         "InvalidResultBudget": 1,
         "InvalidResultOperation": 1,
-        "InvalidSqlResponse": 4,
+        "InvalidSqlResponse": 5,
+        "InvalidSqlSubmission": 1,
         "ParameterCountMismatch": 1,
-        "ReadOnlyStatementRequired": 2,
+        "ReadOnlyStatementRequired": 3,
         "ResultCancelled": 2,
-        "SqlInstanceChanged": 1,
-        "SqlObservationDenied": 2,
+        "SqlInstanceChanged": 2,
+        "SqlObservationDenied": 3,
         "SqlOutcomeUnknown": 1,
         "SqlResponseBusy": 1,
         "SqlResponseCapacity": 1,
         "SqlResultUnavailable": 1,
-        "SqlSessionUnavailable": 1
+        "SqlSessionRequired": 2,
+        "SqlSessionUnavailable": 1,
+        "SqlSubmissionScopeChanged": 1
       },
       "outcomes": {
         "Cancellation.Request": [
@@ -25080,6 +25083,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "BeforeSubmit.persist()": "anyerror",
+        "Submission.pending()": "<inferred>",
+        "Submission.validate()": "<inferred>",
         "awaitPending()": "anyerror",
         "call()": "<inferred>",
         "createOutcome()": "<inferred>",
@@ -25092,9 +25098,9 @@
         "requireRead()": "<inferred>",
         "settle()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 38,
+        "try": 46,
         "catch": 5
       },
       "imports": [
