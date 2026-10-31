@@ -296,12 +296,13 @@
         "Console.resultJson()": "<inferred>",
         "Console.sqlFailure()": "anyerror",
         "connection()": "<inferred>",
+        "loadConnectionConfig()": "<inferred>",
         "localConfig()": "<inferred>",
         "run()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 84,
+        "try": 85,
         "catch": 18
       },
       "imports": [
@@ -377,6 +378,13 @@
         "InvalidTimingCommand": 1,
         "IsDir": 1,
         "ManagementClientInUse": 1,
+        "MigrationChecksumMismatch": 1,
+        "MigrationClaimConflict": 1,
+        "MigrationDriftDetected": 1,
+        "MigrationOutcomeUnknown": 1,
+        "MigrationStepFailed": 1,
+        "MigrationTargetMismatch": 1,
+        "MigrationVerificationFailed": 1,
         "MissingField": 2,
         "NameTooLong": 1,
         "NoSpaceLeft": 2,
@@ -627,6 +635,42 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/Migrate.zig": {
+      "errors": {
+        "FileNotFound": 1,
+        "InvalidConfiguration": 2,
+        "InvalidSqlEndpoint": 2,
+        "InvalidSqlResponse": 1,
+        "MigrationChecksumMismatch": 1,
+        "MigrationClaimConflict": 1,
+        "MigrationDriftDetected": 1,
+        "MigrationOutcomeUnknown": 1,
+        "MigrationStepFailed": 1,
+        "MigrationTargetMismatch": 1,
+        "MigrationVerificationFailed": 1,
+        "SqlServiceError": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "renderTable()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 6
+      },
+      "imports": [
+        "Console.zig",
+        "Diagnostic.zig",
+        "Options.zig",
+        "Style.zig",
+        "std",
+        "transit_io",
+        "transit_sql_client"
+      ]
+    },
     "apps/transit-cli/Options.zig": {
       "errors": {},
       "outcomes": {
@@ -638,7 +682,8 @@
           "help",
           "version",
           "console",
-          "server"
+          "server",
+          "migrate"
         ]
       },
       "error_sets": {},
@@ -646,18 +691,20 @@
         "duplicate()": "anyerror",
         "parse()": "<inferred>",
         "parseDiagnosed()": "<inferred>",
+        "parseMigrate()": "<inferred>",
         "parseWithConsoleConfig()": "<inferred>",
         "writeHelp()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
         "try": 0,
-        "catch": 0
+        "catch": 2
       },
       "imports": [
         "Diagnostic.zig",
         "Help.zig",
-        "std"
+        "std",
+        "transit_sql_client"
       ]
     },
     "apps/transit-cli/Output.zig": {
@@ -1107,6 +1154,12 @@
         "InvalidCredentialFile": 1,
         "InvalidInvocation": 2,
         "InvalidQueryInput": 1,
+        "MigrationChecksumMismatch": 1,
+        "MigrationClaimConflict": 1,
+        "MigrationDriftDetected": 1,
+        "MigrationOutcomeUnknown": 1,
+        "MigrationTargetMismatch": 1,
+        "MigrationVerificationFailed": 1,
         "QueryInputTooLarge": 1
       },
       "outcomes": {},
@@ -1123,6 +1176,7 @@
       "imports": [
         "Console.zig",
         "Diagnostic.zig",
+        "Migrate.zig",
         "Options.zig",
         "RuntimeRole.zig",
         "build_version",
@@ -26017,7 +26071,9 @@
     },
     "packages/zig/transit-sql/src/MigrationRunner.zig": {
       "errors": {
+        "AuthorizationStepBudget": 1,
         "GatewayDeadline": 3,
+        "GatewayMutationRejected": 1,
         "InteractiveTransactionInMigration": 1,
         "InvalidMigrationStepCount": 3,
         "InvalidSqlSyntax": 1,
@@ -26026,7 +26082,7 @@
         "MigrationStepFailed": 1,
         "TableNotFound": 1,
         "Timeout": 3,
-        "UnsupportedMigrationStatement": 1
+        "UnsupportedMigrationStatement": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -26049,7 +26105,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 127,
+        "try": 133,
         "catch": 14
       },
       "imports": [

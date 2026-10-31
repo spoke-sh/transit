@@ -752,7 +752,7 @@ fn buildPlanReport(
                     if (current) |existing| {
                         report.observed_schema_sha256 = try DM.logicalFingerprint(existing);
                         report.expected_schema_sha256 = report.observed_schema_sha256;
-                        var compiled = f.TableDml.compileDialect(allocator, parsed.sql, parsed.object_name, existing, null, context.dialect) catch |err| {
+                        var compiled = f.TableDml.compile(allocator, parsed.sql, parsed.object_name, existing, null) catch |err| {
                             report.state = .already_diverged;
                             report.diagnostic_code = "migration.dml_compile_failed";
                             report.diagnostic_message = try std.fmt.allocPrint(
@@ -961,16 +961,56 @@ fn executeStepStatement(
 
     if (step.owner == .authorization_grant) {
         var location: f.Sql.Location = .{};
-        var plan = try c.DirectAuthorizationSql.prepare(allocator, table.*, context.namespace, step.sql, .{}, &location);
-        defer plan.deinit();
-        const change_id = try plan.apply(table.*);
-        step.operation_id = change_id;
-        step.commit_lsn = change_id;
-        step.state = .applied;
-        return;
+        const plan = try c.DirectAuthorizationSql.compile(table.*, context.namespace, step.sql, .{}, &location);
+        if (plan.action != .authorization) return error.UnsupportedMigrationStatement;
+        const authority: c.client.AuthorizationClient = .{
+            .transport = table.authority,
+            .realm = table.connection.scope.realm,
+            .principal = table.connection.principal,
+            .role = table.connection.role,
+            .key = table.key,
+        };
+        var command: p.Authorization.Command = .{
+            .begin = .{
+                .role = plan.role,
+                .expected_revision = plan.expected_revision,
+                .action = plan.action.authorization,
+            },
+        };
+        var change: ?u64 = null;
+        for (0..256) |_| {
+            try deadline.check(observer.transport.http.io);
+            const observation = try authority.read(.identity);
+            const response = try table.authority.submit(try p.Growth.sign(.{
+                .realm = table.connection.scope.realm,
+                .principal = plan.principal,
+                .sequence = observation.principal_sequence + 1,
+                .command = .{ .authorization = command },
+            }, table.key));
+            if (change == null) change = response.position;
+            const outcome = (try authority.read(.{ .change = change.? })).body.authorization.body.change;
+            command = switch (outcome.status) {
+                .preparing => .{ .advance = change.? },
+                .ready => .{ .publish = change.? },
+                .published => {
+                    step.operation_id = change.?;
+                    step.commit_lsn = outcome.revision;
+                    step.state = .applied;
+                    return;
+                },
+                .abandoned => return error.GatewayMutationRejected,
+            };
+        }
+        return error.AuthorizationStepBudget;
     }
 
-    const read_options: g.direct.DirectRelationalQuery.Options = .{ .dialect = context.dialect };
+    const read_options: g.direct.DirectRelationalQuery.Options = .{
+        .consistency = .independent_table_snapshots,
+        .dialect = context.dialect,
+        .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 },
+        .requests = 10000,
+        .spill_work = 10000,
+    };
     var statement = try g.Statement.prepare(
         allocator,
         table,
@@ -1006,7 +1046,7 @@ fn executeStepStatement(
         step.diagnostic_message = try std.fmt.allocPrint(allocator, "Migration step {d} failed during admission: {s}", .{ step.step_index, @errorName(err) });
         return err;
     };
-    const id = op_id orelse admitted.identity.id;
+    const id = op_id orelse admitted.id;
     step.operation_id = id;
 
     while (true) {
@@ -1043,13 +1083,13 @@ fn executeStepStatement(
         if (current.phase == .terminal) {
             step.commit_lsn = current.identity.id;
             step.affected_rows = current.changed;
-            if (current.outcome == .succeeded) {
+            if (current.outcome == .applied or current.outcome == .unchanged) {
                 step.state = .applied;
                 return;
             }
             step.state = .failed;
-            step.diagnostic_code = if (current.diagnostic) |diag| diag.code.slice() else "migration.step_failed";
-            step.diagnostic_message = if (current.diagnostic) |diag| diag.summary.slice() else "Migration step execution failed";
+            step.diagnostic_code = if (current.diagnostic) |diag| try allocator.dupe(u8, diag.code.slice()) else "migration.step_failed";
+            step.diagnostic_message = if (current.diagnostic) |diag| try allocator.dupe(u8, diag.message.slice()) else "Migration step execution failed";
             return error.MigrationStepFailed;
         }
         runtime.io.sleep(.fromMilliseconds(5), .awake) catch {};
@@ -1063,7 +1103,8 @@ fn verifyVersionSteps(
     version: *M.VersionReport,
 ) !bool {
     // Only verify the final schema state of each table modified in this version.
-    for (version.steps, 0..) |*step, idx| {
+    const steps_mut = @constCast(version.steps);
+    for (steps_mut, 0..) |*step, idx| {
         if (step.owner == .schema_ddl and (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table)) {
             // Check whether a later step in this same version also modifies or drops this table.
             var modified_later = false;
@@ -1402,14 +1443,14 @@ fn resumeExecution(
             if (step.state == .applied or step.state == .verified or step.state == .already_satisfied) continue;
             // Reconcile the deterministic step token in DirectCatalog.
             if (try runtime.lookup(observer, step.step_token, step.statement_digest)) |op_record| {
-                const op_id = op_record.identity.id;
+                const op_id = op_record.id;
                 step.operation_id = op_id;
                 try runtime.resumeOperation(observer, op_id);
                 const status = try runtime.status(allocator, observer, table, context.namespace, op_id);
                 if (status.phase == .terminal) {
                     step.commit_lsn = status.identity.id;
                     step.affected_rows = status.changed;
-                    if (status.outcome == .succeeded) {
+                    if (status.outcome == .applied or status.outcome == .unchanged) {
                         step.state = .applied;
                         step.diagnostic_code = null;
                         step.diagnostic_message = null;

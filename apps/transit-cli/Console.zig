@@ -22,13 +22,13 @@ pub const Config = struct {
     request_timeout_ms: u32 = 30000,
     format: Options.Format = .table,
     display_rows: ?u32 = null,
-    fn native(self: Config) sdk.Client.Config {
+    pub fn native(self: Config) sdk.Client.Config {
         var result: sdk.Client.Config = undefined;
         inline for (@typeInfo(sdk.Client.Config).@"struct".field_names) |field| @field(result, field) = @field(self, field);
         return result;
     }
 };
-fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic: *Diagnostic) !Config {
+pub fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic: *Diagnostic) !Config {
     const installation = (try @import("server/Config.zig").forConsole(init, diagnostic)).installation;
     diagnostic.file = null;
     diagnostic.field = null;
@@ -36,6 +36,21 @@ fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic:
     const record = sdk.Discovery.read(allocator, init.io, location) catch |err| return diagnostic.fail(err, "cannot discover the local SQL service", "Wait for transit server to be ready, or select a connection YAML file with --config.");
     defer record.deinit();
     return .{ .version = 1, .endpoint = try std.fmt.allocPrint(allocator, "unix:{s}", .{record.value.socket}), .account = try allocator.dupe(u8, record.value.account), .database = try allocator.dupe(u8, record.value.database), .instance = record.value.instance };
+}
+pub fn loadConnectionConfig(init: std.process.Init, allocator: std.mem.Allocator, connection_file: ?[]const u8, diagnostic: *Diagnostic) !Config {
+    const config = if (connection_file) |file| blk: {
+        diagnostic.atFile(file);
+        var value = try @import("Settings.zig").readTyped(Config, init, file, diagnostic);
+        const absolute = try std.fs.path.resolve(allocator, &.{file});
+        inline for (.{ "ca_file", "password_file" }) |field| if (@field(value, field)) |path| {
+            @field(value, field) = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, path });
+        };
+        break :blk value;
+    } else try localConfig(init, allocator, diagnostic);
+    if (config.version != 1) return diagnostic.invalidField("version", "must be 1", null);
+    if (config.display_rows == 0) return diagnostic.invalidField("display_rows", "must be positive or null", null);
+    if (config.request_timeout_ms == 0 or config.request_timeout_ms > 270000) return diagnostic.invalidField("request_timeout_ms", "must be between 1 and 270000", null);
+    return config;
 }
 pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
     // Cancellation, settlement and the transport deadline nest at most six
@@ -61,18 +76,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         diagnostic.atFile(file);
         return diagnostic.invalidFieldCause(err, "parameters", "cannot read SQL parameter input", null);
     } else null;
-    var config = if (preferences.connection) |file| blk: {
-        diagnostic.atFile(file);
-        var value = try @import("Settings.zig").readTyped(Config, init, file, diagnostic);
-        const absolute = try std.fs.path.resolve(a, &.{file});
-        inline for (.{ "ca_file", "password_file" }) |field| if (@field(value, field)) |path| {
-            @field(value, field) = try std.fs.path.resolve(a, &.{ std.fs.path.dirname(absolute).?, path });
-        };
-        break :blk value;
-    } else try localConfig(init, a, diagnostic);
-    if (config.version != 1) return diagnostic.invalidField("version", "must be 1", null);
-    if (config.display_rows == 0) return diagnostic.invalidField("display_rows", "must be positive or null", null);
-    if (config.request_timeout_ms == 0 or config.request_timeout_ms > 270000) return diagnostic.invalidField("request_timeout_ms", "must be between 1 and 270000", null);
+    var config = try loadConnectionConfig(init, a, preferences.connection, diagnostic);
     var client = sdk.Client.init(init.gpa, init.io, config.native()) catch |err| return diagnostic.invalidFieldCause(err, if (err == error.InvalidSqlEndpoint) "endpoint / authentication" else "ca_file", if (err == error.InvalidSqlEndpoint) "invalid SQL endpoint or authentication policy" else if (err == error.FileNotFound) "cannot load CA certificates: file not found" else "cannot load CA certificates", null);
     defer client.deinit();
     const password = if (config.password_file) |file| std.Io.Dir.cwd().readFileAlloc(init.io, file, init.gpa, .limited(129)) catch |err| return diagnostic.invalidFieldCause(err, "password_file", "cannot read SQL password", null) else null;

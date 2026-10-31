@@ -30,6 +30,7 @@ const topics = .{
     .{ "ALTER SCHEMA", "ALTER SCHEMA reporting RENAME TO reports;\n\nRequires current schema ownership. Retains the schema identity and Table bindings.\nPrepared metadata rejects a later schema change or replacement." },
     .{ "DROP SCHEMA", "DROP SCHEMA reports RESTRICT;\n\nRequires current schema ownership. Live or pending Table declarations block DROP.\nCASCADE is unsupported. Name reuse allocates a new identity.\nDisconnecting does not undo an accepted change." },
     .{ "DROP TABLE", "DROP TABLE people;\nDROP TABLE IF EXISTS people;\n\nRetires the original Table and removes its live name. CASCADE is unsupported.\nExplicitly registered definition dependencies block DROP. Consumers must register them.\nRequires current catalog drop rights. Dropping a table is not undone by disconnecting." },
+    .{ "migrations", "Plan, apply, resume and verify ordered SQL schema migrations with transit migrate:\n\ntransit migrate plan --dir migrations --out plan.json\ntransit migrate inspect --plan plan.json\ntransit migrate apply --dir migrations\ntransit migrate status\ntransit migrate resume\ntransit migrate verify --dir migrations\n\nEach step binds a deterministic token in DirectCatalog and reconciles CREATE TABLE\nIF NOT EXISTS against live TableSchema definitions to surface schema drift." },
 };
 
 fn entry(out: *std.Io.Writer, value: Entry, extended: bool) !void {

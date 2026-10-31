@@ -8,7 +8,10 @@ pub fn main(init: std.process.Init) !void {
         diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,
-            error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge => 2,
+            error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge, error.MigrationTargetMismatch => 2,
+            error.MigrationDriftDetected, error.MigrationChecksumMismatch, error.MigrationClaimConflict => 3,
+            error.MigrationOutcomeUnknown => 4,
+            error.MigrationVerificationFailed => 5,
             else => 1,
         });
     };
@@ -27,6 +30,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit " ++ build_version.release ++ " (git " ++ build_version.revision ++ "; CLI contract 1)\n"),
         .console => @import("Console.zig").run(init, options, diagnostic),
         .server => @import("server/Server.zig").run(init, options, diagnostic),
+        .migrate => @import("Migrate.zig").run(init, options, diagnostic),
         .help => unreachable,
     };
 }

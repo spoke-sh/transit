@@ -445,7 +445,12 @@ pub fn ensureVersionListed(allocator: std.mem.Allocator, client: c.DirectTableCl
             const receipt = c.DirectClientToken.bind(client, .{
                 .key = key,
                 .fingerprint = fingerprint,
-                .intent = .{ .external = .{ .namespace = namespace, .record = record_ref } },
+                .intent = .{ .external = .{
+                    .connection = client.connection,
+                    .namespace = namespace,
+                    .operation = (std.mem.readInt(u64, fingerprint[0..8], .little) % p.max_counter) + 1,
+                    .record = record_ref,
+                } },
             }) catch |err| {
                 if (err == error.ClientTokenConflict or err == error.Conflict) continue;
                 return err;
@@ -513,7 +518,12 @@ pub fn saveVersion(allocator: std.mem.Allocator, client: c.DirectTableClient, ac
     const receipt = c.DirectClientToken.bind(client, .{
         .key = key,
         .fingerprint = fingerprint,
-        .intent = .{ .external = .{ .namespace = entry.namespace, .record = record_ref } },
+        .intent = .{ .external = .{
+            .connection = client.connection,
+            .namespace = entry.namespace,
+            .operation = (std.mem.readInt(u64, fingerprint[0..8], .little) % p.max_counter) + 1,
+            .record = record_ref,
+        } },
     }) catch |err| return if (err == error.ClientTokenConflict or err == error.Conflict) error.MigrationClaimConflict else err;
     const updated = c.DirectClientToken.update(client, .{
         .key = key,
