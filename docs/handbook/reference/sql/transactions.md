@@ -6,6 +6,11 @@ PostgreSQL and MySQL share these controls through the database runtime. The
 supported domain is one local catalog and branch, with multiple Tables under
 one fenced authority.
 
+The shared transaction contract also describes partitioned Stream/Queue actions
+and kind-specific guards. These are neutral preparation types, with their
+execution owners still pending. SQL BEGIN continues to select Tables only;
+typed requests for other participant kinds reject before durable admission.
+
 ```sql
 BEGIN ISOLATION LEVEL SERIALIZABLE;
 UPDATE accounts SET balance = 80 WHERE id = 1;

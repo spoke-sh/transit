@@ -3397,7 +3397,7 @@ test "Table index batches share paths and reject duplicate identities across pri
 }
 
 fn workspaceBegin() p.Transaction.Begin {
-    return .{ .definition = p.Growth.current_definition, .identity = .{ .begin = .{ .scope = object.scope, .principal = 4, .operation = 100 }, .branch = 1 }, .mode = .serializable, .selection = .explicit_tables, .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(1) }, .count = 1 }, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 64 * 1024 * 1024, .participants = 10, .statements = 100, .savepoints = 10 } };
+    return .{ .definition = p.Growth.current_definition, .identity = .{ .begin = .{ .scope = object.scope, .principal = 4, .operation = 100 }, .branch = 1 }, .mode = .serializable, .selection = .explicit_objects, .objects = .{ .content = .{ .bytes = 100, .sha256 = @splat(1) }, .count = 1 }, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 64 * 1024 * 1024, .participants = 10, .statements = 100, .savepoints = 10 } };
 }
 fn workspaceInsert(workspace: *s.TableWorkspace, sequence: u64, operation: u64, value: *const f.Types.Values.Cell, guard: P.Guard) !s.TableWorkspace.Outcome {
     const proposed = binding(&workspace.table, operation);
@@ -3586,7 +3586,7 @@ test "transaction preparation barrier and original decision survive disk reopen 
         var access: Access = .{};
         var frozen: s.TransactionDecisionLog.Binding = undefined;
         var state: s.TableWorkspace.State = undefined;
-        var basis: p.Transaction.TableGuard = undefined;
+        var basis: p.Transaction.StateGuard = undefined;
         var expected: p.Transaction.Prepared = undefined;
         var accepted: p.Transaction.Decision = undefined;
         for (0..4) |restart| {
@@ -3607,7 +3607,7 @@ test "transaction preparation barrier and original decision survive disk reopen 
                 var selection = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 10, 1, 1024 * 1024);
                 defer selection.deinit();
                 try selection.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = basis, .access = .read } } });
-                begin.tables = try selection.seal();
+                begin.objects = try selection.seal();
                 const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
                 var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
                 defer workspace.deinit();
@@ -3620,7 +3620,7 @@ test "transaction preparation barrier and original decision survive disk reopen 
                 var writes = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 10, 1, 1024 * 1024);
                 defer writes.deinit();
                 try writes.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = basis, .access = .write } } });
-                frozen = .{ .begin = begin, .attempt = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .operation = .{ .scope = object.scope, .principal = 4, .operation = 101 }, .cut = begin.tables.content, .workspace = begin.tables.content, .participants = try writes.seal(), .writes = 1, .last_statement = 1 } };
+                frozen = .{ .begin = begin, .attempt = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .operation = .{ .scope = object.scope, .principal = 4, .operation = 101 }, .cut = begin.objects.content, .workspace = begin.objects.content, .participants = try writes.seal(), .writes = 1, .last_statement = 1 } };
                 var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
                 try journal.recover();
                 try journal.freeze(access.guard());

@@ -13,19 +13,27 @@ operations into the public transaction lifecycle.
 
 Construct a directory with an explicit transaction identity, kind, entry quota,
 resident page count and index-work byte budget. `put` stages one participant or
-preparation through `TreeStore`; the directory's key is the stable object ID.
-An exact repeat is idempotent and conflicting content for that ID rejects.
+preparation through `TreeStore`; the key is the stable object ID and nullable
+logical partition ordinal. State objects have no ordinal; Stream and Queue
+targets require one. Exact repeats are idempotent; conflicting content for that
+key and mixed kinds for one object reject. A log participant groups its append
+and settlement actions under one guard and preparation.
 `seal` stages its root descriptor and returns the neutral directory commitment.
 Neither operation accepts a transaction or retains a snapshot. Save the sealed
 reference before the corresponding owner publishes it.
 
 `restore` verifies the root object, identity, kind, count and top-level page.
-`page` reads at most eight entries in object order; each entry verifies its
-content, object key and transaction scope. A null continuation ends that fixed
+`page` reads at most eight entries in object/ordinal order; each entry verifies its
+content, complete key and transaction scope. Continuations retain both object
+and ordinal. A null continuation ends that fixed
 directory traversal. `requireComplete` verifies all expected writes against the
 prepared directory, including each original attempt and predecessor. It scans
 both directories and checks their actual cardinalities. It performs no writes.
 It does not verify participant WAL acceptance or successor object availability.
+The directory supports neutral state and log evidence, while the current
+decision journal and catalog execution reject non-Table owners before admission.
+Private Table workspaces, pins and common-decision readers remain the executable
+participant adapters.
 
 Directory objects are at most 16 KiB. Index caches and index staging use the
 existing `TreeStore` bounds. Entry quota is independent of resident page count;

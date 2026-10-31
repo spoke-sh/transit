@@ -21,7 +21,7 @@ pub const Binding = struct {
         try self.begin.validate();
         try self.attempt.validate();
         if (!std.meta.eql(self.begin.identity, self.attempt.transaction) or
-            self.attempt.participants.count > self.begin.tables.count or
+            self.attempt.participants.count > self.begin.objects.count or
             self.attempt.last_statement > self.begin.limits.statements or
             (self.begin.mode == .read_only and self.attempt.writes != 0)) return error.InvalidTransactionAttempt;
     }
@@ -75,7 +75,7 @@ fn participants(self: *Self) !Directory {
     var result = try self.directory(.participants);
     errdefer result.deinit();
     try result.restore(self.binding.attempt.participants);
-    var after: ?u64 = null;
+    var after: ?Directory.Cursor = null;
     var count: u64 = 0;
     var writes: u64 = 0;
     while (true) {
@@ -246,13 +246,13 @@ fn commitBounded(self: *Self, prepared_directory: x.Directory, verification: Ver
     defer prepared.deinit();
     var selected = try self.participants();
     defer selected.deinit();
-    var after: ?u64 = null;
+    var after: ?Directory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |entry| if (entry) |value| {
             try verification.participant(verification.context, value.participant);
             if (value.participant.state.access == .write) {
-                const original = (try prepared.get(value.object().object)).?.prepared;
+                const original = (try prepared.get(value.target())).?.prepared;
                 try verification.prepared(verification.context, original);
             }
         };

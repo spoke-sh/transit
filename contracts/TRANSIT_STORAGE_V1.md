@@ -81,13 +81,26 @@ entire encoded object. The object descriptor's size and digest must match.
 A root stores `definition`, transaction identity, directory kind (`participants`,
 `preparations` or `sources`), optional immutable B-tree root, entry count and write count.
 An entry is a tagged neutral participant, preparation, or acquired source
-(`guard` and Table snapshot `pin`). A source pin's owner must equal the original
+(`guard` and owner-issued `pin`). A source pin's owner must equal the original
 begin operation; source directories have zero writes. Tree keys encode the
-nonzero object ID as eight big-endian bytes; values encode the object byte length
+nonzero object ID as eight big-endian bytes, a one-byte ordinal-presence flag
+(zero or one), then a four-byte big-endian logical partition ordinal. A null
+ordinal requires four zero bytes; it is distinct from ordinal zero. All keys
+have 13 bytes. State targets require null; log targets require an ordinal.
+Kinds are verified against entries and cannot differ across one object's
+ordinals. Values encode the object byte length
 as eight little-endian bytes followed by its 32-byte digest. Tree pages retain
 their ordinary definition/digest checks. Entry kind and identity must match the
-root, and its object ID must match the key. Count is durable cardinality, not
+root, and its object ID and ordinal must match the key. Count is durable cardinality, not
 resident capacity. Sealing a root grants no acceptance or retention authority.
+
+Read-only log dependencies have no action directory. A nonempty log action
+directory groups appends and settlements under one physical owner's guard;
+it contributes one write and requires one exact preparation. Acquired guards
+and prepared predecessors are kind-specific. Complete membership validation
+checks these neutral shapes, while the current decision journal and catalog
+still require executable Table participants. Non-Table shapes do not enable
+log pin acquisition, append reservations, common visibility or terminal transfer.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
 the same mandatory definition and canonical JSON within 16 KiB total. JSON stores

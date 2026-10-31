@@ -1706,7 +1706,7 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = .{} };
     const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
     defer begun.deinit();
-    try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.tables.count >= 12);
+    try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.objects.count >= 12);
     const acquired = try dispatch(service, .{ .transaction = .{ .acquire = token } });
     defer acquired.deinit();
     try t.expect(acquired.value.result.transaction.acquired.cut.sources.count >= 12);
@@ -1850,6 +1850,8 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.BranchRetentionOwned).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidBranchCursor).code);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.BranchArtifactMissing).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTarget).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionParticipant).code);
     // A provider AccessDenied is not itself a native authorization decision.
     try t.expectEqual(std.http.Status.unprocessable_entity, failure.native(error.AccessDenied).status);
     try t.expectEqual(std.http.Status.forbidden, failure.native(error.Forbidden).status);

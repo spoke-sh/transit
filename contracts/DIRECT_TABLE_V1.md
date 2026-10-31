@@ -127,7 +127,7 @@ owner. External records fix their connection, namespace, operation and immutable
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table descriptors and
-configured limits. Admission accepts `explicit_tables`; it rejects the neutral
+configured limits. Admission accepts `explicit_objects`; it rejects the neutral
 `authorized_catalog_tables` variant until server-owned catalog discovery supplies
 that selection. Caller-supplied membership cannot certify complete authorized
 catalog coverage. It atomically reserves the next unused partition with the
@@ -139,6 +139,14 @@ CONNECT authorizes saving and recovering this caller-supplied descriptor. The
 descriptor grants no Table access and establishes no acquired cut, retained pin,
 workspace or decision. Selection descriptors do not make nonexistent Tables
 readable. Execution must independently acquire and authorize its complete cut.
+
+The typed `transaction.begin` control accepts an ordered array of exact
+`Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the
+requested participant limit. Each target includes the scoped object, kind and
+an explicit nullable logical partition ordinal. Duplicate or unordered targets,
+mixed kinds for one object and foreign scopes reject. Only Table targets execute
+in the current profile; other kinds reject before token admission. Server-owned
+`authorized_catalog_tables` discovery remains restricted to accessible Tables.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements

@@ -2692,8 +2692,8 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
         .definition = p.Growth.current_definition,
         .identity = identity,
         .mode = .serializable,
-        .selection = .explicit_tables,
-        .tables = try directory.seal(),
+        .selection = .explicit_objects,
+        .objects = try directory.seal(),
         .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn },
         .limits = .{ .resident_bytes = 65536, .workspace_bytes = 1048576, .participants = 100, .statements = 1000, .savepoints = 32 },
     } };
@@ -2731,7 +2731,7 @@ test "transaction admission recovers original token and exclusive partition afte
     const before = catalog.store.root;
     var racing = binding;
     racing.intent.transaction.begin.identity.begin.operation += 1;
-    racing.intent.transaction.begin.tables.content.sha256 = @splat(99);
+    racing.intent.transaction.begin.objects.content.sha256 = @splat(99);
     try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = racing }, access.policy())).?);
     try t.expectEqualDeep(before, catalog.store.root);
     // Another token cannot reserve a second coordinator for this begin identity.
@@ -2779,17 +2779,17 @@ test "transaction admission refusals do not allocate partitions or consume token
     changed.intent.transaction.begin.limits.workspace_bytes = catalog.options.transaction_limits.workspace_bytes + 1;
     try t.expectError(error.TransactionCapacity, catalog.clientToken(.{ .bind = changed }, access.policy()));
     changed = binding;
-    changed.intent.transaction.begin.tables.content.sha256 = @splat(99);
+    changed.intent.transaction.begin.objects.content.sha256 = @splat(99);
     try t.expectError(error.MissingTransactionDirectory, catalog.clientToken(.{ .bind = changed }, access.policy()));
     changed = binding;
     changed.intent.transaction.begin.catalog.next_lsn += 1;
     try t.expectError(error.TransactionCatalogChanged, catalog.clientToken(.{ .bind = changed }, access.policy()));
     var malformed = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
     defer malformed.deinit();
-    try malformed.restore(binding.intent.transaction.begin.tables);
+    try malformed.restore(binding.intent.transaction.begin.objects);
     malformed.root.count += 1;
     changed = binding;
-    changed.intent.transaction.begin.tables = try malformed.seal();
+    changed.intent.transaction.begin.objects = try malformed.seal();
     try t.expectError(error.InvalidTransactionDirectory, catalog.clientToken(.{ .bind = changed }, access.policy()));
     catalog.options.client_token_quota = 0;
     try t.expectError(error.ClientTokenCapacity, catalog.clientToken(.{ .bind = binding }, access.policy()));
@@ -2839,7 +2839,7 @@ test "transaction admission retains selected directory pages through the catalog
     }
     var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .participants, 100, 0, 1);
     defer selected.deinit();
-    try selected.restore(binding.intent.transaction.begin.tables);
+    try selected.restore(binding.intent.transaction.begin.objects);
     const node = selected.root.entries.?;
     var walker = try c.DirectCatalogWalk.init(catalog.store.root, .{ .reference = node, .kind = .pages_only });
     var pages: usize = 0;
@@ -2871,7 +2871,7 @@ fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClie
         const root = view.table.root;
         try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn } } } });
     }
-    binding.intent.transaction.begin.tables = try selected.seal();
+    binding.intent.transaction.begin.objects = try selected.seal();
     binding.intent.transaction.begin.catalog.next_lsn = catalog.store.root.next_lsn;
     _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
     return binding;
@@ -2913,14 +2913,14 @@ test "transaction common cut resumes lost pins and original publication on disk"
         var sources = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .sources, 100, 1, 1024 * 1024);
         defer sources.deinit();
         try sources.restore(published.cut.sources);
-        var after: ?u64 = null;
+        var after: ?s.TransactionDirectory.Cursor = null;
         var count: usize = 0;
         while (true) {
             const page = try sources.page(after);
             for (page.entries) |slot| if (slot) |entry| {
                 // Every empty Table was created at 1 and pinned exactly once.
-                try t.expectEqual(@as(u64, 1), entry.source.guard.source.accepted.next_lsn);
-                try t.expectEqual(@as(u64, 2), try wal.log().tail(entry.source.guard.source.accepted.partition));
+                try t.expectEqual(@as(u64, 1), entry.source.guard.state.basis.source.accepted.next_lsn);
+                try t.expectEqual(@as(u64, 2), try wal.log().tail(entry.source.guard.state.basis.source.accepted.partition));
                 count += 1;
             };
             after = page.next orelse break;
@@ -3045,8 +3045,8 @@ test "transaction common cut preserves WAL rows across disk recovery flush and c
         var sources = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .sources, 100, 0, 1);
         defer sources.deinit();
         try sources.restore(acquired.cut.sources);
-        const source = (try sources.get(10)).?.source;
-        try t.expectEqual(inserted.outcome.position.next_lsn, source.guard.changed_lsn);
+        const source = (try sources.getTable(10)).?.source;
+        try t.expectEqual(inserted.outcome.position.next_lsn, source.guard.state.basis.changed_lsn);
         _ = try insertSelected(&catalog, &access, 501);
         // Reobserving an acquired cut neither follows later data nor re-pins it.
         try t.expectEqualDeep(acquired, try catalog.acquireTransaction(binding.key, access.policy()));
@@ -3325,11 +3325,11 @@ test "transaction durable workspace quota refusal preserves pending work and ori
     // Rebind the paged selection to this distinct original begin.
     var old = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, first_binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
     defer old.deinit();
-    try old.restore(first_binding.intent.transaction.begin.tables);
+    try old.restore(first_binding.intent.transaction.begin.objects);
     var selected = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
     defer selected.deinit();
-    try selected.put((try old.get(10)).?);
-    binding.intent.transaction.begin.tables = try selected.seal();
+    try selected.put((try old.getTable(10)).?);
+    binding.intent.transaction.begin.objects = try selected.seal();
     binding.intent.transaction.begin.catalog.next_lsn = catalog.store.root.next_lsn;
     _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
     _ = try catalog.acquireTransaction(binding.key, access.policy());
@@ -3688,7 +3688,7 @@ test "transaction coordinator refuses unavailable prepared data and abort can re
     var preparations = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, control.binding.begin.identity, .preparations, 10, 1, 1024 * 1024);
     defer preparations.deinit();
     try preparations.restore(control.preparations.?);
-    const prepared = (try preparations.get(10)).?.prepared;
+    const prepared = (try preparations.getTable(10)).?.prepared;
     try t.expect(graph.marks.contains(try s.TableTransaction.key(.{ .content = prepared.successor }, &name)));
     // The persisted decision can still be reopened after the unreachable
     // private candidate disappeared. Replay must not dereference aborted data.
@@ -3723,7 +3723,7 @@ test "transaction server selection freezes authorized catalog and preserves orig
     };
     access.denied_metadata = 111;
     const receipt = try catalog.beginTransaction(request, access.policy());
-    try t.expectEqual(@as(u64, 11), receipt.binding.intent.transaction.begin.tables.count);
+    try t.expectEqual(@as(u64, 11), receipt.binding.intent.transaction.begin.objects.count);
     try t.expectEqual(.authorized_catalog_tables, receipt.binding.intent.transaction.begin.selection);
     const cut = try catalog.acquireTransaction(request.key, access.policy());
     try t.expectEqual(@as(u64, 11), cut.cut.sources.count);
@@ -3742,7 +3742,11 @@ test "transaction server selection freezes authorized catalog and preserves orig
     request.fingerprint[0] ^= 1;
     try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(request, access.policy()));
     request.key.token = @splat(3);
-    request.selection = .{ .explicit_tables = &.{11} };
+    request.selection = .{ .explicit_objects = &.{.{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .kind = .queue, .partition = 0 }} };
+    const before_refusal = catalog.store.root;
+    try t.expectError(error.UnsupportedTransactionParticipant, catalog.beginTransaction(request, access.policy()));
+    try t.expectEqualDeep(before_refusal, catalog.store.root);
+    request.selection = .{ .explicit_objects = &.{.{ .object = .{ .scope = scope, .branch = 1, .object = 11 }, .kind = .table, .partition = null }} };
     try t.expectError(error.CatalogDenied, catalog.beginTransaction(request, access.policy()));
     access.denied_metadata = null;
     access.epoch_change_at = access.calls + 4;

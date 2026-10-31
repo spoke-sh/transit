@@ -10,8 +10,8 @@ pub const Begin = struct {
     namespace: u64,
     mode: x.Mode,
     selection: union(enum) {
-        pub const json_schema_sequence_bounds = .{ .explicit_tables = 100_000 };
-        explicit_tables: []const u64,
+        pub const json_schema_sequence_bounds = .{ .explicit_objects = 100_000 };
+        explicit_objects: []const x.Target,
         authorized_catalog_tables,
     },
     limits: x.Limits,
@@ -23,14 +23,18 @@ pub const Begin = struct {
         try self.limits.validate();
         try self.budget.validate();
         if (std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
-        if (self.selection == .explicit_tables) {
-            const ids = self.selection.explicit_tables;
+        if (self.selection == .explicit_objects) {
+            const ids = self.selection.explicit_objects;
             if (ids.len > 100_000 or ids.len > self.limits.participants) return error.TransactionCapacity;
-            var previous: u64 = 0;
-            for (ids) |id| {
-                try c.Model.nativeId(id);
-                if (id <= previous) return error.InvalidTransactionBegin;
-                previous = id;
+            var previous: ?x.Target = null;
+            const identity: x.Identity = .{ .begin = self.operation, .branch = self.key.connection.branch };
+            for (ids) |target| {
+                try target.validate();
+                try identity.requireObject(target.object);
+                if (previous) |prior| {
+                    if (prior.order(target) != .lt or (prior.object.object == target.object.object and prior.kind != target.kind)) return error.InvalidTransactionBegin;
+                }
+                previous = target;
             }
         }
     }

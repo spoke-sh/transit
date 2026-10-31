@@ -101,12 +101,12 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
     try reference.validate();
     // A caller-built subset cannot establish the complete authorized catalog
     // selection. That mode requires server-owned discovery under the cut fence.
-    if (!server_selection and reference.begin.selection != .explicit_tables) return error.InvalidTransactionBegin;
+    if (!server_selection and reference.begin.selection != .explicit_objects) return error.InvalidTransactionBegin;
     try requireLimits(reference.begin.limits, options.transaction_limits);
     var directory = try c.storage.TransactionDirectory.init(allocator, objects, reference.begin.identity, .participants, reference.begin.limits.participants, options.resident_pages, options.index_work_bytes);
     defer directory.deinit();
-    try directory.restore(reference.begin.tables);
-    var after: ?u64 = null;
+    try directory.restore(reference.begin.objects);
+    var after: ?c.storage.TransactionDirectory.Cursor = null;
     var count: u64 = 0;
     while (true) {
         const page = try directory.page(after);
@@ -136,4 +136,34 @@ test "transaction admission signature binds the complete independent begin fixtu
     changed = fixture.request;
     changed.action.client_token.bind.intent.transaction.begin.identity.begin.principal += 1;
     try t.expectError(error.TransactionIdentityConflict, changed.action.client_token.bind.intent.transaction.validate());
+}
+
+test "transaction selection signature binds partition ordinals and rejects ambiguous targets" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-transaction-begin-v1.json"));
+    defer parsed.deinit();
+    const original = parsed.value.request;
+    try original.validate(t.allocator);
+    try original.proof.verify(parsed.value.public_key);
+    const selected = original.action.transaction.begin.selection.explicit_objects;
+    try t.expectEqual(@as(usize, 2), selected.len);
+    try t.expectEqual(@as(u32, 0), selected[0].partition.?);
+    try t.expectEqual(std.math.maxInt(u32), selected[1].partition.?);
+    var targets = [2]p.Transaction.Target{ selected[0], selected[1] };
+    var changed = original;
+    changed.action.transaction.begin.selection = .{ .explicit_objects = &targets };
+    targets[0].partition = 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    targets[0] = targets[1];
+    try t.expectError(error.InvalidTransactionBegin, changed.action.transaction.begin.validate());
+    targets[0] = selected[0];
+    targets[0].partition = null;
+    try t.expectError(error.InvalidTransactionTarget, changed.action.transaction.begin.validate());
+    targets[0] = selected[0];
+    targets[0].object.scope.realm += 1;
+    try t.expectError(error.TransactionIdentityConflict, changed.action.transaction.begin.validate());
+    targets[0] = selected[0];
+    targets[1].kind = .stream;
+    try t.expectError(error.InvalidTransactionBegin, changed.action.transaction.begin.validate());
 }

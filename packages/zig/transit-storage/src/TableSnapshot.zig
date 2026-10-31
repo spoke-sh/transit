@@ -10,7 +10,7 @@ const Objects = @import("TransitObjectStore.zig");
 const pages = @import("TreeStore.zig").pages;
 const header_bytes = 48;
 pub const max_bytes = header_bytes + r.max_metadata_bytes + f.TableSchema.max_bytes;
-pub const Handle = struct { owner: d.Operation, content: d.Content };
+pub const Handle = p.Transaction.Pin;
 /// Snapshot retention covers one exact root. History retention additionally
 /// preserves logical successors from that root until explicit release.
 pub const Retention = enum { snapshot, history };
