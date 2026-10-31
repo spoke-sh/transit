@@ -199,6 +199,12 @@ pub const Read = struct {
         }
         try self.disclosure.validate(self.host, self.prepared);
     }
+    /// A parked wire continuation cannot reuse an earlier admission/disclosure
+    /// observation. The retained data cut and buffered cells remain unchanged.
+    pub fn resumeWire(self: *Read) void {
+        self.validated_open = false;
+        self.validated_disclosure = false;
+    }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
         self.validated_disclosure = false;
         try self.host.deadline.check(self.host.io);
@@ -426,6 +432,12 @@ pub fn end(self: *Self) void {
     self.fresh_current = false;
     self.fresh_prepared = null;
     self.active.store(false, .release);
+}
+/// End same-command observation reuse when a wire adapter resumes after parking.
+/// This neither resets the command deadline nor changes its accepted identity.
+pub fn resumeWire(self: *Self) void {
+    self.fresh_current = false;
+    self.fresh_prepared = null;
 }
 pub fn transactionStatus(self: *const Self) g.results.Transaction.SessionState {
     if (!self.transaction.active()) return .idle;
@@ -687,6 +699,23 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     }
     try self.current();
     return result.completion;
+}
+/// A resumed output observes the original outcome, never revalidates the SQL as
+/// a new execution. COMMIT and DROP may have ended their original attachment or
+/// definition. Reuse the public status owner under current login/scope rights.
+pub fn validateWireCompletion(self: *Self, prepared: *Prepared, completion: g.results.CommandCompletion) !void {
+    try completion.validate();
+    try self.current();
+    if (completion.operation) |operation| {
+        if (!std.mem.eql(u8, &operation.account, &self.runtime.execution.configuration.account)) return error.InvalidWireCompletion;
+        const observed = try self.fresh(g.DatabaseRuntime.status, .{ self.runtime, self.allocator, &self.observer, &self.table, self.namespace, operation.id });
+        const verified = try observed.completion();
+        if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation)) return error.InvalidWireCompletion;
+    } else switch (prepared.*) {
+        .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
+        .probe => {},
+        else => return error.InvalidWireCompletion,
+    }
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
     if (self.transaction.handle != null) self.transaction.failed = true;

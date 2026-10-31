@@ -21,8 +21,9 @@ Prepared descriptors borrow host-owned metadata until their explicit destroy
 request. Read batches borrow their owner's cells until the next pull or close.
 An output guard names the prepared/read owner whose current rights must be
 checked immediately before writing, including after parking buffered output.
-The first row of each bounded batch, or its empty terminal output, carries that
-guard. Abort suppresses further execution and output; the host still joins any
+Protected metadata, rows and terminal output carry that guard. An immediate
+driver may share one check across a bounded batch; a parked continuation must
+recheck before resuming disclosure. Abort suppresses further execution and output; the host still joins any
 outstanding borrower and releases its handles before freeing session memory.
 Neither connection generations nor host handles replace durable SQL identities.
 

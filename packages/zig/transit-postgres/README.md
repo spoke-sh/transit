@@ -42,17 +42,29 @@ caller-owned startup payload.
 `Backend` builds bounded authentication, parameter, metadata, row, completion and
 error frames. It preserves full uint64 counts, binary numeric metadata, NULL
 length markers and negotiated field formats. Returned bytes borrow its reusable
-buffer. Failed encodings expose no partial result; the caller supplies current
+buffer; scalar scratch retains capacity across rows. Failed encodings expose no partial result; the caller supplies current
 authorization and observed completion before writing any frame. Error messages
 must already be classified and safe for disclosure.
 
-[`transit-sql-host`](../transit-sql-host/README.md) owns the PostgreSQL
-session engine and its named and unnamed prepared statements, copied bindings and
-portals. The host supplies shared SQL execution, current authorization and safe
-diagnostics. Writes dispatch only after a valid Sync; read suspension retains one
+`Session` owns the pure authenticated command continuation, named and unnamed
+statement handles, copied bindings and portals. `start` borrows one complete
+command until `poll` returns `done`. `poll` otherwise exposes one host request or
+immutable output slice; `complete` accepts its exact generation/sequence token.
+Partial output drains never rebuild or retry a transmitted prefix. The
+[`SQL host`](../transit-sql-host/README.md) executes requests, supplies current
+authorization and safe diagnostics, and owns the actual preparations and reads.
+Writes dispatch only after a valid Sync; read suspension retains one
 cut until completion, Close, error or Sync. Closing a statement closes dependent
 portals. Failed extended cycles drain through a valid Sync; transport failures
 close the connection without retrying a partial reply.
+
+Portal arenas reset with retained capacity only after their read borrower closes.
+Output remains borrowed until its final drain. Abort fences late completions;
+the host joins work and closes reads/preparations before session deinitialization.
+It preserves accepted operation identities independently of these ephemeral
+handles. Protected output names its current disclosure owner, including buffered
+rows and original write outcomes. A scheduled driver rechecks when resuming;
+the blocking host shares one check across each bounded batch.
 
 Shared Table transaction controls drive ReadyForQuery `I`, `T` and `E` states.
 Private DML reports its provisional matched/changed count; COMMIT reports the

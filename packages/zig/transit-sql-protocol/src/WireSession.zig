@@ -13,7 +13,7 @@ pub const Prepared = struct {
 };
 pub const Diagnostic = struct { state: [5]u8, message: []const u8, detail: ?[]const u8 };
 pub const Bound = struct { prepared: Handle, values: Values };
-pub const Guard = union(enum) { none, prepared: Handle, read: Handle };
+pub const Guard = union(enum) { none, prepared: Handle, read: Handle, completion: Handle };
 pub const Output = struct { bytes: []const u8, guard: Guard = .none };
 pub const Request = union(enum) {
     begin,

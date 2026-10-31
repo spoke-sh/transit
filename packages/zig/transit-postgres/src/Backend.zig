@@ -7,10 +7,12 @@ const Self = @This();
 allocator: std.mem.Allocator,
 maximum: u32 = g.Limits.max_frame_bytes,
 bytes: std.ArrayList(u8) = .empty,
+scalar: std.ArrayList(u8) = .empty,
 pub const Column = struct { name: []const u8, type: g.Type };
 pub const Completion = g.Completion;
 pub fn deinit(self: *Self) void {
     self.bytes.deinit(self.allocator);
+    self.scalar.deinit(self.allocator);
     self.* = undefined;
 }
 fn begin(self: *Self, tag: u8) !void {
@@ -125,14 +127,12 @@ pub fn row(self: *Self, columns: []const Column, formats: *const pg.Frontend.For
     if (columns.len > g.Limits.max_parameters or columns.len != cells.len) return error.WireColumnCountMismatch;
     try formats.validate(columns.len);
     try self.int(u16, @intCast(columns.len));
-    var value: std.ArrayList(u8) = .empty;
-    defer value.deinit(self.allocator);
     for (columns, cells, 0..) |column, cell, index| {
         if (try column.type.value(cell)) |atom| {
-            value.clearRetainingCapacity();
-            try pg.Scalar.encode(self.allocator, &value, column.type.kind, formats.at(index), atom);
-            try self.int(u32, @intCast(value.items.len));
-            try self.append(value.items);
+            self.scalar.clearRetainingCapacity();
+            try pg.Scalar.encode(self.allocator, &self.scalar, column.type.kind, formats.at(index), atom);
+            try self.int(u32, @intCast(self.scalar.items.len));
+            try self.append(self.scalar.items);
         } else try self.int(i32, -1);
     }
     return self.finish();
