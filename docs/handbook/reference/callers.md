@@ -24,8 +24,17 @@ through the public SDK without a Station runner. It accepts caller-owned
 allocator/I/O, owns local saved work and returns arena-owned outcomes with
 per-call mutation evidence. Preparation, staging, admission and settlement
 remain explicit; this interface does not supply automatic recovery or a shared
-SQL session. Existing foreign-language Catalog APIs retain their current
+SQL session. Its optional [Catalog context](../../../packages/zig/transit-data-client/docs/context.md)
+bounds scoped handles and concurrent calls with separate data/control capacity.
+Close joins local work without cancelling durable operations; timeout or
+cancellation of close leaves ownership intact. Existing foreign-language Catalog APIs retain their current
 Station package entry points.
+
+The [SQL executor](../../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
+can invoke an application persistence callback before its first execute send.
+It supplies the original token and nonsecret scope/content; separately
+authenticated recovery observes that token without replaying SQL. Saving an
+attempt does not establish acceptance, and the library supplies no disk store.
 
 Catalog descriptions carry six authorization domain identifiers: database,
 schema, table, stream, queue and KV. Each must be a positive native counter, and all

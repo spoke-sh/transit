@@ -91,6 +91,36 @@ sequences the remaining P0–P8 work against the checked-in implementation. The
 their dated evidence; their earlier incoming-gate assessments are historical.
 This planning change establishes no new runtime qualification.
 
+### Implemented context and submission slice
+
+The first implementation from this refresh is based on `b60f12154` after
+integrating the latest M8 wire and M19 branch work. It advances P2 and the SQL
+submission prerequisite of P4; it does not complete either work package.
+
+- `transit-data-client.Context` owns bounded, generation-checked Catalog facets
+  over supplied allocator/I/O. Separate data/control admission covers the existing
+  Table/log/Stream/Queue operations. Closing refuses new data work, retains
+  control access until joined, and preserves ownership after timeout/cancellation.
+- `Executor.Options.before_submit` freezes SQL text, canonical parameters,
+  original token and observed account/instance/database/source/transaction scope
+  before execute. Its borrowed `Submission` excludes session credentials.
+  Callback failure prevents dispatch; recovery validates the original definition
+  and account/instance and uses the existing token observer without replaying SQL.
+- Package tests cover deterministic capacity, allocation failure, stale handles,
+  close races and result ownership. SQL loopback tests check persistence ordering,
+  store failure/cancellation, scope substitution, context denial, lost replies
+  and recovery-record validation. These do not establish a durable disk store,
+  real-service caller-loss recovery or installed foreign-language composition.
+
+The [context guide](../../packages/zig/transit-data-client/docs/context.md) and
+[SQL persistence API](../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
+own the current semantics. Remaining work includes P0's representative resource
+baseline, principal coordination, fair queued admission, SQL/context composition,
+the local durable store and ordinary Catalog settlement, generated data ABI/host,
+installed language APIs, and each M6/M7 public handoff. The source inventory below
+records the pre-implementation audit; the ordered work packages remain the
+completion gates.
+
 The first installed outcome remains a Linux x86_64 application using the public
 Zig, Python sync/async or TypeScript/Node client to declare a Table, inspect its
 definition, write typed values, stream SQL results, commit a local multi-Table
@@ -174,10 +204,9 @@ sole evidence that an operation executes.
    Add shared ordinary Catalog preparation/staging/admission/settlement over
    the existing explicit calls. First extend the shared SQL executor so the
    original account/instance/token and canonical request can be persisted before
-   its first potentially accepting send. Today
-   [`Executor.execute`](../../packages/zig/transit-sql-client/src/Executor.zig)
-   generates the token immediately before dispatch; saving only its returned
-   `Outcome` leaves a caller-crash gap. Make ordinary `execute` and advanced
+   its first potentially accepting send. The implemented callback now exposes
+   this ordering; integrate it with the durable store and ordinary Catalog path.
+   Saving only the returned `Outcome` leaves a caller-crash gap. Make ordinary `execute` and advanced
    prepare/persist/submit consume the same implementation. Freeze the owning
    fingerprint inputs, selected database/source, parameters, execution mode and
    applicable transaction/session binding without serializing credentials.
@@ -488,7 +517,8 @@ Do not add v2, dual decoders or old Station import shims.
 
 ### Reviewable work packages
 
-P0 and P1 are **In Progress** through the initial extraction below. P2–P8 remain
+P0 and P1 are **In Progress** through the initial extraction below. P2 and P4 are
+**In Progress** through the context/submission slice; P3 and P5–P8 remain
 **Planned**. Contract work and independent internal pieces may overlap, but a
 dependent public adapter cannot advertise an unqualified operation.
 

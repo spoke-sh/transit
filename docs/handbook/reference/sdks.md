@@ -14,6 +14,11 @@ The [Zig SDK](../../../sdks/zig/README.md) also exposes
 an independent direct Catalog caller with explicit allocator/I/O and outcome
 ownership. It shares the implementation used by existing Catalog bindings;
 ordinary automatic settlement and a unified data/SQL context remain unimplemented.
+Its [Catalog context](../../../packages/zig/transit-data-client/docs/context.md)
+composes explicit Table, Stream and Queue operations with bounded data/control
+admission and joined close. The exported SQL executor independently supports
+[pre-dispatch persistence](../../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
+of the original attempt through an application callback.
 
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../../examples/station-sdk/README.md).
