@@ -70,7 +70,7 @@ const Transport = struct {
         try self.bytes.appendSlice(self.allocator, bytes);
     }
 };
-const Engine = @import("MysqlSession.zig").Engine(Host, Transport);
+const Engine = @import("WireSessionDriver.zig").Driver(m.Session, Host, Transport);
 const execute_new = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x01\x08\x80\xff\xff\xff\xff\xff\xff\xff\xff";
 const execute_again = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
 test "OK requires a successful typed completion with valid owner counts" {
@@ -79,11 +79,11 @@ test "OK requires a successful typed completion with valid owner counts" {
         var host: Host = .{ .allocator = t.allocator, .outcome = outcome, .invalid_counts = outcome == .applied };
         var transport: Transport = .{ .allocator = t.allocator };
         defer transport.bytes.deinit(t.allocator);
-        var engine = try Engine.init(t.allocator, &host, &transport, .{}, m.Handshake.required);
+        var engine = Engine.init(&host, &transport, try m.Session.init(t.allocator, .{}, m.Handshake.required, 1));
         defer engine.deinit();
-        _ = try engine.handle("\x16UPDATE");
+        _ = try engine.run(.{"\x16UPDATE"});
         transport.bytes.clearRetainingCapacity();
-        _ = try engine.handle(execute_new);
+        _ = try engine.run(.{execute_new});
         const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
         try t.expectEqual(@as(u8, 255), packet.payload[0]);
         try t.expectEqual(@as(usize, 1), host.writes);
@@ -93,9 +93,9 @@ test "native capacity refusal projects a MySQL resource error without execution"
     var host: Host = .{ .allocator = std.testing.allocator, .diagnostic_state = "53000".* };
     var transport: Transport = .{ .allocator = std.testing.allocator };
     defer transport.bytes.deinit(std.testing.allocator);
-    var engine = try Engine.init(std.testing.allocator, &host, &transport, .{}, m.Handshake.required);
+    var engine = Engine.init(&host, &transport, try m.Session.init(std.testing.allocator, .{}, m.Handshake.required, 1));
     defer engine.deinit();
-    _ = try engine.handle("\xff");
+    _ = try engine.run(.{"\xff"});
     const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
     try std.testing.expectEqual(@as(u8, 255), packet.payload[0]);
     try std.testing.expectEqual(@as(u16, 1041), std.mem.readInt(u16, packet.payload[1..3], .little));
@@ -108,47 +108,47 @@ test "MySQL commands preserve unsigned values and remembered types, with exact a
         var host: Host = .{ .allocator = t.allocator };
         var transport: Transport = .{ .allocator = t.allocator };
         defer transport.bytes.deinit(t.allocator);
-        var engine = try Engine.init(t.allocator, &host, &transport, .{}, m.Handshake.required | if (found) m.Handshake.found_rows else @as(u32, 0));
+        var engine = Engine.init(&host, &transport, try m.Session.init(t.allocator, .{}, m.Handshake.required | if (found) m.Handshake.found_rows else @as(u32, 0), 1));
         defer engine.deinit();
-        _ = try engine.handle("\x16UPDATE");
+        _ = try engine.run(.{"\x16UPDATE"});
         transport.bytes.clearRetainingCapacity();
-        _ = try engine.handle(execute_new);
+        _ = try engine.run(.{execute_new});
         try t.expectEqual(std.math.maxInt(u64), host.value);
         const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
         var result: m.wire.Bytes = .{ .bytes = packet.payload };
         try t.expectEqual(@as(u8, 0), try result.byte());
         try t.expectEqual(@as(u64, @intFromBool(found)), try m.Codec.length(&result));
-        _ = try engine.handle("\x1a\x01\x00\x00\x00");
-        _ = try engine.handle(execute_again);
+        _ = try engine.run(.{"\x1a\x01\x00\x00\x00"});
+        _ = try engine.run(.{execute_again});
         try t.expectEqual(@as(usize, 2), host.writes);
         try t.expectEqual(@as(u64, 1), host.value);
         // Cursor/iteration violations reject before execution without destroying
         // the last valid type vector or the statement itself.
-        _ = try engine.handle("\x17\x01\x00\x00\x00\x01\x01\x00\x00\x00");
+        _ = try engine.run(.{"\x17\x01\x00\x00\x00\x01\x01\x00\x00\x00"});
         try t.expectEqual(@as(usize, 2), host.writes);
-        _ = try engine.handle(execute_again);
+        _ = try engine.run(.{execute_again});
         try t.expectEqual(@as(usize, 3), host.writes);
-        _ = try engine.handle("\x1f");
-        _ = try engine.handle(execute_again);
+        _ = try engine.run(.{"\x1f"});
+        _ = try engine.run(.{execute_again});
         try t.expectEqual(@as(usize, 3), host.writes);
-        _ = try engine.handle("\x16UPDATE");
-        try t.expectEqual(@as(u32, 2), engine.statements[0].?.id);
+        _ = try engine.run(.{"\x16UPDATE"});
+        try t.expectEqual(@as(u32, 2), engine.session.statements[0].?.id);
         transport.bytes.clearRetainingCapacity();
-        _ = try engine.handle("\x19\x02\x00\x00\x00");
-        _ = try engine.handle("\x19\x02\x00\x00\x00");
+        _ = try engine.run(.{"\x19\x02\x00\x00\x00"});
+        _ = try engine.run(.{"\x19\x02\x00\x00\x00"});
         try t.expectEqual(@as(usize, 0), transport.bytes.items.len);
-        try t.expect(!try engine.handle("\x01"));
+        try t.expect(!try engine.run(.{"\x01"}));
     }
 }
 fn allocationCycle(allocator: std.mem.Allocator) !void {
     var host: Host = .{ .allocator = allocator };
     var transport: Transport = .{ .allocator = allocator };
     defer transport.bytes.deinit(allocator);
-    var engine = try Engine.init(allocator, &host, &transport, .{}, m.Handshake.required);
+    var engine = Engine.init(&host, &transport, try m.Session.init(allocator, .{}, m.Handshake.required, 1));
     defer engine.deinit();
-    _ = try engine.handle("\x16UPDATE");
-    _ = try engine.handle(execute_new);
-    _ = try engine.handle("\x1f");
+    _ = try engine.run(.{"\x16UPDATE"});
+    _ = try engine.run(.{execute_new});
+    _ = try engine.run(.{"\x1f"});
     try std.testing.expect(host.writes <= 1);
     if (host.allocation_failed) return error.OutOfMemory;
 }

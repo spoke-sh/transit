@@ -374,7 +374,7 @@ const Server = struct {
         var limits = self.config.limits;
         if (prefix.maximum_packet != 0) limits.frame_bytes = @min(limits.frame_bytes, prefix.maximum_packet);
         try limits.validate();
-        var engine = try @import("MysqlSession.zig").Engine(Host, Output).init(allocator, host, &tx, limits, prefix.negotiated());
+        var engine = @import("WireSessionDriver.zig").Driver(mysql.Session, Host, Output).init(host, &tx, try mysql.Session.init(allocator, limits, prefix.negotiated(), slot.id));
         defer engine.deinit();
         var input = try FrameInput.Reader(mysql.Frame.Input).init(allocator, .{ .expected = 0, .maximum = limits.frame_bytes });
         defer input.deinit();
@@ -396,7 +396,7 @@ const Server = struct {
             const frame = (try mysql.Frame.decode(bytes, 0, limits.frame_bytes)).?;
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
-            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;
+            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).run, .{ &engine, .{frame.payload} })) break;
         }
         try transport.resetDeadline(limits.write_ms);
         try channel.finish();
