@@ -6,6 +6,17 @@ pub const gss_request = 80877104;
 pub const cancel_request = 80877102;
 pub const Message = struct { tag: u8, payload: []const u8, consumed: usize };
 pub const Startup = struct { code: u32, payload: []const u8, consumed: usize };
+pub const Input = @import("root.zig").wire.Input(struct {
+    pub const prefix_bytes = 5;
+    maximum: u32,
+    pub fn capacity(self: @This()) !usize {
+        if (self.maximum < 4 or self.maximum > limits.max_frame_bytes) return error.InvalidFrameBudget;
+        return @as(usize, self.maximum) + 1;
+    }
+    pub fn frameSize(self: @This(), prefix: *const [prefix_bytes]u8) !usize {
+        return @import("Frame.zig").frameSize(prefix, self.maximum);
+    }
+});
 fn length(bytes: *const [4]u8, maximum: u32, minimum: u32) !u32 {
     if (maximum > limits.max_frame_bytes or maximum < minimum) return error.InvalidFrameBudget;
     const n = std.mem.readInt(u32, bytes, .big);
@@ -53,4 +64,56 @@ test "PostgreSQL frame prefixes, coalescing and signed lengths" {
     const upgrade = "\x00\x00\x00\x08\x04\xd2\x16\x2f";
     try t.expectEqual(@as(u32, ssl_request), (try startup(upgrade, 4096)).?.code);
     try t.expectError(error.InvalidUpgradeRequest, startup("\x00\x00\x00\x09\x04\xd2\x16\x2fx", 4096));
+}
+
+test "incremental PostgreSQL input preserves every split and stops at frame ownership" {
+    const t = std.testing;
+    const bytes = "Q\x00\x00\x00\x0dSELECT 1\x00S\x00\x00\x00\x04";
+    for (0..15) |split| {
+        var storage: [33]u8 = undefined;
+        var input = try Input.init(&storage, .{ .maximum = 32 });
+        try t.expectEqual(split, try input.feed(bytes[0..split]));
+        if (split < 14) try t.expect((try input.next()) == .input);
+        try t.expectEqual(14 - split, try input.feed(bytes[split..]));
+        const frame = (try input.next()).frame;
+        try t.expectEqualStrings(bytes[0..14], frame);
+        try t.expectEqual(@as(usize, 0), try input.feed(bytes[14..]));
+        try input.release();
+        try t.expect(std.mem.allEqual(u8, storage[0..14], 0));
+        try t.expectEqual(@as(usize, 5), try input.feed(bytes[14..]));
+        try t.expectEqualStrings(bytes[14..], (try input.next()).frame);
+    }
+}
+
+test "incremental PostgreSQL input requests bounded growth only after a valid header" {
+    const t = std.testing;
+    var prefix: [5]u8 = undefined;
+    var input = try Input.init(&prefix, .{ .maximum = 32 });
+    try t.expectEqual(@as(usize, 5), try input.feed("Q\x00\x00\x00\x0dSELECT 1\x00"));
+    try t.expectEqual(@as(usize, 14), (try input.next()).capacity);
+    try t.expectError(error.FrameIncomplete, input.release());
+    var storage: [14]u8 = undefined;
+    @memcpy(storage[0..5], &prefix);
+    try input.supply(&storage);
+    try t.expectEqual(@as(usize, 9), try input.feed("SELECT 1\x00"));
+    try t.expectEqualStrings("SELECT 1\x00", (try decode((try input.next()).frame, 32)).?.payload);
+    try input.release();
+    try t.expectError(error.FrameTooLarge, input.feed("Q\x00\x00\x00\x21"));
+    try t.expectError(error.FrameInputClosed, input.next());
+    try t.expectError(error.FrameInputClosed, input.release());
+}
+
+test "incremental PostgreSQL input cannot turn truncation or invalid advancement into a command" {
+    const t = std.testing;
+    var storage: [33]u8 = undefined;
+    var input = try Input.init(&storage, .{ .maximum = 32 });
+    _ = try input.feed("Q\x00\x00\x00\x0dSELECT");
+    try t.expectError(error.FrameIncomplete, input.release());
+    input.abort();
+    try t.expectError(error.FrameInputClosed, input.next());
+    input = try Input.init(&storage, .{ .maximum = 32 });
+    try t.expectError(error.InvalidFrameAdvance, input.advance(6));
+    try t.expectError(error.FrameInputClosed, input.next());
+    try t.expectError(error.InvalidFrameCapacity, Input.init(storage[0..4], .{ .maximum = 32 }));
+    try t.expectError(error.InvalidFrameBudget, Input.init(&storage, .{ .maximum = 3 }));
 }

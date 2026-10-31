@@ -18,6 +18,14 @@ the `sql-wire` shell and native binary inputs. Protocol acceptance and performan
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
 
+`just test::sql-wire-contracts` includes the pure PostgreSQL/MySQL continuation
+checks and the host-owned session engines. The framing schedules split at every
+byte boundary, retain coalesced tails, reject sequence/length errors before body
+capacity, and refuse truncated input. Host checks cover borrowed-frame reuse,
+allocation failure cleanup and 100 alternating large/small frames with the input
+allocator sealed after warmup. This counts framing allocations only, not SQL
+execution, TLS or result encoding.
+
 The installed gateway fixture joins its processes before retaining a failed
 installation privately at its original `/var/tmp` path. It preserves durable
 state, configuration and copies of the supplied executables with source and

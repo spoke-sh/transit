@@ -11,6 +11,15 @@ allocation and retain trailing bytes for a caller's next frame. Upgrade and
 cancellation frames require their exact sizes. `Frame.frameSize` validates a
 header before the host reserves or reads its body.
 
+`Frame.Input` is an incremental continuation over caller-owned storage. `next`
+returns an input slice, a validated capacity request or one complete borrowed
+frame. Commit partial reads with `advance`, or copy fragments with `feed`, which
+reports the consumed count and leaves coalesced trailing bytes unconsumed.
+Capacity replacement preserves the received prefix. End every frame borrow
+before `release`; it erases used bytes and retains capacity. Invalid headers,
+EOF or host cancellation close the decoder; the owner erases its full allocation
+before freeing it. Framing does not authenticate or authorize execution.
+
 `Cycle` admits one execution per extended cycle. A write remains deferred until
 Sync. A second execution, Flush or other message after the deferred write marks
 the cycle failed without permitting dispatch. Failed cycles ignore messages

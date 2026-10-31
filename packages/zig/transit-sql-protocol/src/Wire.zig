@@ -8,6 +8,7 @@ pub const Limits = @import("WireLimits.zig");
 pub const ReadBatch = @import("WireReadBatch.zig");
 pub const Type = @import("WireType.zig");
 pub const Bytes = @import("WireBytes.zig");
+pub const Input = @import("WireInput.zig").Decoder;
 test {
     @import("std").testing.refAllDecls(@This());
 }

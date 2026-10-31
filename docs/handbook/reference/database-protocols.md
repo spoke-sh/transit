@@ -1,7 +1,7 @@
 # PostgreSQL and MySQL clients
 
 Transit accepts selected PostgreSQL and MySQL wire protocols through its SQL
-gateway. Both adapters use the same account runtime, catalog, Fuze execution
+gateway. Both adapters use the same database runtime, catalog, Fuze execution
 and Catalog-owned operation history as [native SQL sessions](sql-sessions.md). They do
 not run either upstream database engine or provide its complete SQL dialect.
 
@@ -29,6 +29,12 @@ optional and required. Optional mode requires valid TLS material before binding
 and permits encrypted or plaintext startup; required mode rejects plaintext.
 TLS negotiation failures never trigger an automatic downgrade. Remote exposure
 also requires explicit host, certificate and account configuration.
+
+Protocol decoding uses bounded caller-owned buffers and has no transport or SQL
+execution dependency. The shared SQL host owns TLS, deadlines, authenticated
+sessions and current authorization. Command buffers retain their high-water
+capacity within the admitted session reserve; malformed lengths reject before
+body reads, and partial EOF cannot become another command or a completion.
 
 ## Supported queries and types
 

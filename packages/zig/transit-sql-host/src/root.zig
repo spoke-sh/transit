@@ -6,6 +6,7 @@ const tls = @import("transit_tls_server");
 const Host = g.Session;
 const Native = @import("Native.zig");
 const Connection = @import("Connection.zig");
+const FrameInput = @import("FrameInput.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const memory = @import("transit_memory");
@@ -16,6 +17,7 @@ test {
     _ = @import("postgres_session_test.zig");
     _ = g.Session;
     _ = Native;
+    _ = @import("frame_input_test.zig");
 }
 const Worker = struct {
     reserve: memory.Slab,
@@ -258,6 +260,8 @@ const Server = struct {
         try tx.writeAll(try backend.ready(.idle));
         var engine = try @import("PostgresSession.zig").Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
         defer engine.deinit();
+        var input = try FrameInput.Reader(pg.Frame.Input).init(allocator, .{ .maximum = self.config.limits.frame_bytes });
+        defer input.deinit();
         while (true) {
             const idle = engine.cycle.state == .idle;
             if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
@@ -265,14 +269,15 @@ const Server = struct {
                 if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
                 try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
             }
-            var frame = @import("PostgresInput.zig").read(allocator, &channel, self.config.limits.frame_bytes) catch |err| {
+            const bytes = input.read(&channel) catch |err| {
                 if (err == error.Timeout and idle and transport.input_timeout_ms != null) {
                     try transport.resetDeadline(self.config.limits.write_ms);
                     try tx.writeAll(try backend.failure(true, "57P05".*, "Terminating connection due to idle-session timeout", null));
                 }
                 return err;
             };
-            defer frame.deinit();
+            defer input.release();
+            const frame = (try pg.Frame.decode(bytes, self.config.limits.frame_bytes)).?;
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.tag, frame.payload })) break;
@@ -369,13 +374,15 @@ const Server = struct {
         try limits.validate();
         var engine = try @import("MysqlSession.zig").Engine(Host, Output).init(allocator, host, &tx, limits, prefix.negotiated());
         defer engine.deinit();
+        var input = try FrameInput.Reader(mysql.Frame.Input).init(allocator, .{ .expected = 0, .maximum = limits.frame_bytes });
+        defer input.deinit();
         try tx.writeAll(try backend.ok(0, false));
         self.authenticated();
         authentication_pending = false;
         slot.authenticated.store(true, .release);
         while (true) {
             try transport.idle(limits.idle_ms, host.commandMilliseconds());
-            var frame = @import("MysqlInput.zig").read(allocator, &channel, 0, limits.frame_bytes) catch |err| {
+            const bytes = input.read(&channel) catch |err| {
                 if (err == error.Timeout and transport.input_timeout_ms != null) {
                     try transport.resetDeadline(limits.write_ms);
                     backend.sequence = 0;
@@ -383,7 +390,8 @@ const Server = struct {
                 }
                 return err;
             };
-            defer frame.deinit();
+            defer input.release();
+            const frame = (try mysql.Frame.decode(bytes, 0, limits.frame_bytes)).?;
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;

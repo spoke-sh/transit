@@ -11,6 +11,15 @@ no message; trailing coalesced packets remain unconsumed. `Frame.frameSize`
 validates a header before the host reserves or reads its body. The caller owns
 command/authentication sequence transitions and transport operations.
 
+`Frame.Input` is an incremental continuation over caller-owned storage. `next`
+returns an input slice, a validated capacity request or one complete borrowed
+frame. Commit partial reads with `advance`, or copy fragments with `feed`, which
+reports the consumed count and leaves coalesced trailing bytes unconsumed.
+Capacity replacement preserves the received prefix. End every frame borrow
+before `release`; it erases used bytes and retains capacity. Invalid headers,
+EOF or host cancellation close the decoder; the owner erases its full allocation
+before freeing it. Framing does not authenticate or authorize execution.
+
 `Command` validates command bodies and typed prepared execution. Its `Parameters`
 object retains the last fully validated parameter type vector; failed executions
 do not alter it. Values borrow the input message. `Scalar` defines full-width
