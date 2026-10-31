@@ -123,11 +123,9 @@ mounted secret bytes invalidates pending challenges before exchange, through a
 keyed commitment that never stores those bytes. Cookie-key rotation invalidates
 pending challenges; retain that key across ordinary task replacement.
 
-These exchanges are qualified with independent local peers and signed OIDC
-fixtures. Live consent and provider app-review eligibility are separate checks.
-Google discovery and GitHub PKCE documentation were checked during implementation;
-Meta's documentation returned HTTP 429, so a current live Facebook registration
-has not been verified by that check.
+Live consent, callback registration and provider app-review eligibility require
+operator-owned provider registrations. The independent local provider scenarios
+are described in [the test index](../tests/interfaces/README.md).
 
 ## Identity, claims and native rights
 

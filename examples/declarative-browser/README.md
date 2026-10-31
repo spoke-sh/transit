@@ -2,7 +2,7 @@
 
 This example publishes `catalog_items`, a fictional content directory. Its table,
 columns and filter live in the migration and declaration; the browser runtime
-has no application schema. It uses the migration workflow introduced in PR #285.
+has no application schema. Schema and seed data use `transit migrate plan/apply`.
 
 Build from the checkout with the pinned tools:
 
