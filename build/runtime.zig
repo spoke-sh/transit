@@ -164,6 +164,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
+        if (std.mem.eql(u8, name, "transit-admin")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
         if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
