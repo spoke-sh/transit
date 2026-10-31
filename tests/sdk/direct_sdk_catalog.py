@@ -287,7 +287,7 @@ def exercise_rust(packages, root, authority, service, profile, restart, policy):
     c = profile['catalog']
     connection = dict(scope=dict(c['scope'],catalog=str(c['scope']['catalog'])),branch='1',audience=c['audience'],principal=941002,role=profile['role'])
     config = target / 'client.json'
-    config.write_text(json.dumps(dict(url=authority,service_url=service,connection=connection,seed_file=str(seed))))
+    config.write_text(json.dumps(dict(url=authority,service_url=service,connection=connection,seed_file=str(seed),expected_authority=c['authority'])))
     def connect(mode):
         assert mode == 'rust'
         return Consumer([str(executable),str(config)],env,target,read_timeout=180)
