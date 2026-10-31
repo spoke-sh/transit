@@ -11,7 +11,9 @@ of those database primitives and [supported transactions](05-transactions-and-at
 
 The [remaining implementation plan](#implementation-plan-for-remaining-work)
 sequences contracts, storage, callers, transaction participation and the Station
-cutover against the source baseline of 2026-10-29. The delivery-sequence SQL
+cutover against the source audit of 2026-10-31. Start with the
+[current capability assessment](#source-baseline-and-remaining-gaps) and
+[next implementation changes](#first-implementation-changes). The delivery-sequence SQL
 examples below are proposed syntax; they are not executable Stream/Queue APIs.
 
 ## Prerequisites and architectural rationale
@@ -297,25 +299,63 @@ cutover and performance gates below pass.
 
 ### Source baseline and remaining gaps
 
-Source baseline: `ba177f4acb52`, 2026-10-29. Earlier dated sections preserve the
-evidence and limitations of their individual slices; this inventory determines
-what to implement next.
+Source audit: `0e2fba44727ca858bd1e8e4a775b62fbcf1a665d`, 2026-10-31.
+This updates the original `ba177f4acb52` plan against the checked-in owners,
+contracts, tests and qualification ledger. It is a source assessment, not a new
+runtime qualification. The dated records below qualify their own revisions;
+neither their union nor the presence of a test establishes a pass at this HEAD.
 
 | Area | Delivered basis | Remaining obligation |
 | --- | --- | --- |
-| Database independence | `transit-sql`, `transit-catalog` and `transit-query-direct` reject transitive Station imports; `DatabaseRuntime`, direct tokens and Table commits replace the SQL actor ledger | Preserve the boundary through every new data kind and finish the combined token/commit and measured latency work |
-| SQL recovery | [Event-driven recovery](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29) replaces idle SQL polling | Reuse its bounded recovery ownership; Station/query-host delivery and Queue waits still need migration. Gateway placement and qualification remain owned by M8 |
-| Physical publication | [Shared content-directory barrier](../history/qualification/storage.md#shared-object-content-directory-barrier--2026-10-29) qualifies five sync calls for a new immutable object | Bounded publication batches and reconstructible coordination/index state remain open; do not repeat the delivered fixed-pair optimization |
-| Transactions | [M5 Table profile](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions), `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog` and `TableTransaction` | Generalize Table-specific cuts, guards, preparations and visibility. `Transaction.Participant.requireLocalTable` still rejects KV, Document, append and settlement participants |
-| Streams and Queues | The delivery direction and [finite Queue model](../../tests/verification/models/README.md#finite-queuepartition-lease-and-turn-commit-model) | Catalog kinds, public operations, grammar, `StreamPartition`, `QueuePartition`, `.tack`, group offsets, durable leases and installed execution |
-| Shared bitmaps | [`TDel.zig`](../../packages/zig/transit-fuze/src/TDel.zig) uses `DynamicBitSetUnmanaged` and encodes sorted deleted offsets | Implement the shared Roaring container foundation and migrate `.tdel`; no existing shared Roaring implementation can simply be imported |
-| KV and Document state | Native resource contracts and Station state helpers; independent Document candidates in `DocumentIndex` | Database-owned KV mutations and transaction participation belong here. Direct Document acceptance/participation remains gated by M7; candidate storage alone does not enable it |
-| Station and consumers | Native one-resource turns, private Table/Query helpers, durable calls, courier delivery and existing SDK/Board consumers | Replace their persistence and execution inputs together while preserving origin, recovery, retirement, cancellation and external-effect uncertainty |
+| Database/SQL independence | [`transit-sql`](../../packages/zig/transit-sql/README.md), `transit-catalog` and `transit-query-direct` reject transitive Station imports. `DatabaseRuntime`, direct tokens, retained cuts and event-driven recovery replace the SQL actor ledger | Preserve those boundaries. `transit-query` still imports Station and Document adapters; database independence does not mean all Query/Station consumers have migrated |
+| Declarations and policy | `Catalog.callLog` supports typed preview, admission, execution/recovery, lookup/list, ALTER, RENAME and DROP; immutable schema/routing, native grants and exact DLQ dependencies are implemented | Dedicated SQL DDL and broad caller exposure. ALTER still refuses schema, partition-count, routing/key and ordering changes; do not advertise the proposed examples as supported |
+| Stream payloads and progress | [`Catalog.callStream`](../../packages/zig/transit-data-client/README.md) provides idempotent append, fixed-cut reads, explicit assignments/checkpoints, original-operation recovery, release and bounded waits | SQL `PRODUCE`/`CONSUME`/`COMMIT OFFSET`, Arrow batch ingress qualification, transaction participation and the retained Fuze source for `STREAM_SLICE` |
+| Stream storage | [`StreamPartition`](../../packages/zig/transit-storage/src/StreamPartition.zig) has WAL tails, `.tseg` sealing, archive/checkpoint/trim, compaction, sparse payload rewriting and opted-in age expiry; local maintenance preserves pins, consumer progress and original receipts | Final integrated fault/resource qualification at one revision; preserve the delivered algorithms rather than rebuilding them |
+| Queue payloads and leases | [`Catalog.callQueue`](../../packages/zig/transit-data-client/README.md) supports enqueue, original bounded claims/pages, ACK/NACK/renewal and explicit payload-read release. `QueuePartition` preserves FIFO heads, exact leases and original outcomes across restart | Public bounded claim waits, atomic DLQ transfer, mixed transactions and SQL verbs. Retry exhaustion currently leaves an inspectable nonterminal blocked source |
+| Queue scheduling and retention | `.tack`, paged indexes, fenced lease heap, visibility/retry wheel, full-key affinity cache, durable timer runs/merges and automatic local maintenance are implemented. Opted-in terminal-prefix expiry preserves open claims and replay | Integrated saturation, concurrency, clock and wakeup evidence. Terminal eligibility alone never authorizes deletion |
+| Shared storage | [`transit-bitmap`](../../packages/zig/transit-bitmap/README.md), `BitmapDirectory`, the `.tdel` migration, `.tack`, pinned tail slabs and retained-graph collection are delivered | Maintain bounded allocation and complete ownership across the new transaction preparations, DLQ destinations and runtime roots |
+| Transactions | [M5's local Table profile](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions) supplies common cuts, private statements/savepoints and durable decisions | [`Participant.requireLocalTable`](../../packages/zig/transit-protocol/src/Transaction.zig) still rejects KV, Document, append and settlement. `DirectTransaction`, `TransactionDirectory` and `TransactionDecisionLog` enforce that restriction; reserved union variants are not executable participants |
+| Direct KV | [`KVPartition`](../../packages/zig/transit-storage/src/KVPartition.zig) supplies bounded typed mutations, large values, receipts and retained reads. A distinct native KV authority domain is delivered | Named lifecycle/data callers, node dispatch and transaction participation. [`DirectResource`](../../packages/zig/transit-catalog/src/DirectResource.zig) still requires a writer PID and native initialization |
+| Document dependency | M7 has delivered neutral types, logical evaluators, `DocumentPartition`, retained reads/recovery and graph foundations | M7 owns the direct catalog/dispatch and participant/consumer cutover. Integrate its participant with R5; neither its storage owner nor its authority type establishes a public transactional Document API |
+| Station and consumers | Existing native one-resource turns, durable calls, names, timers, supervision, private Table/Query helpers and connector outcomes continue to work under their current contracts | Queue-backed inboxes, database state/journal/outbox transactions, service persistence migration and removal of superseded writable engines/ABI actions. Query-host still has a courier role; native delivery waits do not constitute a Queue-based runtime |
+| SQL and analytical bridge | M4 statement results and M5 Table transactions are available; `BitemporalAndTvf.evaluateStreamSliceTvf` has component semantics | No executable Stream/Queue SQL or retained catalog-bound `STREAM_SLICE`. Bind real owners and grants without materializing an entire Stream into the component evaluator |
+| Write-path performance | Resident owners, publication groups, cross-tree staging, pipelined writes and reused statement metadata are delivered | Account-wide token/partition commit composition, reconstructible bookkeeping, matched latency gates and read-after-write costs remain open under R9/M8 |
 
-The existing Queue model explores two offsets for one key and checks five
-negative controls. It is a useful starting invariant set, not implementation
-correspondence or evidence for clock behavior, a timing wheel, durable DLQ
-transfer, retention, multiple-key progress or bounded memory.
+The implemented public entry points are typed Zig `callLog`, `callStream` and
+`callQueue` over the signed native service. Current bounds include 1-MiB
+append/enqueue batches, at most 256 claimed rows, Stream pages of at most 4096
+rows/examined offsets and 4 MiB, and Stream waits of at most 1000 ms, all subject
+to smaller declaration/deployment limits. See the [Streams reference](../handbook/reference/streams.md)
+for exact semantics. Queue scheduling is automatic when local maintenance is
+enabled; a public Queue claim-wait action is still absent from
+[`DirectQueueClient.Action`](../../packages/zig/transit-catalog/src/DirectQueueClient.zig).
+
+Evidence supporting this assessment has different scopes:
+
+- [Typed declarations](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29)
+  and [signed Stream operations](../history/qualification/catalog.md#signed-stream-payload-and-consumer-operations--2026-10-30)
+  cover current authorization and original-operation recovery. The earlier
+  [Stream clean core run](../history/qualification/catalog.md#clean-core-qualification-of-the-stream-maintenance-slice--2026-10-30)
+  passed 28 tasks before the subsequent Queue/KV changes.
+- [Queue retention](../history/qualification/catalog.md#terminal-queue-payload-retention--2026-10-30)
+  covers signed callers, restarts and combined native maintenance under the
+  unchanged 32-MiB budget. The later [rebased Queue schedule](../history/qualification/catalog.md#rebased-storage-crash-boundary-and-installed-sdk-attempts--2026-10-30)
+  passed 374 public requests and four lost replies. The same source's clean core
+  run failed a crash-oracle boundary; the corrected isolated suite passed, but
+  the full corrected lane and installed SDK matrix were still incomplete.
+- [Direct KV storage](../history/qualification/catalog.md#direct-kv-storage-foundation--2026-10-30)
+  covers six keys and a 128-KiB value in one record, growth beyond a one-page
+  cache, retained reads and disk reopen. The eight-language authority regression
+  exercised Tables with the extended profile, not installed direct KV operations.
+- The [expanded Queue model](../history/qualification/verification.md#stream-and-queue-contract-and-bitmap-foundations--2026-10-29)
+  exhausts 3,093 states with nine negative controls over three offsets/two keys.
+  It assumes atomic accepted transitions and has no Queue-owner replay bridge;
+  mixed-participant correspondence, physical faults and scheduling progress
+  remain separate gates.
+
+The milestone therefore remains **In Progress**: standalone typed primitives
+have substantial executable coverage, while their SQL and transactional runtime
+composition are unfinished. Final closure requires new common-revision evidence.
 
 ### Delivery profile and milestone boundaries
 
@@ -328,10 +368,10 @@ that span those partitions. Distributed assignment, replication, remote atomic
 commit and provider throughput require the later provider/cluster milestones.
 
 Use typed Zig callers and the shared SQL service as the first executable
-surfaces. New cross-language API breadth belongs to M9/M19, but all existing
+surfaces. New cross-language API breadth belongs to M9/M20, but all existing
 affected ABI/SDK consumers must migrate in this milestone's hard cutover.
 Board receives inspection under current authorization through public reads; its broader
-workbench redesign stays in M28. Continuous Fuze dataflows stay in M12; bounded
+workbench redesign stays in M29. Continuous Fuze dataflows stay in M12; bounded
 `CONSUME ... WAIT` and finite `STREAM_SLICE` do not imply continuous SQL.
 
 Direct KV and Table state must support the Station completion workload, including
@@ -342,10 +382,10 @@ Table/KV turn first; expose Document turns only after that owner proves the same
 common-decision obligations. This sequencing does not waive M7 or claim that
 all Document paths are already independent of Station.
 
-The names `StreamPartition`, `QueuePartition`, `KVPartition`, `.tack` and the
-new primitive contracts below describe implementation deliverables. They are
-not capabilities of the baseline. Reuse existing packages unless an
-independent library boundary warrants its own manifest and checks.
+`StreamPartition`, `QueuePartition`, `KVPartition`, `.tack` and the primitive
+contracts now exist. Extend their owning packages; do not create parallel
+storage engines or another transaction coordinator. A new independent library
+boundary requires its own manifest and checks.
 
 ### Work packages and dependencies
 
@@ -355,12 +395,14 @@ R0/R1 retain contract/model and integrated maintenance obligations. R3 has a
 disk-backed storage owner, signed typed payload/consumer operations and bounded
 wait composition, automatic local maintenance and sparse physical payload
 rewriting. Full exit qualification remains open.
-R4–R10 remain open. The [first foundation slice](#first-foundation-slice)
+R4 and R5 are partially delivered; R6–R10 remain open. The [first foundation slice](#first-foundation-slice)
 delivered the initial parts of R0/R1; the following progress slice adds shared
 storage and catalog integration, signed Stream/Queue callers and installed
 restart checks. Dedicated SQL verbs remain outstanding.
 Each package can contain several reviewable changes; it closes on its exit
 evidence, not on a parser or module landing.
+R0–R10 below retain the full acceptance scope. Use the current assessment to
+preserve delivered pieces and implement only their outstanding obligations.
 
 The current progress slice delivers:
 
@@ -492,29 +534,35 @@ not complete these gates.
 
 | Package | Outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
-| R0 | Exact primitive, settlement and runtime contracts | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
-| R1 | Shared bitmap and bounded partition storage foundation | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
+| R0 | Partial: primitive contracts delivered; mixed-participant and replacement runtime contracts open | Baseline audit and M5 handoff | Shared types/fixtures, resolved decisions below, finite invariants and refusal cases |
+| R1 | Implemented foundations; integrated qualification open | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
-| R4 | Queue claims, retries, delays and DLQ | R3 payload storage and R0 lease contract | Durable claim recovery, stale-lease refusal, per-key order, bounded timers and DLQ retention |
-| R5 | Direct KV and executable multi-kind participants | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R4 | Partial: claims, retries, delays, maintenance and retention delivered; claim waits and atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
+| R5 | Partial: KV storage/authority delivered; named KV and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
 | R9 | Database write lifecycle and latency closure | Start after R0; coordinate M3, M8 and #211 | Original-token common envelope, bounded publication and matched installed latency evidence |
 | R10 | Installed qualification and current-v1 cutover closure | All applicable R packages | Complete caller/fault/resource matrix, generated-contract migration and common-revision evidence |
 
-The critical path is R0 → R1/R2 → R3 → R4 → R5 integration → R7 → R8 → R10.
-R5's coordinator/KV work can start after R0, and R6 can expose independently
-qualified operations as their owners land. R9 proceeds alongside the primitive
-work. M8 co-hosting is a dependency of its end-to-end latency evidence, not a
-reason to block standalone Stream/Queue storage. Document integration joins at
-R5/R7 only after M7's participant gate.
+The remaining critical path is R0 mixed contracts → R5 named KV and executable
+participants → R7 transactional Station → R8 consumer/effect cutover → R10.
+Reuse R1–R4's delivered foundations. R4 claim waits can proceed now; R4 atomic
+DLQ transfer joins after R5's durable decision gate. R6 standalone SQL verbs and
+finite analytical reads can proceed over their qualified owners without waiting
+for the Station migration; mixed SQL transactions depend on R5. R9 continues
+with M8, and its performance exit remains a milestone completion gate.
+M7 can implement Document storage/catalog work independently; its participant
+and Station consumer migration meet R5/R7's interface gates rather than requiring
+the entire milestones to finish each other first.
 
 ### R0 Define contracts and executable invariants
 
 Extend the neutral types in `transit-protocol` before implementing adapters.
-Add exact current-v1 Stream and Queue contracts under `contracts/`; update
+Extend the existing [Stream](../../contracts/STREAM_V1.md) and
+[Queue](../../contracts/QUEUE_V1.md) contracts for mixed participation and waits;
+define the replacement KV/runtime boundaries and update
 [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
 [direct ownership](../../contracts/DIRECT_TABLE_V1.md),
 [storage](../../contracts/TRANSIT_STORAGE_V1.md),
@@ -558,14 +606,18 @@ before durable admission. No new public route advertises an unimplemented owner.
 
 ### R1 Build shared bitmap and partition storage foundations
 
-Place the Roaring container implementation below both Fuze's `.tdel` reader and
+The shared bitmap, paged directory, `.tdel` migration and `.tack` foundation are
+delivered. Preserve the following requirements when adding participant roots
+and closing integrated resource/fault qualification.
+
+Keep the Roaring container implementation below both Fuze's `.tdel` reader and
 storage's `.tack` owner without adding a Fuze-to-storage dependency cycle.
 Use bounded array/bitmap/run containers, canonical encoding, checked cardinality,
 intersection/union and per-container iteration. Expose it through an actual
 package interface; do not copy container code between the two formats.
 
-Migrate `TDel` and all segment readers/writers/fixtures in the same definition
-cutover. Define `.tack` headers binding the exact queue, segment, offset range,
+Keep `TDel` and all segment readers/writers/fixtures aligned through any new
+definition cutover. Preserve `.tack` headers binding the exact queue, segment, offset range,
 definition and accepted state frontier. Its state sets must be disjoint, cover
 the known payload range according to the contract, and reject corrupt counts,
 overlaps, foreign owners and out-of-range offsets. Lease holders/deadlines and
@@ -588,6 +640,9 @@ verify no parent-heap allocations after warmup on the selected container/tail
 paths; broader buffer-pool optimization remains M13 work.
 
 ### R2 Add declarative catalog and authorization lifecycles
+
+The typed lifecycle has passed its scoped gate. Carry these invariants into
+R6's SQL adapters and R10's common-revision qualification.
 
 Extend `DirectCatalog`, its record/store/retention/walk owners, direct intents
 and `transit-data-client` with Stream/Queue kinds and typed lifecycle operations.
@@ -616,6 +671,10 @@ lost allocation/publication replies. Denied reads, changed dependencies,
 concurrent declarations and catalogs larger than cache are covered.
 
 ### R3 Implement streams and consumer progress
+
+The typed storage/service/maintenance profile is delivered. Preserve these
+requirements while completing Arrow ingress qualification, R5 participation,
+R6 SQL/retained analytical integration and the combined exit evidence.
 
 Implement `StreamPartition` in `transit-storage`, with catalog/service composition
 above it. Allocate logical offsets at accepted append, retain schema and producer
@@ -655,6 +714,10 @@ physical maintenance.
 
 ### R4 Implement queue leasing and scheduling
 
+The payload, claim, settlement, timer, affinity and retention owners described
+below are implemented. The next functional work is claim waits and atomic DLQ
+transfer; the remaining exit work is integrated evidence.
+
 Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
 The Queue owns its internal payload log; reusing storage must not expose a Stream
 operation that bypasses Queue authorization or scheduling. Persist enqueue
@@ -680,6 +743,17 @@ and recovery work; large clock jumps and a backlog larger than memory cannot
 force a whole-queue scan in one operation. Authoritative deadlines, not wakeup
 delivery, decide expiry. Test backward/unavailable time and restart downtime.
 
+Add a bounded public claim-wait operation through `DirectQueue`,
+`DirectQueueClient`, `transit-data-client` and native dispatch. Reuse the Stream
+register/recheck pattern, but observe Queue eligibility: enqueue, a delayed head
+becoming visible, retry/expiry, and ACK exposing the next FIFO head can all make
+work available. Freeze the original claim request before parking. Specify timeout
+as no accepted claim, distinct from an accepted empty claim, and resolve the
+original identity after cancellation or a lost reply. Bound waiters and wake work;
+use trusted deadlines and durable eligibility rechecks when a hint is coalesced,
+lost or the service restarts. Prove no missed wakeup, current-policy checks after
+parking, cancellation joins, timer-driven eligibility and no idle polling loop.
+
 ACK, NACK and renewal revalidate current authority, receipt and live epoch at
 publication. Original accepted settlement is still recoverable after later
 expiry. Retry exhaustion and NACK/DLQ transfer use one supported local transaction
@@ -698,6 +772,23 @@ DLQ publication failure and bounded timer recovery on disk. Cancellation after
 claim acceptance preserves leases and original recovery evidence.
 
 ### R5 Extend the transaction owner and deliver direct KV
+
+Split the remaining implementation into reviewable changes with these gates:
+
+| Change | Owning code and contract work | Required result before dependents proceed |
+| --- | --- | --- |
+| R5a: neutral participant protocol | `transit-protocol.Transaction`, data-lifecycle/direct contracts and generated fixtures; replace Table-only selection/guard assumptions | Explicit frozen object selection, kind-specific cuts/guards, prepare evidence, append ordering and settlement/terminal-disposition rules. Unsupported owners still reject before admission |
+| R5b: named direct KV | `KVPartition`, catalog `DirectResource` replacement for KV, `LocalCatalogRunner`, native dispatch and `transit-data-client` | Declare/initialize/publish, mutate/read/pin/release, rename/drop and recover through signed installed callers without a writer PID. Prove values above 256 bytes, more than four mutations, missing-key conflicts and current rights |
+| R5c: durable preparations and decisions | `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog`, workspaces/savepoints and participant adapters in `transit-storage` | Table/KV state, Stream/Queue append and Stream offset/Queue ACK consult one decision. Prepared roots, reservations and receipts survive faults, trim and collection; rollback publishes no partial effect |
+| R5d: installed composition and DLQ | Public typed transaction calls, Queue maintenance/settlement and retained graph | One accepted decision settles input, changes state and publishes output; DLQ transfer atomically makes the recorded destination reachable and the source terminal |
+
+R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,
+specify both explicit NACK transfer and maintenance transfer of an already
+exhausted/expired item. The latter needs a guarded source-state/terminal
+transition under current maintenance and destination authority; it must not
+manufacture a live worker ACK from an expired receipt. Freeze the original
+destination definition and transfer identity, recover that identity after a lost
+decision reply, and keep denied/full destinations blocked and nonterminal.
 
 Generalize `Transaction.Begin`, cut directories, guards, prepared records,
 private workspaces, savepoints and common-decision readers beyond their current
@@ -753,6 +844,13 @@ the original decision without re-running a handler. Document remains rejected
 until M7 supplies the same obligations.
 
 ### R6 Expose SQL and shared caller operations
+
+Deliver four independently testable slices: declaration/inspection SQL over R2;
+standalone producer/consumer/lease SQL over R3/R4; finite retained `STREAM_SLICE`
+through Fuze; then mixed transaction SQL over R5. The first three do not depend
+on completing Station. Claim `WAIT` waits for R4's public wait contract, and
+transactional append/settlement syntax waits for R5c/R5d. Each slice updates the
+shared grammar, compiler, client, results and actual service callers together.
 
 Extend the checked grammar and corpus, Zig compiler, typed direct client,
 `transit-sql.DatabaseRuntime`, shared SQL service and result contracts together.
@@ -899,11 +997,17 @@ readback. Preserve the 190 ms then 19 ms INSERT objectives and 10–20 ms warm
 SELECT objective with their matched workload and baseline. The newer
 [batched-publication and validation measurements](../history/qualification/performance.md#batched-allocation-inventory-cross-tree-index-staging-and-sql-validation-trimming--2026-10-30)
 record a 175-ms INSERT median over five samples and 36–40-ms warm SELECT medians,
-plus a passing installed SQL gateway run. This is progress toward the original
-190-ms INSERT objective; the 19-ms write and 10–20-ms warm-read targets remain
-open, as do account-wide token/commit composition and reconstructible allocation
-bookkeeping. Those measurements qualify their recorded main revision, not the
-rebased Stream/Queue branch or a new matched control/candidate comparison. Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
+plus a passing installed SQL gateway run. Subsequent
+[pipelined writes and same-command metadata reuse](../history/qualification/performance.md#pipelined-batch-writes-cached-client-token-progress-deduplicated-operationbinding-claims-and-same-turn-sql-coordination--2026-10-30)
+at `5c4081e95` record 29-ms warm empty/one-row SELECT medians, but a 925-ms
+INSERT median and 599–732-ms post-write SELECT medians on the loaded shared
+host. The recorded 193 crash schedules and gateway check pass at that revision;
+the timings are not a matched before/after experiment and do not establish a
+cause for the write variation. Neither the earlier favorable sample nor a
+reduction in internal requests closes the latency gate. The 19-ms write and
+10–20-ms warm-read targets, common-revision 190-ms write comparison, account-wide
+token/commit composition and reconstructible bookkeeping remain open.
+Report cold/fresh/warm reads, changed/unchanged/zero-match writes,
 errors, startup and original-operation recovery separately. Attribute foreground
 requests, background traffic, staging, syncs and final decisions without adding
 instrumented timings into an invented end-to-end sample.
@@ -971,17 +1075,71 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 ### First implementation changes
 
-1. Land R0's Stream/Queue and direct-KV contract fixtures, generalized transaction
-   selection/preparation design, precise lease/time rules and expanded negative
-   model controls. Preserve unsupported runtime refusals until owners exist.
-2. Land R1's shared bitmap library and coordinated `.tdel` format migration,
-   then R2's typed catalog lifecycle with recovery and policy evidence.
-3. Deliver the first complete R3 vertical slice: typed declaration, one-partition
-   idempotent append, bounded retained read, disk restart and original receipt.
-   Extend it to groups, partitions, compaction and SQL under the same contract.
-4. Continue R4/R5 through the first Queue claim + Table/KV mutation + outbound
-   append + ACK transaction proof before migrating a Station handler. Keep R9
-   progressing with the existing latency owners throughout these changes.
+Execute from the audited baseline; the bitmap, declaration and standalone
+Stream/Queue slices are already present. Keep R0–R10 as the stable work-package
+identities and use this order for the next implementation changes:
+
+1. **Establish the combined-source regression baseline and freeze mixed contracts
+   (R0/R10, R5a).** Reproduce the corrected clean core lane and installed caller
+   matrix before attributing failures to new code. Preserve the recorded failed
+   and incomplete attempts. In parallel development, specify kind-specific cuts,
+   durable preparations, offset reservations, lease checks at decision, DLQ
+   terminal disposition and KV publication. Extend Stream/Queue/mixed models and
+   add real Zig transition replay; the existing nine Queue negative controls are
+   a starting point. Reconcile stale baseline claims in contracts/references with
+   their owning code and evidence as part of each affected change.
+2. **Finish named direct KV and executable participant adapters (R5b/R5c).**
+   Connect the delivered KV storage and authority to catalog/native/public callers.
+   Generalize the existing coordinator, read cuts, private workspaces, savepoints,
+   graph roots and decision log. The first complete vertical test is: claim an
+   inbox item, commit Table/KV state plus Stream/Queue output plus its ACK, kill
+   after decision but before finalization, then recover the same decision without
+   executing the handler again. Repeat with Stream checkpoint settlement and
+   abort/revocation/expired-lease cases. This is the blocking gate for Station.
+3. **Complete Queue activation and DLQ (R4/R5d).** Claim waits can start beside
+   step 2; their API must distinguish timeout from an accepted empty claim and
+   wake for delayed/retried/FIFO-successor work. Atomic DLQ transfer follows step
+   2's decision proof. Verify current destination rights, full/denied destination,
+   restart and original transfer recovery without premature source reclamation.
+4. **Expose the declarative experience (R6).** Deliver DDL/inspection first, then
+   standalone Stream verbs, Queue verbs, and finite `STREAM_SLICE` using existing
+   bounded owners. These can start beside steps 2–3; enable claim waits and mixed
+   transactions only after their gates. Exercise typed callers, native SQL,
+   console and PostgreSQL/MySQL through shared statement results, including
+   empty/multi-batch output, early close, disconnected claims and revocation after
+   buffering. Register executable and rejected forms in the shared grammar corpus.
+5. **Replace Station behavior and service persistence (R7).** After step 2, prove
+   one real Table/KV behavior over declared inbox/state/journal/outbox objects;
+   then migrate calls/replies, timers, names and supervision. Preserve retirement,
+   original destinations, activation fencing, poisoned drafts and uncertain
+   commits. Integrate Document turns only through M7's qualified participant;
+   do not introduce a second coordinator to avoid that dependency.
+6. **Migrate effects and every affected consumer (R8).** Move connectors,
+   retained Table/Query metadata, bindings/SDKs, actual examples, Board reads,
+   controllers and launchers. Remove the old writable Table engine, turn actions
+   and courier configuration with their consumers under the current-v1 cutover.
+   Prove replay cannot dispatch and unknown external outcomes cannot silently
+   retry. Use Queue waits to replace remaining runtime polling and verify idle
+   cost, wakeup races, replacement and joined shutdown.
+7. **Close performance and final qualification (R9/R10).** R9 starts alongside
+   step 1 with M8; do not defer token fencing, publication and read-after-write
+   measurement until the runtime is rewritten. Select explicit Stream/Queue/turn
+   budgets and reproduce matched installed SQL targets. On one final committed
+   revision run the complete acceptance matrix, generated-contract/caller cutover
+   checks and affected clean lanes. Publish commands, binary hashes, outcomes and
+   omissions in qualification history; promote supported behavior to its public
+   owners. Mark M6 and the index Completed only after all gates pass.
+
+For the baseline and regression work, use the existing
+[`just test::direct-table-service queues`](../../tasks/test.just) installed
+schedule, `just test::catalog`, `just test::sql-transactions`,
+`just test::local-storage-faults`, `just test::storage-io-faults`,
+`just test::queue-lease-transaction-model` and `just test::station`, with focused
+Stream/Queue/KV owner checks during iteration. `just ci clean --lane core` and
+the dependent lanes in R10 qualify committed source. Add the mixed-participant,
+claim-wait, DLQ and replacement-runtime suites when those owners land; existing
+Table or Queue component passes cannot stand in for them. These are planned
+implementation checks, not checks executed by this documentation audit.
 
 ### First foundation slice
 
