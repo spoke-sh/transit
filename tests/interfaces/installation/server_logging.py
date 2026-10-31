@@ -136,6 +136,9 @@ def run(cli, node, host, board, gateway):
         lines = text_path.read_text().splitlines()
         assert all(TEXT.match(line) and '{' not in line for line in lines), lines
         assert any('server.ready ' in line for line in lines)
+        assert any('server.startup.phase.begin ' in line and 'operation="provisioning"' in line for line in lines)
+        assert any('server.startup.phase ' in line and 'duration_ns=' in line for line in lines)
+        assert any('server.startup.complete ' in line and 'duration_ns=' in line and 'outcome=' not in line for line in lines)
         assert any('server.stopped ' in line for line in lines)
         # A deferred first health check is starting, not an unexplained outage.
         # An actual native failure during startup still needs a truthful error,
@@ -185,6 +188,13 @@ def run(cli, node, host, board, gateway):
         records = [json.loads(line) for line in json_path.read_text().splitlines()]
         assert records and all(r['schema_version'] == 1 and r['service_name'] == 'transit' for r in records)
         assert {r['event']['name'] for r in records} >= {'server.startup', 'server.ready', 'server.stopped', 'sql.status', 'sql.connect.postgres'}
+        startup = [r for r in records if r['event']['name'] == 'server.startup.complete']
+        assert len(startup) == 1 and startup[0]['event']['outcome'] == 'ok', startup
+        phases = [r for r in records if r['event']['name'] == 'server.startup.phase']
+        assert {r['event']['operation'] for r in phases} >= {'installation', 'node', 'provisioning', 'workers', 'sql_setup', 'sql_readiness'}
+        assert all(r['duration_ns'] >= 0 and r['parent_span_id'] == startup[0]['span_id'] for r in phases), phases
+        assert sum(r['duration_ns'] for r in phases) <= startup[0]['duration_ns']
+        assert next(i for i, r in enumerate(records) if r['event']['name'] == 'server.startup.complete') < next(i for i, r in enumerate(records) if r['event']['name'] == 'server.ready')
         failures = [r['event'] for r in records if r['event'].get('error_type') == 'GatewayOwnerUnavailable']
         assert not failures, ('Joined SQL stop was counted as an owner failure', failures)
         for launch in fixture.installation.glob('*.launch.json'):
@@ -193,6 +203,21 @@ def run(cli, node, host, board, gateway):
         off_path = start(fixture, False, {'TRANSIT_LOGGING__LEVEL': 'off'})
         fixture.stop()
         assert not off_path.read_bytes(), off_path.read_text()
+        # Admission failure must name the active phase without a ready receipt.
+        refused = fixture.config | {'installation': str(fixture.root / 'absent'),
+                                    'startup': {'require_existing': True},
+                                    'logging': {'format': 'json', 'level': 'info'}}
+        refused_path = fixture.root / 'refused.json'
+        refused_path.write_text(json.dumps(refused))
+        result = subprocess.run([fixture.cli, 'server', '--no-ui', '--config', str(refused_path)],
+                                capture_output=True, text=True, timeout=30, env={'PATH': '/unavailable'})
+        assert result.returncode == 1 and not result.stdout, result
+        events = [json.loads(line)['event'] for line in result.stderr.splitlines() if line.startswith('{')]
+        failed = [e for e in events if e['name'] == 'server.startup.phase' and e['outcome'] == 'failed']
+        assert len(failed) == 1 and failed[0]['operation'] == 'installation' and failed[0]['error_type'], events
+        assert not any(e['name'] == 'server.ready' for e in events), events
+        assert any(e['name'] == 'server.startup.complete' and e['outcome'] == 'failed' for e in events), events
+        assert not (fixture.root / 'absent').exists()
         success = True
         print('Server logging: default terminal text, piped readiness JSON, SQL transitions, explicit child environments, restart, and SHOW/environment precedence passed.', flush=True)
     finally:

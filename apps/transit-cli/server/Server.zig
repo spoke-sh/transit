@@ -9,6 +9,7 @@ const Process = @import("Process.zig");
 const Board = @import("Board.zig");
 const Provider = @import("Provider.zig");
 const Sql = @import("Sql.zig");
+const Startup = @import("Startup.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
@@ -19,13 +20,30 @@ executable: []const u8,
 ui: bool,
 diagnostic: *Diagnostic,
 diagnostics: *telemetry.Runtime,
+startup: *Startup,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
 processes: [6]Process = @splat(.{}),
 active_role: Role = .node,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
+    const started = std.Io.Clock.awake.now(init.io);
     const loaded = try Config.capture(init, options.path, diagnostic, true);
+    const config = loaded.config;
+    var diagnostics = telemetry.Runtime.init(init.io, "transit", config.logging.config());
+    diagnostics.start();
+    defer diagnostics.stop();
+    var startup = Startup.init(&diagnostics, started);
+    defer startup.finish(.canceled, null);
+    startup.next(.configuration);
+    startup.span.started = started;
+    startup.next(.installation);
+    launch(init, options, diagnostic, loaded, &diagnostics, &startup) catch |err| {
+        startup.finish(.failed, err);
+        return err;
+    };
+}
+fn launch(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, diagnostics: *telemetry.Runtime, startup: *Startup) !void {
     const config = loaded.config;
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable, diagnostic);
@@ -63,23 +81,21 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.caller_key));
     }
     if (!std.mem.eql(u8, &record.root_public, &installation.root.public_key.toBytes())) return error.InstallationIdentityMismatch;
+    startup.next(.storage);
     try installation.checkStorage();
-    var diagnostics = telemetry.Runtime.init(init.io, "transit", config.logging.config());
-    diagnostics.start();
-    defer diagnostics.stop();
     diagnostics.event(.{ .name = "server.startup", .message = if (created) "creating installation" else if (record.complete) "opening installation" else "resuming installation", .location = config.installation });
-    supervise(init, options, diagnostic, loaded, executable, &installation, &diagnostics) catch |err| {
-        diagnostic.log(&diagnostics, "server.failed", err);
+    supervise(init, options, diagnostic, loaded, executable, &installation, diagnostics, startup) catch |err| {
+        diagnostic.log(diagnostics, "server.failed", err);
         diagnostic.emitted = true;
         return err;
     };
 }
-fn supervise(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, executable: []const u8, installation: *Installation, diagnostics: *telemetry.Runtime) !void {
+fn supervise(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, executable: []const u8, installation: *Installation, diagnostics: *telemetry.Runtime, startup: *Startup) !void {
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
     var boot: [16]u8 = undefined;
     try init.io.randomSecure(&boot);
-    self.* = .{ .loaded = loaded, .boot = boot, .init = init, .installation = installation, .executable = executable, .diagnostic = diagnostic, .diagnostics = diagnostics, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
+    self.* = .{ .loaded = loaded, .boot = boot, .init = init, .installation = installation, .executable = executable, .diagnostic = diagnostic, .diagnostics = diagnostics, .startup = startup, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
     defer {
         self.stop();
         if (Signals.interrupted()) diagnostics.event(.{ .name = "server.stopped", .message = "Server stopped" });
@@ -93,6 +109,7 @@ fn supervise(init: std.process.Init, options: @import("../Options.zig").Options,
         diagnostic.port = null;
         diagnostic.field = null;
         self.cycle() catch |err| {
+            startup.finish(if (Signals.interrupted() or err == error.ServerStopped) .canceled else .failed, if (Signals.interrupted() or err == error.ServerStopped) null else err);
             self.stop();
             self.transportDiagnostic();
             if (Signals.interrupted() or err == error.ServerStopped) return;
@@ -105,6 +122,8 @@ fn supervise(init: std.process.Init, options: @import("../Options.zig").Options,
             restarts += 1;
             diagnostic.setFailure(err, "server role failed; retrying the same installation", "Wait for a ready record or terminal failure. The server preserves installation history and allows at most three automatic restarts.");
             diagnostic.log(diagnostics, "server.retry", err);
+            startup.* = Startup.init(diagnostics, std.Io.Clock.awake.now(init.io));
+            startup.next(.retry_delay);
             try init.io.sleep(.fromMilliseconds(@as(u32, restarts) * 250), .awake);
             continue;
         };
@@ -172,27 +191,37 @@ fn cycle(self: *Self) !void {
     const installation = self.installation;
     const config = installation.config;
     self.diagnostic.atFile(config.installation);
+    self.startup.next(.storage);
     try installation.checkStorage();
     self.diagnostic.atFile(self.config_path);
     try config.preflight(self.init.io, self.ui, self.diagnostic);
     self.diagnostic.atFile(config.installation);
     const had_tables = @import("Tables.zig").configured(installation);
+    self.startup.next(.node);
     try self.node(allocator);
+    self.startup.next(.journal_recovery);
     try self.provision(Installation.flush);
     self.active_role = .sql;
     try self.provision(Sql.recover);
+    self.startup.next(.application_recovery);
     const applications = if (config.applications != null) try @import("Applications.zig").create(self.init, installation, self.executable) else null;
     defer if (applications) |manager| manager.destroy();
     if (applications) |manager| try manager.recover();
+    self.startup.next(.provisioning);
     try self.provision(Installation.provision);
     if (!had_tables) {
         // The initial native bootstrap establishes stable scope and native
         // domains. Restart this owned node once with that exact Table profile
         // before starting workers or exposing SQL admission.
+        self.startup.next(.node_restart);
         self.processes[@backingInt(Role.node)].stop(self.init.io);
         try self.node(allocator);
     }
-    if (self.ui) try self.provision(Installation.provisionBoard);
+    if (self.ui) {
+        self.startup.next(.board_provisioning);
+        try self.provision(Installation.provisionBoard);
+    }
+    self.startup.next(.workers);
     try self.worker(allocator, .source);
     try self.worker(allocator, .requester);
     const connection = installation.connection();
@@ -201,6 +230,7 @@ fn cycle(self: *Self) !void {
     try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, try config.command(allocator, self.executable, .query_host, &.{courier_config}), &.{}, false);
     try installation.initializeBehaviors();
+    self.startup.next(.table_readiness);
     const started = std.Io.Clock.awake.now(self.init.io);
     while (true) {
         if (Signals.interrupted()) return error.ServerStopped;
@@ -214,6 +244,7 @@ fn cycle(self: *Self) !void {
     }
     // The retained record outlives this cycle, including automatic child
     // restarts. Keep its endpoint in the installation's process arena.
+    self.startup.next(.configuration_checkpoint);
     installation.record.endpoint = try Provider.url(self.init.arena.allocator(), config.ports.gateway);
     try installation.save();
     const configuration = try installation.path("configuration.json");
@@ -224,14 +255,17 @@ fn cycle(self: *Self) !void {
     // must never replace a missing accepted checkpoint with generation one.
     installation.record.complete = true;
     try installation.save();
+    self.startup.next(.gateway);
     const gateway_config = try installation.path("gateway.json");
     try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     self.active_role = .sql;
+    self.startup.next(.sql_setup);
     const sql = try Sql.create(installation, allocator, self.executable, self.diagnostics);
     defer if (sql) |manager| manager.destroy();
     if (self.ui) {
+        self.startup.next(.board);
         const board_path = try Board.configuration(installation, allocator);
         try self.start(allocator, .board, try config.command(allocator, self.executable, .board, &.{board_path}), &.{}, false);
         const board_started = std.Io.Clock.awake.now(self.init.io);
@@ -257,6 +291,7 @@ fn cycle(self: *Self) !void {
         .ui = if (self.ui) "ready" else "disabled",
         .sql = if (sql) |manager| try manager.report(allocator) else null,
     }, .{});
+    self.startup.next(.sql_readiness);
     var announced_ready = !config.sql.native.local or (sql != null and sql.?.localReady());
     if (announced_ready) self.announceReady() else self.diagnostics.event(.{ .name = "server.core_ready", .message = "Core services are ready; waiting for local SQL", .endpoint = installation.record.endpoint, .location = config.installation });
     if (self.ui) self.diagnostics.event(.{ .name = "board.ready", .message = "Board is ready", .endpoint = config.board.?.public_origin });
@@ -314,6 +349,7 @@ fn cycle(self: *Self) !void {
     }
 }
 fn announceReady(self: *Self) void {
+    self.startup.finish(.ok, null);
     self.diagnostics.event(.{ .name = "server.ready", .message = "Server is ready", .endpoint = self.installation.record.endpoint, .location = self.installation.config.installation });
 }
 fn node(self: *Self, allocator: std.mem.Allocator) !void {

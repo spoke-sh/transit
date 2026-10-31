@@ -59,6 +59,13 @@ Set these in `transit.yaml` or override with `TRANSIT_LOGGING__FORMAT` and
 formats are `text` and `json`. `SHOW logging.format` and `SHOW logging.level`
 report active values. Reload validates changes and marks them pending restart.
 
+Startup phase entry/completion events identify the active work and its monotonic
+`duration_ns` at info level. The attempt total includes the wait for local SQL
+when enabled; failed/retried attempts remain separate. Use these timings to
+distinguish installation validation, recovery, provisioning, worker activation
+and SQL setup before profiling inside an owner. See
+[startup timing semantics](../../../apps/transit-cli/docs/server.md#logging-and-readiness).
+
 At debug level, co-hosted SQL attaches client spans to typed local owner calls.
 `transit.local.request` reports bounded route/operation tags, owner admission wait
 and elapsed owner work. Its parent client span includes dispatch and joined

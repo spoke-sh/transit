@@ -493,6 +493,12 @@ and larger ingress need their own contracts and measurements.
 | Workload-specific read structures | Persistent columnar Table blocks, statistics/pruning, scalar range indexes and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
 | Scheduling and contention | Reduce background polling and retry work where measured | Control latency, fairness, bounded queues and unchanged exact operation identity |
 | Provider accounting | Measure segment-count metadata, WAL and cold-tier costs separately from Transit caches | Durable growth, physical recovery, reclamation lag and whole-process memory |
+| Installed startup | Attribute fresh provisioning and retained restart through [supervisor phase timings](../../../apps/transit-cli/docs/server.md#logging-and-readiness), then optimize the measured owner | Time to usable SQL, verified retained data, unchanged readiness/recovery checks; separate cold storage, aged history and UI profiles |
+| Language SDKs | Establish installed language baselines alongside the shared Zig client, then reduce measured bridge, conversion and scheduling costs | Matched operation/completion semantics, startup versus persistent calls, first-row/completion latency, throughput, memory/GC, cancellation and original-operation recovery |
+
+The shared SQL-client allocation gates and console measurements do not establish
+foreign-language SDK performance. A comparative installed SDK performance matrix
+is still missing; correctness and packaging tests are separate evidence.
 
 The interactive lifecycle is documented in
 [query sessions](queries.md#interactive-sessions) and the

@@ -243,6 +243,16 @@ with 50 samples per steady-state case per arm. Report distributions and sample c
 cold/restart cases separately and make no p99 claim from these sample sizes.
 Freeze resource and blocked-peer budgets before the scheduler comparison.
 
+Treat installed startup as a separate measured workload alongside statement
+latency. The supervisor now emits bounded phase entry/completion and attempt-total
+timings through its existing logging policy. The existing console runner's
+`--startup-restarts N` workload distinguishes fresh provisioning from retained
+restart and verifies SQL readback and retained identity. These additions provide
+attribution, not a startup speedup or a new readiness gate. Profile the dominant
+phase before changing identity hashing, WAL replay, provisioning, worker activation
+or SQL enrollment. Remaining controls include aged history, interrupted bootstrap,
+unclean recovery and UI-enabled startup; preserve all current recovery gates.
+
 #### Second delivery: reduce repeated read and fresh-cut work (P2/#211 W7)
 
 Use the first delivery's attribution to select the largest measured installed

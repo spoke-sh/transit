@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed startup phase attribution — 2026-10-31
+
+The [startup workload](../../../tests/performance/console/startup.py) measures
+fresh provisioning separately from graceful retained restart, using the
+[supervisor timing events](../../../apps/transit-cli/docs/server.md#logging-and-readiness).
+The executed working tree is based on `0e2fba44727ca858bd1e8e4a775b62fbcf1a665d`;
+the report records its pre-measurement tracked diff and every binary/helper hash.
+The new `Startup.zig` SHA-256 is
+`7974dd29cc65699798dee84d76cdb225c5f817ff568eb95c3c06d1a07fc123f0`;
+`Server.zig` is
+`e1575335c66e0bb3e365809868d0dfe610d787c92d66a4fd2896f951e78c2376`.
+
+Executed inside pinned `nix develop`:
+
+```sh
+just test::console-latency --startup-restarts 2
+```
+
+The ReleaseSafe Linux x86_64 run uses the default headless local installation,
+48 logical CPUs, `/var/tmp` on ext4 `/dev/nvme0n1p2`, and no residency/deadline
+overrides or cache eviction. Initial load averages are 12.14/11.87/8.22 on this
+shared host. Each start passes existing core/SQL readiness and complete typed
+console readback. The fresh result is empty; a subsequently inserted `(1, 73)`
+row survives both restarts along with installation identity and provisioning
+receipts. No measured attempt retries or reports telemetry loss.
+
+| Elapsed observation (seconds) | Fresh | Restart 1 | Restart 2 |
+| --- | ---: | ---: | ---: |
+| External time to readiness | 59.081 | 8.550 | 7.898 |
+| Installation validation/preparation | 1.389 | 1.184 | 1.185 |
+| Provisioning | 35.036 | <0.001 | <0.001 |
+| Worker activation/initialization | 7.738 | 5.185 | 5.090 |
+| Table readiness | 6.730 | 0.009 | 0.010 |
+| SQL setup | 6.519 | 1.182 | 1.029 |
+| Separate console verification | 1.527 | 0.736 | 0.736 |
+
+The selected phase rows are not the whole startup; the raw report retains every
+phase, total and unattributed remainder. This points to fresh provisioning and
+repeated worker activation as profiling priorities. Phases include waits and
+child/provider work and do not establish CPU, fsync or allocation attribution.
+There is one fresh sample and two same-installation restarts, no matched control,
+no cold-device condition, no latency percentile and no demonstrated speedup.
+The run excludes Board, aged retained history and unclean recovery.
+
+Local raw JSON records are retained at
+`.cache/performance/startup-2026-10-31.jsonl`, SHA-256
+`d9e15bf325b6219b6294b15c39c22ef43008a62b44ee3e31f1bc228771d3655a`;
+the sibling `.log` preserves the original combined build/runner stdout.
+These ignored local artifacts are not distributed with the repository.
+
+Selected validation passes: `zig build test-cli-lifecycle -Doptimize=ReleaseSafe`,
+`just test::server-logging`, all 13 console reporting controls, documentation
+links and `just transit-docs::check`. The separate logging fixture's fresh startup
+recovers after a provisioning `HttpConnectionClosing` failure; that attempt is
+not part of the successful three-sample measurement above. Logging checks cover
+phase timing, parent attribution, terminal/JSON/off output, retained restart and
+early admission failure. No committed-source clean lane, full repository suite
+or cross-language SDK performance campaign was executed.
+
 ## Pipelined batch writes, cached client-token progress, deduplicated `OperationBinding` claims, and same-turn SQL coordination — 2026-10-30
 
 Building on `1db733365`, commits `37685ecb7`, `2b61da3cd`, and `5c4081e95`

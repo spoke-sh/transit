@@ -183,6 +183,51 @@ composes that qualified caller into the common context. M8 hosts only qualified
 routes. This ordering avoids a cycle in which M7 waits for M9 while M9 P7 waits
 for M7. The same rule applies to M6's new primitive/participant handoffs.
 
+### SDK performance baseline and optimization gates
+
+**Remaining work:** extend measurement to installed SDKs now, using existing
+qualified APIs; do not wait for the ordinary SQL/context APIs or all-language
+coverage to land. The current console/resource and shared Zig allocation probes
+do not measure a foreign-language host, its bridge, language objects or GC.
+The catalog/value extractions above establish ownership, not SDK speedups.
+
+Start with public Zig, Python and TypeScript/Node consumers, then extend the
+same operation matrix to the other supported languages. Measure the currently
+shipped Catalog/Query and raw-client APIs under their actual package placement;
+add ordinary SQL, transactions and the shared context only when their adapters
+exist. Keep unsupported combinations explicit in the report.
+
+| Boundary | Baseline workload and observations |
+| --- | --- |
+| Cold application and context | Import/module initialization, native library/port startup, context open, connection/authentication and first verified operation; elapsed/CPU time, processes, threads and RSS/PSS |
+| Language/bridge cost | Same typed values through shared Zig, native ABI/port and public language API; encode/decode time, copies, bytes, language allocations/GC and backing allocations measured separately |
+| Established data calls | Empty/one-row reads, point/range/full reads, single-row and batch writes, fresh reads after mutation, metadata and supported prepared operations; first row, verified completion, rows/bytes per second and exact counts |
+| Result consumption | Narrow/wide/nested values, multi-batch results, slow readers, early close and cancellation; bounded live memory, batch lifetime, per-row conversion and cleanup cost |
+| Runtime and concurrency | Native send admission separately from completed Station calls/turns, supported concurrent facets, overload refusal, cancel/close and settled idle CPU/traffic; preserve existing one-call admission where applicable |
+| Recovery | Lost replies and original-operation recovery, host restart, current revocation and interrupted result consumption; unresolved work is a failed/incomplete sample, never omitted or submitted under a new identity |
+
+Implement the operation driver beside `tests/performance/`, reusing installed
+SDK packaging and owned service fixtures from `tests/sdk/` and `tests/harness/`.
+Use one independent value/count oracle and identical backend, schema, data,
+batching, durability, authentication and completion boundaries for language
+comparisons. Separate process-per-call from persistent-client results. A raw
+admission receipt cannot be compared with console statement completion.
+Record source, compiler/native binary and installed package hashes, language
+runtime versions, filesystem, quotas and warmup/cache conditions. Keep instrumented
+diagnostics separate from elapsed-time comparisons; do not subtract overlapping
+server/bridge timings to manufacture client overhead.
+
+First publish raw baselines and attribution, then freeze per-operation latency,
+throughput, memory and allocation budgets before choosing optimizations. Use
+at least three alternating matched pairs with 50 steady-state samples per arm
+for the initial regression gate; retain cold-start cases separately and do not
+infer p99 from that sample size. Extend offered-load and tail sampling explicitly.
+Optimize measured costs in the shared client first, then bridge serialization,
+batch conversion, repeated validation, host scheduling and language allocation
+where attribution supports them. Re-run correctness/recovery and all affected
+language consumers with each shared change. Report SDK improvements against their
+own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
+
 ### Package and contract decisions
 
 Keep the low-level `transit-client` implementation independent of Catalog:
