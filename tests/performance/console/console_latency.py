@@ -210,7 +210,11 @@ def main():
     parser.add_argument('--binary-revision', help='source revision of the frozen binaries being measured')
     parser.add_argument('--representations', action='store_true',
                         help='run separate payload-only row/column LZ4/Zstd experiments after timing samples')
+    parser.add_argument('--startup-restarts', type=int, choices=range(11), metavar='0..10',
+                        help='measure fresh startup and this many retained restarts, with phase logs and verified readback')
     args = parser.parse_args()
+    if args.startup_restarts is not None and (args.statements or args.rows or args.single or args.age_queries or args.representations or args.historical_result_profile or args.instrument or args.local_trace or args.remote_sql or args.repeat != 1):
+        parser.error('--startup-restarts is a separate startup/readback workload')
     if args.cycles > 1 and (not args.statements or args.repeat != 1):
         parser.error('--cycles requires --statements --repeat 1')
     if args.warm_reads > 1 and (not args.statements or args.repeat != 1):
@@ -244,6 +248,8 @@ def main():
         trace_path = fixture.root / 'local-trace.jsonl' if args.local_trace else None
         if trace_path is not None:
             fixture.config['logging'] = dict(level='debug', format='json')
+        if args.startup_restarts is not None:
+            fixture.config['logging'] = dict(level='info', format='json')
         override(fixture, 'node', node_fields, stderr_path=trace_path)
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                                        'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
@@ -251,23 +257,31 @@ def main():
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
               'driver_helpers': {name: digest(ROOT / 'tests' / name) for name in (
                   'performance/console/statements.py', 'performance/console/resources.py',
+                  'performance/console/startup.py', 'harness/local_installation.py',
+                  'interfaces/installation/server.py',
                   'performance/mutations/mutation_latency.py', 'harness/http_probe.py',
                   'harness/processes.py', 'harness/sql_placement.py')},
               'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'source_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)).hexdigest(),
               'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
               'load_average': os.getloadavg(),
-              'sample_method': 'persistent console; first external elapsed time includes connection startup' if args.statements else 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
+              'sample_method': 'fresh startup and retained restarts; launch/readiness observation timed separately from console verification' if args.startup_restarts is not None else 'persistent console; first external elapsed time includes connection startup' if args.statements else 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
               'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'cycles': args.cycles, 'warm_reads': args.warm_reads, 'execution': 'server_session',
               'resource_snapshots': args.resources,
               'local_trace': args.local_trace,
-              'cache_condition': 'post-bootstrap; later queries share the node cache',
+              'startup_restarts': args.startup_restarts,
+              'cache_condition': 'new process for each start; OS caches are not evicted' if args.startup_restarts is not None else 'post-bootstrap; later queries share the node cache',
               'probe_scope': ('SQL gateway HTTP upstream only' if args.remote_sql else 'co-hosted SQL typed attempts; no per-operation HTTP trace') if args.instrument else None,
               'owner_metrics': args.instrument and args.remote_sql and args.owner_metrics,
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
+        if args.startup_restarts is not None:
+            from performance.console.startup import run
+            run(fixture, args.startup_restarts)
+            success = True
+            return
         fixture.start()
         fixture.ready()
         if args.instrument and not args.remote_sql:

@@ -11,6 +11,54 @@ from unittest.mock import patch
 import pyarrow as pa
 from performance.console.console_latency import representation_sample, local_trace
 from performance.console import resources
+from performance.console.startup import timings as startup_timings
+
+
+class StartupTimings(unittest.TestCase):
+    def trace(self, entries):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'startup.jsonl'
+            path.write_text(''.join(json.dumps(entry) + '\n' for entry in entries))
+            return startup_timings(path)
+
+    def entries(self):
+        return [dict(duration_ns=30, parent_span_id='a',
+                     event=dict(name='server.startup.phase', operation='node', outcome='ok')),
+                dict(duration_ns=40, parent_span_id='a',
+                     event=dict(name='server.startup.phase', operation='sql_readiness', outcome='ok')),
+                dict(duration_ns=80, span_id='a',
+                     event=dict(name='server.startup.complete', outcome='ok'))]
+
+    def test_phase_times_exclude_total_and_private_fields(self):
+        entries = self.entries()
+        entries[0]['event']['payload'] = 'private'
+        result = self.trace(entries)
+        self.assertEqual([p['duration_ns'] for p in result['phases']], [30, 40])
+        self.assertEqual(result['attempts'][0]['duration_ns'], 80)
+        self.assertEqual(result['attempts'][0]['unattributed_ns'], 10)
+        self.assertNotIn('private', json.dumps(result))
+
+    def test_missing_completion_losses_and_wrong_parent_cannot_pass(self):
+        for changed in ('empty', 'terminal', 'loss', 'parent', 'overlap', 'duration', 'failed', 'restarted_after_ready'):
+            entries = self.entries()
+            if changed == 'empty':
+                entries = []
+            elif changed == 'terminal':
+                entries.pop()
+            elif changed == 'loss':
+                entries.append(dict(name='telemetry.loss', measurement=dict(dropped=1)))
+            elif changed == 'parent':
+                entries[0]['parent_span_id'] = 'b'
+            elif changed == 'overlap':
+                entries[0]['duration_ns'] = 100
+            elif changed == 'duration':
+                del entries[0]['duration_ns']
+            elif changed == 'restarted_after_ready':
+                entries.extend(self.entries())
+            else:
+                entries[-1]['event']['outcome'] = 'failed'
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.trace(entries)
 
 
 class Resources(unittest.TestCase):
