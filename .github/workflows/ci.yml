@@ -34,7 +34,10 @@ jobs:
       full: ${{ steps.select.outputs.full }}
       checks: ${{ steps.select.outputs.checks }}
       documentation: ${{ steps.select.outputs.documentation }}
-      matrix: ${{ steps.select.outputs.matrix }}
+      runtime_matrix: ${{ steps.select.outputs.runtime_matrix }}
+      sdk_matrix: ${{ steps.select.outputs.sdk_matrix }}
+      runtime_checks: ${{ steps.select.outputs.runtime_checks }}
+      sdks: ${{ steps.select.outputs.sdks }}
       selection: ${{ steps.select.outputs.selection }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -77,185 +80,74 @@ jobs:
         run: nix develop .#docs --command vp install --frozen-lockfile --filter transit --filter @transit/docs
       - name: Build and check the documentation site
         run: nix develop .#docs --command just transit-docs::check
+  native:
+    name: native-${{ matrix.family }}-${{ matrix.optimize }}
+    needs: plan
+    if: needs.plan.outputs.sdks == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        family: [clients, authority]
+        optimize: [Debug, ReleaseSafe]
+    uses: ./.github/workflows/ci-lane.yml
+    with:
+      lane: native-${{ matrix.family }}-${{ matrix.optimize }}
+      shell: ci-experience
+      cache: experience
+      timeout: 45
+      selection: ${{ needs.plan.outputs.selection }}
+      cache_mode: ${{ inputs.cache_mode || 'reuse' }}
+      native_family: ${{ matrix.family }}
+      native_optimize: ${{ matrix.optimize }}
   checks:
     name: ${{ matrix.lane }}
     needs: plan
-    if: needs.plan.outputs.checks == 'true'
-    runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
-    # Expanded inventories need finite execution caps distinct from the older
-    # measured feedback budgets. Task-local progress deadlines are unchanged.
-    timeout-minutes: ${{ matrix.timeout || (inputs.cache_mode == 'cold' && 45 || 30) }}
+    if: needs.plan.outputs.runtime_checks == 'true'
     strategy:
       fail-fast: false
-      # Preserve the previous seven-job ceiling while scoped PRs select fewer.
       max-parallel: 7
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    env:
-      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
-      ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/.cache/ci-zig/p
-      TRANSIT_CI_SELECTION_PATH: .cache/ci/selection.json
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Retain the source-bound check selection
-        env:
-          SELECTION: ${{ needs.plan.outputs.selection }}
-        run: |
-          mkdir -p .cache/ci
-          printf '%s\n' "$SELECTION" > .cache/ci/selection.json
-      - name: Record dependency cache mode
-        env:
-          MODE: ${{ inputs.cache_mode || 'reuse' }}
-          NIX_CACHE: ${{ matrix.cache == 'formal' && 'substitutes' || 'github' }}
-        run: |
-          echo "CI dependency cache mode: $MODE"
-          echo "CI Nix cache policy: $NIX_CACHE"
-      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
-        with:
-          extra_nix_config: |
-            keep-env-derivations = true
-            keep-outputs = true
-      - name: Reclaim unused hosted SDKs
-        if: runner.environment == 'github-hosted' && matrix.cache != 'formal'
-        # Cache extraction and cold Ursula builds both need this space. Every
-        # consumed SDK comes from the pinned Nix shell; never remove software
-        # from a user-managed runner.
-        run: |
-          df -h /
-          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
-          df -h /
-      - name: Restore Nix store
-        id: nix-cache
-        if: inputs.cache_mode != 'cold' && matrix.cache != 'formal'
-        uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
-        with:
-          # Separate closures: the installation-ui lane never restores Kubernetes,
-          # provider CLIs, PyArrow, or their build dependencies. Small local
-          # plugin/environment changes rebuild locally without a store upload.
-          primary-key: nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/*.patch', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
-          # Provider lanes can seed from the old shared closure. Formal checks
-          # must not download that unrelated provider/SDK store on their first run.
-          restore-prefixes-first-match: |
-            nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-
-            ${{ matrix.cache != 'formal' && format('nix-v1-{0}-{1}-', runner.os, runner.arch) || '' }}
-      - name: Prepare development shell
-        id: shell
-        # Keep the shell closure rooted through cache GC; a temporary `-c true`
-        # alone would let GC discard the binaries we just spent time building.
-        run: nix develop .#${{ matrix.shell }} --profile "$RUNNER_TEMP/transit-ci-shell" --command true
-      - name: Save Nix store
-        # Preserve the rooted toolchain before long tests can be cancelled.
-        # Test outcomes remain separate; no checkout artifacts enter this cache.
-        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache != 'formal' && matrix.cache_writer && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
-        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
-        with:
-          primary-key: ${{ steps.nix-cache.outputs.primary-key }}
-          # Keep the rooted lane closure, not arbitrary downloaded build state.
-          # A GC target is not a hard cap; live roots are always retained.
-          gc-max-store-size-linux: '0'
-      - name: Restore Zig standard libraries and fetched packages
-        id: zig-cache
-        if: inputs.cache_mode != 'cold'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          # Deliberately exclude checkout object files (multi-GB per profile),
-          # mutable launcher data and Zig's Git transport archive cache.
-          path: |
-            .cache/ci-zig/o
-            .cache/ci-zig/h
-            .cache/ci-zig/p
-          key: zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('**/build.zig.zon') }}
-          restore-keys: |
-            zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
-            zig-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
-            zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
-      - name: Fetch pinned Zig dependencies
-        if: matrix.lane != 'formal'
-        run: nix develop .#${{ matrix.shell }} --command just ci::dependencies
-      - name: Install locked Board frontend dependencies
-        if: matrix.lane == 'installation-ui' || matrix.lane == 'launchers'
-        run: nix develop .#${{ matrix.shell }} --command just transit-board::install
-      - name: Install locked Node binding dependencies
-        if: matrix.cache == 'bindings'
-        run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter @transit/station --filter '@transit/*'
-      - name: Install locked contract compiler dependencies
-        if: matrix.lane == 'core'
-        run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter transit --filter @transit/client
-      - name: Run ${{ matrix.lane }} checks
-        run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
-      - name: Install browser and host dependencies
-        if: matrix.lane == 'installation-ui'
-        run: nix develop .#${{ matrix.shell }} --command vp exec --filter @transit/board-web playwright install --with-deps chromium
-      - name: Qualify embedded Board in Chromium
-        if: matrix.lane == 'installation-ui'
-        run: nix develop .#${{ matrix.shell }} --command just ci::browser
-      - name: Preserve task timings and completion evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ci-${{ matrix.lane }}-${{ github.run_attempt }}
-          path: |
-            .cache/ci/*.json
-            .cache/ci/runs/
-            .cache/allocations/runs/
-            .cache/checks/*.json
-            .cache/checks/runs/
-            .cache/checks/phases/
-            .cache/native-artifacts/
-            .cache/verification/*.json
-            .cache/verification/model/*.json
-            .cache/verification/model/*.log
-            .cache/verification/write-lifecycle-model/
-            .cache/verification/wal-model/
-            .cache/verification/object-publication-model/
-            .cache/verification/transaction-decision-model/
-            .cache/verification/table-transaction-model/
-            .cache/verification/transaction-workspace-model/
-            .cache/verification/storage-lifecycle-model/
-            .cache/verification/resident-owner-cache-model/
-            .cache/verification/queue-lease-transaction-model/
-            .cache/verification/console-model/
-            .cache/verification/statement-result-model/
-            .cache/verification/mutations/*.json
-            .cache/verification/mutations/*.log
-            .cache/verification/transitions/*.json
-            .cache/verification/simulation/*.json
-            .cache/verification/simulation-mutations/*.json
-            .cache/verification/simulation-mutations/*.log
-            .cache/verification/resource-simulation/
-            .cache/verification/resource-simulation-mutations/
-            .cache/verification/scheduler-simulation/
-            .cache/verification/scheduler-simulation-mutations/
-            .cache/verification/domain-simulation/
-            .cache/verification/domain-simulation-mutations/
-            .cache/verification/vortex/
-            .cache/transit-board-browser/
-            .cache/m9/station-local-readiness.json
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Save Zig standard libraries and fetched packages
-        # One writer, including Zig's costly C++ standard library build. Source
-        # changes reuse this immutable compiler/dependency cache in every lane.
-        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache == 'bindings' && matrix.cache_writer && steps.zig-cache.outcome == 'success' && steps.zig-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            .cache/ci-zig/o
-            .cache/ci-zig/h
-            .cache/ci-zig/p
-          key: ${{ steps.zig-cache.outputs.cache-primary-key }}
+      matrix: ${{ fromJSON(needs.plan.outputs.runtime_matrix) }}
+    uses: ./.github/workflows/ci-lane.yml
+    with:
+      lane: ${{ matrix.lane }}
+      shell: ${{ matrix.shell }}
+      cache: ${{ matrix.cache }}
+      cache_writer: ${{ matrix.cache_writer }}
+      timeout: ${{ matrix.timeout }}
+      selection: ${{ needs.plan.outputs.selection }}
+      cache_mode: ${{ inputs.cache_mode || 'reuse' }}
+  sdks:
+    name: ${{ matrix.lane }}
+    needs: [plan, native]
+    if: needs.plan.outputs.sdks == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.sdk_matrix) }}
+    uses: ./.github/workflows/ci-lane.yml
+    with:
+      lane: ${{ matrix.lane }}
+      shell: ${{ matrix.shell }}
+      cache: ${{ matrix.cache }}
+      cache_writer: ${{ matrix.cache_writer }}
+      timeout: ${{ matrix.timeout }}
+      selection: ${{ needs.plan.outputs.selection }}
+      cache_mode: ${{ inputs.cache_mode || 'reuse' }}
+      native_bundle: true
   foundation-and-protocol:
     # Preserve the previous required-check name across the decomposition.
     if: always()
-    needs: [plan, checks, documentation]
+    needs: [plan, checks, native, sdks, documentation]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every selected check
         env:
           PLAN: ${{ needs.plan.result }}
-          CHECKS: ${{ needs.plan.outputs.checks }}
+          CHECKS: ${{ needs.plan.outputs.runtime_checks }}
+          SDKS: ${{ needs.plan.outputs.sdks }}
+          SDK_RESULT: ${{ needs.sdks.result }}
+          NATIVE_RESULT: ${{ needs.native.result }}
           DOCUMENTATION: ${{ needs.plan.outputs.documentation }}
           RESULT: ${{ needs.checks.result }}
           DOCS: ${{ needs.documentation.result }}
@@ -265,8 +157,12 @@ jobs:
             true:success|false:skipped) ;;
             *) exit 1 ;;
           esac
+          case "$SDKS:$NATIVE_RESULT:$SDK_RESULT" in
+            true:success:success|false:skipped:skipped) ;;
+            *) exit 1 ;;
+          esac
           case "$DOCUMENTATION:$DOCS" in
             true:success|false:skipped) ;;
             *) exit 1 ;;
           esac
-          test "$CHECKS:$DOCUMENTATION" != false:false
+          test "$CHECKS:$SDKS:$DOCUMENTATION" != false:false:false

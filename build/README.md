@@ -45,11 +45,19 @@ python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare auth
 The command prints a complete prefix in Zig's build cache. Pass it explicitly to
 the consuming package builder or scenario; do not modify its files. The build
 graph owns dependency caching and keeps optimization profiles separate. Each
-invocation asks Zig for current outputs and records source identity, resolved CPU,
+local invocation asks Zig for current outputs and records source identity, resolved CPU,
 target, compiler, definition and file hashes under `.cache/native-artifacts/`.
 Changed source during compilation, missing output or a mismatched set/profile
 prevents publication of a successful record. Build-graph timing includes cache
 lookup and collection; it is not a measurement of compilation alone.
+
+Hosted SDK preparation can instead consume an explicit `CI_NATIVE_BUNDLE_DIR`
+publication from the same source revision. The producer builds portable baseline
+CPU artifacts through this graph, transports only its declared files, and retains
+executable permissions. Import verifies source/Git identity, compiler, target,
+profile, definition and every output hash before returning the prefix. A missing
+or mismatched publication fails. This shares builds across machines; it never
+shares mutable installed consumers or successful test results.
 
 The client set contains both native libraries, their hosts, the administration
 client and HTTP/gRPC workers. The authority set contains the node. These helpers

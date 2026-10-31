@@ -49,6 +49,9 @@ def seconds(start, end):
 def summarize(run, jobs, log, budgets, suite=SUITE):
     lanes = []
     ordinary_lanes = suite['tiers']['ordinary'] if suite is not None else []
+    # Reusable workflows append their job name to the calling lane. Preserve
+    # the original name when reading logs; inventory ownership uses the lane.
+    jobs = [dict(job, log_name=job['name'], name=job['name'].removesuffix(' / execute')) for job in jobs]
     names = [job['name'] for job in jobs]
     missing_lanes = sorted(name for name in ordinary_lanes if name not in names)
     duplicate_lanes = sorted(name for name in ordinary_lanes if names.count(name) > 1)
@@ -73,7 +76,7 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
                      'checks_including_builds' if name.endswith(' checks') or name.startswith(('Qualify ', 'Weekly ')) else
                      'cleanup' if name.startswith(('Post ', 'Complete ', 'Preserve ')) else 'setup')
             row['phases'][phase] = row['phases'].get(phase, 0) + seconds(step['started_at'], step['completed_at'])
-        lines = [line for line in log.splitlines() if line.startswith(job['name'] + '\t')]
+        lines = [line for line in log.splitlines() if line.startswith(job['log_name'] + '\t')]
         # Extract only byte counts and cache kinds, never raw logs or keys.
         sizes = [int(n) for line in lines for n in re.findall(r'Cache Size:.*\((\d+) B\)', line)]
         requested = {key for line in lines for key in re.findall(r'(?:\t|Z )[ \t]*(?:primary-key|key): ((?:nix|zig)-\S+)$', line)}

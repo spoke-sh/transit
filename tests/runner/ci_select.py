@@ -144,7 +144,13 @@ def main():
             output.write(f"full={str(plan['full']).lower()}\n")
             output.write(f"checks={str(plan['checks']).lower()}\n")
             output.write(f"documentation={str(plan['documentation']).lower()}\n")
-            output.write(f"matrix={json.dumps(plan['matrix'])}\n")
+            rows = plan['matrix']['include']
+            sdk_rows = [row for row in rows if row['lane'] in SUITE['tiers']['sdks']]
+            runtime_rows = [row for row in rows if row not in sdk_rows]
+            output.write(f"runtime_matrix={json.dumps({'include': runtime_rows})}\n")
+            output.write(f"sdk_matrix={json.dumps({'include': sdk_rows})}\n")
+            output.write(f"runtime_checks={str(bool(runtime_rows)).lower()}\n")
+            output.write(f"sdks={str(bool(sdk_rows)).lower()}\n")
             output.write(f"selection={json.dumps(plan)}\n")
 
 

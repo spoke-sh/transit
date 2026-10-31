@@ -1,17 +1,20 @@
 """Describe and qualify immutable native prefixes built by the owning Zig graph.
 
 Zig owns dependency tracking, compilation caching and artifact publication. This
-tool always asks that graph for current outputs; it never caches test results or
-decides that a previous build can be skipped from a Git revision alone.
+tool asks that graph for current outputs, or consumes an explicitly supplied,
+verified portable publication of those outputs. It never caches test results.
 """
 import argparse
 import hashlib
 import json
+import os
+import platform
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import time
 
 from harness.phases import Recorder
@@ -54,7 +57,9 @@ def source_identity(root, family=None):
     # Conservatively include every non-ignored native/build input, including
     # newly added source. Documentation and unrelated run output are not inputs.
     owners = ["build.zig", "build.zig.zon", "build", "packages/zig", "apps", "third_party",
-              "nix", "flake.nix", "flake.lock", "tests/harness/native_artifacts.py"]
+              "nix", "flake.nix", "flake.lock", "VERSION", "contracts", "tasks/embed_web.py",
+              "packages/ts", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml",
+              "vp.config.ts", "tests/harness/native_artifacts.py"]
     if family == "c-sdk":
         owners += ["bindings", "sdks/c", "sdks/cpp", "examples/station-sdk/c", "examples/station-sdk/cpp"]
     listed = subprocess.check_output([
@@ -68,7 +73,10 @@ def source_identity(root, family=None):
             continue
         included[name] = digest(path) if path.is_file() else None
     assert included, "No native source inputs"
-    return hashlib.sha256(json.dumps(included, sort_keys=True).encode()).hexdigest()
+    # Version metadata embeds Git provenance, including the dirty marker.
+    origin = provenance(root)
+    identity = dict(files=included, revision=origin['revision'], dirty=origin['dirty'])
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
 
 def validate(record, *, source, optimize, family, definition):
@@ -81,7 +89,58 @@ def validate(record, *, source, optimize, family, definition):
     return Path(record["prefix"])
 
 
-def prepare(family, optimize, root=ROOT):
+def portable_target():
+    machine = platform.machine()
+    assert platform.system() == "Linux" and machine in {"x86_64", "aarch64"}, "Unsupported native bundle host"
+    return f"{machine}-linux-gnu"
+
+
+def publication(bundle, family, optimize, source, compiler, definition):
+    prefix = bundle.resolve(strict=True) / f"{family}-{optimize}"
+    record = json.loads((prefix / "record.json").read_text())
+    record["prefix"] = str(prefix)
+    # Zig expands the requested triple with the pinned compiler's default OS
+    # range and glibc floor (e.g. linux.5.10...7.2-gnu.2.31).
+    arch, system, abi = record["build"]["target"].split("-")
+    assert f"{arch}-{system.split('.')[0]}-{abi.split('.')[0]}" == portable_target(), "Wrong native bundle target"
+    assert record["build"]["cpu"] == "baseline", "Native bundle must use a portable CPU"
+    assert record["build"]["compiler"] == subprocess.check_output([compiler, "version"], text=True).strip(), "Wrong native bundle compiler"
+    validate(record, source=source, optimize=optimize, family=family, definition=definition)
+    return record
+
+
+def export(family, optimize, output, root=ROOT):
+    # Transport immutable graph outputs, not the multi-GB compiler cache or any
+    # installed consumer/service state. Tar retains executable mode bits.
+    prefix, record_path = prepare(family, optimize, root, portable=True, imported=False)
+    record = json.loads(record_path.read_text())
+    name = f"{family}-{optimize}"
+    assert not output.exists(), "Native publication already exists"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(".partial")
+    with tarfile.open(temporary, "w:gz", compresslevel=1) as archive:
+        for path in sorted(record["files"]):
+            archive.add(prefix / path, arcname=f"{name}/{path}", recursive=False)
+        archive.add(record_path, arcname=f"{name}/record.json", recursive=False)
+    temporary.replace(output)
+    return record
+
+
+def unpack(archive, destination):
+    with tarfile.open(archive) as source:
+        members = source.getmembers()
+        assert members and len({m.name for m in members}) == len(members), "Duplicate or empty native publication"
+        roots = {PurePosixPath(m.name).parts[0] for m in members}
+        assert len(roots) == 1 and roots <= {f"{f}-{p}" for f in EXPECTED for p in PROFILES}, "Unknown native publication"
+        for member in members:
+            path = PurePosixPath(member.name)
+            assert member.isfile() and not path.is_absolute() and ".." not in path.parts, "Unsafe native publication entry"
+        name = next(iter(roots))
+        assert not (destination / name).exists(), "Native publication already installed"
+        source.extractall(destination, filter="data")
+
+
+def prepare(family, optimize, root=ROOT, *, portable=False, imported=True):
     attempt = Recorder(root)
     started = time.monotonic()
     with attempt.phase("input-identity", family):
@@ -89,9 +148,20 @@ def prepare(family, optimize, root=ROOT):
     inputs_done = time.monotonic()
     compiler = shutil.which("zig")
     assert compiler, "Enter the pinned Nix development environment"
+    bundle = os.getenv("CI_NATIVE_BUNDLE_DIR") if imported else None
+    definition = json.loads((root / "packages/zig/transit-client/abi-v1.json").read_text())["definition"]
+    if bundle and family != "c-sdk":
+        with attempt.phase("artifact-import", family):
+            record = publication(Path(bundle), family, optimize, source, compiler, definition)
+            assert source_identity(root, family) == source, "Native inputs changed during import"
+        record.update(**provenance(root), phase_directory=str(attempt.directory),
+                      preparation="import", phases={"import_seconds": time.monotonic() - started})
+        return retain(record, family, optimize, root)
     build_root = root / "bindings" if family == "c-sdk" else root
     target = ["prefix"] if family == "c-sdk" else [f"fixture-{family}", "-Dsdk-examples=false"]
     command = [compiler, "build", *target, f"-Doptimize={optimize}"]
+    if portable or bundle:
+        command += [f"-Dtarget={portable_target()}", "-Dcpu=baseline"]
     with attempt.phase("build-graph", family) as row:
         result = run(command, cwd=build_root, log=attempt.directory / "build.log", result=row, capture_stdout=True)
         result.check_returncode()
@@ -106,13 +176,18 @@ def prepare(family, optimize, root=ROOT):
     record["phases"] = {"input_identity_seconds": inputs_done - started,
                         "build_graph_seconds": built - inputs_done,
                         "output_verification_seconds": time.monotonic() - built}
+    record["preparation"] = "build-graph"
+    return retain(record, family, optimize, root)
+
+
+def retain(record, family, optimize, root):
     # This is an invocation record, not a second compilation-cache authority.
     # No record exists until the complete build and input/output checks pass.
     destination = root / ".cache/native-artifacts"
     destination.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix=f"{family}-{optimize}-", dir=destination))
     write_json(directory / "record.json", record)
-    return prefix, directory / "record.json"
+    return Path(record["prefix"]), directory / "record.json"
 
 
 def main():
@@ -123,9 +198,20 @@ def main():
     build = commands.add_parser("prepare")
     build.add_argument("family", choices=EXPECTED)
     build.add_argument("--optimize", choices=("Debug", "ReleaseSafe"), required=True)
+    publish = commands.add_parser("export")
+    publish.add_argument("family", choices=EXPECTED)
+    publish.add_argument("--optimize", choices=PROFILES, required=True)
+    publish.add_argument("--output", type=Path, required=True)
+    install = commands.add_parser("unpack")
+    install.add_argument("archive", type=Path)
+    install.add_argument("destination", type=Path)
     args = parser.parse_args()
     if args.action == "inspect":
         print(json.dumps(describe(args.prefix)))
+    elif args.action == "export":
+        export(args.family, args.optimize, args.output)
+    elif args.action == "unpack":
+        unpack(args.archive, args.destination)
     else:
         prefix, record = prepare(args.family, args.optimize)
         print(f"Native artifact record: {record}", file=sys.stderr)

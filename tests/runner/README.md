@@ -187,8 +187,12 @@ which also runs the browser continuation. SDK suites separate shared contracts a
 interoperability (`sdks-conformance`), Python/Node/Ruby (`sdks-scripting`),
 Rust/Go/C/C++ (`sdks-systems`), and Java/.NET/Erlang/Elixir (`sdks-managed`).
 `just ci::sdks` runs all four SDK suites sequentially. Every recipe declares its
-own build prerequisites; no lane inherits another lane's outputs. Formal feedback
-stays early. Each job repeats shell/cache and native preparation; cost comparisons
+own build prerequisites. SDK lanes consume verified native publications from four
+family/profile producer jobs; runtime lanes start independently. Formal feedback
+stays early. The runtime matrix allows seven concurrent jobs and the native/SDK
+stage allows four, so a full run may use eleven runners. This additional parallelism
+is explicit; aggregate runner cost includes producers and consumers. Each job
+repeats shell/cache preparation; cost comparisons
 must include that work as well as elapsed-time changes. Renamed or regrouped
 inventories require new measurements; archived names and budget hashes still
 describe their original source revisions.
