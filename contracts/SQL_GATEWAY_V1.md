@@ -50,7 +50,8 @@ enforce these ceilings; Table identifiers retain the SQL owner's limits. These
 constants do not bound durable operation history.
 
 The application enforces one account runtime independently of sockets, a bounded
-session allocator, at most one borrowed output row and direct write backpressure.
+session allocator, at most one bounded borrowed read batch and direct write
+backpressure.
 Two extra transport slots are reserved for PostgreSQL cancellation; they cannot
 authenticate ordinary sessions. Absolute command deadlines join native and socket
 work before freeing borrowed state. Metadata-only preparation/validation retries
@@ -73,6 +74,36 @@ native requests. Relational reads additionally bound resident/spill bytes to
 10000. Limits fail explicitly; a suspended portal retains its original snapshot
 and lease rather than opening a new cut. These per-query budgets are subordinate
 to the session allocator and the native snapshot owner's lease/resource quotas.
+
+## In-process command continuations
+
+Authenticated PostgreSQL/MySQL `Session` engines are pure state machines over
+`transit-sql-protocol.Wire.Session` events. The host owns execution, current
+rights, clocks, sockets and TLS. One request or borrowed output may be pending;
+its completion must match the connection generation and event sequence. A stale,
+duplicate or cancelled completion cannot advance another request. These tokens
+are ephemeral and never replace accepted database operation identities.
+
+Input remains borrowed until command completion. Prepared descriptors borrow
+host metadata until destroy; read batches borrow cells until the next pull or
+close. Output bytes remain immutable until completely drained. Every acknowledged
+fragment gets a new token. An attempted write failure closes the continuation;
+it cannot append an error frame to a possibly transmitted prefix. A pre-write
+authority refusal can become a protocol error only before any bytes of that
+output were sent. MySQL preserves the unsent packet's sequence for that error.
+
+Protected metadata, rows and terminal output carry an authority guard. An
+immediate driver may reuse a check across one bounded batch. A parked driver
+invalidates cached authorization and rechecks immediately before disclosure,
+including buffered rows and empty/terminal results. A resumed mutation reply
+observes the original accepted outcome through the database owner; it cannot
+re-execute SQL or require the original execution attachment to remain open.
+
+Abort suppresses further execution and output without rolling back accepted
+work. The host joins outstanding borrowers, closes reads and destroys prepared
+objects before releasing codec memory. The installed blocking driver retains
+its existing worker, deadline and authentication orchestration. These in-process
+APIs do not alter upstream wire bytes or the durable current-v1 definition.
 
 ## Transport and login policy
 
