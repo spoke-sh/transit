@@ -23806,6 +23806,7 @@
         "init()": "<inferred>",
         "initStorage()": "<inferred>",
         "local()": "<inferred>",
+        "migrate()": "<inferred>",
         "observationClient()": "<inferred>",
         "open()": "<inferred>",
         "perform()": "anyerror",
@@ -23814,7 +23815,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 2
       },
       "imports": [
@@ -23916,6 +23917,35 @@
       },
       "imports": [
         "NativeResult.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-client/src/MigrationClient.zig": {
+      "errors": {
+        "DuplicateMigrationVersion": 1,
+        "EmptyMigrationSource": 1,
+        "InvalidMigrationFilename": 2,
+        "InvalidMigrationPlan": 1,
+        "InvalidMigrationVersion": 4,
+        "TooManyMigrationSources": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decodeSavedPlan()": "<inferred>",
+        "discoverSources()": "<inferred>",
+        "encodeSavedPlan()": "<inferred>",
+        "execute()": "<inferred>",
+        "loadSourceFile()": "<inferred>",
+        "parseFilename()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -24189,6 +24219,7 @@
         "Client.zig",
         "Discovery.zig",
         "Executor.zig",
+        "MigrationClient.zig",
         "Pending.zig",
         "ReadView.zig",
         "ReadWorkspace.zig",
@@ -24489,6 +24520,106 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-protocol/src/Migration.zig": {
+      "errors": {
+        "DuplicateMigrationVersion": 1,
+        "IncompatibleSqlDefinition": 2,
+        "InvalidMigrationTarget": 1,
+        "InvalidMigrationVersion": 3,
+        "InvalidSqlName": 4,
+        "InvalidSqlText": 1,
+        "MigrationChecksumMismatch": 1,
+        "MigrationSourcesRequired": 1,
+        "TooManyMigrationSources": 3,
+        "UnsortedMigrationSources": 1
+      },
+      "outcomes": {
+        "ActionKind": [
+          "plan",
+          "inspect",
+          "apply",
+          "status",
+          "@\"resume\"",
+          "verify"
+        ],
+        "OutcomeKind": [
+          "planned",
+          "inspected",
+          "applied",
+          "already_satisfied",
+          "verified",
+          "drift_detected",
+          "checksum_mismatch",
+          "target_mismatch",
+          "claim_conflict",
+          "step_failed",
+          "outcome_unknown"
+        ],
+        "StepEffect": [
+          "create_table",
+          "alter_table",
+          "drop_table",
+          "create_schema",
+          "alter_schema",
+          "drop_schema",
+          "insert_rows",
+          "update_rows",
+          "delete_rows",
+          "grant_privilege",
+          "publish_resource",
+          "verify_query"
+        ],
+        "StepOwner": [
+          "schema_ddl",
+          "data_transform",
+          "authorization_grant",
+          "publication",
+          "verification"
+        ],
+        "StepState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "blocked_by_policy",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ],
+        "VersionState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Report.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "SavedPlan.validate()": "<inferred>",
+        "SourceFile.validate()": "<inferred>",
+        "TargetAssertion.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-protocol/src/ResultColumns.zig": {
       "errors": {
         "InvalidResultChunk": 2,
@@ -24582,7 +24713,8 @@
           "status",
           "@\"resume\"",
           "operations",
-          "assist"
+          "assist",
+          "migrate"
         ],
         "Action.open.authentication": [
           "peer",
@@ -24606,6 +24738,7 @@
           "operations",
           "completion",
           "assistance",
+          "migration",
           "closed",
           "err"
         ],
@@ -24636,6 +24769,7 @@
           "operations",
           "completion",
           "assistance",
+          "migration",
           "closed",
           "err"
         ],
@@ -24691,12 +24825,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 34,
         "catch": 0
       },
       "imports": [
         "Authentication.zig",
         "Codec.zig",
+        "Migration.zig",
         "ResultColumns.zig",
         "ResultFrame.zig",
         "std",
@@ -25305,13 +25440,14 @@
         "SqlOperationBindingChanged": 1,
         "SqlParameterTypeMismatch": 3,
         "SqlPreparedCapacity": 1,
-        "SqlResultActive": 3,
+        "SqlResultActive": 4,
         "SqlResultIncomplete": 4,
         "SqlSessionBusy": 4,
         "SqlSessionExpired": 3,
         "SqlSourceIdentityMismatch": 1,
         "SqlStatementExpired": 1,
         "SqlTokenConflict": 1,
+        "SqlTransactionActive": 1,
         "Timeout": 1,
         "WireParameterCountMismatch": 1
       },
@@ -25344,7 +25480,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 120,
+        "try": 123,
         "catch": 9
       },
       "imports": [
@@ -25879,6 +26015,48 @@
       },
       "imports": []
     },
+    "packages/zig/transit-sql/src/MigrationRunner.zig": {
+      "errors": {
+        "GatewayDeadline": 3,
+        "InteractiveTransactionInMigration": 1,
+        "InvalidMigrationStepCount": 3,
+        "InvalidSqlSyntax": 1,
+        "MigrationClaimConflict": 2,
+        "MigrationOutcomeUnknown": 5,
+        "MigrationStepFailed": 1,
+        "TableNotFound": 1,
+        "Timeout": 3,
+        "UnsupportedMigrationStatement": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "WorkingSchemas.get()": "<inferred>",
+        "WorkingSchemas.put()": "<inferred>",
+        "applyMigrations()": "<inferred>",
+        "buildPlanReport()": "<inferred>",
+        "classifyStatement()": "<inferred>",
+        "execute()": "<inferred>",
+        "executeStepStatement()": "<inferred>",
+        "lookupLiveSchema()": "<inferred>",
+        "resumeExecution()": "<inferred>",
+        "saveReportVersion()": "<inferred>",
+        "splitStatements()": "<inferred>",
+        "statusReport()": "<inferred>",
+        "toLedgerVersion()": "<inferred>",
+        "verifyMigrations()": "<inferred>",
+        "verifyVersionSteps()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 127,
+        "catch": 14
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql/src/OperationRecords.zig": {
       "errors": {},
       "outcomes": {
@@ -26315,6 +26493,7 @@
         "DatabaseRuntime.zig",
         "IntentReference.zig",
         "Limits.zig",
+        "MigrationRunner.zig",
         "OperationRecords.zig",
         "Probe.zig",
         "ReadBatch.zig",

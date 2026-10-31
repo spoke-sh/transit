@@ -249,7 +249,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 /// Session must reclaim it even while request JSON/output remains alive.
 pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints" } } });
+    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
@@ -510,6 +510,34 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
                 inline else => |kind| @field(@FieldType(std.meta.Elem(@FieldType(T, "items")), "kind"), @tagName(kind)),
             }, .detail = item.detail };
             return .{ .assistance = .{ .coverage = @fromBackingInt(@intCast(@backingInt(result.coverage))), .status = @fromBackingInt(@intCast(@backingInt(result.status))), .profile = @fromBackingInt(@intCast(@backingInt(result.profile))), .resource = result.resource, .contract = result.contract, .resource_revision = result.resource_revision, .policy_revision = result.policy_revision, .range = result.range, .items = items } };
+        },
+        .migrate => |value| {
+            if (slot.cursor != null) return error.SqlResultActive;
+            if (host.transaction.active()) return error.SqlTransactionActive;
+            const ns_response = try host.table.call(.{ .namespace = host.namespace });
+            defer ns_response.deinit();
+            const schema_name = if (ns_response.value.result.namespace) |ns|
+                try allocator.dupe(u8, ns.name.slice())
+            else
+                "public";
+            const context: g.MigrationRunner.Context = .{
+                .account_id = host.account.execution.account,
+                .account_name = host.account.name,
+                .database = host.database,
+                .schema = schema_name,
+                .namespace = host.namespace,
+                .dialect = host.dialect,
+            };
+            const report = try g.MigrationRunner.execute(
+                allocator,
+                host.runtime,
+                &host.observer,
+                &host.table,
+                context,
+                value,
+                host.deadline,
+            );
+            return .{ .migration = report };
         },
         else => return error.InvalidSqlAction,
     }

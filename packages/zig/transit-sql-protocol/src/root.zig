@@ -7,6 +7,7 @@ pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
 pub const ResultFrame = @import("ResultFrame.zig");
 pub const ResultColumns = @import("ResultColumns.zig");
+pub const Migration = @import("Migration.zig");
 pub const results = @import("transit_sql_results");
 test {
     _ = @import("allocation_test.zig");
@@ -53,6 +54,7 @@ pub const Request = struct {
                 if (value.parameters.len > max_parameters) return error.TooManySqlParameters;
                 for (value.parameters) |parameter| if (parameter.len > max_batch_bytes * 2) return error.SqlMessageTooLarge;
             },
+            .migrate => |value| try value.validate(),
             else => {},
         }
     }
@@ -84,6 +86,7 @@ pub const Action = union(enum) {
     @"resume": OperationId,
     operations: struct { after: u64 = 0 },
     assist: struct { text: []const u8, cursor: u32 },
+    migrate: Migration.Request,
 };
 pub const OperationId = results.Operation;
 pub const Target = union(enum) { query: Id, operation: OperationId, token: Token };
@@ -147,6 +150,7 @@ pub const Response = struct {
         operations: struct { entries: []const Operation, next: ?u64 },
         completion: results.CommandCompletion,
         assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1, direct_table_v1 }, resource: u64, contract: [32]u8, resource_revision: ?u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
+        migration: Migration.Report,
         closed,
         err: Error,
     },
@@ -169,6 +173,7 @@ pub const JsonResponse = struct {
         operations: @FieldType(R, "operations"),
         completion: @FieldType(R, "completion"),
         assistance: @FieldType(R, "assistance"),
+        migration: @FieldType(R, "migration"),
         closed,
         err: Error,
     },
@@ -191,6 +196,7 @@ pub fn validateResponse(response: Response) !void {
         .operation => |value| try value.validate(),
         .operations => |page| for (page.entries) |value| try value.validate(),
         .completion => |value| try value.validate(),
+        .migration => |value| try value.validate(),
         .attached => |value| try value.validate(),
         .context => |value| if (value.transaction) |handle| try handle.validate(),
         .batch => |value| {

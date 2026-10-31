@@ -25,6 +25,7 @@ pub const RecoveryWork = @import("RecoveryWork.zig");
 pub const Type = @import("Type.zig");
 pub const Bytes = @import("Bytes.zig");
 pub const AccountIdentity = @import("AccountIdentity.zig");
+pub const MigrationRunner = @import("MigrationRunner.zig");
 test {
     @import("std").testing.refAllDecls(@This());
 }

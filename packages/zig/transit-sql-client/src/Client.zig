@@ -272,3 +272,8 @@ pub fn attachTransaction(self: *Self, attachment: api.results.protocol.Transacti
     defer response.deinit();
     if (response.value.result != .attached or !std.meta.eql(response.value.result.attached, attachment)) return error.InvalidSqlResponse;
 }
+
+pub fn migrate(self: *Self, request: api.Migration.Request, allocator: std.mem.Allocator) !Response {
+    try request.validate();
+    return self.callAllocated(.{ .migrate = request }, allocator);
+}
