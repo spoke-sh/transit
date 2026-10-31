@@ -254,7 +254,7 @@
         "FileNotFound": 1,
         "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
-        "InvalidSqlResponse": 6,
+        "InvalidSqlResponse": 7,
         "InvalidSqlSyntax": 1,
         "InvalidTimingCommand": 2,
         "ResultCancelled": 2,
@@ -302,7 +302,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 85,
+        "try": 89,
         "catch": 18
       },
       "imports": [
@@ -310,6 +310,7 @@
         "Diagnostic.zig",
         "ExternalEditor.zig",
         "InputPosition.zig",
+        "Migrate.zig",
         "Options.zig",
         "Output.zig",
         "Preferences.zig",
@@ -653,13 +654,14 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "failOwnedSummary()": "anyerror",
         "renderTable()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 2,
       "propagation": {
         "try": 22,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
         "Console.zig",
@@ -26088,10 +26090,12 @@
       "error_sets": {},
       "error_returns": {
         "WorkingSchemas.get()": "<inferred>",
+        "WorkingSchemas.getLive()": "<inferred>",
         "WorkingSchemas.put()": "<inferred>",
         "applyMigrations()": "<inferred>",
         "buildPlanReport()": "<inferred>",
         "classifyStatement()": "<inferred>",
+        "cloneReport()": "<inferred>",
         "execute()": "<inferred>",
         "executeStepStatement()": "<inferred>",
         "lookupLiveSchema()": "<inferred>",
@@ -26105,7 +26109,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 133,
+        "try": 168,
         "catch": 14
       },
       "imports": [

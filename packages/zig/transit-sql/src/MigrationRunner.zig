@@ -149,10 +149,14 @@ fn classifyStatement(
         return error.InteractiveTransactionInMigration;
     }
 
+    var parse_arena = std.heap.ArenaAllocator.init(allocator);
+    defer parse_arena.deinit();
+    const parse_alloc = parse_arena.allocator();
+
     if ((tokenWord(full_text, first, "CREATE") or tokenWord(full_text, first, "ALTER") or tokenWord(full_text, first, "DROP")) and
         tokenWord(full_text, second, "TABLE"))
     {
-        const target = try f.TableDdl.target(allocator, stmt_sql);
+        const target = try f.TableDdl.target(parse_alloc, stmt_sql);
         return .{
             .step_index = step_index,
             .owner = .schema_ddl,
@@ -193,7 +197,7 @@ fn classifyStatement(
     }
 
     if (tokenWord(full_text, first, "INSERT") or tokenWord(full_text, first, "UPDATE") or tokenWord(full_text, first, "DELETE")) {
-        const target = try f.TableDml.target(allocator, stmt_sql);
+        const target = try f.TableDml.target(parse_alloc, stmt_sql);
         return .{
             .step_index = step_index,
             .owner = .data_transform,
@@ -214,7 +218,7 @@ fn classifyStatement(
         ((tokenWord(full_text, first, "CREATE") or tokenWord(full_text, first, "ALTER") or tokenWord(full_text, first, "DROP")) and
             tokenWord(full_text, second, "ROLE")))
     {
-        var compiled = try f.AuthorizationSql.compile(allocator, stmt_sql, null);
+        var compiled = try f.AuthorizationSql.compile(parse_alloc, stmt_sql, null);
         defer compiled.deinit();
         return .{
             .step_index = step_index,
@@ -244,7 +248,7 @@ fn classifyStatement(
     }
 
     if (tokenWord(full_text, first, "SELECT")) {
-        const target_name = try f.TableSelect.target(allocator, stmt_sql);
+        const target_name = try f.TableSelect.target(parse_alloc, stmt_sql);
         return .{
             .step_index = step_index,
             .owner = .verification,
@@ -304,25 +308,59 @@ const WorkingSchemas = struct {
     allocator: std.mem.Allocator,
     client: *c.DirectTableClient,
     namespace: u64,
-    entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
+    live_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
+    working_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
 
-    fn get(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
-        if (self.entries.get(name)) |cached| return cached;
+    fn getLive(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
+        if (self.live_entries.get(name)) |cached| return cached;
         const live = try lookupLiveSchema(self.allocator, self.client, self.namespace, name);
         const owned_name = try self.allocator.dupe(u8, name);
-        try self.entries.put(self.allocator, owned_name, live);
+        try self.live_entries.put(self.allocator, owned_name, live);
         return live;
     }
 
+    fn get(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
+        if (self.working_entries.get(name)) |cached| return cached;
+        return self.getLive(name);
+    }
+
     fn put(self: *WorkingSchemas, name: []const u8, schema: ?f.TableSchema.Schema) !void {
-        if (self.entries.getPtr(name)) |slot| {
+        if (self.working_entries.getPtr(name)) |slot| {
             slot.* = schema;
             return;
         }
         const owned_name = try self.allocator.dupe(u8, name);
-        try self.entries.put(self.allocator, owned_name, schema);
+        try self.working_entries.put(self.allocator, owned_name, schema);
     }
 };
+
+fn isStepApplied(state: DM.StepState) bool {
+    return state == .applied or state == .verified or state == .already_satisfied;
+}
+
+fn hasLaterAppliedDdl(
+    sources: []const M.SourceFile,
+    recorded: []const DM.VersionEntry,
+    current_source_idx: usize,
+    current_step_idx: usize,
+    object_name: []const u8,
+) bool {
+    for (sources[current_source_idx..], current_source_idx..) |src, src_idx| {
+        const rec = findRecordedVersion(recorded, src.version_id) orelse continue;
+        const start_step = if (src_idx == current_source_idx) current_step_idx + 1 else 0;
+        if (start_step >= rec.steps.len) continue;
+        for (rec.steps[start_step..]) |step| {
+            if (step.owner == .schema_ddl and
+                (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table) and
+                isStepApplied(step.state) and
+                std.mem.eql(u8, step.object_name, object_name))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 pub fn computePlanDigest(target: M.ObservedTarget, versions: []const M.VersionReport) [32]u8 {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -388,13 +426,54 @@ pub fn execute(
         };
     }
 
-    return switch (request.kind) {
-        .status => statusReport(allocator, runtime, observer, table, context, target, request),
-        .@"resume" => resumeExecution(allocator, runtime, observer, table, context, target, request, deadline),
-        .verify => verifyMigrations(allocator, table, context, target, request),
-        .plan, .inspect => buildPlanReport(allocator, table, context, target, request),
-        .apply => applyMigrations(allocator, runtime, observer, table, context, target, request, deadline),
+    var work_arena: std.heap.ArenaAllocator = .init(runtime.allocator);
+    defer work_arena.deinit();
+    const work_alloc = work_arena.allocator();
+    var migration_table = table.*;
+    migration_table.allocator = runtime.allocator;
+
+    const report = try switch (request.kind) {
+        .status => statusReport(work_alloc, runtime, observer, &migration_table, context, target, request),
+        .@"resume" => resumeExecution(work_alloc, runtime, observer, &migration_table, context, target, request, deadline),
+        .verify => verifyMigrations(work_alloc, &migration_table, context, target, request),
+        .plan, .inspect => buildPlanReport(work_alloc, &migration_table, context, target, request),
+        .apply => applyMigrations(work_alloc, runtime, observer, &migration_table, context, target, request, deadline),
     };
+    return cloneReport(allocator, report);
+}
+
+fn cloneReport(allocator: std.mem.Allocator, report: M.Report) !M.Report {
+    var out = report;
+    out.target.database = try allocator.dupe(u8, report.target.database);
+    out.target.schema = try allocator.dupe(u8, report.target.schema);
+    out.target.account = try allocator.dupe(u8, report.target.account);
+    out.diagnostic_code = if (report.diagnostic_code) |code| try allocator.dupe(u8, code) else null;
+    out.diagnostic_message = if (report.diagnostic_message) |msg| try allocator.dupe(u8, msg) else null;
+    out.recovery_command = if (report.recovery_command) |cmd| try allocator.dupe(u8, cmd) else null;
+    const versions = try allocator.alloc(M.VersionReport, report.versions.len);
+    for (report.versions, versions) |ver, *out_ver| {
+        out_ver.* = ver;
+        out_ver.version_id = try allocator.dupe(u8, ver.version_id);
+        out_ver.name = try allocator.dupe(u8, ver.name);
+        out_ver.path = try allocator.dupe(u8, ver.path);
+        const steps = try allocator.alloc(M.StepReport, ver.steps.len);
+        for (ver.steps, steps) |step, *out_step| {
+            out_step.* = step;
+            out_step.object_name = try allocator.dupe(u8, step.object_name);
+            out_step.sql = try allocator.dupe(u8, step.sql);
+            out_step.drift = if (step.drift) |d| .{
+                .aspect = try allocator.dupe(u8, d.aspect),
+                .column = if (d.column) |col| try allocator.dupe(u8, col) else null,
+                .expected = if (d.expected) |exp| try allocator.dupe(u8, exp) else null,
+                .actual = if (d.actual) |act| try allocator.dupe(u8, act) else null,
+            } else null;
+            out_step.diagnostic_code = if (step.diagnostic_code) |code| try allocator.dupe(u8, code) else null;
+            out_step.diagnostic_message = if (step.diagnostic_message) |msg| try allocator.dupe(u8, msg) else null;
+        }
+        out_ver.steps = steps;
+    }
+    out.versions = versions;
+    return out;
 }
 
 fn findRecordedVersion(recorded: []const DM.VersionEntry, version_id: []const u8) ?DM.VersionEntry {
@@ -448,16 +527,48 @@ fn buildPlanReport(
         }
     }
 
-    for (request.sources) |source| {
+    for (request.sources, 0..) |source, source_idx| {
         const parsed_steps = try splitStatements(allocator, source.sql);
         const prior = findRecordedVersion(recorded, source.version_id);
         const checksum_conflict = if (prior) |rec| !std.mem.eql(u8, &rec.source_sha256, &source.sha256) else false;
+        const foreign_claim = if (prior) |rec|
+            ((rec.state == .claimed or rec.state == .applying) and rec.active_attempt_id != null and
+                (request.attempt_id == null or !std.mem.eql(u8, &rec.active_attempt_id.?, &request.attempt_id.?)))
+        else
+            false;
 
         var step_reports = try allocator.alloc(M.StepReport, parsed_steps.len);
         var has_will_apply = false;
         var has_diverged = checksum_conflict;
         var has_failed = false;
         var has_uncertain = false;
+        var has_claimed = false;
+
+        if (foreign_claim and request.kind == .apply) {
+            has_claimed = true;
+            if (top_code == null) {
+                overall_outcome = .claim_conflict;
+                top_code = "migration.claim_conflict";
+                top_message = try std.fmt.allocPrint(
+                    allocator,
+                    "Migration {s} is actively claimed by another runner attempt ({x})",
+                    .{ source.version_id, &prior.?.active_attempt_id.? },
+                );
+                recovery_cmd = "transit migrate resume";
+            }
+        } else if (prior != null and (prior.?.state == .claimed or prior.?.state == .applying or prior.?.state == .uncertain)) {
+            has_uncertain = true;
+            if (top_code == null) {
+                overall_outcome = .outcome_unknown;
+                top_code = "migration.outcome_unknown";
+                top_message = try std.fmt.allocPrint(
+                    allocator,
+                    "Migration {s} has an unresolved in-flight attempt; run 'transit migrate resume' to reconcile its durable tokens",
+                    .{source.version_id},
+                );
+                recovery_cmd = "transit migrate resume";
+            }
+        }
 
         for (parsed_steps, 0..) |parsed, idx| {
             const token = DM.stepToken(
@@ -480,7 +591,7 @@ fn buildPlanReport(
                 .line = parsed.line,
                 .column = parsed.column,
                 .statement_digest = parsed.statement_digest,
-                .step_token = token,
+                .step_token = if (prior_step) |ps| ps.step_token else token,
                 .state = .will_apply,
                 .operation_id = if (prior_step) |ps| ps.operation_id else null,
                 .commit_lsn = if (prior_step) |ps| ps.commit_lsn else null,
@@ -507,14 +618,14 @@ fn buildPlanReport(
                         overall_outcome = .step_failed;
                         top_code = ps.diagnostic_code orelse "migration.step_failed";
                         top_message = ps.diagnostic_message orelse "A previous migration step failed";
+                        recovery_cmd = "transit migrate resume";
                     }
-                    // Still update working schema if earlier steps succeeded; failed step did not apply.
                     step_reports[idx] = report;
                     continue;
                 }
                 if (ps.state == .uncertain or ps.state == .applying or ps.state == .claimed) {
-                    report.state = .uncertain;
-                    has_uncertain = true;
+                    report.state = if (has_claimed) .claimed else .uncertain;
+                    if (!has_claimed) has_uncertain = true;
                     if (top_code == null) {
                         overall_outcome = .outcome_unknown;
                         top_code = "migration.outcome_unknown";
@@ -530,6 +641,8 @@ fn buildPlanReport(
                 }
             }
 
+            const step_already_applied = prior_step != null and isStepApplied(prior_step.?.state);
+
             switch (parsed.owner) {
                 .authorization_grant => {
                     if (!request.allow_grants) {
@@ -542,7 +655,7 @@ fn buildPlanReport(
                             top_code = report.diagnostic_code;
                             top_message = report.diagnostic_message;
                         }
-                    } else if (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified)) {
+                    } else if (step_already_applied) {
                         report.state = .already_satisfied;
                     } else {
                         report.state = .will_apply;
@@ -572,14 +685,70 @@ fn buildPlanReport(
                             const expected_fp = try DM.logicalFingerprint(desired_schema.schema);
                             report.expected_schema_sha256 = expected_fp;
 
-                            if (try schemas.get(parsed.object_name)) |existing| {
+                            if (step_already_applied) {
+                                try schemas.put(parsed.object_name, desired_schema.schema);
+                                if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, parsed.object_name)) {
+                                    if (try schemas.getLive(parsed.object_name)) |live| {
+                                        report.observed_schema_sha256 = try DM.logicalFingerprint(live);
+                                        const recon = try DM.reconcileCreate(live, create);
+                                        switch (recon) {
+                                            .satisfied => report.state = .already_satisfied,
+                                            .drift => |detail| {
+                                                report.state = .already_diverged;
+                                                report.drift = .{
+                                                    .aspect = @tagName(detail.aspect),
+                                                    .column = if (detail.column) |col| try allocator.dupe(u8, col) else null,
+                                                    .expected = if (detail.expected) |exp| try allocator.dupe(u8, exp) else null,
+                                                    .actual = if (detail.actual) |act| try allocator.dupe(u8, act) else null,
+                                                };
+                                                report.diagnostic_code = "migration.schema_drift";
+                                                report.diagnostic_message = try std.fmt.allocPrint(
+                                                    allocator,
+                                                    "Live table '{s}' drifted from migration {s} on {s}{s}{s}",
+                                                    .{
+                                                        parsed.object_name,
+                                                        source.version_id,
+                                                        @tagName(detail.aspect),
+                                                        if (detail.column != null) " column " else "",
+                                                        detail.column orelse "",
+                                                    },
+                                                );
+                                                has_diverged = true;
+                                                if (top_code == null) {
+                                                    overall_outcome = .drift_detected;
+                                                    top_code = report.diagnostic_code;
+                                                    top_message = report.diagnostic_message;
+                                                }
+                                            },
+                                        }
+                                    } else {
+                                        report.state = .already_diverged;
+                                        report.diagnostic_code = "migration.missing_table";
+                                        report.diagnostic_message = try std.fmt.allocPrint(
+                                            allocator,
+                                            "Table '{s}' created by applied migration {s} is missing from the live catalog",
+                                            .{ parsed.object_name, source.version_id },
+                                        );
+                                        has_diverged = true;
+                                        if (top_code == null) {
+                                            overall_outcome = .drift_detected;
+                                            top_code = report.diagnostic_code;
+                                            top_message = report.diagnostic_message;
+                                        }
+                                    }
+                                } else {
+                                    report.observed_schema_sha256 = expected_fp;
+                                    report.state = .already_satisfied;
+                                }
+                            } else if (try schemas.get(parsed.object_name)) |existing| {
                                 const observed_fp = try DM.logicalFingerprint(existing);
                                 report.observed_schema_sha256 = observed_fp;
                                 const recon = try DM.reconcileCreate(existing, create);
                                 switch (recon) {
                                     .satisfied => {
-                                        if (create.if_not_exists or (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied))) {
+                                        if (create.if_not_exists) {
                                             report.state = .already_satisfied;
+                                            try schemas.put(parsed.object_name, existing);
                                         } else {
                                             report.state = .already_diverged;
                                             report.diagnostic_code = "migration.table_already_exists";
@@ -632,30 +801,7 @@ fn buildPlanReport(
                         },
                         .alter_table => {
                             const current = try schemas.get(parsed.object_name);
-                            if (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied)) {
-                                report.state = .already_satisfied;
-                                if (current) |existing| {
-                                    const observed_fp = try DM.logicalFingerprint(existing);
-                                    report.observed_schema_sha256 = observed_fp;
-                                    if (report.expected_schema_sha256) |expected_fp| {
-                                        if (!std.mem.eql(u8, &expected_fp, &observed_fp)) {
-                                            report.state = .already_diverged;
-                                            report.diagnostic_code = "migration.schema_drift";
-                                            report.diagnostic_message = try std.fmt.allocPrint(
-                                                allocator,
-                                                "Table '{s}' schema drifted from recorded post-step fingerprint in migration {s}",
-                                                .{ parsed.object_name, source.version_id },
-                                            );
-                                            has_diverged = true;
-                                            if (top_code == null) {
-                                                overall_outcome = .drift_detected;
-                                                top_code = report.diagnostic_code;
-                                                top_message = report.diagnostic_message;
-                                            }
-                                        }
-                                    }
-                                }
-                            } else if (current) |existing| {
+                            if (current) |existing| {
                                 report.observed_schema_sha256 = try DM.logicalFingerprint(existing);
                                 var compiled = f.TableDdl.compileDialect(allocator, parsed.sql, existing, null, context.dialect) catch |err| {
                                     report.state = .already_diverged;
@@ -675,6 +821,7 @@ fn buildPlanReport(
                                     continue;
                                 };
                                 defer compiled.deinit();
+                                var target_after_alter: []const u8 = parsed.object_name;
                                 switch (compiled.statement.alter.action) {
                                     .columns => |change| {
                                         var cols_buf: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
@@ -687,10 +834,52 @@ fn buildPlanReport(
                                         report.expected_schema_sha256 = try DM.logicalFingerprint(existing);
                                         try schemas.put(parsed.object_name, null);
                                         try schemas.put(new_name, existing);
+                                        target_after_alter = new_name;
                                     },
                                 }
-                                report.state = .will_apply;
-                                has_will_apply = true;
+                                if (step_already_applied) {
+                                    report.state = .already_satisfied;
+                                    if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, target_after_alter)) {
+                                        if (try schemas.getLive(target_after_alter)) |live| {
+                                            const observed_fp = try DM.logicalFingerprint(live);
+                                            report.observed_schema_sha256 = observed_fp;
+                                            if (report.expected_schema_sha256) |expected_fp| {
+                                                if (!std.mem.eql(u8, &expected_fp, &observed_fp)) {
+                                                    report.state = .already_diverged;
+                                                    report.diagnostic_code = "migration.schema_drift";
+                                                    report.diagnostic_message = try std.fmt.allocPrint(
+                                                        allocator,
+                                                        "Table '{s}' schema drifted from recorded post-step fingerprint in migration {s}",
+                                                        .{ target_after_alter, source.version_id },
+                                                    );
+                                                    has_diverged = true;
+                                                    if (top_code == null) {
+                                                        overall_outcome = .drift_detected;
+                                                        top_code = report.diagnostic_code;
+                                                        top_message = report.diagnostic_message;
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            report.state = .already_diverged;
+                                            report.diagnostic_code = "migration.missing_table";
+                                            report.diagnostic_message = try std.fmt.allocPrint(
+                                                allocator,
+                                                "Table '{s}' altered by applied migration {s} is missing from the live catalog",
+                                                .{ target_after_alter, source.version_id },
+                                            );
+                                            has_diverged = true;
+                                            if (top_code == null) {
+                                                overall_outcome = .drift_detected;
+                                                top_code = report.diagnostic_code;
+                                                top_message = report.diagnostic_message;
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    report.state = .will_apply;
+                                    has_will_apply = true;
+                                }
                             } else {
                                 report.state = .already_diverged;
                                 report.diagnostic_code = "migration.missing_table";
@@ -711,8 +900,11 @@ fn buildPlanReport(
                             const current = try schemas.get(parsed.object_name);
                             var compiled = try f.TableDdl.compileDialect(allocator, parsed.sql, current, null, context.dialect);
                             defer compiled.deinit();
-                            if (current == null) {
-                                if (compiled.statement.drop.if_exists or (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied))) {
+                            if (step_already_applied) {
+                                try schemas.put(parsed.object_name, null);
+                                report.state = .already_satisfied;
+                            } else if (current == null) {
+                                if (compiled.statement.drop.if_exists) {
                                     report.state = .already_satisfied;
                                 } else {
                                     report.state = .already_diverged;
@@ -737,7 +929,7 @@ fn buildPlanReport(
                             }
                         },
                         .create_schema, .alter_schema, .drop_schema => {
-                            if (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied)) {
+                            if (step_already_applied) {
                                 report.state = .already_satisfied;
                             } else {
                                 report.state = .will_apply;
@@ -770,7 +962,7 @@ fn buildPlanReport(
                             continue;
                         };
                         defer compiled.deinit();
-                        if (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied)) {
+                        if (step_already_applied) {
                             report.state = .already_satisfied;
                         } else {
                             report.state = .will_apply;
@@ -816,7 +1008,7 @@ fn buildPlanReport(
                             continue;
                         };
                         defer compiled.deinit();
-                        if (prior_step != null and (prior_step.?.state == .applied or prior_step.?.state == .verified or prior_step.?.state == .already_satisfied)) {
+                        if (step_already_applied) {
                             report.state = .already_satisfied;
                         } else {
                             report.state = .will_apply;
@@ -844,6 +1036,8 @@ fn buildPlanReport(
 
         const version_state: M.VersionState = if (has_diverged)
             .already_diverged
+        else if (has_claimed)
+            .claimed
         else if (has_uncertain)
             .uncertain
         else if (has_failed)
@@ -1012,7 +1206,7 @@ fn executeStepStatement(
         .spill_work = 10000,
     };
     var statement = try g.Statement.prepare(
-        allocator,
+        runtime.allocator,
         table,
         context.namespace,
         step.sql,
@@ -1024,7 +1218,7 @@ fn executeStepStatement(
 
     var op_id: ?u64 = null;
     const admitted = runtime.admit(
-        allocator,
+        runtime.allocator,
         observer,
         table,
         &statement,
@@ -1101,17 +1295,31 @@ fn verifyVersionSteps(
     table: *c.DirectTableClient,
     context: Context,
     version: *M.VersionReport,
+    later_versions: []const M.VersionReport,
 ) !bool {
-    // Only verify the final schema state of each table modified in this version.
+    // Only verify the final schema state of each table modified in this version
+    // unless a later applied version in the inspected slice also modifies that table.
     const steps_mut = @constCast(version.steps);
     for (steps_mut, 0..) |*step, idx| {
         if (step.owner == .schema_ddl and (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table)) {
-            // Check whether a later step in this same version also modifies or drops this table.
             var modified_later = false;
             for (version.steps[idx + 1 ..]) |later| {
                 if (later.owner == .schema_ddl and std.mem.eql(u8, later.object_name, step.object_name)) {
                     modified_later = true;
                     break;
+                }
+            }
+            if (!modified_later) {
+                outer: for (later_versions) |later_ver| {
+                    for (later_ver.steps) |later_step| {
+                        if (later_step.owner == .schema_ddl and
+                            (later_step.state == .applied or later_step.state == .verified or later_step.state == .already_satisfied) and
+                            std.mem.eql(u8, later_step.object_name, step.object_name))
+                        {
+                            modified_later = true;
+                            break :outer;
+                        }
+                    }
                 }
             }
             if (modified_later) {
@@ -1238,7 +1446,7 @@ fn applyMigrations(
 
         if (version.state == .already_satisfied) {
             if (existing == null or existing.?.entry.state != .verified) {
-                if (try verifyVersionSteps(allocator, table, context, version)) {
+                if (try verifyVersionSteps(allocator, table, context, version, &.{})) {
                     version.state = .verified;
                     version.active_attempt_id = null;
                     const saved = saveReportVersion(allocator, table, context, version, expected_rev) catch |err| {
@@ -1310,7 +1518,7 @@ fn applyMigrations(
 
         version.state = .applied;
         version.applied_at_lsn = expected_rev.?.next_lsn;
-        if (!try verifyVersionSteps(allocator, table, context, version)) {
+        if (!try verifyVersionSteps(allocator, table, context, version, &.{})) {
             version.active_attempt_id = null;
             _ = saveReportVersion(allocator, table, context, version, expected_rev) catch {};
             plan.outcome = .drift_detected;
@@ -1425,6 +1633,7 @@ fn resumeExecution(
     request: M.Request,
     deadline: g.DatabaseRuntime.Deadline,
 ) !M.Report {
+    var any_reconciled = false;
     const dir = try DM.readDirectory(allocator, table.*, context.account_id, context.namespace);
     for (dir.directory.versions) |version_id| {
         const inspected = (try DM.readVersion(allocator, table.*, context.account_id, context.namespace, version_id)) orelse continue;
@@ -1434,6 +1643,7 @@ fn resumeExecution(
             if (entry.active_attempt_id != null and !std.mem.eql(u8, &entry.active_attempt_id.?, &req_attempt)) continue;
         }
         if (entry.state != .claimed and entry.state != .applying and entry.state != .uncertain and entry.state != .failed) continue;
+        any_reconciled = true;
 
         const steps_mut = try allocator.dupe(DM.StepReceipt, entry.steps);
         var all_settled = true;
@@ -1454,6 +1664,23 @@ fn resumeExecution(
                         step.state = .applied;
                         step.diagnostic_code = null;
                         step.diagnostic_message = null;
+                    } else if (request.sources.len != 0) {
+                        // Previous token reached terminal rejection; derive a retry token bound to the current ledger revision.
+                        var retry_hash = std.crypto.hash.sha2.Sha256.init(.{});
+                        retry_hash.update("transit.migration.step.retry.v1\x00");
+                        retry_hash.update(&step.step_token);
+                        var rev_bytes: [8]u8 = undefined;
+                        std.mem.writeInt(u64, &rev_bytes, expected_rev.next_lsn, .little);
+                        retry_hash.update(&rev_bytes);
+                        const retry_digest = retry_hash.finalResult();
+                        step.step_token = retry_digest[0..16].*;
+                        step.state = .pending;
+                        step.operation_id = null;
+                        step.commit_lsn = null;
+                        step.affected_rows = null;
+                        step.diagnostic_code = null;
+                        step.diagnostic_message = null;
+                        all_settled = false;
                     } else {
                         step.state = .failed;
                         any_failed = true;
@@ -1462,9 +1689,11 @@ fn resumeExecution(
                     step.state = .uncertain;
                     all_settled = false;
                 }
-            } else if (step.state == .applying or step.state == .uncertain or step.state == .claimed) {
+            } else if (step.state == .applying or step.state == .uncertain or step.state == .claimed or (step.state == .failed and request.sources.len != 0)) {
                 // Token was never bound before interruption; reset to pending so apply can run it cleanly.
                 step.state = .pending;
+                step.diagnostic_code = null;
+                step.diagnostic_message = null;
                 all_settled = false;
             } else {
                 all_settled = false;
@@ -1494,6 +1723,7 @@ fn resumeExecution(
         apply_req.kind = .apply;
         var report = try applyMigrations(allocator, runtime, observer, table, context, target, apply_req, deadline);
         report.action = .@"resume";
+        if (report.outcome == .already_satisfied and any_reconciled) report.outcome = .applied;
         return report;
     }
 
@@ -1531,8 +1761,8 @@ fn verifyMigrations(
     if (status.outcome != .inspected) return status;
 
     const versions_mut = @constCast(status.versions);
-    for (versions_mut) |*ver| {
-        if (!try verifyVersionSteps(allocator, table, context, ver)) {
+    for (versions_mut, 0..) |*ver, v_idx| {
+        if (!try verifyVersionSteps(allocator, table, context, ver, versions_mut[v_idx + 1 ..])) {
             status.outcome = .drift_detected;
             status.diagnostic_code = "migration.schema_drift";
             status.diagnostic_message = try std.fmt.allocPrint(allocator, "Live catalog schema drifted from recorded migration {s}", .{ver.version_id});

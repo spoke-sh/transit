@@ -466,6 +466,18 @@ pub const Console = struct {
             if (reply.value.result != .context) return error.InvalidSqlResponse;
             return self.json(reply.value.result.context);
         }
+        if (std.mem.eql(u8, text, ".migrations")) {
+            const reply = try self.call(.{ .migrate = .{ .kind = .status } });
+            defer reply.deinit();
+            try self.checked(reply.value);
+            if (reply.value.result != .migration) return error.InvalidSqlResponse;
+            if (self.session.format == .json) return self.json(reply.value.result.migration);
+            var buffer: [8192]u8 = undefined;
+            var stream = @import("Output.zig").Stream.init(self.init.io, self.out, &buffer);
+            try @import("Migrate.zig").renderTable(&stream.interface, reply.value.result.migration);
+            try stream.flush();
+            return;
+        }
         return error.UnknownConsoleCommand;
     }
     pub fn sqlFailure(self: *Console, text: []const u8, err: anyerror) anyerror {

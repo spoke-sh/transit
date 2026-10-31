@@ -151,49 +151,77 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
 
     switch (report.outcome) {
         .planned, .inspected, .applied, .already_satisfied, .verified => return,
-        .target_mismatch => return diagnostic.fail(
+        .target_mismatch => return failOwnedSummary(
+            diagnostic,
             error.MigrationTargetMismatch,
-            report.diagnostic_message orelse "migration target does not match the connected database or schema",
-            report.recovery_command,
+            report.diagnostic_message,
+            "migration target does not match the connected database or schema",
+            "Verify --database, --schema, --branch and --account match the target environment.",
         ),
-        .drift_detected => return diagnostic.fail(
+        .drift_detected => return failOwnedSummary(
+            diagnostic,
             error.MigrationDriftDetected,
-            report.diagnostic_message orelse "live schema diverges from the declared migration",
-            report.recovery_command,
+            report.diagnostic_message,
+            "live schema diverges from the declared migration",
+            "Inspect the reported drift with 'transit migrate inspect' or 'transit migrate verify'.",
         ),
-        .checksum_mismatch => return diagnostic.fail(
+        .checksum_mismatch => return failOwnedSummary(
+            diagnostic,
             error.MigrationChecksumMismatch,
-            report.diagnostic_message orelse "recorded migration checksum does not match the current source file",
-            report.recovery_command,
+            report.diagnostic_message,
+            "recorded migration checksum does not match the current source file",
+            "Restore the applied migration file to its original contents and create a new migration version for further changes.",
         ),
-        .claim_conflict => return diagnostic.fail(
+        .claim_conflict => return failOwnedSummary(
+            diagnostic,
             error.MigrationClaimConflict,
-            report.diagnostic_message orelse "another migration runner holds an active claim on this version",
-            report.recovery_command,
+            report.diagnostic_message,
+            "another migration runner holds an active claim on this version",
+            "Inspect active migration claims with 'transit migrate status' or reconcile an interrupted runner with 'transit migrate resume'.",
         ),
-        .outcome_unknown => return diagnostic.fail(
+        .outcome_unknown => return failOwnedSummary(
+            diagnostic,
             error.MigrationOutcomeUnknown,
-            report.diagnostic_message orelse "a migration step has an unresolved durable outcome",
-            report.recovery_command,
+            report.diagnostic_message,
+            "a migration step has an unresolved durable outcome",
+            "Run 'transit migrate resume' to reconcile durable step tokens before starting new migrations.",
         ),
         .step_failed => {
             if (action == .verify) {
-                return diagnostic.fail(
+                return failOwnedSummary(
+                    diagnostic,
                     error.MigrationVerificationFailed,
-                    report.diagnostic_message orelse "post-migration schema verification failed",
-                    report.recovery_command,
+                    report.diagnostic_message,
+                    "post-migration schema verification failed",
+                    "Inspect the failed verification step and live catalog state with 'transit migrate status'.",
                 );
             }
-            return diagnostic.fail(
+            return failOwnedSummary(
+                diagnostic,
                 error.MigrationStepFailed,
-                report.diagnostic_message orelse "a migration step failed during execution",
-                report.recovery_command,
+                report.diagnostic_message,
+                "a migration step failed during execution",
+                "Inspect the recorded step failure with 'transit migrate status', resolve the cause, and run 'transit migrate resume'.",
             );
         },
     }
 }
 
-fn renderTable(out: *std.Io.Writer, report: M.Report) !void {
+fn failOwnedSummary(
+    diagnostic: *Diagnostic,
+    err: anyerror,
+    message: ?[]const u8,
+    fallback: []const u8,
+    next: ?[]const u8,
+) anyerror {
+    const owned = if (message) |text|
+        (std.fmt.bufPrint(&diagnostic.summary_storage, "{s}", .{text}) catch fallback)
+    else
+        fallback;
+    return diagnostic.fail(err, owned, next);
+}
+
+pub fn renderTable(out: *std.Io.Writer, report: M.Report) !void {
     try out.print(
         "Migration {s}: {s} (database={s} schema={s} branch={d} account={s})\n",
         .{

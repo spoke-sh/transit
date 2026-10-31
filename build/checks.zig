@@ -1089,6 +1089,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     single_server_test.has_side_effects = true;
     single_server_test.stdio = .inherit;
     b.step("test-server-single-executable", "Prove default server, console and Board from one copied executable").dependOn(&single_server_test.step);
+    const migrate_lifecycle_test = b.addSystemCommand(&.{ "python3", "-B" });
+    migrate_lifecycle_test.addFileArg(b.path("tests/runner/launch.py"));
+    migrate_lifecycle_test.addFileArg(b.path("tests/interfaces/cli/migrate_lifecycle.py"));
+    migrate_lifecycle_test.addArtifactArg(transit_cli);
+    migrate_lifecycle_test.has_side_effects = true;
+    migrate_lifecycle_test.stdio = .inherit;
+    b.step("test-migrate-lifecycle", "Qualify reviewable, resumable application schema and data migrations").dependOn(&migrate_lifecycle_test.step);
     // Same production node, with only the SQL host import decorated by a
     // test-owned typed-boundary fault injector. No fault switch ships at runtime.
     const fault_host = b.createModule(.{

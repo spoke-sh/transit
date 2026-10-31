@@ -35,6 +35,7 @@ def check(binary):
         assert 'Ctrl-R' in shortcuts and 'Esc / Ctrl-G' in shortcuts and 'Ctrl-C' in shortcuts
         assert 'Restore the original draft' in shortcuts and 'Clear the unsubmitted draft' in shortcuts
         assert 'SET query.statement_timeout' in invoke('.help settings').stdout
+        assert 'transit migrate plan' in invoke('.help migrations').stdout
         assert 'SELECT COUNT' in invoke('.help sql').stdout
         assert 'Edit the latest SQL' in invoke('.help\tedit').stdout
         for topic in ['recovery', 'status', 'resume', 'cancel', '--unknown', '--all --all', 'edit extra']:

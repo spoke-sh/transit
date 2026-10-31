@@ -325,7 +325,19 @@ pub fn reconcileSchemas(existing: f.TableSchema.Schema, desired: f.TableSchema.S
     });
 }
 
+pub fn ledgerAccount(connection: c.DirectTableProtocol.Connection, namespace: u64) [32]u8 {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.migration.ledger-account.v1\x00");
+    var bytes: [8]u8 = undefined;
+    inline for (.{ connection.scope.realm, connection.scope.resource, connection.scope.catalog, connection.branch, namespace }) |value| {
+        std.mem.writeInt(u64, &bytes, value, .little);
+        hash.update(&bytes);
+    }
+    return hash.finalResult();
+}
+
 pub fn directoryKey(connection: c.DirectTableProtocol.Connection, account: [32]u8, namespace: u64) c.DirectClientToken.Key {
+    _ = account;
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.migration.directory.v1\x00");
     var bytes: [8]u8 = undefined;
@@ -337,12 +349,13 @@ pub fn directoryKey(connection: c.DirectTableProtocol.Connection, account: [32]u
     return .{
         .definition = p.Growth.current_definition,
         .connection = connection,
-        .account = account,
+        .account = ledgerAccount(connection, namespace),
         .token = digest[0..16].*,
     };
 }
 
 pub fn versionKey(connection: c.DirectTableProtocol.Connection, account: [32]u8, namespace: u64, version_id: []const u8) c.DirectClientToken.Key {
+    _ = account;
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.migration.version.v1\x00");
     var bytes: [8]u8 = undefined;
@@ -355,7 +368,7 @@ pub fn versionKey(connection: c.DirectTableProtocol.Connection, account: [32]u8,
     return .{
         .definition = p.Growth.current_definition,
         .connection = connection,
-        .account = account,
+        .account = ledgerAccount(connection, namespace),
         .token = digest[0..16].*,
     };
 }
@@ -427,7 +440,7 @@ pub fn ensureVersionListed(allocator: std.mem.Allocator, client: c.DirectTableCl
         const next_dir: Directory = .{ .namespace = namespace, .versions = next_versions };
         try next_dir.validate();
         const bytes = try p.Json.valueAlloc(allocator, next_dir);
-        const record_ref = try c.DirectRecord.stage(client, account, directory_format, bytes);
+        const record_ref = try c.DirectRecord.stage(client, key.account, directory_format, bytes);
         if (current.progress) |progress| {
             _ = c.DirectClientToken.update(client, .{
                 .key = key,
@@ -504,7 +517,7 @@ pub fn saveVersion(allocator: std.mem.Allocator, client: c.DirectTableClient, ac
     try entry.validate();
     const key = versionKey(client.connection, account, entry.namespace, entry.version_id);
     const bytes = try p.Json.valueAlloc(allocator, entry);
-    const record_ref = try c.DirectRecord.stage(client, account, version_format, bytes);
+    const record_ref = try c.DirectRecord.stage(client, key.account, version_format, bytes);
     if (expected) |revision| {
         return c.DirectClientToken.update(client, .{
             .key = key,
