@@ -710,7 +710,7 @@ def example(binary, admin):
         ws = f.socket()
         try:
             opcode, body = ws.receive()
-            assert opcode == 1 and len(json.loads(body)['rows']) == 1
+            assert opcode == 1 and len(body['rows']) == 1, (opcode, body)
         finally:
             ws.close()
         print('Documented migration/configure helper and embedded production HTTP/WS listener passed', flush=True)
