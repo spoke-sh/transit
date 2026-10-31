@@ -573,8 +573,10 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         }
         if (prepared.* == .native) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
+            const fresh = host.fresh_prepared == prepared;
+            host.fresh_prepared = null;
             slot.acceptance_possible = true;
-            return .{ .operation = try host.runtime.submit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation) };
+            return .{ .operation = try host.runtime.submitPrepared(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation, fresh, true) };
         }
         const result = try host.write(prepared, values);
         try host.validate(prepared);

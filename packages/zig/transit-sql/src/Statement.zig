@@ -202,18 +202,24 @@ pub const Write = union(enum) {
     }
 };
 pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, operation: u64) !Write {
+    var fresh = false;
+    return self.bindWritePrepared(allocator, client, values, operation, &fresh);
+}
+pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, operation: u64, fresh_prepared: *bool) !Write {
+    const fresh = fresh_prepared.*;
+    fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
     if (self.plan == .ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;
         const prepared = &self.plan.ddl;
-        const result = try prepared.bind(allocator, client.*, operation, if (prepared.compiled.statement == .create) operation else null);
+        const result = try prepared.bindPrepared(allocator, client.*, operation, if (prepared.compiled.statement == .create) operation else null, fresh);
         return switch (result) {
             .table => |value| .{ .table = value },
             .name_assertion => |value| .{ .name_assertion = value },
         };
     }
-    if (self.plan == .dml) return .{ .table = try self.plan.dml.bind(allocator, client.*, operation, values, if (client.transaction != null) .bulk else .point, null) };
-    try self.validate(client);
+    if (self.plan == .dml) return .{ .table = try self.plan.dml.bindPrepared(allocator, client.*, operation, values, if (client.transaction != null) .bulk else .point, null, fresh) };
+    if (!fresh) try self.validate(client) else if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     if (values.len != 0) return error.WireParameterCountMismatch;
     if (self.plan == .namespace_change) return .{ .namespace_change = .{ .namespace = self.namespace, .binding = try self.plan.namespace_change.bind(operation, operation) } };
     return error.ExpectedGatewayWrite;
