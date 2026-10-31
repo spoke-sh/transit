@@ -107,6 +107,17 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+The declarative browser cutover replaces the shared definition with
+`d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e`.
+Browser placement extends the retained configuration descriptor layout; typed
+browser catalog records and request resources are definition-bound. Earlier
+checkpoints, signed requests and histories reject rather than being silently
+extended or interpreted with new defaults. Preserve old storage and resolve
+accepted work with its matching build. This change provides no in-place import
+of an earlier definition. Replacements of the same current definition retain
+sessions, declarations and one-use claims when their storage and keys persist.
+
+
 Client-token receipts require an explicit nullable coordination partition.
 Transaction begin acceptance reserves that partition in the same Catalog record
 as its original token. Earlier receipts cannot acquire a default owner; they
