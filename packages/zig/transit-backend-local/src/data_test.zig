@@ -206,7 +206,10 @@ test "direct data creation sync failures never publish an object without durable
         var real: *const std.Io.VTable = undefined;
         var calls: usize = 0;
         var remaining: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             calls += 1;
             if (remaining != 0) {
                 remaining -= 1;
@@ -656,7 +659,10 @@ test "batched native and direct publications retain inventory across every sync 
         var real: *const std.Io.VTable = undefined;
         var calls: usize = 0;
         var remaining: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             calls += 1;
             if (remaining != 0) {
                 remaining -= 1;

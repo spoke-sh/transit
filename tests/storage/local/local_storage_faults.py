@@ -148,7 +148,10 @@ def run(binary):
                 assert object_call(directory, "init") == {"initialized": True}
                 kill(directory, f"objects-batch{suffix}", point)
                 for index, (key, value) in enumerate((("batch-a", "first"), ("batch-b", "second"))):
-                    visible = point in ({f"sync-{7 if large else 5}", f"sync-{8 if large else 6}", "publish", "publish-2", "ack"}
+                    # All descriptor files sync before any descriptor name is
+                    # replaced. Holding either concurrent barrier prevents both
+                    # publications; the final sync is the keys directory.
+                    visible = point in ({f"sync-{8 if large else 6}", "publish", "publish-2", "ack"}
                                         if index == 0 else {f"sync-{8 if large else 6}", "publish-2", "ack"})
                     result = object_call(directory, "inspect", key)
                     assert result["value"] == (value * scale if visible else None), (point, key, result)

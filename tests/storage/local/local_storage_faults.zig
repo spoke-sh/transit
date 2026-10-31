@@ -9,7 +9,7 @@ const f = @import("transit_fuze");
 const Fault = struct {
     var real: std.Io = undefined;
     var point: []const u8 = "none";
-    var sync_count: usize = 0;
+    var sync_count: std.atomic.Value(usize) = .init(0);
     var delete_count: usize = 0;
     var publish_count: usize = 0;
     var content_links: usize = 0;
@@ -29,8 +29,8 @@ const Fault = struct {
     }
     fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
         try real.vtable.fileSync(context, file);
-        sync_count += 1;
-        if (numbered("sync", sync_count) or numbered("stage-sync", sync_count)) stop();
+        const count = sync_count.fetchAdd(1, .monotonic) + 1;
+        if (numbered("sync", count) or numbered("stage-sync", count)) stop();
     }
     fn write(context: ?*anyopaque, file: std.Io.File, header: []const u8, data: []const []const u8, splat: usize, offset: u64) std.Io.File.WritePositionalError!usize {
         if (std.mem.eql(u8, point, "write")) {
@@ -68,7 +68,7 @@ const Fault = struct {
     }
     fn arm(selected: []const u8) void {
         point = selected;
-        sync_count = 0;
+        sync_count.store(0, .monotonic);
         delete_count = 0;
         publish_count = 0;
         content_links = 0;
@@ -227,7 +227,7 @@ const TableAccess = struct {
         if (self.calls == 2) {
             if (std.mem.eql(u8, Fault.point, "staging-boundaries")) {
                 var bytes: [64]u8 = undefined;
-                try std.Io.File.stdout().writeStreamingAll(Fault.real, try std.fmt.bufPrint(&bytes, "{{\"syncs\":{d}}}\n", .{Fault.sync_count}));
+                try std.Io.File.stdout().writeStreamingAll(Fault.real, try std.fmt.bufPrint(&bytes, "{{\"syncs\":{d}}}\n", .{Fault.sync_count.load(.monotonic)}));
                 std.process.exit(0);
             }
             // A staging cut must never drift into WAL acceptance when the
