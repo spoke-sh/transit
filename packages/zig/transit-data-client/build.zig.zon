@@ -6,5 +6,5 @@
     .dependencies = .{
         .transit_catalog = .{ .path = "../transit-catalog" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "docs", "README.md" },
 }

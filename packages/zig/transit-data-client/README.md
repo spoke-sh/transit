@@ -10,6 +10,12 @@ The package depends on `transit-catalog`; the low-level `transit-client` remains
 below Catalog. The build rejects transitive Station imports. Consumer Zig
 applications import this module through the [Zig SDK](../../../sdks/zig/README.md).
 
+`Context` composes multiple Catalog facets over caller-owned I/O, with bounded
+handle/data/control capacity and joined local closure. It exposes the same
+explicit Table, log, Stream and Queue calls. See the
+[context guide](docs/context.md) for handle lifetimes, reserved control capacity,
+close cancellation and remaining boundaries.
+
 ## Construction and ownership
 
 Supply an allocator, `std.Io`, explicit endpoint, native catalog connection and

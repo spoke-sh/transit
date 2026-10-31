@@ -9487,6 +9487,42 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-data-client/src/Admission.zig": {
+      "errors": {
+        "ClientCapacityExceeded": 1,
+        "ClientContextClosed": 1,
+        "ClientWorkOutstanding": 1,
+        "InvalidClientAdmission": 1,
+        "InvalidClientCapacity": 2
+      },
+      "outcomes": {
+        "Lane": [
+          "data",
+          "control"
+        ],
+        "State": [
+          "open",
+          "closing",
+          "joined"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "enter()": "<inferred>",
+        "init()": "<inferred>",
+        "join()": "<inferred>",
+        "leave()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
         "Busy": 4,
@@ -9541,6 +9577,44 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-data-client/src/Context.zig": {
+      "errors": {
+        "Busy": 1,
+        "ClientCapacityExceeded": 1,
+        "ClientContextClosed": 1,
+        "ClientHandleExhausted": 1,
+        "ClientWorkOutstanding": 2,
+        "InvalidClientCapacity": 1,
+        "StaleClientHandle": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "acquire()": "<inferred>",
+        "call()": "<inferred>",
+        "callLog()": "<inferred>",
+        "callQueue()": "<inferred>",
+        "callStream()": "<inferred>",
+        "close()": "<inferred>",
+        "closeCatalog()": "<inferred>",
+        "deinit()": "<inferred>",
+        "init()": "<inferred>",
+        "initFailure()": "<inferred>",
+        "openCatalog()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 3
+      },
+      "imports": [
+        "Admission.zig",
+        "Catalog.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-data-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9552,7 +9626,9 @@
         "catch": 0
       },
       "imports": [
+        "Admission.zig",
         "Catalog.zig",
+        "Context.zig",
         "transit_catalog"
       ]
     },
