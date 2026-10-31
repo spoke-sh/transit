@@ -15,6 +15,8 @@ FIXTURE_PATH = ROOT / "contracts/catalog/control-policy-plane-fixtures.json"
 ACCESS_ZIG = ROOT / "packages/zig/transit-catalog/src/AccessAndIdentity.zig"
 DELEGATION_ZIG = ROOT / "packages/zig/transit-catalog/src/DelegationAndSecrets.zig"
 ERASURE_ZIG = ROOT / "packages/zig/transit-catalog/src/ErasureAndWorkload.zig"
+INGRESS_ZIG = ROOT / "packages/zig/transit-catalog/src/DeclarativeIngress.zig"
+PROJECTION_ZIG = ROOT / "packages/zig/transit-catalog/src/PublishedProjection.zig"
 RLS_ZIG = ROOT / "packages/zig/transit-fuze/src/RlsAndMasking.zig"
 LEAN_REWRITE = ROOT / "contracts/sql/FuzeRewrite.lean"
 
@@ -148,6 +150,15 @@ def build_fixtures() -> dict:
             "revocation_terminates_result_disclosure": "error.AccessRevokedOnResultDisclosure",
             "original_caller_can_inspect_settled_operation_status": True,
         },
+        {
+            "id": "S13_declarative_browser_ingress_webhook_admission_and_watermark_watches",
+            "oidc_rs256_verification": "verifySignedJwtRs256",
+            "browser_cookie_mismatch_outcome": "error.OauthBrowserCookieMismatch",
+            "webhook_replay_outcome": "error.WebhookDeliveryReplayDetected",
+            "unbound_session_outcome": "error.UnboundExternalSubject",
+            "bootstrap_owner_binding_outcome": "error.BootstrapOwnerExternalBindingForbidden",
+            "watermark_watch_revocation_close_code": 1008,
+        },
     ]
 
     return {
@@ -165,6 +176,8 @@ def verify_sources() -> None:
     access_text = ACCESS_ZIG.read_text(encoding="utf-8")
     deleg_text = DELEGATION_ZIG.read_text(encoding="utf-8")
     erasure_text = ERASURE_ZIG.read_text(encoding="utf-8")
+    ingress_text = INGRESS_ZIG.read_text(encoding="utf-8")
+    projection_text = PROJECTION_ZIG.read_text(encoding="utf-8")
     rls_text = RLS_ZIG.read_text(encoding="utf-8")
     lean_text = LEAN_REWRITE.read_text(encoding="utf-8")
 
@@ -177,6 +190,7 @@ def verify_sources() -> None:
             "ScimProvisioningEngine",
             "MembershipFreshnessGuard",
             "AccessAuditLog",
+            "verifySignedJwtRs256",
             "error.ConflictingManagementSource",
             "error.LocalRestrictionOverridesExternalSync",
             "error.IdentityProviderUnavailable",
@@ -189,6 +203,8 @@ def verify_sources() -> None:
             "ApprovalAttestation",
             "SecretDeclaration",
             "OauthChallengeGame",
+            "WebhookEndpointDeclaration",
+            "WebhookAdmissionEngine",
             "computePkceS256Challenge",
             "error.CannotDelegateHumanOnlyAction",
             "error.DelegatedAgentCannotApprove",
@@ -197,6 +213,23 @@ def verify_sources() -> None:
             "error.SecretScopeMismatch",
             "error.OauthPkceVerificationFailed",
             "error.OauthChallengeReplayDetected",
+            "error.OauthBrowserCookieMismatch",
+            "error.WebhookDeliveryReplayDetected",
+        ]),
+        (ingress_text, "DeclarativeIngress.zig", [
+            "InboundBoundaryPolicy",
+            "IdentityProviderDeclaration",
+            "BrowserSessionLedger",
+            "claimLoginCallbackForExchange",
+            "completeLoginAfterTokenExchange",
+            "resolveBoundSessionAccessContext",
+            "error.BootstrapOwnerExternalBindingForbidden",
+        ]),
+        (projection_text, "PublishedProjection.zig", [
+            "evaluatePublishedSnapshotJson",
+            "WatermarkReactiveWatchSession",
+            "pollNextFrame",
+            "error.SessionRevokedBeforeDisclosure",
         ]),
         (erasure_text, "ErasureAndWorkload.zig", [
             "magic_ers1",

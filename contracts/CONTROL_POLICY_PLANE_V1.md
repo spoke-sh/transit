@@ -140,6 +140,12 @@ Serving request, and MCP tool invocation evaluates against a canonical
      commits non-secret `SecretLeaseMetadata`, schedules proactive refresh
      timing-wheel intents before `expires_at`, and wakes downstream computations
      from `Suspended (credential_pending)` to `Active`.
+  5. **Browser-Bound OAuth/OIDC Sign-In & Declarative Webhook Admission (`DeclarativeIngress`, `WebhookAdmissionEngine`):**
+     - `OidcIssuerProfile.verifySignedJwtRs256` performs cryptographic RS256 JWS verification against catalog-cached JWKS keysets (`kid`, `kty == "RSA"`, `alg == "RS256"`, `use == "sig"`), rejecting `crit`/`b64` header extensions, ambiguous `kid`s, revoked `JwksKeyState`s, and mismatched `iss`/`aud`/`azp`/`nonce`/`exp`/`iat`.
+     - `IdentityProviderDeclaration` generalizes provider verification across `.oidc_rs256_id_token` (OIDC RS256 ID token + nonce), `.oauth2_user_profile_json` (OAuth 2.1 + PKCE `S256` + JSON profile subject), and `.oauth2_appsecret_proof_debug` (`HMAC-SHA256` `appsecret_proof` + `/debug_token` app/user verification).
+     - `BrowserSessionLedger.claimLoginCallbackForExchange` atomically verifies the `__Host-` login cookie binding and consumes the one-use challenge in `OauthChallengeGame` **before** emitting a `TokenExchangeOutboxIntent` or resolving the `SecretDeclaration` (`SEC1`).
+     - Open sign-in (`bound == false`) yields a revocable browser session with **zero** catalog or SQL permissions; binding in `PrincipalBindingDirectory` (`bindExternalSubjectToCatalogPrincipal`, forbidding `bootstrap_owner_principal_id`) resolves a live `AccessContext` (`ACTX1`) at `current_policy_epoch`.
+     - `WebhookEndpointDeclaration` and `WebhookAdmissionEngine` verify inbound HMAC-SHA256 webhook deliveries (`{timestamp_epoch_s}.{raw_payload}`) against a catalog `SecretDeclaration` (`SecretKind.webhook_hmac`), enforce timestamp replay windows, deduplicate `delivery_id`s, and emit `WebhookAdmittedIntent`s for target `STREAM`/`QUEUE`/`TABLE`/`DOCUMENT` objects.
 
 ## 5. Security-barrier RLS, Geospatial RLS, and Dynamic Data Masking (`RLS_MASKING_V1` / `RLM1`)
 

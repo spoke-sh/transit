@@ -286,6 +286,123 @@ pub const OidcIssuerProfile = struct {
         }
         if (!key_found) return error.UnknownOrRevokedJwksKey;
     }
+
+    /// Cryptographically verifies a compact RS256 JWS (`header.payload.signature`)
+    /// against this catalog `OidcIssuerProfile` (`IDF1`) and a catalog-cached JWKS JSON
+    /// keyset, returning an owned duplicate of the verified `sub` claim (`Step 3`, `D3`, `P2`).
+    pub fn verifySignedJwtRs256(
+        self: OidcIssuerProfile,
+        allocator: std.mem.Allocator,
+        jwt: []const u8,
+        jwks_json: []const u8,
+        expected_nonce: ?[]const u8,
+        now_epoch_s: i64,
+        require_api_or_workload_token: bool,
+    ) ![]u8 {
+        if (self.magic != magic_idf1 or self.issuer_id == 0 or self.realm_id == 0) {
+            return error.InvalidIdentityProviderProfile;
+        }
+        if (jwt.len == 0 or jwt.len > 16384 or jwks_json.len == 0 or jwks_json.len > 65536) {
+            return error.InvalidOidcToken;
+        }
+        if (!std.mem.startsWith(u8, self.issuer_uri, "https://") and
+            !std.mem.startsWith(u8, self.issuer_uri, "http://127.0.0.1") and
+            !std.mem.startsWith(u8, self.issuer_uri, "http://localhost"))
+        {
+            return error.InvalidTokenIssuer;
+        }
+        if (self.expected_audiences.len == 0) return error.InvalidTokenAudience;
+
+        const first_dot = std.mem.indexOfScalar(u8, jwt, '.') orelse return error.InvalidOidcToken;
+        const rest = jwt[first_dot + 1 ..];
+        const second_dot_rel = std.mem.indexOfScalar(u8, rest, '.') orelse return error.InvalidOidcToken;
+        const second_dot = first_dot + 1 + second_dot_rel;
+        if (first_dot == 0 or second_dot_rel == 0 or second_dot + 1 >= jwt.len) return error.InvalidOidcToken;
+        if (std.mem.indexOfScalar(u8, jwt[second_dot + 1 ..], '.') != null) return error.InvalidOidcToken;
+
+        const signing_input = jwt[0..second_dot];
+        const header_bytes = try decodeBase64UrlNoPad(allocator, jwt[0..first_dot], 4096);
+        defer allocator.free(header_bytes);
+        const payload_bytes = try decodeBase64UrlNoPad(allocator, jwt[first_dot + 1 .. second_dot], 16384);
+        defer allocator.free(payload_bytes);
+        const signature_bytes = try decodeBase64UrlNoPad(allocator, jwt[second_dot + 1 ..], 1024);
+        defer allocator.free(signature_bytes);
+
+        const header_parsed = std.json.parseFromSlice(std.json.Value, allocator, header_bytes, .{}) catch return error.InvalidOidcToken;
+        defer header_parsed.deinit();
+        const payload_parsed = std.json.parseFromSlice(std.json.Value, allocator, payload_bytes, .{}) catch return error.InvalidOidcToken;
+        defer payload_parsed.deinit();
+
+        if (header_parsed.value != .object or payload_parsed.value != .object) return error.InvalidOidcToken;
+        const header_obj = header_parsed.value.object;
+        const payload_obj = payload_parsed.value.object;
+
+        if (header_obj.get("crit") != null or header_obj.get("b64") != null) return error.InvalidOidcToken;
+        const alg = try jsonRequiredString(header_obj, "alg");
+        if (!std.mem.eql(u8, alg, "RS256")) return error.UnsupportedOidcAlgorithm;
+        if (header_obj.get("typ")) |typ_val| {
+            if (typ_val != .string) return error.InvalidOidcToken;
+            if (!std.mem.eql(u8, typ_val.string, "JWT") and
+                !std.mem.eql(u8, typ_val.string, "at+jwt") and
+                !std.mem.eql(u8, typ_val.string, "application/at+jwt"))
+            {
+                return error.InvalidOidcToken;
+            }
+        }
+        const kid = try jsonRequiredString(header_obj, "kid");
+
+        const iss = try jsonRequiredString(payload_obj, "iss");
+        const sub = try jsonRequiredString(payload_obj, "sub");
+        if (sub.len > 255) return error.InvalidOidcSubject;
+
+        if (expected_nonce) |exp_nonce| {
+            if (exp_nonce.len == 0) return error.InvalidOidcNonce;
+            const tok_nonce = jsonRequiredString(payload_obj, "nonce") catch return error.InvalidOidcNonce;
+            if (tok_nonce.len != exp_nonce.len or !std.crypto.timing_safe.eql([32]u8, sha256Bytes(tok_nonce), sha256Bytes(exp_nonce))) {
+                return error.InvalidOidcNonce;
+            }
+        }
+
+        const matched_audience = try verifyJwtAudienceAndAzp(payload_obj, self.expected_audiences);
+        const exp_s = try jsonRequiredEpochSeconds(payload_obj, "exp");
+        const iat_s = try jsonRequiredEpochSeconds(payload_obj, "iat");
+        if (exp_s <= iat_s) return error.InvalidOidcTokenTime;
+        const skew_s: i64 = @divTrunc(self.max_clock_skew_ns, std.time.ns_per_s);
+        if (iat_s > now_epoch_s + skew_s) return error.TokenNotYetValid;
+        const nbf_s: i64 = if (payload_obj.get("nbf")) |nbf_val| blk: {
+            if (nbf_val != .integer or nbf_val.integer <= 0) return error.InvalidOidcTokenTime;
+            break :blk nbf_val.integer;
+        } else iat_s;
+
+        const now_ns: i64 = now_epoch_s * std.time.ns_per_s;
+        const claims: OidcTokenClaims = .{
+            .issuer_uri = iss,
+            .external_subject = sub,
+            .audience = matched_audience,
+            .kid = kid,
+            .token_kind = if (expected_nonce != null) .login_id_token else .api_access_token,
+            .issued_at_ns = iat_s * std.time.ns_per_s,
+            .not_before_ns = nbf_s * std.time.ns_per_s,
+            .expires_at_ns = exp_s * std.time.ns_per_s,
+        };
+        if (self.jwks_keys.len > 0) {
+            try self.validateToken(claims, now_ns, require_api_or_workload_token);
+        } else {
+            var temp_profile = self;
+            const synthetic_key = [_]JwksKeyRecord{.{
+                .issuer_id = self.issuer_id,
+                .kid = kid,
+                .key_epoch = 1,
+                .state = .active,
+                .expires_at_ns = std.math.maxInt(i64),
+            }};
+            temp_profile.jwks_keys = &synthetic_key;
+            try temp_profile.validateToken(claims, now_ns, require_api_or_workload_token);
+        }
+
+        try verifyRs256SignatureAgainstJwks(allocator, signing_input, signature_bytes, jwks_json, kid);
+        return allocator.dupe(u8, sub);
+    }
 };
 
 pub const OidcTokenClaims = struct {
@@ -365,8 +482,17 @@ pub const PrincipalBindingDirectory = struct {
         external_subject: []const u8,
     ) !u64 {
         const digest = subjectDigest(issuer_id, external_subject);
+        return self.resolvePrincipalByDigest(realm_id, issuer_id, digest);
+    }
+
+    pub fn resolvePrincipalByDigest(
+        self: *const PrincipalBindingDirectory,
+        realm_id: u64,
+        issuer_id: u64,
+        external_subject_digest: [32]u8,
+    ) !u64 {
         for (self.entries[0..self.len]) |entry| {
-            if (entry.realm_id == realm_id and entry.issuer_id == issuer_id and std.mem.eql(u8, &entry.external_subject_digest, &digest)) {
+            if (entry.realm_id == realm_id and entry.issuer_id == issuer_id and std.mem.eql(u8, &entry.external_subject_digest, &external_subject_digest)) {
                 if (entry.retired or entry.local_restriction_hold) return error.PrincipalLocallyRestricted;
                 return entry.principal_id;
             }
@@ -605,4 +731,137 @@ fn hashU64(hasher: *std.crypto.hash.sha2.Sha256, val: u64) void {
     var buf: [8]u8 = undefined;
     std.mem.writeInt(u64, &buf, val, .little);
     hasher.update(&buf);
+}
+
+fn sha256Bytes(bytes: []const u8) [32]u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return digest;
+}
+
+fn decodeBase64UrlNoPad(allocator: std.mem.Allocator, encoded: []const u8, max_bytes: usize) ![]u8 {
+    if (encoded.len == 0) return error.InvalidOidcToken;
+    const decoded_len = std.base64.url_safe_no_pad.Decoder.calcSizeForSlice(encoded) catch return error.InvalidOidcToken;
+    if (decoded_len == 0 or decoded_len > max_bytes) return error.InvalidOidcToken;
+    const out = try allocator.alloc(u8, decoded_len);
+    errdefer allocator.free(out);
+    std.base64.url_safe_no_pad.Decoder.decode(out, encoded) catch return error.InvalidOidcToken;
+    return out;
+}
+
+fn jsonRequiredString(obj: std.json.ObjectMap, key: []const u8) ![]const u8 {
+    const val = obj.get(key) orelse return error.MissingOidcClaim;
+    if (val != .string or val.string.len == 0) return error.InvalidOidcClaim;
+    return val.string;
+}
+
+fn jsonRequiredEpochSeconds(obj: std.json.ObjectMap, key: []const u8) !i64 {
+    const val = obj.get(key) orelse return error.MissingOidcClaim;
+    if (val != .integer or val.integer <= 0) return error.InvalidOidcTokenTime;
+    return val.integer;
+}
+
+fn verifyJwtAudienceAndAzp(
+    payload_obj: std.json.ObjectMap,
+    expected_audiences: []const []const u8,
+) ![]const u8 {
+    const aud_val = payload_obj.get("aud") orelse return error.InvalidTokenAudience;
+    const azp_val = payload_obj.get("azp");
+    switch (aud_val) {
+        .string => |aud_str| {
+            var matched: ?[]const u8 = null;
+            for (expected_audiences) |exp_aud| {
+                if (std.mem.eql(u8, aud_str, exp_aud)) {
+                    matched = exp_aud;
+                    break;
+                }
+            }
+            const m = matched orelse return error.InvalidTokenAudience;
+            if (azp_val) |azp| {
+                if (azp != .string or !std.mem.eql(u8, azp.string, m)) {
+                    return error.InvalidTokenAudience;
+                }
+            }
+            return m;
+        },
+        .array => |arr| {
+            if (arr.items.len == 0) return error.InvalidTokenAudience;
+            var matched: ?[]const u8 = null;
+            for (arr.items) |item| {
+                if (item != .string or item.string.len == 0) return error.InvalidTokenAudience;
+                for (expected_audiences) |exp_aud| {
+                    if (std.mem.eql(u8, item.string, exp_aud)) {
+                        matched = exp_aud;
+                    }
+                }
+            }
+            const m = matched orelse return error.InvalidTokenAudience;
+            if (arr.items.len > 1 or azp_val != null) {
+                const azp = azp_val orelse return error.InvalidTokenAudience;
+                if (azp != .string or !std.mem.eql(u8, azp.string, m)) {
+                    return error.InvalidTokenAudience;
+                }
+            }
+            return m;
+        },
+        else => return error.InvalidTokenAudience,
+    }
+}
+
+fn verifyRs256SignatureAgainstJwks(
+    allocator: std.mem.Allocator,
+    signing_input: []const u8,
+    signature_bytes: []const u8,
+    jwks_json: []const u8,
+    kid: []const u8,
+) !void {
+    const jwks_parsed = std.json.parseFromSlice(std.json.Value, allocator, jwks_json, .{}) catch return error.InvalidJwksDocument;
+    defer jwks_parsed.deinit();
+    if (jwks_parsed.value != .object) return error.InvalidJwksDocument;
+    const keys_val = jwks_parsed.value.object.get("keys") orelse return error.InvalidJwksDocument;
+    if (keys_val != .array) return error.InvalidJwksDocument;
+
+    var matched_key_obj: ?std.json.ObjectMap = null;
+    for (keys_val.array.items) |item| {
+        if (item != .object) return error.InvalidJwksDocument;
+        const k_obj = item.object;
+        const k_kid = jsonRequiredString(k_obj, "kid") catch continue;
+        if (!std.mem.eql(u8, k_kid, kid)) continue;
+        if (matched_key_obj != null) return error.AmbiguousOidcKey;
+        matched_key_obj = k_obj;
+    }
+    const key_obj = matched_key_obj orelse return error.UnknownOrRevokedJwksKey;
+
+    const kty = try jsonRequiredString(key_obj, "kty");
+    if (!std.mem.eql(u8, kty, "RSA")) return error.InvalidOidcKey;
+    if (key_obj.get("use")) |use_val| {
+        if (use_val != .string or !std.mem.eql(u8, use_val.string, "sig")) return error.InvalidOidcKey;
+    }
+    if (key_obj.get("alg")) |alg_val| {
+        if (alg_val != .string or !std.mem.eql(u8, alg_val.string, "RS256")) return error.InvalidOidcKey;
+    }
+
+    const modulus = try decodeBase64UrlNoPad(allocator, try jsonRequiredString(key_obj, "n"), 512);
+    defer allocator.free(modulus);
+    const exponent = try decodeBase64UrlNoPad(allocator, try jsonRequiredString(key_obj, "e"), 8);
+    defer allocator.free(exponent);
+
+    if (modulus.len < 256 or modulus[0] == 0 or signature_bytes.len != modulus.len) return error.InvalidOidcKey;
+    if (exponent.len == 0 or exponent[0] == 0 or (exponent[exponent.len - 1] & 1) == 0) return error.InvalidOidcKey;
+    if (exponent.len == 1 and exponent[0] < 3) return error.InvalidOidcKey;
+
+    const pub_key = std.crypto.Certificate.rsa.PublicKey.fromBytes(exponent, modulus) catch return error.InvalidOidcKey;
+    switch (modulus.len) {
+        inline 256, 384, 512 => |mod_len| {
+            const sig: *const [mod_len]u8 = @ptrCast(signature_bytes.ptr);
+            std.crypto.Certificate.rsa.PKCS1v1_5Signature.verify(
+                mod_len,
+                sig,
+                signing_input,
+                pub_key,
+                std.crypto.hash.sha2.Sha256,
+            ) catch return error.InvalidOidcSignature;
+        },
+        else => return error.UnsupportedRsaModulusLength,
+    }
 }
