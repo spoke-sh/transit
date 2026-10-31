@@ -1,12 +1,12 @@
 # What is Transit?
 
-**Transit is a declarative, versioned multi-model database, vectorized/incremental query engine (`Fuze`), and durable execution runtime (`Station`) written in Zig.**
+**Transit is a declarative, versioned multi-model database, vectorized/incremental query engine, and durable execution runtime written in Zig.**
 
-Transit separates responsibility into three architectural planes. Applications describe data, computations and policies; the planes explain how those descriptions become stored state, results and recorded work.
+Transit separates responsibility into three architectural planes.
 
 - **Control & Policy Plane:** Catalog identities and definitions, current authorization, retention and resource budgets govern data access and execution.
-- **Direct Data Plane:** Direct Table storage preserves accepted rows and snapshots. `Fuze` executes queries over authorized sources, including supported Table, KV and Document adapters. Direct Table reads and writes do not require a `Station` actor turn.
-- **Process & Effect Plane:** `Station` coordinates stateful durable processes. Connectors record authorized external attempts and outcomes, preserving the distinction between replaying history and dispatching an effect.
+- **Direct Data Plane:** Direct Table storage preserves accepted rows and snapshots. Fuze executes queries over authorized sources, including supported Table, KV and Document adapters.
+- **Process & Effect Plane:** Station coordinates stateful durable processes. Connectors record authorized external attempts and outcomes, preserving the distinction between replaying history and dispatching an effect.
 
 [![Transit three-plane architecture: control and policy govern direct data and durable processes separately; public interfaces reach each plane through its owning operations.](../static/img/architecture/three-plane-architecture.svg)](../static/img/architecture/three-plane-architecture.svg)
 
