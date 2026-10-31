@@ -7,6 +7,41 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Partitioned participant contract cutover — 2026-10-31
+
+Implementation `8e27a1f7b96be79201742fd7fa24c8a975bccb14` replaces object-only
+transaction directory keys with typed object/partition targets, kind-specific
+guards and one preparation per log owner. Its shared definition is
+`7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e`.
+The [neutral contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
+owns the shapes and remaining publication obligations. Installed execution
+continues to refuse non-Table participants before admission.
+
+Precommit working-tree checks for this implementation passed the protocol
+package, focused storage and catalog transaction suites in ReleaseSafe, native
+refusal classification, all 19 contract checks and all 58 fast checks. The
+protocol package used Debug. A separate independent signed-selection fixture
+checks partition zero and maximum-u32, exact signature binding, duplicate
+targets, missing ordinals, foreign scopes and conflicting kinds. A disk directory
+case reopens 73 partitions of one object with no resident page cache; the grouped
+action case checks one exact preparation for a two-action owner. These establish
+neutral membership, not action-directory durability or mixed execution.
+
+The first catalog run encountered a signature failure while fixtures were being
+regenerated; the regenerated fixture passed its focused check and the subsequent
+catalog transaction suite. The first fast run detected stale direct query
+descriptor checksums; regeneration through its independent owner preceded the
+58-check pass. Neither initial run is counted as passed.
+
+The existing finite decision, workspace, storage-lifecycle and resident-owner
+models passed with their migrated Zig replay fixtures: respectively 3,227, 304,
+1,200 and 149 distinct states, with six, eight, six and five intended negative
+controls detected and replayed. These runs retain their original bounds and
+assumptions, record the precommit working tree, and do not qualify Stream/Queue
+transaction adapters. Committed-source clean lanes and installed callers under
+this replacement definition remain outstanding at this entry. No latency or
+throughput baseline was measured by these checks.
+
 ## Finite safety models — 2026-10-28
 
 At base `ae19b4e7931bd0d3c9793e10363f7ed3ef771592` with implementation changes
