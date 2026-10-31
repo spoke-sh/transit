@@ -9,8 +9,13 @@ binding: c.DirectTableBinding,
 metadata: ?c.DirectTableProtocol.Definition = null,
 template: f.LogicalPrepared,
 output: f.Types.Decoded,
+collations: f.QueryCollations = .{},
 
 pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding) !Self {
+    return prepareAccess(allocator, client, namespace, text, dialect, detail, .read);
+}
+pub fn prepareAccess(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access) !Self {
+    if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     var location: f.Sql.Location = .{};
@@ -19,7 +24,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     defer response.deinit();
     const metadata = response.value.result.lookup orelse return error.TableNotFound;
     const binding = try c.DirectTableBinding.init(client.connection, metadata);
-    _ = try binding.require(client, .read);
+    _ = try binding.require(client, access);
     var schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
     defer schema.deinit();
     try q.DirectTableQuery.qualify(schema.schema);
@@ -33,10 +38,12 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var prototype = try template.bind(allocator, name, row_type, basis, witnesses[0..template.count], detail);
     defer prototype.deinit();
     var output_fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-    const output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
+    var output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
+    errdefer output.deinit();
+    _ = try binding.require(client, access);
     var stored_metadata = metadata;
     stored_metadata.schema = .{ .base64 = "" };
-    return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output };
+    return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(schema.schema) };
 }
 pub fn parameterTypes(self: *const Self) []const f.Types.Type {
     return self.template.parameterTypes();

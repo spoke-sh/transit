@@ -29,7 +29,7 @@ test "operator traits propagate read/capture/mutate effects, 5-state rules, coll
     try testing.expect(!traits.effects.mutate);
     try testing.expect(traits.deterministic);
     try testing.expect(!traits.fallible);
-    try testing.expectEqual(OperatorTraits.FiveStateRule.total_state_predicate, traits.five_state_rule);
+    try testing.expectEqual(OperatorTraits.FiveStateRule.filters_to_true_only, traits.five_state_rule);
     try testing.expectEqual(OperatorTraits.CollationRule.column_bound, traits.collation_rule);
     try testing.expectEqual(@as(u8, 1), traits.active_collations);
     try testing.expectEqual(OperatorTraits.ChangeMode.snapshot_finite, traits.change_mode);
@@ -106,7 +106,7 @@ test "relational operator traits distinguish interactive, captured and maintaine
     try testing.expectEqual(OperatorTraits.FiveStateRule.checked_aggregate, rel_traits.five_state_rule);
     try testing.expectEqual(OperatorTraits.CollationRule.column_bound, rel_traits.collation_rule);
     try testing.expectEqual(@as(u8, 1), rel_traits.active_collations);
-    try testing.expectEqual(OperatorTraits.ChangeMode.retractable_zset, rel_traits.change_mode);
+    try testing.expectEqual(OperatorTraits.ChangeMode.recomputed_delta, rel_traits.change_mode);
     try testing.expect(rel_traits.work_bound.mutates_durable_state);
 
     const rel_explain = OperatorTraits.Summary.forExplain(rel_traits);
@@ -130,6 +130,53 @@ test "standards ledger binds collation, physical codec and feature lifecycle sta
     try testing.expect(comp3.zone_map_pruning_sound);
 
     const fk_feat = StandardsLedger.findFeature("F492").?;
-    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.parse);
-    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.lower);
+    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.parse);
+    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.lower);
+}
+
+test "operator traits preserve comparison failures" {
+    const fields = [_]f.Types.Field{.{ .name = "id", .type = .int64 }};
+    const plan: f.LogicalQuery.Plan = .{ .schema = .{ .structure = &fields }, .source_basis = @splat(1), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = 1 } } } };
+    try testing.expect((try OperatorTraits.forLogicalPlan(plan)).fallible);
+}
+
+test "operator traits count 256 collated columns without overflow" {
+    var names: [128][4]u8 = undefined;
+    var columns: [128]f.TableSchema.Column = undefined;
+    for (&columns, 0..) |*column, i| column.* = .{
+        .id = i + 1,
+        .name = try std.fmt.bufPrint(&names[i], "c{d}", .{i}),
+        .type = .utf8,
+        .collation = .ascii_ci,
+    };
+    const schema: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 129, .columns = &columns };
+    const sources = [_]f.Relational.Source{
+        .{ .alias = "a", .realm = 1, .resource = 1, .catalog = 1, .owner = 1, .schema = schema },
+        .{ .alias = "b", .realm = 1, .resource = 2, .catalog = 1, .owner = 2, .schema = schema },
+    };
+    const plan: f.Relational.Plan = .{
+        .sources = &sources,
+        .join = .{ .kind = .inner, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } },
+        .outputs = &.{.{ .name = "code", .expression = .{ .column = .{ .source = 0, .id = 1 } } }},
+        .lifetime = .interactive,
+        .budgets = .{ .resident_bytes = 65536, .spill_bytes = 0, .result_bytes = 32768, .output_rows = 100, .work_steps = 1000, .source_pins = 2 },
+    };
+    try testing.expectEqual(@as(u16, 256), (try OperatorTraits.forRelationalPlan(plan)).active_collations);
+}
+
+test "standards ledger unsupported declarations match the production compiler" {
+    const cases = .{
+        .{ "F491", "CREATE TABLE t (id BIGINT CHECK (id > 0))", error.UnsupportedTableConstraint },
+        .{ "F492", "CREATE TABLE t (id BIGINT REFERENCES parent(id))", error.UnsupportedTableConstraint },
+        .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BIGINT>)", error.UnknownSqlType },
+        .{ "X002-VECTOR", "CREATE TABLE t (embedding VECTOR(3, FLOAT64))", error.InvalidTypeParameters },
+    };
+    inline for (cases) |case| {
+        try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findFeature(case[0]).?.states.parse);
+        try testing.expectError(case[2], f.TableDdl.compile(testing.allocator, case[1], null, null));
+    }
+    inline for (.{ "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD", "ICU_ROOT" }) |collation| {
+        try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findCollation(collation).?.states.parse);
+        try testing.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null));
+    }
 }

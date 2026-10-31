@@ -40,7 +40,7 @@ pub const EffectSet = packed struct(u8) {
 pub const FiveStateRule = enum(u8) {
     /// Output preserves all 5 cell states verbatim (e.g. projection).
     preserves_all_states = 1,
-    /// Boolean filter admits only `value(true)`; `null`, `missing`, `type_error`, `conflict` are filtered out.
+    /// Boolean filter admits only `value(true)`; `null`/`missing` are not true; evaluated `type_error`/`conflict` fail.
     filters_to_true_only = 2,
     /// Aggregate ignores `null`/`missing` on nullable inputs and propagates checked overflow/type_error.
     checked_aggregate = 3,
@@ -70,9 +70,12 @@ pub const ChangeMode = enum(u8) {
     retractable_zset = 3,
     /// Atomic single-statement or transactional data mutation.
     atomic_mutation = 4,
+    /// Finite recomputation per recorded basis, publishing an ordered paired delta.
+    recomputed_delta = 5,
 };
 
-/// Explicit work and resource bound classification.
+/// Execution data-work bounds, excluding metadata loading, compilation and
+/// result framing. Zero data work does not mean zero CPU or allocation.
 pub const WorkBound = struct {
     max_source_pins: u8,
     max_output_rows: ?u64,
@@ -103,7 +106,7 @@ pub const Summary = struct {
     fallible: bool,
     five_state_rule: FiveStateRule,
     collation_rule: CollationRule,
-    active_collations: u8,
+    active_collations: u16,
     change_mode: ChangeMode,
     work_bound: WorkBound,
 
@@ -140,15 +143,18 @@ pub const ExplainSummary = struct {
 /// Derive operator traits and effect bounds for a source-bound `LogicalQuery.Plan`.
 pub fn forLogicalPlan(plan: LogicalQuery.Plan) !Summary {
     try plan.validate();
-    var active_collations: u8 = 0;
+    var active_collations: u16 = 0;
     for (plan.collations.columns[0..plan.schema.structure.len]) |entry| {
         if (entry != .none) active_collations += 1;
     }
-    const fallible = plan.aggregate == .sum;
+    const fallible = plan.aggregate != .rows or switch (plan.predicate) {
+        .all, .state => false,
+        else => true,
+    };
     const five_state_rule: FiveStateRule = switch (plan.aggregate) {
         .rows => switch (plan.predicate) {
             .all => .preserves_all_states,
-            .state => .total_state_predicate,
+            .state => .filters_to_true_only,
             .compare, .null_compare, .program => .filters_to_true_only,
         },
         .count, .count_values, .sum => .checked_aggregate,
@@ -180,20 +186,18 @@ pub fn forLogicalPlan(plan: LogicalQuery.Plan) !Summary {
 /// Derive operator traits and effect bounds for a relational `Relational.Plan`.
 pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
     try plan.validate();
-    var active_collations: u8 = 0;
+    var active_collations: u16 = 0;
     for (plan.sources) |source| {
         for (source.schema.columns) |col| {
             if (col.collation != .none) active_collations += 1;
         }
     }
-    var has_sum = false;
     var has_aggregate = plan.group_by.len > 0;
     for (plan.outputs) |out| switch (out.expression) {
         .column => {},
         .count_all, .count => has_aggregate = true,
         .sum => {
             has_aggregate = true;
-            has_sum = true;
         },
     };
     var has_filter = plan.filter.instructions.len > 0;
@@ -206,12 +210,12 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
     };
     const change_mode: ChangeMode = switch (plan.lifetime) {
         .interactive, .captured => .snapshot_finite,
-        .maintained => .retractable_zset,
+        .maintained => .recomputed_delta,
     };
     return .{
         .effects = effects,
         .deterministic = true,
-        .fallible = has_sum,
+        .fallible = has_aggregate or has_filter or plan.join != null,
         .five_state_rule = if (has_aggregate)
             .checked_aggregate
         else if (has_filter)

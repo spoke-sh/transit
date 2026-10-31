@@ -1,9 +1,7 @@
-//! Manifest-backed historical catalog cuts (`manifest/v{N}`), conditional branch
-//! head publication, historical `AS OF` name/definition resolution (`D1`),
-//! explicit `PROJECTING TO` schema projection (`D2`), current `policy_epoch`
-//! authorization with mid-stream batch revocation, retention expiry enforcement,
-//! and versioned multi-model catalog descriptors (`ViewDescriptor`,
-//! `PropertyGraphDescriptor`, and `ForeignTableDescriptor`).
+//! Pure helpers over borrowed, immutable historical catalog fixtures.
+//! Models cut selection, name/definition resolution, explicit projection and
+//! caller-supplied current grants. No SQL parsing, durable storage, policy
+//! lookup, WAL publication, synchronization or retention pin is provided.
 const std = @import("std");
 const c = @import("root.zig");
 const fuze = c.fuze;
@@ -46,12 +44,14 @@ pub fn filterInitialsForSegment(
     logical: s.Schema,
     origins: []const TableSchemaProjection.Initial,
     out_buf: *[s.max_columns]TableSchemaProjection.Initial,
-) []const TableSchemaProjection.Initial {
+) ![]const TableSchemaProjection.Initial {
     var count: usize = 0;
     for (origins) |init| {
         const in_logical = if (logical.index(init.column)) |_| true else |_| false;
         const in_physical = if (physical.index(init.column)) |_| true else |_| false;
         if (in_logical and !in_physical) {
+            if (count == out_buf.len) return error.IncompatibleSchemaProjection;
+            for (out_buf[0..count]) |prior| if (prior.column == init.column) return error.DuplicateSchemaInitialValue;
             out_buf[count] = init;
             count += 1;
         }
@@ -86,7 +86,7 @@ pub const HistoricalTableBinding = struct {
             if (seg.physical_schema.object != self.object) return error.HistoricalSegmentObjectMismatch;
             try seg.physical_schema.validate();
             var init_buf: [s.max_columns]TableSchemaProjection.Initial = undefined;
-            const seg_initials = filterInitialsForSegment(seg.physical_schema, self.schema, self.column_origins, &init_buf);
+            const seg_initials = try filterInitialsForSegment(seg.physical_schema, self.schema, self.column_origins, &init_buf);
             _ = try TableSchemaProjection.init(seg.physical_schema, self.schema, seg_initials);
             for (seg.rows) |row| {
                 if (row.cells.len != seg.physical_schema.columns.len) return error.InvalidHistoricalSegmentRowArity;
@@ -107,19 +107,36 @@ pub const HistoricalTableBinding = struct {
         target_schema: s.Schema,
         target_origins: []const TableSchemaProjection.Initial,
     ) !TableConstraints.SegmentProjectionSummary {
-        var descriptors: [64]TableConstraints.SegmentDescriptor = undefined;
-        var init_bufs: [64][s.max_columns]TableSchemaProjection.Initial = undefined;
-        if (self.segments.len > descriptors.len) return error.TooManyHistoricalSegments;
-        for (self.segments, 0..) |seg, i| {
-            const seg_initials = filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &init_bufs[i]);
-            descriptors[i] = .{
+        var summary: TableConstraints.SegmentProjectionSummary = .{
+            .target_object = target_schema.object,
+            .target_revision = target_schema.revision,
+            .total_segments = 0,
+            .native_target_segments = 0,
+            .lazily_projected_segments = 0,
+            .synthesized_default_columns = 0,
+            .omitted_dropped_columns = 0,
+            .total_rows = 0,
+            .lazily_projected_rows = 0,
+        };
+        // One segment's bounded projection scratch, independent of retained cardinality.
+        var initials: [s.max_columns]TableSchemaProjection.Initial = undefined;
+        for (self.segments) |seg| {
+            const descriptor: TableConstraints.SegmentDescriptor = .{
                 .segment_id = seg.segment_id,
                 .physical_schema = seg.physical_schema,
-                .initials = seg_initials,
+                .initials = try filterInitialsForSegment(seg.physical_schema, target_schema, target_origins, &initials),
                 .row_count = seg.rows.len,
             };
+            const part = try TableConstraints.inspectSegmentProjectionCoverage(&.{descriptor}, target_schema);
+            summary.total_segments = try std.math.add(u32, summary.total_segments, 1);
+            summary.native_target_segments = try std.math.add(u32, summary.native_target_segments, part.native_target_segments);
+            summary.lazily_projected_segments = try std.math.add(u32, summary.lazily_projected_segments, part.lazily_projected_segments);
+            summary.total_rows = try std.math.add(u64, summary.total_rows, part.total_rows);
+            summary.lazily_projected_rows = try std.math.add(u64, summary.lazily_projected_rows, part.lazily_projected_rows);
+            summary.synthesized_default_columns = @max(summary.synthesized_default_columns, part.synthesized_default_columns);
+            summary.omitted_dropped_columns = @max(summary.omitted_dropped_columns, part.omitted_dropped_columns);
         }
-        return TableConstraints.inspectSegmentProjectionCoverage(descriptors[0..self.segments.len], target_schema);
+        return summary;
     }
 };
 
@@ -392,7 +409,7 @@ pub const ManifestCut = struct {
         if (self.manifest_version == 0 or self.commit_lsn == 0 or self.branch_id == 0 or self.branch_name.len == 0) {
             return error.InvalidManifestCut;
         }
-        if (self.tzdb.version_id.len == 0 or self.tzdb.version_id.len > 64) return error.InvalidTzdbVersion;
+        try self.tzdb.validate();
         for (self.tables, 0..) |tbl, i| {
             try tbl.validate();
             for (self.tables[0..i]) |prev| {
@@ -416,29 +433,16 @@ pub const ManifestCut = struct {
 
     pub fn digest(self: ManifestCut) ![32]u8 {
         try self.validate();
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.catalog.manifest.v1\x00");
-        hash.update(&self.previous_manifest_digest);
-        var buf: [24]u8 = undefined;
-        std.mem.writeInt(u64, buf[0..8], self.manifest_version, .little);
-        std.mem.writeInt(u64, buf[8..16], self.commit_lsn, .little);
-        std.mem.writeInt(u64, buf[16..24], self.branch_id, .little);
-        hash.update(&buf);
-        hash.update(self.branch_name);
-        hash.update(&[1]u8{0});
-        hash.update(self.tzdb.version_id);
-        hash.update(&self.tzdb.digest);
-        for (self.tables) |tbl| {
-            var tbl_buf: [24]u8 = undefined;
-            std.mem.writeInt(u64, tbl_buf[0..8], tbl.namespace, .little);
-            std.mem.writeInt(u64, tbl_buf[8..16], tbl.object, .little);
-            std.mem.writeInt(u64, tbl_buf[16..24], tbl.revision, .little);
-            hash.update(&tbl_buf);
-            hash.update(tbl.name);
-            const fp = try tbl.schema.fingerprint();
-            hash.update(&fp);
-        }
-        return hash.finalResult();
+        var scratch: [1024]u8 = undefined;
+        var hash: std.Io.Writer.Hashing(std.crypto.hash.sha2.Sha256) = .init(&scratch);
+        hash.hasher.update("transit.catalog.manifest.v1.2026-10-30.complete\x00");
+        // Include every interpreted field, including segment data and metadata
+        // outside TableSchema. JSON provides length/tag boundaries; pointers
+        // and slice addresses never participate in this commitment.
+        var encoder: std.json.Stringify = .{ .writer = &hash.writer };
+        try c.protocol.Json.write(self, &encoder);
+        try hash.writer.flush();
+        return hash.hasher.finalResult();
     }
 };
 
@@ -492,12 +496,20 @@ pub const HistoricalTimeline = struct {
         };
     }
 
-    /// Conditional CAS publication of `refs/heads/<branch>` (`publishHeadConditional`).
+    /// Pure conditional successor over caller-owned immutable cuts. The caller
+    /// supplies the complete retained successor history and keeps it alive.
+    /// This helper performs no durable publication or synchronization.
     pub fn publishHeadConditional(
         self: *HistoricalTimeline,
         expected_manifest_version: u64,
-        next_cut: ManifestCut,
+        next_cuts: []const ManifestCut,
     ) !BranchHead {
+        if (self.head.manifest_version != expected_manifest_version) return error.ConditionalBranchHeadConflict;
+        if (next_cuts.len != try std.math.add(usize, self.cuts.len, 1)) return error.InvalidNextManifestVersion;
+        for (self.cuts, next_cuts[0..self.cuts.len]) |before, after| {
+            if (!std.mem.eql(u8, &(try before.digest()), &(try after.digest()))) return error.BrokenManifestDigestChain;
+        }
+        const next_cut = next_cuts[next_cuts.len - 1];
         if (!std.mem.eql(u8, next_cut.branch_name, self.head.branch_name) or next_cut.branch_id != self.head.branch_id) {
             return error.MultiCommitBranchingDeferredToM19;
         }
@@ -511,6 +523,7 @@ pub const HistoricalTimeline = struct {
             return error.BrokenManifestDigestChain;
         }
         const next_digest = try next_cut.digest();
+        self.cuts = next_cuts;
         self.head = .{
             .branch_id = next_cut.branch_id,
             .branch_name = next_cut.branch_name,
@@ -622,6 +635,7 @@ pub const AdmittedHistoricalQuery = struct {
     access: AccessKind,
     filter: ?EqualityFilter = null,
     next_segment_index: usize = 0,
+    next_row_index: usize = 0,
     exhausted: bool = false,
 };
 
@@ -692,7 +706,8 @@ pub const HistoricalBatchResult = struct {
     verified_policy_epoch: u64,
 };
 
-/// Fetch the next bounded segment batch from an `AdmittedHistoricalQuery`.
+/// Fetch a bounded batch, retaining a row cursor within each borrowed segment.
+/// Errors leave the cursor unchanged; output is disclosed only on success.
 /// Rechecks `live_grants` (`policy_epoch`) before disclosing each batch so
 /// mid-stream revocation after Batch 1 deterministically rejects Batch 2.
 pub fn fetchNextHistoricalBatch(
@@ -709,11 +724,15 @@ pub fn fetchNextHistoricalBatch(
 
     if (query.exhausted) return null;
 
-    while (query.next_segment_index < query.binding.segments.len) {
-        const seg_idx = query.next_segment_index;
-        query.next_segment_index += 1;
+    if (out_rows.len == 0) return error.HistoricalBatchBufferTooSmall;
+    var seg_idx = query.next_segment_index;
+    var row_idx = query.next_row_index;
+    while (seg_idx < query.binding.segments.len) : ({
+        seg_idx += 1;
+        row_idx = 0;
+    }) {
         const seg = query.binding.segments[seg_idx];
-        if (seg.max_lsn > query.cut.commit_lsn) continue;
+        if (seg.max_lsn > query.cut.commit_lsn) return error.HistoricalSegmentBeyondCut;
 
         // Collation-aware zone-map pruning under the historical column's declared kappa profile
         if (query.filter) |flt| {
@@ -723,7 +742,7 @@ pub fn fetchNextHistoricalBatch(
         }
 
         var init_buf: [s.max_columns]TableSchemaProjection.Initial = undefined;
-        const seg_initials = filterInitialsForSegment(
+        const seg_initials = try filterInitialsForSegment(
             seg.physical_schema,
             query.output_schema,
             query.output_initials,
@@ -736,13 +755,13 @@ pub fn fetchNextHistoricalBatch(
         );
 
         var written: usize = 0;
-        for (seg.rows) |phys_row| {
+        while (row_idx < seg.rows.len and written < out_rows.len) : (row_idx += 1) {
+            const phys_row = seg.rows[row_idx];
             if (query.filter) |flt| {
                 if (!try rowMatchesHistoricalFilter(query.binding, seg.physical_schema, phys_row.cells, flt)) {
                     continue;
                 }
             }
-            if (written >= out_rows.len) return error.HistoricalBatchBufferTooSmall;
             const projected = try projection.row(
                 phys_row.cells,
                 out_rows[written][0..query.output_schema.columns.len],
@@ -751,6 +770,12 @@ pub fn fetchNextHistoricalBatch(
             written += 1;
         }
 
+        query.next_segment_index = seg_idx;
+        query.next_row_index = row_idx;
+        if (row_idx == seg.rows.len) {
+            query.next_segment_index += 1;
+            query.next_row_index = 0;
+        }
         const is_last = (query.next_segment_index >= query.binding.segments.len);
         if (is_last) query.exhausted = true;
         return .{
@@ -825,6 +850,8 @@ fn rowMatchesHistoricalFilter(
             const ord = try compareAtomsWithProfile(val.atom, flt.literal, hist_col.type, profile);
             return ord == .eq;
         },
-        .null, .missing, .type_error, .conflict => return false,
+        .null, .missing => return false,
+        .type_error => return error.QueryTypeError,
+        .conflict => return error.QueryConflict,
     }
 }

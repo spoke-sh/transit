@@ -70,8 +70,8 @@
         "manifest_version": 1,
         "commit_lsn": 10,
         "branch": "main",
-        "tzdb_version": "tzdb_2026a",
-        "tzdb_digest_hex": "601bfef9992d30f3ddd10f3b2f8306e4c051bada70a504e57ceb7f71f5882661",
+        "tzdb_version": "fixture-a",
+        "tzdb_digest_hex": "0101010101010101010101010101010101010101010101010101010101010101",
         "tables": [
           {
             "namespace": 1,
@@ -99,8 +99,8 @@
         "manifest_version": 2,
         "commit_lsn": 20,
         "branch": "main",
-        "tzdb_version": "tzdb_2026a",
-        "tzdb_digest_hex": "601bfef9992d30f3ddd10f3b2f8306e4c051bada70a504e57ceb7f71f5882661",
+        "tzdb_version": "fixture-a",
+        "tzdb_digest_hex": "0101010101010101010101010101010101010101010101010101010101010101",
         "tables": [
           {
             "namespace": 1,
@@ -135,8 +135,8 @@
         "manifest_version": 3,
         "commit_lsn": 30,
         "branch": "main",
-        "tzdb_version": "tzdb_2026b",
-        "tzdb_digest_hex": "f4809233e6a5a5626e6dfe31315600fff60293a20b1e044b16a53040120ad916",
+        "tzdb_version": "fixture-b",
+        "tzdb_digest_hex": "0202020202020202020202020202020202020202020202020202020202020202",
         "tables": [
           {
             "namespace": 1,

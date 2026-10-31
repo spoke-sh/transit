@@ -544,3 +544,41 @@ release capacity; failed growth leaves accounting unchanged. Callers own the
 budget's stable lifetime and map exhaustion at their domain boundary. The finite
 relational owner and Table compaction share this allocator; reader caches and
 provider buffers keep their separately declared bounds.
+
+`DecimalArithmetic` evaluates validated `DECIMAL(p,s)` coefficients with
+`p <= 38` and `s <= p`. Addition promotes to the larger input scale;
+multiplication, division and rescaling use an explicit output precision, scale
+and rounding rule (`reject`, `half_even`, or `toward_zero`). Fixed 512-bit
+intermediates cover every admitted input/scale combination without allocation.
+An unrepresentable output returns `DecimalOverflow`; discarded nonzero digits
+under `reject` return `InexactDecimalRounding`. These scalar helpers do not
+extend SQL arithmetic or stored schema descriptors.
+
+`Timezone.Database` loads a sorted, immutable set of named TZif files and hashes
+both their complete bytes and the version label. Conversion requires the exact
+`Timezone.Version` content identity supplied by the caller. It never reads host
+timezone files or substitutes rules based on a version string. Loading validates
+TZif 2/3/4 without leap seconds; each file is bounded to 128 KiB. UTC conversion
+uses the recorded transitions and returns `TimezoneCoverageUnavailable` beyond
+the last explicit transition; POSIX-footer extrapolation is unsupported. Fixed
+zones with one local-time type and no transitions require an empty footer or
+a matching fixed-offset POSIX footer; an unsupported DST footer cannot establish
+fixed coverage. Missing names,
+foreign content identities and timestamp overflow reject explicitly. These
+helpers do not add SQL `AT TIME ZONE` syntax.
+
+`Collation.Profile.ebcdic_037_pad` compares UTF-8 strings in CP037 order with
+virtual space padding of the shorter operand, including control characters
+below CP037 space. Its sort keys omit trailing spaces and encode non-space
+symbols with their preceding space-run length; each non-space symbol uses ten
+bytes plus one final terminator. The caller supplies the bounded key buffer.
+This helper and `ebcdic_1047_nopad` are separate from the currently admitted
+TableSchema/SQL collation tags.
+
+`StandardsLedger` exposes the generated projection of
+[`standards-ledger.json`](../../../contracts/sql/standards-ledger.json).
+Its states describe public entry points. `OperatorTraits` derives effects,
+fallibility, five-state filtering, collation counts and work bounds from validated
+logical/relational plans; direct Table EXPLAIN returns these traits without data
+acquisition. Maintained relational execution reports finite recomputation with
+paired deltas, not incremental Z-set execution.

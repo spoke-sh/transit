@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Independent oracle for Milestone 10 historical catalog manifests, AS OF /
-PROJECTING TO resolution, current policy_epoch authorization, 5-state CHECK
-constraints, EBCDIC collations, and multi-model descriptors.
+"""Regenerate and check the standalone historical-catalog fixture corpus.
+
+This is a consistency check, not Zig execution, SQL qualification or an
+independent cross-language semantic oracle.
 """
 from runner.paths import ROOT
 import argparse
@@ -10,18 +11,13 @@ import json
 import struct
 
 FIXTURE_PATH = ROOT / "contracts/catalog/historical-manifest-fixtures.json"
-HISTORICAL_ZIG_PATH = ROOT / "packages/zig/transit-catalog/src/HistoricalCatalog.zig"
-CONSTRAINTS_ZIG_PATH = ROOT / "packages/zig/transit-fuze/src/TableConstraints.zig"
-
-
-def tzdb_digest_hex(version_id: str) -> str:
-    return hashlib.sha256(b"transit.catalog.tzdb.v1\x00" + version_id.encode("utf-8")).hexdigest()
 
 
 def build_fixtures() -> dict:
-    tz_2026a = tzdb_digest_hex("tzdb_2026a")
-    tz_2026b = tzdb_digest_hex("tzdb_2026b")
-    assert tz_2026a != tz_2026b
+    # Opaque content pins used for catalog lineage tests, not IANA rule data.
+    # Actual TZif conversion has independently sourced binary fixtures in Fuze.
+    tz_2026a = bytes([1] * 32).hex()
+    tz_2026b = bytes([2] * 32).hex()
 
     check_five_state_truth_table = [
         {"cell_state": "value", "predicate_outcome": True, "admitted": True, "reason": None},
@@ -51,7 +47,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 1,
                 "commit_lsn": 10,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026a",
+                "tzdb_version": "fixture-a",
                 "tzdb_digest_hex": tz_2026a,
                 "tables": [
                     {
@@ -70,7 +66,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 2,
                 "commit_lsn": 20,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026a",
+                "tzdb_version": "fixture-a",
                 "tzdb_digest_hex": tz_2026a,
                 "tables": [
                     {
@@ -90,7 +86,7 @@ def build_fixtures() -> dict:
                 "manifest_version": 3,
                 "commit_lsn": 30,
                 "branch": "main",
-                "tzdb_version": "tzdb_2026b",
+                "tzdb_version": "fixture-b",
                 "tzdb_digest_hex": tz_2026b,
                 "tables": [
                     {
@@ -185,36 +181,12 @@ def build_fixtures() -> dict:
     }
 
 
-def verify_zig_sources(fixtures: dict) -> None:
-    hist_zig = HISTORICAL_ZIG_PATH.read_text(encoding="utf-8")
-    constraints_zig = CONSTRAINTS_ZIG_PATH.read_text(encoding="utf-8")
-
-    for handoff_key, err_token in fixtures["historical_lineage"]["cross_milestone_handoffs"].items():
-        if err_token not in hist_zig and err_token not in constraints_zig:
-            raise SystemExit(f"Missing fail-closed handoff error {err_token} ({handoff_key}) in Zig implementation")
-
-    for required_symbol in (
-        "publishHeadConditional",
-        "admitHistoricalQuery",
-        "fetchNextHistoricalBatch",
-        "PropertyGraphDescriptor",
-        "ForeignTableDescriptor",
-        "ViewDescriptor",
-        "error.AuthorizationRevokedMidStream",
-        "error.HistoricalSnapshotExpired",
-        "error.IncompatibleHistoricalObjectLineage",
-    ):
-        if required_symbol not in hist_zig:
-            raise SystemExit(f"HistoricalCatalog.zig missing required symbol: {required_symbol}")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
 
     fixtures = build_fixtures()
-    verify_zig_sources(fixtures)
     rendered = json.dumps(fixtures, indent=2) + "\n"
 
     if args.write:
@@ -226,9 +198,9 @@ def main() -> None:
         )
 
     print(
-        f"Historical catalog: {len(fixtures['historical_lineage']['manifests'])} manifests, "
+        f"Historical fixture consistency: {len(fixtures['historical_lineage']['manifests'])} manifests, "
         f"{len(fixtures['historical_lineage']['scenarios'])} scenarios, and "
-        f"{len(fixtures['historical_lineage']['cross_milestone_handoffs'])} cross-milestone gates verified"
+        f"{len(fixtures['historical_lineage']['cross_milestone_handoffs'])} handoff expectations; no runtime execution verified"
     )
 
 

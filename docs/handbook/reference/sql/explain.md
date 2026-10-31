@@ -12,7 +12,11 @@ EXPLAIN SELECT value AS amount, value AS copy FROM items;
 
 The result lists logical operators in evaluation order, the predicate column
 and operator or cell state, input projection and limit, output columns and
-configured execution budgets. Literal values are omitted. Checked SUM outputs
+configured execution budgets. Direct Table explanations also include typed
+read/mutate/capture/dispatch effects, determinism, evaluation fallibility,
+five-state propagation, collation counts and execution data-work bounds.
+The zero-data-work summary excludes metadata loading, compilation and result
+framing; those still use bounded memory and CPU. Literal values are omitted. Checked SUM outputs
 int64 and COUNT outputs uint64. The supported SELECT syntax and type limits
 apply; `EXPLAIN ANALYZE`, cost estimates and alternative physical plans are
 unsupported.
@@ -33,7 +37,11 @@ The opt-in [relational Table profile](relational.md) uses the same metadata-only
 principle through `RelationalCompilation`: explicit catalog routes, exact schemas,
 prepared plan identity and no captured execution basis. It reports join kind,
 grouping and proposed disk storage. Each metadata route checks current inspection
-access; execution independently requires current read access. The console's ordinary single-Table profile captures and releases a schema-bound
-snapshot for inspection, executes no rows, and gives a later SELECT its own basis.
+access; execution independently requires current read access.
+
+The console's direct Table profiles prepare from catalog metadata under
+inspection permission. They acquire no data pins and recheck current inspection
+permission before every disclosure, including a repeated terminal batch. A later
+SELECT independently requires read permission and acquires its own data basis.
 
 Source: [`explainStatement`](../../../../contracts/sql/TransitExtensions.g4).

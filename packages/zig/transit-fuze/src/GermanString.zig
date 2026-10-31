@@ -266,7 +266,8 @@ pub const GermanString = extern struct {
 
     /// Compare two `GermanString` values for ordering (`<`, `<=`, `>`, `>=`, `ORDER BY`)
     /// under `profile`:
-    /// 1. 4-byte `prefixU32` register comparison decides immediately whenever `self.prefix != other.prefix`.
+    /// 1. 4-byte prefix comparison decides immediately, padding short PAD SPACE
+    ///    operands with CP037 space rather than the representation's zero bytes.
     /// 2. When both strings have `len <= 12`, `tailU64` + `len` decides inline with zero arena reads.
     /// 3. Out-of-line `StringArena` payload bytes are read only when `self.prefix == other.prefix`
     ///    and `@max(self.len, other.len) > 12`.
@@ -276,10 +277,23 @@ pub const GermanString = extern struct {
         profile: Collation.Profile,
         arena: ?*const StringArena,
     ) Error!std.math.Order {
-        const p_cmp = std.math.order(self.prefixU32(), other.prefixU32());
+        var left_prefix = self.prefix;
+        var right_prefix = other.prefix;
+        if (profile == .ebcdic_037_pad) {
+            if (self.len < 4) @memset(left_prefix[self.len..], 0x40);
+            if (other.len < 4) @memset(right_prefix[other.len..], 0x40);
+        }
+        const p_cmp = Collation.compareSortPrefix4B(left_prefix, right_prefix);
         if (p_cmp != .eq) return p_cmp;
 
         if (self.len <= inline_max_bytes and other.len <= inline_max_bytes) {
+            if (profile == .ebcdic_037_pad) {
+                var left = self.inlineWeights();
+                var right = other.inlineWeights();
+                @memset(left[self.len..], 0x40);
+                @memset(right[other.len..], 0x40);
+                return std.mem.order(u8, &left, &right);
+            }
             const t_cmp = std.math.order(self.tailU64(), other.tailU64());
             if (t_cmp != .eq) return t_cmp;
             return std.math.order(self.len, other.len);

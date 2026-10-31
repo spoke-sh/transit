@@ -10,7 +10,7 @@ const TableSchemaProjection = fuze.TableSchemaProjection;
 const H = c.HistoricalCatalog;
 
 test "historical catalog cuts resolve AS OF names/definitions, enforce EBCDIC zone-map pruning, and support explicit PROJECTING TO" {
-    // Manifest v1 (LSN 10, tzdb_2026a): table "orders" (object 10, rev 1)
+    // Manifest v1 (LSN 10, fixture-a): table "orders" (object 10, rev 1)
     // Columns: id (1, int64), legacy_code (2, utf8, ebcdic_cp037)
     const v1_cols = [_]s.Column{
         .{ .id = 1, .name = "id", .type = .{ .int64 = {} }, .nullable = false },
@@ -68,12 +68,12 @@ test "historical catalog cuts resolve AS OF names/definitions, enforce EBCDIC zo
     const cut_v1: H.ManifestCut = .{
         .manifest_version = 1,
         .commit_lsn = 10,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)),
         .tables = &v1_tables,
     };
     const digest_v1 = try cut_v1.digest();
 
-    // Manifest v2 (LSN 20, tzdb_2026a): "orders" (object 10, rev 2)
+    // Manifest v2 (LSN 20, fixture-a): "orders" (object 10, rev 2)
     // Renames legacy_code -> code (id 2), adds region (id 3, DEFAULT 'EU-WEST')
     const v2_cols = [_]s.Column{
         .{ .id = 1, .name = "id", .type = .{ .int64 = {} }, .nullable = false },
@@ -127,13 +127,13 @@ test "historical catalog cuts resolve AS OF names/definitions, enforce EBCDIC zo
     const cut_v2: H.ManifestCut = .{
         .manifest_version = 2,
         .commit_lsn = 20,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)),
         .previous_manifest_digest = digest_v1,
         .tables = &v2_tables,
     };
     const digest_v2 = try cut_v2.digest();
 
-    // Manifest v3 (LSN 30, tzdb_2026b):
+    // Manifest v3 (LSN 30, fixture-b):
     // - Object 10 is renamed to "orders_archive" (rev 3) and drops column 2 ("code")
     // - A brand new table named "orders" (object 20, rev 1) is created!
     const v3_archive_cols = [_]s.Column{
@@ -185,7 +185,7 @@ test "historical catalog cuts resolve AS OF names/definitions, enforce EBCDIC zo
     const cut_v3: H.ManifestCut = .{
         .manifest_version = 3,
         .commit_lsn = 30,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026b"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-b", @splat(2)),
         .previous_manifest_digest = digest_v2,
         .tables = &v3_tables,
     };
@@ -211,7 +211,7 @@ test "historical catalog cuts resolve AS OF names/definitions, enforce EBCDIC zo
     try std.testing.expectEqual(@as(u64, 10), q_v1.provenance.resolved_object);
     try std.testing.expectEqual(@as(u64, 1), q_v1.provenance.historical_revision);
     try std.testing.expectEqualStrings("legacy_code", q_v1.output_schema.columns[1].name);
-    try std.testing.expectEqualStrings("tzdb_2026a", q_v1.provenance.tzdb_version_name);
+    try std.testing.expectEqualStrings("fixture-a", q_v1.provenance.tzdb_version_name);
 
     var out_rows: [4][s.max_columns]v.Cell = undefined;
     const b1 = (try H.fetchNextHistoricalBatch(&q_v1, grants, &out_rows)).?;
@@ -277,7 +277,7 @@ test "current policy_epoch gates historical AS OF queries, enforces mid-stream r
     const cut_v1: H.ManifestCut = .{
         .manifest_version = 1,
         .commit_lsn = 10,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)),
         .tables = &tables_v1,
     };
     const digest_v1 = try cut_v1.digest();
@@ -288,7 +288,7 @@ test "current policy_epoch gates historical AS OF queries, enforces mid-stream r
     const cut_v2: H.ManifestCut = .{
         .manifest_version = 2,
         .commit_lsn = 20,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)),
         .previous_manifest_digest = digest_v1,
         .tables = &tables_v2,
     };
@@ -339,16 +339,18 @@ test "current policy_epoch gates historical AS OF queries, enforces mid-stream r
     const cut_v3: H.ManifestCut = .{
         .manifest_version = 3,
         .commit_lsn = 30,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026b"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-b", @splat(2)),
         .previous_manifest_digest = digest_v2,
         .tables = &.{},
     };
     try std.testing.expectError(
         error.ConditionalBranchHeadConflict,
-        timeline.publishHeadConditional(1, cut_v3),
+        timeline.publishHeadConditional(1, &.{ cut_v1, cut_v2, cut_v3 }),
     );
-    const new_head = try timeline.publishHeadConditional(2, cut_v3);
+    const new_head = try timeline.publishHeadConditional(2, &.{ cut_v1, cut_v2, cut_v3 });
     try std.testing.expectEqual(@as(u64, 3), new_head.manifest_version);
+    try std.testing.expectEqual(@as(u64, 3), (try timeline.selectCut(.{ .head = "main" })).manifest_version);
+    try std.testing.expectEqual(@as(u64, 3), (try timeline.selectCut(.{ .manifest_version = 3 })).manifest_version);
 
     // Batch 1 succeeds even after main moved to v3 (branch movement immunity)
     var rows_buf: [4][s.max_columns]v.Cell = undefined;
@@ -486,7 +488,7 @@ test "multi-model catalog descriptors validate View, PropertyGraph (SQL/PGQ), an
     const cut: H.ManifestCut = .{
         .manifest_version = 1,
         .commit_lsn = 10,
-        .tzdb = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a"),
+        .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)),
         .tables = &tables,
         .views = &.{view},
         .property_graphs = &.{graph},
@@ -507,4 +509,73 @@ test "multi-model catalog descriptors validate View, PropertyGraph (SQL/PGQ), an
     // Milestone 18 runtime execution gates fail closed
     try std.testing.expectError(error.SqlPgqExecutionDeferredToM18, graph.checkGraphTableExecutionAdmission());
     try std.testing.expectError(error.SqlMedScanDeferredToM18, foreign_table.checkForeignScanAdmission());
+}
+
+test "historical manifest digest commits collation overrides" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "code", .type = .utf8 }};
+    const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &cols };
+    var tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 1, .revision = 1, .schema = schema }};
+    const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 1, .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture-a", @splat(1)), .tables = &tables };
+    const before = try cut.digest();
+    tables[0].collation_profiles = &.{.{ .column = 1, .profile = .ebcdic_037_pad }};
+    const after = try cut.digest();
+    try std.testing.expect(!std.mem.eql(u8, &before, &after));
+}
+
+test "historical projection coverage exceeds one scratch page" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &cols };
+    var segments: [129]H.HistoricalSegment = undefined;
+    for (&segments, 0..) |*seg, i| seg.* = .{ .segment_id = i + 1, .min_lsn = 1, .max_lsn = 1, .physical_schema = schema };
+    const binding: H.HistoricalTableBinding = .{ .namespace = 1, .name = "t", .object = 1, .revision = 1, .schema = schema, .segments = &segments };
+    const summary = try binding.segmentProjectionSummary(schema, &.{});
+    try std.testing.expectEqual(@as(u32, 129), summary.native_target_segments);
+}
+
+test "historical batches bound rows within a segment and preserve cursor on failure" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 77, .revision = 1, .next_column = 2, .columns = &cols };
+    const cells = [_]v.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const rows: [3]H.HistoricalRow = @splat(.{ .cells = &cells });
+    const segments = [_]H.HistoricalSegment{.{ .segment_id = 1, .min_lsn = 1, .max_lsn = 10, .physical_schema = schema, .rows = &rows }};
+    const tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 77, .revision = 1, .schema = schema, .segments = &segments }};
+    const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 10, .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture", @splat(1)), .tables = &tables };
+    const timeline = try H.HistoricalTimeline.init(&.{cut});
+    const grants: H.GrantSet = .{ .policy_epoch = 1, .select_objects = &.{77} };
+    var query = try H.admitHistoricalQuery(timeline, .{ .manifest_version = 1 }, 1, "t", .select_rows, grants, null, null);
+    try std.testing.expectError(error.HistoricalBatchBufferTooSmall, H.fetchNextHistoricalBatch(&query, grants, &.{}));
+    var out: [1][s.max_columns]v.Cell = undefined;
+    for (0..3) |i| {
+        const batch = (try H.fetchNextHistoricalBatch(&query, grants, &out)).?;
+        try std.testing.expectEqual(@as(usize, 1), batch.row_count);
+        try std.testing.expectEqual(i == 2, batch.is_terminal);
+        try std.testing.expectEqual(@as(i128, 42), out[0][0].value.atom.signed);
+        if (i == 0) {
+            try std.testing.expectError(error.AuthorizationRevokedMidStream, H.fetchNextHistoricalBatch(&query, .{ .policy_epoch = 2 }, &out));
+            try std.testing.expectEqual(@as(usize, 1), query.next_row_index);
+        }
+    }
+    try std.testing.expectEqual(@as(?H.HistoricalBatchResult, null), try H.fetchNextHistoricalBatch(&query, grants, &out));
+}
+
+test "historical filter errors and segments beyond the cut cannot silently disappear" {
+    const cols = [_]s.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const schema: s.Schema = .{ .object = 77, .revision = 1, .next_column = 2, .columns = &cols };
+    const grants: H.GrantSet = .{ .policy_epoch = 1, .select_objects = &.{77} };
+    const errors = [_]v.Cell{ .{ .type_error = .int64 }, .{ .conflict = &.{} } };
+    for (errors, [_]anyerror{ error.QueryTypeError, error.QueryConflict }) |cell, expected| {
+        const rows = [_]H.HistoricalRow{.{ .cells = &.{cell} }};
+        const segments = [_]H.HistoricalSegment{.{ .segment_id = 1, .min_lsn = 1, .max_lsn = 10, .physical_schema = schema, .rows = &rows }};
+        const tables = [_]H.HistoricalTableBinding{.{ .namespace = 1, .name = "t", .object = 77, .revision = 1, .schema = schema, .segments = &segments }};
+        const cut: H.ManifestCut = .{ .manifest_version = 1, .commit_lsn = 10, .tzdb = try DecimalArithmetic.TzdbVersion.init("fixture", @splat(1)), .tables = &tables };
+        const timeline = try H.HistoricalTimeline.init(&.{cut});
+        var query = try H.admitHistoricalQuery(timeline, .{ .manifest_version = 1 }, 1, "t", .select_rows, grants, null, .{ .column = 1, .literal = .{ .signed = 42 } });
+        var out: [1][s.max_columns]v.Cell = undefined;
+        try std.testing.expectError(expected, H.fetchNextHistoricalBatch(&query, grants, &out));
+        try std.testing.expectEqual(@as(usize, 0), query.next_row_index);
+        try std.testing.expectEqual(@as(usize, 0), query.next_segment_index);
+        query.cut.commit_lsn = 5;
+        try std.testing.expectError(error.HistoricalSegmentBeyondCut, H.fetchNextHistoricalBatch(&query, grants, &out));
+        try std.testing.expect(!query.exhausted);
+    }
 }

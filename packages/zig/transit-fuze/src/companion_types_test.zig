@@ -112,17 +112,6 @@ test "deterministic DECIMAL(p, s) arithmetic rounding rules, pinned tzdb version
     try testing.expectEqual(@as(u8, 3), sum.scale);
     try testing.expectEqual(@as(i128, 13845), sum.coefficient);
 
-    // Pinned tzdb version digest reproducibility across historical tzdb updates
-    const tz_2026a = try DecimalArithmetic.TzdbVersion.init("tzdb_2026a");
-    const tz_2026b = try DecimalArithmetic.TzdbVersion.init("tzdb_2026b");
-    try testing.expect(!tz_2026a.eql(tz_2026b));
-    const sample_utc: i64 = 1775433600_000_000;
-    const santiago_a = try tz_2026a.utcToLocalMicros(sample_utc, "America/Santiago");
-    const santiago_b = try tz_2026b.utcToLocalMicros(sample_utc, "America/Santiago");
-    try testing.expect(santiago_a != santiago_b);
-    // Re-evaluating against tzdb_2026a is bit-for-bit identical
-    try testing.expectEqual(santiago_a, try tz_2026a.utcToLocalMicros(sample_utc, "America/Santiago"));
-
     // Spatial descriptor validation
     const spatial: DecimalArithmetic.SpatialDescriptor = .{
         .srid = 4326,
@@ -168,4 +157,56 @@ test "EBCDIC_037_PAD and EBCDIC_1047_NOPAD collation comparisons and order-prese
         std.math.Order.gt,
         try Collation.compareBytesProfile("¬", "^", .ebcdic_1047_nopad),
     );
+}
+
+test "decimal extreme scale multiplication and division return typed overflow" {
+    const large: DecimalArithmetic.DecimalValue = .{
+        .coefficient = 10_000_000_000_000_000_000_000_000_000_000_000_000,
+        .precision = 38,
+        .scale = 0,
+    };
+    const small: DecimalArithmetic.DecimalValue = .{ .coefficient = large.coefficient, .precision = 38, .scale = 38 };
+    for ([_]DecimalArithmetic.RoundingMode{ .reject, .half_even, .toward_zero }) |mode| {
+        try testing.expectError(error.DecimalOverflow, DecimalArithmetic.mul(large, large, 38, 38, mode));
+        try testing.expectError(error.DecimalOverflow, DecimalArithmetic.div(large, small, 38, 38, mode));
+    }
+    const tenth = try DecimalArithmetic.div(small, large, 38, 38, .reject);
+    try testing.expectEqual(@as(i128, 1), tenth.coefficient);
+    const square = try DecimalArithmetic.mul(small, small, 38, 38, .reject);
+    try testing.expectEqual(@divExact(large.coefficient, 10), square.coefficient);
+    const negative: DecimalArithmetic.DecimalValue = .{ .coefficient = -small.coefficient, .precision = 38, .scale = 38 };
+    try testing.expectEqual(-square.coefficient, (try DecimalArithmetic.mul(small, negative, 38, 38, .reject)).coefficient);
+}
+
+test "PAD SPACE comparison and sort keys preserve prefix control-byte ordering" {
+    const cases = [_][]const u8{ "", " ", "  ", "\x00", "\x01", "a", "a ", "a  ", "a\x00", "a \x00", "a  \x00", "a b", "a  b", "a b ", "A", "0", "abcd", "abcd\x00", "abcdefghijkl", "abcdefghijkl\x00", "abcdefghijkl \x00", "abcdefghijkl A" };
+    var backing: [4096]u8 = undefined;
+    const strings = @import("GermanString.zig");
+    var arena = try strings.StringArena.init(&backing);
+    for (cases) |left| for (cases) |right| {
+        arena.reset();
+        // Independent oracle: convert both to CP037, pad to equal length,
+        // and compare unsigned bytes. Do not derive expected from sort keys.
+        var l: [64]u8 = @splat(0x40);
+        var r: [64]u8 = @splat(0x40);
+        const ll = (try @import("Ebcdic037.zig").encode(left, &l)).len;
+        const rl = (try @import("Ebcdic037.zig").encode(right, &r)).len;
+        const n = @max(ll, rl);
+        const expected = std.mem.order(u8, l[0..n], r[0..n]);
+        try testing.expectEqual(expected, try Collation.compareBytesProfile(left, right, .ebcdic_037_pad));
+        const prefix_l = try Collation.computeSortPrefix4BProfile(left, .ebcdic_037_pad);
+        const prefix_r = try Collation.computeSortPrefix4BProfile(right, .ebcdic_037_pad);
+        const prefix_order = Collation.compareSortPrefix4B(prefix_l, prefix_r);
+        if (prefix_order != .eq) try testing.expectEqual(expected, prefix_order);
+        const compact_l = try strings.GermanString.init(left, .ebcdic_037_pad, &arena);
+        const compact_r = try strings.GermanString.init(right, .ebcdic_037_pad, &arena);
+        try testing.expectEqual(expected, try compact_l.order(compact_r, .ebcdic_037_pad, &arena));
+        var lk: [Collation.max_sort_key_bytes]u8 = undefined;
+        var rk: [Collation.max_sort_key_bytes]u8 = undefined;
+        const lc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = left } } };
+        const rc: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .bytes = right } } };
+        const encoded_l = try Collation.encodeSortKeyProfile(lc, .utf8, .ebcdic_037_pad, &lk);
+        const encoded_r = try Collation.encodeSortKeyProfile(rc, .utf8, .ebcdic_037_pad, &rk);
+        try testing.expectEqual(expected, std.mem.order(u8, encoded_l, encoded_r));
+    };
 }

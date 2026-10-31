@@ -1979,7 +1979,8 @@
         "Exact last-batch retry, invalid ordinal interruption, cached-batch revocation and failed snapshot acquisition without publishing a partial cursor",
         "Table/configuration/captured tokens survive SQL service replacement, conflicting content rejects, original retained source results are verified, and captured cancellation settles published steps",
         "Lost execute reply discovers the original operation, rejected ingress creates no operation, paused owner or client output does not hold another console",
-        "Local enrollment and recovery preserve authority across restart; optional wire listeners are independent of native admission"
+        "Local enrollment and recovery preserve authority across restart; optional wire listeners are independent of native admission",
+        "Direct Table EXPLAIN derives typed traits using metadata-only grants, rejects SELECT without read rights, acquires no data pins or scans, and rechecks authorization on repeated terminal disclosure"
       ],
       "limits": "Linux x86_64 process and disk-backed Ursula fixtures, independent Python HTTPS client and actual console/PG/MySQL clients. Source workers are selected within four native wait lanes; no claim of unbounded simultaneous source workers, exhaustive crash schedules, host power-loss recovery, browser admission, transactions or latency SLO. Fresh client home is not a separate security sandbox.",
       "model": null,

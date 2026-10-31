@@ -83,13 +83,13 @@ pub fn canonicalByteLen(bytes: []const u8, collation: Collation) !u32 {
 }
 
 /// Extract the first 4 bytes of the collation-normalized sort weights for `bytes`,
-/// zero-padded when fewer than 4 collation weights exist.
+/// padded with the comparison profile's end weight when fewer than 4 weights exist.
 /// Soundness invariant (`A2`): whenever `computeSortPrefix4BProfile(a, p) != computeSortPrefix4BProfile(b, p)`,
 /// `compareSortPrefix4B(prefix_a, prefix_b) == compareBytesProfile(a, b, p)`.
 pub fn computeSortPrefix4BProfile(bytes: []const u8, profile: Profile) ![4]u8 {
     try validateBytesProfile(bytes, profile);
     const slice = canonicalSliceProfile(bytes, profile);
-    var prefix: [4]u8 = @splat(0);
+    var prefix: [4]u8 = @splat(if (profile == .ebcdic_037_pad) 0x40 else 0);
     switch (profile) {
         .none, .utf8_binary => {
             const n = @min(slice.len, 4);
@@ -165,13 +165,17 @@ pub fn compareBytesProfile(left: []const u8, right: []const u8, profile: Profile
             return if (try r.next() != null) .lt else .eq;
         },
         .ebcdic_037_pad => {
-            var l = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(left));
-            var r = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(right));
-            while (try l.next()) |lb| {
-                const rb = try r.next() orelse return .gt;
-                if (lb != rb) return std.math.order(lb, rb);
+            var l = try Ebcdic.Iterator.init(left);
+            var r = try Ebcdic.Iterator.init(right);
+            while (true) {
+                const lb = try l.next();
+                const rb = try r.next();
+                if (lb == null and rb == null) return .eq;
+                // PAD SPACE compares as if the shorter operand had been
+                // extended with CP037 space (0x40), including control bytes.
+                const order = std.math.order(lb orelse 0x40, rb orelse 0x40);
+                if (order != .eq) return order;
             }
-            return if (try r.next() != null) .lt else .eq;
         },
         .ebcdic_1047_nopad => {
             var l = try Ebcdic1047.Iterator.init(left);
@@ -272,9 +276,23 @@ fn writeCollatedBytes(writer: *std.Io.Writer, bytes: []const u8, profile: Profil
             try writer.writeAll(&.{ 0x00, 0x00 });
         },
         .ebcdic_037_pad => {
-            var iterator = try Ebcdic.Iterator.init(stripTrailingAsciiSpaces(bytes));
-            while (try iterator.next()) |byte| try writeStuffedByte(writer, byte);
-            try writer.writeAll(&.{ 0x00, 0x00 });
+            var iterator = try Ebcdic.Iterator.init(bytes);
+            var spaces: u64 = 0;
+            while (try iterator.next()) |byte| {
+                if (byte == 0x40) {
+                    spaces += 1;
+                    continue;
+                }
+                // A finite key represents the infinite space-padded suffix.
+                // Below-space symbols sort before the terminator, above-space
+                // symbols after it. Longer space runs move low symbols right
+                // and high symbols left; trailing spaces disappear entirely.
+                try writer.writeByte(if (byte < 0x40) 0x3f else 0x41);
+                try writer.writeInt(u64, if (byte < 0x40) spaces else ~spaces, .big);
+                try writer.writeByte(byte);
+                spaces = 0;
+            }
+            try writer.writeByte(0x40);
         },
         .ebcdic_1047_nopad => {
             var iterator = try Ebcdic1047.Iterator.init(bytes);

@@ -10,6 +10,7 @@ text: []const u8,
 connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
+inspection: bool = false,
 plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
 pub const Kind = enum { select, insert, update, delete, create, alter, drop };
@@ -72,7 +73,7 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 }
 /// This profile routes every relational target through the selected database's
 /// explicit catalog connection. SQL names never select another configured account.
-pub const Profile = enum { native, wire };
+pub const Profile = enum { native, wire, inspection };
 pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options) !Self {
     return prepareDiagnostic(allocator, client, namespace, text, dialect, profile, options, null);
 }
@@ -90,6 +91,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     try f.Sql.validateText(text);
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
+    if (profile == .inspection and !tokenIs(first, "SELECT")) return error.UnsupportedGatewayStatement;
     if (first.tag != .word) return error.UnsupportedGatewayStatement;
     const owned = try allocator.dupe(u8, text);
     errdefer allocator.free(owned);
@@ -115,8 +117,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location) };
-        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepare(allocator, client.*, namespace, text, dialect, detail) };
+            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAccess(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read) };
+        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAccess(allocator, client.*, namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
         plan = .{ .dml = try c.DirectTablePreparedDml.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE") or (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")))) {
@@ -137,7 +139,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             _ = try g.Type.from(field);
         };
     }
-    var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .namespace = namespace, .dialect = dialect, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
+    var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .namespace = namespace, .dialect = dialect, .inspection = profile == .inspection, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
     errdefer if (result.output) |*schema| schema.deinit();
     if (profile == .wire) for (result.parameters()) |parameter| {
         _ = try g.Type.from(.{ .name = "", .type = parameter, .nullable = true });
@@ -152,7 +154,7 @@ fn tokenIs(token: f.Sql.Token, word: []const u8) bool {
 pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     const right: c.TableAuthority.Access = switch (self.kind()) {
-        .select => .read,
+        .select => if (self.inspection) .inspect else .read,
         .insert => .insert,
         .update => .update,
         .delete => .delete,
@@ -225,11 +227,11 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     return error.ExpectedGatewayWrite;
 }
 pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot, limits: g.direct.DirectTableQuery.Limits, cancellation: ?*const std.atomic.Value(bool)) !g.direct.DirectTableQuery {
-    if (self.plan != .select) return error.ExpectedSingleTableSelect;
+    if (self.inspection or self.plan != .select) return error.ExpectedSingleTableSelect;
     return g.direct.DirectTableQuery.openPreparedRetained(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
 }
 pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {
-    if (self.plan != .relational) return error.ExpectedRelationalSelect;
+    if (self.inspection or self.plan != .relational) return error.ExpectedRelationalSelect;
     return g.direct.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, snapshots, options, cancellation);
 }
 
