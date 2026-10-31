@@ -43,17 +43,20 @@ export const readTransport: ReadTransport = async (request, signal) => {
     throw new QueryError(0, "InvalidRequest");
   const body = JSON.stringify(request);
   if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
+  const deadline = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(6000)])
+    : AbortSignal.timeout(6000);
   for (let attempt = 0; ; attempt++) {
-    signal?.throwIfAborted();
+    deadline.throwIfAborted();
     try {
-      return await readAttempt(body, signal);
+      return await readAttempt(body, deadline);
     } catch (cause) {
       if (
         !(cause instanceof QueryError) ||
         cause.status !== 429 ||
         cause.code !== "RateLimited" ||
         attempt >= 3 ||
-        signal?.aborted
+        deadline.aborted
       )
         throw cause;
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -62,7 +65,7 @@ export const readTransport: ReadTransport = async (request, signal) => {
 };
 
 /** One bounded attempt; unknown outcomes never cause implicit SQL replay. */
-async function readAttempt(body: string, signal?: AbortSignal): Promise<ReadResponse> {
+async function readAttempt(body: string, signal: AbortSignal): Promise<ReadResponse> {
   const response = await fetch("/api/v1/sql-read", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -70,9 +73,7 @@ async function readAttempt(body: string, signal?: AbortSignal): Promise<ReadResp
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(6000)])
-      : AbortSignal.timeout(6000),
+    signal,
   });
   const reader = response.body?.getReader();
   if (!reader) throw new QueryError(0, "InvalidResponse");

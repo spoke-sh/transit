@@ -79,6 +79,31 @@ describe("shared statement reader", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  test("throttling does not renew the request deadline", async () => {
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new Error("request deadline")), milliseconds);
+      return controller.signal;
+    });
+    try {
+      const fetcher = vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5800));
+        return Response.json({ err: "RateLimited" }, { status: 429 });
+      });
+      vi.stubGlobal("fetch", fetcher);
+      const completed = expect(
+        readTransport({ definition: readDefinition, action: { describe: {} } }),
+      ).rejects.toThrow("request deadline");
+      await vi.advanceTimersByTimeAsync(6050);
+      await completed;
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test("validates full-width cells, terminal coverage and empty results", () => {
     expect(validateReadResponse(result())).toBe(true);
     expect(validateReadResponse(result({ rows: [], delivered: "0", complete_rows: "0" }))).toBe(

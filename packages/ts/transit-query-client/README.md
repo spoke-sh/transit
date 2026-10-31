@@ -10,7 +10,8 @@ the same owning definitions. This package does not compile SQL or confer authori
 the original reader; `next` requests a bounded display window; `close` releases it.
 A failed response never implicitly executes SQL again.
 Pre-dispatch `429 RateLimited` responses retry the identical request at most
-three times, waiting 250 ms between attempts. Capacity refusals, lost responses,
+three times, waiting 250 ms between attempts within one six-second deadline.
+Capacity refusals, lost responses,
 other errors and cancellation do not retry or create replacement statements.
 Runtime validation checks typed cells, full-width counts, result identity and
 completion. Requests are
