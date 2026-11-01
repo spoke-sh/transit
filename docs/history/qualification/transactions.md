@@ -7,6 +7,38 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Mixed workspace replay after PR #303 — 2026-11-01
+
+Committed source `8f1c2afb781cb309325e85b8b1dd43ac50b6d76d` passes
+`nix develop --command just ci::clean --lane formal`: all **14 required tasks**
+complete in a clean clone, with **209.460 seconds** of recorded check time.
+The PR #303 accessor compilation defect was already repaired on main by
+`d61165ef7`; this change extends the replay adapter beyond that correction.
+
+The state-only workspace model still exhausts **304 states** and detects and
+replays all **eight negative controls**. Twelve separately specified concrete
+Table/Stream schedules exercise both statement variants, the shared pending
+slot and sequence, cross-kind operation reservations, revocation and savepoint
+rollback across owner replacement. Execution reconstructs the pending request
+from accepted progress; a volatile request is no longer carried through reopen.
+Independent projections distinguish private Table rows and log actions from
+public data. The existing state-only profile retains its 128-KiB workspace
+quota; the three-participant concrete profile uses 1 MiB. Both keep the 16-MiB
+resident bound.
+
+Ignored automatic evidence is under
+`.cache/ci/clean/8f1c2afb781c-transit-ci-icoou499/`. The workspace model's
+`verification/transaction-workspace-model/20261101T003046-3136618/evidence.json`
+has SHA-256 `6b02d3f2972c182fa883f1dc667513859934ff15cd29ff97c0ece382a9ebcc2a`;
+its replay binary has SHA-256
+`2180a5384049b529bc62a0950d95c71c2d5e85fbf162619e3dd1f3d2a31fbc43`.
+These are local evidence references, not portable downloads.
+
+This is finite formal exploration plus selected concrete replay over reopened
+memory-backed owners. It establishes neither exhaustive mixed correspondence
+nor disk/process failure, installed caller, automatic DLQ, Station runtime or
+full CI qualification. Those gates retain their separate owners and evidence.
+
 ## Paired Queue terminal transfers — 2026-10-31
 
 Implementation `b27aac9289dffd7804739b14e7ea6057ab824ba2` supports explicit
