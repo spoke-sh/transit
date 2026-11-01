@@ -9,6 +9,85 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL append admission and original-result delivery — 2026-11-01
+
+The installed `sessions-log` profile passes on clean source
+`a72ecf3107b75bf22020c6454185068eecaa2866`, with current definition
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The matching ReleaseSafe build passes **22/22 steps**. Source cleanliness and
+HEAD are checked before and after the installed run; binary hashes are recorded
+before launch. This is functional evidence, not a performance qualification.
+
+Native SQL, PostgreSQL, MySQL and the real installed console admit dedicated
+single-partition PRODUCE/ENQUEUE. Independent values and offsets cover defaults,
+typed parameters, explicit manual routing and declared row-budget refusal. A
+65-row original result crosses **32/32/1** batches, repeats byte-identically and
+reopens with the same operation, observation and values after gateway replacement.
+Revoking the Catalog role denies already-buffered disclosure and invalidates
+that cursor. Subsequent Stream and Queue offsets prove that result delivery and
+recovery did not append again. The existing declaration profile also passes:
+CREATE/ALTER/RENAME/DROP, original-token recovery, 40-column metadata, 35-name
+listing, empty listings and current disclosure checks across the four interfaces.
+
+Two earlier installed attempts remain failures. Clean
+`92b21115a8ee5845d8bfec442d70be4990a416f0` passed declarations but refused the
+first valid manual append with `ClientTokenBudget`: admission reserved the fixed
+Table amount instead of the complete frozen workload body plus token overhead.
+`f4f79c9ec` fixes that accounting without increasing per-intent or account quotas.
+That particular refusal occurs in local binding validation before dispatch; it
+does not establish a general rule that a missing operation means non-acceptance.
+Its private installation remains at `/var/tmp/transit-direct-sql-wire-zrxu09d2`.
+
+Clean `a909e40ffc05df4477a3bfc804a365f812cedc0c` then passed native append,
+restart and revocation checks but failed a PostgreSQL test expectation:
+libpq does not extract an affected-row count from Transit's custom `PRODUCE n`
+tag. The corrected test asserts `PRODUCE 1` and psycopg `rowcount == -1` for
+the non-returning command, following the public wire profile. Its accepted work
+and original saved identities remain in the private installation
+`/var/tmp/transit-direct-sql-wire-hm18vhsx`; they were not resubmitted. The final
+passing run uses a fresh isolated installation and unchanged runtime deadlines.
+
+Focused checks on the local implementation committed as `92b21115a` passed
+**13/13** database-runtime, **11/11** SQL-service and **24/24** wire-host tests.
+They include original operation/result ownership and notification-before-wait
+handling. Fast checks passed **60/60**; ordinary grammar passed 174 PostgreSQL
+SELECT comparisons, 32 exclusions, 42 extensions and 136 documentation examples.
+The later shared logical-syntax adoption in `a909e40ff` passed **68/68** focused
+logical tests, including allocation failures and failed-adoption ownership.
+Diagnostic coverage initially failed on the newly admitted append statement
+alternative; its added cases pass **520 compiler cases / 783 obligations**.
+The budget fix also changed one inventory count; recording that count restored
+the fast check to **60/60**. These corrections do not erase the failed checks.
+
+| Installed binary | SHA-256 |
+| --- | --- |
+| `transit-node` | `919932d089b8081797c46a6a2cbadec61a75d5918890dff38d76bc10fb70cfd0` |
+| `transit-sql-catalog-proof` | `46a2d0a28f5f25b46ca66165e89480df1412066383dbf288a99564ee82d86d59` |
+| `transit-sql-gateway-proof` | `09a39b3c3ba7a6adedc991fa4732bc16eff01630b5b8b64cb62da4572197e7d8` |
+| `transit-query-host` | `03e0659751e6c8961ead90587ca8162c70cd8f9bc55089dbd20f0d612a7e288a` |
+| `transit-sql-gateway` | `d15ad2933ad70f25ced7d3db86c0aeab65d215cf79e920e0351613a88c27cdbd` |
+| `transit-configuration-probe` | `3b01490216535d6397e3b2e367fb12bf48423fb4a2dc0fd03cb5196fa12c40f4` |
+| `transit` | `96c9d6ff4dfc660751f632904fb2aba787f0ff297d0a96a4ba2f52aaed054b9b` |
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-installed1.log` (budget failure) | `8badd2e3bd8cc6f7b8d84d0c23eb0dd0dc20cd9c85ce6c47c5056cd16ef7d863` |
+| `/var/tmp/transit-m6-log-append-installed2.log` (client-count expectation failure) | `0df4e0b0c49cecb8165a509d5e6665653c8a0640262667dd872f8e8df08c6efa` |
+| `/var/tmp/transit-m6-log-append-clean-build3.log` | `f029b04f7aa7e20e0898e233bbc8dab52921d4dd48b9c17d5c07f69e2874e5cb` |
+| `/var/tmp/transit-m6-log-append-installed3.log` | `206cc6f977610336075f58bbff6ab0db53dc4691253026375dd14ae14b40d36c` |
+| `/var/tmp/transit-m6-log-append-runtime2.log` | `b9be740a154f05ab40eb8d6ed4a3b452f154a5f959524da335b26e57ba1ad5cb` |
+| `/var/tmp/transit-m6-log-append-service1.log` | `bd3ec51ae05ef7bc49aa851d107f7714ef0310078f44b1667c917aab55d8d5fd` |
+| `/var/tmp/transit-m6-log-append-wire-host2.log` | `5a3985df97146b5514d39d0dbbc0579691426fa08da586b23ed7bbd3e72073d5` |
+| `/var/tmp/transit-m6-logical-adopt1.log` | `d1fbc73fb24767b7d4ebe65f973c1dd6b7125209ce745a4b7b3e6645e216d7c2` |
+| `/var/tmp/transit-m6-logical-adopt-diagnostics1.log` (coverage failure) | `ab414ecbed955715ec528cd1fb40b131566aa9440e16405031c401b5397863b5` |
+| `/var/tmp/transit-m6-logical-adopt-diagnostics2.log` | `978cd689afec7be52a7040eeecdc720b92a7a40d17fadd110f8463ae4025c901` |
+| `/var/tmp/transit-m6-log-append-reservation-inventory1.log` (inventory failure) | `ad4d1a93ff676f2371d38a39a12235e967b58e46deadd1463e43189555203e5c` |
+| `/var/tmp/transit-m6-log-append-coverage-fast1.log` | `6500685dd02cd5f97d1fb42397ed81479e18419e4e9a2665e78347498b39ba20` |
+
+These results qualify the [documented append profile](../../handbook/reference/sql/streaming.md#append-events-and-work).
+They do not qualify SQL consumption/settlement, mixed interactive transactions,
+the Station replacement or the full milestone performance and recovery gates.
+
 ## Catalog binding of append preparation — 2026-11-01
 
 The local source committed as `ad94de933f17793454119ee821fe9932663d1c9e`
