@@ -1,5 +1,7 @@
 """Installed historical catalog binding with independent retained-value oracles."""
 import json
+import os
+import time
 import struct
 
 import mysql.connector
@@ -112,8 +114,87 @@ def companion_expressions(root, port, postgres, mysql_options, restart, catalog)
                           postgres_mysql_scalar_outputs=True, unsupported_decimal_wire_refuses=True)), flush=True)
 
 
-def run(root, port, postgres, mysql_options, restart, catalog, faults):
+def captured_history(root, port, restart, catalog, faults, select_source):
+    client = Client(root, port).open()
+    command(client, 'CREATE TABLE captured_history (id INT64 PRIMARY KEY, amount INT64)')
+    command(client, 'INSERT INTO captured_history VALUES (1,10),(2,20)')
+    retained = catalog('history-retain', 900040, 'captured_history')
+    suffix = " AS OF SNAPSHOT '" + retained['selector'] + "'"
+    command(client, 'ALTER TABLE captured_history ADD COLUMN later INT64 DEFAULT 7')
+    query = 'SELECT id, amount, later FROM captured_history' + suffix + ' PROJECTING TO CURRENT'
+    selected = Client(root, port).open('table')
+    expected, basis = rows(selected, query)
+    assert expected == [[1, 10, 7], [2, 20, 7]], expected
+    target = catalog('history-retain', 900042, 'captured_history')
+    capture_query = 'SELECT id, amount, later FROM captured_history' + suffix + " PROJECTING TO SNAPSHOT '" + target['selector'] + "'"
+    statement = selected.call(dict(prepare=dict(sql=query)))['described']['statement']
+    command(client, 'ALTER TABLE captured_history ALTER COLUMN later SET DEFAULT 9')
+    repeated = selected.call(dict(execute=dict(statement=statement)))['batch']
+    assert repeated['complete'] and repeated['observation'] == basis
+    selected.call(dict(close_result=repeated['cursor']))
+    selected.call(dict(release=statement))
+    # The SQL operation is admitted while its executor is paused. Later DDL
+    # cannot reinterpret the saved source or the accepted projection target.
+    select_source(None)
+    token = list(os.urandom(16))
+    operation = selected.execute(capture_query, token, captured=True)['operation']
+    assert operation['phase'] != 'reserved'
+    selected.close()
+    command(client, 'ALTER TABLE captured_history RENAME TO captured_history_live')
+    command(client, 'ALTER TABLE captured_history_live DROP COLUMN later')
+    command(client, 'CREATE TABLE captured_history (id INT64 PRIMARY KEY, amount INT64)')
+    command(client, 'INSERT INTO captured_history VALUES (1,1000)')
+    client.close()
+    restart()
+    faults.lose_copy_reply_once = True
+    select_source('table')
+    selected = Client(root, port).open('table')
+    original = selected.call(dict(status=dict(token=token)))['operation']
+    assert original['identity'] == operation['identity']
+    selected.terminal(original)
+    assert not faults.lose_copy_reply_once and faults.copy_reply_losses == 1
+    catalog('history-release', 900040)
+    catalog('history-release', 900042)
+    batch = selected.call(dict(result=operation['identity']))['batch']
+    assert batch['complete'] and batch['completion']['rows'] == 2, batch
+    actual = [[int.from_bytes(bytes.fromhex(cell)[1:], 'little', signed=True) for cell in row] for row in batch['rows']]
+    assert sorted(actual) == expected, actual
+    captured_basis = batch['observation']['data']['historical']
+    assert captured_basis['snapshot'] == retained['snapshot']
+    assert captured_basis['sources'][0]['interpretation'] == basis['data']['historical']['sources'][0]['interpretation']
+    assert captured_basis['sources'][0]['projection'] == basis['data']['historical']['sources'][0]['projection']
+    assert selected.call(dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch'])))['batch'] == batch
+    selected.call(dict(close_result=batch['cursor']))
+    selected.close()
+    restart()
+    selected = Client(root, port).open('table')
+    recovered = selected.call(dict(result=operation['identity']))['batch']
+    assert recovered['rows'] == batch['rows'] and recovered['observation'] == batch['observation']
+    selected.call(dict(close_result=recovered['cursor']))
+    # Releasing a selection before its executor accepts the copy is a failure,
+    # never permission to capture a replacement current Table.
+    unavailable = catalog('history-retain', 900041, 'captured_history')
+    select_source(None)
+    unavailable_query = "SELECT id FROM captured_history AS OF SNAPSHOT '" + unavailable['selector'] + "'"
+    failed = selected.execute(unavailable_query, list(os.urandom(16)), captured=True)['operation']
+    catalog('history-release', 900041)
+    select_source('table')
+    deadline = time.monotonic() + 270
+    while failed['phase'] != 'terminal':
+        assert not failed['blocked'] and time.monotonic() < deadline, failed
+        time.sleep(.03)
+        failed = selected.call(dict(status=dict(operation=failed['identity'])))['operation']
+    assert failed['outcome'] not in ('applied', 'unchanged'), failed
+    selected.close()
+    select_source(None)
+    print(json.dumps(dict(profile='installed_captured_historical_query', source=provenance(ROOT),
+                          frozen_projection=True, lost_copy_reply=True, gateway_restart=True,
+                          original_release_and_name_reuse=True, release_before_copy_refuses=True)), flush=True)
+
+
+def run(root, port, postgres, mysql_options, restart, catalog, faults, select_source):
     companion_expressions(root, port, postgres, mysql_options, restart, catalog)
+    captured_history(root, port, restart, catalog, faults, select_source)
     first = Client(root, port).open()
     command(first, 'CREATE TABLE historical_values (id INT64 PRIMARY KEY, amount INT64)')
     command(first, 'INSERT INTO historical_values VALUES (1, 10), (2, 20)')

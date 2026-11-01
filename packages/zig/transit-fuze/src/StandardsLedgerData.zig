@@ -246,7 +246,7 @@ pub const features = [_]l.FeatureDescriptor{
         .corpus_sources = &.{ "contracts/sql/corpus/statements.json", "contracts/sql/corpus/relational.json", "packages/zig/transit-catalog/src/fixtures/direct-history-v1.json" },
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .staged },
         .reference_verified = false,
-        .profile = "Public Zig direct historical operations and read-only SQL sessions; selected direct Tables under current authority. Installed transport qualification pending.",
+        .profile = "Public Zig historical catalog operations, read-only SQL sessions and explicit Table source descriptors under current authority. Captured queries retain an independently owned copy of the selected source and freeze explicit projection targets.",
         .evidence_sources = &.{ "packages/zig/transit-catalog/src/direct_history_directory_test.zig", "packages/zig/transit-catalog/src/direct_catalog_test.zig", "packages/zig/transit-sql/src/HistoricalSql.zig", "tests/interfaces/sql_sessions/history.py" },
     },
     .{

@@ -147,10 +147,19 @@ pub const Read = struct {
                 }
                 break :blk .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) };
             },
-            .source => |source| sourceBasis(source.query.basis),
-            .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
+            .source => |source| if (source.query.bundle.source.source == .table and source.query.bundle.source.source.table.historical != null)
+                try historicalBasis(allocator, source.query.bundle.source.source.table.historical.?.snapshot, source.query.table.?, source.query.basis, source.query.bundle.source.source.table.projection)
+            else
+                sourceBasis(source.query.basis),
+            .captured => |captured| if (captured.basis) |value| (if (captured.prepared.bundle.source.source == .table and captured.prepared.bundle.source.source.table.historical != null)
+                try historicalBasis(allocator, captured.prepared.bundle.source.source.table.historical.?.snapshot, (captured.table_basis orelse return error.MissingResultObservation).retained, value, captured.prepared.bundle.source.source.table.projection)
+            else
+                sourceBasis(value)) else null,
             else => null,
         };
+    }
+    fn historicalBasis(allocator: std.mem.Allocator, snapshot: p.DataLifecycle.Snapshot, source: c.DirectTableReader.Basis, basis: q.Basis, projection: ?c.DirectSchemaProjection.Accepted) !g.results.Observation.Data {
+        return .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(g.results.Observation.Table, &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try basis.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, projection) }}) } };
     }
     fn transactionBasis(self: *Read, allocator: std.mem.Allocator, views: []const p.Transaction.ReadView) !g.results.Observation.Data {
         const first = views[0];

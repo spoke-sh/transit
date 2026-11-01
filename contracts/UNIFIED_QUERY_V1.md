@@ -157,9 +157,9 @@ The canonical `UQB1` bundle has a 66-byte minimum header: magic, the 32-byte
 shared current definition, u16 source length, u16 plan length, then u64 maximum
 input pages, segments and result bytes, followed by an authorization-presence
 byte and its optional 185-byte proof, then a retention-presence byte and its
-optional 311-byte direct read delegation. Both presence bytes are exactly 0 or 1.
+optional 433-byte direct read delegation. Both presence bytes are exactly 0 or 1.
 Integers are little-endian. These precede the canonical `UQS1` source and `FQP1`
-plan. Its total budget is 25743 bytes; source and plan bounds are 16733 and 8448 bytes. All three
+plan. Its total budget is 26713 bytes; source and plan bounds are 17581 and 8448 bytes. All three
 work budgets are positive and must fit the current durable source policy. The
 bundle uses the query-request publication domain, record 1, format `0x31425155`,
 referenced by Station's 72-byte `SPF1` encoding. Truncation and trailing bytes

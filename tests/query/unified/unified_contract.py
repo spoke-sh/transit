@@ -91,7 +91,7 @@ def sources():
     descriptor = logical_schema('table')
     table = (b'TQS1' + definition + struct.pack('<QQQQQQQQ', 1, 7, 9, 3, 1, 1, 9, 1) +
              bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32 +
-             struct.pack('<H', len(descriptor)) + descriptor + b'\0\0\0')
+             struct.pack('<H', len(descriptor)) + descriptor + b'\0\0\0\0\0')
     reference = b'SDR1' + struct.pack('<QQQIQ', 7, 2**64-1, 3, 1, 42)
     variants = [
         ('kv', source(1, b'\5data/\1\6\1\2')),

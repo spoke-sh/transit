@@ -517,7 +517,7 @@
         "transport": "staged"
       },
       "reference_verified": false,
-      "profile": "Public Zig direct historical operations and read-only SQL sessions; selected direct Tables under current authority. Installed transport qualification pending.",
+      "profile": "Public Zig historical catalog operations, read-only SQL sessions and explicit Table source descriptors under current authority. Captured queries retain an independently owned copy of the selected source and freeze explicit projection targets.",
       "evidence_sources": [
         "packages/zig/transit-catalog/src/direct_history_directory_test.zig",
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
@@ -1033,7 +1033,7 @@
       ]
     }
   ],
-  "sha256": "cab76205d9a36aa5691ff1621b5af66b9a822d38385ae5fd0d4f9075cd12017a",
+  "sha256": "3f259ceed7ac8621bedfb194762033c765e3cda5b5feb878b771d0fe6d2412bd",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

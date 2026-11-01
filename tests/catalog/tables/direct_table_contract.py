@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef"
+definition = "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -55,6 +55,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "selection": "exact",
         "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
         "retention": "snapshot", "purpose": [11] * 32,
+        "copied_from": None, "projection": None,
     }
     delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
     delegated_claim = {**claim, "context": list(delegation_context)}
@@ -72,8 +73,9 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         + struct.pack("<QQQ", 9, 7, 2) + bytes([3] * 32)
         + struct.pack("<QQQBB", 9, 10, 2**64 - 1, 0, 1) + bytes([11] * 32)
         + struct.pack("<Q", 1) + delegation_context + bytes(delegated_proof["signature"])
+        + bytes(122)
     )
-    assert len(retained_grant) == 311
+    assert len(retained_grant) == 433
     delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
                          "retained_grant": base64.b64encode(retained_grant).decode()}
     borrow_binding = {"executor": 10, "target": {"snapshot": {"object": read_binding["interpretation"]["object"], "handle": {"owner": read_binding["owner"], "content": {"bytes": 128, "sha256": [12] * 32}}}}, "purpose": [13] * 32}

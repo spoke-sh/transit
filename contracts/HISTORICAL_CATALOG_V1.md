@@ -102,6 +102,29 @@ published historical snapshot retains independent copies. Neither historical
 release nor transaction cleanup releases the other's pins. The copied snapshot's
 original-pin attribution is not itself a live retention edge.
 
+## Captured historical queries
+
+A captured Table query freezes the published selector, accepted source position,
+original pin content, complete logical/semantic descriptor and compiled plan in
+its saved bundle before operation admission. Its source service signs an exact
+copy grant with the original caller role and credential epoch. The grant binds
+both the source pin and a distinct query-owned destination operation. Source
+selection is never repeated during upload, restart or recovery.
+
+Acquisition copies the original retained cut through the Table owner. The first
+copy requires the original pin to remain retained. Release winning that race
+causes explicit source failure; it does not authorize a newer cut. An accepted
+copy is independent of subsequent original release, ALTER/DROP or name reuse.
+A lost reply recovers only the same copy operation and verifies its original-pin
+attribution. Current permissions still fence execution and result disclosure.
+
+Closing an uncertain copy cannot use a later live frontier as proof of absence:
+a retained source can still be copied after that frontier advances. Cleanup
+retries the original copy and releases it, or establishes that the original or
+destination pin was permanently released. Cleanup never releases the separately
+retained historical catalog. Schema/selector commitments are attribution, not
+permission or proof that an unaccepted copy still has retention.
+
 ## Release and abandonment
 
 Abandonment applies before publication and releases only pins acquired by that

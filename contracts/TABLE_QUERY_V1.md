@@ -170,8 +170,14 @@ fingerprint, uint16 logical descriptor length, the `FTY1` descriptor and one
 mandatory collation byte per input field, with the same tags as FQP1. A mandatory
 semantic-count byte follows: zero for entirely empty semantics, otherwise the
 input width followed by that many canonical `ColumnSemantics` records. A full
-vector of empty records is noncanonical. Integers are little-endian. The existing
-174 + 16-KiB + 128-byte envelope budget includes these interpretation artifacts;
+vector of empty records is noncanonical. Two mandatory presence bytes follow.
+A present historical source carries the canonical 594-byte ASCII snapshot selector,
+u64 partition and accepted frontier, u64 original pin length and 32-byte pin digest.
+A present explicit projection carries the 194-byte accepted-definition record.
+Absent fields have no payload; presence tags other than 0 or 1 reject. Projection
+requires a historical source and names the same stable object. These fields freeze
+the original catalog interpretation and target independently of live names/heads.
+Integers are little-endian. The 17,534-byte envelope budget includes these artifacts;
 over-budget sources reject before publication. Reopening compares the vector
 and semantic descriptors with the exact retained Table schema; an interpretation digest alone cannot
 validate separately supplied comparison semantics. Decode owns recursive descriptors and rejects incompatible,
@@ -197,7 +203,9 @@ this adapter does not expose a composite-key point-seek operation.
 
 Every page checks current CONNECT/USAGE/SELECT under the original grant before
 and after reading. ALTER, RENAME, DROP and name reuse cannot replace the retained
-interpretation. A new capture against a stale declaration rejects. Native
+interpretation. A new live capture against a stale declaration rejects. A historical capture
+copies its exact retained pin into the query operation; release before that
+copy is accepted fails explicitly. An accepted copy survives original release. Native
 progress and result publication also carry the original subject's source guard;
 a completed direct read alone cannot authorize a later native commit. The page's
 `deinit` releases its rows, and `engine` borrows them until release. An error

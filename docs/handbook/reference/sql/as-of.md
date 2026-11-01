@@ -65,8 +65,16 @@ available until explicit release. Release first blocks new historical reads,
 then performs bounded pin cleanup under its original operation identity.
 A timeout does not release retention or establish a rejected acquisition.
 
+Explicit Table source sessions also accept this selector. Interactive reads use
+the selected pin. Captured execution freezes the complete source descriptor and
+any explicit projection target before admission, then copies the exact pin into
+its own operation. A lost copy reply recovers that same identity. Once the copy
+is accepted, releasing the original selection or replacing a live definition
+cannot change the computation or its retained result. Release before acceptance
+fails explicitly. Closing an interactive read does not release the selection.
+
 The current profile rejects historical writes, active transaction composition,
-external query sources and unselected objects. Historical graph/foreign execution,
+KV/Document query-source selection and unselected objects. Historical graph/foreign execution,
 branch/tag convenience selectors and temporal-table queries require their own
 qualified owners. `FOR SYSTEM_TIME AS OF` remains reserved for temporal semantics;
 the former reference-only integer fragment has been removed. An LSN, resource

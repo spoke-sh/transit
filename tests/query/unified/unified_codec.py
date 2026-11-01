@@ -89,7 +89,7 @@ def table_collation_fixtures():
         collations = bytes([0, tag])
         table = (b'TQS1' + current_definition() + struct.pack('<8Q', 1, 7, 9, 3, 1, 1, 9, 1)
                  + bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32
-                 + struct.pack('<H', len(encoded)) + encoded + collations + b'\0')
+                 + struct.pack('<H', len(encoded)) + encoded + collations + b'\0\0\0')
         source_bytes = b'UQS1' + current_definition() + struct.pack('<QBH', 7, 2, len(table)) + table
         plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
                       + hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()

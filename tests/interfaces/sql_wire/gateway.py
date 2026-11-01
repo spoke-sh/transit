@@ -128,7 +128,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             configuration['mysql_port'] = mysql_port
             if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'sessions-integrity', 'sessions-history', 'transactions', 'console-statements'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
-                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
+                configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table', 'sessions-history') else []
                 if session_faults is not None:
                     configuration['native_url'] = session_faults.url
                 if instrumented:
@@ -169,8 +169,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'sessions-integrity', 'sessions-history', 'transactions'):
                 from interfaces.sql_sessions.faults import Faults
                 session_faults = Faults(url)
-            if slice in ('sessions', 'sessions-kv', 'sessions-table'):
-                call(ledger, 'session-sources', *([slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
+            if slice in ('sessions', 'sessions-kv', 'sessions-table', 'sessions-history'):
+                call(ledger, 'session-sources', *(['table'] if slice == 'sessions-history' else [slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
             if instrumented:
                 from harness.http_probe import Probe
                 probe = Probe(url, native=True)
@@ -204,6 +204,11 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             assert child.poll() is None
                             child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
                     if name is not None and name not in source_processes:
+                        if name == 'table' and session_faults is not None:
+                            path = root/'session-table-source.json'
+                            config = json.loads(path.read_text())
+                            config['tables']['url'] = session_faults.url
+                            path.write_text(json.dumps(config))
                         source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
                 def restart_sessions(peer=False, wire=True, session_lease_ms=None, transaction_limits=None):
                     nonlocal server
@@ -267,7 +272,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     return
                 if slice == 'sessions-history':
                     from interfaces.sql_sessions.history import run as history
-                    history(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda mode, *args: call(catalog, mode, *args), session_faults)
+                    history(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda mode, *args: call(catalog, mode, *args), session_faults, select_source)
                     return
                 if slice == 'sessions-integrity':
                     from interfaces.sql_sessions.integrity import run as integrity

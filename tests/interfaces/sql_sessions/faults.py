@@ -21,6 +21,8 @@ class Faults:
         self.fail_once = False
         self.fail_snapshot_once = False
         self.before_pin_once = None
+        self.lose_copy_reply_once = False
+        self.copy_reply_losses = 0
         self.lose_pin_conflict_once = False
         self.record_pins = False
         self.explain_actions = None
@@ -144,6 +146,10 @@ class Faults:
                     lose_pin = owner.lose_pin_conflict_once and 'pin' in table and status == 200
                     if lose_pin:
                         owner.lose_pin_conflict_once = False
+                    lose_copy = owner.lose_copy_reply_once and 'pin' in table and status == 200 and (request.get('delegation') or {}).get('binding', {}).get('copied_from') is not None
+                    if lose_copy:
+                        owner.lose_copy_reply_once = False
+                        owner.copy_reply_losses += 1
                     lose_commit = owner.fail_commit_once and 'commit_saved' in table and status == 200
                     if lose_commit:
                         owner.fail_commit_once = False
@@ -155,7 +161,7 @@ class Faults:
                             owner.fail_transaction_once = False
                             owner.transaction_reply_losses += 1
                             lose_transaction = True
-                if lose_commit or lose_transaction:
+                if lose_commit or lose_transaction or lose_copy:
                     status, body = 503, b'{"err":"HttpCapacity"}'
                     content_type = 'application/json'
                 if lose_pin:

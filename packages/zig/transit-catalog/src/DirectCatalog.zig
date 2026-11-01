@@ -4761,6 +4761,29 @@ pub fn captureRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Op
     return access.view.table.pin(owner, selected, access.current);
 }
 
+/// Copy one authorized retained cut into the query's independent operation.
+/// Validate an existing copy before consulting its source, which may now be
+/// released. No current schema/frontier can replace the accepted source.
+pub fn copyRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operation, expected: d.Position, source: P.SnapshotHandle, policy: Policy) !P.SnapshotHandle {
+    try interpretation.validate();
+    try expected.validate();
+    try self.requireUnreservedBranchPin(interpretation.object, owner);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), interpretation.object, owner, policy, false);
+    defer access.view.deinit();
+    if (access.view.table.workspace_read != null) return error.InvalidTransactionRead;
+    const state = try access.view.table.pinState(owner, access.current);
+    if (state.released) return error.TableSnapshotReleased;
+    var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), state.handle orelse source, access.current);
+    defer frozen.deinit();
+    if (state.handle != null and !std.meta.eql(frozen.copied_from, source)) return error.DataIdentityConflict;
+    if (!std.meta.eql(frozen.root.interpretation, interpretation)) return error.TableDefinitionChanged;
+    if (frozen.root.partition != expected.partition or frozen.root.next_lsn != expected.next_lsn) return error.TableDataChanged;
+    access.view.table.lose_reply = self.lose_table_reply;
+    return access.view.table.copySnapshot(owner, source, access.current);
+}
+
 pub fn retainHistory(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, policy: Policy) !P.SnapshotHandle {
     if (interpretation) |required| {
         try required.validate();

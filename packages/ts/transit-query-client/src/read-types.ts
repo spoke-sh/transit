@@ -1,8 +1,8 @@
 // Generated from transit-sql-client ReadWorkspace; do not edit.
-export const readDefinition = "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef" as const;
+export const readDefinition = "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21" as const;
 export type ReadRequest = ReadRequest_T0;
 export type ReadRequest_T0 = { "definition": ReadRequest_T1; "action": ReadRequest_T2 };
-export type ReadRequest_T1 = "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef";
+export type ReadRequest_T1 = "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21";
 export type ReadRequest_T2 = ({ "describe": ReadRequest_T3 } | { "run": ReadRequest_T4 } | { "observe": ReadRequest_T5 } | { "next": ReadRequest_T7 } | { "close": ReadRequest_T5 });
 export type ReadRequest_T3 = {  };
 export type ReadRequest_T4 = { "id": ReadRequest_T5; "sql": ReadRequest_T5; "expected_definition": ReadRequest_T6 };
@@ -12,7 +12,7 @@ export type ReadRequest_T7 = { "id": ReadRequest_T5; "after": ReadRequest_T5 };
 export type ReadResponse = ReadResponse_T0;
 export type ReadResponse_T0 = ({ "description": ReadResponse_T1 } | { "result": ReadResponse_T8 } | { "closed": ReadResponse_T13 });
 export type ReadResponse_T1 = { "definition": ReadResponse_T2; "database": ReadResponse_T3; "source": ReadResponse_T4; "readers": ReadResponse_T5; "window_rows": ReadResponse_T6; "window_bytes": ReadResponse_T7; "lifetime_ms": ReadResponse_T7 };
-export type ReadResponse_T2 = "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef";
+export type ReadResponse_T2 = "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21";
 export type ReadResponse_T3 = string;
 export type ReadResponse_T4 = (ReadResponse_T3 | null);
 export type ReadResponse_T5 = number;

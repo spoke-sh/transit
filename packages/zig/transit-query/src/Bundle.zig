@@ -169,6 +169,8 @@ pub fn authorizeCapture(self: Self, client: q.wire.AuthorizationClient, tables: 
         .owner = .{ .scope = tables.connection.scope, .principal = tables.connection.principal, .operation = capture.operation },
         .retention = .snapshot,
         .purpose = try self.retentionPurpose(worker, resource, requester, requests),
+        .copied_from = if (self.source.source.table.historical) |history| history.handle() else null,
+        .projection = if (self.source.source.table.projection) |target| target.declaration.interpretation else null,
     });
     return result.authorize(client, worker, requester, requests);
 }

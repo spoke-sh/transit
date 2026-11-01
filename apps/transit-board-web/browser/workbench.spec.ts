@@ -313,7 +313,9 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     .toBe(0);
   await expect(rows()).toHaveCount(8);
   denied = true;
-  await expect(page.getByRole("heading", { name: "Data connection unavailable" })).toBeVisible({
+  await expect(
+    page.getByRole("heading", { name: "Data connection unavailable" }).first(),
+  ).toBeVisible({
     timeout: 12000,
   });
   await expect(page.getByText(/145 retained rows/)).toHaveCount(0);

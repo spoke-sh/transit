@@ -220,3 +220,36 @@ test "general Table interactive metadata cannot authenticate a configured princi
     client.tables = .{ .allocator = e.allocator, .authority = undefined, .service = undefined, .key = undefined, .connection = direct };
     try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
 }
+
+test "captured historical Table source freezes catalog pin projection and wide source positions" {
+    var owned = try makeDeclaration(e.allocator, 100);
+    defer owned.deinit();
+    const live = try owned.source.fingerprint();
+    const accepted: q.protocol.DataLifecycle.Position = .{ .partition = 9, .next_lsn = std.math.maxInt(u64) };
+    const snapshot: q.protocol.DataLifecycle.Snapshot = .{ .definition = q.protocol.Growth.current_definition, .owner = .{ .scope = connection.scope, .principal = 19, .operation = 18 }, .branch = 1, .catalog_root = .{ .bytes = 128, .sha256 = @splat(1) }, .sources_root = .{ .bytes = 129, .sha256 = @splat(2) }, .source_count = 1, .consistency = .{ .single_partition = accepted } };
+    owned.source.historical = .{ .snapshot = snapshot, .accepted = accepted, .pin = .{ .bytes = 130, .sha256 = @splat(3) } };
+    owned.source.projection = .{ .declaration = owned.source.interpretation, .next_lsn = 1, .origins = null };
+    const frozen = try owned.source.fingerprint();
+    try e.expect(!std.mem.eql(u8, &live, &frozen));
+    var bytes: [Source.max_bytes]u8 = undefined;
+    var restored = try Source.decode(e.allocator, try owned.source.encode(&bytes));
+    defer restored.deinit();
+    @memset(&bytes, 0);
+    try e.expectEqualDeep(owned.source, restored.source);
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const source: q.SourceDefinition = .{ .resource = connection.scope.resource, .source = .{ .table = restored.source } };
+    const neutral = try q.Values.Source.fromNative(arena.allocator(), source);
+    try e.expectEqualStrings("18446744073709551615", neutral.source.table.historical.?.accepted.next_lsn);
+    const rebuilt = try neutral.native(arena.allocator());
+    try e.expectEqualDeep(try source.fingerprint(), try rebuilt.fingerprint());
+    var forged = restored.source;
+    forged.historical.?.accepted.next_lsn -= 1;
+    try e.expectError(error.InconsistentSnapshot, forged.validate());
+    forged = restored.source;
+    forged.historical.?.snapshot.owner.scope.catalog += 1;
+    try e.expectError(error.DataIdentityConflict, forged.validate());
+    forged = restored.source;
+    forged.projection.?.next_lsn += 1;
+    try e.expect(!std.mem.eql(u8, &frozen, &try forged.fingerprint()));
+}

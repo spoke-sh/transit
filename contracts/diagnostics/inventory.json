@@ -4393,7 +4393,7 @@
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
-        "DataIdentityConflict": 8,
+        "DataIdentityConflict": 9,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 7,
         "ForeignKeyDefinitionRequired": 1,
@@ -4445,7 +4445,7 @@
         "InvalidTransactionCut": 13,
         "InvalidTransactionDirectory": 2,
         "InvalidTransactionPreparation": 1,
-        "InvalidTransactionRead": 4,
+        "InvalidTransactionRead": 5,
         "InvalidTransactionWork": 6,
         "InvalidTransactionWorkspace": 6,
         "LogCatalogRequestRequired": 1,
@@ -4475,14 +4475,14 @@
         "ReadOnlyTransaction": 4,
         "StaleClientLease": 2,
         "TableBuildBudget": 1,
-        "TableDataChanged": 3,
-        "TableDefinitionChanged": 11,
+        "TableDataChanged": 4,
+        "TableDefinitionChanged": 12,
         "TableDependencyOwned": 1,
         "TableNotCreated": 1,
         "TableRetired": 2,
         "TableSchemaChanged": 1,
         "TableSnapshotNotPinned": 1,
-        "TableSnapshotReleased": 5,
+        "TableSnapshotReleased": 6,
         "TableStatementScanLimit": 1,
         "TransactionAuthorityChanged": 2,
         "TransactionCatalogChanged": 1,
@@ -4601,6 +4601,7 @@
         "clientToken()": "<inferred>",
         "clientTokenSelected()": "<inferred>",
         "closeDependencies()": "<inferred>",
+        "copyRowsDefined()": "<inferred>",
         "createBranch()": "<inferred>",
         "currentReadAuthority()": "<inferred>",
         "dependencyAdministration()": "<inferred>",
@@ -4806,7 +4807,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1827,
+        "try": 1833,
         "catch": 25
       },
       "imports": [
@@ -4929,8 +4930,8 @@
         "EmptyHistoricalSelection": 1,
         "IncompatibleDefinition": 2,
         "InvalidHistoricalBinding": 3,
-        "InvalidHistoricalCursor": 1,
-        "InvalidHistoricalResponse": 2
+        "InvalidHistoricalCursor": 2,
+        "InvalidHistoricalResponse": 3
       },
       "outcomes": {
         "Action": [
@@ -4943,9 +4944,31 @@
           "lookup",
           "namespace",
           "list",
+          "definitions",
+          "locations",
+          "source"
+        ],
+        "CoverageCursor.kind": [
+          "definitions",
+          "locations"
+        ],
+        "Read": [
+          "lookup",
+          "namespace",
+          "list",
+          "source",
+          "definitions",
+          "locations"
+        ],
+        "ReadResult": [
+          "coverage",
+          "object",
+          "namespace",
+          "listing",
           "source"
         ],
         "Result": [
+          "coverage",
           "selection",
           "status",
           "object",
@@ -4974,6 +4997,7 @@
         "Key.foreign()": "<inferred>",
         "Key.native()": "<inferred>",
         "Namespace.foreign()": "<inferred>",
+        "ReadResult.from()": "<inferred>",
         "Selection.foreign()": "<inferred>",
         "Selection.native()": "<inferred>",
         "Snapshot.foreign()": "<inferred>",
@@ -4984,7 +5008,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 108,
+        "try": 124,
         "catch": 1
       },
       "imports": [
@@ -5081,11 +5105,13 @@
       "error_sets": {},
       "error_returns": {
         "apply()": "<inferred>",
+        "definition()": "<inferred>",
+        "location()": "<inferred>",
         "locationKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 34,
         "catch": 2
       },
       "imports": [
@@ -5102,6 +5128,7 @@
       "outcomes": {
         "Request.action": [
           "describe",
+          "history",
           "namespaces",
           "tables",
           "resources",
@@ -5110,6 +5137,7 @@
         ],
         "Response": [
           "catalog",
+          "history",
           "resources",
           "table",
           "dependencies"
@@ -5121,7 +5149,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -5601,7 +5629,7 @@
         "IncompatibleDefinition": 2,
         "InvalidHistoricalBinding": 1,
         "InvalidHistoricalCursor": 1,
-        "InvalidHistoricalResponse": 28,
+        "InvalidHistoricalResponse": 30,
         "InvalidHistoricalState": 17,
         "InvalidHistoricalTransition": 15,
         "InvalidTableReadBudget": 1
@@ -5627,7 +5655,9 @@
           "lookup",
           "namespace",
           "list",
-          "scan"
+          "scan",
+          "definitions",
+          "locations"
         ],
         "Result": [
           "selection",
@@ -5636,7 +5666,9 @@
           "namespace",
           "listing",
           "source",
-          "page"
+          "page",
+          "definitions",
+          "locations"
         ]
       },
       "error_sets": {},
@@ -5655,11 +5687,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 56,
+        "try": 60,
         "catch": 1
       },
       "imports": [
         "DirectHistorySelector.zig",
+        "DirectTableResponse.zig",
         "root.zig",
         "std"
       ]
@@ -6507,8 +6540,8 @@
     "packages/zig/transit-catalog/src/DirectReadDelegation.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidTableDelegation": 11,
-        "TableDelegationDenied": 12
+        "InvalidTableDelegation": 17,
+        "TableDelegationDenied": 15
       },
       "outcomes": {},
       "error_sets": {},
@@ -6533,7 +6566,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
+        "try": 105,
         "catch": 0
       },
       "imports": [
@@ -7162,8 +7195,10 @@
       "errors": {
         "AccessDenied": 1,
         "CatalogDenied": 1,
+        "Conflict": 1,
         "InvalidTableDelegation": 3,
-        "InvalidTableResponse": 7
+        "InvalidTableResponse": 7,
+        "Rejected": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -7178,8 +7213,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 29,
-        "catch": 0
+        "try": 28,
+        "catch": 1
       },
       "imports": [
         "DirectTableResponse.zig",
@@ -7240,7 +7275,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 237,
+        "try": 241,
         "catch": 0
       },
       "imports": [
@@ -7712,7 +7747,9 @@
         "evidence()": "<inferred>",
         "frontier()": "<inferred>",
         "metadata()": "<inferred>",
+        "projectionDefinitions()": "<inferred>",
         "projectionEnvelope()": "<inferred>",
+        "projectionLocations()": "<inferred>",
         "resourceMetadata()": "<inferred>",
         "rows()": "<inferred>",
         "schema()": "<inferred>",
@@ -7726,7 +7763,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 220,
+        "try": 222,
         "catch": 10
       },
       "imports": [
@@ -20708,7 +20745,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef\""
+          "@\"90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21\""
         ],
         "Effect.phase": [
           "pending",
@@ -24587,16 +24624,18 @@
     "packages/zig/transit-query/src/TableSource.zig": {
       "errors": {
         "CatalogScopeChanged": 1,
-        "IncompatibleDefinition": 1,
+        "HistoricalIdentityConflict": 1,
+        "IncompatibleDefinition": 2,
         "IncompleteSource": 1,
         "InvalidColumnSemantics": 2,
         "InvalidQueryCursor": 2,
         "InvalidQuerySource": 3,
-        "InvalidSourceEncoding": 3,
+        "InvalidSchemaProjection": 2,
+        "InvalidSourceEncoding": 5,
         "QueryComplete": 1,
-        "SourceChanged": 4,
+        "SourceChanged": 11,
         "SourceDefinitionTooLarge": 2,
-        "TableSchemaChanged": 5,
+        "TableSchemaChanged": 6,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -24614,14 +24653,17 @@
         "encodeInner()": "<inferred>",
         "fingerprint()": "<inferred>",
         "from()": "<inferred>",
+        "fromHistorical()": "<inferred>",
+        "fromHistoricalProjected()": "<inferred>",
         "page()": "<inferred>",
+        "readerAt()": "<inferred>",
         "requireConnection()": "<inferred>",
         "requireGrant()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
+        "try": 121,
         "catch": 7
       },
       "imports": [
@@ -24861,7 +24903,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 85,
+        "try": 86,
         "catch": 4
       },
       "imports": [
@@ -25165,6 +25207,7 @@
         "Limits.fromNative()": "<inferred>",
         "Limits.native()": "<inferred>",
         "Source.fromNative()": "<inferred>",
+        "Source.historicalValues()": "<inferred>",
         "Source.native()": "<inferred>",
         "Source.semanticValues()": "<inferred>",
         "apply()": "<inferred>",
@@ -25173,7 +25216,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 98,
         "catch": 0
       },
       "imports": [
@@ -28820,7 +28863,7 @@
         "InvalidQueryIdentity": 1,
         "InvalidSqlOperationReference": 1,
         "MissingCapturedQueryOutcome": 1,
-        "QuerySourceUnavailable": 1,
+        "QuerySourceUnavailable": 2,
         "QueryUploadIdentityConflict": 1,
         "SqlOperationBindingChanged": 4,
         "UnknownSqlSource": 2
@@ -28847,7 +28890,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 83,
+        "try": 84,
         "catch": 1
       },
       "imports": [
@@ -29138,7 +29181,7 @@
         "InvalidWireCompletion": 3,
         "InvalidWireValue": 1,
         "MissingColumnSemantics": 1,
-        "MissingResultObservation": 1,
+        "MissingResultObservation": 2,
         "NonexistentLocalTime": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
@@ -29220,6 +29263,7 @@
       "error_sets": {},
       "error_returns": {
         "Read.dataBasis()": "<inferred>",
+        "Read.historicalBasis()": "<inferred>",
         "Read.nextBatch()": "<inferred>",
         "Read.observation()": "<inferred>",
         "Read.pull()": "<inferred>",
@@ -29247,7 +29291,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 110,
+        "try": 114,
         "catch": 9
       },
       "imports": [
@@ -29402,9 +29446,12 @@
         "ParameterCountMismatch": 1,
         "QueryIdentityMismatch": 1,
         "QuerySourceChanged": 1,
+        "QuerySourceUnavailable": 1,
         "SqlSourceCredentialChanged": 1,
         "SqlSourceIdentityMismatch": 1,
-        "TableDefinitionChanged": 1
+        "TableDefinitionChanged": 1,
+        "UnsupportedHistoricalKind": 1,
+        "UnsupportedHistoricalTransaction": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -29421,7 +29468,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 44,
         "catch": 4
       },
       "imports": [

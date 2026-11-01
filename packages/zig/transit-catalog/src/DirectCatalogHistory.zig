@@ -228,6 +228,21 @@ pub const Action = union(enum) {
         };
     }
 };
+/// Results of the read-only composition. Mutation outcomes are not part of
+/// this projection and cannot be accepted by an inspection client.
+pub const ReadResult = union(enum) {
+    coverage: Coverage,
+    object: ?[]const u8,
+    namespace: ?Namespace,
+    listing: @FieldType(Result, "listing"),
+    source: @FieldType(Result, "source"),
+    pub fn from(result: Result) !ReadResult {
+        return switch (result) {
+            .selection, .status => error.InvalidHistoricalResponse,
+            inline else => |value, tag| @unionInit(ReadResult, @tagName(tag), value),
+        };
+    }
+};
 pub const Result = union(enum) {
     coverage: Coverage,
     selection: Selection,

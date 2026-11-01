@@ -7377,3 +7377,73 @@ test "signed schema projection freezes CURRENT without data pins and preserves h
     // Releasing the historical catalog does not release the independent pin.
     _ = try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = tail });
 }
+
+test "captured historical copy keeps exact interpretation through lost reply release DDL and recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    _ = try insertSelectedTable(&catalog, &access, "events", 10);
+    const request = try historyRequest(&catalog, &access, 100, 1, &.{"events"});
+    var status = try catalog.acquireHistory(request, access.policy());
+    for (0..12) |_| {
+        if (status.state.phase == .published) break;
+        status = try catalog.advanceHistory(request.key, .advance, access.policy());
+    } else return error.FixtureBudget;
+    var scratch = std.heap.ArenaAllocator.init(t.allocator);
+    defer scratch.deinit();
+    var retained = try catalog.openHistory(scratch.allocator(), status.state.snapshot.?, 7, true, access.policy());
+    const cut = retained.binding.source;
+    const original = retained.binding.pin.?;
+    retained.deinit();
+    const copy_owner: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 200 };
+    // Acceptance is durable even when its reply disappears.
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+    catalog.lose_table_reply = false;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const copied = try catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy());
+    _ = try catalog.advanceHistory(request.key, .release, access.policy());
+    for (0..12) |_| {
+        status = try catalog.advanceHistory(request.key, .advance, access.policy());
+        if (status.state.phase == .released) break;
+    } else return error.FixtureBudget;
+    try t.expectEqualDeep(copied, try catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+    var later = copy_owner;
+    later.operation += 1;
+    try t.expectError(error.TableSnapshotReleased, catalog.copyRowsDefined(cut.interpretation, later, cut.accepted, original, access.policy()));
+    var view = (try resolve(&catalog, &access, "events")).?;
+    const drop = try edit(&view, 300, .drop);
+    view.deinit();
+    _ = try catalog.admit(drop, access.policy());
+    _ = try catalog.perform(drop.binding, access.policy());
+    _ = try catalog.settle(drop.binding, access.policy());
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(copied, try catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+    var frozen = try catalog.snapshotDefinition(t.allocator, create.binding.target, copied, access.policy());
+    defer frozen.deinit();
+    try t.expectEqualDeep(cut.interpretation, frozen.root.interpretation);
+    try t.expectEqualDeep(original, frozen.copied_from.?);
+    try t.expectEqual(@as(u64, 1), frozen.root.live_rows);
+    var wrong = cut.accepted;
+    wrong.next_lsn += 1;
+    try t.expectError(error.TableDataChanged, catalog.copyRowsDefined(cut.interpretation, copy_owner, wrong, original, access.policy()));
+    var substituted = original;
+    substituted.content.sha256[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, substituted, access.policy()));
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+    access.denied_privileges = null;
+    try catalog.releaseRows(create.binding.target, copied, access.policy());
+    try t.expectError(error.TableSnapshotReleased, catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+}

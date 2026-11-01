@@ -1040,7 +1040,7 @@ retained-read delegations and borrowed-read grants do not permit this action.
 
 ### Delegated retained reads
 
-`DirectReadDelegation.encode` retains the original grant in a canonical 311-byte
+`DirectReadDelegation.encode` retains the original grant in a canonical 433-byte
 `TRG1` record. It contains the four-byte magic, mandatory 32-byte current
 definition, connection scope (realm/resource/catalog), branch, audience,
 principal, role-present byte and role value, executor, object ID, definition
@@ -1049,6 +1049,18 @@ revision and 32-byte digest, partition and accepted frontier, pin operation, ret
 in that order. All integers are unsigned 64-bit little-endian except the
 one-byte role flag, retention tag (`snapshot = 0`, `history = 1`) and selection
 tag (`exact = 1`, `current = 2`).
+The signature is followed by a copy-present byte, 80 source-handle bytes,
+a projection-present byte, and 40 target-definition bytes. An absent optional
+value has a zero tag and zero-filled payload. A source handle contains its
+realm/resource/catalog, principal, operation and content length as little-endian
+u64s followed by its 32-byte digest. The projection contains a u64 revision and
+32-byte digest; its object must equal the original source object. A copy grant
+requires exact snapshot selection, a distinct destination owner, and the same
+catalog scope. The source definition and accepted frontier are checked before
+copy acceptance; retries verify the accepted copy even after source release.
+A projection grant authorizes only preparation of that exact source/target pair
+and projected scans of the query-owned copy. Discovery remains denied.
+
 An absent role has flag/value zero. Object and pin scope,
 pin principal and repeated claim fields must match the connection; decoding
 reconstructs only these constrained duplicates. Missing, foreign, truncated,
@@ -1102,7 +1114,7 @@ replaced shared definition rejects previous envelopes without a fallback.
 
 An explicit `DirectReadDelegation.Closure` authorizes cleanup after the original
 credential changes. Its context is SHA-256 of `transit.table.pin-closure.v1`, a
-zero byte and the exact 311-byte original `TRG1` grant, including its original
+zero byte and the exact 433-byte original `TRG1` grant, including its original
 signature. It carries a current credential epoch and a 64-byte signature; the
 remaining claim fields come from that original grant. Its compact encoding is
 little-endian uint64 epoch followed by the signature (72 bytes). The transport
@@ -1113,6 +1125,9 @@ The owner checks the current closure proof and executor proof together. Only
 Schema and row reads reject, and cleanup cannot replace execution authority or
 choose a newer cut. Exact-original acquisition may be needed to create a terminal
 release record for an uncertain request whose frontier has not advanced.
+For a copy grant, later live definitions/frontiers cannot prove acquisition
+impossible. Closure retries the original copy and releases it, or requires a
+qualified released-pin response that permanently excludes a delayed copy.
 
 `DirectReadDelegation.Borrow` grants another executor read access to one existing
 cut. Its `binding` contains, in order, an executor principal, a target
@@ -1120,7 +1135,7 @@ cut. Its `binding` contains, in order, an executor principal, a target
 It also carries the original caller's 64-byte signature. The claim retains the
 original grant's identity, role, audience and credential epoch; its context is
 SHA-256 of `transit.table.borrowed-read.v1`, a zero byte, the exact original
-311-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
+433-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
 proof after the caller's epoch changes rejects instead of renewing accepted work.
 
 The request carries both the original delegation and `borrow`. The transport

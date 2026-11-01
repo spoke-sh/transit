@@ -28,7 +28,8 @@ pub fn init(host: *g.Session, configuration: *const g.Configuration.Source) !*Se
     self.* = .{ .host = host, .configuration = configuration, .arena = arena, .definition = definition, .client = caller, .fingerprint = undefined };
     self.fingerprint = try bindingFingerprint(host.allocator, configuration, key.public_key.toBytes());
     try self.current();
-    _ = try self.client.describe(self.definition);
+    // A source configuration fixes a route and policy, not the current Table
+    // schema. Accepted historical work must be recoverable after live DDL.
     return self;
 }
 pub fn bindingFingerprint(allocator: std.mem.Allocator, configuration: *const g.Configuration.Source, public_key: [32]u8) ![32]u8 {
@@ -54,23 +55,49 @@ pub fn current(self: *Self) !void {
 pub const Prepared = struct {
     template: q.SqlTemplate,
     output: f.Types.Decoded,
+    selected: ?q.TableSource.Owned = null,
     pub fn deinit(self: *Prepared) void {
         self.template.deinit();
         self.output.deinit();
+        if (self.selected) |*selected| selected.deinit();
     }
 };
 pub fn prepare(self: *Self, sql: []const u8) !Prepared {
     try self.current();
-    _ = try self.client.describe(self.definition);
-    var template = try q.SqlTemplate.initDiagnostic(self.host.allocator, self.definition, self.configuration.workspace.name, sql, &self.host.compile_binding);
+    const selection = try g.database.HistoricalSql.select(sql, self.host.dialect);
+    var selected: ?q.TableSource.Owned = null;
+    errdefer if (selected) |*owned| owned.deinit();
+    var scratch: std.heap.ArenaAllocator = .init(self.host.allocator);
+    defer scratch.deinit();
+    var name = self.configuration.workspace.name;
+    if (selection.snapshot) |snapshot| {
+        if (self.host.transaction.active()) return error.UnsupportedHistoricalTransaction;
+        if (self.definition.source != .table) return error.UnsupportedHistoricalKind;
+        const tables = self.client.tables orelse return error.QuerySourceUnavailable;
+        const namespace = try selection.resolveNamespace(tables, self.definition.source.table.namespace);
+        name = try f.TableSelect.targetDialect(scratch.allocator(), selection.statement, null, self.host.dialect);
+        const response = try g.catalog.DirectHistory.resolve(tables, snapshot, namespace, name, true);
+        defer response.deinit();
+        const historical = response.value.result.historical_catalog.source;
+        const projected = if (selection.projection) |target| try g.catalog.DirectSchemaProjection.resolve(tables, historical.binding.declaration, target) else null;
+        defer if (projected) |value| value.deinit();
+        selected = try q.TableSource.fromHistoricalProjected(self.host.allocator, tables.connection, historical, if (projected) |value| value.value.result.schema_projection.prepared else null);
+    }
+    const definition: q.SourceDefinition = if (selected) |owned| .{ .resource = owned.source.scope.resource, .source = .{ .table = owned.source } } else self.definition;
+    _ = try self.client.describe(definition);
+    var template = try q.SqlTemplate.initDiagnostic(self.host.allocator, definition, name, selection.statement, &self.host.compile_binding);
     errdefer template.deinit();
-    _ = try self.client.describe(self.definition);
-    return .{ .template = template, .output = try template.template.outputSchema(self.host.allocator) };
+    _ = try self.client.describe(definition);
+    return .{ .template = template, .output = try template.template.outputSchema(self.host.allocator), .selected = selected };
+}
+pub fn boundDefinition(self: *Self, prepared: *const Prepared) q.SourceDefinition {
+    return if (prepared.selected) |selected| .{ .resource = selected.source.scope.resource, .source = .{ .table = selected.source } } else self.definition;
 }
 pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
-    _ = try self.client.describe(self.definition);
-    if (!std.mem.eql(u8, &prepared.template.definition, &try self.definition.fingerprint())) return error.QuerySourceChanged;
+    const definition = self.boundDefinition(prepared);
+    _ = try self.client.describe(definition);
+    if (!std.mem.eql(u8, &prepared.template.definition, &try definition.fingerprint())) return error.QuerySourceChanged;
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !q.SqlTemplate.Bound {
     return self.host.fresh(bindOnce, .{ self, prepared, values });
@@ -80,7 +107,7 @@ fn bindOnce(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
     var atoms: [f.LogicalPrepared.max_parameters]f.Types.Values.Atom = undefined;
     if (values.len > atoms.len) return error.ParameterCountMismatch;
     for (values, atoms[0..values.len]) |value, *atom| atom.* = value orelse return error.NullParameterUnsupported;
-    return self.client.bindSql(self.host.allocator, &prepared.template, self.definition, atoms[0..values.len], try self.configuration.workspace.limits.native());
+    return self.client.bindSql(self.host.allocator, &prepared.template, self.boundDefinition(prepared), atoms[0..values.len], try self.configuration.workspace.limits.native());
 }
 pub const Read = struct {
     source: *Self,
@@ -100,7 +127,8 @@ pub const Read = struct {
         var pin: ?g.ReadCache.Record = null;
         errdefer closePin(source, pin);
         var query = if (source.client.tables) |tables| table: {
-            const declaration = source.definition.source.table;
+            const declaration = bound.bundle.source.source.table;
+            if (declaration.historical) |history| break :table try q.Interactive.openTable(&source.client, bound.bundle, .{ .object = declaration.interpretation.interpretation.object, .handle = history.handle() }, source.host.allocator);
             const response = try tables.call(.{ .observe = .{ .namespace = declaration.namespace, .interpretation = declaration.interpretation.interpretation, .rows = null } });
             defer response.deinit();
             const metadata = response.value.result.observation.definition;

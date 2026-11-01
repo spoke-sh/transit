@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef`.
+`90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21`.
 It adds canonical range/multirange and unboxed vector values, their logical
 Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
 bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved

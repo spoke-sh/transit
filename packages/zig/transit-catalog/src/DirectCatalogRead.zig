@@ -16,7 +16,7 @@ pub const Request = struct {
 };
 pub const Response = union(enum) {
     catalog: c.DirectCatalogInspection.Result,
-    history: c.DirectCatalogHistory.Result,
+    history: c.DirectCatalogHistory.ReadResult,
     resources: @FieldType(c.DirectCatalogResources.Result, "list"),
     table: struct { metadata: h.Metadata, preview_sql: []const u8, expected_definition: []const u8 },
     dependencies: @FieldType(c.DirectCatalogDependencies.Result, "page"),
@@ -25,7 +25,7 @@ pub fn apply(arena: *std.heap.ArenaAllocator, client: c.DirectTableClient, reque
     if (request.definition != c.protocol.Growth.current_definition) return error.IncompatibleDefinition;
     const a = arena.allocator();
     return switch (request.action) {
-        .history => |input| .{ .history = try c.DirectCatalogHistory.apply(a, client, input.action()) },
+        .history => |input| .{ .history = try c.DirectCatalogHistory.ReadResult.from(try c.DirectCatalogHistory.apply(a, client, input.action())) },
         .describe => .{ .catalog = try c.DirectCatalogInspection.apply(a, client, .describe) },
         .namespaces => |cursor| .{ .catalog = try c.DirectCatalogInspection.apply(a, client, .{ .namespaces = cursor }) },
         .tables => |input| .{ .catalog = try c.DirectCatalogInspection.apply(a, client, .{ .tables = input }) },

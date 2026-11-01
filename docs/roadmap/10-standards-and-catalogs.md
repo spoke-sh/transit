@@ -631,6 +631,23 @@ the Fuze suite passes 508 tests and ten focused catalog projection tests pass.
 These checks do not close the outstanding explicit projection, captured-query,
 versioned-definition or final qualification gates.
 
+The installed historical SQL scenario passes at `07955e0c2`: native, PostgreSQL
+and MySQL reads preserve original objects across namespace/table rename and
+reuse, explicit projection defaults, gateway replacement and release. Buffered
+metadata revocation and paged listings pass. Board's installed read-only scenario
+also passes retained definition/location pagination and current-policy refusal;
+its expanded browser scenario still needs execution.
+
+Captured historical Table descriptors now freeze the original selector, accepted
+source and optional projection target in TQS1. A signed exact copy grant retains
+that source under the query operation; closure reconciles the original copy even
+when live DDL/frontiers advance. The shared current definition changes to
+`90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21`.
+Focused catalog copy/recovery and delegation checks pass (6 tests each), and the
+query descriptor/neutral-value checks pass (9 tests). The expanded installed
+capture scenario covers lost copy replies, DDL, replacement and release-before-copy;
+execution of that scenario and final clean qualification remain pending.
+
 #### P6 — Bind views and multi-model interpretation
 
 Publish immutable view definitions, output identities and exact dependencies

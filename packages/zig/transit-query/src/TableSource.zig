@@ -8,7 +8,7 @@ const t = f.Types;
 const w = c.DirectTableProtocol;
 const d = q.protocol.DataLifecycle;
 const Self = @This();
-pub const max_bytes = 174 + t.max_encoding_bytes + f.TableSchema.max_columns;
+pub const max_bytes = 178 + t.max_encoding_bytes + f.TableSchema.max_columns + c.DirectHistory.Selector.text_bytes + 56 + 194;
 scope: d.Scope,
 /// The explicitly configured Table service audience, independent of query PID.
 owner: u64,
@@ -19,6 +19,18 @@ interpretation: c.storage.TableDeclaration.Stored,
 row_type: t.Type,
 collations: f.QueryCollations = .{},
 semantics: []const f.ColumnSemantics = &.{},
+/// Published catalog attribution and the exact original retained source. It is
+/// not a pin acquired by this descriptor and does not confer read permission.
+historical: ?Historical = null,
+projection: ?c.DirectSchemaProjection.Accepted = null,
+pub const Historical = struct {
+    snapshot: d.Snapshot,
+    accepted: d.Position,
+    pin: d.Content,
+    pub fn handle(self: Historical) c.storage.TablePartition.SnapshotHandle {
+        return .{ .owner = self.snapshot.owner, .content = self.pin };
+    }
+};
 
 pub const Owned = struct {
     descriptor: t.Decoded,
@@ -36,6 +48,16 @@ pub fn validate(self: Self) !void {
     if (self.interpretation.kind != .table) return error.InvalidQuerySource;
     const object: d.Object = .{ .scope = self.scope, .branch = self.branch, .object = self.object };
     if (!std.meta.eql(object, self.interpretation.interpretation.object) or self.interpretation.retired) return error.InvalidQuerySource;
+    if (self.historical) |history| {
+        try history.snapshot.validate();
+        if (history.snapshot.definition != q.protocol.Growth.current_definition) return error.IncompatibleDefinition;
+        try history.pin.validate();
+        try history.snapshot.requireSource(.{ .interpretation = self.interpretation.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = history.accepted });
+    }
+    if (self.projection) |target| {
+        _ = try target.encode();
+        if (self.historical == null or !std.meta.eql(target.declaration.interpretation.object, self.interpretation.interpretation.object) or target.declaration.interpretation.revision < self.interpretation.interpretation.revision) return error.InvalidSchemaProjection;
+    }
     try self.row_type.validate(.{});
     try self.collations.validate(self.row_type);
     if (self.row_type != .structure or (self.semantics.len != 0 and self.semantics.len != self.row_type.structure.len)) return error.InvalidColumnSemantics;
@@ -70,6 +92,31 @@ pub fn from(allocator: std.mem.Allocator, connection: w.Connection, definition: 
     try source.validate();
     return .{ .descriptor = descriptor, .source = source };
 }
+/// The historical owner has already resolved the name and authenticated this
+/// exact source. The returned descriptor owns every schema and semantic byte.
+pub fn fromHistorical(allocator: std.mem.Allocator, connection: w.Connection, selected: c.DirectHistory.Source) !Owned {
+    return fromHistoricalProjected(allocator, connection, selected, null);
+}
+pub fn fromHistoricalProjected(allocator: std.mem.Allocator, connection: w.Connection, selected: c.DirectHistory.Source, projected: ?c.DirectSchemaProjection.Prepared) !Owned {
+    if (projected) |target| if (!std.meta.eql(target.source, selected.binding.declaration)) return error.InvalidSchemaProjection;
+    var result = try from(allocator, connection, .{
+        .interpretation = if (projected) |target| target.target.declaration else selected.binding.declaration,
+        .namespace = selected.binding.namespace.id,
+        .authorization = selected.binding.properties.authorization,
+        .name = selected.binding.properties.name,
+        .position = selected.binding.source.accepted,
+        .changed_lsn = selected.changed_lsn,
+        .row_count = selected.rows,
+        .schema = if (projected) |target| target.schema else selected.schema,
+    });
+    errdefer result.deinit();
+    result.source.interpretation = selected.binding.declaration;
+    result.source.projection = if (projected) |target| target.target else null;
+    result.source.historical = .{ .snapshot = selected.snapshot, .accepted = selected.binding.source.accepted, .pin = selected.binding.pin.?.content };
+    if (!std.meta.eql(selected.binding.pin.?.owner, selected.snapshot.owner)) return error.HistoricalIdentityConflict;
+    try result.source.validate();
+    return result;
+}
 pub fn encode(self: Self, output: []u8) ![]const u8 {
     return self.encodeInner(output) catch |err| switch (err) {
         error.WriteFailed => error.SourceDefinitionTooLarge,
@@ -96,6 +143,17 @@ fn encodeInner(self: Self, output: []u8) ![]const u8 {
     for (self.semantics) |value| present = present or !value.empty();
     try writer.writeByte(if (present) @intCast(self.semantics.len) else 0);
     if (present) for (self.semantics) |value| try value.write(&writer);
+    try writer.writeByte(@intFromBool(self.historical != null));
+    if (self.historical) |history| {
+        var selector: [c.DirectHistory.Selector.text_bytes]u8 = undefined;
+        try writer.writeAll(try c.DirectHistory.Selector.encode(history.snapshot, &selector));
+        try writer.writeInt(u64, history.accepted.partition, .little);
+        try writer.writeInt(u64, history.accepted.next_lsn, .little);
+        try writer.writeInt(u64, history.pin.bytes, .little);
+        try writer.writeAll(&history.pin.sha256);
+    }
+    try writer.writeByte(@intFromBool(self.projection != null));
+    if (self.projection) |target| try writer.writeAll((try target.encode()).slice());
     return writer.buffered();
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
@@ -135,6 +193,16 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     const semantics = try arena.alloc(f.ColumnSemantics, semantic_count);
     for (semantics) |*value| value.* = try f.ColumnSemantics.read(arena, &reader);
     source.semantics = semantics;
+    source.historical = switch (try reader.takeByte()) {
+        0 => null,
+        1 => .{ .snapshot = try c.DirectHistory.Selector.decode(try reader.take(c.DirectHistory.Selector.text_bytes)), .accepted = .{ .partition = try reader.takeInt(u64, .little), .next_lsn = try reader.takeInt(u64, .little) }, .pin = .{ .bytes = try reader.takeInt(u64, .little), .sha256 = (try reader.takeArray(32)).* } },
+        else => return error.InvalidSourceEncoding,
+    };
+    source.projection = switch (try reader.takeByte()) {
+        0 => null,
+        1 => try c.DirectSchemaProjection.Accepted.decode(try c.storage.TreeStore.pages.Value.init(try reader.take(194))),
+        else => return error.InvalidSourceEncoding,
+    };
     if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
     try source.validate();
     var canonical: [max_bytes]u8 = undefined;
@@ -156,6 +224,16 @@ pub fn requireConnection(self: Self, client: c.DirectTableClient) !void {
 /// check the original pin, so ALTER/DROP cannot substitute their newer schema.
 pub fn checkDefinition(self: Self, client: c.DirectTableClient) !void {
     try self.requireConnection(client);
+    if (self.historical) |history| {
+        const response = try c.DirectHistory.call(client, .{ .source = .{ .snapshot = history.snapshot, .object = self.object, .rows = false } });
+        defer response.deinit();
+        const projected = if (self.projection) |target| try c.DirectSchemaProjection.call(client, .{ .prepare = .{ .source = self.interpretation, .target = target.declaration } }) else null;
+        defer if (projected) |value| value.deinit();
+        var current = try fromHistoricalProjected(client.allocator, client.connection, response.value.result.historical_catalog.source, if (projected) |value| value.value.result.schema_projection.prepared else null);
+        defer current.deinit();
+        if (!std.mem.eql(u8, &try current.source.fingerprint(), &try self.fingerprint())) return error.TableSchemaChanged;
+        return;
+    }
     const response = try client.call(.{ .observe = .{ .namespace = self.namespace, .interpretation = self.interpretation.interpretation, .rows = null } });
     defer response.deinit();
     var current = try Self.from(client.allocator, client.connection, response.value.result.observation.definition);
@@ -168,6 +246,11 @@ pub fn requireGrant(self: Self, allocator: std.mem.Allocator, grant: c.DirectRea
     try self.validate();
     try grant.validate(allocator);
     if (!std.meta.eql(grant.binding.interpretation, self.interpretation.interpretation) or grant.binding.connection.audience != self.owner) return error.SourceChanged;
+    if (self.historical) |history| {
+        if (!std.meta.eql(grant.binding.copied_from, history.handle()) or !std.meta.eql(grant.binding.expected, history.accepted)) return error.SourceChanged;
+    } else if (grant.binding.copied_from != null) return error.SourceChanged;
+    const target: ?d.Definition = if (self.projection) |value| value.declaration.interpretation else null;
+    if (!std.meta.eql(grant.binding.projection, target)) return error.SourceChanged;
 }
 pub const Basis = struct {
     declaration: [32]u8,
@@ -182,7 +265,8 @@ pub const Basis = struct {
 };
 pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSchema.Schema) !Basis {
     try self.validate();
-    if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.SourceChanged;
+    if (self.historical) |history| if (!std.meta.eql(retained.accepted, history.accepted)) return error.SourceChanged;
+    if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &(if (self.projection) |target| target.declaration.schema_fingerprint else self.interpretation.schema_fingerprint))) return error.SourceChanged;
     try q.direct.DirectTableQuery.qualify(schema);
     if (!std.meta.eql(self.collations, f.QueryCollations.fromTable(schema))) return error.TableSchemaChanged;
     for (schema.columns, 0..) |column, i| {
@@ -191,11 +275,28 @@ pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSch
     }
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     if (!try self.row_type.eql(try schema.rowType(&fields))) return error.TableSchemaChanged;
-    return .{ .declaration = try self.fingerprint(), .schema = try self.row_type.fingerprint(), .retained = retained };
+    if (!std.meta.eql(retained.projection, self.projection)) return error.SourceChanged;
+    // Native pin evidence describes the original source. The exact projection
+    // is already committed by this source descriptor and the query contract.
+    var original = retained;
+    original.projection = null;
+    return .{ .declaration = try self.fingerprint(), .schema = try self.row_type.fingerprint(), .retained = original };
+}
+fn readerAt(self: Self, allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: w.Snapshot) !c.DirectTableReader {
+    var reader = if (self.historical != null and std.meta.eql(snapshot.handle, self.historical.?.handle())) history: {
+        if (!std.meta.eql(snapshot.object, self.interpretation.interpretation.object)) return error.SourceChanged;
+        break :history try c.DirectTableReader.openCatalog(allocator, client, self.historical.?.snapshot, self.object);
+    } else try c.DirectTableReader.open(allocator, client, snapshot);
+    errdefer reader.deinit();
+    if (self.projection) |target| {
+        try reader.projectTo(client, target.declaration);
+        if (!std.meta.eql(reader.basis.projection, target)) return error.SourceChanged;
+    }
+    return reader;
 }
 pub fn capture(self: Self, allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: w.Snapshot) !Basis {
     try self.requireConnection(client);
-    var reader = c.DirectTableReader.open(allocator, client, snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
+    var reader = self.readerAt(allocator, client, snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
     defer reader.deinit();
     return self.basis(reader.basis, reader.schema.schema);
 }
@@ -234,7 +335,7 @@ pub fn page(self: Self, allocator: std.mem.Allocator, captured: Basis, cursor: C
     if (cursor.done) return error.QueryComplete;
     if (cursor.scanned > captured.retained.row_count or (cursor.scanned == 0) != (cursor.after == null)) return error.InvalidQueryCursor;
     try plan.validate();
-    var reader = c.DirectTableReader.open(allocator, client, captured.retained.snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
+    var reader = self.readerAt(allocator, client, captured.retained.snapshot) catch |err| return q.CapturedTablePin.readFailure(client, err);
     defer reader.deinit();
     if (!std.meta.eql(try self.basis(reader.basis, reader.schema.schema), captured)) return error.SourceChanged;
     // Only a complete conjunction over the declared primary key qualifies.
@@ -250,7 +351,7 @@ pub fn page(self: Self, allocator: std.mem.Allocator, captured: Basis, cursor: C
         else => null,
     };
     const schema = reader.schema.schema;
-    const key = if (program) |predicate| try (f.TableDml.Plan{ .name = "retained", .schema = schema, .action = .delete, .predicate = predicate }).primaryKeyEquality(&key_storage) else null;
+    const key = if (reader.basis.catalog == null and reader.basis.projection == null and program != null) try (f.TableDml.Plan{ .name = "retained", .schema = schema, .action = .delete, .predicate = program.? }).primaryKeyEquality(&key_storage) else null;
     if (key) |values| {
         if (cursor.ordinal != 0 or cursor.scanned != 0) return error.InvalidQueryCursor;
         var encoded: [f.Collation.max_sort_key_bytes]u8 = undefined;
@@ -268,7 +369,7 @@ pub fn page(self: Self, allocator: std.mem.Allocator, captured: Basis, cursor: C
         return result;
     }
     reader.consumed = cursor.scanned;
-    reader.after = if (cursor.after) |after| .{ .source = captured.retained.snapshot.handle.content, .after = try after.encode() } else null;
+    reader.after = if (cursor.after) |after| .{ .source = if (self.projection) |target| try c.storage.TablePartition.projectionCursorSource(captured.retained.snapshot.handle, target) else captured.retained.snapshot.handle.content, .after = try after.encode() } else null;
     var batch = (reader.next(client, .{ .rows = f.LogicalArrow.max_rows }) catch |err| return q.CapturedTablePin.readFailure(client, err)) orelse return error.IncompleteSource;
     defer batch.deinit();
     var result: Page = .{ .basis = captured, .ordinal = cursor.ordinal, .next = cursor, .count = @intCast(batch.count) };
