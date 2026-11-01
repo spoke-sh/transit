@@ -24,6 +24,11 @@ pub fn main(init: std.process.Init) !void {
         try writer.interface.writeByte('\n');
         return writer.interface.flush();
     }
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--document-profile")) {
+        try p.Schema.writeRecursive(p.DocumentProfile.SchemaTypes, &out, .{});
+        try writer.interface.writeByte('\n');
+        return writer.interface.flush();
+    }
     try out.beginObject();
     try field(&out, "$schema", "https://json-schema.org/draft/2020-12/schema");
     try field(&out, "title", "Transit native protocol v1");

@@ -1,0 +1,506 @@
+{
+  "$ref": "#/$defs/T0",
+  "$defs": {
+    "T0": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "descriptor",
+        "part",
+        "span",
+        "provenance",
+        "capture",
+        "validation"
+      ],
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/T1"
+        },
+        "part": {
+          "$ref": "#/$defs/T14"
+        },
+        "span": {
+          "$ref": "#/$defs/T18"
+        },
+        "provenance": {
+          "$ref": "#/$defs/T17"
+        },
+        "capture": {
+          "$ref": "#/$defs/T21"
+        },
+        "validation": {
+          "$ref": "#/$defs/T22"
+        }
+      },
+      "required": [
+        "descriptor",
+        "part",
+        "span",
+        "provenance",
+        "capture",
+        "validation"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T1": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "format",
+        "revision",
+        "grammar",
+        "schema",
+        "segmenter",
+        "encoding",
+        "framing",
+        "key_collation",
+        "value_collation",
+        "limits",
+        "digest"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "format": {
+          "$ref": "#/$defs/T3"
+        },
+        "revision": {
+          "$ref": "#/$defs/T4"
+        },
+        "grammar": {
+          "$ref": "#/$defs/T5"
+        },
+        "schema": {
+          "$ref": "#/$defs/T8"
+        },
+        "segmenter": {
+          "$ref": "#/$defs/T8"
+        },
+        "encoding": {
+          "$ref": "#/$defs/T9"
+        },
+        "framing": {
+          "$ref": "#/$defs/T10"
+        },
+        "key_collation": {
+          "$ref": "#/$defs/T11"
+        },
+        "value_collation": {
+          "$ref": "#/$defs/T11"
+        },
+        "limits": {
+          "$ref": "#/$defs/T12"
+        },
+        "digest": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "definition",
+        "format",
+        "revision",
+        "grammar",
+        "schema",
+        "segmenter",
+        "encoding",
+        "framing",
+        "key_collation",
+        "value_collation",
+        "limits",
+        "digest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T2": {
+      "type": "string",
+      "enum": [
+        "8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865"
+      ]
+    },
+    "T3": {
+      "type": "string",
+      "enum": [
+        "json",
+        "xml",
+        "http",
+        "mime",
+        "ftp",
+        "edi_x12",
+        "edifact",
+        "hl7",
+        "smtp",
+        "imap",
+        "pop3",
+        "ldap",
+        "ldif",
+        "sip",
+        "sdp",
+        "amqp",
+        "mqtt",
+        "ntp",
+        "docx",
+        "xlsx",
+        "odf",
+        "pdf",
+        "grpc"
+      ]
+    },
+    "T4": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "x-transit-bits": 64,
+      "x-transit-signed": false
+    },
+    "T5": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/T4"
+        },
+        "sha256": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "bytes",
+        "sha256"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T6": {
+      "type": "array",
+      "minItems": 32,
+      "maxItems": 32,
+      "items": {
+        "$ref": "#/$defs/T7"
+      }
+    },
+    "T7": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-transit-bits": 8,
+      "x-transit-signed": false
+    },
+    "T8": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T5"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "T9": {
+      "type": "string",
+      "enum": [
+        "utf8",
+        "ascii",
+        "binary",
+        "latin1",
+        "ebcdic_cp037",
+        "ebcdic_cp500",
+        "ebcdic_cp1047"
+      ]
+    },
+    "T10": {
+      "type": "string",
+      "enum": [
+        "single",
+        "delimited",
+        "length_prefixed",
+        "multipart",
+        "ber",
+        "zip",
+        "pdf_xref"
+      ]
+    },
+    "T11": {
+      "type": "string",
+      "enum": [
+        "utf8_binary",
+        "ascii_ci",
+        "ebcdic_cp037"
+      ]
+    },
+    "T12": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "input_bytes",
+        "expanded_bytes",
+        "expansion_ratio",
+        "parts",
+        "nodes",
+        "depth",
+        "token_bytes",
+        "attributes",
+        "diagnostics",
+        "work"
+      ],
+      "properties": {
+        "input_bytes": {
+          "$ref": "#/$defs/T4"
+        },
+        "expanded_bytes": {
+          "$ref": "#/$defs/T4"
+        },
+        "expansion_ratio": {
+          "$ref": "#/$defs/T13"
+        },
+        "parts": {
+          "$ref": "#/$defs/T13"
+        },
+        "nodes": {
+          "$ref": "#/$defs/T4"
+        },
+        "depth": {
+          "$ref": "#/$defs/T13"
+        },
+        "token_bytes": {
+          "$ref": "#/$defs/T13"
+        },
+        "attributes": {
+          "$ref": "#/$defs/T13"
+        },
+        "diagnostics": {
+          "$ref": "#/$defs/T13"
+        },
+        "work": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "input_bytes",
+        "expanded_bytes",
+        "expansion_ratio",
+        "parts",
+        "nodes",
+        "depth",
+        "token_bytes",
+        "attributes",
+        "diagnostics",
+        "work"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T13": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "x-transit-bits": 32,
+      "x-transit-signed": false
+    },
+    "T14": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "profile",
+        "id",
+        "bytes",
+        "sha256",
+        "coverage",
+        "source"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "profile": {
+          "$ref": "#/$defs/T6"
+        },
+        "id": {
+          "$ref": "#/$defs/T4"
+        },
+        "bytes": {
+          "$ref": "#/$defs/T4"
+        },
+        "sha256": {
+          "$ref": "#/$defs/T6"
+        },
+        "coverage": {
+          "$ref": "#/$defs/T15"
+        },
+        "source": {
+          "$ref": "#/$defs/T16"
+        }
+      },
+      "required": [
+        "definition",
+        "profile",
+        "id",
+        "bytes",
+        "sha256",
+        "coverage",
+        "source"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T15": {
+      "type": "string",
+      "enum": [
+        "prefix",
+        "complete",
+        "redacted"
+      ]
+    },
+    "T16": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T17"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "T17": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "exact"
+          ],
+          "properties": {
+            "exact": {
+              "$ref": "#/$defs/T18"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "derived"
+          ],
+          "properties": {
+            "derived": {
+              "$ref": "#/$defs/T20"
+            }
+          }
+        }
+      ]
+    },
+    "T18": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "part_id",
+        "space",
+        "byte_start",
+        "byte_end"
+      ],
+      "properties": {
+        "part_id": {
+          "$ref": "#/$defs/T4"
+        },
+        "space": {
+          "$ref": "#/$defs/T19"
+        },
+        "byte_start": {
+          "$ref": "#/$defs/T4"
+        },
+        "byte_end": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "part_id",
+        "space",
+        "byte_start",
+        "byte_end"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T19": {
+      "type": "string",
+      "enum": [
+        "raw",
+        "decoded",
+        "derived"
+      ]
+    },
+    "T20": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "source",
+        "transform"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/T18"
+        },
+        "transform": {
+          "$ref": "#/$defs/T5"
+        }
+      },
+      "required": [
+        "source",
+        "transform"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T21": {
+      "type": "string",
+      "enum": [
+        "preparing",
+        "ready",
+        "capturing",
+        "complete",
+        "unknown",
+        "retired"
+      ]
+    },
+    "T22": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "revision",
+        "validator",
+        "status",
+        "diagnostics"
+      ],
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/T4"
+        },
+        "validator": {
+          "$ref": "#/$defs/T5"
+        },
+        "status": {
+          "$ref": "#/$defs/T23"
+        },
+        "diagnostics": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "revision",
+        "validator",
+        "status",
+        "diagnostics"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T23": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "invalid",
+        "incomplete"
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const serving = context.serving;
     const web_dependencies = context.web_dependencies;
     const document = context.document;
+    const document_profiles = b.dependency("transit_document_profiles", .{ .target = target, .optimize = optimize });
     const document_core = b.dependency("transit_document", .{ .target = target, .optimize = optimize });
     const station_grpc = context.station_grpc;
     const station_flight = context.station_flight;
@@ -310,9 +311,23 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run compiled components, independent fixtures and local process faults");
     const components_step = b.step("test-components", "Run compiled component tests, including package-local filesystem checks");
+    const document_profiles_probe = b.addExecutable(.{ .name = "transit-document-profiles-probe", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/catalog/tables/document_profiles.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_document_profiles", .module = document_profiles.module("transit_document_profiles") }},
+    }) });
+    const document_profiles_oracle = b.addSystemCommand(&.{ "python3", "-B" });
+    document_profiles_oracle.addFileArg(b.path("tests/runner/launch.py"));
+    document_profiles_oracle.addFileArg(b.path("tests/catalog/tables/document_profiles.py"));
+    document_profiles_oracle.addArtifactArg(document_profiles_probe);
+    document_profiles_oracle.has_side_effects = true;
+    document_profiles_oracle.stdio = .inherit;
+    b.step("test-document-profiles", "Compare bounded Document parsers with independent JSON and XML oracles").dependOn(&document_profiles_oracle.step);
     const fixtures_step = b.step("test-fixtures", "Run independent contract fixtures and native/port codec checks");
     const faults_step = b.step("test-faults", "Run local storage process-death and CLI lifecycle checks");
     test_step.dependOn(components_step);
+    fixtures_step.dependOn(&document_profiles_oracle.step);
     test_step.dependOn(fixtures_step);
     test_step.dependOn(faults_step);
     const counter_tests = b.addTest(.{ .root_module = b.createModule(.{
@@ -392,6 +407,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document_profiles.module("transit_document_profiles") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document_core.module("transit_document") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
@@ -757,6 +773,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const lifecycle_export = b.addRunArtifact(exporter);
     lifecycle_export.addArg("--data-lifecycle");
     b.step("data-lifecycle-contract", "Export neutral data lifecycle and snapshot schemas").dependOn(&lifecycle_export.step);
+    const document_profile_export = b.addRunArtifact(exporter);
+    document_profile_export.addArg("--document-profile");
+    b.step("document-profile-contract", "Export Document interpretation and provenance schemas").dependOn(&document_profile_export.step);
     const index_export = b.addRunArtifact(exporter);
     index_export.addArg("--index-lifecycle");
     b.step("index-lifecycle-contract", "Export neutral index declaration and coverage schemas").dependOn(&index_export.step);

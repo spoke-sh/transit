@@ -216,3 +216,12 @@ value failures through SQL diagnostics; malformed JSON is validated while its
 original literal span is available. Repeated keys in a compiled multi-row intent
 remain a runtime uniqueness obligation, with atomic rejection in the Table
 publication proofs. Grammar acceptance never establishes publication.
+
+The offline Document profile package is included in the lexical inventory. Its
+parser refusals and observed byte offsets propagate directly to its caller;
+intermediate events remain provisional until grammar and part commitments pass.
+The [profile reader](../../packages/zig/transit-document-profiles/README.md) has no
+SQL/CLI adapter, stored outcome projector or dispatch/recovery action. Its new
+format/capture vocabulary therefore does not extend the retained-outcome matrix.
+The component limits/late-failure tests and independent JSON/Expat oracle own its
+negative evidence; future service adapters must add their own semantic mappings.

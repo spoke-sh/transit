@@ -1,0 +1,8 @@
+.{
+    .fingerprint = 0x908177e50da0fc5e,
+    .name = .transit_document_profiles,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_protocol = .{ .path = "../transit-protocol" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}
