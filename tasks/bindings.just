@@ -106,7 +106,7 @@ python-test: python-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py packages/zig/transit-fuze/src/fixtures/companion-values.json
     PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_handler_tables.py
     PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station:examples/station-sdk/python python3 -B tests/runner/launch.py tests/sdk/sdk_table_work.py
     PYTHONPATH=sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_diagnostic_errors.py "${native_prefix}/lib/libtransit_client.so"
@@ -130,7 +130,7 @@ relational-node: node-build node-check
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
 
 relational-python: python-build
-    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py
+    PYTHONPATH=sdks/python/transit-client:sdks/python/transit-station python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_relational_values.py packages/zig/transit-fuze/src/fixtures/companion-values.json
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
 

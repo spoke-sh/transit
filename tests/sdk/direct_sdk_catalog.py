@@ -43,9 +43,11 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_catalog_sdk.py', script)
     history_fixture = target / 'history-fixture.json'
     shutil.copy2(ROOT / 'packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json', history_fixture)
+    companion_fixture = target / 'companion-values.json'
+    shutil.copy2(ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json', companion_fixture)
     for test in ('python_catalog_values.py', 'python_relational_values.py'):
         shutil.copy2(ROOT / 'tests/sdk/consumers/python' / test, target / test)
-        subprocess.run([python, '-B', str(target / test), *([str(history_fixture)] if test == 'python_catalog_values.py' else [])], cwd=target, env=env, check=True)
+        subprocess.run([python, '-B', str(target / test), str(history_fixture if test == 'python_catalog_values.py' else companion_fixture)], cwd=target, env=env, check=True)
     seed = target / 'caller.seed'
     seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']

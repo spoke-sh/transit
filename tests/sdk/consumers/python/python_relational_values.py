@@ -3,6 +3,7 @@ import asyncio
 import copy
 from dataclasses import FrozenInstanceError
 import json
+import sys
 from pathlib import Path
 import threading
 from types import SimpleNamespace
@@ -14,7 +15,8 @@ from transit_station.catalog_values import DEFINITION
 from transit_station import catalog_values as v
 from transit_client import ResourceRef
 from transit_station import logical_values as logical
-from runner.paths import ROOT
+
+COMPANION_FIXTURE = Path(sys.argv.pop(1))
 
 REF = dict(definition=DEFINITION, id='01'*16, plan='02'*32, basis='03'*32)
 PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(group=[None, {'signed': str(-(1 << 63))}, {'utf8': 'A\0é '}, {'utf8': ''}]), cells=[dict(value=dict(atom=dict(signed=str(-(1 << 63))))), dict(value=dict(atom=dict(unsigned=str((1 << 64)-1)))), {'null': {}}, {'value': {'atom': {'utf8': 'A\0é '}}}, {'value': {'atom': {'utf8': ''}}}]), complete_coverage=False)
@@ -39,7 +41,7 @@ class Values(unittest.TestCase):
         with self.assertRaises(ValueError): v._semantics(dict(rounding=None, metric=None, timezone=None))
 
     def test_companion_values_preserve_independent_descriptors_and_bits(self):
-        fixtures = json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json').read_text())
+        fixtures = json.loads(COMPANION_FIXTURE.read_text())
         for case in fixtures['cases']:
             if case['error'] is not None:
                 continue  # Semantic admission belongs to Zig.
