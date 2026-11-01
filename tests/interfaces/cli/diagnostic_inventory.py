@@ -29,7 +29,8 @@ PACKAGES = (
     'transit-tls-server', 'transit-sql-protocol', 'transit-sql-results', 'transit-sql-client', 'transit-sql', 'transit-sql-service', 'transit-sql-host', 'transit-postgres', 'transit-mysql',
 )
 APPS = ('transit-cli', 'transit-board', 'transit-flight-gateway', 'transit-station-host',
-        'transit-station-http-worker', 'transit-station-grpc-worker', 'transit-sql-gateway')
+        'transit-station-http-worker', 'transit-station-grpc-worker', 'transit-sql-gateway',
+        'transit-serving-client')
 GRAMMARS = ('contracts/sql/TransitExtensions.g4', 'contracts/application/Application.g4')
 TOKEN = re.compile(r'''//[^\n]*|/\*.*?\*/|\\\\[^\n]*|@?"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_][A-Za-z_0-9]*|[^\s]''', re.S)
 

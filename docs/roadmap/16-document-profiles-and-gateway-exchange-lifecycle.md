@@ -283,7 +283,7 @@ flowchart LR
 
 6. **Expose unified SQL, structural/spatial search, spreadsheet relational views and Board inspection.**
    Make every Document Profile, compound office document and captured exchange a
-   first-class citizen of `Fuze` SQL, search and [Board](29-board-reimplementation.md):
+   first-class citizen of `Fuze` SQL, search and [Board](30-board-reimplementation.md):
    - Query shredded paths, `LDAP` DN subtrees, `MQTT` topic wildcards, `NTP`
      clock-offset/uncertainty bounds, `XLSX`/`ODS` spreadsheet tables and `PDF`
      spatial/page spans through standard `Fuze` SQL (`SELECT`, `WHERE`,
@@ -360,14 +360,14 @@ connectors in the [proof ledger](../history/qualification/README.md):
   Worst-Case Optimal Joins (`WCOJ`), vector/hybrid ANN search, external
   `FOREIGN TABLE` / `COPY` datasets (`PARQUET`/`GeoParquet`, `ARROW_IPC`, `CSV`, mainframe
   `FB`/`VB` copybooks) and streaming CDC ingress.
-- [Branches, merges and restore](19-branches-merges-and-restore.md) extends
+- [Branches, merges and restore](20-branches-merges-and-restore.md) extends
   zero-copy manifest branching and three-way structural/causal merging across
   all Document Profiles while keeping external effects disabled on branches by
   default.
-- [Board reimplementation](29-board-reimplementation.md) presents structured
+- [Board reimplementation](30-board-reimplementation.md) presents structured
   Document trees, container part graphs, spreadsheet/PDF previews, raw-frame
   byte provenance, five-state validation errors and exchange lineage graphs
   through read-only public queries.
-- [Recorded outbound MCP](32-recorded-mcp-integrations.md) reuses this
+- [Recorded outbound MCP](33-recorded-mcp-integrations.md) reuses this
   `DOCUMENT`-backed exchange capture and lineage model for governed agent tool
   and MCP interactions.

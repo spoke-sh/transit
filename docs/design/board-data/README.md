@@ -33,7 +33,7 @@ Review status tracks the design conversation. The studies and local prototype
 do not establish implemented browser routes, arbitrary joins, whole-dataset
 profiles or measured latency. Delivery scope and
 qualification belong in the [roadmap](../../roadmap/README.md).
-The [Board reimplementation milestone](../../roadmap/29-board-reimplementation.md)
+The [Board reimplementation milestone](../../roadmap/30-board-reimplementation.md)
 owns the installed cutover and browser acceptance over the shared backend
 contracts; design acceptance alone does not complete that work.
 

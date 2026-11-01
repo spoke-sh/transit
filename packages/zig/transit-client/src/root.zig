@@ -322,6 +322,11 @@ pub const Client = struct {
             else => return err,
         };
         self.last_status = response.status;
+        const raw_status = if (@hasDecl(@TypeOf(signed), "transport") and @hasField(@TypeOf(signed.transport()), "raw_status")) signed.transport().raw_status else false;
+        if (raw_status) {
+            if (!owned or T != std.json.Value) @compileError("Raw domain responses require owned JSON");
+            return protocol.Json.parseFromSliceOwned(T, allocator, writer.buffered());
+        }
         if (response.status != .ok) {
             var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch |err| {
                 if (err == error.OutOfMemory) return err;

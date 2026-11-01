@@ -1,0 +1,370 @@
+# 19. Interactive 3D worlds, game asset pipelines and simulation streaming
+
+[Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
+
+Deliver first-class **game-engine asset storage, transactional Derived Data Cache
+(DDC) cooking dataflows, deformable skeletal animation, virtualized
+meshlet/texture/voxel streaming, incremental Navigation Mesh (`NavMesh`) and
+Hierarchical LOD (`HLOD`) maintenance, and authoritative Entity-Component-System
+(ECS) simulation streaming** across `TablePartition`, `DocumentPartition`,
+`StreamPartition`, `NvmeCache` and `Fuze`. Extend
+[Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) orthogonal
+$\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ 3D spatial foundation and
+[Milestone 18's](18-multi-model-and-foreign-relations.md) `glTF 2.0` / `OpenUSD` /
+SQL-PGQ graph projections so interactive 3D engines (Unreal, Unity, Godot, Bevy,
+O3DE) and real-time physical/robotics simulations use Transit as their unified
+**versioned asset repository, content-addressed cooking cache, lock-free
+collaborative world database, and spatial Area-of-Interest (AoI) streaming
+runtime**.
+
+## Prerequisites and architectural rationale
+
+Consume [data identities](01-declarative-data-lifecycle.md),
+[`.tseg` storage and codecs](02-storage-and-query-performance.md),
+[transactions](05-transactions-and-atomic-composition.md),
+[declarative streams and queues](06-streams-queues-and-durable-runtime.md),
+[logical Document storage](07-document-storage-and-station-decoupling.md),
+[sans-I/O gateways and Arrow Flight ingress](08-gateway-architecture-and-protocol-ingress.md),
+[standards and type formalizations](10-standards-and-catalogs.md),
+[indexing and spatial SSI](11-indexing-and-access-paths.md),
+[WAL-activated DBSP dataflows](12-sql-and-dataflows.md),
+[zero-allocation slabs and swizzled `NvmeCache`](13-data-structures-and-performance.md),
+[data-centric compilation and SIMD specialization](15-data-centric-compilation-and-specialization.md),
+[compound Document container graphs](16-document-profiles-and-gateway-exchange-lifecycle.md),
+[2D/3D geospatial and volumetric 3D computing](17-geospatial-and-spatio-temporal-computing.md)
+and [multi-model `glTF`/`OpenUSD` foreign relations and SQL/PGQ routing](18-multi-model-and-foreign-relations.md).
+Start from [Tables](../handbook/reference/tables.md),
+[Documents](../handbook/reference/documents.md),
+[streams](../handbook/reference/streams.md),
+[storage runtime](../handbook/internals/storage-runtime.md) and
+[query engine](../handbook/internals/query-engine.md).
+
+This milestone resolves four foundational problems in game-engine asset
+pipelines, interactive 3D worlds and real-time simulation systems:
+
+1. **Closing the 80% Non-Geometric Asset Gap ($\tau \perp \kappa_{\text{asset}} \perp \epsilon$ for Virtualized Meshlets, Block-Compressed Texture Mip-Pyramids, Sparse Voxels, 3D Gaussian Splats, Skeletal Animation & PBR Material/Audio Graphs):**
+   While [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) models
+   manifold 3D geometry (`MESH3D`, `SOLID3D`), rigid-body scene DAGs
+   (`.scene_dag`) and kinematic trajectories (`TRAJECTORY`), 75–85% of a
+   real-time 3D engine's storage footprint and runtime streaming bandwidth
+   consists of surface attributes, textures, volumetric fields, skeletal
+   deformations, shaders and audio:
+   - **Virtualized Micropolygon Meshlet Cluster DAGs (`.mesh_cluster_dag`):**
+     Whole-mesh connectivity codecs (`.mesh_edgebreaker`) are optimal for CAD/BIM
+     solids and coarse-to-fine object streaming, but GPU-driven micropolygon
+     pipelines (such as Unreal Nanite) require partitioning huge meshes into
+     64–128-triangle **meshlets** arranged in a parent-child **cluster DAG**
+     where group-boundary edges are locked during quadric simplification and
+     parent error bounds increase monotonically
+     ($\varepsilon_{\text{parent}} \ge \varepsilon_{\text{child}}$), paired with
+     multi-channel UV coordinates (`TEXCOORD_0..k`), MikkTSpace tangent frames,
+     vertex colors and PBR material-slot bindings.
+   - **Block-Compressed Texture Mip-Pyramids & Virtual Texturing (`.tex_mip_morton`):**
+     2D, 3D and cubemap textures (`TEXTURE2D`, `TEXTURE3D`, `CUBEMAP`) must
+     separate logical texel semantics ($\tau$) and color-space/sampler/compression
+     descriptors ($\kappa_{\text{asset}}$: `SRGB` vs. `LINEAR`, premultiplied
+     alpha, tangent-space normal reconstruction, and target hardware block codecs
+     `BC1`–`BC7`, `ASTC_4x4`–`8x8`, `ETC2` or universal `KTX2`/`UASTC`/`ETC1S`)
+     from physical `.tseg` tile layouts ($\epsilon$: always-resident `Mip K..N`
+     tail bytes inline in the column header/page + high-resolution `Mip 0..K-1`
+     stored as 64 KiB **2D/3D Morton-ordered Virtual Texture tiles** for
+     demand-paged NVMe/Flight streaming).
+   - **Sparse Volumetric Voxel Grids (`.vdb_hierarchy`) & 3D Gaussian Splats (`.splat_hilbert`):**
+     Dynamic fog, fire/smoke level-sets, baked global-illumination irradiance
+     fields (`VOLUME_GRID` / `OpenVDB` / `NanoVDB` $B^+$-tree node hierarchies)
+     and neural/radiance captures (`SPLAT3D` anisotropic 3D Gaussians clustered
+     by `HILBERT_3D` with quantized position, covariance quaternion/log-scale,
+     opacity and spherical harmonics `SH` coefficients) require block-prunable
+     3D `.tseg` representations.
+   - **Deformable Skeletal Rigs (`.skin_weights`) & Compressed Keyframe Animation Clips (`.anim_acl`):**
+     Articulated characters and creatures require an explicit bone hierarchy
+     (`SKELETON3D` rest pose + inverse-bind $SE(3)$ matrices), per-vertex
+     skinning influences (`JOINTS_0: u16x4`, `WEIGHTS_0: unorm8x4` with
+     $\sum w_i = 1$), sparse morph-target vertex deltas, and random-access
+     block-compressed animation tracks (`ANIMATION_CLIP` using Animation
+     Compression Library `ACL`-style uniform block quantization, root-motion
+     `TRAJECTORY` extraction and frame-exact event markers).
+2. **Replacing External Asset Build Servers & Derived Data Caches (DDC) with Deterministic WAL-Activated Cooking Dataflows:**
+   Conventional game engines split asset management across three disconnected
+   systems: a centralized binary file lock server (Perforce / Git LFS), an
+   out-of-band asset cooking cluster / Derived Data Cache (such as Unreal Zen
+   Storage Server and `.utoc`/`.ucas` containers), and a separate runtime world
+   state. Because Transit already unifies sequenced write-ahead logs
+   (`TransitLog` `TWAL1`), content-addressed `.tseg` segments in
+   `TransitObjectStore`, swizzled zero-copy `NvmeCache` page slabs
+   ([Milestone 13](13-data-structures-and-performance.md)), WAL-activated DBSP
+   managed computations ([Milestone 12](12-sql-and-dataflows.md)) and $O(1)$
+   branch manifest sharing with `REMOTE`/`FETCH` lazy `.tseg` hydration
+   ([Milestone 20](20-branches-merges-and-restore.md)), **asset cooking becomes a
+   first-class declarative dataflow inside Transit**:
+   - Committing a source `MESH3D`, `TEXTURE2D`, `DOCUMENT` material/shader graph
+     (`MaterialX` / `UsdShade`) or level edit to `TWAL1` automatically activates
+     deterministic cooking computations keyed by
+     `(DefinitionId, SnapshotId, TargetPlatformProfile)` that materialize cooked
+     `.mesh_cluster_dag` pages, `.tex_mip_morton` `BCn`/`ASTC` mip tiles,
+     platform shader bytecode variants (`SPIR-V`, `DXIL`, `MSL`, `WGSL`) and
+     per-cell **Hierarchical LOD (`HLOD`)** merged proxy meshes into derived
+     `.tseg` columns.
+   - Branching a game world (`CREATE BRANCH feature/combat_arena`) or attaching a
+     developer workstation to a studio remote (`FETCH` / `MIRROR`) reuses cooked
+     `.tseg` DDC segments in $O(1)$ across branches and hydrates high-resolution
+     mip/meshlet pages lazily into the local `NvmeCache` on demand.
+3. **Incremental DBSP Navigation Mesh (`NavMesh`) & Volumetric Clearance Maintenance over `.topo_face` and `.octree_roaring`:**
+   In traditional engines, rebaking a Navigation Mesh (`NavMesh`) after level
+   geometry changes requires an expensive whole-tile voxelization and recast
+   pass. Under [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
+   cellular chain complex and octree covering architecture, a walkable `NavMesh`
+   is an algebraic DBSP view over `.topo_face` 2-chains and `.octree_roaring`
+   3D octants parameterized by agent profile
+   $\kappa_{\text{nav}} = (r_{\text{agent}}, h_{\text{agent}}, h_{\text{step}}, \theta_{\max})$:
+   - Walkable surface candidates are oriented boundary faces $f \in C_2$ whose
+     upward unit normal satisfies $\vec{n}_f \cdot \vec{u}_{\text{up}} \ge \cos \theta_{\max}$
+     and whose extruded clearance volume $f \oplus \text{Cylinder}(r_{\text{agent}}, h_{\text{agent}})$
+     has zero intersection with `INTERIOR`/`BOUNDARY` `.octree_roaring` obstacle
+     octants.
+   - When an artist, physics transaction or runtime event inserts (`+row`),
+     moves (`TRANSFORM3D` delta) or retracts (`-row`) a static mesh or dynamic
+     obstacle, the DBSP Z-set engine recomputes walkable polygons and their dual
+     portal adjacency graph ($\delta_1 = \partial_2^\top$) **only for the touched
+     `OCT_CELL` octants in $O(|\Delta \text{octants}|)$**, immediately updating
+     downstream [Milestone 18](18-multi-model-and-foreign-relations.md) `A*` and
+     funnel-algorithm pathfinding queries.
+4. **Columnar ECS Archetypes, Prefab Prototype Overrides & Spatial Area-of-Interest (AoI) Streaming under Fog-of-War RLS:**
+   Modern Entity-Component-System (ECS) engines (Unity DOTS, Bevy, Flecs, EnTT)
+   represent world state as cache-line-aligned Structure-of-Arrays (SoA)
+   archetype tables—the exact physical layout of Transit's 64-byte-aligned
+   `TablePartition` (`.tseg`) and `Fuze` `Batch.zig` vectors:
+   - **Declarative Prefab Prototype Inheritance (`LIVRPS`-Style Delta Overrides):**
+     Entities reference a canonical prefab prototype (`prototype_id`) and store
+     only sparse component/property override bitmasks and values in `.tseg`
+     subcolumns, composing base prefab updates with instance overrides in SIMD
+     registers and surfacing conflicting multi-branch edits to the same
+     entity/component slot natively as five-state **`IS CONFLICT`** cells.
+   - **Progressive Frustum / Screen-Space-Error ($\tau_{\text{px}}$) & AoI Streaming:**
+     Game clients, rendering viewports, physics workers and autonomous agents
+     subscribe to continuous spatial queries ([Milestone 8](08-gateway-architecture-and-protocol-ingress.md)
+     Arrow Flight / sans-I/O streams and [Milestone 32](32-reactive-context-and-agent-activation.md)
+     reactive interests) parameterized by a moving 3D view frustum / `OCT_CELL`
+     interest radius and pixel-error budget $\tau_{\text{px}}$, streaming
+     crack-free `.mesh_cluster_dag` cuts, `.tex_mip_morton` virtual texture tiles
+     and dead-reckoned `TRAJECTORY` / `TRANSFORM3D` entity deltas directly from
+     swizzled `NvmeCache` slabs.
+   - **Fog-of-War & Anti-Cheat as Security-Barrier 3D Spatial RLS:**
+     By binding a client session's `AccessContext` to its authorized perception
+     volume or octree visibility bitmask ([Milestone 27](27-control-and-policy-plane.md)
+     Spatial RLS), Transit enforces at the storage/query security barrier that a
+     client never receives entity rows, inventory state or trajectory tubes
+     outside its authorized line-of-sight or sensor range.
+
+```mermaid
+flowchart LR
+  subgraph Author["1. Source Assets & ECS World Declarations (τ ⊥ κ_asset ⊥ ε)"]
+    Assets["τ Assets: MESH3D · TEXTURE2D/3D/CUBEMAP\nVOLUME_GRID · SPLAT3D · SKELETON3D · ANIMATION_CLIP\nMATERIAL / SHADER_GRAPH · AUDIO_CUE · NAVMESH"]
+    ECS["ECS Archetype Tables & Prefab DAGs:\n• Columnar SoA Component Vectors (16B Spatial Header)\n• Prefab Prototype Inheritance & Sparse Overrides\n• 5-State Asset/Rig/Level Validation (IS TYPE_ERROR)"]
+  end
+
+  subgraph Cook["2. WAL-Activated DDC Cooking & DBSP World Dataflows"]
+    DDC["Transactional Derived Data Cache (DDC):\n• .mesh_cluster_dag (128-Tri Meshlets + Error Cut DAG)\n• .tex_mip_morton (BC1-7 / ASTC / KTX2 Virtual Tiles)\n• Shader Variant Bytecode (SPIR-V / DXIL / MSL / WGSL)\n• Per-OCT_CELL Hierarchical LOD (HLOD) Proxy Meshes"]
+    Nav["Incremental DBSP Z-Set World Maintenance:\n• O(|Δ octants|) Walkable .topo_face NavMesh & Portals\n• INTERIOR/BOUNDARY .octree_roaring Clash & Clearance\n• Multi-Artist Branch DIFF & 3-Way Level Merge"]
+  end
+
+  subgraph Stream["3. Zero-Copy NvmeCache & Spatial AoI / Frustum Streaming"]
+    AoI["Arrow Flight & Sans-I/O AoI Subscriptions:\n• Frustum + Screen-Space Error (τ_px) DAG Cut Selection\n• Resident Mip Tails + Demand-Paged Morton Texture Tiles\n• TRAJECTORY Dead-Reckoning & SE(3) Pose Deltas\n• Security-Barrier 3D Spatial RLS (Fog-of-War / Anti-Cheat)"]
+  end
+
+  Assets --> DDC
+  ECS --> Nav
+  DDC --> AoI
+  Nav --> AoI
+```
+
+## Orthogonal game asset, animation, cooking and simulation matrix ($\tau \perp \kappa_{\text{asset}} \perp \epsilon$)
+
+| Logical Type ($\tau$) | Asset, Rig, Navigation & Target Profile Rules ($\kappa_{\text{asset}}$) | Physical `.tseg` & `Batch` Codecs ($\epsilon$) | Five-State & Incremental DBSP Semantics |
+| --- | --- | --- | --- |
+| **Virtualized Surface Mesh (`MESH3D` with `.mesh_cluster_dag`)** | Coordinate frame $\kappa_{\text{spatial}}$ + MikkTSpace tangent convention, UV channel count (`TEXCOORD_0..k`), material-slot schema, and monotonic cluster-simplification error metric $\varepsilon_{\text{metric}}$ | **`.mesh_cluster_dag`**: 4–16 KiB pages of 64–128-triangle meshlets (`BP`/`CLERS` or `meshopt` bitpacked indices), locked group-boundary edges, parent/child error bounds `[min_err, max_err]`, backface normal cones (`oct16` axis + sin/cos half-angle), quantized `UV`/`tangent` streams | Crack between parent/child simplification cut, non-monotonic error ($\varepsilon_{\text{parent}} < \varepsilon_{\text{child}}$), degenerate tangent frame or out-of-range material slot $\to$ `IS TYPE_ERROR`; $O(1)$ per-cluster frustum + normal-cone + screen-space-error pruning |
+| **`TEXTURE2D` / `TEXTURE3D` / `CUBEMAP`** (Mip-mapped GPU textures & Virtual Texture atlases) | Color transfer function (`SRGB` vs. `LINEAR`), alpha mode (`OPAQUE`, `PREMULTIPLIED`, `MASK`), channel reconstruction (`NORMAL_RG_Z`), wrap/filter sampler, and target block codec (`BC1`–`BC7`, `ASTC_4x4`–`8x8`, `ETC2`, `KTX2_UASTC`) | **`.tex_mip_morton`**: inline texture header (`width`, `height`, `depth`, `mip_count`, `format`, average color + always-resident `Mip K..N` tail bytes) + 64 KiB 2D/3D **Morton/Z-order tiles** across `Mip 0..K-1` for zero-copy `NvmeCache` page streaming | Corrupt `KTX2`/`BCn`/`ASTC` block headers, dimension mismatch with mip chain or NaN/Inf HDR texels $\to$ `IS TYPE_ERROR` with `(mip_level, tile_x, tile_y)` provenance; content-addressed DDC tile sharing across branches |
+| **`VOLUME_GRID` & `SPLAT3D`** (Sparse 3D voxel/SDF grids & 3D Gaussian Splatting radiance fields) | Coupled $\kappa_{\text{spatial}}$ + voxel resolution $\delta_{\text{voxel}}$, background value / narrow-band width (`OpenVDB`/`NanoVDB` semantics), or spherical-harmonics degree (`SH_0..3`) and opacity activation | **`.vdb_hierarchy`**: hierarchical $B^+$-tree root $\to$ internal ($32^3$/$16^3$) $\to$ $8^3$ leaf bitmask + `FP16`/bitpacked voxel/SDF slabs; **`.splat_hilbert`**: 4,096-splat `HILBERT_3D` blocks with `FOR` bitpacked $(x, y, z)$, `quat4` rotation, log-scale, opacity and quantized `SH` subcolumns | Unnormalized splat quaternions, negative covariance scale or corrupt VDB tree node offsets $\to$ `IS TYPE_ERROR`; `BBOX3D` + `OCT_CELL` zone maps prune $>98\%$ of empty space and occluded splat blocks |
+| **`SKELETON3D` & `ANIMATION_CLIP`** (Articulated bone hierarchies, vertex skinning & keyframe tracks) | Max bone count, root-motion coordinate convention, Influences-per-vertex limit ($k \in \{4, 8\}$), partition normalization tolerance ($\sum_{i=1}^k w_i = 1 \pm \epsilon$), and clip sample rate / ACL error threshold | **`.skin_weights`**: topological bone tree + inverse-bind 48B `TRANSFORM3D` array + per-vertex `u16x4` joint indices and `unorm8x4`/`unorm16x4` weights + sparse morph deltas; **`.anim_acl`**: uniform block-quantized rotation (`quat3` smallest-three), translation and scale tracks + root-motion `TRAJECTORY` + frame notify bitmaps | Cyclic bone parent links, joint index $\ge \text{num\_bones}$, unnormalized skin weights ($\sum w_i = 0$) or non-monotonic track timestamps $\to$ `IS TYPE_ERROR`; deterministic in-engine pose evaluation `ST_EvaluatePose(skeleton, clip, t)` |
+| **`MATERIAL` & `SHADER_VARIANT` & `AUDIO_CUE`** (PBR material graphs, shader permutations & spatial audio) | Material schema (`MaterialX` / `UsdShade` / `glTF` PBR metallic-roughness + clearcoat/transmission), RHI target profile (`SPIRV_1_6`, `DXIL_6_6`, `MSL_3_1`, `WGSL`), and audio sample rate / Opus frame size / 3D attenuation curve | Composed over [`DocumentPartition`](07-document-storage-and-station-decoupling.md) $2N$-bit `BP` succinct trees + typed `CatalogId`/`DefinitionId` texture-slot dependency bindings + `.tseg` shader bytecode blobs keyed by `(graph_hash, permutation_mask, rhi_target)` + framed Opus/PCM audio subcolumns | Dangling texture `DefinitionId`, type-mismatched shader node ports, failed deterministic shader compilation or corrupt Opus frames $\to$ `IS TYPE_ERROR` with node/line/frame witness; WAL-activated DDC compilation on source graph edits |
+| **`NAVMESH` (`NavMesh` walkable cellular complex & portal graph)** | Agent locomotion profile $\kappa_{\text{nav}} = (r_{\text{agent}}, h_{\text{agent}}, h_{\text{step}}, \theta_{\max})$ over $\kappa_{\text{spatial}}$ plus dynamic obstacle clearance classes | **`.nav_topo`**: walkable 2.5D/3D `.topo_face` convex polygons + `.topo_arc` shared portal edges (`[left_poly, right_poly, portal_width, traversal_cost]`) partitioned by `OCT_CELL` tiles | Incremental DBSP Z-set maintenance: inserting/moving/deleting geometry in `OCT_CELL` $c$ updates only tile $c$'s walkable polygons and boundary portals in $O(|\Delta \text{octants}|)$, feeding SQL/PGQ `A*` and funnel string-pulling |
+| **ECS Archetype & Prefab Instance (`PREFAB_OVERRIDE`)** | Archetype component signature `(CompId_1..CompId_m)`, deterministic system tick order, and `LIVRPS`-ordered prototype-to-instance override resolution rule | 64-byte-aligned columnar `TablePartition` (`.tseg`) component vectors + 16-byte inline spatial headers + per-row `prototype_id` and sparse override bitmask (`override_mask: u64`) | Component schema mismatch or broken `prototype_id` $\to$ `IS TYPE_ERROR`; concurrent branch edits to the same `(entity_id, component_id)` slot surface as `IS CONFLICT` during 3-way world merge |
+
+## Delivery sequence
+
+1. **Formalize the game/simulation asset catalog, $\tau \perp \kappa_{\text{asset}} \perp \epsilon$ descriptors and five-state asset validation.**
+   Extend [`FUZE_TYPES_V1.md`](../../contracts/FUZE_TYPES_V1.md),
+   [`TABLE_SCHEMA_V1.md`](../../contracts/TABLE_SCHEMA_V1.md) and `DirectCatalog`
+   on top of [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
+   `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`
+   and `TRAJECTORY` types:
+   - Register logical types and profile contracts for **`TEXTURE2D`**,
+     **`TEXTURE3D`**, **`CUBEMAP`**, **`VOLUME_GRID`**, **`SPLAT3D`**,
+     **`SKELETON3D`**, **`ANIMATION_CLIP`**, **`MATERIAL`**, **`SHADER_VARIANT`**,
+     **`AUDIO_CUE`** and **`NAVMESH`**, binding each column or asset table to an
+     immutable $\kappa_{\text{asset}}$ descriptor in `manifest/v{N}`.
+   - Track first-class **Catalog Asset Dependency Edges** (`Prefab -> Scene3D -> Mesh3D -> Material -> Texture2D / ShaderGraph`)
+     in `DirectCatalog` so deleting or incompatibly altering a referenced texture,
+     skeleton or material is governed by declarative `FOREIGN KEY` / dependency
+     checks ([Milestone 10](10-standards-and-catalogs.md) and
+     [Milestone 11](11-indexing-and-access-paths.md)) and automatically schedules
+     downstream DDC cooking dataflows.
+   - Enforce non-aborting **five-state (`value`, `null`, `missing`, `type_error`, `conflict`) asset validation**
+     on ingest and cooking: classify meshlet DAG boundary cracks, non-monotonic
+     LOD error bounds, unnormalized skeletal skinning weights ($\sum w_i \neq 1$),
+     out-of-range bone indices, corrupt `KTX2`/`BCn`/`ASTC` blocks, invalid
+     `OpenVDB` tree offsets or failed shader graph ports as `IS TYPE_ERROR` cells
+     with exact `(asset_id, submesh_or_mip, element_id)` provenance inspectable via
+     `ST_AssetDiagnostic(col)` without aborting bulk asset imports or world scans.
+2. **Deliver virtualized `.mesh_cluster_dag` meshlets, `.tex_mip_morton` virtual texture pyramids, `.vdb_hierarchy` sparse grids and `.splat_hilbert` codecs in `.tseg`.**
+   - **`.mesh_cluster_dag` (Virtualized Micropolygon Cluster DAGs):** partition
+     high-poly `MESH3D` surfaces into 64–128-triangle meshlets grouped into a
+     hierarchical DAG of simplification clusters with locked boundary edges (via
+     quadric error metrics with boundary constraints), storing each cluster in
+     4–16 KiB cache-line-aligned `.tseg` pages alongside a compact cluster
+     directory (`BBOX3D`, backface culling normal cone, `[parent_error, cluster_error]`,
+     and byte offset) so viewport and raycast operators select a seamless,
+     crack-free cut across the DAG (`parent_error > tau_px AND cluster_error <= tau_px`)
+     without loading finer child pages.
+   - **`.tex_mip_morton` (Block-Compressed Mip Chains & Morton Virtual Texture Tiles):**
+     store `TEXTURE2D`/`3D`/`CUBEMAP` assets with their small `Mip K..N` tail
+     inline in the `.tseg` descriptor vector (guaranteeing zero-stall fallback
+     rendering) and partition high-resolution `Mip 0..K-1` levels into 64 KiB
+     2D/3D Morton-ordered (Z-curve) block-compressed tiles (`BC1`–`BC7`,
+     `ASTC`, `ETC2`, `KTX2`/`UASTC`). Expose SQL and Flight tile-Addressing
+     operators (`TEX_MipTail(tex)`, `TEX_FetchTiles(tex, mip, morton_range)`,
+     `TEX_Sample(tex, uv, lod)`) backed by zero-copy swizzled `NvmeCache` slabs.
+   - **`.vdb_hierarchy` & `.splat_hilbert` (Volumetric Fields & 3D Gaussian Splats):**
+     encode sparse 3D level-sets, fog/density grids and baked light probes in a
+     flattened `NanoVDB`-compatible `.vdb_hierarchy` page layout supporting
+     $O(1)$ hierarchical empty-space skipping and zero-allocation ray-marching
+     (`VDB_Sample`, `VDB_RayMarch`), and encode 3D Gaussian Splatting radiance
+     fields in `HILBERT_3D`-clustered `.splat_hilbert` blocks with `BBOX3D` and
+     opacity zone maps.
+3. **Deliver `SKELETON3D`, `.skin_weights` and `.anim_acl` keyframe animation codecs and vectorized pose evaluation in `Fuze`.**
+   - Represent skeletal hierarchies (`SKELETON3D`) as topologically sorted bone
+     arrays (parent index $< \text{bone index}$ for single-pass forward kinematics)
+     with 48-byte rest and inverse-bind `TRANSFORM3D` ($SE(3)/\text{Sim}(3)$)
+     poses, per-vertex `.skin_weights` subcolumns (`u16x4` bone IDs + `unorm8x4`
+     or `unorm16x4` weights) and sparse morph-target delta arrays.
+   - Implement **`.anim_acl` block-compressed animation clips** (`ANIMATION_CLIP`)
+     using uniform time-block quantization of bone local $SE(3)$ tracks
+     (smallest-three 48-bit/32-bit quaternions + Frame-of-Reference translation/scale
+     deltas), constant/default sub-track bitmasks (skipping static bones in $O(1)$),
+     extracted root-motion `TRAJECTORY` tubes, and Roaring bitmaps of frame-exact
+     animation notify/event triggers.
+   - Add vectorized `Fuze` kernels for **random-access pose evaluation and
+     skinned bounding-box maintenance** (`ST_EvaluatePose(skeleton, clip, t)`,
+     `ST_BlendPoses(pose_a, pose_b, alpha)`, `ST_SkinnedBBox3D(mesh, skeleton, pose)`
+     computing tight world-space `BBOX3D` bounds from bone palettes and precomputed
+     per-bone vertex bounds in $O(\text{bones})$ without transforming every vertex).
+4. **Deliver the transactional Derived Data Cache (DDC) and incremental DBSP `NavMesh` & `HLOD` cooking dataflows.**
+   Build on [Milestone 12's](12-sql-and-dataflows.md) five-state managed
+   computation lifecycle (`Published`, `Authorized`, `Active`, `Suspended`,
+   `Retired`) and DBSP Z-set engine:
+   - **Declarative Asset Cooking & Content-Addressed DDC Views:** let applications
+     declare target-platform cooking dataflows (`CREATE MATERIALIZED VIEW ...` /
+     `CREATE DATAFLOW ...`) that transform source `MESH3D`, `TEXTURE2D`,
+     `MATERIAL`/`SHADER_GRAPH` (`DocumentPartition`) and `AUDIO_CUE` rows into
+     target-profile cooked `.tseg` columns (`.mesh_cluster_dag`, `BC7`/`ASTC`
+     `.tex_mip_morton` tiles, `SPIR-V`/`DXIL`/`MSL`/`WGSL` `SHADER_VARIANT`
+     blobs, and per-`OCT_CELL` merged `HLOD` proxy meshes) keyed by
+     `(source_definition_id, source_hash, target_profile_digest)`. Cooked `.tseg`
+     segments are content-addressed in `TransitObjectStore`, shared in $O(1)$
+     across branches, and fetched lazily via [Milestone 20's](20-branches-merges-and-restore.md)
+     `REMOTE` / `FETCH` protocol.
+   - **Incremental DBSP Z-Set Navigation Mesh (`NavMesh`) & Clearance Graph:**
+     implement the incremental `ST_BuildNavMesh(geom3d, nav_profile)` operator
+     over `.topo_face` and `.octree_roaring`:
+     - Partition level geometry and obstacle volumes by `OCT_CELL` tiles.
+     - Extract walkable upward-facing surface patches ($\vec{n} \cdot \vec{u}_{\text{up}} \ge \cos \theta_{\max}$),
+       subtract obstacle clearance footprints using 2D/3D boolean half-edge/octant
+       cancellation, decompose walkable regions into convex polygons (`.nav_topo`),
+       and emit shared portal edges (`[poly_a, poly_b, portal_segment, clearance, cost]`).
+     - Under `TransitLog` (`+row`/`-row`) updates or dynamic `TRANSFORM3D`
+       obstacle mutations, recompute only the affected `OCT_CELL` tiles and stitch
+       cross-tile portals in $O(|\Delta \text{octants}|)$, exposing `ST_FindPath3D(navmesh, start_pt, goal_pt, agent_radius)`
+       (combining SQL/PGQ `A*` graph search with funnel string-pulling) for both
+       AI agents and level validation queries.
+5. **Deliver columnar ECS archetype tables, Prefab prototype inheritance and Spatial Area-of-Interest (AoI) / Frustum streaming under Fog-of-War RLS.**
+   - **Columnar ECS Archetypes & Prefab Overrides:** map ECS entity tables onto
+     `TablePartition` with 16-byte inline spatial headers in `Batch.zig` and
+     declarative `PREFAB_OVERRIDE` resolution (`SELECT ... FROM ECS_RESOLVE(entity_table, prefab_table)`),
+     evaluating inherited prototype components and sparse per-entity overrides in
+     branchless SIMD passes while preserving 2D/3D spatial SSI conflict tracking
+     ([Milestone 11](11-indexing-and-access-paths.md) and
+     [Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) so concurrent
+     simulation ticks or level editors mutating disjoint `OCT_CELL` regions commit
+     without false aborts.
+   - **Progressive Frustum / Screen-Space-Error & AoI Streaming:** expose
+     bounded streaming cursors over [Milestone 8's](08-gateway-architecture-and-protocol-ingress.md)
+     Arrow Flight and sans-I/O gateways and [Milestone 32's](32-reactive-context-and-agent-activation.md)
+     reactive subscriptions for moving view frustums (`ST_FrustumIntersects(bbox3d, frustum_planes)`
+     and `ST_ScreenSpaceError(cluster_err, bbox3d, camera_pose, fov, viewport_height) <= tau_px`):
+     stream resident texture mip tails and coarse `HLOD` / root meshlet clusters
+     first, followed by prioritized delta pages of `.mesh_cluster_dag` clusters,
+     `.tex_mip_morton` Morton tiles, and `TRAJECTORY` / `TRANSFORM3D` entity
+     updates directly from swizzled `NvmeCache` slabs within per-frame byte
+     budgets.
+   - **Fog-of-War & Anti-Cheat Security-Barrier Spatial RLS:** integrate with
+     [Milestone 27's](27-control-and-policy-plane.md) security-barrier Row-Level
+     Security so multiplayer/simulation sessions bound to a principal's
+     perception volume (`USING (ST_3DIntersects(world_bbox3d, session_perception_octree))`
+     with `.octree_roaring` line-of-sight bitmask filtering) never disclose
+     hidden entities, occluded rooms or unauthorized asset layers across SQL,
+     Arrow Flight or reactive subscriptions, and recheck `policy_epoch` before
+     emitting each buffered frame batch.
+6. **Qualify correctness, deterministic cooking, frame-budget streaming and multi-branch level merging against independent engine oracles.**
+   Verify `.mesh_cluster_dag` simplification cuts (zero boundary cracks across
+   all $\tau_{\text{px}}$ thresholds), `.tex_mip_morton` Morton tile addressing,
+   `.anim_acl` pose evaluation (against reference linear/dual-quaternion skinning
+   and ACL fixtures), incremental DBSP `NavMesh` equivalence (confirming
+   incremental `+row`/`-row` obstacle updates match full-level `NavMesh`
+   recomputation and `A*` + funnel shortest paths), zero steady-state heap
+   allocations on ECS/frustum scan hot paths, and benchmark asset streaming and
+   DDC throughput in the [proof ledger](../history/qualification/README.md).
+
+## Completion evidence
+
+| Journey | Required evidence |
+| --- | --- |
+| Declare, validate and cook $\tau \perp \kappa_{\text{asset}} \perp \epsilon$ game & simulation assets | SQL and SDK callers declare `MESH3D` (`.mesh_cluster_dag`), `TEXTURE2D`/`3D`/`CUBEMAP` (`.tex_mip_morton`), `VOLUME_GRID` (`.vdb_hierarchy`), `SPLAT3D` (`.splat_hilbert`), `SKELETON3D` (`.skin_weights`), `ANIMATION_CLIP` (`.anim_acl`), `MATERIAL`/`SHADER_VARIANT` and `NAVMESH` objects; unnormalized skinning weights ($\sum w_i \neq 1$), meshlet boundary cracks or corrupt texture blocks surface as `IS TYPE_ERROR` with exact provenance; WAL-activated DDC dataflows deterministically produce target-profile cooked `.tseg` segments shared in $O(1)$ across branches |
+| Crack-free Meshlet Cluster DAG & Morton Virtual Texture streaming | Viewport/frustum queries across varying camera poses and screen-space error thresholds ($\tau_{\text{px}}$) return crack-free meshlet cuts (verified by boundary half-edge cancellation $\partial_1 \text{cut} = \text{mesh boundary}$) and exact Morton texture tiles directly from zero-copy `NvmeCache` slabs within configured per-batch memory/byte budgets |
+| Skeletal pose evaluation & incremental DBSP `NavMesh` equivalence | `ST_EvaluatePose` and `ST_SkinnedBBox3D` match independent reference forward-kinematics/skinning oracles within declared quantization $\varepsilon$; incremental DBSP `NavMesh` maintenance under `+row`/`-row` geometry edits and dynamic `TRANSFORM3D` obstacle moves produces identical walkable `.nav_topo` polygons, portal graphs and `ST_FindPath3D` paths as finite full-scene recomputation at every completed `SnapshotId` |
+| Authoritative ECS simulation turns, Prefab overrides & Fog-of-War Spatial RLS | Concurrent ECS transactions updating disjoint `OCT_CELL` regions commit under 3D spatial SSI; `ECS_RESOLVE` composes prefab prototypes with sparse entity overrides and surfaces conflicting branch edits as `IS CONFLICT`; security-barrier 3D Spatial RLS (fog-of-war) prevents unauthorized clients from observing hidden entities or side-channel statistics across SQL, Flight and reactive AoI streams, including mid-stream `policy_epoch` revocation |
+
+## Later owners
+
+- [Branches, merges and restore](20-branches-merges-and-restore.md) extends
+  $O(1)$ `.tseg` segment sharing, `REMOTE` / `FETCH` lazy `.tseg` hydration
+  (replacing standalone Unreal Zen / Perforce DDC servers) and spatial/prefab
+  three-way `DIFF` and `MERGE` across `.mesh_cluster_dag`, `.tex_mip_morton`,
+  `SCENE3D` and ECS prefab override tables, surfacing conflicting entity/component
+  edits and 3D level clashes as `IS CONFLICT` cells.
+- [Service and SDK coverage](21-service-and-sdk-coverage.md) and
+  [language-native programming model](34-programming-model.md) expose zero-copy
+  C ABI / Zig / C++ / Rust / C# / TypeScript client readers for streaming
+  `.mesh_cluster_dag` pages, `.tex_mip_morton` tiles and ECS archetype batches
+  directly into host game engines and GPU upload rings.
+- [Formal semantics and implementation correspondence](22-formal-semantics-and-correspondence.md)
+  extends **A2 (`CollationOrder.lean`)** to prove meshlet cluster DAG error-cut
+  monotonicity, backface normal-cone culling soundness and skinned `BBOX3D` bound
+  inclusion, **A3 (`FuzeDelta.lean`)** to prove incremental DBSP `NavMesh` tile
+  equivalence under `+row`/`-row` obstacle deltas, and **A5 (`CodecProofs.lean`)**
+  to prove 2D/3D Morton virtual-texture tile addressing and `.mesh_cluster_dag`
+  crack-free boundary invariants.
+- [Enterprise identity and the Control & Policy Plane](27-control-and-policy-plane.md)
+  enforces **3D Perception / Fog-of-War Spatial RLS** and WLM resource-group
+  isolation between authoritative simulation ticks, interactive viewport
+  streaming, background DDC asset cooking and autonomous agent queries.
+- [Board reimplementation and data-first workbench](30-board-reimplementation.md)
+  renders read-only interactive 3D world viewports with progressive
+  `.mesh_cluster_dag` and `.tex_mip_morton` streaming, skeletal animation
+  scrubbing, `NavMesh` / clearance overlays, DDC cooking lineage and visual
+  three-way level `DIFF` / `IS CONFLICT` inspection over public APIs.
+- [MCP service](31-mcp-service-and-apps.md),
+  [reactive context and agent activation](32-reactive-context-and-agent-activation.md)
+  and [recorded outbound MCP](33-recorded-mcp-integrations.md) allow governed AI
+  agents and NPCs to observe authorized spatial AoI context, query `ST_FindPath3D`
+  navigation paths, and propose level-design or prefab edits on isolated branches
+  with deterministic replay.

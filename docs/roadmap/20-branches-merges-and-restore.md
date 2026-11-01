@@ -1,4 +1,4 @@
-# 19. Branches, merges and restore
+# 20. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-31); [foundation increment](#foundation-increment--2026-10-31); [earlier component evidence](#delivered-implementation-evidence--2026-10-30))
 
@@ -10,7 +10,7 @@ model. Branching is the underlying versioning primitive within a realm. Branches
 never copy live process identities, grants or effect rights.
 
 Restore here means publishing earlier application data as a new forward successor
-under current authority. [Operations](24-operations-and-recovery.md) separately
+under current authority. [Operations](25-operations-and-recovery.md) separately
 owns backup capture, installation disaster recovery and runtime upgrades; a
 branch snapshot alone is not sufficient recovery material for an installation.
 
@@ -67,7 +67,7 @@ authority/process evidence separate from branchable application state.
    common ancestor (**`base` Manifest**, **`source` Manifest** and **`target`
    Manifest**), skip identical `.tseg`/`.tdel` entries with matching interpretation,
    visibility and retained-tail coverage in $O(1)$ per entry
-   ([A4: `BranchMergeAlgebra.lean`](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
+   ([A4: `BranchMergeAlgebra.lean`](22-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
    and compute key-aligned diffs using logical change lineage, retained tail
    state, added segments and divergent deletion vectors:
    - **First-class relational and document `DIFF(object, ...)`:** align rows by
@@ -93,11 +93,11 @@ authority/process evidence separate from branchable application state.
      row/cell conflicts explicitly, and commit the merged Manifest via
      conditional CAS (`Multi-Writer OCC`), rejecting stale target heads.
      Schema-only promotion preserves target rows unless explicitly migrated.
-4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), 2D/3D geospatial & volumetric models ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) and qualified graph mappings:**
+4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), 2D/3D geospatial & volumetric models ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)), interactive 3D worlds & game asset pipelines ([Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
    replica state-vector convergence, use `.tseg` 2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert
-   zone maps for per-entry spatial and volumetric pruning during viewport-scoped diffs
-   and surface conflicting edits to shared `.topo_arc` / `.topo_face` boundary chains/faces or 3D assembly clash collisions as
+   zone maps for per-entry spatial and volumetric pruning during viewport-scoped diffs, share cooked Derived Data Cache (DDC) `.mesh_cluster_dag` and `.tex_mip_morton` segments in $O(1)$ across branches,
+   and surface conflicting edits to shared `.topo_arc` / `.topo_face` boundary chains/faces, ECS prefab overrides or 3D assembly clash collisions as
    five-state `IS CONFLICT` cells, preserving causal/tombstone semantics,
    fresh replica identities and valid graph endpoints; incompatible histories
    refuse and derived views rebuild or verify against the merged manifest.
@@ -127,7 +127,7 @@ authority/process evidence separate from branchable application state.
    - **Upstream proposal push:** instead of executing imperative migration scripts
      blindly on production, push only the local branch's delta `.tseg`/`.tdel`
      segments, schema migration plan and candidate manifest to the remote as a
-     [Milestone 28 versioned proposal](28-reviewed-data-collaboration.md) for
+     [Milestone 29 versioned proposal](29-reviewed-data-collaboration.md) for
      three-way `DIFF` / `DIFF_SCHEMA` review, constraint validation and atomic
      `manifest/v{N+1}` publication.
 
@@ -156,9 +156,9 @@ make all branching work constant-time.
 Branch creation, read, edit and merge have independent permissions under current
 realm policy. Support installations with all merging disabled, and protect
 destination heads against equivalent direct writes. This milestone establishes
-the native data/policy primitives; [enterprise identity](26-control-and-policy-plane.md)
+the native data/policy primitives; [enterprise identity](27-control-and-policy-plane.md)
 binds external subjects and delegated actors, and
-[reviewed collaboration](28-reviewed-data-collaboration.md) adds published
+[reviewed collaboration](29-reviewed-data-collaboration.md) adds published
 proposals, intent-bound approval and shared human/agent review. Reading or
 copying historical application data cannot restore historical grants.
 
@@ -194,13 +194,13 @@ the branch, definitions, source cut, completeness and current access basis.
 [component inventory](#delivered-implementation-evidence--2026-10-30) and the
 milestone's full scope. Source inspection establishes the gaps below; this
 planning change executes no runtime qualification and marks no work package
-complete. Milestone 19 remains **In Progress**.
+complete. Milestone 20 remains **In Progress**.
 
 Start with one local catalog/database, one realm, a fenced authority and the
 existing disk-backed storage providers. Tables are the first executable data
 profile. Extend KV, Documents and other declared objects only through their
 qualified owners. This is a delivery order, not removal of the multi-model or
-remote-sync completion criteria. A Table-only slice cannot close M19.
+remote-sync completion criteria. A Table-only slice cannot close M20.
 
 Use [data lifecycle identities](../../contracts/DATA_LIFECYCLE_V1.md),
 [direct operations](../../contracts/DIRECT_TABLE_V1.md),
@@ -224,7 +224,7 @@ coordinate through a Station resource turn.
 | Remote helper | `fetchIncrementalFromRemote` counts supplied segment IDs and returns a policy flag; `hydrateLazySegmentOnDemand` hashes supplied bytes. | Implement authenticated transfer, real egress policy, resumable storage and cache admission. Neither helper establishes network transfer, RLS filtering, mirroring or proposal publication. |
 | Existing durable owners | [`DirectCatalog`](../../packages/zig/transit-catalog/src/DirectCatalog.zig), [`DirectClientToken`](../../packages/zig/transit-catalog/src/DirectClientToken.zig), [`TableSnapshot`](../../packages/zig/transit-storage/src/TableSnapshot.zig), [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) and the [Table transaction profile](05-transactions-and-atomic-composition.md) supply paged ownership, original attempts, retained cuts and common decisions. | Extend these owners rather than installing a second branch registry, permission store or merge receipt authority. Branch heads must agree with ordinary DDL/DML and transaction visibility. |
 | Caller integration | The branch helpers are referenced by package exports/tests and each other; the audited live SQL [`Statement`](../../packages/zig/transit-sql/src/Statement.zig) and signed direct request dispatcher do not expose their lifecycle. | Add typed native operations and SQL lowering with capability reporting; parser acceptance cannot establish execution. There is no `transit-sql/src/Parser.zig` at this baseline. |
-| Evidence | [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) compares generated JSON fixtures and checks source-symbol presence. Zig component suites exist; no M19 end-to-end qualification record was found in the [ledger](../history/qualification/README.md). | Preserve the fixtures as contract examples. Add an independent executable oracle and disk/service fault schedules; do not count fixture booleans or symbol checks as executed recovery, GC, masking or scale evidence. |
+| Evidence | [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) compares generated JSON fixtures and checks source-symbol presence. Zig component suites exist; no M20 end-to-end qualification record was found in the [ledger](../history/qualification/README.md). | Preserve the fixtures as contract examples. Add an independent executable oracle and disk/service fault schedules; do not count fixture booleans or symbol checks as executed recovery, GC, masking or scale evidence. |
 
 ### Recent foundations and upcoming milestone boundaries
 
@@ -232,22 +232,22 @@ Statuses below are roadmap statuses at the baseline, not claims that every
 proposed mechanism in those plans is implemented. Recheck the owning contracts
 when each dependent package starts; do not base delivery on unmerged worktrees.
 
-| Owner and status | M19 dependency or handoff |
+| Owner and status | M20 dependency or handoff |
 | --- | --- |
-| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed | Reuse neutral identities, local durability, logical statement results and the qualified local multi-Table decision domain. M5 completion does not qualify native KV/Document or log/lease participants. M19 must prove schema/data branch-head publication in that domain. |
+| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed | Reuse neutral identities, local durability, logical statement results and the qualified local multi-Table decision domain. M5 completion does not qualify native KV/Document or log/lease participants. M20 must prove schema/data branch-head publication in that domain. |
 | [M3](03-live-storage-and-sql-cutover.md) — In Progress | Extend installed lifecycle, exact retained roots, current rights and resumable collection. Preserve accepted unflushed WAL rows and original receipts through archive/trim/reopen. |
 | [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Recent direct Stream/Queue owners, shared bitmap storage and database-owned SQL recovery are reusable. Direct KV, mixed participants and the Station transaction cutover remain gates. Never turn copied consumer offsets, `.tack` claims, timers or outbox bytes into execution rights. |
-| [M7](07-document-storage-and-station-decoupling.md) — In Progress | Logical merge and `DocumentPartition` storage foundations exist; the plan still gates direct dispatch and consumer/transaction cutover. M19 branches and merges Documents through that owner, not old Station storage. |
+| [M7](07-document-storage-and-station-decoupling.md) — In Progress | Logical merge and `DocumentPartition` storage foundations exist; the plan still gates direct dispatch and consumer/transaction cutover. M20 branches and merges Documents through that owner, not old Station storage. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md), [M9](09-client-foundation-and-language-apis.md) — In Progress | Reuse `DatabaseRuntime`, event-driven accepted-work recovery and shared callers. The latest main merge also delivers [declarative browser publications](../handbook/reference/reactive.md#declarative-browser-publications); add branch identity to their source/recovery bindings without confusing browser refresh with native reactive subscriptions. |
 | [M10](10-standards-and-catalogs.md) — In Progress | Exact historical catalog/data cuts, stable column lineage, collations and constraint semantics are prerequisites. Historical helper types alone do not supply durable cut acquisition or current-policy enforcement. Close shared gaps with this owner before branch exposure. |
 | [M11](11-indexing-and-access-paths.md) — Planned | Branch-local index definitions, coverage and uniqueness integrate when the index owner qualifies them. Until then, use a qualified bounded complete scan where semantics exist, or refuse that profile; never assume copied indexes are ready. |
 | [M12](12-sql-and-dataflows.md) — In Progress | Bind copied definitions inactive; preserve result/source provenance. Merge/restore schedules owner-managed invalidation, suspension or recomputation. An in-memory disposition must not claim service activation or DBSP coverage. |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md) — In Progress; [M15](15-data-centric-compilation-and-specialization.md) — Planned | Share memory/IO budgets, measured compaction policy and qualified collation comparisons. Vectorization, string prefixes and compiled execution optimize the same oracle-tested semantics; none is a correctness prerequisite for the first branch path. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md) — Planned | Gate profile-aware Document provenance, spatial/topological validation, graph endpoints and foreign manifests on their exact owner contracts. Bound the first local slice independently, but keep these M19 integrations open until qualified. |
-| [M20](20-service-and-sdk-coverage.md), [M21](21-formal-semantics-and-correspondence.md) — In Progress | M19 supplies shared branch operations and migrates affected consumers; M20 broadens the installed adapter matrix. M21's T6 candidate is `BranchMerge.tla`, A4 is `BranchMergeAlgebra.lean`; these are proposed obligations, not existing `specs/lean` proofs. |
-| [M22](22-storage-providers-and-concurrency.md)–[M25](25-clustered-execution.md) — Planned | Local branch CAS is not distributed multi-writer qualification. Remote mirroring is not replication/failover. M24 owns complete installation backup/restore and upgrades; M19 restores selected application data forward under current authority. |
-| [M26](26-control-and-policy-plane.md), [M27](27-published-resources-and-investigations.md), [M29](29-board-reimplementation.md) — In Progress; [M28](28-reviewed-data-collaboration.md) — Planned | Use current native policy first, expose exact candidate/target bindings for later delegation, publication and review, and preserve read-only Board inspection and its initial workbench work. M28 owns proposal/approval lifecycle and human-only approval, avoiding a dependency cycle in local M19 completion. M19 owns remote candidate transfer; full `PROPOSE` review journeys close in M28. |
-| [M35](35-qualification-and-benchmarks.md) — Planned | Combine later evidence at one revision; M19 must supply its own caller, failure, growth and benchmark evidence now rather than defer correctness to final qualification. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md), [M19](19-game-asset-pipelines-and-simulation-streaming.md) — Planned | Gate profile-aware Document provenance, spatial/topological validation, graph endpoints, foreign manifests and cooked game/simulation asset DDC sharing on their exact owner contracts. Bound the first local slice independently, but keep these M20 integrations open until qualified. |
+| [M21](21-service-and-sdk-coverage.md), [M22](22-formal-semantics-and-correspondence.md) — In Progress | M20 supplies shared branch operations and migrates affected consumers; M21 broadens the installed adapter matrix. M22's T6 candidate is `BranchMerge.tla`, A4 is `BranchMergeAlgebra.lean`; these are proposed obligations, not existing `specs/lean` proofs. |
+| [M23](23-storage-providers-and-concurrency.md)–[M26](26-clustered-execution.md) — Planned | Local branch CAS is not distributed multi-writer qualification. Remote mirroring is not replication/failover. M25 owns complete installation backup/restore and upgrades; M20 restores selected application data forward under current authority. |
+| [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md), [M30](30-board-reimplementation.md) — In Progress; [M29](29-reviewed-data-collaboration.md) — Planned | Use current native policy first, expose exact candidate/target bindings for later delegation, publication and review, and preserve read-only Board inspection and its initial workbench work. M29 owns proposal/approval lifecycle and human-only approval, avoiding a dependency cycle in local M20 completion. M20 owns remote candidate transfer; full `PROPOSE` review journeys close in M29. |
+| [M36](36-qualification-and-benchmarks.md) — Planned | Combine later evidence at one revision; M20 must supply its own caller, failure, growth and benchmark evidence now rather than defer correctness to final qualification. |
 
 ### Contract decisions to settle before runtime exposure
 
@@ -557,10 +557,10 @@ completion and `ResultSet` lifecycles. Do not invent console-only jobs, polling
 state machines or row protocols. Preserve exact attribution in saved operations,
 prepared reads, command receipts, empty/multi-batch diffs and bounded display.
 Inspection through Board remains read-only over public clients; any publication
-uses its separately authorized application surface. M29 owns the broader UI.
+uses its separately authorized application surface. M30 owns the broader UI.
 
 Migrate affected Zig/ABI/generated/SDK and service consumers with the cutover;
-M20 owns additional coverage, not repair of broken existing callers. Exit with
+M21 owns additional coverage, not repair of broken existing callers. Exit with
 installed native and SQL create/write/diff/merge/restore journeys, uncertain
 operation recovery after session replacement, revoked disclosure, early close,
 unsupported-profile refusal and runtime validation at TypeScript boundaries.
@@ -589,7 +589,7 @@ qualified, and metadata protection. Raw shared segments cannot bypass filtered
 views; filtered derivatives get distinct content/provenance and cannot impersonate
 an upstream branch root. Reject promotion of a partial/masked view as a complete
 unfiltered merge candidate. Apply current checks to repeated/lazy requests too.
-M26 policy helpers or caller flags alone are insufficient enforcement.
+M27 policy helpers or caller flags alone are insufficient enforcement.
 
 A mirror follows explicit remote heads with bounded progress, gap/error reporting
 and recoverable subscriptions/notifications where available; reconnection cannot
@@ -600,8 +600,8 @@ live calls. Lazy storage hydration is separately authorized network I/O; fully
 offline testing requires eager dependency hydration.
 
 Transfer immutable candidate content, schema migration intent, expected upstream
-base/target and provenance for M28. Transfer success is not approval, merge or
-activation. M19 qualifies transfer and conditional native publication; M28 adds
+base/target and provenance for M29. Transfer success is not approval, merge or
+activation. M20 qualifies transfer and conditional native publication; M29 adds
 `PROPOSE`, reviewer identity and approval journeys. Exit with two real instances,
 interrupted/resumed transfer, corruption/missing-object cases, revocation while
 streaming/hydrating, filtered-egress leakage checks, and connector attempts
@@ -630,12 +630,12 @@ formal correspondence and deployment evidence distinct.
 | G11 — Growth and resources (all) | Data exceeds RAM/cache; branch, manifest, receipt and conflict counts exceed old helper capacities. Bounded resident bytes, allocations, ancestry work, spill/IO and control fairness hold without retention opt-in. |
 | G12 — Caller/result lifecycle (R8) | Installed native/SQL results preserve schema/basis/completion over empty/multi-batch reads, close, denial, missing terminal and uncertain writes. Existing affected adapters remain compatible with the new definition. |
 
-Use [M21 T6](21-formal-semantics-and-correspondence.md#t6-branch-isolation-logical-merge-and-reviewed-publication)
+Use [M22 T6](22-formal-semantics-and-correspondence.md#t6-branch-isolation-logical-merge-and-reviewed-publication)
 for local publication/retention races and
-[A4](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)
+[A4](22-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)
 for logical merge/skip equivalence. Add negative controls and concrete Zig trace
 replay where claimed, with explicit bounded-model assumptions. Reviewed approval
-and delegation extensions stay with M28/M26. Do not claim that finite models or
+and delegation extensions stay with M29/M27. Do not claim that finite models or
 algebraic proofs establish physical durability, throughput or arbitrary geometry.
 
 Record an M13 scorecard with separately measured snapshot/pin preparation,
@@ -677,7 +677,7 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
    and R7 restore with real execution fences before exposing it in R8.
 4. Start R9 protocol/ownership design once exact cut commitments are settled;
    qualify transfer only after local lifetime/recovery gates pass. Close R10 on
-   the resulting common revision, without treating M28's future approvals as an
+   the resulting common revision, without treating M29's future approvals as an
    existing authorization mechanism.
 
 ## Local Table branch increment
@@ -775,7 +775,7 @@ retention and cleanup remain caller responsibilities until owner integration.
 
 ## Implementation plan — 2026-10-30
 
-The [original plan at the audited main revision](https://github.com/spoke-sh/transit/blob/0e2fba44727ca858bd1e8e4a775b62fbcf1a665d/docs/roadmap/19-branches-merges-and-restore.md#implementation-plan--2026-10-30)
+The [original plan at the audited main revision](https://github.com/spoke-sh/transit/blob/0e2fba44727ca858bd1e8e4a775b62fbcf1a665d/docs/roadmap/20-branches-merges-and-restore.md#implementation-plan--2026-10-30)
 remains historical planning evidence. Its `P0`–`P8` labels describe the inventory
 below. The October 31 plan supersedes its runtime assumptions,
 speculative file paths, unmeasured complexity/compaction claims and
