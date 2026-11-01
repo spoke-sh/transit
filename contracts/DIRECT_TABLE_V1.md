@@ -544,7 +544,10 @@ mutation attempt still requires original-operation recovery.
 actions. Saved work includes mandatory shared definition, exact connection and
 complete DDL; lookup schemas belong to the caller's output arena. No call retries
 or chooses a replacement identity implicitly. Payload operations use the
-separate signed actions below; SQL Stream/Queue verbs remain unavailable.
+separate signed actions below. SQL declarations and named inspection lower to
+this lifecycle through `DirectLogPreparedDdl` and `DirectLogIntent`; the
+[SQL reference](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
+defines supported syntax and policy defaults. Workload SQL verbs remain unavailable.
 
 ### Stream payload and consumer progress
 

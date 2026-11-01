@@ -7,8 +7,10 @@ defines neutral Queue append, lease, settlement and original-receipt bindings.
 Its pure validators do not create a Queue, claim a message, authenticate a receipt
 or commit state. The signed [Queue action](DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 composes standalone enqueue, claim, original payload reads and settlements.
-SQL `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain
-unavailable. Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+SQL declarations and named inspection use the
+[shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
+SQL `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain unavailable.
+Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
 The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
