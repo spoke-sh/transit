@@ -32,8 +32,9 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     assert recovered['identity'] == original['identity']
     assert recovered['command'] == 'create_stream', recovered
 
-    def completed(statement, kind):
-        result = first.terminal(first.execute(statement, list(os.urandom(16)))['operation'])
+    def completed(statement, kind, client=None):
+        client = client or first
+        result = client.terminal(client.execute(statement, list(os.urandom(16)))['operation'])
         assert result['command'] == kind, result
         return result
 
@@ -60,11 +61,13 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     first.call(dict(close_result=shown['cursor']))
     prepared = first.call(dict(prepare=dict(sql='SHOW QUEUE sql_work')))['described']['statement']
     stale = first.execute('SHOW QUEUE sql_work')['batch']
-    completed("ALTER QUEUE sql_work SET (retention='1d', max_attempts=9)", 'alter_queue')
-    first.call(dict(execute=dict(statement=prepared)), error='CatalogDefinitionChanged')
-    first.call(dict(release=prepared))
+    writer = Client(root, port).open()
+    completed("ALTER QUEUE sql_work SET (retention='1d', max_attempts=9)", 'alter_queue', writer)
+    writer.close()
     first.call(dict(fetch=dict(cursor=stale['cursor'], batch=stale['batch'])), error='CatalogDefinitionChanged')
     first.call(dict(fetch=dict(cursor=stale['cursor'], batch=stale['batch'])), error='SqlResultIncomplete')
+    first.call(dict(execute=dict(statement=prepared)), error='CatalogDefinitionChanged')
+    first.call(dict(release=prepared))
     changed = first.execute('SHOW QUEUE sql_work')['batch']
     changed_policy = json.loads(text(changed['rows'][0][3]))
     assert changed_policy['retention']['max_age_ms'] == 86400000
