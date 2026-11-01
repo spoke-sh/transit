@@ -23,6 +23,7 @@ const Output = struct {
 const reference: s.Reference = .{
     .definition = p.Growth.current_definition,
     .srid = 0,
+    .local_frame = @splat(1),
     .axes = .xy,
     .manifold = .planar,
     .linear_unit_nm = 1_000_000_000,

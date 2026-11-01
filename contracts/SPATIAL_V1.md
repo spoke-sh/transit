@@ -17,10 +17,16 @@ Readers never supply a current definition for a missing or foreign field.
 
 ## Coordinate references
 
-Every descriptor explicitly supplies definition, SRID, axes, manifold, linear
-unit in nanometers, vertical datum and precision. There are no field defaults.
+Every descriptor explicitly supplies definition, SRID, local-frame identity,
+axes, manifold, linear unit in nanometers, vertical datum and precision. There
+are no field defaults.
 Dimensions follow the axes. Local SRID 0 is valid with explicit units; it does
-not mean an unknown CRS. No descriptor performs a coordinate transformation.
+not mean an unknown CRS. Its nonzero 16-byte `local_frame` identity names a fixed
+origin and oriented coordinate frame chosen by the caller. Different sites or
+independently positioned engineering frames require different identities, even
+when their units, axes and precision match. Built-in CRS descriptors require a
+zero local-frame field. This identity grants no authority and supplies no
+transformation; callers must not reuse it for a changed frame.
 
 | SRID | Axes | Manifold | Linear unit | Vertical datum |
 | --- | --- | --- | --- | --- |
@@ -44,7 +50,7 @@ No implicit unit conversion, reprojection, axis swap or grid change is permitted
 
 ## Canonical reference bytes
 
-`Reference.encode` writes exactly 56 bytes. All integer fields below are little
+`Reference.encode` writes exactly 72 bytes. All integer fields below are little
 endian except the shared definition's 32 bytes, which retain their owning order.
 Validation and output-capacity checks precede every output mutation.
 
@@ -60,12 +66,13 @@ Validation and output-capacity checks precede every output mutation.
 | 44 | 8 | Linear unit nanometers, u64 |
 | 52 | 2 | Signed grid exponent, i16; zero for exact |
 | 54 | 2 | Zero reserved bytes |
+| 56 | 16 | Local-frame identity; nonzero for SRID 0, zero for built-in CRS |
 
 Decoding rejects wrong length/magic, foreign definitions, unknown tags, nonzero
 reserved bytes, noncanonical exact exponents and invalid combinations. The
 definition bytes are checked before interpreting the remaining descriptor.
 `fingerprint` computes SHA-256 over ASCII `transit.spatial.reference.v1`, one
-zero byte, and all 56 encoded bytes. Physical layout, allocator identity and
+zero byte, and all 72 encoded bytes. Physical layout, allocator identity and
 runtime addresses do not enter the commitment.
 
 The descriptor owns no buffers or resources. Returned decoded values are plain

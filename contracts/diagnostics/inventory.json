@@ -26178,6 +26178,7 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidSpatialEncoding": 7,
+        "InvalidSpatialFrame": 2,
         "InvalidSpatialPrecision": 1,
         "InvalidSpatialReference": 5,
         "SpatialOutputTooSmall": 1,

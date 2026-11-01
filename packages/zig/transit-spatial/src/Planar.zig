@@ -237,7 +237,7 @@ pub const Polygon = struct {
 test "spatial planar rings preserve boundaries holes winding and exact area" {
     const t = std.testing;
     const p = @import("transit_protocol");
-    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xy, .manifold = .planar, .linear_unit_nm = 1_000_000_000, .vertical_datum = .none, .precision = .exact };
+    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xy, .manifold = .planar, .linear_unit_nm = 1_000_000_000, .vertical_datum = .none, .precision = .exact };
     var work: Budget = .{ .remaining = 10000 };
     var witness: ?Invalid = null;
     const shell = try Ring.init(reference, &.{ .{ 0, 0 }, .{ 10, 0 }, .{ 10, 10 }, .{ 0, 10 }, .{ 0, 0 } }, &work, &witness);
@@ -258,7 +258,7 @@ test "spatial planar rings preserve boundaries holes winding and exact area" {
 test "spatial ring validation rejects self intersections and adjacent backtracking" {
     const t = std.testing;
     const p = @import("transit_protocol");
-    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .exact };
+    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .exact };
     var work: Budget = .{ .remaining = 1000 };
     var witness: ?Invalid = null;
     try t.expectError(error.InvalidSpatialGeometry, Ring.init(reference, &.{ .{ 0, 0 }, .{ 2, 2 }, .{ 0, 2 }, .{ 2, 0 }, .{ 0, 0 } }, &work, &witness));
@@ -273,7 +273,7 @@ test "spatial ring validation rejects self intersections and adjacent backtracki
 test "spatial grid normalization is explicit and uses ties to even" {
     const t = std.testing;
     const p = @import("transit_protocol");
-    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .{ .binary_grid = 0 } };
+    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .{ .binary_grid = 0 } };
     for ([_]f64{ 0.5, 1.5, 2.5, -0.5, -1.5, -2.5 }, [_]f64{ 0, 2, 2, 0, -2, -2 }) |input, expected| try t.expectEqual(expected, try normalizeCoordinate(reference, input));
     var work: Budget = .{ .remaining = 1000 };
     var witness: ?Invalid = null;
@@ -284,7 +284,7 @@ test "spatial grid normalization is explicit and uses ties to even" {
 test "spatial polygon validation rejects exterior touching nested and mismatched holes" {
     const t = std.testing;
     const p = @import("transit_protocol");
-    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .exact };
+    const reference: Reference = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xy, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .none, .precision = .exact };
     var work: Budget = .{ .remaining = 10000 };
     var witness: ?Invalid = null;
     const shell = try Ring.init(reference, &.{ .{ 0, 0 }, .{ 10, 0 }, .{ 10, 10 }, .{ 0, 10 }, .{ 0, 0 } }, &work, &witness);
@@ -299,7 +299,7 @@ test "spatial polygon validation rejects exterior touching nested and mismatched
     try t.expectError(error.InvalidSpatialGeometry, Polygon.init(shell, &.{ inner, nested }, &work, &witness));
     try t.expectEqual(Invalid{ .reason = .nested_holes, .ring = 2, .other_ring = 1 }, witness.?);
     var other_reference = reference;
-    other_reference.linear_unit_nm = 1000;
+    other_reference.local_frame = @splat(2);
     const foreign = try Ring.init(other_reference, nested.points, &work, &witness);
     try t.expectError(error.SpatialReferenceMismatch, Polygon.init(shell, &.{foreign}, &work, &witness));
     try t.expect(witness == null);

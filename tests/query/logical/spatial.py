@@ -129,7 +129,7 @@ def corpus():
     add("ring", [[0, 0], [2, 2], [0, 2], [2, 0], [0, 0]], dict(error_name="InvalidSpatialGeometry",
         witness=dict(reason="self_intersection", ring=0, edge=0, other_ring=None, other_edge=2)))
     add("ring", base, dict(error_name="SpatialWorkExceeded", witness=None), budget=3)
-    encoded = b"SPR1" + DEFINITION + struct.pack("<IBBBBQhH", 0, 1, 1, 0, 0, 1_000_000_000, 0, 0)
+    encoded = b"SPR1" + DEFINITION + struct.pack("<IBBBBQhH", 0, 1, 1, 0, 0, 1_000_000_000, 0, 0) + bytes([1])*16
     add("reference", [], dict(encoded=list(encoded), fingerprint=list(hashlib.sha256(b"transit.spatial.reference.v1\0" + encoded).digest())))
     return cases, expected
 

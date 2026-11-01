@@ -5,8 +5,9 @@ The library has no storage, transport, clock or authorization dependency. Its
 only dependency is the public protocol for the shared definition identity.
 
 `Reference` validates explicit local planar, Web Mercator and WGS84 coordinate
-descriptors. SRID 0 requires units and axes. `requireSame` rejects mixed units,
-axes, precision or reference systems; `requirePlanar` rejects geographic and
+descriptors. SRID 0 requires a stable local-frame identity, units and axes.
+`requireSame` rejects mixed frames, units, axes, precision or reference systems;
+`requirePlanar` rejects geographic and
 wrong-dimension operands. Geographic descriptors do not enable geodesic kernels.
 
 `encode`, `decode` and `fingerprint` implement the canonical definition-bound

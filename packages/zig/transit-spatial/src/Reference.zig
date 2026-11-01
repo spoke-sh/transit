@@ -4,7 +4,7 @@ const std = @import("std");
 const p = @import("transit_protocol");
 const Self = @This();
 
-pub const encoded_bytes = 56;
+pub const encoded_bytes = 72;
 pub const Axes = enum(u8) { xy = 1, xyz = 2, longitude_latitude = 3, longitude_latitude_height = 4 };
 pub const Manifold = enum(u8) { planar = 1, wgs84_ellipsoid = 2 };
 pub const VerticalDatum = enum(u8) { none = 0, local = 1, wgs84_ellipsoid = 2 };
@@ -14,6 +14,9 @@ pub const Precision = union(enum) { exact: void, binary_grid: i16 };
 // CRS, unit, dimension, grid or vertical datum from a newer build.
 definition: p.Growth.Definition,
 srid: u32,
+/// Nonzero stable identity for a local engineering frame; zero for built-in CRS.
+/// Caller-owned identity, not a catalog object, permission or transform.
+local_frame: [16]u8,
 axes: Axes,
 manifold: Manifold,
 /// Planar axes, or the height axis of 4979. Angular axes are degrees.
@@ -35,8 +38,10 @@ pub fn validate(self: Self) !void {
         .exact => {},
         .binary_grid => |exponent| if (exponent < -100 or exponent > 100) return error.InvalidSpatialPrecision,
     }
+    const has_local_frame = !std.mem.allEqual(u8, &self.local_frame, 0);
     switch (self.srid) {
         0 => {
+            if (!has_local_frame) return error.InvalidSpatialFrame;
             if (self.manifold != .planar or self.linear_unit_nm == 0) return error.InvalidSpatialReference;
             if (self.axes == .xy and self.vertical_datum == .none) return;
             if (self.axes == .xyz and self.vertical_datum == .local) return;
@@ -53,6 +58,7 @@ pub fn validate(self: Self) !void {
         },
         else => return error.UnsupportedSpatialReference,
     }
+    if (has_local_frame) return error.InvalidSpatialFrame;
 }
 
 /// Binary predicates require identical interpretation. No implicit transform.
@@ -82,6 +88,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     std.mem.writeInt(u64, bytes[44..52], self.linear_unit_nm, .little);
     std.mem.writeInt(i16, bytes[52..54], if (self.precision == .binary_grid) self.precision.binary_grid else 0, .little);
     @memset(bytes[54..56], 0);
+    @memcpy(bytes[56..72], &self.local_frame);
     return bytes;
 }
 
@@ -98,6 +105,7 @@ pub fn decode(bytes: []const u8) !Self {
     const result: Self = .{
         .definition = p.Growth.current_definition, // explicit byte equality above
         .srid = std.mem.readInt(u32, bytes[36..40], .little),
+        .local_frame = bytes[56..72].*,
         .axes = std.enums.fromInt(Axes, bytes[40]) orelse return error.InvalidSpatialEncoding,
         .manifold = std.enums.fromInt(Manifold, bytes[41]) orelse return error.InvalidSpatialEncoding,
         .vertical_datum = std.enums.fromInt(VerticalDatum, bytes[42]) orelse return error.InvalidSpatialEncoding,
@@ -117,7 +125,7 @@ pub fn fingerprint(self: Self) ![32]u8 {
 }
 
 test "spatial references preserve explicit local units and reject mismatched descriptors" {
-    const local: Self = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xy, .manifold = .planar, .linear_unit_nm = 1_000_000_000, .vertical_datum = .none, .precision = .exact };
+    const local: Self = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xy, .manifold = .planar, .linear_unit_nm = 1_000_000_000, .vertical_datum = .none, .precision = .exact };
     var bytes: [encoded_bytes]u8 = undefined;
     try std.testing.expectEqualDeep(local, try decode(try local.encode(&bytes)));
     var changed = local;
@@ -132,10 +140,16 @@ test "spatial references preserve explicit local units and reject mismatched des
     changed = local;
     changed.precision = .{ .binary_grid = -101 };
     try std.testing.expectError(error.InvalidSpatialPrecision, changed.validate());
+    changed = local;
+    changed.local_frame = @splat(2);
+    try std.testing.expectError(error.SpatialReferenceMismatch, local.requireSame(changed));
+    try std.testing.expect(!std.mem.eql(u8, &try local.fingerprint(), &try changed.fingerprint()));
+    changed.local_frame = @splat(0);
+    try std.testing.expectError(error.InvalidSpatialFrame, changed.validate());
 }
 
 test "spatial envelopes reject foreign definitions truncation and noncanonical fields" {
-    const local: Self = .{ .definition = p.Growth.current_definition, .srid = 0, .axes = .xyz, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .local, .precision = .{ .binary_grid = -10 } };
+    const local: Self = .{ .definition = p.Growth.current_definition, .srid = 0, .local_frame = @splat(1), .axes = .xyz, .manifold = .planar, .linear_unit_nm = 1, .vertical_datum = .local, .precision = .{ .binary_grid = -10 } };
     var bytes: [encoded_bytes]u8 = undefined;
     _ = try local.encode(&bytes);
     for (0..encoded_bytes) |length| try std.testing.expectError(error.InvalidSpatialEncoding, decode(bytes[0..length]));
@@ -150,13 +164,16 @@ test "spatial envelopes reject foreign definitions truncation and noncanonical f
     changed = bytes;
     changed[43] = 0;
     try std.testing.expectError(error.InvalidSpatialEncoding, decode(&changed));
+    changed = bytes;
+    @memset(changed[56..72], 0);
+    try std.testing.expectError(error.InvalidSpatialFrame, decode(&changed));
     var short: [encoded_bytes - 1]u8 = @splat(0xa5);
     try std.testing.expectError(error.SpatialOutputTooSmall, local.encode(&short));
     try std.testing.expect(std.mem.allEqual(u8, &short, 0xa5));
 }
 
 test "spatial registry separates ellipsoidal height and planar evaluation" {
-    const geographic: Self = .{ .definition = p.Growth.current_definition, .srid = 4979, .axes = .longitude_latitude_height, .manifold = .wgs84_ellipsoid, .linear_unit_nm = 1_000_000_000, .vertical_datum = .wgs84_ellipsoid, .precision = .exact };
+    const geographic: Self = .{ .definition = p.Growth.current_definition, .srid = 4979, .local_frame = @splat(0), .axes = .longitude_latitude_height, .manifold = .wgs84_ellipsoid, .linear_unit_nm = 1_000_000_000, .vertical_datum = .wgs84_ellipsoid, .precision = .exact };
     try geographic.validate();
     try std.testing.expectError(error.UnsupportedSpatialOperation, geographic.requirePlanar(3));
     var bad = geographic;
@@ -165,4 +182,7 @@ test "spatial registry separates ellipsoidal height and planar evaluation" {
     bad = geographic;
     bad.precision = .{ .binary_grid = 0 };
     try std.testing.expectError(error.InvalidSpatialReference, bad.validate());
+    bad = geographic;
+    bad.local_frame = @splat(1);
+    try std.testing.expectError(error.InvalidSpatialFrame, bad.validate());
 }
