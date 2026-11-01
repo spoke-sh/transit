@@ -682,7 +682,7 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
 
 ## Local Table branch increment
 
-The next R1/R2 slice starts from `b60f12154`. Its reviewable outcome is a named,
+Implemented on top of `b60f12154`, this R1/R2 slice delivers a named,
 immutable branch of one explicitly selected Table, reached through typed direct
 callers. It retains the original definition and data frontier, including unflushed
 WAL rows, and recovers the original outcome while the parent advances.
@@ -702,13 +702,29 @@ source attribution; schema-only exposes no rows and initially retains the same
 source pin. Writable roots, whole-catalog cuts, branch fork history and published
 branch deletion remain R2/R3 work.
 
-Required evidence includes typed create/read/recovery, disk reopen after lost
-pin and publication replies, parent advancement, independent copied rows,
-name conflicts/reuse, current-policy denial including empty output, protected
-pin ownership, recoverable cancellation and collector reachability. The stored
-catalog directories require a coordinated current-v1 definition cutover and
-regenerated contracts, signing fixtures and dependent consumers. This scope
-does not close the remaining milestone gates.
+The focused catalog suite (`zig build test -Dtest-filter="direct branch"` in
+`transit-catalog`) passes independent signed-intent verification, disk reopen
+after lost pin/publication replies, parent advancement against copied rows,
+name conflicts/reuse, protected pin ownership, recoverable cancellation,
+stale-source refusal, missing-artifact refusal and 137 published branches with
+one resident page. The signed and typed service schedules
+(`zig build transit-node test-local-catalog -Dlocal-catalog-filter=branch -j2`)
+pass real collection after parent writes/flushing and current-policy denial
+after buffering rows, schema and empty output. Each collection completed 370
+steps and reclaimed its independently witnessed orphan. `transit-sql` tests also
+pass recovery pagination across excluded branch work without hiding later SQL
+operations. These are local component/service proofs, not full qualification.
+
+The implementation performs the coordinated current-v1 cutover to
+`b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c`,
+regenerates reflected resources and independent signing fixtures, and rejects
+foreign definitions. `just check contracts`, `just check fast`, formatting and
+diagnostic mappings pass. Committed-source dependent CI qualification remains
+separate from these focused results.
+
+R1/R2 remain open for complete branch histories and whole-catalog cuts. R3 still
+requires writable isolation, published deletion and concurrent lifetime/GC races;
+R4–R10 retain their existing scope. This increment does not close the milestone.
 
 ## Foundation increment — 2026-10-31
 

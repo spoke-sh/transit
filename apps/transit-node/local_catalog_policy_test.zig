@@ -1812,6 +1812,10 @@ test "typed transaction controls preserve paged policy and private atomic work" 
     try transactionSchedule();
 }
 fn transactionSchedule() !void {
+    try dataSchedule(transactionDispatch);
+}
+
+fn dataSchedule(comptime run: anytype) !void {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
@@ -1837,11 +1841,15 @@ fn transactionSchedule() !void {
     var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
     const initialized = try dispatch(&service, .initialize);
     initialized.deinit();
-    try transactionDispatch(&service, role);
+    try run(&service, role);
 }
 
 test "shared refusals distinguish current denial from storage and missing-owner failures" {
     const failure = @import("ServiceFailure.zig");
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.BranchSourceChanged).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.BranchRetentionOwned).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidBranchCursor).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.BranchArtifactMissing).code);
     // A provider AccessDenied is not itself a native authorization decision.
     try t.expectEqual(std.http.Status.unprocessable_entity, failure.native(error.AccessDenied).status);
     try t.expectEqual(std.http.Status.forbidden, failure.native(error.Forbidden).status);
@@ -2133,4 +2141,135 @@ fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration
     _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = release })).operation.?.release;
     try t.expectError(error.StreamReadReleased, c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = page_request.page.limits } }));
     return page_request;
+}
+
+fn branchInsert(service: *@import("LocalTableService.zig"), operation: u64, sql: []const u8) !void {
+    const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
+    defer metadata.deinit();
+    const definition = metadata.value.result.lookup.?;
+    const bytes = try definition.schema.decode(t.allocator, c.fuze.TableSchema.max_bytes);
+    defer t.allocator.free(bytes);
+    var schema = try c.fuze.TableSchema.decode(t.allocator, bytes);
+    defer schema.deinit();
+    var plan = try c.fuze.TableDml.compile(t.allocator, sql, "branch_source", schema.schema, null);
+    defer plan.deinit();
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    var intent = try c.DirectTableIntent.fromDml(t.allocator, connection, definition, operation, plan.plan, .point);
+    defer intent.deinit();
+    const admitted = try dispatch(service, .{ .admit_rows = intent.parsed.value.work.rows });
+    admitted.deinit();
+    const done = try dispatch(service, .{ .operation = .{ .binding = intent.binding(), .command = .execute, .steps = 8 } });
+    defer done.deinit();
+    try t.expect(done.value.result.rows == .committed);
+}
+
+fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    const scope = service.configuration.scope;
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 100000, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const intent: D.Intent = .{ .namespace = 1, .name = try .init("branch_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 100000 }, .target = .{ .scope = scope, .branch = 1, .object = 100000 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+    var encoded: [65536]u8 = undefined;
+    const binary = try w.Binary.encode(t.allocator, try schema.encode(&encoded));
+    defer t.allocator.free(binary.base64);
+    const admitted = try dispatch(service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "branch_source", .action = .{ .create = .{ .owner = owner_role, .schema = binary } } } });
+    admitted.deinit();
+    const created = try dispatch(service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 4 } });
+    created.deinit();
+    try branchInsert(service, 100001, "INSERT INTO branch_source VALUES (10), (20), (30)");
+    const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
+    defer metadata.deinit();
+    const definition = metadata.value.result.lookup.?;
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const request: @FieldType(c.DirectBranch.Request, "create") = .{
+        .key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(90), .token = @splat(91) },
+        .intent = .{ .connection = connection, .namespace = 1, .operation = 100002, .name = try .init("trial"), .source = .{ .interpretation = definition.interpretation.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = definition.position }, .mode = .full_data },
+    };
+    const published = try dispatch(service, .{ .branch = .{ .create = request } });
+    defer published.deinit();
+    const head = published.value.result.branch.status.?.state.head.?;
+    var empty_request = request;
+    empty_request.key.token = @splat(92);
+    empty_request.intent.operation += 1;
+    empty_request.intent.name = try .init("empty_trial");
+    empty_request.intent.mode = .schema_only;
+    // Pinning advances the physical frontier, so take the current source for
+    // the separate schema-only operation, not a fabricated later acceptance.
+    const after_pin = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
+    defer after_pin.deinit();
+    empty_request.intent.source.accepted = after_pin.value.result.lookup.?.position;
+    const empty = try dispatch(service, .{ .branch = .{ .create = empty_request } });
+    defer empty.deinit();
+    const empty_head = empty.value.result.branch.status.?.state.head.?;
+    try branchInsert(service, 100004, "INSERT INTO branch_source VALUES (99)");
+    const advanced = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
+    defer advanced.deinit();
+    const flushed = try dispatch(service, .{ .flush = .{ .object = binding.target, .through = advanced.value.result.lookup.?.position } });
+    flushed.deinit();
+    // Real physical collection must retain the accepted branch directory and
+    // unflushed snapshot while reclaiming an independently witnessed orphan.
+    var control: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, service.configuration, control.log(), control.objects(), data.log(), data.objects(), service.options);
+    defer catalog.deinit();
+    try catalog.recover();
+    try collectDirect(service.engine, &catalog);
+    const repeated = try dispatch(service, .{ .branch = .{ .create = request } });
+    defer repeated.deinit();
+    try t.expectEqualDeep(published.value.result, repeated.value.result);
+    const lookup = try dispatch(service, .{ .branch = .{ .lookup = .{ .namespace = 1, .name = request.intent.name } } });
+    defer lookup.deinit();
+    try t.expectEqualDeep(published.value.result, lookup.value.result);
+    var cursor: ?c.storage.TablePartition.SnapshotCursor = null;
+    var count: usize = 0;
+    while (true) {
+        const response = try dispatch(service, .{ .branch = .{ .scan = .{ .head = head, .after = cursor, .limits = .{ .rows = 1 } } } });
+        defer response.deinit();
+        const page = response.value.result.branch.page;
+        try t.expectEqual(3, page.total_rows);
+        for (page.rows) |row| {
+            const bytes = try row.decode(t.allocator, c.fuze.TableRow.max_bytes);
+            defer t.allocator.free(bytes);
+            var decoded = try c.fuze.TableRow.decode(t.allocator, schema, bytes);
+            defer decoded.deinit();
+            count += 1;
+            try t.expectEqual(@as(i64, @intCast(count * 10)), decoded.row().cells[0].value.atom.signed);
+        }
+        cursor = page.next orelse break;
+    }
+    try t.expectEqual(3, count);
+    const Revoke = struct {
+        fn run(raw: *anyopaque, engine: *Engine) !void {
+            const id: *u64 = @ptrCast(@alignCast(raw));
+            _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id.*), .owner = 0 } });
+        }
+    };
+    var revoked = definition.authorization;
+    // Current policy is checked after buffering data, empty results and schema.
+    for ([_]c.DirectBranch.Request{
+        .{ .scan = .{ .head = head, .after = null, .limits = .{} } },
+        .{ .scan = .{ .head = empty_head, .after = null, .limits = .{} } },
+        .{ .source = head },
+    }) |read| {
+        service.before_reply = .{ .context = &revoked, .run = Revoke.run };
+        defer service.before_reply = null;
+        try t.expectError(error.Forbidden, dispatch(service, .{ .branch = read }));
+        service.before_reply = null;
+        _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(revoked), .owner = owner_role } });
+    }
+    const empty_rows = try dispatch(service, .{ .branch = .{ .scan = .{ .head = empty_head, .after = null, .limits = .{} } } });
+    defer empty_rows.deinit();
+    try t.expectEqual(0, empty_rows.value.result.branch.page.total_rows);
+    try t.expect(empty_rows.value.result.branch.page.next == null);
+}
+
+test "signed branch reads survive collection and fence buffered disclosure" {
+    typed_dispatch = false;
+    try dataSchedule(branchDispatch);
+}
+test "typed branch reads survive collection and fence buffered disclosure" {
+    typed_dispatch = true;
+    defer typed_dispatch = false;
+    try dataSchedule(branchDispatch);
 }
