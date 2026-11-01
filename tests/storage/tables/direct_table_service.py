@@ -37,7 +37,7 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None or mode == "tables":
+        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer"):
             settings["request_metrics"] = True
         if mode in ("resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
             settings["genesis"]["max_clock_error_ms"] = 10000
@@ -88,6 +88,9 @@ def run(node, caller, mode="tables", *artifacts):
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
+        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer") else None
+        if transaction_attempts is not None:
+            transaction_attempts.mkdir(mode=0o700)
         growth_sequence = 0
         growth_lock = threading.Lock()
 
@@ -100,6 +103,7 @@ def run(node, caller, mode="tables", *artifacts):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 attempt = None
+                transaction_action = envelope.get("action", {}).get("transaction") if isinstance(envelope.get("action"), dict) else None
                 if (growth_attempts is not None and self.path == "/table/v1"
                         and isinstance(envelope["action"], dict)
                         and set(envelope["action"]) & {"admit_ddl", "admit_rows", "operation", "pin"}):
@@ -110,6 +114,13 @@ def run(node, caller, mode="tables", *artifacts):
                     with growth_lock:
                         growth_sequence += 1
                         attempt = growth_attempts / f"{growth_sequence:04d}"
+                        attempt.with_suffix(".request.json").write_bytes(body)
+                elif transaction_attempts is not None and self.path == "/table/v1" and transaction_action:
+                    # Preserve every original request before forwarding, including
+                    # preparation that fails before the caller saves its final plan.
+                    with growth_lock:
+                        growth_sequence += 1
+                        attempt = transaction_attempts / f"{growth_sequence:04d}"
                         attempt.with_suffix(".request.json").write_bytes(body)
                 headers = {"Content-Type": "application/json"}
                 for name in ("x-transit-control", "x-transit-wait"):
@@ -141,8 +152,14 @@ def run(node, caller, mode="tables", *artifacts):
                     response = connection.getresponse()
                     data = response.read()
                     if attempt is not None:
+                        metrics = response.getheader("x-transit-work")
                         attempt.with_suffix(".response.json").write_text(json.dumps({
-                            "status": response.status, "body": data.decode("utf-8")}))
+                            "status": response.status, "body": data.decode("utf-8"),
+                            "metrics": json.loads(metrics) if metrics else None}))
+                        if transaction_action and response.status >= 400:
+                            print(json.dumps({"transaction_refusal": next(iter(transaction_action)),
+                                              "status": response.status,
+                                              "memory": {name: json.loads(metrics).get(name) for name in ("owner_memory", "request_memory")} if metrics else None}), flush=True)
                     if self.path == "/table/v1":
                         if request_memory is not None:
                             request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
