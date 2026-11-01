@@ -1,11 +1,12 @@
 """Installed declaration SQL, exact metadata and original token recovery."""
 import json
 import os
+import subprocess
 from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import text, unsigned
 
 
-def run(root, port, postgres, mysql_options, restart, authorize):
+def run(root, port, postgres, mysql_options, restart, authorize, console):
     first = Client(root, port).open()
     for invalid, code, state in (
         ('CREATE STREAM invalid_key (id BIGINT PRIMARY KEY)', 'UnsupportedLogPrimaryKey', b'0A000'),
@@ -156,11 +157,28 @@ def run(root, port, postgres, mysql_options, restart, authorize):
             cursor.execute('SHOW QUEUES')
             assert {row[0] for row in cursor.fetchall()} == {'sql_work', 'sql_failed', 'mysql_work'}
             cursor.execute('DROP QUEUE `mysql_work`')
+    consumer = root / 'log-console'
+    consumer.mkdir()
+    home = consumer / 'home'
+    home.mkdir()
+    password = consumer / 'password'
+    password.write_text('proof-password')
+    password.chmod(0o600)
+    config = consumer / 'connection.yaml'
+    config.write_text(f'version: 1\nendpoint: https://localhost:{port}\naccount: proof\ndatabase: data\nauthentication: scram\nca_file: {root/"certificate.pem"}\npassword_file: {password}\nformat: json\n')
+    script = consumer / 'declarations.sql'
+    script.write_text("CREATE STREAM console_events (value VARCHAR(12));\nSHOW STREAM console_events;\nDESCRIBE STREAM console_events;\nALTER STREAM console_events SET (retention='1h');\nDROP STREAM console_events;\n")
+    rendered = subprocess.run([console, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
+                              cwd=consumer, env={'PATH': '/unavailable', 'HOME': str(home), 'LANG': 'C'},
+                              capture_output=True, text=True, timeout=180)
+    assert rendered.returncode == 0, (rendered.stdout, rendered.stderr)
+    assert rendered.stdout.count('"complete_coverage":true') == 2, rendered.stdout
     first = Client(root, port).open()
+    first.call(dict(execute=dict(sql='SHOW STREAM console_events')), error='CatalogNameNotFound')
     completed('DROP STREAM sql_history', 'drop_stream')
     completed('DROP QUEUE sql_work', 'drop_queue')
     first.close()
-    print(json.dumps(dict(profile='sql_log_declarations', native=True, postgres=True, mysql=True,
+    print(json.dumps(dict(profile='sql_log_declarations', native=True, postgres=True, mysql=True, console=True,
                           original_token_after_replacement=True, metadata_batches=[32, 8],
                           listing_batches=[32, 3], empty_listing=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)
