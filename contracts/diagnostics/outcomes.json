@@ -10335,6 +10335,20 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "InvalidSchemaProjection": {
+          "code": "catalog.invalid_schema_projection",
+          "category": "integrity",
+          "actions": [
+            "contact_operator"
+          ]
+        },
+        "IncompatibleSchemaProjection": {
+          "code": "catalog.incompatible_schema_projection",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"
