@@ -134,3 +134,6 @@ test {
     _ = @import("log_transaction_actions_test.zig");
     _ = @import("transaction_decision_test.zig");
 }
+
+pub const DocumentLogicalState = @import("DocumentLogicalState.zig");
+pub const LogicalDocumentChange = @import("transit_document").LogicalChange;

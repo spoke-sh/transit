@@ -100,7 +100,7 @@ fn hash(bytes: []const u8) [32]u8 {
     return result;
 }
 
-const Locator = struct {
+pub const Locator = struct {
     segment: [32]u8,
     length: u32,
     row: u32,
@@ -111,7 +111,7 @@ const Locator = struct {
         std.mem.writeInt(u32, bytes[36..40], self.row, .big);
         return pages.Value.init(&bytes);
     }
-    fn decode(value: pages.Value) !Locator {
+    pub fn decode(value: pages.Value) !Locator {
         if (value.len != 40) return error.InvalidDocumentLocator;
         return .{ .segment = value.data[0..32].*, .length = std.mem.readInt(u32, value.data[32..36], .big), .row = std.mem.readInt(u32, value.data[36..40], .big) };
     }

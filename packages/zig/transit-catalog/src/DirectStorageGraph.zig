@@ -85,7 +85,7 @@ const DocumentContext = struct {
         return identity;
     }
 };
-const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, operations, reads };
+const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, operations, reads, logical_records, logical_ordered };
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
@@ -146,7 +146,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -304,32 +304,53 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
     }
 }
 
-fn markDocumentBlob(store: s.TransitObjectStore.ObjectStore, workspace: anytype, prefix: []const u8, content: d.Content) !void {
+fn markDocumentBlob(allocator: std.mem.Allocator, context: DocumentContext, store: s.TransitObjectStore.ObjectStore, workspace: anytype, prefix: []const u8, content: d.Content) !void {
     try content.validate();
     var name: [96]u8 = undefined;
     const key = try std.fmt.bufPrint(&name, "{s}/{x}.data", .{ prefix, &content.sha256 });
     const meta = (try store.head(key)) orelse return error.DocumentStateObjectMissing;
     if (meta.size != content.bytes or !std.mem.eql(u8, &meta.sha256, &content.sha256)) return error.InvalidDocumentStorageGraph;
     try markContent(workspace, key, content);
+    if (std.mem.eql(u8, prefix, "document-states") and try s.DocumentLogicalState.isLogical(store, content)) {
+        const state = try s.DocumentLogicalState.load(allocator, store, content);
+        try context.requireTarget(state.target.partition);
+        try workspace.enqueue(.{ .document_index = .{ .context = context, .reference = state.index.records, .kind = .logical_records } });
+        try workspace.enqueue(.{ .document_index = .{ .context = context, .reference = state.index.ordered, .kind = .logical_ordered } });
+    }
 }
 
 fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: DocumentContext, kind: DocumentIndexKind, entry: s.TreeStore.pages.Entry) !void {
     switch (kind) {
         .pages_only => {},
+        .logical_records => {
+            if (entry.key.len != 32) return error.InvalidDocumentStorageGraph;
+            const locator = try s.DocumentIndex.Locator.decode(entry.value);
+            var name: [96]u8 = undefined;
+            const key = try s.DocumentIndex.segmentKey(locator.segment, &name);
+            const meta = try index.store.head(key) orelse return error.MissingDocumentSegment;
+            if (meta.size != locator.length or !std.mem.eql(u8, &meta.sha256, &locator.segment)) return error.InvalidDocumentStorageGraph;
+            try markContent(workspace, key, .{ .bytes = locator.length, .sha256 = locator.segment });
+        },
+        .logical_ordered => {
+            // Canonical causal records have full keys <= 64 bytes. Preserve
+            // the existing serialized maintenance cursor; this layout never
+            // creates OrderedKeyIndex continuation directories.
+            if (try s.OrderedKeyIndex.childIndex(entry, 0) != null) return error.InvalidDocumentStorageGraph;
+        },
         .documents => {
             const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.DocumentHead, allocator, entry.value.slice());
             defer parsed.deinit();
             try parsed.value.cut.validate();
             try context.requireTarget(parsed.value.cut.target.partition);
             if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.cut.target.document)) return error.InvalidDocumentStorageGraph;
-            try markDocumentBlob(index.store, workspace, "document-states", parsed.value.cut.state);
+            try markDocumentBlob(allocator, context, index.store, workspace, "document-states", parsed.value.cut.state);
         },
         .revisions => {
             const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.RevisionEntry, allocator, entry.value.slice());
             defer parsed.deinit();
             if (entry.key.len != 24 or parsed.value.lsn >= context.next_lsn) return error.InvalidDocumentStorageGraph;
-            try markDocumentBlob(index.store, workspace, "document-states", parsed.value.state);
-            try markDocumentBlob(index.store, workspace, "document-payloads", parsed.value.payload);
+            try markDocumentBlob(allocator, context, index.store, workspace, "document-states", parsed.value.state);
+            try markDocumentBlob(allocator, context, index.store, workspace, "document-payloads", parsed.value.payload);
         },
         .replicas => {
             const parsed = try c.protocol.Json.parseFromSlice(c.protocol.DocumentOperation.ReplicaState, allocator, entry.value.slice());

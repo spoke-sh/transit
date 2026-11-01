@@ -382,6 +382,18 @@ test "direct graph retains document partition declarations states payloads evide
             return .{ .writer_epoch = 1, .policy_epoch = 1 };
         }
         fn release(_: *anyopaque) void {}
+        fn walk(owner: *s.DocumentPartition, log: s.TransitLog.Log, frame: s.TransitLog.Frame, workspace: *Workspace) !void {
+            try workspace.enqueue(try Graph.fromFrame(t.allocator, frame));
+            var at: usize = 0;
+            var steps: usize = 0;
+            while (at < workspace.jobs.items.len) : (at += 1) {
+                var work = workspace.jobs.items[at];
+                while (!try Graph.step(t.allocator, &owner.store, log, &work, workspace)) {
+                    steps += 1;
+                    if (steps == 2000) return error.FixtureBudget;
+                }
+            }
+        }
         fn hashBytes(bytes: []const u8) [32]u8 {
             var digest: [32]u8 = undefined;
             std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -471,6 +483,29 @@ test "direct graph retains document partition declarations states payloads evide
         .operation = .{ .scope = scope_id, .principal = 7, .operation = 5 },
         .read = closed_read.handle(),
     }, guard);
+    const logical = s.LogicalDocumentChange;
+    const logical_header: logical.Header = .{ .definition = c.protocol.Growth.definition_bytes, .document = @splat(0x61), .replica = @splat(0x71), .epoch = 1, .sequence = 1, .preceding_sequence = 0, .operations = 1 };
+    var logical_buffer: [2048]u8 = undefined;
+    const large_value: [800]u8 = @splat('x');
+    const logical_bytes = try logical.encode(logical_header, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = &large_value } }}, &logical_buffer);
+    const logical_receipt = try owner.applyCausal(.{
+        .target = .{ .partition = init_req.target(), .document = logical_header.document },
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 6 },
+        .lineage = .{ .profile = .causal_crdt, .merge_epoch = 1, .base_revision = 0, .parent_revision = null, .replica = .{ .id = logical_header.replica, .epoch = 1, .sequence = 1, .preceding_sequence = 0 }, .raw_span = null },
+        .operations = 1,
+        .payload = .{ .bytes = logical_bytes.len, .sha256 = DocFixture.hashBytes(logical_bytes) },
+    }, logical_bytes, guard);
+    const logical_state = try s.DocumentLogicalState.load(t.allocator, objects.objectStore(), logical_receipt.state);
+    // Seal a private candidate without accepting it. Collection must distinguish
+    // its segment from the accepted tree even though they share directory pages.
+    var private = try owner.logical_store.begin(.{ .root = logical_state.index }, 1024 * 1024);
+    private = try private.put(&owner.logical_store, try s.DocumentIndex.Key.init("private-orphan"), try s.DocumentIndex.Value.init("unaccepted"));
+    private = try owner.logical_store.seal(private);
+    const records: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.logical_store.tree };
+    const locator = try s.DocumentIndex.Locator.decode((try records.get(private.root.?.records, try s.TreeStore.pages.Key.init(&DocFixture.hashBytes("private-orphan")))).?);
+    var orphan_name: [96]u8 = undefined;
+    const orphan_key = try s.DocumentIndex.segmentKey(locator.segment, &orphan_name);
+
     _ = try owner.archive(owner.root.position(), .{}, guard);
     const recovery_ref = try owner.checkpointRecovery(owner.root.position(), guard);
 
@@ -480,17 +515,7 @@ test "direct graph retains document partition declarations states payloads evide
 
     var workspace: Workspace = .{};
     defer workspace.deinit();
-    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest_batch.frames[0]));
-    var at: usize = 0;
-    var steps: usize = 0;
-    while (at < workspace.jobs.items.len) {
-        var work = workspace.jobs.items[at];
-        while (!try Graph.step(t.allocator, &owner.store, wal.log(), &work, &workspace)) {
-            steps += 1;
-            if (steps == 2000) return error.FixtureBudget;
-        }
-        at += 1;
-    }
+    try DocFixture.walk(&owner, wal.log(), latest_batch.frames[0], &workspace);
 
     var name: [96]u8 = undefined;
     try t.expect(Graph.collectible(try s.DocumentDeclaration.key(declared.content, &name)));
@@ -501,6 +526,36 @@ test "direct graph retains document partition declarations states payloads evide
     try t.expect(workspace.marks.contains(state_key));
     const payload_key = try std.fmt.bufPrint(&name, "document-payloads/{x}.data", .{&mut_rec.mutation.payload.sha256});
     try t.expect(workspace.marks.contains(payload_key));
+    var accepted_segments: usize = 0;
+    for (objects.objects.items) |object| {
+        if (std.mem.startsWith(u8, object.key, "document-segment/")) {
+            try t.expect(Graph.collectible(object.key));
+            if (std.mem.eql(u8, object.key, orphan_key)) {
+                try t.expect(!workspace.marks.contains(object.key));
+            } else {
+                try t.expect(workspace.marks.contains(object.key));
+                accepted_segments += 1;
+            }
+        }
+    }
+    try t.expectEqual(@as(usize, 1), accepted_segments);
+    try t.expect(workspace.marks.contains(try s.TreeStore.key(logical_state.index.records.location, &name)));
+    try t.expect(workspace.marks.contains(try s.TreeStore.key(logical_state.index.ordered.location, &name)));
+    // The metadata still reports the accepted digest. A damaged format marker
+    // must fail graph traversal, never silently turn the descriptor into a leaf.
+    const logical_key = try std.fmt.bufPrint(&name, "document-states/{x}.data", .{&logical_receipt.state.sha256});
+    var corrupted = false;
+    for (objects.objects.items) |*object| {
+        if (std.mem.eql(u8, object.key, logical_key)) {
+            object.bytes[0] ^= 1;
+            corrupted = true;
+            break;
+        }
+    }
+    try t.expect(corrupted);
+    var corrupt_workspace: Workspace = .{};
+    defer corrupt_workspace.deinit();
+    try t.expectError(error.InvalidLogicalState, DocFixture.walk(&owner, wal.log(), latest_batch.frames[0], &corrupt_workspace));
 }
 
 test "direct graph retains transaction log source payloads after archive trim until exact release" {
