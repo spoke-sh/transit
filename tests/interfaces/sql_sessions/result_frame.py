@@ -159,19 +159,26 @@ class Decoder:
             evidence = completion['workload']
             assert evidence['intent'] == workload['intent']
             selection, position = workload['selection'], evidence['position']
+            limit = workload['limit']
             assert len(selection) == len(position) == 1 and selection.keys() == position.keys()
             if 'consume' in selection:
                 receipt, cursor = selection['consume'], position['consume']
                 coverage = cursor['coverage']
                 assert cursor['read'] == dict(owner=receipt['request']['operation'], source=receipt['source'])
                 assert coverage['cut'] == receipt['cut'] and coverage['from'] == receipt['request']['from']
-                assert coverage['until'] == coverage['through'] == receipt['until'] and coverage['complete']
+                assert coverage['until'] == receipt['until']
+                assert coverage['from'] <= coverage['through'] <= coverage['until']
+                assert coverage['complete'] == (coverage['through'] == coverage['until'])
+                assert limit is None or 0 <= total <= limit
+                assert coverage['complete'] or (limit is not None and total == limit)
                 assert total <= coverage['rows'] <= coverage['through'] - coverage['from']
                 assert any(cursor['authentication'])
             elif 'claim' in selection:
+                assert limit is None
                 assert position['claim']['receipt'] == selection['claim']
                 assert total == position['claim']['next'] == selection['claim']['rows']
             else:
+                assert limit is None
                 assert total == position['append'] == selection['append']['append']['rows']
         elif flags:
             assert completion_size == 0

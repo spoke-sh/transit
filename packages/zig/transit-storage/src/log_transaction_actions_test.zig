@@ -64,7 +64,7 @@ test "log transaction actions retain mixed private work across disk reopen beyon
             const page = try actions.page(after);
             for (page.entries) |slot| if (slot) |entry| {
                 const action = entry.work;
-                try t.expect(entry.offset_cursor == null);
+                try t.expect(entry.offset_progress == null);
                 count += 1;
                 try t.expectEqualDeep(if (count % 2 == 1) append(count) else ack(count), action);
                 if (action.action == .append) try t.expectEqualStrings(payload, try actions.readPayload(action, &bytes));
@@ -175,21 +175,21 @@ test "log transaction actions require and retain exact Stream coverage credentia
     try t.expectError(error.InvalidTransactionCoverage, actions.put(action, null));
     var wrong = issued;
     wrong.coverage.rows -= 1;
-    try t.expectError(error.InvalidTransactionCoverage, actions.putOffset(action, wrong));
+    try t.expectError(error.InvalidTransactionCoverage, actions.putOffset(action, .{ .exhausted = wrong }));
     wrong = issued;
     wrong.read.owner.principal = 1;
-    try t.expectError(error.InvalidTransactionCoverage, actions.putOffset(action, wrong));
-    try actions.putOffset(action, issued);
+    try t.expectError(error.InvalidTransactionCoverage, actions.putOffset(action, .{ .exhausted = wrong }));
+    try actions.putOffset(action, .{ .exhausted = issued });
     const saved = try actions.seal();
     actions.index.clearCache();
     try actions.restore(saved);
     const entry = (try actions.get(A.cursor(action))).?;
     try t.expectEqualDeep(action, entry.work);
-    try t.expectEqualDeep(issued, entry.offset_cursor.?);
-    try actions.putOffset(action, issued);
+    try t.expectEqualDeep(issued, entry.offset_progress.?.exhausted);
+    try actions.putOffset(action, .{ .exhausted = issued });
     wrong = issued;
     wrong.authentication[0] ^= 1;
-    try t.expectError(error.TransactionIdentityConflict, actions.putOffset(action, wrong));
+    try t.expectError(error.TransactionIdentityConflict, actions.putOffset(action, .{ .exhausted = wrong }));
     try actions.verify();
     // The partition owner must verify the credential's MAC and retained source.
     // A stored, structurally valid credential alone settles no consumer offset.

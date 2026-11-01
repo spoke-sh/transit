@@ -37,7 +37,12 @@ or empty terminal responses. Closing only releases local memory. The session
 service uses this adapter to reopen existing workload tokens.
 Native pages use the Stream reader's default 4,096-row scan budget and respect
 the declaration's row/byte limits. A SQL batch may span multiple native pages;
-filtered rows still contribute to original consumption coverage.
+filtered rows still contribute to original consumption coverage. A frozen Stream
+LIMIT lowers each native page's row budget to the remaining output allowance.
+Completion at that limit preserves a partial native cursor, including LIMIT 0
+at the initial position; it neither exhausts the larger read nor commits a group.
+Workload observations carry the explicit nullable limit so clients validate that
+terminal distinction. SQL `CONSUME` admission remains separate from this reader.
 `WorkloadOperations` projects native receipts and recorded closures and advances
 the same frozen work through Catalog's terminal settlement gate.
 `DirectLogPreparedAppend` freezes single-partition `PRODUCE INTO` and

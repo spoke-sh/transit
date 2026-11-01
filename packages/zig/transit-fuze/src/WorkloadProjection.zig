@@ -90,9 +90,10 @@ pub fn basis(allocator: std.mem.Allocator, source: Source, fields: []const Field
 
 fn requireProjection(source: Source, plan: f.LogicalQuery.Plan, expected: Layout) !void {
     try plan.validate();
-    // Acquisition bounds belong to the native workload. Projection cannot stop
-    // early and manufacture complete native coverage, or aggregate away leases.
-    if (plan.aggregate != .rows or plan.limit != null or !std.meta.eql(plan.collations, expected.collations)) return error.InvalidWorkloadProjection;
+    // Stream output limits preserve the native partial cursor; Queue acquisition
+    // and append RETURNING must expose every selected row.
+    if (plan.aggregate != .rows or !std.meta.eql(plan.collations, expected.collations)) return error.InvalidWorkloadProjection;
+    if (plan.limit != null and !(source.binding == .stream and source.binding.stream.kind == .consume)) return error.InvalidWorkloadProjection;
     // Claim predicates must select candidates before lease acquisition. A
     // projection may not claim unrelated messages and then hide their leases.
     // RETURNING likewise describes every accepted append row.
@@ -220,12 +221,19 @@ test "workload projections freeze original identity layout aliases and collation
     columns[0].collation = .utf8_binary;
     try t.expectError(error.SourceChanged, restore(t.allocator, source, &fields, bytes[0..length]));
     columns[0].collation = .ascii_ci;
-    try t.expectError(error.InvalidWorkloadProjection, compile(t.allocator, source, &fields, "tasks", "SELECT value FROM tasks LIMIT 1", null));
+    {
+        var limited = try compile(t.allocator, source, &fields, "tasks", "SELECT value FROM tasks LIMIT 1", null);
+        defer limited.deinit();
+        var restored_limit = try restore(t.allocator, source, &fields, try encode(source, &fields, limited.plan, t.allocator, &bytes));
+        defer restored_limit.deinit();
+        try t.expectEqual(@as(?u64, 1), restored_limit.plan.limit);
+    }
     try t.expectError(error.InvalidWorkloadProjection, compile(t.allocator, source, &fields, "tasks", "SELECT COUNT(*) FROM tasks", null));
     try t.expectError(error.DuplicateColumn, layout(source, &.{ .offset, .offset }));
     try t.expectError(error.WorkloadProjectionUnavailable, layout(source, &.{.lease_epoch}));
     const original = source.binding.operation();
     source.binding = .{ .queue = .{ .definition = p.Growth.current_definition, .operation = original, .target = target, .kind = .claim, .intent = @splat(7) } };
+    try t.expectError(error.InvalidWorkloadProjection, compile(t.allocator, source, &.{.{ .column = 17 }}, "tasks", "SELECT value FROM tasks LIMIT 1", null));
     const claimed_fields = [_]Field{ .lease_epoch, .attempt, .{ .column = 17 } };
     var claim = try compile(t.allocator, source, &claimed_fields, "tasks", "SELECT _lease_epoch, _attempt, value FROM tasks", null);
     defer claim.deinit();

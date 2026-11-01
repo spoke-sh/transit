@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76"
+definition = "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -596,7 +596,7 @@ for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fi
         position = {"claim": {"receipt": receipt, "next": 1}}
     result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
     for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
-                          {"page": {"reference": result_reference, "position": position}}):
+                          {"page": {"reference": result_reference, "position": position, "rows": 1}}):
         result_input = {**request_input, "action": {"workload_result": result_action}}
         result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
         with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:

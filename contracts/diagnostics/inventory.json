@@ -8078,13 +8078,13 @@
       "errors": {
         "CatalogDenied": 1,
         "ClientOperationPending": 5,
-        "InvalidWorkloadResultBudget": 3,
+        "InvalidWorkloadResultBudget": 4,
         "WorkloadResultClosed": 2,
         "WorkloadResultConflict": 4,
         "WorkloadResultGroupRequired": 1,
         "WorkloadResultIncomplete": 1,
         "WorkloadResultRowTooLarge": 1,
-        "WorkloadResultUnavailable": 3
+        "WorkloadResultUnavailable": 4
       },
       "outcomes": {
         "Page": [
@@ -8108,7 +8108,10 @@
         "authorize()": "<inferred>",
         "checkDisclosure()": "<inferred>",
         "next()": "<inferred>",
+        "nextRows()": "<inferred>",
         "observe()": "<inferred>",
+        "offsetIntervalWork()": "<inferred>",
+        "offsetProgressWork()": "<inferred>",
         "offsetWork()": "<inferred>",
         "open()": "<inferred>",
         "reopen()": "<inferred>",
@@ -8116,7 +8119,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 47,
+        "try": 50,
         "catch": 0
       },
       "imports": [
@@ -8127,7 +8130,7 @@
     "packages/zig/transit-catalog/src/DirectWorkloadResultProtocol.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "InvalidWorkloadResultBudget": 1,
+        "InvalidWorkloadResultBudget": 2,
         "InvalidWorkloadResultResponse": 14,
         "WorkloadResultConflict": 2
       },
@@ -18324,7 +18327,7 @@
     "packages/zig/transit-fuze/src/WorkloadProjection.zig": {
       "errors": {
         "DuplicateColumn": 1,
-        "InvalidWorkloadProjection": 3,
+        "InvalidWorkloadProjection": 4,
         "InvalidWorkloadProjectionRow": 3,
         "WorkloadProjectionSourceChanged": 4,
         "WorkloadProjectionUnavailable": 3
@@ -20859,7 +20862,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76\""
+          "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
         ],
         "Effect.phase": [
           "pending",
@@ -21214,7 +21217,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -21760,18 +21763,29 @@
     "packages/zig/transit-protocol/src/StreamRead.zig": {
       "errors": {
         "InvalidStreamCursor": 1,
+        "InvalidStreamProgress": 3,
         "InvalidStreamRead": 3,
         "InvalidStreamRelease": 2,
         "InvalidStreamTimestampRange": 1,
         "LogGroupFenced": 1,
         "StreamReadConflict": 3
       },
-      "outcomes": {},
+      "outcomes": {
+        "Progress": [
+          "exhausted",
+          "interval"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Cursor.requireReceipt()": "<inferred>",
         "Cursor.validate()": "<inferred>",
         "Handle.validate()": "<inferred>",
+        "Progress.between()": "<inferred>",
+        "Progress.coverage()": "<inferred>",
+        "Progress.intervalCoverage()": "<inferred>",
+        "Progress.requireReceipt()": "<inferred>",
+        "Progress.validate()": "<inferred>",
         "Receipt.initialCoverage()": "<inferred>",
         "Receipt.requireRequest()": "<inferred>",
         "Receipt.validate()": "<inferred>",
@@ -21784,7 +21798,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 38,
         "catch": 1
       },
       "imports": [
@@ -29257,10 +29271,10 @@
     },
     "packages/zig/transit-sql-results/src/Workload.zig": {
       "errors": {
-        "IncompleteWorkloadCoverage": 1,
+        "IncompleteWorkloadCoverage": 2,
         "InvalidWorkloadEvidence": 3,
-        "InvalidWorkloadObservation": 1,
-        "InvalidWorkloadResultCount": 3,
+        "InvalidWorkloadObservation": 2,
+        "InvalidWorkloadResultCount": 4,
         "WorkloadResultConflict": 3,
         "WorkloadResultUnavailable": 1
       },
@@ -30754,6 +30768,7 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "IncompleteWorkloadCoverage": 1,
+        "InvalidWorkloadResultCount": 2,
         "WorkloadProjectionUnavailable": 1
       },
       "outcomes": {},
@@ -30771,8 +30786,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
-        "catch": 0
+        "try": 27,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -36480,7 +36495,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -36787,7 +36802,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 890,
+        "try": 891,
         "catch": 20
       },
       "imports": [
@@ -36938,6 +36953,7 @@
         "Authority.init()": "<inferred>",
         "Authority.issue()": "<inferred>",
         "Authority.verify()": "<inferred>",
+        "Authority.verifyProgress()": "<inferred>",
         "Basis.receipt()": "<inferred>",
         "Basis.validate()": "<inferred>",
         "Pin.decode()": "<inferred>",
@@ -36950,7 +36966,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 36,
         "catch": 1
       },
       "imports": [
@@ -37250,7 +37266,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 75,
         "catch": 1
       },
       "imports": [

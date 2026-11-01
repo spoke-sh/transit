@@ -98,12 +98,13 @@ use bounded ordinal seeking, while native Stream pages authenticate their cursor
 Delivery pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
 limits. Closing frees local buffers without releasing the shared durable read
 dependency or changing leases/group progress. `offsetWork` prepares a separate
-settlement from the authenticated completed cursor and the original group; save
+settlement from the exhausted authenticated cursor and the original group;
+`offsetIntervalWork` uses two issued boundaries from the same read. Save
 it as a workload intent before dispatch. It cannot derive coverage from a caller's
 numeric offset or result row count. The native owner still authenticates the cursor
 and rechecks current rights/assignment. The SQL service restores frozen projections
-and opens original results through this owner; workload SQL text admission and
-the SQL finite-consumption handoff remain unavailable.
+and opens original results through this owner. SQL append admission is
+implemented; the SQL finite-consumption handoff remains unavailable.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

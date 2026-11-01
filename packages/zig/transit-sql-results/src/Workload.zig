@@ -94,10 +94,13 @@ pub const Observation = struct {
     schema: [32]u8,
     projection: [32]u8,
     selection: p.LogWorkloadResult.Selection,
+    /// Frozen logical output limit; native coverage retains its original range.
+    limit: ?u64,
 
     pub fn validate(self: Observation) !void {
         try self.intent.validate();
         try self.selection.validate();
+        if (self.limit != null and self.selection != .consume) return error.InvalidWorkloadObservation;
         if (std.mem.allEqual(u8, &self.schema, 0) or std.mem.allEqual(u8, &self.projection, 0)) return error.InvalidWorkloadObservation;
     }
 };
@@ -117,7 +120,11 @@ pub const Completion = struct {
         try self.validateShape();
         try observation.validate();
         if (!std.meta.eql(self.intent, observation.intent)) return error.WorkloadResultConflict;
-        if (!try self.position.complete(observation.selection)) return error.IncompleteWorkloadCoverage;
+        const exhausted = try self.position.complete(observation.selection);
+        if (observation.limit) |limit| {
+            if (rows > limit) return error.InvalidWorkloadResultCount;
+            if (!exhausted and rows != limit) return error.IncompleteWorkloadCoverage;
+        } else if (!exhausted) return error.IncompleteWorkloadCoverage;
         switch (self.position) {
             .append => |ordinal| if (rows != ordinal) return error.InvalidWorkloadResultCount,
             .claim => |cursor| if (rows != cursor.next) return error.InvalidWorkloadResultCount,
@@ -146,10 +153,10 @@ test "settlement evidence binds the action and authenticated offset request" {
     const cut: p.StreamQueue.Cut = .{ .target = target, .accepted = .{ .partition = 11, .next_lsn = 10 }, .retained_from = 0, .next = 100 };
     const coverage: p.StreamQueue.Coverage = .{ .cut = cut, .from = 0, .until = 100, .through = 100, .rows = 2, .complete = true };
     const cursor: p.StreamRead.Cursor = .{ .read = .{ .owner = operation, .source = content }, .coverage = coverage, .authentication = @splat(13) };
-    const request: @FieldType(p.LogWorkload.StreamRequest, "offset") = .{ .commit = .{ .operation = settlement.operation, .group = .{ .id = 1, .generation = 2, .principal = 6 }, .coverage = coverage, .expected_next = 0, .next = 100 }, .cursor = cursor };
+    const request: @FieldType(p.LogWorkload.StreamRequest, "offset") = .{ .commit = .{ .operation = settlement.operation, .group = .{ .id = 1, .generation = 2, .principal = 6 }, .coverage = coverage, .expected_next = 0, .next = 100 }, .progress = .{ .exhausted = cursor } };
     evidence = .{ .intent = content, .binding = .{ .stream = try (p.LogWorkload.StreamRequest{ .offset = request }).binding(t.allocator) }, .receipt = .{ .offset = .{ .request = request, .receipt = .{ .commit = request.commit, .accepted = .{ .partition = 11, .next_lsn = 12 } } } } };
     try evidence.validate(.commit_offset);
-    evidence.receipt.offset.request.cursor.authentication[0] ^= 1;
+    evidence.receipt.offset.request.progress.exhausted.authentication[0] ^= 1;
     try t.expectError(error.DataIdentityConflict, evidence.validate(.commit_offset));
     evidence.receipt.offset.request = request;
     evidence.receipt.offset.receipt.commit.group.generation += 1;

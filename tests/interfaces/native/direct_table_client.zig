@@ -330,7 +330,7 @@ fn streamWrite(init: std.process.Init, caller: *data.Catalog, source: c.DirectLo
     const group_read = (try streamCall(caller, &output, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
     const group_cursor = (try streamCall(caller, &output, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
     const consumed = (try streamCall(caller, &output, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
-    const offset: c.DirectStreamMutation.Request = .{ .offset = .{ .commit = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621005 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 }, .cursor = consumed.cursor } };
+    const offset: c.DirectStreamMutation.Request = .{ .offset = .{ .commit = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621005 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 }, .progress = .{ .exhausted = consumed.cursor } } };
     const release: c.DirectStreamMutation.Request = .{ .release = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621006 }, .target = target, .read = group_read.handle() } };
     // Persist settlement and closure before entering their uncertain attempts.
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.stream-offset", .{profile_path}), .data = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = offset }) });

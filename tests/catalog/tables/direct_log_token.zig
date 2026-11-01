@@ -333,13 +333,13 @@ pub fn openResults(init: std.process.Init, client: c.DirectTableClient, path: []
         const opened = try resultCall(client, request);
         defer opened.deinit();
         const value = opened.value.result.workload_result.opened;
-        const page_request: c.DirectWorkloadResultProtocol.Request = .{ .page = .{ .reference = value.reference, .position = value.position } };
+        const page_request: c.DirectWorkloadResultProtocol.Request = .{ .page = .{ .reference = value.reference, .position = value.position, .rows = value.reference.limits.rows } };
         if (index == 3) try t.expectError(error.InvalidTableResponse, resultCall(client, page_request));
         const response = try resultCall(client, page_request);
         defer response.deinit();
         const page = response.value.result.workload_result.page;
         try checkResultPage(init, client, page.page, 0, if (index < 4) 2 else 0, index >= 4, false);
-        deliveries.values[index] = .{ .reference = page.reference, .position = page.position };
+        deliveries.values[index] = .{ .reference = page.reference, .position = page.position, .rows = page.reference.limits.rows };
     }
     try saveResultValue(init, try std.fmt.allocPrint(init.arena.allocator(), "{s}.positions", .{path}), deliveries);
 }
@@ -348,11 +348,11 @@ pub fn verifyResults(init: std.process.Init, client: c.DirectTableClient, path: 
     const deliveries = try loadResultValue(Deliveries, init, try std.fmt.allocPrint(init.arena.allocator(), "{s}.positions", .{path}));
     for (saved.bindings, deliveries.values, 0..) |binding, delivery, index| {
         try binding.intent.workload.requireSame(delivery.reference.intent);
-        const response = try resultCall(client, .{ .page = .{ .reference = delivery.reference, .position = delivery.position } });
+        const response = try resultCall(client, .{ .page = .{ .reference = delivery.reference, .position = delivery.position, .rows = delivery.reference.limits.rows } });
         defer response.deinit();
         const page = response.value.result.workload_result.page;
         try checkResultPage(init, client, page.page, if (index < 4) 2 else 0, if (index < 4) 1 else 0, true, true);
-        const terminal = try resultCall(client, .{ .page = .{ .reference = page.reference, .position = page.position } });
+        const terminal = try resultCall(client, .{ .page = .{ .reference = page.reference, .position = page.position, .rows = page.reference.limits.rows } });
         defer terminal.deinit();
         try checkResultPage(init, client, terminal.value.result.workload_result.page.page, if (index < 4) 3 else 0, 0, true, true);
         const state = (try c.DirectClientToken.inspect(client, binding.key)).?;

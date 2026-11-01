@@ -17,7 +17,7 @@ Enable the route with a separate query identity and explicit catalog connections
     "seed_file": "/run/board/relational-seed",
     "recovery_directory": "/var/lib/transit-board/query-recovery",
     "query": {
-      "definition": "3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76",
+      "definition": "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7",
       "service_url": "http://127.0.0.1:9400",
       "catalogs": [
         {

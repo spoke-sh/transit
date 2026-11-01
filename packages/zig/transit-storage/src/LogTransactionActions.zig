@@ -38,7 +38,7 @@ pub const Entry = struct {
     work: x.LogAction,
     /// Preserve the exact owner-issued coverage; shape validation here does not
     /// authenticate it. The partition owner verifies it before preparation.
-    offset_cursor: ?p.StreamRead.Cursor,
+    offset_progress: ?p.StreamRead.Progress,
 };
 pub const Page = struct { entries: [pages.page_entries]?Entry = @splat(null), next: ?Cursor = null };
 
@@ -158,10 +158,10 @@ fn requireAction(self: *const Self, action: x.LogAction) !void {
 }
 fn requireEntry(self: *const Self, entry: Entry) !void {
     try self.requireAction(entry.work);
-    if ((entry.work.action == .stream_offset) != (entry.offset_cursor != null)) return error.InvalidTransactionCoverage;
-    if (entry.offset_cursor) |issued| {
+    if ((entry.work.action == .stream_offset) != (entry.offset_progress != null)) return error.InvalidTransactionCoverage;
+    if (entry.offset_progress) |issued| {
         try issued.validate();
-        if (!std.meta.eql(issued.coverage, entry.work.action.stream_offset.coverage) or issued.read.owner.principal != operation(entry.work).principal) return error.InvalidTransactionCoverage;
+        if (!std.meta.eql(try issued.coverage(), entry.work.action.stream_offset.coverage) or issued.end().read.owner.principal != operation(entry.work).principal) return error.InvalidTransactionCoverage;
     }
 }
 fn loadEntry(self: *Self, key: pages.Key, value: pages.Value) !Entry {
@@ -197,10 +197,10 @@ pub fn byOperation(self: *Self, identity: d.Operation) !?Entry {
 /// cannot change its bytes or reuse an operation at another private sequence.
 /// The embedding statement owner proves completeness across partition owners.
 pub fn put(self: *Self, action: x.LogAction, payload: ?[]const u8) !void {
-    return self.putEntry(.{ .work = action, .offset_cursor = null }, payload);
+    return self.putEntry(.{ .work = action, .offset_progress = null }, payload);
 }
-pub fn putOffset(self: *Self, action: x.LogAction, issued: p.StreamRead.Cursor) !void {
-    return self.putEntry(.{ .work = action, .offset_cursor = issued }, null);
+pub fn putOffset(self: *Self, action: x.LogAction, issued: p.StreamRead.Progress) !void {
+    return self.putEntry(.{ .work = action, .offset_progress = issued }, null);
 }
 fn putEntry(self: *Self, entry: Entry, payload: ?[]const u8) !void {
     try self.requireEntry(entry);

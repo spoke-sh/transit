@@ -9,7 +9,7 @@ const r = c.DirectWorkloadResult;
 
 pub const Request = union(enum) {
     open: struct { intent: c.DirectWorkloadIntent.Reference, limits: r.Limits },
-    page: struct { reference: r.Reference, position: r.Position },
+    page: struct { reference: r.Reference, position: r.Position, rows: u32 },
     pub fn intentReference(self: Request) c.DirectWorkloadIntent.Reference {
         return switch (self) {
             .open => |value| value.intent,
@@ -31,6 +31,7 @@ pub const Request = union(enum) {
             },
             .page => |value| {
                 try value.reference.validate();
+                if (value.rows == 0 or value.rows > value.reference.limits.rows) return error.InvalidWorkloadResultBudget;
                 try value.position.validate(value.reference.selection);
             },
         }
@@ -70,7 +71,7 @@ pub fn apply(output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.Dir
         },
         .page => |value| blk: {
             try owned.seek(value.position);
-            const page = try owned.next(&scratch, output, catalog, policy, native);
+            const page = try owned.nextRows(&scratch, output, catalog, policy, native, value.rows);
             break :blk .{ .page = .{ .reference = owned.reference, .position = owned.position(), .page = page } };
         },
     };
@@ -116,7 +117,8 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
                 inline else => |body| body.source,
             };
             try requireSource(allocator, connection, page.reference, source);
-            const limits = page.reference.limits;
+            var limits = page.reference.limits;
+            limits.rows = value.rows;
             switch (page.page) {
                 .consume => |body| {
                     if (!std.meta.eql(page.position.consume, body.cursor)) return error.InvalidWorkloadResultResponse;
@@ -178,6 +180,14 @@ test "workload result requests verify independent signatures and original positi
         }
         try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
         if (fixture.request.action.workload_result == .page) {
+            var page_request = fixture.request.action.workload_result;
+            page_request.page.rows = 0;
+            try t.expectError(error.InvalidWorkloadResultBudget, page_request.validate(fixture.request.connection));
+            page_request.page.rows = page_request.page.reference.limits.rows + 1;
+            try t.expectError(error.InvalidWorkloadResultBudget, page_request.validate(fixture.request.connection));
+            changed = fixture.request;
+            changed.action.workload_result.page.rows += 1;
+            try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
             changed = fixture.request;
             changed.action.workload_result.page.reference.intent.record.scope.account[0] ^= 1;
             try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));

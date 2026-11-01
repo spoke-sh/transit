@@ -36,7 +36,7 @@ const Peer = struct {
         const schema: r.Types.Type = .{ .structure = &fields };
         var buffer: [256]u8 = undefined;
         const saved = try evidence();
-        var observation: r.Observation.Value = .{ .data = .{ .workload = .{ .intent = saved.intent, .schema = @splat(12), .projection = @splat(13), .selection = .{ .claim = receipt } } } };
+        var observation: r.Observation.Value = .{ .data = .{ .workload = .{ .intent = saved.intent, .schema = @splat(12), .projection = @splat(13), .limit = null, .selection = .{ .claim = receipt } } } };
         if (self.mode == .foreign_result) observation.data.workload.intent.sha256[0] ^= 1;
         return api.ResultFrame.encode(t.allocator, .{ .instance = instance, .cursor = @splat(14), .ordinal = 0, .rows = 0, .schema = try schema.fingerprint(), .observation = try r.Observation.fingerprint(t.allocator, observation), .description = .{ .schema = try schema.encode(&buffer), .observation = observation }, .columns = &.{}, .completion = .{ .rows = 0, .workload = .{ .intent = observation.data.workload.intent, .position = .{ .claim = .{ .receipt = receipt, .next = 0 } } } } });
     }

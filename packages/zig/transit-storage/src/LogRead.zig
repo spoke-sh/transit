@@ -146,4 +146,11 @@ pub const Authority = struct {
         const expected = try self.authentication(cursor.read, cursor.coverage);
         if (!std.crypto.timing_safe.eql([32]u8, expected, cursor.authentication)) return error.StreamCursorUnauthenticated;
     }
+    /// A completed interval needs both issued boundaries. Authenticating only
+    /// its end would let a caller invent the starting offset or row count.
+    pub fn verifyProgress(self: Authority, progress: read.Progress) !void {
+        try progress.validate();
+        try self.verify(progress.end());
+        if (progress == .interval) try self.verify(progress.interval.first);
+    }
 };

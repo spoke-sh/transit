@@ -349,7 +349,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                             _ = try self.append(source.root.declared, transfer.destination, payload, guard);
                         },
                         .stream_offset => |request| {
-                            _ = try self.commitOffset(source.root.declared, request, value.offset_cursor orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
+                            _ = try self.commitOffset(source.root.declared, request, value.offset_progress orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
                         },
                         .queue_ack => |request| {
                             if (kind != .queue) return error.InvalidTransactionActions;
@@ -1379,33 +1379,33 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.publish(.{ .declared = declared, .outcome = .{ .release = receipt } }, &.{}, guard);
             return receipt;
         }
-        fn advanceGroup(self: *Self, commit: q.OffsetCommit, cursor: read.Cursor) !q.GroupProgress {
+        fn advanceGroup(self: *Self, commit: q.OffsetCommit, issued: read.Progress) !q.GroupProgress {
             try commit.validate();
-            const retained = try self.retainedRead(cursor.read);
-            try cursor.requireReceipt(retained.receipt);
-            if (!std.meta.eql(commit.coverage, cursor.coverage)) return error.LogOffsetConflict;
+            const retained = try self.retainedRead(issued.end().read);
+            try issued.requireReceipt(retained.receipt);
+            if (!std.meta.eql(commit.coverage, try issued.coverage())) return error.LogOffsetConflict;
             const selected = retained.receipt.request.group orelse return error.LogGroupRequired;
             if (!std.meta.eql(selected, commit.group)) return error.LogGroupFenced;
             return (try self.requireGroup(commit.group, commit.expected_next)).advance(commit);
         }
-        pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetCommit, cursor: read.Cursor, authority: Read.Authority, guard: Guard) !q.OffsetReceipt {
+        pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetCommit, issued: read.Progress, authority: Read.Authority, guard: Guard) !q.OffsetReceipt {
             try commit.validate();
-            try cursor.validate();
+            try issued.validate();
             try self.requireTarget(commit.coverage.cut.target);
             try authorize(guard);
             try self.requireReady();
             if (try self.original(commit.operation)) |record| {
                 if (record.outcome != .offset) return error.LogOperationConflict;
                 try record.outcome.offset.receipt.requireCommit(commit);
-                if (!std.meta.eql(record.outcome.offset.cursor, cursor)) return error.LogOffsetConflict;
+                if (!std.meta.eql(record.outcome.offset.progress, issued)) return error.LogOffsetConflict;
                 try authorize(guard);
                 return record.outcome.offset.receipt;
             }
             try self.root.requireControlDeclaration(declared);
-            try authority.verify(cursor);
-            _ = try self.advanceGroup(commit, cursor);
+            try authority.verifyProgress(issued);
+            _ = try self.advanceGroup(commit, issued);
             const receipt: q.OffsetReceipt = .{ .commit = commit, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .cursor = cursor } } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .progress = issued } } }, &.{}, guard);
             return receipt;
         }
         fn nextPosition(self: *Self) !d.Position {
@@ -1518,7 +1518,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
                 },
                 .offset => |value| {
-                    const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+                    const advanced = try self.advanceGroup(value.receipt.commit, value.progress);
                     try self.putGroup(&result, try self.progress(advanced.group.id), advanced);
                 },
             }
@@ -2444,7 +2444,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 .offset => |value| {
                     // Acceptance already authenticated coverage under the then-current
                     // key. Key rotation cannot revoke that accepted result on replay.
-                    const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+                    const advanced = try self.advanceGroup(value.receipt.commit, value.progress);
                     expected.groups = next.groups;
                     expected.group_offsets = next.group_offsets;
                     try self.verifyGroup(next, try self.progress(advanced.group.id), advanced);

@@ -197,7 +197,7 @@ test "compact Fuze string lanes cross SQL result encoding with detached raw byte
 
 test "independent workload frames preserve original selection and terminal coverage" {
     const t = std.testing;
-    inline for (.{ "append", "consume", "claim" }) |kind| {
+    inline for (.{ "append", "consume", "claim", "consume-limit", "consume-zero" }) |kind| {
         const text = std.mem.trim(u8, @embedFile("fixtures/workload-" ++ kind ++ "-frame.hex"), "\n");
         const bytes = try t.allocator.alignedAlloc(u8, .fromByteUnits(64), text.len / 2);
         defer t.allocator.free(bytes);
@@ -268,16 +268,25 @@ test "independent workload frames preserve original selection and terminal cover
         completion.rows += 10;
         try t.expectError(error.InvalidWorkloadResultCount, completion.validate(observation));
         completion = frame.completion.?;
-        switch (completion.workload.?.position) {
-            .append => |*ordinal| ordinal.* -= 1,
-            .consume => |*cursor| {
-                try t.expectEqual(1, completion.rows);
-                try t.expectEqual(2, cursor.coverage.rows);
-                cursor.coverage.through -= 1;
-                cursor.coverage.complete = false;
-            },
-            .claim => |*cursor| cursor.next -= 1,
+        if (workload.limit != null) {
+            var unlimited = observation;
+            unlimited.data.workload.limit = null;
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(unlimited));
+            var unsatisfied = observation;
+            unsatisfied.data.workload.limit.? += 1;
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(unsatisfied));
+        } else {
+            switch (completion.workload.?.position) {
+                .append => |*ordinal| ordinal.* -= 1,
+                .consume => |*cursor| {
+                    try t.expectEqual(1, completion.rows);
+                    try t.expectEqual(2, cursor.coverage.rows);
+                    cursor.coverage.through -= 1;
+                    cursor.coverage.complete = false;
+                },
+                .claim => |*cursor| cursor.next -= 1,
+            }
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(observation));
         }
-        try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(observation));
     }
 }

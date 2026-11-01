@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -141,12 +141,12 @@ bodies reject rather than acquiring an inferred result shape.
 SQL result codecs include original workload observation and terminal coverage
 shapes. The binary result header requires an explicit workload-evidence byte
 length; ordinary results encode zero. Workload terminals carry their original
-intent and complete native position separately from output row count. The
+intent and exact native position separately from output row count. The
 replacement definition rejects earlier frame layouts before interpretation.
 SQL operation messages also distinguish workload command completion from retained
 rows and carry original native receipt/closure evidence. The session service can
-inspect/recover these tokens and open their frozen projections; workload SQL
-admission remains unimplemented. Missing native evidence cannot establish a
+inspect/recover these tokens and open their frozen projections. SQL append
+admission is implemented; other workload verbs remain unavailable. Missing native evidence cannot establish a
 terminal workload operation.
 
 The signed direct service also exposes original workload result opening and
@@ -349,3 +349,11 @@ and new encoded-array layouts require their own definition review before use.
 They are not admitted merely because a current artifact contains an identity or
 position field. An incompatible extension replaces the shared definition and
 its affected owning formats, consumers and fixtures together.
+
+The current cutover also requires Stream settlement progress as either an
+exhausted cursor or two authenticated interval boundaries. Native requests,
+stored outcomes and transaction actions retain that proof. Workload page
+requests require a per-page row budget; SQL workload observations require an
+explicit nullable logical limit. Partial native coverage can complete SQL output
+only at that frozen limit. Older cursor-only settlement records and missing
+budget/limit fields reject; no compatibility value is inferred.

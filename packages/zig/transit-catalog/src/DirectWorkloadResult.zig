@@ -187,10 +187,23 @@ pub fn offsetWork(self: *const Self, operation: p.DataLifecycle.Operation) !p.Lo
     const cursor = self.cursor.consume;
     try cursor.requireReceipt(receipt);
     if (!cursor.coverage.complete) return error.WorkloadResultIncomplete;
+    return self.offsetProgressWork(operation, .{ .exhausted = cursor });
+}
+
+/// Settle only the traversed interval after an earlier issued boundary from
+/// this same read. Both boundaries remain subject to native authentication.
+pub fn offsetIntervalWork(self: *const Self, operation: p.DataLifecycle.Operation, first: p.StreamRead.Cursor) !p.LogWorkload.StreamRequest {
+    if (self.reference.selection != .consume or self.cursor != .consume) return error.WorkloadResultUnavailable;
+    return self.offsetProgressWork(operation, try p.StreamRead.Progress.between(first, self.cursor.consume));
+}
+fn offsetProgressWork(self: *const Self, operation: p.DataLifecycle.Operation, issued: p.StreamRead.Progress) !p.LogWorkload.StreamRequest {
+    const receipt = self.reference.selection.consume;
+    try issued.requireReceipt(receipt);
+    const coverage = try issued.coverage();
     const group = receipt.request.group orelse return error.WorkloadResultGroupRequired;
     const request: p.LogWorkload.StreamRequest = .{ .offset = .{
-        .commit = .{ .operation = operation, .group = group, .coverage = cursor.coverage, .expected_next = receipt.request.from, .next = receipt.until },
-        .cursor = cursor,
+        .commit = .{ .operation = operation, .group = group, .coverage = coverage, .expected_next = coverage.from, .next = coverage.until },
+        .progress = issued,
     } };
     try request.validate();
     return request;
@@ -208,11 +221,19 @@ pub fn checkDisclosure(self: *const Self, scratch: std.mem.Allocator, catalog: *
 /// by the caller and must be distinct from scratch; neither allocator is retained.
 /// Free a successful page with Page.deinit; failures free partial output.
 pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native) !Page {
+    return self.nextRows(scratch_arena, output, catalog, policy, native, self.reference.limits.rows);
+}
+
+/// A caller may lower one page's row budget without changing the frozen result
+/// identity. This bounds the traversal frontier for a logical LIMIT.
+pub fn nextRows(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native, row_budget: u32) !Page {
+    if (row_budget == 0 or row_budget > self.reference.limits.rows) return error.InvalidWorkloadResultBudget;
     const scratch = scratch_arena.allocator();
     if (scratch.ptr == output.ptr) return error.InvalidWorkloadResultBudget;
     try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
     if (!std.meta.eql(self.reference.selection, try observe(scratch, catalog, self.intent, policy, native))) return error.WorkloadResultConflict;
-    const limits = self.reference.limits;
+    var limits = self.reference.limits;
+    limits.rows = row_budget;
     var cursor = self.cursor;
     const result: Page = switch (cursor) {
         .append => |*iterator| blk: {

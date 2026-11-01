@@ -8,6 +8,26 @@ const support = @import("log_test_support.zig");
 const Stream = s.StreamPartition;
 const options: Stream.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 256, .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 } };
 const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "AbC" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
+
+test "stream interval progress authenticates both boundaries and the original source" {
+    const parsed = try p.Json.parseFromSlice(p.StreamRead.Progress, t.allocator, @embedFile("stream_progress_fixture.json"));
+    defer parsed.deinit();
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const progress = parsed.value;
+    try t.expect(progress == .interval);
+    try authority.verifyProgress(progress);
+    var forged = progress;
+    forged.interval.first.authentication[0] ^= 1;
+    try t.expectError(error.StreamCursorUnauthenticated, authority.verifyProgress(forged));
+    forged = progress;
+    forged.interval.last.authentication[0] ^= 1;
+    try t.expectError(error.StreamCursorUnauthenticated, authority.verifyProgress(forged));
+    try t.expectError(error.StreamCursorUnauthenticated, (try s.LogRead.Authority.init(@splat(8))).verifyProgress(progress));
+    forged = progress;
+    forged.interval.last.read.source.sha256[0] ^= 1;
+    try t.expectError(error.InvalidStreamProgress, authority.verifyProgress(forged));
+}
+
 const Policy = struct {
     calls: usize = 0,
     deny_at: usize = std.math.maxInt(usize),
@@ -462,12 +482,12 @@ test "stream partition pins finite cuts and atomically commits authenticated con
     try t.expect(!first.cursor.coverage.complete);
     for (first.rows(), 0..) |row, index| try t.expectEqual(@as(u64, index), row.offset);
     var commit: q.OffsetCommit = .{ .operation = operation(7), .group = assignment.group, .coverage = first.cursor.coverage, .expected_next = 0, .next = 4 };
-    try t.expectError(error.InvalidOffsetCommit, owner.commitOffset(initial.declared, commit, first.cursor, authority, policy.guard()));
+    try t.expectError(error.InvalidOffsetCommit, owner.commitOffset(initial.declared, commit, .{ .exhausted = first.cursor }, authority, policy.guard()));
     var forged = first.cursor;
     forged.coverage.through = 4;
     forged.coverage.complete = true;
     commit.coverage = forged.coverage;
-    try t.expectError(error.StreamCursorUnauthenticated, owner.commitOffset(initial.declared, commit, forged, authority, policy.guard()));
+    try t.expectError(error.StreamCursorUnauthenticated, owner.commitOffset(initial.declared, commit, .{ .exhausted = forged }, authority, policy.guard()));
     // Continuation retains the original cut after all resident reader state is
     // gone; the output from the earlier page remains independently owned.
     try owner.deinit();
@@ -491,7 +511,7 @@ test "stream partition pins finite cuts and atomically commits authenticated con
     try t.expectEqualStrings("payload", row.cells[1].value.atom.bytes);
     commit.coverage = last.cursor.coverage;
     fault.lose_reply = true;
-    try t.expectError(error.LogAppendUncertain, owner.commitOffset(initial.declared, commit, last.cursor, authority, policy.guard()));
+    try t.expectError(error.LogAppendUncertain, owner.commitOffset(initial.declared, commit, .{ .exhausted = last.cursor }, authority, policy.guard()));
     try t.expectError(error.LogRecoveryRequired, owner.group(7, policy.guard()));
     try owner.deinit();
     wal.deinit();
@@ -502,11 +522,11 @@ test "stream partition pins finite cuts and atomically commits authenticated con
     owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
     try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
     try t.expectEqual(@as(u64, 4), (try owner.group(7, policy.guard())).?.next);
-    const accepted = try owner.commitOffset(initial.declared, commit, last.cursor, authority, policy.guard());
+    const accepted = try owner.commitOffset(initial.declared, commit, .{ .exhausted = last.cursor }, authority, policy.guard());
     try t.expectEqual(@as(u64, 0), wal.appends);
     var duplicate_progress = commit;
     duplicate_progress.operation.operation = 70;
-    try t.expectError(error.LogOffsetConflict, owner.commitOffset(initial.declared, duplicate_progress, last.cursor, authority, policy.guard()));
+    try t.expectError(error.LogOffsetConflict, owner.commitOffset(initial.declared, duplicate_progress, .{ .exhausted = last.cursor }, authority, policy.guard()));
     var reassignment = assignment;
     reassignment.operation.operation = 9;
     reassignment.cut = try owner.observe(initial.declared, policy.guard());
@@ -515,20 +535,109 @@ test "stream partition pins finite cuts and atomically commits authenticated con
     reassignment.next = 4;
     _ = try owner.assign(initial.declared, reassignment, policy.guard());
     try t.expectError(error.LogGroupFenced, owner.readPage(last.cursor, authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, policy.guard()));
-    try t.expectError(error.LogGroupFenced, owner.commitOffset(initial.declared, duplicate_progress, last.cursor, authority, policy.guard()));
+    try t.expectError(error.LogGroupFenced, owner.commitOffset(initial.declared, duplicate_progress, .{ .exhausted = last.cursor }, authority, policy.guard()));
     const release: p.StreamRead.Release = .{ .target = initial.target(), .operation = operation(8), .read = read.handle() };
     const released = try owner.releaseRead(initial.declared, release, policy.guard());
     try t.expectError(error.StreamReadReleased, owner.readCursor(read.handle(), authority, policy.guard()));
     // A rotated key and closed pin cannot rewrite an already accepted result.
-    try t.expectEqualDeep(accepted, try owner.commitOffset(initial.declared, commit, last.cursor, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
+    try t.expectEqualDeep(accepted, try owner.commitOffset(initial.declared, commit, .{ .exhausted = last.cursor }, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
     try t.expectEqualDeep(released, try owner.releaseRead(initial.declared, release, policy.guard()));
     try owner.deinit();
     owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
     try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
     try t.expectEqual(@as(u64, 4), (try owner.group(7, policy.guard())).?.next);
     try t.expectEqual(@as(u64, 2), (try owner.group(7, policy.guard())).?.group.generation);
-    try t.expectEqualDeep(accepted, try owner.commitOffset(initial.declared, commit, last.cursor, authority, policy.guard()));
+    try t.expectEqualDeep(accepted, try owner.commitOffset(initial.declared, commit, .{ .exhausted = last.cursor }, authority, policy.guard()));
     try t.expectEqual(@as(u64, 2), wal.appends);
+}
+
+test "stream interval progress settles consecutive partial ranges and recovers original decisions" {
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, temporary.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, temporary.dir, "objects");
+    defer objects.deinit();
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declaration);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const assignment: q.GroupAssignment = .{ .operation = operation(2), .cut = try owner.observe(initial.declared, policy.guard()), .expected = null, .group = .{ .id = 7, .generation = 1, .principal = 0 }, .next = 0 };
+    _ = try owner.assign(initial.declared, assignment, policy.guard());
+    var buffer: [8192]u8 = undefined;
+    for (3..5) |id| {
+        const request = try appendRequest(&declaration, id, null, &buffer);
+        _ = try owner.append(initial.declared, request.request, request.payload, policy.guard());
+    }
+    const read = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = assignment.group, .from = 0, .until = null, .timestamp = null }, policy.guard());
+    const authority = try s.LogRead.Authority.init(@splat(7));
+    const start = try owner.readCursor(read.handle(), authority, policy.guard());
+    var first = try owner.readPage(start, authority, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer first.deinit();
+    try t.expect(!first.cursor.coverage.complete);
+    const prefix = try p.StreamRead.Progress.between(start, first.cursor);
+    const commit: q.OffsetCommit = .{ .operation = operation(6), .group = assignment.group, .coverage = try prefix.coverage(), .expected_next = 0, .next = 2 };
+    const before = owner.root;
+    var forged = prefix;
+    forged.interval.first.authentication[0] ^= 1;
+    try t.expectError(error.StreamCursorUnauthenticated, owner.commitOffset(initial.declared, commit, forged, authority, policy.guard()));
+    forged = prefix;
+    forged.interval.last.authentication[0] ^= 1;
+    try t.expectError(error.StreamCursorUnauthenticated, owner.commitOffset(initial.declared, commit, forged, authority, policy.guard()));
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.commitOffset(initial.declared, commit, prefix, authority, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    try t.expectEqualDeep(before, owner.root);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.commitOffset(initial.declared, commit, prefix, authority, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, temporary.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, temporary.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
+    const accepted = try owner.commitOffset(initial.declared, commit, prefix, authority, policy.guard());
+    try t.expectEqual(@as(u64, 0), wal.appends);
+    try t.expectEqual(@as(u64, 2), (try owner.group(7, policy.guard())).?.next);
+    var duplicate = commit;
+    duplicate.operation.operation = 60;
+    try t.expectError(error.LogOffsetConflict, owner.commitOffset(initial.declared, duplicate, prefix, authority, policy.guard()));
+    // Continuation stays on the original cut after committing an earlier page.
+    var last = try owner.readPage(first.cursor, authority, .{ .rows = 2, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer last.deinit();
+    const suffix = try p.StreamRead.Progress.between(first.cursor, last.cursor);
+    try t.expect(suffix == .interval);
+    try t.expectEqual(@as(u64, 2), (try suffix.coverage()).rows);
+    var suffix_commit: q.OffsetCommit = .{ .operation = operation(7), .group = assignment.group, .coverage = try suffix.coverage(), .expected_next = 2, .next = 4 };
+    forged = suffix;
+    forged.interval.last.coverage.rows -= 1;
+    var forged_commit = suffix_commit;
+    forged_commit.coverage = try forged.coverage();
+    try t.expectError(error.StreamCursorUnauthenticated, owner.commitOffset(initial.declared, forged_commit, forged, authority, policy.guard()));
+    _ = try owner.commitOffset(initial.declared, suffix_commit, suffix, authority, policy.guard());
+    try t.expectEqual(@as(u64, 4), (try owner.group(7, policy.guard())).?.next);
+    var reassignment = assignment;
+    reassignment.operation.operation = 8;
+    reassignment.cut = try owner.observe(initial.declared, policy.guard());
+    reassignment.expected = (try owner.group(7, policy.guard())).?;
+    reassignment.group.generation += 1;
+    reassignment.next = 4;
+    _ = try owner.assign(initial.declared, reassignment, policy.guard());
+    suffix_commit.operation.operation = 70;
+    try t.expectError(error.LogGroupFenced, owner.commitOffset(initial.declared, suffix_commit, suffix, authority, policy.guard()));
+    _ = try owner.releaseRead(initial.declared, .{ .target = initial.target(), .operation = operation(9), .read = read.handle() }, policy.guard());
+    try t.expectError(error.StreamReadReleased, owner.commitOffset(initial.declared, suffix_commit, suffix, authority, policy.guard()));
+    const rotated = try s.LogRead.Authority.init(@splat(8));
+    try t.expectEqualDeep(accepted, try owner.commitOffset(initial.declared, commit, prefix, rotated, policy.guard()));
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.commitOffset(initial.declared, commit, prefix, rotated, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
 }
 
 test "stream partition finite readers enforce budgets early release empty completion and buffered revocation" {
@@ -827,8 +936,14 @@ test "stream partition timestamp bounds preserve scanned coverage across nonmono
     try t.expectEqual(@as(u64, 2), end.cursor.coverage.rows);
     try t.expectEqual(@as(u64, 4), end.cursor.coverage.through);
     try t.expect(end.cursor.coverage.complete);
-    const commit: q.OffsetCommit = .{ .operation = operation(6), .group = assignment.group, .coverage = end.cursor.coverage, .expected_next = 0, .next = 4 };
-    _ = try owner.commitOffset(initial.declared, commit, end.cursor, authority, policy.guard());
+    const boundaries = [_]p.StreamRead.Cursor{ sealed_cursor, empty.cursor, middle.cursor, end.cursor };
+    for (boundaries[0..3], boundaries[1..4], 0..) |first, last, index| {
+        const issued = try p.StreamRead.Progress.between(first, last);
+        const coverage = try issued.coverage();
+        try t.expectEqual(@as(u64, if (index == 0) 0 else 1), coverage.rows);
+        const commit: q.OffsetCommit = .{ .operation = operation(60 + index), .group = assignment.group, .coverage = coverage, .expected_next = coverage.from, .next = coverage.until };
+        _ = try owner.commitOffset(initial.declared, commit, issued, authority, policy.guard());
+    }
     try t.expectEqual(@as(u64, 4), (try owner.group(7, policy.guard())).?.next);
     selection.operation = operation(7);
     selection.group = null;
@@ -1011,7 +1126,7 @@ test "stream partition expiry protects paged consumer watermarks pins and origin
     const consumed = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(200), .group = lagging, .from = 0, .until = 2, .timestamp = null }, policy.guard());
     var page = try owner.readPage(try owner.readCursor(consumed.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
     defer page.deinit();
-    _ = try owner.commitOffset(initial.declared, .{ .operation = operation(201), .group = lagging, .coverage = page.cursor.coverage, .expected_next = 0, .next = 2 }, page.cursor, authority, policy.guard());
+    _ = try owner.commitOffset(initial.declared, .{ .operation = operation(201), .group = lagging, .coverage = page.cursor.coverage, .expected_next = 0, .next = 2 }, .{ .exhausted = page.cursor }, authority, policy.guard());
     const retained = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(202), .group = null, .from = 0, .until = null, .timestamp = null }, policy.guard());
     const cursor = try owner.readCursor(retained.handle(), authority, policy.guard());
     fault.lose_reply = true;
@@ -1042,7 +1157,7 @@ test "stream partition expiry protects paged consumer watermarks pins and origin
         const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(300 + i * 2), .group = group, .from = 2, .until = null, .timestamp = null }, policy.guard());
         var window = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
         defer window.deinit();
-        _ = try owner.commitOffset(initial.declared, .{ .operation = operation(301 + i * 2), .group = group, .coverage = window.cursor.coverage, .expected_next = 2, .next = 4 }, window.cursor, authority, policy.guard());
+        _ = try owner.commitOffset(initial.declared, .{ .operation = operation(301 + i * 2), .group = group, .coverage = window.cursor.coverage, .expected_next = 2, .next = 4 }, .{ .exhausted = window.cursor }, authority, policy.guard());
         _ = try owner.releaseRead(initial.declared, .{ .target = initial.target(), .operation = operation(500 + i), .read = pin.handle() }, policy.guard());
     }
     owner.options.clock = clock.source();
@@ -1342,7 +1457,7 @@ test "stream partition compaction protects consumer checkpoints and cancels unpu
     const pin = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = group, .from = 0, .until = 2, .timestamp = null }, policy.guard());
     var page = try owner.readPage(try owner.readCursor(pin.handle(), authority, policy.guard()), authority, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
     defer page.deinit();
-    _ = try owner.commitOffset(initial.declared, .{ .operation = operation(6), .group = group, .coverage = page.cursor.coverage, .expected_next = 0, .next = 2 }, page.cursor, authority, policy.guard());
+    _ = try owner.commitOffset(initial.declared, .{ .operation = operation(6), .group = group, .coverage = page.cursor.coverage, .expected_next = 0, .next = 2 }, .{ .exhausted = page.cursor }, authority, policy.guard());
     const before = owner.root;
     policy.deny_at = policy.calls + 2;
     try t.expectError(error.PermissionDenied, owner.compactStep(initial.declared, cut, 1, policy.guard()));
@@ -1909,7 +2024,7 @@ test "log transaction decision barriers recover lost preparation and commit repl
                 const work = try appendRequest(&declared, id, null, &bytes);
                 try actions.put(.{ .statement = .{ .transaction = fixtures.identity, .sequence = 1, .intent = @splat(8) }, .ordinal = @intCast(id - 9), .action = .{ .append = work.request } }, work.payload);
             }
-            try actions.putOffset(.{ .statement = .{ .transaction = fixtures.identity, .sequence = 1, .intent = @splat(8) }, .ordinal = 4, .action = .{ .stream_offset = .{ .operation = operation(20), .group = assignment.group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 } } }, consumed.cursor);
+            try actions.putOffset(.{ .statement = .{ .transaction = fixtures.identity, .sequence = 1, .intent = @splat(8) }, .ordinal = 4, .action = .{ .stream_offset = .{ .operation = operation(20), .group = assignment.group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 } } }, .{ .exhausted = consumed.cursor });
             actions_root = try actions.seal();
             var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), fixtures.identity, .participants, 10, 1, 1024 * 1024);
             defer selected.deinit();
@@ -1979,7 +2094,7 @@ test "log transaction decision barriers recover lost preparation and commit repl
                 const offset = (try owner.operation(operation(20), policy.guard())).?.outcome.offset;
                 // Rotation cannot invalidate the coverage authenticated before
                 // the accepted barrier and common decision.
-                try t.expectEqualDeep(offset.receipt, try owner.commitOffset(initial.declared, offset.receipt.commit, offset.cursor, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
+                try t.expectEqualDeep(offset.receipt, try owner.commitOffset(initial.declared, offset.receipt.commit, offset.progress, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
             }
             for (10..13) |id| {
                 const receipt = try owner.operation(operation(id), policy.guard());

@@ -15,7 +15,7 @@ pub const Record = struct {
     outcome: union(enum) {
         append: q.AppendReceipt,
         assignment: q.GroupAssignmentReceipt,
-        offset: struct { receipt: q.OffsetReceipt, cursor: p.StreamRead.Cursor },
+        offset: struct { receipt: q.OffsetReceipt, progress: p.StreamRead.Progress },
         read: p.StreamRead.Receipt,
         release: p.StreamRead.ReleaseReceipt,
         claim: struct { receipt: q.ClaimReceipt, observed: @import("LogTime.zig").Sample },
@@ -65,8 +65,8 @@ pub const Record = struct {
         switch (self.outcome) {
             .offset => |value| {
                 try value.receipt.validate();
-                try value.cursor.validate();
-                if (!std.meta.eql(value.receipt.commit.coverage, value.cursor.coverage) or value.receipt.commit.operation.principal != value.cursor.read.owner.principal) return error.InvalidLogEvidence;
+                try value.progress.validate();
+                if (!std.meta.eql(value.receipt.commit.coverage, try value.progress.coverage()) or value.receipt.commit.operation.principal != value.progress.end().read.owner.principal) return error.InvalidLogEvidence;
             },
             .claim => |value| {
                 try value.receipt.validate();
@@ -118,7 +118,7 @@ pub const Record = struct {
         const stream: ?p.LogWorkload.StreamRequest = switch (self.outcome) {
             .append => |value| if (value.append.kind == .stream) .{ .append = value.append } else null,
             .assignment => |value| .{ .assign = value.assignment },
-            .offset => |value| .{ .offset = .{ .commit = value.receipt.commit, .cursor = value.cursor } },
+            .offset => |value| .{ .offset = .{ .commit = value.receipt.commit, .progress = value.progress } },
             .read => |value| .{ .consume = value.request },
             .release => |value| .{ .release = value.release },
             else => null,

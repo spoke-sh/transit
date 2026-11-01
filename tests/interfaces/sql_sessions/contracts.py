@@ -42,19 +42,21 @@ else:
     intent = dict(bytes=4096, sha256=[71]*32)
     claim_position = copy.deepcopy(native['queue_cursor'])
     claim_position['next'] = native['claim']['rows']
-    for kind, receipt, position, count in (
-        ('append', native['append'], native['append']['append']['rows'], 4),
-        ('consume', native['read'], native['read_cursor'], 1),
-        ('claim', native['claim'], claim_position, 2),
+    for label, kind, receipt, position, count, limit in (
+        ('append', 'append', native['append'], native['append']['append']['rows'], 4, None),
+        ('consume', 'consume', native['read'], native['read_cursor'], 1, None),
+        ('claim', 'claim', native['claim'], claim_position, 2, None),
+        ('consume-limit', 'consume', native['read'], native['read_progress']['interval']['last'], 1, 1),
+        ('consume-zero', 'consume', native['read'], native['read_progress']['interval']['first'], 0, 0),
     ):
         projected = dict(data=dict(workload=dict(intent=intent, schema=[73]*32,
-            projection=[79]*32, selection={kind:receipt})))
+            projection=[79]*32, selection={kind:receipt}, limit=limit)))
         terminal = dict(rows=count, workload=dict(intent=copy.deepcopy(intent), position={kind:position}))
         selected = dict(cursor=[8]*32, batch=0, schema=value['schema'], observation=projected,
             rows=[value['cells']]*count, complete=True, completion=terminal)
         frame = encode_fixture(current, [2]*16, selected)
         assert Decoder().response(frame, CONTENT_TYPE, current)['result']['batch'] == selected
-        fixture_path = path.with_name('workload-' + kind + '-frame.hex')
+        fixture_path = path.with_name('workload-' + label + '-frame.hex')
         if args.write: fixture_path.write_text(frame.hex() + '\n')
         else: assert fixture_path.read_text() == frame.hex() + '\n', 'workload result fixture drift'
         for change in ('missing', 'foreign_body', 'count'):

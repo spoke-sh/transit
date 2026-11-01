@@ -2298,7 +2298,7 @@ fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void 
     if (work == .stream_offset) {
         const environment = self.log_environment orelse return error.InvalidStreamReadAuthority;
         const authority = environment.authority orelse return error.InvalidStreamReadAuthority;
-        try authority.verify(work.stream_offset.cursor);
+        try authority.verifyProgress(work.stream_offset.progress);
     }
 }
 
@@ -2470,7 +2470,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         defer actions.deinit();
         if (previous) |value| try actions.restore(value);
         const action_entry = request.work.entry(request.statement);
-        if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
+        if (action_entry.offset_progress) |issued| try actions.putOffset(action_entry.work, issued) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
         break :sealed try actions.seal();
     };
     var destination: ?TransactionTransferAdvance = null;

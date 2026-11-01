@@ -407,6 +407,10 @@ schema and operation, exact row ordinals/offsets and next position. A complete
 empty selection remains empty even after later appends. Source-history or
 explicit read-release failures are visible; neither produces empty completion.
 
+A page request also requires an explicit positive `rows` budget no greater
+than the frozen delivery limit. Lowering it controls this page alone and cannot
+change the original selection, source or retained reference.
+
 One delivery page has at most 128 rows and 1 MiB of encoded row bytes, also within
 the frozen source's read limits; Stream scan work is bounded to 65,536 examined
 rows. A single row that exceeds the byte budget fails without advancing delivery.
@@ -420,8 +424,10 @@ verified replay progress when an original-result probe remains pending.
 There is no new durable cursor or implicit close mutation. Local page/cursor
 cleanup releases delivery buffers; explicit native read release remains a
 separate saved operation and can make future delivery unavailable. Stream
-`offsetWork` prepares a separate request only from completed authenticated
-coverage and the original group generation. Save that exact handoff before
+`offsetWork` prepares a separate request from an exhausted authenticated read;
+`offsetIntervalWork` takes an earlier issued cursor from that read and settles
+only the traversed interval through the current cursor. Both preserve the
+original group generation. Save that exact handoff before
 dispatch; the native owner still authenticates it and checks current assignment
 and settlement rights. A requested numeric offset or SQL output count cannot
 replace it. SQL result reopening uses this native boundary; workload SQL text

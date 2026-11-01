@@ -87,8 +87,10 @@ template. Star expands before predicate-only metadata is added to the input.
 `WorkloadProjection.schemaLayout` supplies that pure metadata layout without
 inventing an accepted operation. This preparation helper has no source capture,
 group identity, native wait or offset-settlement authority and is not exposed
-by the SQL service. Its LIMIT remains a logical output bound; existing original
-workload projection encoding still refuses limits. See the [compiler
+by the SQL service. Its LIMIT remains a logical output bound. Original Stream
+workload projections can retain that bound; SQL result consumption stops with
+the exact native cursor and preserves partial coverage. Append and Queue claim
+projections continue to reject limits. See the [compiler
 profile](../../../contracts/sql/README.md) for exact boundaries.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range

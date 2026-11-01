@@ -70,11 +70,12 @@ original receipt and source schema, then reads bounded pages using explicit
 delivery positions. Refetching retains the same selection and does not renew
 leases or repeat work. Current operation and READ rights are checked for each
 disclosure. Closing local delivery buffers does not release a shared durable
-read dependency or settle work; native read release is explicit. Completed
-grouped consumption can prepare a saved authenticated offset handoff for a
-separate settlement. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
+read dependency or settle work; native read release is explicit. Grouped
+consumption can prepare a saved authenticated offset handoff for either the
+exhausted read or an interval between two issued cursors from that same read.
+Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
 for budgets, empty results and unavailable retained history. This native support
-does not enable workload SQL yet.
+does not enable SQL consumption or settlement; SQL append admission is available.
 
 ## Cancelling original workload operations
 
@@ -221,7 +222,7 @@ roll back acceptance.
 
 Consumer groups have explicit assignment generations and committed next
 offsets. Group reads require current acquire rights; committing an offset is a
-separate settle operation using authenticated complete coverage and the expected
+separate settle operation using authenticated complete interval coverage and the expected
 checkpoint. Reading or closing a client never advances a group. A stale
 generation or checkpoint conflicts. Retained reads and original operations
 remain subject to current rights after ALTER or DROP.

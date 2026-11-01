@@ -136,12 +136,12 @@ pub const StreamRequest = union(StreamKind) {
     release: read.Release,
     offset: struct {
         commit: q.OffsetCommit,
-        cursor: read.Cursor,
+        progress: read.Progress,
         pub fn validate(self: @This()) !void {
             try self.commit.validate();
-            try self.cursor.validate();
-            if (!std.meta.eql(self.commit.coverage, self.cursor.coverage) or
-                self.commit.operation.principal != self.cursor.read.owner.principal)
+            try self.progress.validate();
+            if (!std.meta.eql(self.commit.coverage, try self.progress.coverage()) or
+                self.commit.operation.principal != self.progress.end().read.owner.principal)
                 return error.StreamReadConflict;
         }
     },

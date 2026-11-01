@@ -4943,7 +4943,7 @@ fn terminalTransferCases() !void {
     }
 }
 
-test "transaction log statements retain exact offset cursors through lost admission and key rotation after preparation" {
+test "transaction log statements retain exact offset interval proofs through lost admission and key rotation after preparation" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
@@ -4966,10 +4966,10 @@ test "transaction log statements retain exact offset cursors through lost admiss
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
     const schema = (try logCreation(.stream, 11, 2, "events", 2)).intent.action.create.schema;
     var bytes: [8192]u8 = undefined;
-    const payload = try s.LogBatch.encode(schema, operation, .stream, &.{.{ .cells = &cells }}, &bytes);
+    const payload = try s.LogBatch.encode(schema, operation, .stream, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &bytes);
     const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
     defer t.allocator.free(encoded.base64);
-    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .append = .{ .target = target, .operation = operation, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
+    _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .append = .{ .target = target, .operation = operation, .kind = .stream, .producer = null, .rows = 2, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
     const group: p.StreamQueue.Group = .{ .id = 7, .generation = 1, .principal = 1 };
     const cut = (try streamCall(&catalog, &access, &cached, .{ .observe = target }, 256)).cut;
     _ = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .assign = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .cut = cut, .expected = null, .group = group, .next = 0 } }, .payload = null } }, 256);
@@ -4981,10 +4981,15 @@ test "transaction log statements retain exact offset cursors through lost admiss
     var environment: c.DirectTransactionLog.Environment = .{ .authority = try s.LogRead.Authority.init(@splat(4)) };
     catalog.log_environment = &environment;
     defer catalog.log_environment = null;
-    const work: c.DirectTransactionLogWork.Work = .{ .stream_offset = .{ .commit = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 603 }, .group = group, .coverage = page.page.cursor.coverage, .expected_next = 0, .next = 1 }, .cursor = page.page.cursor } };
+    try t.expect(!page.page.cursor.coverage.complete);
+    const issued = try p.StreamRead.Progress.between(cursor, page.page.cursor);
+    const work: c.DirectTransactionLogWork.Work = .{ .stream_offset = .{ .commit = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 603 }, .group = group, .coverage = try issued.coverage(), .expected_next = 0, .next = 1 }, .progress = issued } };
     const status = try catalog.inspectTransaction(key, access.policy());
     var forged = work;
-    forged.stream_offset.cursor.authentication[0] ^= 1;
+    forged.stream_offset.progress.interval.last.authentication[0] ^= 1;
+    try t.expectError(error.StreamCursorUnauthenticated, catalog.stageTransactionLog(key, status.revision, 1, forged, null, access.policy()));
+    forged = work;
+    forged.stream_offset.progress.interval.first.authentication[0] ^= 1;
     try t.expectError(error.StreamCursorUnauthenticated, catalog.stageTransactionLog(key, status.revision, 1, forged, null, access.policy()));
     const request = try catalog.stageTransactionLog(key, status.revision, 1, work, null, access.policy());
     catalog.store.lose_reply = true;
@@ -6226,7 +6231,7 @@ const MixedDecisionFixture = struct {
         self.state = try catalog.stageTransactionKV(key, (try catalog.inspectTransaction(key, access.policy())).revision, 1, mutation, access.policy());
         _ = try catalog.executeTransactionStatement(key, self.state, access.policy());
         _ = try catalog.executeTransactionStatement(key, try workspaceRequest(catalog, access, key, 10, 2, 501), access.policy());
-        self.offset = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 3, .{ .stream_offset = .{ .commit = .{ .operation = operation(603), .group = group, .coverage = coverage.page.cursor.coverage, .expected_next = 0, .next = 1 }, .cursor = coverage.page.cursor } }, null, access.policy());
+        self.offset = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 3, .{ .stream_offset = .{ .commit = .{ .operation = operation(603), .group = group, .coverage = coverage.page.cursor.coverage, .expected_next = 0, .next = 1 }, .progress = .{ .exhausted = coverage.page.cursor } } }, null, access.policy());
         _ = try catalog.executeTransactionLog(key, self.offset, access.policy());
         self.ack = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 4, .{ .queue_ack = .{ .operation = operation(612), .lease = claimed.page.rows[0].lease.original, .action = .ack } }, null, access.policy());
         _ = try catalog.executeTransactionLog(key, self.ack, access.policy());
@@ -7641,6 +7646,7 @@ test "workload results reopen original payload and selections without mutation a
                     var result = try Result.open(t.allocator, &catalog, frozen, limits, access.policy(), native);
                     defer result.deinit();
                     reference.* = result.reference;
+                    const start = result.position();
                     const page = try result.next(&scratch, output.allocator(), &catalog, access.policy(), native);
                     try expectWorkloadPage(page, 0, false, .live);
                     var second_output: std.heap.ArenaAllocator = .init(t.allocator);
@@ -7655,8 +7661,16 @@ test "workload results reopen original payload and selections without mutation a
                     const first_bytes = try first_encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
                     const first_row = try c.fuze.TableRow.decodeInto(scratch.allocator(), declaration_request.intent.action.create.schema, first_bytes);
                     try t.expectEqual(@as(i64, 10), first_row.row().cells[0].value.atom.signed);
-                    if (result.reference.selection == .consume)
-                        try t.expectError(error.WorkloadResultIncomplete, result.offsetWork(.{ .scope = scope, .principal = 1, .operation = 102 }));
+                    if (result.reference.selection == .consume) {
+                        const offset_operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 102 };
+                        try t.expectError(error.WorkloadResultIncomplete, result.offsetWork(offset_operation));
+                        const interval = try result.offsetIntervalWork(offset_operation, start.consume);
+                        try t.expect(interval.offset.progress == .interval);
+                        try t.expectEqual(@as(u64, 0), interval.offset.commit.expected_next);
+                        try t.expectEqual(@as(u64, 2), interval.offset.commit.next);
+                        try t.expectEqual(@as(u64, 2), interval.offset.commit.coverage.rows);
+                        try t.expect(!interval.offset.progress.end().coverage.complete);
+                    }
                     // Early local close retains the native selection and receipt.
                     _ = output.reset(.retain_capacity);
                 }
@@ -7672,15 +7686,26 @@ test "workload results reopen original payload and selections without mutation a
                     try t.expectEqualStrings("value", projection.plan.output_names[0].?);
                     try t.expectEqualSlices(u8, &.{ 0, 1 }, projection.plan.projection);
                     const api = c.DirectWorkloadResultProtocol;
-                    const open_request: api.Request = .{ .open = .{ .intent = reference.intent, .limits = reference.limits } };
+                    const open_request: api.Request = .{ .open = .{ .intent = reference.intent, .limits = .{ .rows = 3, .encoded_bytes = reference.limits.encoded_bytes, .scanned_rows = 3 } } };
                     const opened = try api.apply(t.allocator, &catalog, access.policy(), open_request, native);
                     defer opened.deinit(t.allocator);
                     try api.validate(t.allocator, reference.intent.connection, open_request, opened);
-                    const page_request: api.Request = .{ .page = .{ .reference = opened.opened.reference, .position = opened.opened.position } };
+                    const page_request: api.Request = .{ .page = .{ .reference = opened.opened.reference, .position = opened.opened.position, .rows = 1 } };
                     const first = try api.apply(t.allocator, &catalog, access.policy(), page_request, native);
                     defer first.deinit(t.allocator);
                     try api.validate(t.allocator, reference.intent.connection, page_request, first);
                     try expectWorkloadPage(first.page.page, 0, false, .expired);
+                    try t.expectEqual(@as(u32, 3), first.page.reference.limits.rows);
+                    var wider = page_request;
+                    wider.page.rows = 2;
+                    const two = try api.apply(t.allocator, &catalog, access.policy(), wider, native);
+                    defer two.deinit(t.allocator);
+                    try api.validate(t.allocator, reference.intent.connection, wider, two);
+                    try t.expectError(switch (two.page.page) {
+                        .append => error.InvalidWorkloadResultResponse,
+                        .consume => error.InvalidStreamResponse,
+                        .claim => error.InvalidQueueResponse,
+                    }, api.validate(t.allocator, reference.intent.connection, page_request, two));
                     var malformed = opened;
                     malformed.opened.reference.intent.record.scope.account[0] ^= 1;
                     try t.expectError(error.DataIdentityConflict, api.validate(t.allocator, reference.intent.connection, open_request, malformed));
@@ -7801,7 +7826,7 @@ test "workload results reopen original payload and selections without mutation a
             const work = saved.parsed.value.work.stream;
             var forged = work;
             forged.work.offset.commit.operation.operation = 103;
-            forged.work.offset.cursor.authentication[0] ^= 1;
+            forged.work.offset.progress.exhausted.authentication[0] ^= 1;
             try t.expectError(error.StreamCursorUnauthenticated, native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = forged }));
             try t.expectEqual(original_tail, try wal.log().tail(partition));
             const committed = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = work });

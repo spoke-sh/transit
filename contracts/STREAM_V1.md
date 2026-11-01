@@ -237,6 +237,23 @@ authenticate continuation and completed coverage independently of current
 authorization, and must not sign caller-invented progress. Filters or delivery
 limits cannot manufacture a complete cursor.
 
+`StreamRead.Progress` carries either an `exhausted` cursor for the entire read,
+or an `interval` with two issued cursors, `first` and `last`. Interval boundaries
+must have the same read handle, cut and original range, with nondecreasing
+scanned frontier and cumulative row count. Its complete coverage is
+`[first.through, last.through)` and its row count is their cumulative difference.
+Neither cursor changes its original completeness. An interval spanning the whole
+exhausted read has the canonical `exhausted` representation. Empty intervals are
+valid. The owner authenticates both supplied interval boundaries and checks the
+original live pin, current group generation and expected checkpoint. Shape
+validation and subtraction alone cannot establish traversal.
+
+Offset requests and stored transaction actions retain this exact progress proof.
+A partial endpoint by itself cannot settle a prefix. Original accepted settlement
+lookup compares the complete saved proof before fresh pin/authentication checks,
+so release or authority-key rotation cannot erase an accepted outcome. Current
+rights still govern lookup and disclosure.
+
 `StreamRead.Release` is a separate original operation by the read's principal,
 with its exact handle and original read target. Release changes retention ownership,
 not group progress, and does not cancel accepted mutations. Its original receipt

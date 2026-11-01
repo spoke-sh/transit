@@ -86,7 +86,7 @@ fn prepareInputs(init: std.process.Init, client: c.DirectTableClient, output: *s
     const claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue, .operation = operation(client, 642009), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
     const claimed = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), claimed.rows.len);
-    return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = page.cursor.coverage, .expected_next = 0, .next = 1 }, .cursor = page.cursor } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
+    return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = page.cursor.coverage, .expected_next = 0, .next = 1 }, .progress = .{ .exhausted = page.cursor } } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
 }
 fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, key: c.DirectClientToken.Key, input: LogInput) !Logs {
     const tx: Tx = .{ .catalog = client };

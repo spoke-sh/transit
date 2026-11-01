@@ -71,6 +71,7 @@ pub const Read = struct {
     projector: f.WorkloadProjection.Projector,
     response: ?std.json.Parsed(w.Response) = null,
     index: usize = 0,
+    emitted: u64 = 0,
     scratch: std.heap.ArenaAllocator,
 
     pub fn init(prepared: *Prepared, caller: c.DirectTableClient) !Read {
@@ -83,7 +84,7 @@ pub const Read = struct {
         self.* = undefined;
     }
     pub fn observation(self: *const Read) !g.results.Workload.Observation {
-        return .{ .intent = self.prepared.reference.record.content, .schema = try self.prepared.declaration.definition.schema.fingerprint(), .projection = self.prepared.projection_hash, .selection = self.reference.selection };
+        return .{ .intent = self.prepared.reference.record.content, .schema = try self.prepared.declaration.definition.schema.fingerprint(), .projection = self.prepared.projection_hash, .selection = self.reference.selection, .limit = self.prepared.plan.plan.limit };
     }
     pub fn checkDisclosure(self: *const Read) !void {
         const opened = try self.prepared.open(self.caller);
@@ -99,16 +100,23 @@ pub const Read = struct {
         } else 0;
     }
     pub fn complete(self: *const Read) !bool {
-        return self.index == self.length() and try self.position.complete(self.reference.selection);
+        if (self.index != self.length()) return false;
+        if (self.prepared.plan.plan.limit) |limit| if (self.emitted == limit) return true;
+        return self.position.complete(self.reference.selection);
     }
     pub fn completion(self: *const Read, rows: u64) !g.results.Completion {
         if (!try self.complete()) return error.IncompleteWorkloadCoverage;
+        if (rows != self.emitted) return error.InvalidWorkloadResultCount;
         const value: g.results.Completion = .{ .rows = rows, .workload = .{ .intent = self.prepared.reference.record.content, .position = self.position } };
         try value.validate(.{ .data = .{ .workload = try self.observation() } });
         return value;
     }
     fn fetch(self: *Read) !void {
-        const response = try self.caller.call(.{ .workload_result = .{ .page = .{ .reference = self.reference, .position = self.position } } });
+        const rows: u32 = if (self.prepared.plan.plan.limit) |limit|
+            @intCast(@min(self.reference.limits.rows, limit - self.emitted))
+        else
+            self.reference.limits.rows;
+        const response = try self.caller.call(.{ .workload_result = .{ .page = .{ .reference = self.reference, .position = self.position, .rows = rows } } });
         errdefer response.deinit();
         const next = response.value.result.workload_result.page;
         try self.reference.requireSame(next.reference);
@@ -153,7 +161,10 @@ pub const Read = struct {
             const decoded = try f.TableRow.decodeInto(self.scratch.allocator(), self.prepared.declaration.definition.schema, bytes);
             const row = try self.projector.row(decoded.row().cells, metadata);
             self.index += 1;
-            if (row) |selected| return selected;
+            if (row) |selected| {
+                self.emitted = std.math.add(u64, self.emitted, 1) catch return error.InvalidWorkloadResultCount;
+                return selected;
+            }
         }
     }
 };
@@ -170,6 +181,7 @@ test "workload reader retains projected cells and original coverage through lost
         key: [32]u8,
         calls: usize = 0,
         pages: usize = 0,
+        page_rows: u32 = 1,
         denied: bool = false,
         lose_page: bool = false,
         operation_visible: bool = true,
@@ -199,7 +211,7 @@ test "workload reader retains projected cells and original coverage through lost
                         .{ .consume = self.receipt } } };
                 },
                 .workload_result => |query| blk: {
-                    const reference: native.Reference = .{ .intent = self.reference, .selection = .{ .consume = self.receipt }, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 4096 } };
+                    const reference: native.Reference = .{ .intent = self.reference, .selection = .{ .consume = self.receipt }, .limits = if (query == .open) query.open.limits else query.page.reference.limits };
                     if (query == .open) break :blk .{ .workload_result = .{ .opened = .{ .reference = reference, .position = .{ .consume = self.cursor(0) }, .source = self.intent.parsed.value.source } } };
                     try reference.requireSame(query.page.reference);
                     self.pages += 1;
@@ -209,11 +221,16 @@ test "workload reader retains projected cells and original coverage through lost
                     }
                     const index = query.page.position.consume.coverage.through;
                     if (index >= 3) return error.TestUnexpectedPage;
-                    const row = self.rows[@intCast(index)];
-                    const rows = try invocation.allocator.alloc(c.DirectStream.Row, 1);
-                    rows[0] = .{ .offset = index, .operation = self.operation, .ordinal = row.ordinal, .tombstone = false, .encoded = try w.Binary.encode(invocation.allocator, row.bytes) };
-                    const next = self.cursor(index + 1);
-                    break :blk .{ .workload_result = .{ .page = .{ .reference = reference, .position = .{ .consume = next }, .page = .{ .consume = .{ .source = self.intent.parsed.value.source, .rows = rows, .cursor = next, .examined = 1, .encoded_bytes = @intCast(row.bytes.len + s.LogBatch.row_header_bytes) } } } } };
+                    const count = @min(query.page.rows, self.page_rows, 3 - index);
+                    const rows = try invocation.allocator.alloc(c.DirectStream.Row, @intCast(count));
+                    var encoded_bytes: u32 = 0;
+                    for (rows, 0..) |*output_row, at| {
+                        const row = self.rows[@intCast(index + at)];
+                        output_row.* = .{ .offset = index + at, .operation = self.operation, .ordinal = row.ordinal, .tombstone = false, .encoded = try w.Binary.encode(invocation.allocator, row.bytes) };
+                        encoded_bytes += @intCast(row.bytes.len + s.LogBatch.row_header_bytes);
+                    }
+                    const next = self.cursor(index + count);
+                    break :blk .{ .workload_result = .{ .page = .{ .reference = reference, .position = .{ .consume = next }, .page = .{ .consume = .{ .source = self.intent.parsed.value.source, .rows = rows, .cursor = next, .examined = @intCast(count), .encoded_bytes = encoded_bytes } } } } };
                 },
                 else => return error.TestUnexpectedMutation,
             };
@@ -228,7 +245,7 @@ test "workload reader retains projected cells and original coverage through lost
     const schema: f.TableSchema.Schema = .{ .object = 9, .revision = 1, .next_column = 8, .columns = &columns, .primary_key = &.{} };
     const properties: c.DirectCatalog.Properties = .{ .namespace = 1, .authorization = 11, .name = try .init("events") };
     var properties_buffer: [4096]u8 = undefined;
-    var declared = try s.LogDeclaration.prepare(t.allocator, .{ .object = .{ .scope = scope, .branch = 1, .object = 9 }, .revision = 1, .schema = schema, .properties = try properties.encode(&properties_buffer), .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } }, .limits = .{ .append_rows = 3, .append_bytes = 8192, .claim_rows = 1, .read_rows = 1, .read_bytes = 8192, .active_leases = 1, .waiters = 1, .timer_steps = 1 } });
+    var declared = try s.LogDeclaration.prepare(t.allocator, .{ .object = .{ .scope = scope, .branch = 1, .object = 9 }, .revision = 1, .schema = schema, .properties = try properties.encode(&properties_buffer), .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } }, .limits = .{ .append_rows = 3, .append_bytes = 8192, .claim_rows = 1, .read_rows = 3, .read_bytes = 8192, .active_leases = 1, .waiters = 1, .timer_steps = 1 } });
     defer declared.deinit();
     const stored = try declared.stored();
     const definition: c.DirectLog.Definition = .{ .stored = stored, .seed = stored, .properties = properties, .initialization = .{ .scope = scope, .principal = 5, .operation = 1 }, .first_partition = 13 };
@@ -318,4 +335,45 @@ test "workload reader retains projected cells and original coverage through lost
         break :closed peer.calls;
     };
     try t.expectEqual(before_close, peer.calls);
+    // Page budgets shrink to remaining matches. A filtered prefix and LIMIT 0
+    // finish without relabeling the larger native read as exhausted.
+    peer.page_rows = 3;
+    for ([_]struct { limit: u64, predicate: []const u8, rows: u64, through: u64 }{
+        .{ .limit = 0, .predicate = "alpha", .rows = 0, .through = 0 },
+        .{ .limit = 1, .predicate = "alpha", .rows = 1, .through = 1 },
+        .{ .limit = 1, .predicate = "beta", .rows = 1, .through = 2 },
+        .{ .limit = 2, .predicate = "alpha", .rows = 2, .through = 3 },
+        .{ .limit = 4, .predicate = "alpha", .rows = 2, .through = 3 },
+    }) |case| {
+        const sql = try std.fmt.allocPrint(t.allocator, "SELECT payload FROM events WHERE payload = '{s}' LIMIT {d}", .{ case.predicate, case.limit });
+        defer t.allocator.free(sql);
+        var bounded = try f.WorkloadProjection.compile(t.allocator, input, &fields, "events", sql, null);
+        defer bounded.deinit();
+        const binary = try w.Binary.encode(t.allocator, try f.WorkloadProjection.encode(input, &fields, bounded.plan, t.allocator, &plan_buffer));
+        defer t.allocator.free(binary.base64);
+        var saved = try c.DirectWorkloadIntent.createProjected(t.allocator, connection, source, work, .{ .fields = &fields, .plan = binary });
+        defer saved.deinit();
+        peer.intent = &saved;
+        peer.reference = try saved.reference(@splat(19));
+        var selected = try Prepared.init(caller, peer.reference);
+        defer selected.deinit();
+        var limited = try Read.init(&selected, caller);
+        defer limited.deinit();
+        const before_pages = peer.pages;
+        var count: u64 = 0;
+        while (try limited.pull(deadline)) |_| count += 1;
+        try t.expectEqual(case.rows, count);
+        const complete_result = try limited.completion(count);
+        try t.expectEqual(case.through, complete_result.workload.?.position.consume.coverage.through);
+        try t.expectEqual(case.through == 3, complete_result.workload.?.position.consume.coverage.complete);
+        try t.expectEqual(@as(?u64, case.limit), (try limited.observation()).limit);
+        try t.expectError(error.InvalidWorkloadResultCount, limited.completion(count + 1));
+        if (case.limit == 0) try t.expectEqual(before_pages, peer.pages);
+        const pages_done = peer.pages;
+        try t.expectEqual(null, try limited.pull(deadline));
+        try t.expectEqual(pages_done, peer.pages);
+        peer.denied = true;
+        try t.expectError(error.AccessDenied, limited.checkDisclosure());
+        peer.denied = false;
+    }
 }

@@ -187,7 +187,7 @@ fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receip
         .offset => |value| {
             if (record.outcome != .offset) return error.LogOperationConflict;
             try record.outcome.offset.receipt.requireCommit(value.commit);
-            if (!std.meta.eql(record.outcome.offset.cursor, value.cursor)) return error.StreamReadConflict;
+            if (!std.meta.eql(record.outcome.offset.progress, value.progress)) return error.StreamReadConflict;
         },
     }
     return receipt(record);
@@ -200,7 +200,7 @@ fn mutate(owner: *Stream, declared: s.LogDeclaration.Stored, request: Mutation.R
         .assign => |work| .{ .assign = try owner.assign(declared, work, guard) },
         .consume => |work| .{ .consume = try owner.beginRead(declared, work, guard) },
         .release => |work| .{ .release = try owner.releaseRead(declared, work, guard) },
-        .offset => |work| .{ .offset = try owner.commitOffset(declared, work.commit, work.cursor, environment.authority, guard) },
+        .offset => |work| .{ .offset = try owner.commitOffset(declared, work.commit, work.progress, environment.authority, guard) },
     };
 }
 
