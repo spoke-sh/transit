@@ -36,6 +36,14 @@ Device contention and the serialized WAL can still delay them.
 Direct creation also records a durable key/content inventory before publication.
 The private FIFO and latest per-key epoch use a separate mutex: slow inventory
 syncs can delay other direct creators, but do not hold the native journal mutex.
+Native and direct inventory appends check cancellation before entering their
+bounded WAL publication, then defer cooperative cancellation through that one
+batch of at most eight fixed-size records. Cancellation remains pending for
+subsequent marker/object work. A maintenance deadline can therefore stop private
+work without interrupting this shared bookkeeping commit and forcing foreground
+owner replacement. The deadline still reports a timeout and joins its work;
+joining may wait for the in-flight durability barrier. Actual write/sync failures
+retain the original uncertainty and exclusive-recovery requirement.
 Reusing existing content after a storage fence records the newer epoch, which
 prevents an older inventory item from removing its latest marker. Creation holds
 a shared reclamation fence until publication finishes. Inventory markers, queue

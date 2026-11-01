@@ -2356,6 +2356,25 @@
         "transit_station_http"
       ]
     },
+    "packages/zig/transit-backend-local/src/AllocationJournal.zig": {
+      "errors": {
+        "InvalidAllocationHistory": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_storage"
+      ]
+    },
     "packages/zig/transit-backend-local/src/Backend.zig": {
       "errors": {
         "ImmutableObjectConflict": 2,
@@ -2455,6 +2474,7 @@
         "catch": 1
       },
       "imports": [
+        "AllocationJournal.zig",
         "LocalFiles.zig",
         "std",
         "transit_core",
@@ -2745,6 +2765,7 @@
         "catch": 2
       },
       "imports": [
+        "AllocationJournal.zig",
         "LocalFiles.zig",
         "std",
         "transit_core",
