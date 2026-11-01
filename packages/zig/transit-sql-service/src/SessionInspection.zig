@@ -55,24 +55,14 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     errdefer arena.deinit();
     const a = arena.allocator();
     var parser = try f.SqlTyped.initDialect(a, sql, null, false, host.dialect);
-    var log_header = parser;
-    const show_log = try log_header.takeWord("SHOW");
-    const describe_log = if (!show_log) try log_header.takeWord("DESCRIBE") else false;
-    var log_name = log_header;
-    const log_kind = (try log_name.takeWord("STREAM")) or (try log_name.takeWord("QUEUE"));
-    if ((show_log or describe_log) and log_kind and log_name.token.tag != .eof and log_name.token.tag != .semi) {
-        const kind: c.DirectLog.Kind = if (try log_header.takeWord("STREAM")) .stream else blk: {
-            try log_header.requireWord("QUEUE");
-            break :blk .queue;
-        };
-        const name = try c.TableMetadata.Name.init(try log_header.named(.source));
-        try log_header.finish();
+    if (try f.LogDdl.inspection(parser)) |inspection| {
+        const name = try c.TableMetadata.Name.init(inspection.name);
         const response = try host.table.call(.{ .log_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
         const metadata = response.value.result.log_lookup orelse return error.CatalogNameNotFound;
         const definition = metadata.declaration;
-        if (definition.kind() != kind) return error.CatalogKindMismatch;
-        const rows = if (show_log) blk: {
+        if (definition.kind() != inspection.kind) return error.CatalogKindMismatch;
+        const rows = if (!inspection.describe) blk: {
             const rows = try a.alloc([]const f.Types.Values.Cell, 1);
             rows[0] = try a.dupe(f.Types.Values.Cell, &.{ unsigned(definition.stored.declaration.interpretation.object.object), unsigned(definition.stored.declaration.interpretation.revision), unsigned(definition.count()), text(try c.protocol.Json.valueAlloc(a, definition.stored.declaration.configuration)), text(try c.protocol.Json.valueAlloc(a, definition.stored.declaration.limits)) });
             break :blk rows;
@@ -81,7 +71,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             defer owned.deinit();
             break :blk try describeRows(a, owned.schema);
         };
-        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (show_log) &log_fields else &log_describe_fields };
+        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
     }
     if (try parser.takeWord("SHOW")) {
         if (!(try parser.takeWord("STORAGE"))) {

@@ -117,6 +117,39 @@ pub const Owned = struct {
         self.* = undefined;
     }
 };
+
+pub const Inspection = struct { kind: q.Kind, name: []const u8, describe: bool };
+
+/// Pure named-log inspection syntax. The name belongs to the parser allocator;
+/// definition lookup and current disclosure authority remain with the service.
+pub fn inspection(parser: Parser) !?Inspection {
+    var header = parser;
+    const show = try header.takeWord("SHOW");
+    const describe = if (!show) try header.takeWord("DESCRIBE") else false;
+    if (!show and !describe) return null;
+    const kind: q.Kind = if (try header.takeWord("STREAM")) .stream else if (try header.takeWord("QUEUE")) .queue else return null;
+    // DESCRIBE stream/queue can still name a Table with that contextual name.
+    if (header.token.tag == .eof or header.token.tag == .semi) return null;
+    const name = try header.named(.source);
+    try header.finish();
+    return .{ .kind = kind, .name = name, .describe = describe };
+}
+
+test "log inspection preserves contextual Table names and the selected dialect" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    for ([_][]const u8{ "DESCRIBE stream", "DESCRIBE queue;", "SHOW STREAMS", "SELECT id FROM items" }) |text| {
+        const parser = try Parser.init(arena.allocator(), text, null);
+        try std.testing.expect(try inspection(parser) == null);
+    }
+    const parser = try Parser.initDialect(arena.allocator(), "DESCRIBE QUEUE `jobs with spaces`", null, false, .mysql);
+    const value = (try inspection(parser)).?;
+    try std.testing.expect(value.describe and value.kind == .queue);
+    try std.testing.expectEqualStrings("jobs with spaces", value.name);
+    const extra = try Parser.init(arena.allocator(), "SHOW STREAM events extra", null);
+    try std.testing.expectError(error.UnsupportedConstruct, inspection(extra));
+}
+
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dialect, location: ?*Sql.Location) !Owned {
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();

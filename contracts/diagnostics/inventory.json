@@ -12928,13 +12928,14 @@
         "column()": "<inferred>",
         "compile()": "<inferred>",
         "duration()": "<inferred>",
+        "inspection()": "<inferred>",
         "integer()": "<inferred>",
         "options()": "<inferred>",
         "string()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 61,
         "catch": 3
       },
       "imports": [
@@ -28129,7 +28130,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 64,
         "catch": 0
       },
       "imports": [

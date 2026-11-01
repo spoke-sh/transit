@@ -51,6 +51,16 @@
       "source": "packages/zig/transit-sql/src/TransactionSql.zig",
       "contract": "contracts/SQL_SESSION_V1.md",
       "behavior": "Pure shared transaction-control parser. No admission, private statement execution or durable decision."
+    },
+    "log_ddl": {
+      "source": "packages/zig/transit-fuze/src/LogDdl.zig",
+      "contract": "contracts/STREAM_V1.md",
+      "behavior": "Pure Stream/Queue CREATE/ALTER/DROP compilation, including CREATE policy binding. ALTER policy evolution, current authority and publication have separate checks."
+    },
+    "log_inspection": {
+      "source": "packages/zig/transit-fuze/src/LogDdl.zig",
+      "contract": "contracts/STREAM_V1.md",
+      "behavior": "Pure named Stream/Queue SHOW/DESCRIBE syntax used by the SQL service. No definition lookup or disclosure."
     }
   },
   "cases": [
@@ -6166,6 +6176,149 @@
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-create-one",
+      "sql": "CREATE STREAM events (id BIGINT)",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-create-two",
+      "sql": "CREATE QUEUE jobs (id BIGINT, payload TEXT) PARTITIONS 2 WITH (mode = 'competing')",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-create-three",
+      "sql": "CREATE STREAM events (id BIGINT NOT NULL, payload TEXT, at TIMESTAMP) PARTITION BY HASH (id) PARTITIONS 4 WITH (retention = '1d', append_rows = 128, read_rows = 128)",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-alter-options",
+      "sql": "ALTER QUEUE jobs SET (lease_duration = '10s', max_lease_duration = '20s')",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-rename",
+      "sql": "ALTER STREAM events RENAME TO renamed",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-drop",
+      "sql": "DROP QUEUE jobs",
+      "profile": "log_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "show-streams",
+      "sql": "SHOW STREAMS",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "show-queues",
+      "sql": "SHOW QUEUES",
+      "profile": "settings",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "show-named-stream",
+      "sql": "SHOW STREAM events",
+      "profile": "log_inspection",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "describe-named-queue",
+      "sql": "DESCRIBE QUEUE jobs",
+      "profile": "log_inspection",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-keyword-identifiers",
+      "sql": "CREATE TABLE named (stream BIGINT, queue BIGINT, partition BIGINT, partitions BIGINT, hash BIGINT, streams BIGINT, queues BIGINT)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-streams-alias",
+      "sql": "SELECT streams.id FROM items streams",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-queues-alias",
+      "sql": "SELECT queues.id FROM items queues",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
       "reference": true,
       "expected": {
         "accepted": true
