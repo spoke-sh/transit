@@ -6,13 +6,12 @@ import {
 } from "@transit/client";
 import {
   Port,
-  validators,
   record,
   metadata,
   authorityCapabilities,
   frozenBytes,
 } from "@transit/client/internal";
-import schemas from "./schemas.json" with { type: "json" };
+import { validation } from "./validation.ts";
 import contract from "./contract.json" with { type: "json" };
 import type {
   DocumentCodecAction,
@@ -49,7 +48,6 @@ import {
   type FailurePolicy,
 } from "./values.ts";
 
-const validation = validators(schemas);
 async function openPort(config: object, override?: string): Promise<Port> {
   let executable = override;
   if (!executable) {
