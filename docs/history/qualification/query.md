@@ -9,6 +9,53 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL original workload operation and result recovery — 2026-11-01
+
+Commit `41efda5332f64592aa0160ce169bde7b3c315cc1` connects existing native workload tokens to
+SQL operation inspection, database recovery and retained result opening. Its
+current-v1 definition is
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
+and [session contract](../../../contracts/SQL_SESSION_V1.md) own its exact scope.
+Workload SQL text admission remains unimplemented at this revision.
+
+ReleaseSafe package tests pass **12/12** in `transit-sql`, **26/26** in
+`transit-sql-results`, **25/25** in `transit-sql-protocol` and **25/25** in
+`transit-sql-client`. The native client test uses an emulated signed peer for
+pending/applied/cancelled status and frozen projected reads. Independent SQL
+frames check exact original selection, missing receipt evidence and refused
+command conversion for row results. Settlement checks reject altered lease
+epochs, ACK/extension confusion, offset authentication and group generation.
+
+The client HTTP test submits once, loses the execute response, observes the same
+token and opens the original empty claim result. It also replaces an expired
+session before opening, refuses a foreign intent and preserves terminal evidence
+when a later disclosure check is denied. Closing sends only cursor cleanup.
+These are emulated-peer checks, not native disk or installed recovery evidence.
+
+The full `zig build transit-sql-gateway -Doptimize=ReleaseSafe --summary all`
+build passes **6/6 steps**. Its first attempt exposed the PostgreSQL completion
+encoder's exhaustive switch; workload kinds now explicitly refuse in that wire
+profile until admission is implemented. An initial result-test compilation used
+`content` instead of the Stream handle's `source` field; the corrected test passes.
+Contract checks pass **19/19**, fast checks **60/60**, and documentation checks
+10,072 links across 710 files. Generators and binding resources use the same
+current definition; 158 package versions and dependency pins remain aligned.
+
+| Raw log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-operation-owner2.log` | `36010f879fa4dccfbcf8e379960b882f71f7cb1ff9575df5fb3bd48d28035ea8` |
+| `/var/tmp/transit-m6-workload-operation-results3.log` | `bf341e51c3b40fc2d26a075913d581656da49a9ce5fdf220d25ade3c33121006` |
+| `/var/tmp/transit-m6-workload-operation-protocol2.log` | `a648183c7a5aec05b3e6eb5e1706d706b92d80278223cca008742ebf18ebb1e3` |
+| `/var/tmp/transit-m6-workload-operation-client3.log` | `5995aea0a13d25475ae61c34138e8ce4f796bf66b4e1e869dc2db76fee8f49e4` |
+| `/var/tmp/transit-m6-workload-operation-gateway2.log` | `dbdd98259b3f5af6201bb9942a1a5cc3842935692f428c4f4af8fee0e6284c01` |
+| `/var/tmp/transit-m6-workload-operation-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-operation-fast1.log` | `83c5cf94f7471f941afc9a94eec20e2d87986b89aae56d9120556aa0cc3ff850` |
+
+Checks ran against the candidate content committed above. They do not constitute
+the committed-source installed recovery, provider, resource or performance gates.
+Those remain required before milestone completion.
+
 ## Frozen workload row evaluation and reader — 2026-11-01
 
 Commit `3f12140d9` adds Fuze's fixed-array row projector and the SQL package's
