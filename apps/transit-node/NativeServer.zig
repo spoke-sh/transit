@@ -303,6 +303,7 @@ pub fn Host(comptime Provider: type) type {
                 self.read_only = !parsed.value.transport().mutation;
                 self.uncertain_mutation = !self.read_only;
                 self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
+                defer if (!self.read_only) self.context.database_changes.notify(self.io);
                 self.observation.realm = parsed.value.connection.scope.realm;
                 self.observation.operation = parsed.value.transport().operation;
                 self.beginWork();
@@ -427,6 +428,7 @@ pub fn Host(comptime Provider: type) type {
                     const parsed = std.json.parseFromSlice(g.CommandEnvelope, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                     defer parsed.deinit();
                     g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    defer if (databasePolicyChanged(parsed.value.request.command)) self.context.database_changes.notify(self.io);
                     self.beginWork();
                     self.observation.protocol_outcome = .uncertain;
                     const position = self.submitCommand(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
@@ -481,6 +483,7 @@ pub fn Host(comptime Provider: type) type {
             diagnostics: *telemetry.Runtime,
             mutex: std.Io.Mutex = .init,
             changed: Notifications = .{},
+            database_changes: wire.LocalEndpoint.Changes = .{},
             lanes: []Lane,
             snapshots: core.SnapshotLeases,
             position: u64,
@@ -492,7 +495,7 @@ pub fn Host(comptime Provider: type) type {
             table_memory: DirectRequestMemory = .{},
 
             pub fn endpoint(self: *Context) wire.LocalEndpoint {
-                return .{ .context = self, .invoke = invokeLocal };
+                return .{ .context = self, .invoke = invokeLocal, .changes = &self.database_changes };
             }
             fn invokeLocal(raw: *anyopaque, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const self: *Context = @ptrCast(@alignCast(raw));
@@ -554,6 +557,7 @@ pub fn Host(comptime Provider: type) type {
                     if (comptime @hasDecl(Provider, "TableHost")) {
                         const owner = lane.table orelse return error.LocalRouteMissing;
                         const request = try invocation.requestPtr(Provider.TableHost.Protocol.Request);
+                        defer if (request.transport().mutation) self.database_changes.notify(io);
                         var budget = self.table_memory.request(self.server.allocator, control);
                         defer std.debug.assert(budget.used == 0);
                         var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
@@ -596,6 +600,7 @@ pub fn Host(comptime Provider: type) type {
                 const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.requestPtr(g.CommandEnvelope) else null;
                 const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
                 g.validate(request.request) catch return error.InvalidLocalRequest;
+                defer if (databasePolicyChanged(request.request.command)) self.database_changes.notify(io);
                 const position = try server.submitCommand(request, if (envelope) |value| if (value.blocks) |*blocks| blocks else null else null);
                 self.mutex.lockUncancelable(io);
                 defer self.mutex.unlock(io);
@@ -779,5 +784,12 @@ pub fn Host(comptime Provider: type) type {
                 };
             }
         };
+    };
+}
+
+fn databasePolicyChanged(command: g.Command) bool {
+    return switch (command) {
+        .authorization, .grant, .revoke, .create_principal, .grant_resource, .retire_resource, .expire_resource, .reclaim_resource, .rotate_worker => true,
+        else => false,
     };
 }
