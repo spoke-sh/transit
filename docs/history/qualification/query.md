@@ -9,6 +9,36 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Frozen workload row evaluation and reader — 2026-11-01
+
+Commit `3f12140d9` adds Fuze's fixed-array row projector and the SQL package's
+[original workload reader](../../../packages/zig/transit-sql/README.md).
+ReleaseSafe package tests pass **12/12** for SQL. The focused Fuze command
+`zig build test -Dtest-filter='workload projection' -Doptimize=ReleaseSafe
+--summary all` executes **23/23** passing tests; another test target is cached.
+Fast checks pass **60/60** and documentation checks pass 10,071 local links.
+
+The SQL test uses a signed native client and an emulated typed local peer. Three
+original Stream rows produce two collated projection rows while terminal native
+coverage remains three. It loses a page response, retries the unchanged position,
+checks copied text after scratch reuse, denies terminal disclosure, and verifies
+that closing sends no settlement. An initial run failed `InvalidStreamResponse`:
+the emulated page omitted the native row header from its encoded-byte count.
+Correcting that fixture preserved the production validator and passed the rerun.
+
+Raw log `/var/tmp/transit-m6-workload-reader2.log` has SHA-256
+`0b7987bda33f6bf31836c91da76e5c05a7366929d62a86b11c1cfbd68e7b0c47`.
+
+Raw log `/var/tmp/transit-m6-workload-projector1.log` has SHA-256
+`afb438243f74dc781a9dbe5b76fe7c8afdf5b8e25b5a599e96a9319c01103f14`.
+
+Raw log `/var/tmp/transit-m6-workload-reader-fast1.log` has SHA-256
+`a8fe0feb7984f7d1a9cd7aef9735dc2e3ac8932145fa3152f51b273ac4890ee8`.
+
+This is component evidence, not installed authority, disk recovery or latency
+qualification. Session result opening and workload SQL remain unconnected at
+this revision.
+
 ## Original workload completion evidence in SQL result codecs — 2026-11-01
 
 Commit `f2b13f29bdfc9391f9c4913b2b4b7d8572197713` moves native selection/position
