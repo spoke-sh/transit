@@ -9,6 +9,71 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original workload result delivery over the signed service — 2026-11-01
+
+Commit `41e517fa2dd60b993fab0f7f5517496f18c80aaa` exposes the existing original-result
+owner through signed `workload_result.open` and `workload_result.page` actions.
+The coordinated current-v1 definition is
+`fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3`.
+The [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
+owns current semantics and limits. Independent Python/OpenSSL vectors cover open
+and saved-position requests for both native selection kinds; Zig verifies their
+signatures and rejects changed connections, limits, positions and account scopes.
+
+Candidate catalog checks, selected by `-Dtest-filter='workload result'` and
+`-Dtest-filter='workload token settlement'`, pass **6/6** in ReleaseSafe. They
+include the prior disk, allocation-failure and post-buffer revocation schedules
+plus signed request and result validation. Contract checks pass **19/19** and fast
+checks **60/60**. The HTTP probe's four controls also pass after adding bounded
+result-action labels. Two initial caller builds failed on the append-kind enum
+conversion and decoded-row accessor; both were corrected before the complete
+runtime build passed. These failed builds are not runtime proof.
+
+A clean detached checkout at `/var/tmp/transit-m6-workload-results` runs:
+
+```sh
+nix develop --option eval-cache false -c zig build transit-node direct-table-proof \
+  test-local-catalog -Dlocal-catalog-filter='shared refusals' \
+  -Doptimize=ReleaseSafe --summary all
+nix develop --option eval-cache false -c python3 -B tests/runner/launch.py \
+  tests/storage/tables/direct_table_service.py zig-out/bin/transit-node \
+  zig-out/bin/transit-direct-table-proof workload-result
+```
+
+The build passes **13/13 steps and 2/2 selected host tests**. The installed
+physical-disk profile passes **595 requests**, with three withheld responses
+(original claim, result open and result page) and two SIGKILL/restart boundaries.
+Each partition has a 257-frame prefix, exceeding one native recovery step.
+Pending result probes retain verified replay progress and reach the original
+receipt on a subsequent bounded request.
+
+Six token-bound saved workloads cover Stream append/consume, Queue enqueue/claim
+and empty Stream/Queue selections accepted before the later payloads. The caller
+checks independent values 10/20/30 across two-row pages, saves the second-page
+positions, and resumes those exact positions after replacement. Original empty
+selections remain empty; final empty pages retain complete coverage. The original
+one-second Queue leases are reported expired after the configured ten-second
+clock uncertainty has elapsed. Refetch does not renew or repeat the claim.
+Token settlement then verifies the same native outcomes. The saved bindings and
+positions remain byte-identical across phases; normal driver cleanup removes the
+successful private installation. Failed installations would be retained.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Clean `transit-node` | `1bd56c984974ce063769001fdd20a7fde693cc3459135bbe47e1799af03c9446` |
+| Clean `transit-direct-table-proof` | `13f405b969643980c48bfb59ad99602a0f60523aa2448e2adcc74701630ca841` |
+| Original saved bindings | `ff0410979be01965afd117e540197eb2e89fe4398f2e47a2b00daa791fda9283` |
+| Saved delivery positions | `bd45871ee73b65ac2c9234817ada8dcbbd60670b937684d3a2c14002b9cde5e5` |
+| `/var/tmp/transit-m6-workload-result-wire-owner1.log` | `d5ac3ed5f2ecbeb1e2575779a2ce9a290d725d8b4300f83c4f2b60cffd3b5c6c` |
+| `/var/tmp/transit-m6-workload-result-wire-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-result-wire-fast1.log` | `c2ad91a656aece86b1c280ed7844fa3ba4e45fb1c3cc42cf131061ee18cbdb2b` |
+| `/var/tmp/transit-m6-workload-result-clean-build1.log` | `6358c80fb83d1eeb0eb06b60fc7a07e44cd44c0069d03d37b287389b72f40c44` |
+| `/var/tmp/transit-m6-workload-result-installed1.log` | `dec43309cfaffa8a985449b35d68db25e58969451aae7c1f4dea19b4d404402a` |
+
+This qualifies native result delivery and replacement recovery on local disk.
+It does not qualify SQL projection freezing, SQL result recovery, workload SQL,
+provider recovery, performance budgets or the complete common-revision M6 gate.
+
 ## Original workload result owner and consumption handoff — 2026-11-01
 
 `5f939724449af97f2d21e76724233f79c9bf6e1e` adds the in-process
