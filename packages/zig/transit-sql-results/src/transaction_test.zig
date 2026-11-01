@@ -8,7 +8,7 @@ const identity: x.Identity = .{ .begin = .{ .scope = scope, .principal = 4, .ope
 const handle: x.Handle = .{ .definition = p.Growth.current_definition, .identity = identity, .account = @splat(1), .token = @splat(2), .audience = 6, .role = null };
 const directory: x.Directory = .{ .content = .{ .sha256 = @splat(7), .bytes = 128 }, .count = 1 };
 const cut: x.Cut = .{
-    .begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = .serializable, .selection = .authorized_catalog_tables, .tables = directory, .catalog = .{ .partition = 8, .next_lsn = 9 }, .limits = .{ .resident_bytes = 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 3 } },
+    .begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = .serializable, .selection = .authorized_catalog_tables, .objects = directory, .catalog = .{ .partition = 8, .next_lsn = 9 }, .limits = .{ .resident_bytes = 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 3 } },
     .sources = directory,
     .acquired = .{ .partition = 8, .next_lsn = 10 },
 };
