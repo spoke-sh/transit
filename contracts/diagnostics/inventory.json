@@ -18181,6 +18181,43 @@
         "transit_bitmap"
       ]
     },
+    "packages/zig/transit-fuze/src/WorkloadProjection.zig": {
+      "errors": {
+        "DuplicateColumn": 1,
+        "InvalidWorkloadProjection": 3,
+        "WorkloadProjectionSourceChanged": 2,
+        "WorkloadProjectionUnavailable": 3
+      },
+      "outcomes": {
+        "Field": [
+          "column",
+          "partition",
+          "offset",
+          "lease_epoch",
+          "attempt"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Source.validate()": "<inferred>",
+        "basis()": "<inferred>",
+        "compile()": "<inferred>",
+        "encode()": "<inferred>",
+        "layout()": "<inferred>",
+        "requireProjection()": "<inferred>",
+        "restore()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/execute.zig": {
       "errors": {},
       "outcomes": {},
@@ -18349,6 +18386,7 @@
         "VectorMetric.zig",
         "VectorUdf.zig",
         "VectorizedSearch.zig",
+        "WorkloadProjection.zig",
         "execute.zig",
         "model.zig",
         "std",

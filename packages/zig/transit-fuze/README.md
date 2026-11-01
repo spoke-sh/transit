@@ -47,6 +47,19 @@ These are transient implementation details; canonical values and saved plans
 retain their existing definitions. `GermanString` is a separate normalized
 comparison-key helper and is not a lossless projection representation.
 
+`WorkloadProjection` prepares finite row projections for original Stream/Queue
+results. Stable column IDs and explicit partition/offset or claim epoch/attempt
+fields form a bounded input layout. Its source basis binds the original native
+operation, exact schema and layout; canonical FQP1 plans retain aliases,
+predicates and collations and restore without SQL text or name resolution.
+Restored plans own their schema, names and literals. Only finite Stream
+consumption permits a projection predicate: claim filtering must happen before
+lease acquisition, and RETURNING describes every accepted append row. Limits
+and aggregates belong to other owners and are refused by this projection.
+The caller supplies verified frozen metadata and separately owns admission,
+selection, authority and completion. This preparation module is not yet wired
+into SQL workload admission or result recovery.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies
