@@ -23,6 +23,51 @@ fn entry(object: u64, kind: H.Kind) !H.Entry {
     };
 }
 
+// Measure the directory/index allocator and real object-store reads separately
+// from source-pin acquisition. Cold means an empty directory cache, not a cold
+// OS page cache. The same immutable root supplies the full-traversal control.
+fn measureReads(objects: *s.LocalSegmentStore.LocalSegmentStore, selected: H.Reference) !void {
+    var probe: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var history = try H.init(probe.allocator(), objects.objectStore(), owner, 1, .selection, 1000, 8, 1024 * 1024);
+    defer history.deinit();
+    try history.restore(selected);
+    @memset(history.index.cache, null);
+    probe.begin(true);
+    const expected = try entry(1, .selection);
+    const start = objects.range_reads;
+    const start_bytes = objects.bytes_read;
+    try t.expectEqualDeep(expected, (try history.lookup(1, expected.properties.name)).?);
+    const cold = objects.range_reads - start;
+    const cold_bytes = objects.bytes_read - start_bytes;
+    const warm_start = objects.range_reads;
+    const warm_start_bytes = objects.bytes_read;
+    try t.expectEqualDeep(expected, (try history.lookup(1, expected.properties.name)).?);
+    const warm = objects.range_reads - warm_start;
+    const warm_bytes = objects.bytes_read - warm_start_bytes;
+    @memset(history.index.cache, null);
+    const scan_start = objects.range_reads;
+    const scan_start_bytes = objects.bytes_read;
+    var after: ?H.Cursor = null;
+    var count: u64 = 0;
+    var pages: usize = 0;
+    while (true) {
+        const page = try history.page(after);
+        pages += 1;
+        for (page.entries) |slot| if (slot) |value| {
+            count += 1;
+            try t.expectEqualDeep(try entry(count, .selection), value);
+        };
+        after = page.next;
+        if (after == null) break;
+    }
+    const scan = objects.range_reads - scan_start;
+    try t.expectEqual(selected.count, count);
+    try t.expect(cold > 0 and warm <= cold and cold <= scan);
+    try probe.verify();
+    try t.expectEqual(8, history.index.cache.len);
+    std.debug.print("historical directory: objects={d} cache_pages=8 retained_index_bytes={d} backing_allocations={d} cold_lookup_ranges={d} cold_lookup_bytes={d} warm_lookup_ranges={d} warm_lookup_bytes={d} scan_pages={d} scan_ranges={d} scan_bytes={d}\n", .{ count, probe.live_bytes, probe.counts.alloc_attempts, cold, cold_bytes, warm, warm_bytes, pages, scan, objects.bytes_read - scan_start_bytes });
+}
+
 test "historical directory freezes names namespaces and selected cuts beyond its disk cache" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -47,6 +92,8 @@ test "historical directory freezes names namespaces and selected cuts beyond its
         changed.source.accepted.next_lsn += 1;
         try t.expectError(error.HistoricalIdentityConflict, history.put(changed));
         try t.expectEqualDeep(full, try history.commitment());
+        try measureReads(&objects, first);
+        try measureReads(&objects, full);
     }
     var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
     defer objects.deinit();

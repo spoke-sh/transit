@@ -29,15 +29,39 @@ def selector(snapshot):
             + struct.pack('<QBQQ', snapshot['source_count'], 1 if single else 2, position['partition'], position['next_lsn']) + bytes(104)).hex()
 
 
-def raw(client, sql):
+def raw(client, sql, *, measurement=None):
+    started = time.monotonic()
     batch = client.execute(sql)['batch']
+    first_batch = time.monotonic() - started
     collected = list(batch['rows'])
     observation = batch['observation']
+    batches = 1
     while not batch['complete']:
         batch = client.call(dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch']+1)))['batch']
         collected.extend(batch['rows'])
+        batches += 1
+    completed = time.monotonic() - started
     client.call(dict(close_result=batch['cursor']))
+    if measurement is not None:
+        measurement.update(first_batch_seconds=first_batch, complete_seconds=completed,
+                           including_close_seconds=time.monotonic()-started,
+                           batches=batches, rows=len(collected))
     return collected, observation
+
+
+def sample_read(client, sql, faults, label, expected):
+    # Timings are observations, never runtime deadlines or acceptance criteria.
+    # These counters describe the gateway's authority hop, not device/WAL I/O.
+    with faults.lock:
+        before = faults.requests, faults.response_bytes
+    sample = dict(profile='historical_read_work', sample=label)
+    observed, basis = raw(client, sql, measurement=sample)
+    assert observed == expected, (label, observed)
+    with faults.lock:
+        sample.update(gateway_requests=faults.requests-before[0],
+                      gateway_response_bytes=faults.response_bytes-before[1])
+    print(json.dumps(sample), flush=True)
+    return basis
 
 
 def companion_expressions(root, port, postgres, mysql_options, restart, catalog):
@@ -210,6 +234,11 @@ def historical_views(root, port, postgres, mysql_options, restart, catalog, faul
     query = 'SELECT original_amount FROM retained_view' + suffix
     assert catalog('definition-budget', retained['selector'],
                    'SELECT original_amount FROM retained_view') == dict(refused=8, opened=10)
+    encoded = [['03'+struct.pack('<q', amount).hex()] for amount in (20, 30)]
+    sample_read(client, 'SELECT amount FROM view_source WHERE id > 1 AND id < 4',
+                faults, 'current_full_scan_83_rows', encoded)
+    sampled_basis = sample_read(client, query, faults, 'retained_view_first_query_83_rows', encoded)
+    assert sample_read(client, query, faults, 'retained_view_repeated_query_83_rows', encoded) == sampled_basis
     expected, basis = rows(client, query)
     assert expected == [[20], [30]], expected
     assert rows(client, 'SELECT original_amount FROM retained_view WHERE original_amount > 1000' + suffix)[0] == []
@@ -256,6 +285,7 @@ def historical_views(root, port, postgres, mysql_options, restart, catalog, faul
     client.close()
     restart()
     client = Client(root, port).open()
+    assert sample_read(client, query, faults, 'retained_view_gateway_restart_83_rows', encoded) == basis
     assert rows(client, query) == (expected, basis)
     assert rows(client, 'SELECT original_amount FROM retained_view')[0] == [[999]]
     assert catalog('definition-inspect', retained['selector'], 'retained_view') == dict(historical=inspection)
