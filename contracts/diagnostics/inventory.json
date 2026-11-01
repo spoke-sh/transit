@@ -8039,7 +8039,7 @@
         "ClientOperationPending": 5,
         "InvalidWorkloadResultBudget": 3,
         "WorkloadResultClosed": 2,
-        "WorkloadResultConflict": 6,
+        "WorkloadResultConflict": 4,
         "WorkloadResultGroupRequired": 1,
         "WorkloadResultIncomplete": 1,
         "WorkloadResultRowTooLarge": 1,
@@ -8047,16 +8047,6 @@
       },
       "outcomes": {
         "Page": [
-          "append",
-          "consume",
-          "claim"
-        ],
-        "Position": [
-          "append",
-          "consume",
-          "claim"
-        ],
-        "Selection": [
           "append",
           "consume",
           "claim"
@@ -8072,10 +8062,8 @@
         "Limits.validate()": "<inferred>",
         "Native.queue()": "anyerror",
         "Native.stream()": "anyerror",
-        "Position.validate()": "<inferred>",
         "Reference.requireSame()": "<inferred>",
         "Reference.validate()": "<inferred>",
-        "Selection.binding()": "<inferred>",
         "authorize()": "<inferred>",
         "checkDisclosure()": "<inferred>",
         "next()": "<inferred>",
@@ -8087,7 +8075,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 54,
+        "try": 47,
         "catch": 0
       },
       "imports": [
@@ -8121,7 +8109,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -20711,7 +20699,7 @@
           "deadline"
         ],
         "Definition": [
-          "c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca"
+          "fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98"
         ],
         "Effect.phase": [
           "pending",
@@ -21067,6 +21055,39 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/LogWorkloadResult.zig": {
+      "errors": {
+        "WorkloadResultConflict": 2
+      },
+      "outcomes": {
+        "Position": [
+          "append",
+          "consume",
+          "claim"
+        ],
+        "Selection": [
+          "append",
+          "consume",
+          "claim"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Position.complete()": "<inferred>",
+        "Position.validate()": "<inferred>",
+        "Selection.binding()": "<inferred>",
+        "Selection.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -21978,6 +21999,7 @@
         "Json.zig",
         "Lifecycle.zig",
         "LogWorkload.zig",
+        "LogWorkloadResult.zig",
         "NativePayload.zig",
         "QueueRead.zig",
         "Runtime.zig",
@@ -28306,7 +28328,7 @@
     "packages/zig/transit-sql-protocol/src/ResultFrame.zig": {
       "errors": {
         "IncompatibleSqlDefinition": 1,
-        "InvalidResultFrame": 14,
+        "InvalidResultFrame": 16,
         "ResultBufferTooSmall": 1,
         "ResultDirectoryTooSmall": 1,
         "SqlMessageTooLarge": 1
@@ -28327,7 +28349,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 32,
         "catch": 0
       },
       "imports": [
@@ -28788,7 +28810,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -28870,6 +28892,7 @@
       },
       "outcomes": {
         "Data": [
+          "workload",
           "source",
           "table",
           "independent_table_snapshots",
@@ -28946,7 +28969,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 3,
         "catch": 1
       },
       "imports": [
@@ -28983,7 +29006,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 3
       },
       "imports": [
@@ -29061,11 +29084,37 @@
         "transit_memory"
       ]
     },
+    "packages/zig/transit-sql-results/src/Workload.zig": {
+      "errors": {
+        "IncompleteWorkloadCoverage": 1,
+        "InvalidWorkloadObservation": 1,
+        "InvalidWorkloadResultCount": 3,
+        "WorkloadResultConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Completion.validate()": "<inferred>",
+        "Completion.validateShape()": "<inferred>",
+        "Observation.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-results/src/root.zig": {
       "errors": {
         "InvalidCommandCompletion": 11,
         "InvalidCommandCounts": 2,
-        "InvalidResultRow": 1
+        "InvalidResultRow": 1,
+        "MissingWorkloadCoverage": 1,
+        "UnexpectedWorkloadCoverage": 1
       },
       "outcomes": {
         "Command": [
@@ -29132,12 +29181,14 @@
       "error_sets": {},
       "error_returns": {
         "CommandCompletion.validate()": "<inferred>",
+        "Completion.validate()": "<inferred>",
+        "Completion.validateShape()": "<inferred>",
         "Counts.validate()": "<inferred>",
         "copyRow()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
+        "try": 8,
         "catch": 0
       },
       "imports": [
@@ -29148,6 +29199,7 @@
         "ResultSet.zig",
         "Transaction.zig",
         "Window.zig",
+        "Workload.zig",
         "std",
         "transit_fuze",
         "transit_protocol"

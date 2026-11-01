@@ -93,6 +93,32 @@ A lost initial execute response is not equivalent to a lost fetch response.
 Durable operation observation preserves the original account/instance/token.
 Captured result reopening is explicit and begins a new consumption.
 
+### Original workload evidence
+
+The shared model also represents an original Stream/Queue workload through
+`Observation.data.workload`: the canonical saved intent content, frozen source
+schema and projection commitments, and the native append, consume or claim
+receipt. Selection and delivery-position types are shared with the native result
+owner. A descriptor establishes neither current rights nor continued retention.
+
+A workload result's terminal includes the same intent content and a complete
+position in that original selection. Append and claim output counts equal their
+complete original row counts; their projections cannot hide accepted rows or
+leases. Stream output count may be smaller than authenticated traversal coverage
+because of filtering. Coverage retains the original range, cut, group and cursor
+authentication; a numeric output count cannot substitute for it or authorize an
+offset commit. The native owner must still authenticate any later settlement.
+
+Missing coverage, a different intent or selection, a partial position or an
+invalid output count rejects before semantic progress advances. Ordinary results
+reject unsolicited workload completion evidence. Closing an incomplete result
+does not manufacture coverage; closing after verified completion preserves that
+evidence without claiming all rows were delivered. Neither transition ACKs,
+renews, releases the native read dependency or advances a consumer group.
+
+These are shared model and codec contracts. SQL workload admission, projection
+execution and service reopening are not yet connected to these shapes.
+
 ## Ownership and consumers
 
 Consumers read a schema, typed rows and a terminal outcome through the shared

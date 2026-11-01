@@ -29,7 +29,10 @@ pub const Request = union(enum) {
                 if (value.limits.rows > intent.source.declaration.limits.read_rows or
                     value.limits.encoded_bytes > intent.source.declaration.limits.read_bytes) return error.InvalidWorkloadResultBudget;
             },
-            .page => |value| try value.position.validate(value.reference),
+            .page => |value| {
+                try value.reference.validate();
+                try value.position.validate(value.reference.selection);
+            },
         }
     }
 };
@@ -96,7 +99,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
             try value.intent.requireSame(opened.reference.intent);
             if (!std.meta.eql(value.limits, opened.reference.limits)) return error.InvalidWorkloadResultResponse;
             try requireSource(allocator, connection, opened.reference, opened.source);
-            try opened.position.validate(opened.reference);
+            try opened.position.validate(opened.reference.selection);
             switch (opened.position) {
                 .append => |ordinal| if (ordinal != 0) return error.InvalidWorkloadResultResponse,
                 .consume => |cursor| if (cursor.coverage.rows != 0 or cursor.coverage.through != cursor.coverage.from) return error.InvalidWorkloadResultResponse,
@@ -107,7 +110,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
             if (response != .page) return error.InvalidWorkloadResultResponse;
             const page = response.page;
             try value.reference.requireSame(page.reference);
-            try page.position.validate(page.reference);
+            try page.position.validate(page.reference.selection);
             if (!std.mem.eql(u8, @tagName(page.page), @tagName(page.position))) return error.InvalidWorkloadResultResponse;
             const source = switch (page.page) {
                 inline else => |body| body.source,

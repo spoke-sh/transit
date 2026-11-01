@@ -20,25 +20,7 @@ pub const Limits = struct {
     }
 };
 
-pub const Selection = union(enum) {
-    append: p.StreamQueue.AppendReceipt,
-    consume: p.StreamRead.Receipt,
-    claim: p.StreamQueue.ClaimReceipt,
-
-    fn binding(self: Selection, scratch: std.mem.Allocator) !p.LogWorkload.Binding {
-        switch (self) {
-            inline else => |value| try value.validate(),
-        }
-        return switch (self) {
-            .append => |value| if (value.append.kind == .stream)
-                .{ .stream = try (p.LogWorkload.StreamRequest{ .append = value.append }).binding(scratch) }
-            else
-                .{ .queue = try (p.LogWorkload.QueueRequest{ .enqueue = value.append }).binding(scratch) },
-            .consume => |value| .{ .stream = try (p.LogWorkload.StreamRequest{ .consume = value.request }).binding(scratch) },
-            .claim => |value| .{ .queue = try (p.LogWorkload.QueueRequest{ .claim = value.claim }).binding(scratch) },
-        };
-    }
-};
+pub const Selection = p.LogWorkloadResult.Selection;
 
 /// Full frozen schema and operation come from intent; selection binds the
 /// owner's actual accepted offsets/read basis/claim, not a requested row count.
@@ -100,20 +82,7 @@ pub const Page = union(enum) {
 /// Delivery position, separate from operation completion. Only the native
 /// Stream owner can authenticate a supplied coverage cursor; shape validation
 /// here cannot turn a caller-supplied position into settlement authority.
-pub const Position = union(enum) {
-    append: u32,
-    consume: p.StreamRead.Cursor,
-    claim: p.QueueRead.Cursor,
-    pub fn validate(self: Position, reference: Reference) !void {
-        try reference.validate();
-        if (!std.mem.eql(u8, @tagName(self), @tagName(reference.selection))) return error.WorkloadResultConflict;
-        switch (self) {
-            .append => |ordinal| if (ordinal > reference.selection.append.append.rows) return error.WorkloadResultConflict,
-            .consume => |cursor| try cursor.requireReceipt(reference.selection.consume),
-            .claim => |cursor| try cursor.requireReceipt(reference.selection.claim),
-        }
-    }
-};
+pub const Position = p.LogWorkloadResult.Position;
 
 allocator: std.mem.Allocator,
 intent: Intent,
@@ -184,7 +153,8 @@ pub fn position(self: *const Self) Position {
 /// the frozen 4-MiB workload; it never trusts an external byte offset. Native
 /// pages still verify pin/selection retention and authenticated Stream coverage.
 pub fn seek(self: *Self, at: Position) !void {
-    try at.validate(self.reference);
+    try self.reference.validate();
+    try at.validate(self.reference.selection);
     switch (at) {
         .append => |ordinal| {
             var iterator = self.cursor.append;

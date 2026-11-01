@@ -25,6 +25,7 @@ pub fn deliver(self: *Self, rows: u64) !void {
 }
 pub fn finish(self: *Self, identity: r.Identity, terminal: r.Completion) !void {
     try self.same(identity);
+    try terminal.validateShape();
     if (self.released or self.consumption != .reading or self.outcome != .open) return error.InvalidResultTransition;
     if (terminal.rows != self.received) return error.InvalidResultCount;
     self.outcome = .{ .complete = terminal };

@@ -11,6 +11,7 @@ pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Observation = @import("Observation.zig");
+pub const Workload = @import("Workload.zig");
 pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, create_stream, alter_stream, drop_stream, create_queue, alter_queue, drop_queue, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint, create_dataflow, control_dataflow };
 pub const Outcome = enum { provisional, applied, unchanged, rejected, cancelled, partial };
 pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow } = .table };
@@ -60,7 +61,20 @@ pub const CommandCompletion = struct {
     }
 };
 /// Only a verified terminal outcome supplies this count. It is not a scan count.
-pub const Completion = struct { rows: u64 };
+pub const Completion = struct {
+    rows: u64,
+    workload: ?Workload.Completion = null,
+    pub fn validateShape(self: Completion) !void {
+        if (self.workload) |value| try value.validateShape();
+    }
+    pub fn validate(self: Completion, observation: Observation.Value) !void {
+        try self.validateShape();
+        if (observation == .data and observation.data == .workload) {
+            const value = self.workload orelse return error.MissingWorkloadCoverage;
+            try value.validate(observation.data.workload, self.rows);
+        } else if (self.workload != null) return error.UnexpectedWorkloadCoverage;
+    }
+};
 /// Immutable attribution checked by the deterministic progress owner. Hashes
 /// identify content; they do not grant authorization or retain a source pin.
 pub const Identity = struct { result: [32]u8, schema: [32]u8, observation: [32]u8 };

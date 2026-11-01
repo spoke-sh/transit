@@ -1,6 +1,7 @@
 """Independent logical SQL carriage fixtures and reflected description drift check."""
 from runner.paths import ROOT
 import argparse
+import copy
 import json
 from pathlib import Path
 import sys
@@ -36,6 +37,34 @@ else:
     binary_path = path.with_name('result-frame.hex')
     if args.write: binary_path.write_text(binary.hex() + '\n')
     else: assert binary_path.read_text() == binary.hex() + '\n', 'binary result fixture drift'
+    native = json.loads((ROOT / 'packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json').read_text())
+    assert native['read']['request']['target']['definition'] == current
+    intent = dict(bytes=4096, sha256=[71]*32)
+    claim_position = copy.deepcopy(native['queue_cursor'])
+    claim_position['next'] = native['claim']['rows']
+    for kind, receipt, position, count in (
+        ('append', native['append'], native['append']['append']['rows'], 4),
+        ('consume', native['read'], native['read_cursor'], 1),
+        ('claim', native['claim'], claim_position, 2),
+    ):
+        projected = dict(data=dict(workload=dict(intent=intent, schema=[73]*32,
+            projection=[79]*32, selection={kind:receipt})))
+        terminal = dict(rows=count, workload=dict(intent=copy.deepcopy(intent), position={kind:position}))
+        selected = dict(cursor=[8]*32, batch=0, schema=value['schema'], observation=projected,
+            rows=[value['cells']]*count, complete=True, completion=terminal)
+        frame = encode_fixture(current, [2]*16, selected)
+        assert Decoder().response(frame, CONTENT_TYPE, current)['result']['batch'] == selected
+        fixture_path = path.with_name('workload-' + kind + '-frame.hex')
+        if args.write: fixture_path.write_text(frame.hex() + '\n')
+        else: assert fixture_path.read_text() == frame.hex() + '\n', 'workload result fixture drift'
+        for change in ('missing', 'foreign_body', 'count'):
+            invalid = copy.deepcopy(selected)
+            if change == 'missing': del invalid['completion']['workload']
+            elif change == 'foreign_body': invalid['completion']['workload']['intent']['sha256'][0] ^= 1
+            else: invalid['completion']['rows'] = count + 10
+            try: Decoder().response(encode_fixture(current, [2]*16, invalid), CONTENT_TYPE, current)
+            except (AssertionError, ValueError, KeyError): pass
+            else: raise AssertionError(('workload oracle accepted mutant', kind, change))
 encoded = json.dumps(value, indent=2, ensure_ascii=False) + '\n'
 if args.write:
     path.write_text(encoded)

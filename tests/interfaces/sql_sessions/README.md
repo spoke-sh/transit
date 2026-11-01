@@ -92,6 +92,10 @@ padding and exact logical cells. Its hex cell observations are internal test
 values; it rejects JSON result payloads. The generated fixture is decoded by the
 Zig owner as well as the independent peer. Mutation controls check that damaged
 framing and commitments fail instead of establishing completion.
+Independent workload frames cover append rows, filtered Stream output with larger
+native coverage, and original Queue claims. Both peers reject missing coverage,
+foreign saved bodies and invalid counts; Zig also rejects partial positions.
+These codec checks do not establish installed workload SQL execution.
 `measurements.py` owns the native portion of the seeded console comparison in the
 [performance runner](../../performance/console/console_latency.py). Executed results
 and limitations remain in qualification history.

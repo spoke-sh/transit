@@ -224,7 +224,8 @@ little-endian; byte identities retain their exact bytes.
 | 172 | 4 | Schema byte length |
 | 176 | 4 | Observation byte length |
 | 180 | 4 | Column count |
-| 184 | 8 | Zero reserved bytes |
+| 184 | 4 | Workload completion JSON byte length, zero when absent |
+| 188 | 4 | Zero reserved bytes |
 
 Ordinal zero includes the schema immediately after the header, followed by
 canonical observation JSON. Subsequent ordinals set both lengths to zero and
@@ -233,6 +234,14 @@ those commitments before exposing rows. Schema is at most 16 KiB, observation at
 most 64 KiB. Observation JSON uses the shared type's declared field order and
 compact serialization. A descriptor commits meaning; it does not grant access
 or retain a source.
+
+When present, workload completion JSON follows the schema and observation bytes
+and precedes the column directory. It is bounded to 16 KiB and is permitted only
+on a terminal frame. It carries the shared result model's original intent and
+native delivery position; the terminal row count remains in the header. The
+reader checks it against the original workload observation before recording
+completion. Ordinary results have zero workload completion bytes. These shared
+codec shapes do not themselves enable workload SQL or service result reopening.
 
 The descriptors are followed by one eight-byte directory entry per column:
 absolute `u32` offset and `u32` byte length. Zero padding aligns the first column
