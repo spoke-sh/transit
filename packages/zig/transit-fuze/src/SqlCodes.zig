@@ -7,6 +7,9 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.IncompatibleDefinition, .code = "sql.incompatible_definition", .category = .conflict, .summary = "The retained descriptor belongs to another Transit definition", .hint = "Use the matching build to inspect original accepted work; do not reinterpret its receipt." },
+    .{ .cause = error.InvalidLogSettlementOperand, .code = "sql.invalid_log_settlement_operand", .category = .binding, .summary = "Queue settlement requires a complete non-NULL receipt", .hint = "Bind the binary receipt returned by CLAIM; an extension also requires a positive text duration." },
+    .{ .cause = error.InvalidQueueLeaseHandle, .code = "sql.invalid_queue_lease_handle", .category = .binding, .summary = "The Queue lease handle is malformed or belongs to a different target", .hint = "Use the exact original binary receipt with its named Queue and claimant." },
     .{ .cause = error.InvalidLogClaimOperand, .code = "sql.invalid_log_claim_operand", .category = .binding, .summary = "Claim metadata requires a non-NULL text operand", .hint = "Supply positive lease and optional wait durations as text." },
     .{ .cause = error.InvalidLogClaimMaximum, .code = "sql.invalid_log_claim_maximum", .category = .binding, .summary = "The acquisition maximum is outside its supported range", .hint = "Use a positive unsigned 32-bit LIMIT; the Queue's claim budget applies separately." },
     .{ .cause = error.InvalidLogClaimPredicate, .code = "sql.invalid_log_claim_predicate", .category = .binding, .summary = "A claim predicate depends on generated lease metadata", .hint = "Select work using application fields or partition/offset metadata before acquiring a lease." },

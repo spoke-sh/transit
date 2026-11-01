@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -155,6 +155,10 @@ logClaimStatement: logClaimCommand SEMI? EOF;
 logClaimCommand: CLAIM projection FROM identifier sourceAlias?
     workloadWhereClause? templateLimitClause? WITH LEASE workloadTextOperand
     (WAIT workloadTextOperand)?;
+logSettlementStatement: logSettlementCommand SEMI? EOF;
+logSettlementCommand: ACK ON QUEUE identifier RECEIPT workloadReceiptOperand
+    | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand;
+workloadReceiptOperand: X STRING | PARAMETER | NULL_;
 workloadTextOperand: STRING | PARAMETER | NULL_;
 workloadWhereClause: WHERE workloadDisjunction;
 workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
@@ -369,7 +373,7 @@ legacyIdentifier
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
-    | CONSUME | CLAIM | LEASE | WAIT
+    | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT
     ;
 
 DATAFLOW: 'DATAFLOW';
@@ -393,6 +397,9 @@ PRODUCE: 'PRODUCE';
 ENQUEUE: 'ENQUEUE';
 CONSUME: 'CONSUME';
 CLAIM: 'CLAIM';
+ACK: 'ACK';
+EXTEND: 'EXTEND';
+RECEIPT: 'RECEIPT';
 LEASE: 'LEASE';
 WAIT: 'WAIT';
 PRODUCER: 'PRODUCER';

@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "scope": "Pure receipt decoding and settlement preparation. No current authority, lease liveness or durable completion.",
+  "cases": [
+    {
+      "sql": "ACK ON QUEUE items RECEIPT X'{receipt}'",
+      "expected": {
+        "kind": "ack",
+        "name": "items",
+        "offset": 11,
+        "epoch": 12,
+        "original_expires_ms": 1000,
+        "expires_ms": null
+      }
+    },
+    {
+      "sql": "EXTEND LEASE ON QUEUE items RECEIPT X'{receipt}' BY '2s';",
+      "expected": {
+        "kind": "extend",
+        "name": "items",
+        "offset": 11,
+        "epoch": 12,
+        "original_expires_ms": 1000,
+        "expires_ms": 3000
+      }
+    },
+    {
+      "sql": "ACK ON QUEUE items RECEIPT X'00'",
+      "error": "InvalidQueueLeaseHandle"
+    },
+    {
+      "sql": "ACK ON QUEUE items RECEIPT NULL",
+      "error": "InvalidLogSettlementOperand"
+    },
+    {
+      "sql": "ACK ON QUEUE items RECEIPT X'{receipt}'",
+      "foreign_definition": true,
+      "error": "IncompatibleDefinition"
+    },
+    {
+      "sql": "ACK ON QUEUE items RECEIPT X'{receipt}'",
+      "epoch": 0,
+      "error": "InvalidQueueLeaseHandle"
+    },
+    {
+      "sql": "EXTEND LEASE ON QUEUE items RECEIPT X'{receipt}' BY '0s'",
+      "error": "InvalidLogLeaseDuration"
+    },
+    {
+      "sql": "EXTEND LEASE ON QUEUE items RECEIPT X'{receipt}' BY '1.5s'",
+      "error": "InvalidLogLeaseDuration"
+    },
+    {
+      "sql": "EXTEND LEASE ON QUEUE items RECEIPT X'{receipt}' BY '1ms'",
+      "expires_ms": 18446744073709551615,
+      "error": "InvalidLogLeaseDuration"
+    },
+    {
+      "sql": "EXTEND LEASE ON QUEUE items RECEIPT X'{receipt}' BY NULL",
+      "error": "InvalidLogSettlementOperand"
+    },
+    {
+      "sql": "ACK ON QUEUE items RECEIPT X'{receipt}' RETURNING *",
+      "syntax_error": true,
+      "error": "UnsupportedConstruct"
+    }
+  ]
+}

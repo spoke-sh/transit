@@ -96,11 +96,13 @@ profile](../../../contracts/sql/README.md) for exact boundaries.
 `LogClaimSql.Prepared` prepares Queue acquisition syntax using the shared
 `LogReadSql` text operands and row layout. Its predicate is an acquisition
 predicate, and LIMIT becomes a positive claim maximum, separate from output
-delivery. Generated lease epoch/attempt fields may be projected but cannot
+delivery. Generated lease epoch/attempt and binary receipt fields may be projected but cannot
 select work before acquisition. The bound plan and field layout own their
 memory independently of the template. This helper does not acquire a lease,
-bind a native selector or admit SQL; receipt handles and settlement still need
-their native contracts and adapters. Post-filtering an accepted claim is not
+bind a native selector or admit SQL. `LogSettlementSql.Prepared` owns typed
+ACK/extension operands and decodes an exact lease by value without a clock or
+current authority. Catalog binds ACK; extension execution still needs an updated
+receipt result. Post-filtering an accepted claim is not
 an implementation of this preparation contract.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range

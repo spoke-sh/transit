@@ -169,6 +169,7 @@ def check(binary):
     check_log_appends(binary)
     check_log_consumes(binary)
     check_log_claims(binary)
+    check_log_settlements(binary)
 
 
 def log_append_expected(case):
@@ -295,6 +296,39 @@ def check_log_claims(binary):
         expected = dict(err=case['error']) if 'error' in case else case['expected']
         assert response == expected, (case, expected, response)
     print(f'Log claim preparation: {len(cases)} independent grammar, predicate, acquisition budget, lease and projection cases. No admission, acquisition or settlement claim.')
+
+
+def check_log_settlements(binary):
+    corpus = json.loads((ROOT / 'contracts/sql/corpus/log-settlements.json').read_text())
+    definition = bytes.fromhex(json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'])
+    cases = []
+    for original in corpus['cases']:
+        case = dict(original)
+        # Independent QLH1 byte fixture; no production encoder is invoked.
+        header = bytes(32) if case.get('foreign_definition') else definition
+        receipt = (b'QLH1' + header + struct.pack('<6Q', 1, 2, 3, 1, 7, 4) + bytes([5])*32 +
+                   struct.pack('<I6Q', 2, 9, 10, 11, case.get('epoch', 12), 13, case.get('expires_ms', 1000)))
+        assert len(receipt) == 168
+        case['sql'] = case['sql'].replace('{receipt}', receipt.hex())
+        cases.append(case)
+    path = CACHE / 'log-settlement-cases.json'
+    path.write_text(json.dumps([dict(sql=c['sql'], basis='', settlement=True) for c in cases]))
+    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    (CACHE / 'log-settlement-results.jsonl').write_text(result.stdout)
+    actual = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(actual) == len(cases)
+    for index, (case, response) in enumerate(zip(cases, actual, strict=True)):
+        assert response.pop('index') == index
+        if case.get('syntax_error'):
+            try: tree(case['sql'], 'logSettlementStatement')
+            except ValueError: pass
+            else: raise AssertionError(('invalid settlement syntax accepted', case))
+        else:
+            tree(case['sql'], 'logSettlementStatement')
+            tree(case['sql'], 'statement')
+        expected = dict(err=case['error']) if 'error' in case else case['expected']
+        assert response == expected, (case, expected, response)
+    print(f'Log settlement preparation: {len(cases)} independent receipt, deadline and rejection cases. No settlement authority or completion claim.')
 
 
 if __name__=='__main__':

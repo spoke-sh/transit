@@ -291,7 +291,30 @@
     },
     {
       "sql": "CLAIM _receipt_handle FROM items WITH LEASE '1s'",
-      "error": "UnknownColumn"
+      "expected": {
+        "fields": [
+          {
+            "receipt_handle": {}
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 1000,
+        "wait_ms": null,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
     },
     {
       "sql": "CLAIM wrong.id FROM items WITH LEASE '1s'",
@@ -305,6 +328,10 @@
       "sql": "CLAIM id FROM items LIMIT -1 WITH LEASE '1s'",
       "error": "InvalidSqlSyntax",
       "syntax_error": true
+    },
+    {
+      "sql": "CLAIM id FROM items WHERE _receipt_handle IS NOT NULL WITH LEASE '1s'",
+      "error": "InvalidLogClaimPredicate"
     }
   ]
 }

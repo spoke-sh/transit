@@ -130,8 +130,12 @@ ordinary row-result completion. The count is returned rows, not offsets scanned.
 Partition-routed `CLAIM ... WITH LEASE` uses the same mutation admission and
 original-result lifetime. PostgreSQL emits `CLAIM n` after every originally
 acquired row is delivered. The acquisition maximum never becomes an output
-filter or limit; refetching does not renew or reacquire leases.
-Commands without RETURNING report the native receipt's accepted row count.
+filter or limit; refetching does not renew or reacquire leases. Binary
+`_receipt_handle` is carried as a normal binary column/parameter. ACK uses the
+shared original native settlement evidence, emits PostgreSQL's `ACK` tag and no
+relational count; MySQL carries zero affected rows without claiming that as a
+Queue message count.
+Append commands without RETURNING report the native receipt's accepted row count.
 PostgreSQL carries that count in the custom command tag. Upstream libpq's
 `PQcmdTuples` recognizes a fixed set of PostgreSQL tags and returns no count for
 `PRODUCE`, `ENQUEUE`, `CONSUME` or `CLAIM`; clients must inspect the command tag instead. MySQL

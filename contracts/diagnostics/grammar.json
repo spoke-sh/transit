@@ -75,7 +75,12 @@
     "log_claim": {
       "source": "packages/zig/transit-fuze/src/LogClaimSql.zig",
       "contract": "contracts/sql/README.md",
-      "behavior": "Pure Queue acquisition predicate/projection and lease/maximum preparation. No native acquisition, admitted SQL, receipt handles or settlement."
+      "behavior": "Pure Queue acquisition predicate/projection and lease/maximum preparation, including receipt output layout. No native acquisition or settlement."
+    },
+    "log_settlement": {
+      "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
+      "contract": "contracts/QUEUE_V1.md",
+      "behavior": "Pure receipt and lease-extension preparation; no current authority or native settlement."
     }
   },
   "cases": [
@@ -7278,9 +7283,7 @@
       "root": "logClaimStatement",
       "reference": true,
       "expected": {
-        "accepted": false,
-        "code": "sql.unknown_column",
-        "category": "binding"
+        "accepted": true
       }
     },
     {
@@ -7356,6 +7359,125 @@
       "profile": "log_claim",
       "grammar": "sql",
       "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-receipt-predicate",
+      "sql": "CLAIM id FROM items WHERE _receipt_handle IS NOT NULL WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ack-statement",
+      "sql": "ACK ON QUEUE jobs RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ack-root",
+      "sql": "ACK ON QUEUE jobs RECEIPT X'00';",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_queue_lease_handle",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ack-null",
+      "sql": "ACK ON QUEUE jobs RECEIPT NULL",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "extend-statement",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY '1s'",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "extend-root",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY $2;",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "extend-null",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY NULL",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "settlement-identifier-ack",
+      "sql": "ACK ON QUEUE ack RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settlement-identifier-extend",
+      "sql": "ACK ON QUEUE extend RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settlement-identifier-receipt",
+      "sql": "ACK ON QUEUE receipt RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
       "reference": true,
       "expected": {
         "accepted": true

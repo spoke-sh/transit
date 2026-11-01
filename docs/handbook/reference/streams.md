@@ -76,7 +76,9 @@ exhausted read or an interval between two issued cursors from that same read.
 Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
 for budgets, empty results and unavailable retained history. SQL supports
 [append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
-group consumption, waits and settlement retain their native interfaces.
+group consumption, waits, NACK and renewal retain their native interfaces.
+SQL ACK binds an original binary claim receipt through the shared native
+settlement owner.
 
 ## Cancelling original workload operations
 

@@ -149,9 +149,15 @@ Partition-routed `CLAIM` also requires a client token and retains its exact
 original lease selection. Its positive LIMIT is an acquisition maximum; result
 delivery has no filtering or limit. The frozen duration must satisfy the declared
 lease policy before admission; native time, FIFO and capacity checks remain.
-A multi-partition Queue requires one exact `_partition` equality. GROUP, WAIT,
-Queue payload predicates, settlement verbs and attached-transaction workloads
-remain outside the SQL execution profile.
+A multi-partition Queue requires one exact `_partition` equality. CLAIM may
+project the exact original binary `_receipt_handle`. `ACK ON QUEUE ... RECEIPT`
+requires a new client token, freezes that lease and completes as a command with
+verified native settlement evidence and no relational counts. Its current
+preparation metadata may follow a compatible declaration change while its lease
+retains the original interpretation. Data appends, consumption and acquisition
+still require their exact preparation interpretation. GROUP, WAIT, Queue payload
+predicates, NACK, EXTEND LEASE and attached-transaction workloads remain outside
+the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation

@@ -70,7 +70,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -10576,7 +10576,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -16765,7 +16765,7 @@
         "T222": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T223": {
@@ -20380,7 +20380,7 @@
         "T381": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T382": {
@@ -22093,7 +22093,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -24269,7 +24269,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -25285,7 +25285,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -27074,6 +27074,18 @@
                   "$ref": "#/$defs/SavedWorkloadIntent/$defs/T70"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "receipt_handle"
+              ],
+              "properties": {
+                "receipt_handle": {
+                  "$ref": "#/$defs/SavedWorkloadIntent/$defs/T70"
+                }
+              }
             }
           ]
         }
@@ -27121,7 +27133,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -27722,7 +27734,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T2": {
@@ -28216,7 +28228,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T7": {
@@ -34364,7 +34376,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7",
+            "definition": "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -34384,7 +34396,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T5": {
@@ -36391,7 +36403,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+                    "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
                   ]
                 },
                 "realm": {
@@ -38468,7 +38480,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+                                                        "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
                                                       ]
                                                     },
                                                     "realm": {
@@ -39802,7 +39814,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+                                                            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
                                                           ]
                                                         },
                                                         "realm": {
@@ -46012,7 +46024,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+            "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
           ]
         },
         "T3": {

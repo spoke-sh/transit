@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+`f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -117,6 +117,14 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+Frozen workload projections include binary Queue lease receipts. Queue ACK
+retains the original exact lease, while its preparation metadata can describe a
+later declaration of the same stable object. This control-only binding differs
+from the exact-interpretation rule for appends, consumption and acquisition.
+The current definition replaces both the stored projection-field vocabulary and
+saved control-request validation together; earlier saved bodies and receipts
+cannot acquire these semantics implicitly.
 
 Stream/Queue workload outcomes include partition-owned terminal closures with a
 mandatory original binding, recorded position and cancellation/refusal reason.

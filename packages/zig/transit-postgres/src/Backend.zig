@@ -152,6 +152,7 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .enqueue => try std.fmt.bufPrint(&buffer, "ENQUEUE {d}", .{count}),
         .consume => try std.fmt.bufPrint(&buffer, "CONSUME {d}", .{count}),
         .claim => try std.fmt.bufPrint(&buffer, "CLAIM {d}", .{count}),
+        .ack => "ACK",
         .create_table => "CREATE TABLE",
         .create_schema => "CREATE SCHEMA",
         .alter_schema => "ALTER SCHEMA",
@@ -173,7 +174,7 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .rollback, .rollback_to_savepoint => "ROLLBACK",
         .savepoint => "SAVEPOINT",
         .release_savepoint => "RELEASE",
-        .empty, .reload, .capture, .commit_offset, .ack, .nack, .extend_lease => return error.UnsupportedWireCompletion,
+        .empty, .reload, .capture, .commit_offset, .nack, .extend_lease => return error.UnsupportedWireCompletion,
     };
     try self.string(value, buffer.len);
     return self.finish();

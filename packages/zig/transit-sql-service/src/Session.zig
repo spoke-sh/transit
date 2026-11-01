@@ -900,6 +900,8 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.CatalogKindMismatch => .{ "42809".*, "Catalog object has a different data kind" },
         error.CrossPartitionLogAppend => .{ "0A000".*, "This append spans partitions and requires transaction composition" },
         error.QueueClaimLimitExceeded => .{ "54000".*, "Claim exceeds the declared Queue budget" },
+        error.IncompatibleDefinition => .{ "0A000".*, "Retained descriptor belongs to another Transit definition" },
+        error.InvalidQueueLeaseHandle, error.InvalidLogSettlementOperand => .{ "22023".*, "Queue lease receipt rejected" },
         error.InvalidQueueLeaseDuration => .{ "22023".*, "Lease duration exceeds the declared Queue policy" },
         error.LogAppendLimitExceeded => .{ "54000".*, "Append exceeds the declared Stream or Queue budget" },
         error.LogPartitionRequired, error.LogPartitionKeyMismatch, error.InvalidLogAppendOperand, error.NullWorkloadParameter, error.InvalidLogVisibilityTime, error.InvalidLogProducer => .{ "22023".*, "Invalid Stream or Queue append routing or metadata operand" },
@@ -928,6 +930,9 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidQueueLeaseHandle).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidLogSettlementOperand).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.IncompatibleDefinition).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     const changed = host.diagnostic(error.TableDefinitionChanged);
     try std.testing.expectEqualStrings("55000", &changed.state);

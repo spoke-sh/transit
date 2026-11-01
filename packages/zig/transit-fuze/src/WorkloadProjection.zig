@@ -12,6 +12,7 @@ pub const Field = union(enum) {
     offset,
     lease_epoch,
     attempt,
+    receipt_handle,
 };
 pub const Source = struct {
     binding: p.LogWorkload.Binding,
@@ -61,6 +62,10 @@ pub fn schemaLayout(schema: f.TableSchema.Schema, fields: []const Field, profile
             .lease_epoch, .attempt => blk: {
                 if (profile != .claim) return error.WorkloadProjectionUnavailable;
                 break :blk .{ .name = if (field == .lease_epoch) "_lease_epoch" else "_attempt", .type = .uint64 };
+            },
+            .receipt_handle => blk: {
+                if (profile != .claim) return error.WorkloadProjectionUnavailable;
+                break :blk .{ .name = "_receipt_handle", .type = .binary };
             },
         };
         for (result.fields[0..index]) |earlier| if (std.mem.eql(u8, earlier.name, descriptor.name)) return error.DuplicateColumn;
@@ -138,6 +143,8 @@ pub const Projector = struct {
     columns: [f.TableSchema.max_columns]u8 = @splat(0),
     input: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined,
     output: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined,
+    lease_handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined,
+    needs_lease_handle: bool = false,
     failure: ?f.LogicalQuery.Plan.PredicateFailure = null,
 
     pub fn init(allocator: std.mem.Allocator, source: Source, fields: []const Field, plan: f.LogicalQuery.Plan) !Projector {
@@ -146,8 +153,10 @@ pub const Projector = struct {
         if (!std.mem.eql(u8, &plan.source_basis, &try basis(allocator, source, fields)) or
             !std.mem.eql(u8, &try plan.schema.fingerprint(), &try expected.typeOf().fingerprint())) return error.WorkloadProjectionSourceChanged;
         var result: Projector = .{ .source = source, .fields = fields, .plan = plan };
-        for (fields, 0..) |field, i| if (field == .column) {
-            result.columns[i] = @intCast(try source.schema.index(field.column));
+        for (fields, 0..) |field, i| switch (field) {
+            .column => |id| result.columns[i] = @intCast(try source.schema.index(id)),
+            .receipt_handle => result.needs_lease_handle = true,
+            else => {},
         };
         return result;
     }
@@ -163,12 +172,14 @@ pub const Projector = struct {
             if (!std.meta.eql(lease.target, self.source.binding.target()) or
                 !std.meta.eql(lease.claim, self.source.binding.operation()) or lease.offset != metadata.offset) return error.WorkloadProjectionSourceChanged;
         } else if (metadata.lease != null) return error.InvalidWorkloadProjectionRow;
+        if (self.needs_lease_handle) try p.QueueLeaseHandle.encode(metadata.lease.?, &self.lease_handle);
         for (self.fields, 0..) |field, i| self.input[i] = switch (field) {
             .column => cells[self.columns[i]],
             .partition => .{ .value = .{ .atom = .{ .unsigned = self.source.binding.target().partition } } },
             .offset => .{ .value = .{ .atom = .{ .unsigned = metadata.offset } } },
             .lease_epoch => .{ .value = .{ .atom = .{ .unsigned = metadata.lease.?.epoch } } },
             .attempt => .{ .value = .{ .atom = .{ .unsigned = metadata.lease.?.attempt } } },
+            .receipt_handle => .{ .value = .{ .atom = .{ .bytes = &self.lease_handle } } },
         };
         if (!try self.plan.matches(self.input[0..self.fields.len], &self.failure)) return null;
         for (self.plan.projection, 0..) |index, i| self.output[i] = self.input[index];
@@ -234,8 +245,8 @@ test "workload projections freeze original identity layout aliases and collation
     const original = source.binding.operation();
     source.binding = .{ .queue = .{ .definition = p.Growth.current_definition, .operation = original, .target = target, .kind = .claim, .intent = @splat(7) } };
     try t.expectError(error.InvalidWorkloadProjection, compile(t.allocator, source, &.{.{ .column = 17 }}, "tasks", "SELECT value FROM tasks LIMIT 1", null));
-    const claimed_fields = [_]Field{ .lease_epoch, .attempt, .{ .column = 17 } };
-    var claim = try compile(t.allocator, source, &claimed_fields, "tasks", "SELECT _lease_epoch, _attempt, value FROM tasks", null);
+    const claimed_fields = [_]Field{ .lease_epoch, .attempt, .{ .column = 17 }, .receipt_handle };
+    var claim = try compile(t.allocator, source, &claimed_fields, "tasks", "SELECT _lease_epoch, _attempt, value, _receipt_handle FROM tasks", null);
     defer claim.deinit();
     var claim_projector = try Projector.init(t.allocator, source, &claimed_fields, claim.plan);
     var lease: p.StreamQueue.Lease = .{ .target = target, .claim = original, .offset = 13, .epoch = 7, .attempt = 2, .expires_ms = 1000 };
@@ -243,6 +254,15 @@ test "workload projections freeze original identity layout aliases and collation
     try t.expectEqual(7, selected[0].value.atom.unsigned);
     try t.expectEqual(2, selected[1].value.atom.unsigned);
     try t.expectEqual(42, selected[2].value.atom.signed);
+    try t.expectEqualDeep(lease, try p.QueueLeaseHandle.decode(selected[3].value.atom.bytes));
+    var saved_handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;
+    @memcpy(&saved_handle, selected[3].value.atom.bytes);
+    var next_lease = lease;
+    next_lease.offset = 14;
+    next_lease.epoch += 1;
+    const next_row = (try claim_projector.row(&cells, .{ .offset = 14, .lease = next_lease })).?;
+    try t.expectEqualDeep(next_lease, try p.QueueLeaseHandle.decode(next_row[3].value.atom.bytes));
+    try t.expectEqualDeep(lease, try p.QueueLeaseHandle.decode(&saved_handle));
     try t.expectError(error.InvalidWorkloadProjectionRow, claim_projector.row(&cells, .{ .offset = 13 }));
     lease.claim.operation += 1;
     try t.expectError(error.WorkloadProjectionSourceChanged, claim_projector.row(&cells, .{ .offset = 13, .lease = lease }));

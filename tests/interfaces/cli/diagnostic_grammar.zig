@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, log_claim, mutation, application, relational, authorization, settings, transaction, managed } = .query,
+    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, log_claim, log_settlement, mutation, application, relational, authorization, settings, transaction, managed } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,11 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .log_settlement => {
+            var value = try f.LogSettlementSql.Prepared.init(allocator, case.sql, .transit, binding);
+            defer value.deinit();
+            if (value.parameterTypes().len == 0) _ = try value.bind(&.{}, binding);
+        },
         .log_claim => {
             var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
             defer basis.deinit();

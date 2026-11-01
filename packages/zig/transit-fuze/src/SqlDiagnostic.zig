@@ -392,12 +392,22 @@ test "consumption diagnostics preserve the dedicated compiler cause" {
     try std.testing.expectEqualStrings("sql.invalid_log_lease_duration", (try claim.structured()).code.slice());
 }
 
+pub fn logSettlement(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Queue settlement cannot be compiled";
+    result.hint = "Use ACK ON QUEUE with the original binary RECEIPT, or EXTEND LEASE with a positive BY duration. Preparation grants no settlement authority.";
+    return result;
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var lexer: sql.Lexer = .{ .text = text };
     const first = lexer.next() catch null;
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CLAIM")) return logClaim(text, cause, binding);
+    if (first) |token| if (token.tag == .word and (std.ascii.eqlIgnoreCase(token.text, "ACK") or std.ascii.eqlIgnoreCase(token.text, "EXTEND"))) return logSettlement(text, cause, binding);
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);

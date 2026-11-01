@@ -173,7 +173,7 @@ test "log claim SQL defaults its maximum without limiting original result delive
 
 test "log claim SQL refuses generated acquisition predicates and invalid budgets" {
     const t = std.testing;
-    for ([_][]const u8{ "CLAIM id FROM tasks WHERE _lease_epoch = 1 WITH LEASE '1s'", "CLAIM id FROM tasks WHERE _attempt > 2 WITH LEASE '1s'" }) |text| {
+    for ([_][]const u8{ "CLAIM id FROM tasks WHERE _lease_epoch = 1 WITH LEASE '1s'", "CLAIM id FROM tasks WHERE _attempt > 2 WITH LEASE '1s'", "CLAIM id FROM tasks WHERE _receipt_handle IS NOT NULL WITH LEASE '1s'" }) |text| {
         try t.expectError(error.InvalidLogClaimPredicate, Prepared.init(t.allocator, text, test_schema, .transit, null));
     }
     try t.expectError(error.ParameterTypeConflict, Prepared.init(t.allocator, "CLAIM id FROM tasks WHERE id = $1 WITH LEASE $1", test_schema, .transit, null));
@@ -193,7 +193,6 @@ test "log claim SQL refuses generated acquisition predicates and invalid budgets
         "CLAIM COUNT(*) FROM tasks WITH LEASE '1s'",
         "CLAIM id FROM tasks GROUP 'workers' WITH LEASE '1s'",
         "CLAIM id FROM tasks ORDER BY id WITH LEASE '1s'",
-        "CLAIM _receipt_handle FROM tasks WITH LEASE '1s'",
         "CLAIM id FROM tasks WITH LEASE '1s'; CLAIM id FROM tasks WITH LEASE '1s'",
     }) |text| {
         if (Prepared.init(t.allocator, text, test_schema, .transit, null)) |value| {

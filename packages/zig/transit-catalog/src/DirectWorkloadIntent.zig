@@ -41,6 +41,12 @@ pub const Work = union(enum) {
         }
         try connection.object(self.target().interpretation.object);
     }
+    fn control(self: Work) bool {
+        return switch (self) {
+            .stream => |value| value.work == .offset or value.work == .release,
+            .queue => |value| value.work == .settle or value.work == .release,
+        };
+    }
     fn append(self: Work) ?p.StreamQueue.Append {
         return switch (self) {
             .stream => |value| if (value.work == .append) value.work.append else null,
@@ -108,6 +114,18 @@ pub const Projection = struct {
     }
 };
 
+/// Data work binds its exact interpretation. Control work may carry an older
+/// receipt for the same stable object; the source describes preparation only.
+/// This check cannot establish compatibility, current rights or a live lease.
+/// Those checks remain at the native control publication boundary.
+fn sourceMatches(target: p.StreamQueue.Partition, source: s.LogDeclaration.Stored, control: bool) bool {
+    const observed = source.declaration.interpretation;
+    return if (control and target.interpretation.revision < observed.revision)
+        std.meta.eql(target.interpretation.object, observed.object)
+    else
+        std.meta.eql(target.interpretation, observed);
+}
+
 pub const Saved = struct {
     definition: p.Growth.Definition,
     connection: w.Connection,
@@ -121,7 +139,7 @@ pub const Saved = struct {
         try self.work.validate(self.connection);
         const target = self.work.target();
         if (self.source.declaration.stored.retired or
-            !std.meta.eql(target.interpretation, self.source.declaration.stored.declaration.interpretation) or
+            !sourceMatches(target, self.source.declaration.stored, self.work.control()) or
             !std.mem.eql(u8, @tagName(self.work), @tagName(self.source.declaration.kind()))) return error.InvalidWorkloadIntent;
         _ = try self.source.declaration.partition(target.partition);
         var declaration = try c.DirectLogProtocol.decodeMetadata(allocator, self.connection, self.source);
@@ -159,7 +177,7 @@ pub const Reference = struct {
         try self.record.validate();
         try self.connection.object(self.binding.target().interpretation.object);
         if (self.identity().principal != self.connection.principal or self.source.retired or
-            !std.meta.eql(self.binding.target().interpretation, self.source.declaration.interpretation) or
+            !sourceMatches(self.binding.target(), self.source, self.binding.control()) or
             self.binding.target().partition >= self.source.declaration.configuration.partitioning.count or
             !std.mem.eql(u8, @tagName(self.binding), @tagName(self.source.declaration.configuration.policy)) or
             self.record.format != format or !std.meta.eql(self.connection, self.record.scope.connection)) return error.InvalidWorkloadIntent;

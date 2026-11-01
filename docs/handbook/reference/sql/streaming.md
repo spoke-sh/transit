@@ -2,7 +2,8 @@
 
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
-and appends, positional Stream consumption, and partition-routed Queue claims. The transport of a result in
+and appends, positional Stream consumption, partition-routed Queue claims and
+receipt-bound ACK. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -93,8 +94,8 @@ history. Deployment memory and storage quotas still apply.
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
 are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`,
-`ACK`, `NACK` and `EXTEND LEASE` still require typed native callers. The admitted
-partition-routed CLAIM profile is described below.
+`NACK` and `EXTEND LEASE` still require typed native callers. The admitted
+partition-routed CLAIM and receipt-bound ACK profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -206,7 +207,7 @@ owners; positional consumption does not advance a group checkpoint.
 ## Acquire Queue work
 
 ```sql
-CLAIM value, _partition, _offset, _lease_epoch, _attempt
+CLAIM value, _partition, _offset, _lease_epoch, _attempt, _receipt_handle
 FROM jobs LIMIT 16 WITH LEASE '30s';
 ```
 
@@ -223,7 +224,9 @@ A one-partition Queue needs no WHERE clause. For multiple partitions, use exactl
 are refused before admission in this profile. Payload predicates require native
 selection before acquisition; SQL never leases unrelated rows and hides them
 with a result filter. Star includes application columns only. `_partition`,
-`_offset`, `_lease_epoch` and `_attempt` can be projected explicitly and aliased.
+`_offset`, `_lease_epoch`, `_attempt` and binary `_receipt_handle` can be projected
+explicitly and aliased. The handle is the exact original lease descriptor; it is
+not a credential or a current liveness check.
 
 Native SQL requires a client token. Admission freezes the exact target, maximum,
 duration and projection. Delivery returns every originally acquired row, across
@@ -234,9 +237,36 @@ Original payload delivery may outlive the lease; the returned epoch and attempt
 are original attribution, not proof of current settlement authority. Current
 read and acquire rights are rechecked before disclosure.
 
-CLAIM is outside attached interactive transactions. SQL receipt handles, ACK,
-NACK and EXTEND LEASE are not yet admitted; exact native settlement retains its
-existing owner and current lease checks.
+CLAIM is outside attached interactive transactions. NACK and EXTEND LEASE are
+not yet admitted by SQL. Native settlement retains its existing owner and current
+lease checks.
+
+## Acknowledge Queue work
+
+```sql
+ACK ON QUEUE jobs RECEIPT $1;
+```
+
+Bind the exact binary `_receipt_handle` returned by CLAIM. A binary `X'...'`
+literal is also accepted; SQL never interprets text as a receipt. ACK has its own
+client token and operation identity. It completes only with the original native
+settlement receipt, has no row result or relational matched/changed count, and
+emits the PostgreSQL `ACK` command tag. MySQL's completion has zero affected rows;
+that transport field is not a count of Queue messages.
+
+The named Queue must resolve to the handle's stable object and partition, and the
+caller must be the original claimant. A newly prepared ACK may use an older
+receipt after a compatible declaration change: it preserves the original lease
+and separately captures current preparation metadata. The Queue owner rechecks
+current settle rights, the exact live lease and trusted time before acceptance.
+A copied or modified handle cannot acquire those rights. Expiry or fencing can
+produce a recorded rejection; missing observations remain unresolved.
+
+Retry an uncertain ACK using the same token and original SQL/parameters. Its
+accepted result remains recoverable after expiry, rename or retirement without
+acknowledging again. A different token submits a different operation. ACK does not
+release the original claim's payload-read pin or erase its original result.
+ACK is outside attached interactive transactions in this SQL profile.
 
 ## Connections, sources and sinks
 

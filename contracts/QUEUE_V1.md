@@ -12,8 +12,11 @@ SQL declarations and named inspection use the
 SQL supports [ENQUEUE](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
 SQL also admits [partition-routed CLAIM](../docs/handbook/reference/sql/streaming.md#acquire-queue-work)
 with a required lease duration, bounded acquisition maximum and complete original
-result delivery. Other acquisition predicates, WAIT, receipt handles, `ACK`,
-`NACK` and `EXTEND LEASE` remain outside the SQL profile.
+result delivery and binary `_receipt_handle` projection. SQL
+[`ACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
+freezes that exact lease in an independently identified native settlement.
+Other acquisition predicates, WAIT, NACK and EXTEND LEASE remain outside the SQL
+execution profile.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
@@ -119,8 +122,17 @@ The claim scope is the target scope; native validation requires their equality.
 Inputs must have exactly 168 bytes, the exact magic and an explicit matching
 current definition before any lease is constructed. Missing, foreign, truncated,
 trailing or structurally invalid data refuse. Encoding uses a caller-owned fixed
-buffer and decoding allocates nothing. These helpers do not yet expose SQL
-`_receipt_handle` or admit settlement SQL; those adapters remain separate work.
+buffer and decoding allocates nothing. SQL `_receipt_handle` projects these
+bytes from each original claim row. Fuze's projection buffer is reused per row;
+result encoders must copy retained values before requesting the next row. The
+Catalog ACK adapter freezes the complete lease by value, independently of the
+caller and parser buffers. Current native authorization and exact live-lease
+validation remain mandatory.
+
+`LogSettlementSql` also prepares EXTEND LEASE syntax and computes a proposed
+deadline from the original receipt's expiry plus the positive BY duration. This
+is pure preparation only: SQL execution must return a usable updated receipt
+through the shared result lifecycle before renewal can be enabled.
 
 ## Lease identity and time
 

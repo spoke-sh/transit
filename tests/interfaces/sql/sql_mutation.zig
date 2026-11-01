@@ -2,7 +2,7 @@
 //! expectations and canonical payload bytes; this is not native admission.
 const std = @import("std");
 const f = @import("transit_fuze");
-const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false, consume: bool = false, claim: bool = false };
+const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false, consume: bool = false, claim: bool = false, settlement: bool = false };
 fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     const result = try allocator.alloc(u8, bytes.len * 2);
     const alphabet = "0123456789abcdef";
@@ -27,6 +27,7 @@ fn matchedRows(fields: []const f.WorkloadProjection.Field, plan: f.LogicalQuery.
             .partition => .{ .value = .{ .atom = .{ .unsigned = row % 2 } } },
             .lease_epoch => .{ .value = .{ .atom = .{ .unsigned = 19 } } },
             .attempt => .{ .value = .{ .atom = .{ .unsigned = 2 } } },
+            .receipt_handle => .{ .value = .{ .atom = .{ .bytes = "opaque" } } },
         };
         var failure: ?f.LogicalQuery.Plan.PredicateFailure = null;
         match.* = try plan.matches(cells[0..fields.len], &failure);
@@ -34,6 +35,13 @@ fn matchedRows(fields: []const f.WorkloadProjection.Field, plan: f.LogicalQuery.
     return matched;
 }
 fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !void {
+    if (case.settlement) {
+        var prepared = try f.LogSettlementSql.Prepared.init(init.gpa, case.sql, .transit, null);
+        defer prepared.deinit();
+        const bound = try prepared.bind(&.{}, null);
+        try std.json.Stringify.value(.{ .index = index, .kind = prepared.target.kind, .name = prepared.target.source.name, .offset = bound.lease.offset, .epoch = bound.lease.epoch, .original_expires_ms = bound.lease.expires_ms, .expires_ms = if (bound.action == .extend) bound.action.extend.expires_ms else null }, .{}, out);
+        return;
+    }
     var declaration = try f.TableDdl.compile(init.gpa, case.basis, null, null);
     defer declaration.deinit();
     const table = declaration.statement.create;

@@ -52,6 +52,14 @@ pub const Binding = union(enum) {
             inline else => |value| value.target,
         };
     }
+    /// Settlements and explicit read closures preserve their original target
+    /// while the native owner checks the current declaration and rights.
+    pub fn control(self: Binding) bool {
+        return switch (self) {
+            .stream => |value| value.kind == .offset or value.kind == .release,
+            .queue => |value| value.kind == .settle or value.kind == .release,
+        };
+    }
     pub fn requireSame(self: Binding, other: Binding) !void {
         try self.validate();
         try other.validate();

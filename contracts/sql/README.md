@@ -120,7 +120,7 @@ CLAIM * | column [AS name] [, column [AS name]]
 
 The schema, projection, predicate and one parameter namespace are owned exactly
 as for consumption. Application columns and `_partition`/`_offset` can select
-work. `_lease_epoch` and `_attempt` are generated acquisition outputs: they can
+work. `_lease_epoch`, `_attempt` and binary `_receipt_handle` are generated acquisition outputs: they can
 be projected, but predicates on them are refused. Star includes application
 columns only. LIMIT is a positive unsigned 32-bit acquisition maximum; omission
 leaves it for the declaration owner to resolve. It is removed from the bound
@@ -135,10 +135,26 @@ post-filter for original claim results. The shared SQL service admits a narrower
 partition-routed profile: no predicate for one partition, or a single exact
 `_partition` equality. Catalog discharges that routing into the native target and
 freezes an unfiltered original-result projection. Other predicates and WAIT
-refuse before admission. Receipt handles, ACK, NACK and lease extension are not
-yet bound by SQL. The [claim corpus](corpus/log-claims.json) independently checks
+refuse before admission. Receipt handles and ACK use the Catalog settlement
+adapter; NACK and lease extension execution remain outside SQL. The [claim corpus](corpus/log-claims.json) independently checks
 five-row predicates, projections, lease metadata and acquisition budgets through
 `just test::table-dml-sql` without asserting acquisition or settlement.
+
+`LogSettlementSql.Prepared` owns dedicated ACK and extension syntax:
+
+```text
+ACK ON QUEUE name RECEIPT binary-literal-or-parameter
+EXTEND LEASE ON QUEUE name RECEIPT binary-literal-or-parameter BY text-or-parameter
+```
+
+Its two possible operand sites share one typed, gap-free parameter namespace.
+Receipt parameters are binary; BY is UTF-8. NULLs, foreign definitions, malformed
+receipts, nonpositive durations and deadline overflow refuse. Binding owns the
+lease by value and computes extension from its recorded deadline without reading
+a clock. The [settlement corpus](corpus/log-settlements.json) independently
+constructs QLH1 bytes and checks these results. None of these pure checks grants
+a live lease or establishes native completion. Only ACK is bound by the SQL
+Catalog adapter; renewal needs an updated-receipt result contract before execution.
 
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their

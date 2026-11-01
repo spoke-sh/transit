@@ -78,6 +78,7 @@ fn resolve(schema: f.TableSchema.Schema, qualifier: []const u8, reference: Refer
     if (profile == .queue and reference.qualifier == null) {
         if (std.mem.eql(u8, reference.name, "_lease_epoch")) return .lease_epoch;
         if (std.mem.eql(u8, reference.name, "_attempt")) return .attempt;
+        if (std.mem.eql(u8, reference.name, "_receipt_handle")) return .receipt_handle;
     }
     return field(schema, qualifier, reference, location);
 }
@@ -103,7 +104,7 @@ pub fn input(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, syntax:
         if (instruction == .atom) switch (instruction.atom) {
             inline else => |atom| {
                 const selected = try resolve(schema, syntax.qualifier, atom.column, location, profile);
-                if (selected == .lease_epoch or selected == .attempt) return error.InvalidLogClaimPredicate;
+                if (selected == .lease_epoch or selected == .attempt or selected == .receipt_handle) return error.InvalidLogClaimPredicate;
                 try add(&fields, allocator, selected);
             },
         };

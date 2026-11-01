@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7",
+  "definition": "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
         ]
       },
       "T3": {
@@ -805,7 +805,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
         ]
       },
       "T3": {
@@ -4497,7 +4497,7 @@
       "T11": {
         "type": "string",
         "enum": [
-          "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
         ]
       },
       "T12": {
@@ -5694,7 +5694,7 @@
       "T16": {
         "type": "string",
         "enum": [
-          "aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7"
+          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
         ]
       },
       "T17": {

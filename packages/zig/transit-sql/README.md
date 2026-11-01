@@ -62,3 +62,8 @@ lease settlement and read-release tokens stay with their native owners.
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs
 are registered in the [test index](../../../tests/README.md).
+
+Queue ACK uses the same durable workload admission and recovery path. The
+statement freezes the binary claim receipt, retains its original lease identity
+across compatible declaration changes, and completes from native settlement
+evidence without relational counts. See [SQL Queue settlement](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work).

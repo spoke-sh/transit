@@ -19,7 +19,8 @@
         "packages/zig/transit-fuze/src/LogAppendSql.zig",
         "packages/zig/transit-fuze/src/LogConsumeSql.zig",
         "packages/zig/transit-fuze/src/LogClaimSql.zig",
-        "packages/zig/transit-fuze/src/LogReadSql.zig"
+        "packages/zig/transit-fuze/src/LogReadSql.zig",
+        "packages/zig/transit-fuze/src/LogSettlementSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -58,6 +59,10 @@
         {
           "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
           "name": "log consume SQL owns typed projection predicate group and wait operands"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
+          "name": "log settlement SQL enforces typed complete operands without acquiring authority"
         }
       ],
       "exceptions": [
@@ -815,6 +820,18 @@
         },
         "InvalidLogLeaseDuration": {
           "code": "sql.invalid_log_lease_duration",
+          "category": "binding"
+        },
+        "IncompatibleDefinition": {
+          "code": "sql.incompatible_definition",
+          "category": "conflict"
+        },
+        "InvalidQueueLeaseHandle": {
+          "code": "sql.invalid_queue_lease_handle",
+          "category": "binding"
+        },
+        "InvalidLogSettlementOperand": {
+          "code": "sql.invalid_log_settlement_operand",
           "category": "binding"
         }
       }

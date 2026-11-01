@@ -212,3 +212,77 @@ test "log claim Catalog defaults the acquisition maximum to the declaration" {
     try t.expectEqual(@as(u32, 0), claim.target.partition);
     try t.expectEqual(fixture.metadata.declaration.stored.declaration.limits.claim_rows, claim.maximum);
 }
+
+fn settlementOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition, lease: p.StreamQueue.Lease) !void {
+    const t = std.testing;
+    var text = "ACK ON QUEUE tasks RECEIPT $1".*;
+    var prepared = try c.DirectLogPreparedSettlement.init(allocator, TestFixture.connection, 1, &text, metadata, .transit, null);
+    var live = true;
+    defer if (live) prepared.deinit();
+    @memset(&text, 0);
+    var handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;
+    try p.QueueLeaseHandle.encode(lease, &handle);
+    var intent = try prepared.freeze(allocator, 99, &.{.{ .bytes = &handle }}, null);
+    defer intent.deinit();
+    prepared.deinit();
+    live = false;
+    @memset(&handle, 0);
+    var restored = try c.DirectWorkloadIntent.restore(allocator, intent.bytes);
+    defer restored.deinit();
+    const saved = restored.parsed.value;
+    try t.expect(saved.projection == null and saved.work.queue.work.settle.action == .ack);
+    try t.expectEqualDeep(lease, saved.work.queue.work.settle.lease);
+    try t.expectEqualDeep(metadata.declaration.stored, saved.source.declaration.stored);
+    const reference = try restored.reference(@splat(7));
+    try t.expectEqualDeep(try intent.reference(@splat(7)), reference);
+    try t.expectEqualDeep(lease.target, reference.binding.target());
+    // A data acquisition cannot borrow the relaxed control-source binding.
+    var changed = reference;
+    changed.binding.queue.kind = .claim;
+    try t.expectError(error.InvalidWorkloadIntent, changed.validate());
+    changed = reference;
+    changed.binding.queue.target.interpretation.object.object += 1;
+    try t.expectError(error.InvalidWorkloadIntent, changed.validate());
+    changed = reference;
+    changed.binding.queue.target.interpretation.revision = reference.source.declaration.interpretation.revision;
+    try t.expectError(error.InvalidWorkloadIntent, changed.validate());
+    changed = reference;
+    changed.binding.queue.target.interpretation.revision = reference.source.declaration.interpretation.revision + 1;
+    try t.expectError(error.InvalidWorkloadIntent, changed.validate());
+}
+
+test "log settlement Catalog binding preserves an older lease and current preparation metadata" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(3);
+    defer fixture.deinit();
+    const lease: p.StreamQueue.Lease = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = fixture.metadata.declaration.stored.declaration.interpretation, .partition = 2 },
+        .claim = .{ .scope = TestFixture.connection.scope, .principal = 1, .operation = 11 },
+        .offset = 4,
+        .epoch = 5,
+        .attempt = 6,
+        .expires_ms = 1000,
+    };
+    var successor = fixture.declaration.definition;
+    successor.revision += 1;
+    var declared = try c.storage.LogDeclaration.prepare(t.allocator, successor);
+    defer declared.deinit();
+    var metadata = fixture.metadata;
+    metadata.declaration.stored = try declared.stored();
+    try settlementOwned(t.allocator, metadata, lease);
+    var no_resize = std.testing.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), settlementOwned, .{ metadata, lease });
+    var prepared = try c.DirectLogPreparedSettlement.init(t.allocator, TestFixture.connection, 1, "ACK ON QUEUE tasks RECEIPT $1", metadata, .transit, null);
+    defer prepared.deinit();
+    var handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;
+    var changed = lease;
+    changed.claim.principal += 1;
+    try p.QueueLeaseHandle.encode(changed, &handle);
+    try t.expectError(error.InvalidQueueLeaseHandle, prepared.freeze(t.allocator, 99, &.{.{ .bytes = &handle }}, null));
+    changed = lease;
+    changed.target.interpretation.object.object += 1;
+    try p.QueueLeaseHandle.encode(changed, &handle);
+    try t.expectError(error.InvalidQueueLeaseHandle, prepared.freeze(t.allocator, 99, &.{.{ .bytes = &handle }}, null));
+    try p.QueueLeaseHandle.encode(lease, &handle);
+    try t.expectError(error.InvalidQueueSettlement, prepared.freeze(t.allocator, lease.claim.operation, &.{.{ .bytes = &handle }}, null));
+}
