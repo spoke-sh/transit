@@ -822,8 +822,12 @@ surviving log actions, verifies the successor graph within the resident budget,
 rechecks aggregate deadlines immediately before the decision and resolves the
 original decision during cleanup. Initial components cover Table/Stream commit,
 Queue ACK plus enqueue, final lease expiry and lost decision recovery on disk.
-Current-definition regeneration, clean integrated qualification, installed mixed
-state/input/output proof and DLQ transfer remain open.
+The current-definition regeneration and workspace checks pass: 206 catalog tests,
+28 selected storage tests, 58 fast checks, 19 contract checks and the handbook
+build, with a successful native node build. The
+[qualification record](../history/qualification/transactions.md#native-mixed-state-and-log-statements--2026-10-31)
+keeps these component results separate from clean integrated qualification,
+installed mixed state/input/output proof and DLQ transfer, which remain open.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
