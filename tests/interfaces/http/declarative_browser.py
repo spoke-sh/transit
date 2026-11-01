@@ -3,7 +3,7 @@ import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import hmac
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPException
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -162,16 +162,34 @@ class Fixture:
         return result.stdout
 
     def start(self):
+        # This is a disposable observation, not installation or SQL history.
+        # A killed server may leave an accepting status from its prior lifetime.
+        status_path = self.root / '.transit/sql/status.json'
+        status_path.unlink(missing_ok=True)
         self.log = (self.root / 'server.stderr').open('ab')
         self.process = subprocess.Popen([str(self.binary), 'server', '--no-ui'], cwd=self.root, env=self.env, stdout=subprocess.PIPE, stderr=self.log)
         deadline = time.monotonic() + 120
+        core_ready = False
         while time.monotonic() < deadline:
             assert self.process.poll() is None, (self.root / 'server.stderr').read_text()[-8000:]
-            if select.select([self.process.stdout], [], [], .1)[0]:
+            if not core_ready and select.select([self.process.stdout], [], [], .1)[0]:
                 line = self.process.stdout.readline()
                 if line and json.loads(line).get('ready'):
+                    core_ready = True
+            if core_ready:
+                # The machine receipt covers core services. Migration/console
+                # additionally require the local SQL account and rendezvous.
+                try:
+                    status = json.loads(status_path.read_text())
+                except FileNotFoundError:
+                    status = None
+                if status and status['service']['state'] == 'accepting' and any(
+                    account['name'] == 'local' and account['initialized'] and account['state'] == 'bound'
+                    for account in status['accounts']
+                ):
                     return
-        raise AssertionError('server did not become ready')
+                time.sleep(.1)
+        raise AssertionError('core services and local SQL did not become ready')
 
     def stop(self):
         if self.process:
@@ -297,7 +315,27 @@ class Fixture:
     def root_command(self, command):
         sequence = self.root_query(dict(identity={}))['principal_sequence'] + 1
         key = ExistingKey(self.root, self.root / '.transit/root.seed')
-        return post(self.ports['node'], '/v1/command', native(key, self.connection['scope']['realm'], 0, command, sequence))['position']
+        signed = native(key, self.connection['scope']['realm'], 0, command, sequence)
+        original = self.root / f'root-command-{sequence}.json'
+        original.write_bytes(compact(signed))
+        original.chmod(0o600)
+        try:
+            return post(self.ports['node'], '/v1/command', signed)['position']
+        except (OSError, HTTPException):
+            # A disconnected response may follow durable acceptance. Recover
+            # only this exact request; never allocate another native sequence.
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                try:
+                    observed = self.root_query(dict(authorization=dict(role=None, kind=dict(receipt=signed['request']))))
+                except (OSError, HTTPException):
+                    time.sleep(.05)
+                    continue
+                receipt = observed['body']['authorization']['body']['receipt']
+                if receipt is not None:
+                    return receipt['position']
+                time.sleep(.05)
+            raise
 
     def authorize(self, action):
         def query(kind):

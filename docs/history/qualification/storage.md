@@ -62,6 +62,34 @@ private example state remains at `/var/tmp/transit-browser-nfvwecjd` with those
 attributions. This is focused component and partial installed evidence, not a
 completed browser lane, later-definition qualification or whole M6 pass.
 
+### Browser readiness and original native receipt follow-up
+
+The corrected browser driver waits for both core readiness and the initialized,
+bound local SQL account before invoking migration. It removes only the disposable
+SQL status observation before starting a new process, so an old accepting status
+cannot satisfy that check. A native administrative request is retained before
+dispatch; a disconnected response triggers read-only receipt lookup for that exact
+request, never submission with a fresh sequence. No runtime deadline changes.
+
+A readiness-only rerun failed on a disconnected native authorization response.
+The private node log at `/var/tmp/transit-browser-yvluwibt/node.stderr` records
+sequence 66 accepted at position 78 with `response_written=false` and `WriteFailed`.
+The driver trace is `/var/tmp/transit-m6-browser-readiness1.log`. That failure
+remains separate from the earlier startup race and allocation-journal failure.
+
+The subsequent complete driver invocation passes both the main browser scenario
+and documented migration/configure example, including its embedded production
+HTTP/WebSocket listener. It uses the same three `1c4106d54` ReleaseSafe binaries
+and definition listed above, with the modified driver (SHA-256
+`d4c81920160b0f1f197c135ee0b4ee6cc50bf024e7ce2a968e2ef90d6b02432b`).
+The pinned-shell command is `python3 -B tests/runner/launch.py
+tests/interfaces/http/declarative_browser.py CLI ADMIN FAULT_NODE`, with those
+matching executable paths supplied explicitly. Raw output is
+`/var/tmp/transit-m6-browser-recovery2.log`, SHA-256
+`cece8da0e98061ea3c3acd11e71f16bab3f77e1538e6ac31b001307e714b3229`.
+This qualifies that driver against the recorded runtime; it is not evidence for
+the later protected-transfer definition or the entire browser lane.
+
 ## Integrated causal Document map trees — 2026-11-01
 
 The first integrated storage slice connects canonical causal map changes to
