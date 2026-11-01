@@ -31,7 +31,9 @@ TLS negotiation failures never trigger an automatic downgrade. Remote exposure
 also requires explicit host, certificate and account configuration.
 
 Protocol decoding uses bounded caller-owned buffers and has no transport or SQL
-execution dependency. Authenticated PostgreSQL/MySQL command engines emit explicit
+execution dependency. Startup engines emit TLS, credential-verification and
+session-admission requests. Login success follows current credential/authority
+checks and command-buffer reservation. Authenticated command engines emit explicit
 execution and output requests, with bounded borrowed buffers and fenced
 completions. The shared SQL host owns TLS, deadlines, authentication and current
 authorization. Resuming buffered output rechecks rights; resuming a write reply
