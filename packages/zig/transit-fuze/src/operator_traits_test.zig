@@ -180,3 +180,35 @@ test "standards ledger unsupported declarations match the production compiler" {
         try testing.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null));
     }
 }
+
+fn compilerAccepts(case: StandardsLedger.CompilerCase) !bool {
+    switch (case.entrypoint) {
+        .table_ddl => {
+            var compiled = f.TableDdl.compile(testing.allocator, case.sql, null, null) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer compiled.deinit();
+            return true;
+        },
+        .relational_sql => {
+            var parsed = f.RelationalSql.parse(testing.allocator, case.sql, null) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer parsed.deinit();
+            return true;
+        },
+        .inspection => return (f.Sql.parseInspection(case.sql) catch return false) != null,
+    }
+}
+
+test "standards ledger corpus exercises actual production compiler boundaries" {
+    for (StandardsLedger.compiler_cases) |case| {
+        const accepted = try compilerAccepts(case);
+        if (accepted != case.accept) std.debug.print("\nCapability case {s} ({s}): {s}\n", .{ case.id, case.feature, case.sql });
+        try testing.expectEqual(case.accept, accepted);
+        const declared = StandardsLedger.findFeature(case.feature).?.states.parse;
+        try testing.expectEqual(if (case.accept) StandardsLedger.StageState.implemented else .rejected, declared);
+    }
+}

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "transit.sql.standards-ledger.v1.2026-10-30",
+  "definition": "transit.sql.standards-ledger.v1.2026-11-01",
   "operator_traits": {
     "definition": "transit.fuze.operator-traits.v1.2026-10-30",
     "effect_dimensions": [
@@ -371,7 +371,13 @@
         "execute": "implemented",
         "recover": "implemented",
         "transport": "implemented"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "tests/interfaces/sql_sessions/native.py"
+      ]
     },
     {
       "id": "F031-F034",
@@ -393,7 +399,13 @@
         "execute": "implemented",
         "recover": "implemented",
         "transport": "implemented"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "tests/interfaces/sql_sessions/native.py"
+      ]
     },
     {
       "id": "F491",
@@ -414,7 +426,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "F492",
@@ -435,7 +452,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "F111",
@@ -456,20 +478,27 @@
         "execute": "implemented",
         "recover": "implemented",
         "transport": "implemented"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "tests/interfaces/sql_sessions/native.py",
+        "tests/interfaces/sql_sessions/transactions.py"
+      ]
     },
     {
       "id": "T181-X003",
       "standard": "transit_extension_v1",
       "edition_clause": "TRANSIT_SQL_V1 §AS-OF",
-      "title": "Manifest-backed historical queries (AS OF SNAPSHOT, AS OF MANIFEST, FOR SYSTEM_TIME AS OF) and PROJECTING TO",
+      "title": "Typed retained catalog/snapshot selection and explicit schema projection",
       "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
       "dependencies": [
         "F031-F034",
         "UCS_BASIC",
         "EBCDIC_037_NOPAD"
       ],
-      "deviations": "Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner.",
+      "deviations": "Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner. FOR SYSTEM_TIME AS OF is a separate reference grammar fragment, not an alias for an LSN or manifest.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/relational.json"
@@ -480,7 +509,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "X001-RANGE",
@@ -501,11 +535,16 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "X002-VECTOR",
-      "standard": "iso_sql_2023_mda",
+      "standard": "transit_extension_v1",
       "edition_clause": "FUZE_TYPES_V1 §VECTOR",
       "title": "Unboxed dense numeric vectors VECTOR(dim, elem_type) and distance metrics (L2_SQUARED, COSINE, DOT_PRODUCT, HAMMING)",
       "owner": "packages/zig/transit-fuze/src/VectorMetric.zig",
@@ -522,7 +561,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "G001-PGQ",
@@ -544,7 +588,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "M001-MED",
@@ -569,7 +618,12 @@
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+      ]
     },
     {
       "id": "X006-EXPLAIN",
@@ -591,7 +645,13 @@
         "execute": "implemented",
         "recover": "rejected",
         "transport": "implemented"
-      }
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "tests/interfaces/sql_sessions/native.py"
+      ]
     },
     {
       "id": "X004-GERMAN-STRING",
@@ -607,17 +667,23 @@
         "DICTIONARY",
         "FSST"
       ],
-      "deviations": "Inline <=12B collation weights; >12B payloads use generation-checked handles into 64B-padded StringArena.",
+      "deviations": "Internal string representation and compressed-page helpers; not a SQL declaration, stored column format or durable query recovery profile.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/german_string_and_codecs_test.zig"
+      ]
     },
     {
       "id": "X005-SEARCH-WAND",
@@ -629,17 +695,23 @@
         "X004-GERMAN-STRING",
         "X002-VECTOR"
       ],
-      "deviations": "Intersects 256-doc posting blocks with .tdel and visibility Roaring bitmasks before scoring; enforces 5-state eager failure frontier.",
+      "deviations": "Standalone search/index helpers. No production SEARCH SQL admission, durable index lifecycle or installed result transport.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/vectorized_search_test.zig"
+      ]
     },
     {
       "id": "F401-JOIN",
@@ -650,17 +722,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Lowers correlated subqueries algebraically via deduplicated domain D = delta(pi_corr(T_outer)) without O(N*M) nested-loop probes.",
+      "deviations": "Standalone generalized join/unnesting helpers. The separate production relational profile admits one inner/left equijoin; it does not admit this multi-way/lateral/unnesting family.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/analytical_sql_test.zig"
+      ]
     },
     {
       "id": "T611-WINDOW",
@@ -671,17 +749,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Preserves 5-state cell failure witnesses across window frames and enforces bounded Tier 2 NVMe spill quotas.",
+      "deviations": "Standalone window evaluator; no production OVER/QUALIFY compiler, durable cursor recovery or transport.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/analytical_sql_test.zig"
+      ]
     },
     {
       "id": "T121-RECURSIVE-CTE",
@@ -692,17 +776,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Requires explicit iteration/row work bounds and deterministic cycle detection.",
+      "deviations": "Standalone recursive/set evaluators; no production WITH RECURSIVE compiler or durable recursive execution.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/analytical_sql_test.zig"
+      ]
     },
     {
       "id": "X007-PERFECT-HASH-IN",
@@ -715,17 +805,23 @@
         "ASCII_CI",
         "EBCDIC_037_PAD"
       ],
-      "deviations": "Evaluates 5-state IN / NOT IN semantics with 16B SIMD prefix probes under the column's declared collation profile.",
+      "deviations": "Internal perfect-hash IN evaluator; production SELECT does not lower IN/NOT IN into this helper. Keyword lookup is an independent implementation detail.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/analytical_sql_test.zig"
+      ]
     },
     {
       "id": "X008-VECTOR-UDF",
@@ -736,17 +832,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Rejects ambient WASI/network/clock imports and executes in-engine with per-row instruction fuel and memory bounds (zero actor-mailbox hops).",
+      "deviations": "Standalone macro/vector UDF helpers; no production CREATE FUNCTION, SQL call binding or installed Wasm execution.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/analytical_sql_test.zig"
+      ]
     },
     {
       "id": "T182-BITEMPORAL-AS-OF",
@@ -758,17 +860,23 @@
         "T181-X003",
         "X001-RANGE"
       ],
-      "deviations": "Isolates historical decision cuts from post-facto backfills and exposes kinematic interpolation hooks for Milestone 17 4D TRAJECTORY.",
+      "deviations": "Standalone temporal evaluator; no production temporal-table or AS OF JOIN admission. Snapshot selection is separate from temporal meaning.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig"
+      ]
     },
     {
       "id": "X009-CHANGES-STREAM-SLICE",
@@ -779,17 +887,23 @@
       "dependencies": [
         "T181-X003"
       ],
-      "deviations": "Enforces current policy_epoch per batch and guarantees STREAM_SLICE never mutates CONSUME ... FROM consumer-group watermarks.",
+      "deviations": "Standalone array-backed TVF helpers; no production catalog-bound CHANGES/STREAM_SLICE source.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig"
+      ]
     },
     {
       "id": "F312-MERGE",
@@ -801,17 +915,23 @@
         "F031-F034",
         "F111"
       ],
-      "deviations": "Rejects duplicate source row matches deterministically (error.MergeCardinalityViolation) and invalidates plans on DefinitionId or policy_epoch transitions.",
+      "deviations": "Standalone merge evaluator; no production MERGE INTO admission or transactional publication.",
       "corpus_sources": [
         "contracts/sql/corpus/mutations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig"
+      ]
     },
     {
       "id": "X011-DBSP-ZSET",
@@ -823,17 +943,23 @@
         "E021-E051",
         "F401-JOIN"
       ],
-      "deviations": "Preserves reversible 5-state and checked-arithmetic overflow witnesses across retractions; spatial boundary Z-set operators hand off to Milestone 17.",
+      "deviations": "Standalone delta algebra; existing maintained relational queries recompute finite results. No SQL DBSP lifecycle or durable arrangement integration.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/bitemporal_and_delta_test.zig"
+      ]
     },
     {
       "id": "X010-DATAFLOW-LIFECYCLE",
@@ -846,17 +972,23 @@
         "T181-X003",
         "X011-DBSP-ZSET"
       ],
-      "deviations": "Replaces boolean ENABLE/DISABLE with a 5-state machine, aligns multi-object changes to M5 Transaction.Cut (0x54584331), and fails closed if history was compacted during suspension.",
+      "deviations": "Standalone lifecycle helpers; no production ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE SQL or service-managed scheduler.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-catalog/src/managed_dataflow_test.zig"
+      ]
     },
     {
       "id": "X012-CONTROL-POLICY-PLANE",
@@ -869,19 +1001,179 @@
         "T181-X003",
         "X010-DATAFLOW-LIFECYCLE"
       ],
-      "deviations": "Enforces RLS as a mandatory security barrier before user predicates or 5-state errors, requires both USAGE ON SECRET and URI SCOPE match, and forbids plaintext secret literals in durable SQL.",
+      "deviations": "Component policy descriptors/evaluators; no production SQL lifecycle for this combined enterprise feature family. Existing native grants remain a separate implemented owner.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
-      }
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
+      },
+      "reference_verified": false,
+      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "evidence_sources": [
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/RlsAndMasking.zig"
+      ]
     }
   ],
-  "sha256": "2bff88d850b4027e4ba6d5e78b9484061e7fcc43366d3ec8a101e06405588e56",
-  "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures."
+  "sha256": "7367e5971531db83fea20fc2c69d18f3b9c86ba2e262e188c49b22c91ded4c89",
+  "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
+  "compiler_cases": [
+    {
+      "id": "create-scalar",
+      "feature": "E021-E051",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (id BIGINT, label TEXT COLLATE ASCII_CI)",
+      "accept": true
+    },
+    {
+      "id": "create-table",
+      "feature": "F031-F034",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (id BIGINT PRIMARY KEY)",
+      "accept": true
+    },
+    {
+      "id": "check",
+      "feature": "F491",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (id BIGINT CHECK (id > 0))",
+      "accept": false
+    },
+    {
+      "id": "foreign-key",
+      "feature": "F492",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (id BIGINT REFERENCES parent(id))",
+      "accept": false
+    },
+    {
+      "id": "snapshot",
+      "feature": "T181-X003",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT id FROM t AS OF SNAPSHOT 'saved'",
+      "accept": false
+    },
+    {
+      "id": "range",
+      "feature": "X001-RANGE",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (span RANGE<BIGINT>)",
+      "accept": false
+    },
+    {
+      "id": "vector",
+      "feature": "X002-VECTOR",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE t (embedding VECTOR(3, FLOAT32))",
+      "accept": false
+    },
+    {
+      "id": "property-graph",
+      "feature": "G001-PGQ",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE PROPERTY GRAPH g VERTEX TABLES (t)",
+      "accept": false
+    },
+    {
+      "id": "foreign-table",
+      "feature": "M001-MED",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE FOREIGN TABLE t (id BIGINT)",
+      "accept": false
+    },
+    {
+      "id": "explain",
+      "feature": "X006-EXPLAIN",
+      "entrypoint": "inspection",
+      "sql": "EXPLAIN SELECT id FROM t",
+      "accept": true
+    },
+    {
+      "id": "search",
+      "feature": "X005-SEARCH-WAND",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT id FROM t WHERE MATCH(label, 'x')",
+      "accept": false
+    },
+    {
+      "id": "multi-join",
+      "feature": "F401-JOIN",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT a.id FROM t AS a JOIN t AS b ON a.id = b.id JOIN t AS c ON b.id = c.id",
+      "accept": false
+    },
+    {
+      "id": "window",
+      "feature": "T611-WINDOW",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT ROW_NUMBER() OVER (ORDER BY id) FROM t",
+      "accept": false
+    },
+    {
+      "id": "recursive",
+      "feature": "T121-RECURSIVE-CTE",
+      "entrypoint": "relational_sql",
+      "sql": "WITH RECURSIVE r AS (SELECT id FROM t) SELECT id FROM r",
+      "accept": false
+    },
+    {
+      "id": "in",
+      "feature": "X007-PERFECT-HASH-IN",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT id FROM t WHERE id IN (1,2)",
+      "accept": false
+    },
+    {
+      "id": "udf",
+      "feature": "X008-VECTOR-UDF",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE FUNCTION add_one(x BIGINT) RETURNS BIGINT RETURN x + 1",
+      "accept": false
+    },
+    {
+      "id": "system-time",
+      "feature": "T182-BITEMPORAL-AS-OF",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT id FROM t FOR SYSTEM_TIME AS OF 1",
+      "accept": false
+    },
+    {
+      "id": "stream-slice",
+      "feature": "X009-CHANGES-STREAM-SLICE",
+      "entrypoint": "relational_sql",
+      "sql": "SELECT id FROM STREAM_SLICE('events', 0, 10)",
+      "accept": false
+    },
+    {
+      "id": "merge",
+      "feature": "F312-MERGE",
+      "entrypoint": "table_ddl",
+      "sql": "MERGE INTO t USING u ON t.id = u.id WHEN MATCHED THEN DELETE",
+      "accept": false
+    },
+    {
+      "id": "activate",
+      "feature": "X010-DATAFLOW-LIFECYCLE",
+      "entrypoint": "table_ddl",
+      "sql": "ACTIVATE VIEW v",
+      "accept": false
+    },
+    {
+      "id": "policy",
+      "feature": "X012-CONTROL-POLICY-PLANE",
+      "entrypoint": "inspection",
+      "sql": "EXPLAIN POLICY FOR t",
+      "accept": false
+    }
+  ],
+  "fixture_provenance": {
+    "license": "MIT",
+    "origin": "Transit-authored compiler examples; no standards text reproduced",
+    "scope": "Compiler acceptance/refusal only; execution, recovery and transport require their owning suites"
+  }
 }

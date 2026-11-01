@@ -81,8 +81,15 @@ promote a standalone helper to SQL support. Physical-codec entries describe
 typed TableSchema admission; SQL `ENCODING` remains reference-only.
 
 `tests/query/logical/standards_ledger.py --write` regenerates the ledger digest and
-its Zig projection, `StandardsLedgerData.zig`. The check compares every field,
-including lifecycle states, dependencies and fixture paths. This is a consistency
+its Zig projection, `StandardsLedgerData.zig`, and the generated capability
+summary in the [grammar inventory](../../docs/handbook/reference/sql/grammar-surface.md#capability-ledger).
+Feature records require an explicit public profile, evidence sources and a
+`reference_verified` flag; unverified edition/clause labels are not standards
+conformance claims. The Transit-authored MIT compiler cases bind a feature to an
+actual `table_ddl`, `relational_sql` or `inspection` entry point and its expected
+acceptance. Fuze executes those cases against the production compiler.
+The check compares every field, rejects dependency cycles and contradictory
+compiler expectations, and verifies the generated public summary. This is a consistency
 check. Actual compiler tests and installed SQL session tests establish behavior;
 file presence and fixture regeneration do not establish execution or recovery.
 

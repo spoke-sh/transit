@@ -309,3 +309,46 @@ Maintain this inventory and each affected statement page together. The
 [verification reference](../verification.md) defines evidence boundaries and
 links executed results. Generated feature-level capability views are planned;
 this page is a reviewed source-revision inventory, not runtime negotiation.
+
+<!-- standards-ledger:start -->
+## Capability ledger
+
+This generated summary describes the selected production entry points,
+not the availability of internal helpers. Stage states are independent;
+an implemented compiler is not execution, recovery or transport evidence.
+Feature IDs and edition/clause references are inventory labels. References
+marked unverified have not been audited for standards conformance.
+
+The [neutral ledger](../../../../contracts/sql/standards-ledger.json)
+records owners, evidence sources, dependencies and compiler cases.
+Its compiler corpus is Transit-authored under MIT; it contains no copied
+standards text. Runtime and installed caller checks remain separate.
+
+| Feature | Parse | Lower | Execute | Recover | Transport | Reference | Scope and limits |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| E021-E051 | implemented | implemented | implemented | implemented | implemented | unverified | Selected scalar types only. Stored DECIMAL does not imply SQL decimal arithmetic or a manifest-bound rounding descriptor; standalone helpers are separately tested. |
+| F031-F034 | implemented | implemented | implemented | implemented | implemented | unverified | Selected CREATE/ALTER/DROP operations only. Online physical rewrites and the standalone evolution classifier are not integrated. |
+| F491 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone CHECK descriptor/evaluator only. TableDdl rejects CHECK; schemas, writes and recovery do not carry these constraints. |
+| F492 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone foreign-key descriptors only. TableDdl rejects FOREIGN KEY/REFERENCES; no durable dependency or write-enforcement integration. |
+| F111 | implemented | implemented | implemented | implemented | implemented | unverified | Admits SERIALIZABLE and READ ONLY common cuts; rejects weaker isolation levels. |
+| T181-X003 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner. FOR SYSTEM_TIME AS OF is a separate reference grammar fragment, not an alias for an LSN or manifest. |
+| X001-RANGE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone interval helper. RANGE and MULTIRANGE are absent from current logical type/value/schema codecs and SQL execution. |
+| X002-VECTOR | rejected | rejected | rejected | rejected | rejected | unverified | Standalone vector metric helper. VECTOR is absent from current logical type/value/schema codecs, SQL lowering and storage slabs. |
+| G001-PGQ | rejected | rejected | rejected | rejected | rejected | unverified | Standalone property-graph descriptor validation. No SQL compiler, DirectCatalog persistence or graph execution. |
+| M001-MED | rejected | rejected | rejected | rejected | rejected | unverified | Standalone foreign-table descriptor validation. No SQL compiler, DirectCatalog persistence or foreign scan execution. |
+| X006-EXPLAIN | implemented | implemented | implemented | rejected | implemented | unverified | Native direct Table SELECT explanation reports typed traits under metadata-inspection rights; no data pins or scans. Results are session-local and must be prepared again after replacement. |
+| X004-GERMAN-STRING | rejected | rejected | rejected | rejected | rejected | unverified | Internal string representation and compressed-page helpers; not a SQL declaration, stored column format or durable query recovery profile. |
+| X005-SEARCH-WAND | rejected | rejected | rejected | rejected | rejected | unverified | Standalone search/index helpers. No production SEARCH SQL admission, durable index lifecycle or installed result transport. |
+| F401-JOIN | rejected | rejected | rejected | rejected | rejected | unverified | Standalone generalized join/unnesting helpers. The separate production relational profile admits one inner/left equijoin; it does not admit this multi-way/lateral/unnesting family. |
+| T611-WINDOW | rejected | rejected | rejected | rejected | rejected | unverified | Standalone window evaluator; no production OVER/QUALIFY compiler, durable cursor recovery or transport. |
+| T121-RECURSIVE-CTE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone recursive/set evaluators; no production WITH RECURSIVE compiler or durable recursive execution. |
+| X007-PERFECT-HASH-IN | rejected | rejected | rejected | rejected | rejected | unverified | Internal perfect-hash IN evaluator; production SELECT does not lower IN/NOT IN into this helper. Keyword lookup is an independent implementation detail. |
+| X008-VECTOR-UDF | rejected | rejected | rejected | rejected | rejected | unverified | Standalone macro/vector UDF helpers; no production CREATE FUNCTION, SQL call binding or installed Wasm execution. |
+| T182-BITEMPORAL-AS-OF | rejected | rejected | rejected | rejected | rejected | unverified | Standalone temporal evaluator; no production temporal-table or AS OF JOIN admission. Snapshot selection is separate from temporal meaning. |
+| X009-CHANGES-STREAM-SLICE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone array-backed TVF helpers; no production catalog-bound CHANGES/STREAM_SLICE source. |
+| F312-MERGE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone merge evaluator; no production MERGE INTO admission or transactional publication. |
+| X011-DBSP-ZSET | rejected | rejected | rejected | rejected | rejected | unverified | Standalone delta algebra; existing maintained relational queries recompute finite results. No SQL DBSP lifecycle or durable arrangement integration. |
+| X010-DATAFLOW-LIFECYCLE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone lifecycle helpers; no production ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE SQL or service-managed scheduler. |
+| X012-CONTROL-POLICY-PLANE | rejected | rejected | rejected | rejected | rejected | unverified | Component policy descriptors/evaluators; no production SQL lifecycle for this combined enterprise feature family. Existing native grants remain a separate implemented owner. |
+
+<!-- standards-ledger:end -->
