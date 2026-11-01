@@ -19,8 +19,10 @@ Build on [Document profiles](16-document-profiles-and-gateway-exchange-lifecycle
 [managed computations](12-sql-and-dataflows.md),
 [branches](20-branches-merges-and-restore.md),
 [policy](27-control-and-policy-plane.md),
-[published investigations](28-published-resources-and-investigations.md) and
-[reviewed publication](29-reviewed-data-collaboration.md). Reuse the
+[published investigations](28-published-resources-and-investigations.md),
+[reviewed publication](29-reviewed-data-collaboration.md),
+[deductive rules and Datalog fixpoints](41-deductive-rules-datalog-and-equivalence-graphs.md) and
+[hardware design and EDA verification](42-hardware-design-rtl-and-eda-verification.md). Reuse the
 [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
 [publication](../../contracts/PUBLISHED_RESOURCE_V1.md),
 [investigation](../../contracts/INVESTIGATION_V1.md) and

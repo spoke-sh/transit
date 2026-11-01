@@ -1,4 +1,4 @@
-# 44. Declarative language, structural context and corpus-native synthesis research
+# 46. Declarative language, structural context and corpus-native synthesis research
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -9,14 +9,14 @@ underlying physical data structures, index layouts, ranking heuristics and
 predictors completely swappable.
 
 This is a **speculative research milestone**. Nothing here is required for the
-[1.0 qualification and release gates](43-releases.md), and no candidate physical
+[1.0 qualification and release gates](45-releases.md), and no candidate physical
 algorithm named below (whether Block-Max BM25, trigram bitmaps, succinct
 FM-indexes/Wavelet Trees, grammar compression, distributional sketches or branch
 tree search) is assumed to be the winning implementation ahead of empirical
 measurement. The architectural goal is to define **declarative contracts**
 ($\tau \perp \kappa \perp \epsilon$) so candidate mechanisms can be plugged in,
 verified against deterministic scalar reference oracles, and evaluated on the
-[qualification scorecard](42-qualification-and-benchmarks.md).
+[qualification scorecard](44-qualification-and-benchmarks.md).
 
 ## Prerequisites and scope
 
@@ -35,8 +35,10 @@ Build on the delivered and planned foundations across
 [multi-model and graph projections](18-multi-model-and-foreign-relations.md),
 [branches and merges](20-branches-merges-and-restore.md),
 [reviewed collaboration](29-reviewed-data-collaboration.md),
-[reactive context and agent activation](32-reactive-context-and-agent-activation.md) and
-[SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md).
+[reactive context and agent activation](32-reactive-context-and-agent-activation.md),
+[deductive rules, Datalog fixpoints and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md),
+[hardware design, RTL/netlist verification and EDA evidence](42-hardware-design-rtl-and-eda-verification.md)
+and [SQL grammar and dialect ergonomics](43-sql-grammar-and-dialect-ergonomics.md).
 
 Start from the [data model](../handbook/reference/data-model.md) and the
 [observation and feedback loop](../handbook/reference/collaborative-decisions.md#the-observation-and-feedback-loop).
@@ -209,7 +211,9 @@ stream primitives:
   3. **Deterministic Verification Gate (`VERIFY`):** Declarative invariants—SQL
      `CHECK` and `FOREIGN KEY` constraints
      ([Milestone 10](10-standards-and-catalogs.md)), `Plan.bind()` type/schema
-     validation, test assertions and policy rules—that a candidate branch must
+     validation, [stratified Datalog / `e-graph` security and reachability rules](41-deductive-rules-datalog-and-equivalence-graphs.md),
+     [RTL/Verilog taint, CDC and `DRC`/`LVS` hardware verification gates](42-hardware-design-rtl-and-eda-verification.md),
+     test assertions and policy rules—that a candidate branch must
      satisfy before it can be surfaced as a reviewed proposal
      ([Milestone 29](29-reviewed-data-collaboration.md)) or committed.
   4. **Closed-Loop Outcome Attribution (`TWAL1` $\to$ `.tseg`):** Every
@@ -233,4 +237,4 @@ stream primitives:
 | Declarative Spans & Segmenters | Deterministic scalar segmenter oracle, byte-offset and five-state fidelity across UTF-8/EBCDIC/binary inputs, and measured compression vs. random-access cost of flat `.fsst`/`.dictionary` vs. hierarchical/grammar encodings |
 | Multi-Scale Proximity (`NEAR`) | Exact agreement with the finite linear/interval/graph reference oracle; measured latency, index size, build/compaction amplification and selective pruning across Block-Max BM25, trigram/automaton, succinct tree (`BP`) and WCOJ graph profiles |
 | Context-Conditioned Continuation | Provenance completeness (zero leakage from unauthorized or `.tdel`-deleted rows), grammar/catalog constraint soundness, and comparative quality/latency/memory scorecards (exact scan vs. bounded $n$-gram vs. succinct `r-index`/Wavelet Tree vs. hybrid predictors) on SQL/code completion and enterprise synthesis workloads |
-| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](42-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |
+| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](44-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |

@@ -25,7 +25,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](42-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](44-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -45,7 +45,7 @@ access paths. The [data structures and performance milestone](13-data-structures
 delivers the local workload scorecard, selected optimizations and regression
 budgets. Earlier owners establish baselines and meet their existing gates; later
 providers, distributed execution and language surfaces extend the same measures.
-[Final qualification](42-qualification-and-benchmarks.md) combines the evidence
+[Final qualification](44-qualification-and-benchmarks.md) combines the evidence
 at one revision. Publish wins, regressions and unresolved competitive gaps with
 reproducible results; correctness, current authorization and accepted-work
 recovery remain part of every performance profile.
@@ -70,8 +70,8 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 23–26 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 27–30 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
 | [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 31–34 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
-| [VI: Scientific, media and evidence workloads](#phase-vi-scientific-media-and-evidence-workloads) | 35–40 | Applications compose calibrated scientific arrays, synchronized video, attributable ML/AI experiments, robotics replay, software/build/deployment evidence and constrained planning over shared versioned data, numerical, policy and publication contracts |
-| [VII: Qualification and release](#phase-vii-qualification-and-release) | 41–44 | One committed revision has a harmonized SQL grammar audited against formal standards and industry dialects, combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
+| [VI: Scientific, media and evidence workloads](#phase-vi-scientific-media-and-evidence-workloads) | 35–42 | Applications compose calibrated scientific arrays, synchronized video, attributable ML/AI experiments, robotics replay, software/build/deployment evidence, constrained planning, stratified Datalog/equivalence-graph reasoning and Verilog/RTL/EDA hardware verification over shared versioned data, numerical, policy and publication contracts |
+| [VII: Qualification and release](#phase-vii-qualification-and-release) | 43–46 | One committed revision has a harmonized SQL and deductive rule grammar audited against formal standards and industry dialects, combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
 
 Phases are delivery groupings, not additional runtime dependencies or release
 dates. Contract work and implementation may overlap when the owning prerequisites
@@ -151,15 +151,17 @@ combines that evidence at one revision.
 | 38 | [Robotics, industrial sensing and calibrated replay](38-robotics-and-sensor-replay.md) | Planned | Clock/frame/calibration-aware sensor capture, MCAP/ROS profiles, bounded synchronized replay and candidate evaluation with physical actuation separately authorized |
 | 39 | [Software, build and deployment evidence](39-software-build-and-deployment-evidence.md) | Planned | Exact source/dependency/build/test/artifact/deployment evidence, bounded impact queries and candidate checks, with a scoped Spoke Platform integration handoff |
 | 40 | [Constrained planning and attributable optimization](40-constrained-planning-and-optimization.md) | Planned | Frozen problems, feasible/optimal/infeasible/unknown outcomes, verified candidates and bounds, bounded solver recovery and reviewed plan publication |
+| 41 | [Deductive rules, Datalog fixpoints and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md) | Planned | Mutually recursive Tarjan-SCC stratified fixpoints, semi-naive DBSP & WCOJ evaluation, monotonic lattice/semiring aggregations, Union-Find (`e-class`) / bounded `egglog` rewrites and inspectable derivation witnesses |
+| 42 | [Hardware design, RTL/netlist verification and EDA evidence](42-hardware-design-rtl-and-eda-verification.md) | Planned | Elaborated Verilog/SystemVerilog RTL, netlist, `VCD`/`FST` waveform and `.layout_manhattan` (`GDSII`/`OASIS`/`LEF`/`DEF`) verification, Datalog information-flow/taint & CDC/RDC analysis, incremental DBSP `DRC`/`LVS`, IP spatial-RLS compartmentalization and RTL-to-silicon tape-out provenance |
 
 ### Phase VII: Qualification and release
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 41 | [SQL grammar, standards comparison and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake/Delta, Dolt, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), 2-way/3-way `DIFF` & `DIFF_SCHEMA`, standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
-| 42 | [Qualification and complete benchmarks](42-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 43 | [Release distribution](43-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
-| 44 | [Declarative language, structural context and corpus-native synthesis research](44-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
+| 43 | [SQL grammar, standards comparison and dialect ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL and deductive rule grammar comparison against ISO SQL:2023, ISO SQL/MM Spatial, Datalog (`Soufflé`/`Logica`/`egglog`) and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake/Delta, Dolt, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, multi-head deductive rules, trailing commas), 2-way/3-way `DIFF` & `DIFF_SCHEMA`, standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
+| 44 | [Qualification and complete benchmarks](44-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
+| 45 | [Release distribution](45-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 46 | [Declarative language, structural context and corpus-native synthesis research](46-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -206,10 +208,10 @@ evidence rather than assuming every preceding number is a technical dependency.
 | V | Prove complete application composition | 34 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
 | VI | Establish scientific measurement and computation contracts | 35 | Qualify named axes, units, clocks, calibration, quality, numerical error and sparse/dense tiled execution; prove conservative pruning and incremental/finite agreement on earth-observation and calibrated-sensor journeys |
 | VI | Deliver media, ML/AI and robotics lifecycles | 36–38 | Qualify indexed video/timeline disclosure, exact model/input/evaluation attribution and synchronized sensor replay; exercise gaps, corrections, bounded work, restart and revocation without replaying physical effects |
-| VI | Connect evidence to reviewed plans | 39–40 | Qualify source-to-deployment evidence and Platform exchange boundaries, then constrained candidate outcomes/bounds, original-operation recovery and exact reviewed publication separately from external execution |
-| VII | Harmonize SQL grammar, standards and dialect ergonomics | 41 | Audit the complete SQL grammar against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), qualify compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas, numeric underscores) to canonical `FQP1`/`FDM1` plan bytes, standardize 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and verify actionable foreign-dialect diagnostics before freezing 1.0 qualification |
-| VII | Qualify and distribute one revision | 42–43 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
-| VII | Explore declarative language, structural context and synthesis | 44 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
+| VI | Connect evidence, deductive rules and hardware verification to reviewed plans | 39–42 | Qualify source-to-deployment evidence and Platform exchange boundaries, constrained candidate outcomes/bounds, stratified Datalog fixpoints/equivalence graphs with derivation witnesses, and elaborated Verilog/RTL/netlist/layout security (`IFT`/taint, `CDC`, `DRC`/`LVS`) and tape-out provenance separately from external execution |
+| VII | Harmonize SQL grammar, standards and dialect ergonomics | 43 | Audit the complete SQL and deductive rule grammar against ISO SQL:2023, ISO SQL/MM Spatial, Datalog and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), qualify compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, multi-head deductive rules, trailing commas, numeric underscores) to canonical `FQP1`/`FDM1` plan bytes, standardize 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and verify actionable foreign-dialect diagnostics before freezing 1.0 qualification |
+| VII | Qualify and distribute one revision | 44–45 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| VII | Explore declarative language, structural context and synthesis | 46 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
@@ -217,9 +219,50 @@ this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
 
+## Deductive Datalog rules, equivalence graphs and Verilog/EDA hardware verification review — 2026-11-01
+
+A review of how Datalog deductive reasoning and Verilog/EDA hardware design
+intersect with Transit's [DBSP dataflows](12-sql-and-dataflows.md),
+[Worst-Case Optimal Joins (`WCOJ` / `FreeJoin`)](13-data-structures-and-performance.md),
+[AOT query compilation](15-data-centric-compilation-and-specialization.md),
+[2.5D `.layout_manhattan` and `COCHAIN_FIELD` spatial/continuum storage](17-geospatial-and-spatio-temporal-computing.md),
+[multi-model foreign projections](18-multi-model-and-foreign-relations.md),
+[zero-copy branches and `DIFF`](20-branches-merges-and-restore.md),
+[security-barrier and spatial RLS](27-control-and-policy-plane.md),
+[software/artifact provenance](39-software-build-and-deployment-evidence.md),
+[constrained optimization](40-constrained-planning-and-optimization.md) and
+[branch-verified agency](46-declarative-language-context-and-synthesis.md)
+identifies two independently reviewable Phase VI workload owners—[Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md)
+and [Milestone 42](42-hardware-design-rtl-and-eda-verification.md)—shifting
+Phase VII to `43–46`:
+
+1. **Elevate `Fuze`'s recursive evaluator to stratified Datalog fixpoints, monotonic lattice aggregations, Union-Find equivalence classes (`e-graphs`) and derivation witnesses ([Milestone 12](12-sql-and-dataflows.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md), [Milestone 43](43-sql-grammar-and-dialect-ergonomics.md)):**
+   Standard single-table SQL `WITH RECURSIVE` cannot directly express mutually
+   recursive rule systems, monotonic lattice accumulation inside recursion, or
+   compact equivalence-class unification without $O(N^2)$ transitive closure
+   materialization. [Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md)
+   extends `Fuze` and DBSP with Tarjan-SCC stratification (rejecting
+   unstratifiable negative/non-monotonic cycles before admission), semi-naive
+   differential evaluation over WCOJ (`FreeJoin`) cyclic bodies, monotonic
+   join-semilattice accumulators ($\langle L, \sqcup, \bot \rangle$ for taint
+   labels, reachability and tropical $(\min, +)$/$(\max, +)$ path bounds), paged
+   Union-Find (`e-class`) congruence tables and bounded `egglog` equality
+   saturation, and RLS-checked derivation witness DAGs (`WITH PROVENANCE`).
+2. **Unify Verilog/SystemVerilog RTL, gate/SPICE netlists, `VCD`/`FST` waveforms and 2.5D `.layout_manhattan` physical layouts under incremental Datalog verification and tape-out provenance ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md), [Milestone 18](18-multi-model-and-foreign-relations.md), [Milestone 39](39-software-build-and-deployment-evidence.md), [Milestone 40](40-constrained-planning-and-optimization.md), [Milestone 42](42-hardware-design-rtl-and-eda-verification.md), [Milestone 46](46-declarative-language-context-and-synthesis.md)):**
+   [Milestone 42](42-hardware-design-rtl-and-eda-verification.md) projects
+   elaborated RTL hierarchy, sequential/combinational cones and netlists into
+   versioned tables and SQL/PGQ graphs alongside `VCD`/`FST` digital waveforms
+   and `.layout_manhattan` (`GDSII`/`OASIS`/`LEF`/`DEF`) geometry. It expresses
+   Hardware Information Flow Tracking (`IFT` / taint analysis), Clock- and
+   Reset-Domain Crossing (`CDC`/`RDC`), combinational loop detection, static
+   timing depth bounds, incremental `DRC` and graph-based `LVS` as WAL-activated
+   DBSP / Datalog computations—enabling branch-isolated ECOs, spatial-RLS IP
+   macro compartmentalization, RTL-to-GDSII Trojan/provenance audits and
+   deterministic `VERIFY` gates for agent-assisted hardware synthesis.
+
 ## Scientific, media and evidence workload expansion — 2026-11-01
 
-Add six independently reviewable milestones after the common application
+Add eight independently reviewable milestones after the common application
 foundation and before combined qualification. Each is Planned and defines its
 own contract, caller journey, resource bounds and recovery/disclosure evidence.
 Earlier delivered scope and unfinished gates are preserved. The existing audio,
@@ -235,25 +278,29 @@ new shared contracts generalize their interpretation and computation boundaries.
 | Sensor episodes and replay | [M38](38-robotics-and-sensor-replay.md) | Preserve gaps, clock/calibration changes and replay progress; require separate authority and qualification for physical actions |
 | Software evidence and Platform exchange | [M39](39-software-build-and-deployment-evidence.md) | Bind exact source/build/test/artifact/deployment identities, preserve incomplete evidence and leave hosting/product policy with Platform |
 | Constrained planning | [M40](40-constrained-planning-and-optimization.md) | Distinguish feasible, optimal, infeasible and unknown search, retain bounds/tolerances and review exact candidates separately from effects |
+| Deductive rules, Datalog and equivalence graphs | [M41](41-deductive-rules-datalog-and-equivalence-graphs.md) | Stratify mutually recursive rules, reject negative cycles, distinguish complete fixpoints from budget prefixes, bound Union-Find/`e-graph` state and check RLS on derivation witnesses |
+| Hardware design, RTL and EDA verification | [M42](42-hardware-design-rtl-and-eda-verification.md) | Bind elaborated RTL, netlists, waveforms and `.layout_manhattan` masks to exact snapshots; verify taint/CDC/DRC/LVS incrementally, compartmentalize IP via RLS and preserve RTL-to-silicon provenance |
 
 The first cross-domain demonstrator is calibrated sensor replay: capture raw
 samples and a camera interval, bind calibration, derive features, inspect an
 event, revise calibration on a branch and identify changed results. Reopen the
 original basis after restart, revoke access during disclosure and prove replay
 sends no device command. M35 supplies the numerical slice; M36 and M38 qualify
-the complete synchronized journey. Software evidence can progress independently
-of video/robotics kernels once its explicit prerequisites are qualified.
+the complete synchronized journey. Software evidence, deductive Datalog rules and
+hardware RTL/EDA verification can progress independently of video/robotics
+kernels once their explicit prerequisites are qualified.
 
 Phase VI does not require every earlier numbered milestone as an implicit
 technical dependency. Owners can settle contracts and deliver independent slices
 as their actual prerequisites become executable. Existing minimum authorization,
 bounded work and recovery requirements remain gates in every phase.
 
-This insertion moves the former M35 grammar, M36 qualification, M37 release and
-M38 synthesis-research owners to M41, M42, M43 and M44 respectively. Phase VII
-retains their statuses and obligations. The post-release synthesis research is
-separate from M37's concrete model/feature/experiment lifecycle. No planning edit
-establishes implemented support, new benchmark results or Platform readiness.
+This insertion (together with M41–M42) moves the former M35 grammar, M36
+qualification, M37 release and M38 synthesis-research owners to M43, M44, M45
+and M46 respectively. Phase VII retains their statuses and obligations. The
+post-release synthesis research is separate from M37's concrete
+model/feature/experiment lifecycle. No planning edit establishes implemented
+support, new benchmark results or Platform readiness.
 
 ## Interactive 3D worlds, game asset pipelines and simulation streaming review — 2026-11-01
 
@@ -486,7 +533,7 @@ sequence to `1–37` and establishes four architectural commitments:
    read-only 2D map, progressive-LOD 3D scene/mesh/point-cloud and `DIFF`/clash
    layers in [Milestone 30](30-board-reimplementation.md); and audit ISO SQL/MM
    Spatial (`ST_*` / `ST_3D*`) in
-   [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md).
+   [Milestone 43](43-sql-grammar-and-dialect-ergonomics.md).
 
 ## SQL grammar, standards comparison, dialect ergonomics and dataflow lifecycle review — 2026-10-29
 
@@ -522,7 +569,7 @@ establishes four architectural refinements:
    Unlike ISO SQL `EXCEPT [ALL]` (one-way, primary-key blind and schema-rigid) or
    table-doubling diff functions (`from_<col>` / `to_<col>`),
    [Milestone 20](20-branches-merges-and-restore.md) and
-   [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md) define key-aligned
+   [Milestone 43](43-sql-grammar-and-dialect-ergonomics.md) define key-aligned
    two-way and three-way `DIFF(object, ...)` and `DIFF_SCHEMA(...)` table-valued
    functions that skip shared `.tseg` segments and `.tdel` bitmaps in $O(1)$
    ([`A4: BranchMergeAlgebra.lean`](22-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)),
@@ -541,11 +588,11 @@ establishes four architectural refinements:
    transferring only missing `.tseg`/`.tdel` deltas, testing schema migrations
    and fenced dataflows on a local branch, and pushing the delta segments and
    candidate manifest back to the remote as a reviewed proposal.
-4. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)):**
-   The grammar owner is now [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)
+4. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 43](43-sql-grammar-and-dialect-ergonomics.md)):**
+   The grammar owner is now [Milestone 43](43-sql-grammar-and-dialect-ergonomics.md)
    at the start of Phase VII, after the scientific/media/evidence workload
-   phase and before [qualification](42-qualification-and-benchmarks.md) and
-   [release](43-releases.md). It audits the
+   phase and before [qualification](44-qualification-and-benchmarks.md) and
+   [release](45-releases.md). It audits the
    complete SQL grammar across Tables, KV, Documents, Streams, Queues, Dataflows,
    Property Graphs, Foreign Tables and Branches against **ISO/IEC 9075
    SQL:2023**, **PostgreSQL 17**, **DuckDB**, **Snowflake / Delta Lake**,
@@ -811,7 +858,7 @@ subsequent milestones to `13–30`:
      late materialization, while handing off speculative research into
      declarative spans, multi-scale `NEAR` maps, context-conditioned continuation
      and branch-verified agency to
-     [Milestone 44](44-declarative-language-context-and-synthesis.md).
+     [Milestone 46](46-declarative-language-context-and-synthesis.md).
 3. **Data-centric pipeline fusion, CedarDB join structures, Flying-Start Adaptive Morsel Tier-Up and AOT query compilation ([Milestone 12](12-sql-and-dataflows.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 15](15-data-centric-compilation-and-specialization.md)):**
    Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011),
    [Umbra](https://umbra-db.com/) (Neumann & Freitag, CIDR 2020),
@@ -1314,7 +1361,7 @@ requirements; no original tracker closes merely because its work was split.
    `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](42-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](44-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -1344,7 +1391,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `44-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `46-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 Keep phase membership contiguous and exhaustive: each milestone appears exactly

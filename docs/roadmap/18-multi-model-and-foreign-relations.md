@@ -31,9 +31,15 @@ boundary: [scientific arrays](35-scientific-arrays-and-measurements.md) qualify
 named axes, units, calendars, quality and numerical fidelity;
 [Video](36-video-and-multimodal-timelines.md) owns media timing/decode dependencies;
 [Robotics](38-robotics-and-sensor-replay.md) owns sensor clock/frame/calibration
-interpretation and MCAP/ROS journeys; and
+interpretation and MCAP/ROS journeys;
 [software evidence](39-software-build-and-deployment-evidence.md) owns source,
-attestation and build/test projections. Existing format slices retain their
+attestation and build/test projections;
+[deductive rules and Datalog fixpoints](41-deductive-rules-datalog-and-equivalence-graphs.md)
+own stratified mutually recursive graph/rule evaluation and Union-Find equivalence
+classes; and
+[hardware design and EDA verification](42-hardware-design-rtl-and-eda-verification.md)
+owns elaborated Verilog/RTL, netlist, digital waveform (`VCD`/`FST`) and physical
+layout (`DRC`/`LVS`) verification lifecycles. Existing format slices retain their
 gates. A format reader alone supplies none of those application lifecycles.
 
 ## Delivery sequence
@@ -103,7 +109,7 @@ retrieval, streaming CDC ingestion and import/export costs.
      query plan, handing off reactive context subscriptions to
      [Milestone 32](32-reactive-context-and-agent-activation.md) and
      declarative sequence/context synthesis research to
-     [Milestone 44](44-declarative-language-context-and-synthesis.md).
+     [Milestone 46](46-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - Bind external object-store and HTTP credentials through catalog `SECRET`
      declarations (`CREATE SECRET ... TYPE s3 | gcs | r2 | http ... SCOPE ...` in
@@ -202,11 +208,14 @@ retrieval, streaming CDC ingestion and import/export costs.
        with anisotropic patient coordinate transforms (`RAS`/`LPS`) and
        [Milestone 27](27-control-and-policy-plane.md) security-barrier RLS,
        dynamic PHI tag masking and crypto-shredding.
-     - *Electronic Design Automation (EDA) & VLSI chip layouts (`OASIS`, `GDSII`, `LEF` / `DEF`, `SPICE` / `Verilog` netlists):*
+     - *Electronic Design Automation (EDA), RTL & VLSI chip layouts (`OASIS`, `GDSII`, `LEF` / `DEF`, `SPICE` / `Verilog` / `RTLIL` netlists, `VCD` / `FST` waveforms):*
        project hierarchical multi-layer semiconductor layouts into
-       `.layout_manhattan` (`.scene_dag` + `.topo_arc` on $\delta_{\text{grid}} = 1\,\text{nm}$)
-       and circuit netlists into SQL/PGQ property graphs for incremental DBSP
-       `DRC` and `LVS` verification.
+       `.layout_manhattan` (`.scene_dag` + `.topo_arc` on $\delta_{\text{grid}} = 1\,\text{nm}$),
+       elaborated RTL/gate/transistor netlists into relational tables and SQL/PGQ
+       property graphs, and digital simulation traces into compressed transition
+       and `WAVEFORM` streams for incremental DBSP and
+       [Datalog](41-deductive-rules-datalog-and-equivalence-graphs.md)
+       [hardware security, taint, CDC, `DRC` and `LVS` verification](42-hardware-design-rtl-and-eda-verification.md).
      - *Audio, seismic, biosignal & market-microstructure streams (`FLAC` / `WAV` / `BWF`, `MiniSEED` / `SEG-Y`, `EDF+` / `BDF`, `ITCH` / `OUCH` / `FIX`):*
        map multi-channel audio, hydrophone/seismic and EEG/ECG waveforms onto
        [Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md)

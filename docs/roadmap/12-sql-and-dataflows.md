@@ -97,7 +97,7 @@ half-committed transaction as a completed result.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    expose the same typed lifecycle state machine and DDL verbs across SQL
    (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and
-   Board; [SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md)
+   Board; [SQL grammar and dialect ergonomics](43-sql-grammar-and-dialect-ergonomics.md)
    audits these forms against PostgreSQL (`ENABLE`/`DISABLE`) and Snowflake
    (`SUSPEND`/`RESUME`/`REFRESH`) dialects. Inspection and `EXPLAIN` do no work.
    Board consumes the same definitions and evidence through its explicit
@@ -202,9 +202,16 @@ fidelity and valid update/retraction or bounded-rebuild behavior.
 [ML/AI](37-ml-ai-and-experiment-provenance.md) binds feature/model/experiment
 identity; [Robotics](38-robotics-and-sensor-replay.md) binds calibrated replay;
 [software evidence](39-software-build-and-deployment-evidence.md) binds exact
-build/test/deployment observations; and
+build/test/deployment observations;
 [constrained planning](40-constrained-planning-and-optimization.md) adds domain
-candidate/bound/termination evidence. Each reuses original accepted identity,
+candidate/bound/termination evidence;
+[deductive rules and Datalog fixpoints](41-deductive-rules-datalog-and-equivalence-graphs.md)
+extend `WITH RECURSIVE` and DBSP $\mathcal{Z}$-sets with Tarjan-SCC mutual
+recursion, monotonic lattice aggregations, Union-Find equivalence classes and
+derivation witnesses; and
+[hardware design and EDA verification](42-hardware-design-rtl-and-eda-verification.md)
+applies incremental Datalog and spatial dataflows to elaborated Verilog/RTL
+taint, CDC and `DRC`/`LVS` checks. Each reuses original accepted identity,
 source basis, bounded progress and complete publication rather than introducing
 another job authority. SQL completion, solver optimality, model accuracy and
 physical consequences remain different facts. These later extensions do not
@@ -759,7 +766,7 @@ when every scope and qualification gate is met.
 | [M16 profiles](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17 spatial](17-geospatial-and-spatio-temporal-computing.md), [M18 foreign relations](18-multi-model-and-foreign-relations.md) | Source/decoder definition bindings, function traits, arrangements, temporal joins and governed endpoints | Document/protocol parsers, spatial semantics/indexes, foreign formats, COPY and CDC ingress. Generic callbacks or descriptors do not establish those features |
 | [M20 branches](20-branches-merges-and-restore.md) | Branch-scoped computation identities and retained source/result roots | Writable branch computation, merge/restore decisions and execution discontinuities; SQL MERGE stays with M12 |
 | [M22 formal semantics](22-formal-semantics-and-correspondence.md) | T5/T8/A3 models, production correspondence and explicit proof limits | Broader composition/refinement. M12's selected proofs remain its own completion gate |
-| [M27 policy](27-control-and-policy-plane.md), [M30 Board](30-board-reimplementation.md), [M32 reactive context](32-reactive-context-and-agent-activation.md), [M41 SQL ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers and dialect audits. Notifications do not prove an agent or external action completed |
+| [M27 policy](27-control-and-policy-plane.md), [M30 Board](30-board-reimplementation.md), [M32 reactive context](32-reactive-context-and-agent-activation.md), [M41 Datalog](41-deductive-rules-datalog-and-equivalence-graphs.md), [M42 EDA](42-hardware-design-rtl-and-eda-verification.md), [M43 SQL ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons, bounded recursive CTE evaluation and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers, multi-relation Tarjan-SCC Datalog stratification/lattices/witnesses, RTL/EDA verification suites and dialect audits. Notifications do not prove an agent or external action completed |
 
 ### First implementation changes
 
@@ -905,7 +912,7 @@ coordinates with the active in-progress and recently completed milestones:
 | [M13: Data structures & performance](13-data-structures-and-performance.md), [M14: Strings & search](14-vectorized-strings-and-search.md) & [M15: Compilation](15-data-centric-compilation-and-specialization.md) | `transit-memory` bounded arenas/slabs (`#194`) and `transit-io` | Correctness, bounded Tier 2 NVMe spill, morsel-budgeted execution and `comptime`/plan-bound perfect-hash `IN (...)` lookup baselines that M13/M14/M15 accelerate via CedarDB hash tables, Umbra strings and data-centric push fusion |
 | [M17: Geospatial & 3D computing](17-geospatial-and-spatio-temporal-computing.md) & [M18: Multi-model & foreign relations](18-multi-model-and-foreign-relations.md) | Reserved $\kappa_{\text{spatial}}$ descriptors in `DecimalArithmetic.zig` and `ForeignTableDescriptor`/`PropertyGraphDescriptor` in `HistoricalCatalog.zig` | DBSP Z-set arrangement and bilinear join hooks extended by M17 for incremental `ST_Union` ($\partial_2$), `ST_3DUnion` ($\partial_3$), Discrete Divergence Theorem volume aggregates and `INTERIOR`/`BOUNDARY` cell-covering spatial joins; streaming `AS OF JOIN` interpolation hook for 4D `TRAJECTORY`; `SOURCE`/`SINK` catalog foundation extended by M18 for foreign formats and streaming CDC ingress |
 | [M20: Branches, merges & restore](20-branches-merges-and-restore.md) | Single-branch (`main`) `ManifestCut` timeline in `HistoricalCatalog.zig` | Strict separation between relational SQL `MERGE INTO` (DML) and catalog branch `MERGE` (M20), plus branch-scoped computation watermark bindings |
-| [M22: Formal semantics](22-formal-semantics-and-correspondence.md), [M30: Board](30-board-reimplementation.md), [M32: Reactive context](32-reactive-context-and-agent-activation.md) & [M41: SQL ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M32 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
+| [M22: Formal semantics](22-formal-semantics-and-correspondence.md), [M30: Board](30-board-reimplementation.md), [M32: Reactive context](32-reactive-context-and-agent-activation.md) & [M43: SQL ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M32 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
 
 ### Accepted architectural decisions
 
@@ -956,7 +963,7 @@ coordinates with the active in-progress and recently completed milestones:
    - `REFRESH` triggers a bounded one-shot catch-up or snapshot recomputation to
      a target or current `ManifestCut` while preserving the last completed
      revision until the successor commits. Dialect aliases such as PostgreSQL
-     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M41`)
+     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M43`)
      without collapsing the underlying 5-state machine.
 3. **D3 — Transaction-consistent multi-source `TransitLog` consumption, explicit consumer contracts and atomic snapshot-to-live handoff (`T5`):**
    Each managed computation declares one of three consumer contracts:
@@ -1238,7 +1245,11 @@ flowchart TD
      referenced multiple times) and `WITH RECURSIVE` fixpoint evaluation in
      `packages/zig/transit-fuze/src/RecursiveCte.zig` with `UNION` / `UNION ALL`
      working/delta tables, optional `CYCLE ... SET ... USING` cycle detection,
-     and explicit `max_iterations` and `max_rows` bounds from `OperatorTraits.WorkBound`.
+     and explicit `max_iterations` and `max_rows` bounds from `OperatorTraits.WorkBound`,
+     establishing the semi-naive working/delta table seam extended by
+     [Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md) for
+     mutually recursive Datalog strata, monotonic lattice aggregations and
+     Union-Find equivalence classes.
   4. Implement set operations (`UNION ALL`, `UNION [DISTINCT]`,
      `INTERSECT [ALL]`, `EXCEPT [ALL]`) respecting explicit column collations
      ($\kappa$) and 5-state cell equality rules.

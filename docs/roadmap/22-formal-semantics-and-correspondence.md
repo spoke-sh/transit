@@ -256,7 +256,7 @@ stop-the-world global mutex, model the coupled state machines of **schema/index
 evolution** ([Milestone 10](10-standards-and-catalogs.md),
 [Milestone 11](11-indexing-and-access-paths.md)) and **five-state managed
 computations/dataflows** ([Milestone 12](12-sql-and-dataflows.md),
-[Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)) interleaving with
+[Milestone 43](43-sql-grammar-and-dialect-ergonomics.md)) interleaving with
 concurrent transactions, `TransitLog` (`TWAL1`) compaction, policy revocations
 and worker replacement:
 
@@ -354,7 +354,11 @@ terms `dA join B + A join dB + dA join dB` (including
 `ST_3DUnion` ($\partial_3(V_1 \cup V_2) = \partial_3 V_1 + \partial_3 V_2$,
 $\partial_2 \circ \partial_3 = 0$), Discrete Divergence / Stokes Theorem linear 3D
 volume/centroid/inertia aggregates and 2-cochain interior face-flux cancellation
-($(+\Phi_f) + (-\Phi_f) = 0$) in control-volume conservation views).
+($(+\Phi_f) + (-\Phi_f) = 0$) in control-volume conservation views, as well as
+[Milestone 41's](41-deductive-rules-datalog-and-equivalence-graphs.md) stratified
+semi-naive Datalog fixpoints, monotonic join-semilattice recursive convergence,
+and [Milestone 42's](42-hardware-design-rtl-and-eda-verification.md) incremental
+`DRC`, `LVS` and hardware information-flow taint rules).
 
 Left joins need match-count/zero-crossing reasoning, and grouping/deletion need
 their own state and multiplicity laws. Ordered checked SUM is not automatically
@@ -495,8 +499,10 @@ inherit a proof whose assumptions the new profile violates.
 | [Reviewed publication](29-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, remote/local proposal push, current reviewer authority and protected-destination enforcement |
 | [Reactive activation](32-reactive-context-and-agent-activation.md) | T5/T8: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
 | [Recorded integrations](33-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
-| [Complete qualification](42-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [Deductive rules, Datalog and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md) | A3/A6: Tarjan-SCC stratification soundness, semi-naive DBSP fixpoint and monotonic join-semilattice convergence, Union-Find e-class congruence and RLS-checked derivation witness completeness |
+| [Hardware design, RTL and EDA verification](42-hardware-design-rtl-and-eda-verification.md) | A2/A3/A6: incremental DBSP `DRC`/`LVS`/taint equivalence over `.layout_manhattan` and elaborated RTL graphs, tropical timing-depth semiring convergence and Spatial-RLS IP compartmentalization |
+| [SQL grammar and dialect ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
+| [Complete qualification](44-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -512,7 +518,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](42-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](44-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

@@ -171,4 +171,9 @@ implementations.
 - Ad-hoc plan binding/specialization completes within a bounded memory slab with
   zero steady-state heap allocations during morsel execution and respects the
   per-morsel CPU cycle, memory and IOPS budgets established in
-  [Milestone 13](13-data-structures-and-performance.md).
+  [Milestone 13](13-data-structures-and-performance.md), providing the compiled
+  stratum-loop foundation consumed by
+  [Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md) for
+  Soufflé-class AOT Datalog fixpoints and
+  [Milestone 42](42-hardware-design-rtl-and-eda-verification.md) for compiled
+  hardware verification rules.

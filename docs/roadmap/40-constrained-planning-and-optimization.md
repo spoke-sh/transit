@@ -16,9 +16,11 @@ Consume [captured/managed computations](12-sql-and-dataflows.md),
 [bounded execution](13-data-structures-and-performance.md),
 [branches](20-branches-merges-and-restore.md),
 [investigations](28-published-resources-and-investigations.md),
-[reviewed publication](29-reviewed-data-collaboration.md) and
-[numerical/derivation contracts](35-scientific-arrays-and-measurements.md).
-Spatial routing additionally requires the qualified M17/M18 operators.
+[reviewed publication](29-reviewed-data-collaboration.md),
+[numerical/derivation contracts](35-scientific-arrays-and-measurements.md),
+[deductive rules and Datalog fixpoints](41-deductive-rules-datalog-and-equivalence-graphs.md) and
+[hardware design and EDA verification](42-hardware-design-rtl-and-eda-verification.md).
+Spatial routing additionally requires the qualified M17/M18 operators; hardware floorplanning, placement, routing and timing-closure optimization combine this milestone's candidate/bound lifecycle with M41's deductive constraint pruning and M42's `.layout_manhattan` and netlist verification rules.
 Reuse [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
 [SQL results](../../contracts/SQL_RESULTS_V1.md),
 [investigation](../../contracts/INVESTIGATION_V1.md) and
