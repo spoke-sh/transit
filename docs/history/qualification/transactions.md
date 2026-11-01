@@ -47,6 +47,52 @@ installed mixed transaction. The installed signed caller, atomic DLQ, SQL verbs,
 Station composition and performance measurements remain open. The separate
 Table/KV clean storage lane continues; it does not qualify this later cutover.
 
+## Installed mixed state, output and input settlement — 2026-10-31
+
+The signed [mixed transaction caller](../../../tests/catalog/tables/direct_state_transaction.zig)
+and [disk/restart schedule](../../../tests/storage/tables/direct_table_service.py)
+pass with clean source provenance at
+`bec944ab3dd5c18437bc331fc2286ab4ab67bf26`, using the native mixed-statement
+definition above. The bounded history makes **85 signed requests** and withholds
+the replies for Queue enqueue statement **642016** and common commit decision
+**642101**. Each lost reply is followed by a node SIGKILL/restart. The caller
+retains its original transaction token, statements and commit identity verbatim.
+
+One transaction proposes a Table row, six 1 KiB KV values, a Stream offset
+commit, a Queue ACK, a Stream append and a Queue enqueue. After the first restart,
+exact statement retries recover the private outcomes while public state, output
+frontiers, group progress and the input lease remain unchanged. After the second,
+the caller recovers the original committed decision and completes cleanup. It
+checks the public state values, append receipts and actual output payloads,
+observes the consumed Stream offset and acknowledged input, and claims the next
+message for the same FIFO key. No actor turn or handler recomputation participates.
+
+The recorded binaries are node SHA-256
+`e5f882effbc03a9695a55e09fe41e8bfb44f26d9153093d48a3230f0b0873d82`
+and caller SHA-256
+`7157d942321a094ed818a6d315786b548264e7ea1796848a715da23b94e42cb9`.
+They were built from the same implementation sources before the fixture commit;
+the proof records their actual bytes. Raw output is
+`/var/tmp/transit-m6-mixed-installed-run2.log`, SHA-256
+`9344bedb4ea4e92764fbe3595835f7dc22cdb05da44409efec9fce74a0ec985a`.
+This explicit-binary execution is not a committed-source clean-lane build.
+
+The original Table/KV-only mode also passes with these same binaries: 33 signed
+requests, lost replies 642012 and 642101, two SIGKILL/restarts and unchanged saved
+identities. `/var/tmp/transit-m6-state-installed-current.log` records that run;
+its source is marked dirty because this qualification account was being edited.
+No implementation or fixture source changed during the run.
+
+The first attempt in `/var/tmp/transit-m6-mixed-installed-run1.log` failed at
+Queue claiming with `ClockUnavailable`: the new mode omitted the existing Queue
+fixture's trusted-clock configuration. `bec944ab3` supplies that configuration
+without changing request or proof deadlines. That attempt and its private
+installation remain failed evidence. The initial caller compile used the wrong
+namespace for the declaration kind; the corrected caller build passes all six
+steps. All 58 fast checks, six task-ownership regressions and the CI runner
+regressions also pass. Clean dependent lanes, the remaining preparation/finalization
+fault matrix, DLQ, SQL/Station integration and performance qualification remain open.
+
 ## Catalog Stream and Queue read dependencies — 2026-10-31
 
 Implementation `a679c9f3b9873523405a706be99604affcafe483` admits explicit
