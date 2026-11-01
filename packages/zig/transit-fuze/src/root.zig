@@ -48,6 +48,7 @@ pub const TableSchemaProjection = @import("TableSchemaProjection.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
+pub const LogDdl = @import("LogDdl.zig");
 pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableDml = @import("TableDml.zig");
 pub const TableDmlPrepared = @import("TableDmlPrepared.zig");
@@ -103,6 +104,7 @@ test {
     _ = TableSchemaProjection;
     _ = SqlTypes;
     _ = TableDdl;
+    _ = LogDdl;
     _ = AuthorizationSql;
     _ = TableDml;
     _ = TableDmlPrepared;

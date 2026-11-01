@@ -65,7 +65,7 @@ fn enqueue(init: std.process.Init, caller: *gateway.Client, config: Config, numb
     try init.io.randomSecure(&random);
     var intent = try statement.bindWrite(init.gpa, &table, &.{}, (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1);
     defer intent.deinit();
-    const reference = try intent.stage(table, config.binding.namespace);
+    const reference = try intent.stage(table, config.binding.namespace, caller.execution.configuration.account);
     const receipt = try c.DirectClientToken.bind(table, .{ .key = .{ .definition = native.current_definition, .connection = table.connection, .account = caller.execution.configuration.account, .token = nonce }, .fingerprint = fingerprint, .intent = reference, .budget = caller.execution.configuration.budget(caller.execution.configuration.reservation()) });
     return receipt.position.next_lsn;
 }

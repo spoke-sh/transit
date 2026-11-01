@@ -15,6 +15,16 @@ pub const Action = union(enum) {
     pending: struct { namespace: u64, after: ?u64 },
 };
 pub const Metadata = struct { declaration: L.Definition, schema: c.fuze.TableSchema.Schema };
+/// Recheck disclosure against the current native grant and exact named object.
+/// A cached definition cannot follow a replacement, rename or policy revision.
+pub fn requireCurrent(client: c.DirectTableClient, expected: L.Definition) !void {
+    try expected.validate();
+    try client.connection.object(expected.stored.declaration.interpretation.object);
+    const response = try client.call(.{ .log_lookup = .{ .namespace = expected.properties.namespace, .name = expected.properties.name.slice() } });
+    defer response.deinit();
+    const actual = response.value.result.log_lookup orelse return error.CatalogDefinitionChanged;
+    if (actual.declaration.kind() != expected.kind() or !std.meta.eql(actual.declaration.stored.declaration.interpretation, expected.stored.declaration.interpretation)) return error.CatalogDefinitionChanged;
+}
 pub const Result = union(enum) { preview: L.Preview, admitted: L.Operation, operation: L.Observation, lookup: ?Metadata, list: wire.Page, pending: wire.PendingPage };
 pub const Saved = struct {
     definition: p.Growth.Definition,

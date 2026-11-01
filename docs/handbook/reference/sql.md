@@ -148,7 +148,10 @@ incomplete. `LIMIT` does not bypass required source validation.
 
 State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
 catalog callers and the [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-also publish general typed Tables, selected ALTER actions and DROP. Other SQL administrative
+also publish general typed Tables, selected ALTER actions and DROP. Native SQL,
+console, PostgreSQL and MySQL sessions also publish
+[Stream and Queue declarations](sql/streaming.md#stream-and-queue-declarations).
+Other SQL administrative
 routes, grants and connector catalog listings remain unavailable;
 their examples describe syntax and do not execute in the query console. Unsupported command entries
 explain the current alternatives without defining new syntax.
@@ -188,6 +191,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE SINK`                                              | Grammar only                                                                            | [Connector effect target](sql/create-sink.md)                             |
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
 | `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |
+| `CREATE STREAM/QUEUE`, `ALTER STREAM/QUEUE`, `DROP STREAM/QUEUE` | Shared Catalog lifecycle through native SQL, console, PostgreSQL and MySQL | [Declarations, policies and named inspection](sql/streaming.md#stream-and-queue-declarations) |
 | `CREATE DOCUMENT`                                          | Offline compiler; executable naming uses separate typed resource operations             | [Document declaration](sql/create-document.md)                            |
 | `CREATE KV`                                                | Offline compiler; executable naming uses separate typed resource operations             | [Typed KV declaration](sql/create-kv.md)                                  |
 | `GRANT`                                                    | Grammar only                                                                            | [Privilege declaration](sql/grant.md)                                     |

@@ -1,13 +1,14 @@
 # Streaming and effects
 
 Transit has durable streams, application materialization and recorded connector
-effects. SQL executes finite reads and explicitly routed Table DDL/DML. The transport of a result in
+effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
 
 | Task | Current interface | SQL coverage |
 | --- | --- | --- |
+| Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
@@ -20,6 +21,84 @@ several batches does not make that query continuous.
 event-time watermark declarations are absent from the grammar and runtime.
 The existing [historical-read fragment](as-of.md) does not enable time travel or
 stream resumption.
+
+## Stream and Queue declarations
+
+The native SQL service, console, PostgreSQL and MySQL sessions use the same
+[declaration lifecycle](../streams.md#declarative-streams-and-queues).
+The configured account needs current schema CREATE rights for creation and
+object ownership for changes. A declaration completes after its partitions
+are initialized and published. An accepted token retains the complete original
+declaration through a disconnect or service replacement; retry that token to
+observe the same operation.
+
+```sql
+CREATE STREAM events (
+  tenant TEXT NOT NULL COLLATE ASCII_CI,
+  payload JSON
+) PARTITION BY HASH (tenant) PARTITIONS 4
+WITH (retention = '7d', compaction = 'key');
+
+CREATE QUEUE work (
+  entity BIGINT NOT NULL,
+  payload TEXT
+) PARTITION BY HASH (entity) PARTITIONS 4
+WITH (mode = 'key_fifo', lease_duration = '5s', max_attempts = 7);
+
+ALTER STREAM events SET (retention = 'unlimited');
+ALTER QUEUE work SET (retention = '1d', max_attempts = 9);
+ALTER STREAM events RENAME TO history;
+SHOW STREAM history;
+SHOW QUEUE work;
+DESCRIBE STREAM history;
+DESCRIBE QUEUE work;
+DROP STREAM history;
+DROP QUEUE work;
+```
+
+Columns use the [shared Table type and default grammar](create-table.md).
+Primary keys are refused: log offsets supply record identity. Names remain
+contextual identifiers. Omitted partitioning declares one manually selected
+partition; `PARTITIONS n` declares several manual partitions. Automatic routing
+uses `PARTITION BY HASH (column) PARTITIONS n` with a non-null supported key type.
+
+`WITH (...)` supplies CREATE options; `ALTER ... SET (...)` changes only the
+specified compatible policies and operation limits. Options are case-insensitive,
+unique and checked before admission. Durations are positive integers followed
+by `ms`, `s`, `m`, `h` or `d`.
+
+| Option | Meaning and default |
+| --- | --- |
+| `retention` | Unlimited by default; a duration opts into age eligibility. `'unlimited'` or `NULL` removes that age policy. |
+| `compaction` | Stream `'none'` by default, or `'key'` using `key_column` or the routing column. |
+| `timestamp_column` | Optional Stream non-null UTC timestamp column, named by a string literal. |
+| `mode` | Queue `'competing'` by default, or `'key_fifo'`. |
+| `key_column` | Explicit compaction/FIFO column name; FIFO can otherwise use its routing column. |
+| `lease_duration`, `max_lease_duration` | Queue default and maximum lease, both `'30s'`. A larger default also requires a sufficient maximum. |
+| `max_attempts` | Queue attempt limit, default 5. |
+| `backoff_initial`, `backoff_maximum`, `backoff_multiplier` | Queue retry backoff, defaults `'1s'`, `'60s'`, and 2. |
+| `dead_letter_queue` | Existing compatible Queue name, or `NULL`. Binding captures its exact definition and checks current destination append rights. |
+
+Operation limits are also options: `append_rows` and `read_rows` default to 128;
+`append_bytes` and `read_bytes` to 1,048,576; `claim_rows` to 16; and
+`active_leases`, `waiters`, and `timer_steps` to 64. All are positive unsigned
+32-bit counts; `claim_rows` cannot exceed `active_leases`. These declarations
+bound individual operations and active work, independently of total retained
+history. Deployment memory and storage quotas still apply.
+
+ALTER cannot change schema, partitioning, routing keys, ordering, compaction
+keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS`, schema evolution,
+plural SQL listings, and workload verbs (`PRODUCE`, `CONSUME`, `COMMIT OFFSET`,
+`ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`) are outside this SQL profile.
+Typed callers provide payload operations and bounded catalog listings.
+
+Named `SHOW` returns the published object identity, definition revision,
+partition count, configuration and limits. `DESCRIBE` returns typed columns
+through the ordinary bounded result lifecycle. Their observation identifies
+the exact definition, without claiming a data snapshot. Current metadata
+rights and the same named definition are rechecked before each disclosure,
+including repeated or terminal batches. A replacement, rename or policy change
+invalidates an earlier prepared description.
 
 ## Connections, sources and sinks
 

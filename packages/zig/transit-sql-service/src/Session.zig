@@ -157,6 +157,7 @@ pub const Read = struct {
                 metadata.kind = prepared.kind;
                 metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
                 if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {
                         const definitions = try allocator.alloc(p.DataLifecycle.Definition, statement.plan.relational.bindings.len);
@@ -805,6 +806,10 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
+        error.CatalogNameNotFound => .{ "42P01".*, "Catalog object does not exist" },
+        error.CatalogKindMismatch => .{ "42809".*, "Catalog object has a different data kind" },
+        error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
+        error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
         error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },
         error.EmptyWireQuery => .{ "42601".*, "Query is empty" },
         else => .{ "XX000".*, "Request failed; inspect admitted work before retrying SQL" },
