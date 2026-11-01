@@ -9,6 +9,49 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct Table/KV transaction composition — 2026-10-31
+
+Implementation `4771f5698a9c960e83b26f6bac996e004548b2bd` extends explicit
+transactions to named direct KV using the existing Table workspace, retained
+cut and common-decision owners. Its shared definition is
+`959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d`.
+The [transaction reference](../../handbook/reference/sql/transactions.md) and
+[KV interface](../../../packages/zig/transit-catalog/docs/direct-kv.md) own the
+current scope. Stream/Queue transaction participation, DLQ, Station migration
+and performance remain open.
+
+`just test::direct-state-transaction` passed with clean source provenance at
+that revision. Its [installed caller](../../../tests/catalog/tables/direct_state_transaction.zig)
+and [fault driver](../../../tests/storage/tables/direct_table_service.py) made
+33 signed requests. Withheld replies for private statement 642012 and committed
+decision 642101 were followed by two node SIGKILL/restarts. The unchanged saved
+request recovered six 1 KiB KV values and one Table row, verified private KV
+read provenance, observed neither public change before commit and both after
+the original decision, and completed cleanup without allocating new identities.
+The emitted proof record reports node SHA-256
+`698b547193cd45078e03cb35325a85893a9a9a1d4e89f8ac4837bea556c91d11`
+and caller SHA-256
+`51c74be340431887d1e9c2f9b2113a1deba15322e9d5132df386cb328558b424`.
+
+Current-definition focused storage checks passed 15 tests in
+`/var/tmp/transit-m6-r5c-storage-current.log`. They include physical-disk KV
+preparation, common commit/abort decisions, lost replies, private savepoints,
+original statement identities and retained predecessor reads. The independent
+KV transaction signing fixture passed its three-test filtered run in
+`/var/tmp/transit-m6-r5c-signature-docs.log`, followed by a passing documentation
+site build. Fast checks (58) and contract checks (19) passed. Before the definition
+cutover, 37 filtered catalog transaction tests passed; the additional mixed
+Table/KV disk test passed separately with current-rights denial, private reads,
+commit/abort replacement and retained graph traversal. Those earlier component
+runs do not qualify the final definition's complete catalog suite.
+
+The superseded clean core/storage runs for the neutral participant and named-KV
+branches were interrupted to consolidate qualification on the integrated
+revision. They are incomplete, not passed. `ab55b013b` integrates the current
+main branch and regenerates the combined lifecycle schema and native fixtures;
+clean integration qualification remains pending. No interrupted run or registered
+task establishes a completion claim.
+
 ## Named direct KV cutover — 2026-10-31
 
 Implementation `cebc19fe7d1df0fb0ba1a376af74d1da79660d4a` moves named KV
