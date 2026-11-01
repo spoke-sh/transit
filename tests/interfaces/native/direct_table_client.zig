@@ -829,6 +829,15 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_log_token").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-verify")) {
             try @import("fixture_direct_log_token").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-prepare")) {
+            try @import("fixture_direct_queue_transfer").automaticPrepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-observe")) {
+            const observed = try @import("fixture_direct_queue_transfer").automaticObserve(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(observed, &encoder);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-verify") or std.mem.eql(u8, args[2], "automatic-queue-transfer-reopen")) {
+            try @import("fixture_direct_queue_transfer").automaticVerify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}), std.mem.eql(u8, args[2], "automatic-queue-transfer-reopen"));
         } else if (std.mem.eql(u8, args[2], "queue-transfer-prepare")) {
             try @import("fixture_direct_queue_transfer").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-transfer-recover")) {

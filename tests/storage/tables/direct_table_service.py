@@ -20,7 +20,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode == "log-baseline" else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -39,9 +39,9 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "log-token"):
+        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token"):
             settings["request_metrics"] = True
-        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
+        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -95,7 +95,7 @@ def run(node, caller, mode="tables", *artifacts):
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
-        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "log-token") else None
+        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token") else None
         if transaction_attempts is not None:
             transaction_attempts.mkdir(mode=0o700)
         growth_sequence = 0
@@ -429,6 +429,75 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "automatic-queue-transfer":
+                subprocess.run([caller, endpoint, mode + "-prepare", str(profile)], check=True, timeout=180)
+                saved_path = Path(str(profile) + "." + mode)
+                saved = saved_path.read_bytes()
+                database_seed = root / "queue-transfer.seed"
+                database_seed.write_text("1d" * 32)
+                database_seed.chmod(0o600)
+                settings["table"]["queue_transfers"] = {
+                    "principal": 101, "seed_file": str(database_seed), "account": [0x51] * 32,
+                    "limits": {"resident_bytes": 16 * 1024 * 1024, "workspace_bytes": 1024 * 1024,
+                               "participants": 2, "statements": 1, "savepoints": 1},
+                    "budget": {"bytes": 16 * 1024},
+                }
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 180
+                restart_observation = None
+                original = None
+                observations = []
+                while True:
+                    assert time.monotonic() < deadline, observations
+                    result = subprocess.run([caller, endpoint, mode + "-observe", str(profile)],
+                                            timeout=min(30, deadline - time.monotonic()), capture_output=True, text=True)
+                    with (root / "automatic-transfer-observe.stderr").open("a") as output:
+                        output.write(result.stderr)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    observed = json.loads(result.stdout)
+                    observations.append(observed)
+                    with (root / "automatic-transfer-observations.jsonl").open("a") as output:
+                        output.write(json.dumps(observed) + "\n")
+                    assert saved_path.read_bytes() == saved
+                    if observed["observed"]:
+                        receipt = Path(str(saved_path) + ".receipt").read_bytes()
+                        if original is None:
+                            original = receipt
+                        assert receipt == original
+                        if restart_observation is None:
+                            # Record the phase actually observed; process death
+                            # here does not claim an unobserved append boundary.
+                            restart_observation = observed
+                            authority.kill()
+                            authority.wait(timeout=15)
+                            authority = start()
+                            continue
+                        if observed["committed"] and observed["cleanup_complete"] and not observed["pending"]:
+                            break
+                    time.sleep(.1)
+                subprocess.run([caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
+                destination_claim = Path(str(saved_path) + ".destination-claim").read_bytes()
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, mode + "-reopen", str(profile)], check=True, timeout=180)
+                assert Path(str(saved_path) + ".receipt").read_bytes() == original
+                assert Path(str(saved_path) + ".destination-claim").read_bytes() == destination_claim
+                assert saved_path.read_bytes() == saved
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="automatic_queue_transfer", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)],
+                                      original_receipt_sha256=hashlib.sha256(original).hexdigest(),
+                                      destination_claim_sha256=hashlib.sha256(destination_claim).hexdigest(),
+                                      limits=settings["table"]["queue_transfers"]["limits"],
+                                      maintenance=settings["maintenance"] | {"seed_file": "private"},
+                                      restart_observation=restart_observation, observations=observations, passed=True)), flush=True)
+                print("Automatic Queue transfer HTTP: explicitly authorized maintenance, one original transaction, source archival and destination payload, SIGKILL/restarts and unchanged original receipts passed.", flush=True)
+                return
             if mode == "log-token":
                 saved = None
                 for phase in ("prepare", "recover", "verify"):

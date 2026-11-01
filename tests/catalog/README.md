@@ -19,6 +19,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Table/KV with Stream/Queue appends, offset and lease settlement | [Mixed transaction caller](tables/direct_state_transaction.zig); `just test::direct-mixed-transaction` |
 | Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](tables/direct_log_token.zig); `just test::direct-log-token` |
 | Paired Queue dead-letter transfer after lost replies and two process replacements | [Signed transfer caller](tables/direct_queue_transfer.zig); `just test::direct-queue-transfer` |
+| Configured automatic Queue transfer and original receipt recovery after process replacements | [Signed transfer caller](tables/direct_queue_transfer.zig); `just test::direct-automatic-queue-transfer` |
 
 The [test task module](../../tasks/test.just) owns executable commands and matching
 binary inputs. ABI helpers are invoked by their real caller schedules; copied
