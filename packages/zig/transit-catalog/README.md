@@ -18,6 +18,13 @@ bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
 `transit-storage` owns Table acceptance and retained data. Native authorization
 owns roles, grants, current credentials and resource lifetime.
 
+`DirectRecord` high-bit formats carry immutable read envelopes with one to three
+Table/KV object requirements. Staging validates caller-provided bytes and grants
+no read authority. The catalog rechecks all current read grants on disclosure,
+including raw record reads. Format and envelope bytes
+participate in the immutable key; changing either cannot unwrap an existing
+record. Plain caller-owned operation records retain their existing scope checks.
+
 ## Lifecycle owner
 
 `DirectQueue.apply` composes durable enqueue, exact original claims, fenced

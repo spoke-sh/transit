@@ -115,7 +115,7 @@ def run(node, caller, mode="tables", *artifacts):
                 envelope = json.loads(body)
                 record = envelope.get("action", {}).get("record") if isinstance(envelope.get("action"), dict) else None
                 if (mode == "managed" and record and "read" in record
-                        and record["read"]["format"] == 0x44465031
+                        and record["read"]["format"] == 0xC4465031
                         and managed_fault["pages_before_failure"] is not None):
                     if managed_fault["pages_before_failure"] == 0:
                         managed_fault.update(pages_before_failure=None, failed=True)

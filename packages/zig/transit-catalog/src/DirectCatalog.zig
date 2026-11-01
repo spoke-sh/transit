@@ -1322,21 +1322,54 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
     if (format == c.DirectQueueTransferPlan.format) return error.TransactionOperationRequired;
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
+    var disclosure: ?P.Guard = null;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
             defer allocator.free(bytes);
+            if (value.format & c.DirectRecord.guarded_bit != 0) {
+                // Staging only saves caller-provided bytes. It grants no right
+                // to read this envelope or any of its referenced objects.
+                const parsed = try p.Json.parseFromSlice(c.DirectRecord.Guarded, allocator, bytes);
+                defer parsed.deinit();
+                try parsed.value.validate(scope.connection);
+            }
             try check(current);
             break :blk .{ .reference = try c.DirectRecord.store(self.data_objects, scope, value.format, bytes), .bytes = null };
         },
         .read => |value| blk: {
             const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
             defer allocator.free(bytes);
+            if (value.format & c.DirectRecord.guarded_bit != 0) disclosure = try self.recordReadGuard(allocator, scope.connection, bytes, policy);
             break :blk .{ .reference = value, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, bytes) };
         },
     };
+    if (disclosure) |required| try check(required);
     try check(current);
     return result;
+}
+
+/// Read policy belongs to the storage owner, including raw record reads. A
+/// caller cannot strip the envelope: format and content are in the object key.
+fn recordReadGuard(self: *Self, allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, bytes: []const u8, policy: Policy) !P.Guard {
+    const parsed = try p.Json.parseFromSlice(c.DirectRecord.Guarded, allocator, bytes);
+    defer parsed.deinit();
+    try parsed.value.validate(connection);
+    var required = try self.requirements(policy, null, null, .database);
+    for (parsed.value.objects) |slot| {
+        const object = slot orelse break;
+        const target = try self.entry(object.object) orelse return error.CatalogDenied;
+        const seed = target.seed orelse return error.CatalogKindMismatch;
+        const found = try self.dependencySource(object, policy, switch (seed.kind) {
+            .table => a.select,
+            .kv => c.KVAuthority.read,
+        });
+        required = try required.merge(found.requirements);
+        if (!found.live) return error.CatalogDenied;
+    }
+    const current = try policy.make_guard(policy.context, allocator, required, null);
+    try check(current);
+    return current;
 }
 
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {

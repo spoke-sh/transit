@@ -287,6 +287,10 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         try t.expect(try empty.next(&output) == null);
         const object = c.TableAuthority.reference(authorization);
         _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = 0 } });
+        // Bypassing the high-level reader still reaches the storage owner's
+        // current read checks for the manifest and every immutable row page.
+        try t.expectError(error.AccessDenied, c.DirectRecord.read(init.gpa, client, nonempty.root));
+        try t.expectError(error.AccessDenied, c.DirectRecord.read(init.gpa, client, nonempty.next_page.?));
         try t.expectError(error.AccessDenied, nonempty.validateDisclosure());
         try t.expectError(error.AccessDenied, nonempty.next(&output));
         try t.expectError(error.AccessDenied, empty.next(&output));

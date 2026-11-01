@@ -170,6 +170,12 @@ common transaction cleanup releases its source pins and preparation barriers.
 
 ## Retained finite revision reads
 
+Result pages and manifests set the DirectRecord guarded-format bit. Their
+immutable envelopes bind read requirements for the source Table, output Table
+and control KV. The catalog enforces those requirements on raw record reads as
+well as through the shared revision reader. Changing the format or stripping
+the envelope selects a different immutable object key and cannot bypass policy.
+
 `Dataflow.Revision` describes one completed finite relation. Its computation,
 source and output definitions, schema commitment, source position, common cut,
 revision number and row count belong to that immutable result. The owner verifies

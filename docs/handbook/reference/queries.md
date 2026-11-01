@@ -558,6 +558,9 @@ remain retained. Closing a reader releases local memory; budget stops, missing
 pages and failures never establish complete coverage. SQL revision inspection
 returns metadata only; it does not fetch historical rows.
 
+The catalog also enforces these read grants on the retained manifests and pages
+themselves. Calling the lower-level immutable-record API cannot bypass them.
+
 This profile accepts one ordinary Table source in the same connection and
 namespace as the output. It uses the existing finite relational projection,
 filter and grouped COUNT/SUM compiler. Output column names, logical types and
