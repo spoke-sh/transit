@@ -2062,8 +2062,21 @@ fn transactionTransferSource(sources: *s.TransactionDirectory, work: Transaction
     try target.requireSame(source.guard.log.source.target);
     return source;
 }
-fn validateTransactionTransfer(self: *Self, sources: *s.TransactionDirectory, access: *TransactionTransferAccess, work: TransactionLogWork.Work, payload: ?[]const u8, unchanged: bool) !void {
-    const source = try transactionTransferSource(sources, work);
+const TransactionLogSource = @FieldType(s.TransactionDirectory.Entry, "source");
+const TransactionLogSources = struct { source: TransactionLogSource, destination: ?TransactionLogSource };
+fn transactionLogSources(self: *Self, begin: p.Transaction.Begin, reference: p.Transaction.Directory, work: TransactionLogWork.Work) !TransactionLogSources {
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    try sources.restore(reference);
+    const target: p.Transaction.Target = .{ .object = work.target().interpretation.object, .kind = if (work.kind() == .stream) .stream else .queue, .partition = work.target().partition };
+    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+    if (source.guard != .log) return error.InvalidTransactionCut;
+    try work.target().requireSame(source.guard.log.source.target);
+    // These fixed descriptors own no directory memory. Release its cache before
+    // a temporary partition performs recovery or private evaluation.
+    return .{ .source = source, .destination = if (work == .queue_transfer) try transactionTransferSource(&sources, work) else null };
+}
+fn validateTransactionTransfer(self: *Self, source: TransactionLogSource, access: *TransactionTransferAccess, work: TransactionLogWork.Work, payload: ?[]const u8, unchanged: bool) !void {
     var destination = try self.transactionLogView(access.definition, work.queue_transfer.destination.target.partition, access.read.guard());
     defer destination.deinit();
     const frozen = try destination.inspect(source.pin, access.read.guard());
@@ -2116,12 +2129,8 @@ fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progres
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
     try check(read_fence.guard());
     try check(write_fence.guard());
-    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
-    defer sources.deinit();
-    try sources.restore(head.acquired.cut.sources);
-    const target: p.Transaction.Target = .{ .object = work.target().interpretation.object, .kind = if (work.kind() == .stream) .stream else .queue, .partition = work.target().partition };
-    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
-    if (source.guard != .log) return error.InvalidTransactionCut;
+    const selected = try self.transactionLogSources(begin, head.acquired.cut.sources, work);
+    const source = selected.source;
     var transfer_access = try self.transactionTransferAccess(scratch.allocator(), work, policy, &epoch);
     const request: TransactionLogWork.Request = .{ .statement = .{ .transaction = begin.identity, .sequence = sequence, .intent = try work.digest() }, .basis = basis, .guard = source.guard.log, .work = work };
     try request.validate();
@@ -2134,7 +2143,7 @@ fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progres
         try source.guard.log.requireUnchanged(try view.basis());
         if (work == .queue_transfer) try view.validateTransferPayload(work.queue_transfer, read_fence.guard()) else try view.validatePayload(work, payload);
     }
-    if (transfer_access) |*access| try self.validateTransactionTransfer(&sources, access, work, payload, true);
+    if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, work, payload, true);
     try TransactionLogWork.stagePayload(staging.objects(), work, payload);
     try check(read_fence.guard());
     try check(write_fence.guard());
@@ -2203,11 +2212,9 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         if (evaluate or request.statement.sequence != head.last_statement + 1) return error.TransactionStatementConflict;
         if (!std.meta.eql(request.basis, head.revision)) return error.TransactionReadChanged;
     }
-    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
-    defer sources.deinit();
-    try sources.restore(head.acquired.cut.sources);
+    const selected = try self.transactionLogSources(begin, head.acquired.cut.sources, request.work);
     const target = (p.Transaction.Guard{ .log = request.guard }).target();
-    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+    const source = selected.source;
     if (source.guard != .log or !std.meta.eql(source.guard.log, request.guard)) return error.InvalidTransactionCut;
     // Every private owner write, including regenerated indexes and segments,
     // belongs to the same conservative workspace byte account.
@@ -2226,7 +2233,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
             try request.guard.requireUnchanged(try view.basis());
             if (request.work == .queue_transfer) try view.validateTransferPayload(request.work.queue_transfer, read_fence.guard()) else try view.validatePayload(request.work, payload);
         }
-        if (transfer_access) |*access| try self.validateTransactionTransfer(&sources, access, request.work, payload, true);
+        if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, request.work, payload, true);
         staging.used = try std.math.add(u64, staging.used, if (payload) |bytes| bytes.len else 0);
         if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
         try c.OperationBinding.claimTransactionLogStatement(self.allocator, self.data_objects, request);
@@ -2237,19 +2244,28 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         if (transfer_access) |*access| try access.checkCurrent();
         return null;
     }
-    var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
-    defer logs.deinit();
-    if (head.logs) |directory| try logs.restore(directory);
-    const previous = if (try logs.get(target)) |item| item.participant.log.actions else null;
-    var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, request.guard, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
-    defer actions.deinit();
-    if (previous) |directory| try actions.restore(directory);
-    const action_entry = request.work.entry(request.statement);
-    if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
-    const directory = try actions.seal();
+    const prior = references: {
+        var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+        defer logs.deinit();
+        if (head.logs) |directory| try logs.restore(directory);
+        const source_previous = if (try logs.get(target)) |item| item.participant.log.actions else null;
+        const destination_previous: ?p.Transaction.Directory = if (selected.destination) |destination_source| blk: {
+            break :blk if (try logs.get(destination_source.guard.target())) |item| item.participant.log.actions else null;
+        } else null;
+        break :references .{ .source = source_previous, .destination = destination_previous };
+    };
+    const previous = prior.source;
+    const directory = sealed: {
+        var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, request.guard, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
+        defer actions.deinit();
+        if (previous) |value| try actions.restore(value);
+        const action_entry = request.work.entry(request.statement);
+        if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
+        break :sealed try actions.seal();
+    };
     var destination: ?TransactionTransferAdvance = null;
     const outcome: TransactionLogWork.Outcome = evaluated: {
-        destination = self.evaluateTransactionLogStatement(read.definition, &sources, &logs, &transfer_access, request, begin, directory, payload, write_fence.guard()) catch |err| {
+        destination = self.evaluateTransactionLogStatement(read.definition, selected, prior.destination, &transfer_access, request, begin, directory, payload, write_fence.guard()) catch |err| {
             const reason: TransactionLogWork.Outcome.Reason = switch (err) {
                 error.TransactionConflict => .conflict,
                 error.QueueLeaseExpired => .lease_expired,
@@ -2263,6 +2279,9 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         break :evaluated .{ .provisional = .{ .statement = request.statement, .proposed = TransactionLogWork.Summary.proposed(request.work) } };
     };
     if (outcome == .provisional) {
+        var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+        defer logs.deinit();
+        if (head.logs) |value| try logs.restore(value);
         try logs.advanceLog(request.guard, previous, directory);
         if (destination) |next| try logs.advanceLog(next.guard, next.previous, next.directory);
         head.logs = try logs.seal();
@@ -2281,32 +2300,33 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
 }
 
 const TransactionTransferAdvance = struct { guard: p.Transaction.LogGuard, previous: ?p.Transaction.Directory, directory: p.Transaction.Directory };
-fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, sources: *s.TransactionDirectory, logs: *s.TransactionDirectory, transfer_access: *?TransactionTransferAccess, request: TransactionLogWork.Request, begin: p.Transaction.Begin, directory: p.Transaction.Directory, payload: ?[]const u8, guard_value: P.Guard) !?TransactionTransferAdvance {
+fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, selected: TransactionLogSources, destination_previous: ?p.Transaction.Directory, transfer_access: *?TransactionTransferAccess, request: TransactionLogWork.Request, begin: p.Transaction.Begin, directory: p.Transaction.Directory, payload: ?[]const u8, guard_value: P.Guard) !?TransactionTransferAdvance {
     const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
     const limits = TransactionLogWork.evaluationLimits(begin, request.statement.sequence);
     {
         const target = (p.Transaction.Guard{ .log = request.guard }).target();
-        const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+        const source = selected.source;
         var view = try self.transactionLogView(definition, target.partition.?, guard_value);
         defer view.deinit();
         view.clock(environment.clock);
         _ = try view.evaluate(source.pin, directory, limits, environment.authority, guard_value);
     }
     if (transfer_access.*) |*access| {
-        const source = try transactionTransferSource(sources, request.work);
+        const source = selected.destination.?;
         const target = source.guard.target();
-        const previous = if (try logs.get(target)) |item| item.participant.log.actions else null;
-        var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, source.guard.log, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
-        defer actions.deinit();
-        if (previous) |prior| try actions.restore(prior);
-        try actions.put(request.work.destinationEntry(request.statement).?.work, payload);
-        const next = try actions.seal();
+        const next = destination_actions: {
+            var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, source.guard.log, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
+            defer actions.deinit();
+            if (destination_previous) |prior| try actions.restore(prior);
+            try actions.put(request.work.destinationEntry(request.statement).?.work, payload);
+            break :destination_actions try actions.seal();
+        };
         var destination = try self.transactionLogView(access.definition, target.partition.?, access.read.guard());
         defer destination.deinit();
         destination.clock(environment.clock);
         _ = try destination.evaluate(source.pin, next, limits, environment.authority, access.write.guard());
         try access.checkCurrent();
-        return .{ .directory = next, .previous = previous, .guard = source.guard.log };
+        return .{ .directory = next, .previous = destination_previous, .guard = source.guard.log };
     }
     return null;
 }
