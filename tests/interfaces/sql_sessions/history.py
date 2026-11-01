@@ -93,7 +93,8 @@ def companion_expressions(root, port, postgres, mysql_options, restart, catalog)
         try:
             cursor.execute(sum_sql)
         except mysql.connector.Error as error:
-            assert error.sqlstate == '0A000', error
+            # ER_NOT_SUPPORTED_YET retains MySQL's vendor SQLSTATE mapping.
+            assert (error.errno, error.sqlstate) == (1235, '42000'), error
         else:
             raise AssertionError('Unqualified MySQL DECIMAL result profile was admitted')
         cursor.close()
