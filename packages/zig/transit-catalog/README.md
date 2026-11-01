@@ -60,6 +60,15 @@ makes a definition visible; catalog settlement records completion without
 inventing another data commit. Row operations use the Table's own operation
 index. A rejected or interrupted statement never exposes a successful prefix.
 
+`BranchLifecycle` and `BranchMergeRestore` are bounded in-memory models outside
+the direct catalog execution path. Their stored cuts borrow caller data;
+`validateAndPublishThreeWayMerge` additionally requires caller-owned `MergeRows`
+that remains alive and unchanged while any cut refers to it. Exact request
+digests reject changed-content token reuse, and receipt capacity is checked
+before head movement. Schema-only promotion with a changed schema refuses until
+an explicit conversion exists. These helpers provide no disk recovery, atomic
+catalog/data publication, retention pins, remote transfer or measured latency.
+
 The local node exposes this owner at signed `/table/v1` when configured with a
 catalog and registrar. The local server, SQL runtime, query consumers and catalog
 SDKs use these operations. See the [direct catalog guide](docs/direct-catalog.md)

@@ -155,6 +155,37 @@ def generated():
         transaction_definition(transaction)
         results[transaction_path] = transaction
         lifecycle['transaction'] = transaction
+        # Branch clocks are independent. A fork's version one can descend from
+        # version 99; neither a content reference nor this fixture acquires pins.
+        branch_scope = dict(realm=1, resource=3, catalog=5)
+        branch_owner = dict(scope=branch_scope, principal=7, operation=2**64-1)
+
+        def branch_reference(branch, version, digest):
+            return dict(identity=dict(scope=branch_scope, branch=branch),
+                        version=version, content=dict(bytes=256, sha256=[digest]*32))
+
+        branch_target = dict(reference=branch_reference(1, 101, 1), generation=103)
+        branch_attempt = dict(definition=definition, operation=branch_owner,
+                              request=[9]*32, intent=dict(merge=dict(
+                                  base=branch_reference(1, 99, 1),
+                                  source=branch_reference(2**64-1, 4, 2),
+                                  target=branch_target)),
+                              limits=dict(resident_bytes=4096, staged_bytes=1048576,
+                                          objects=10000, work=100000))
+        lifecycle['branch'] = dict(
+            manifest=dict(definition=definition,
+                          identity=dict(scope=branch_scope, branch=2**64-1),
+                          version=1, kind='fork', mode='full_data',
+                          catalog=dict(partition=13, next_lsn=17),
+                          objects=dict(content=dict(bytes=512, sha256=[3]*32), objects=10000),
+                          retention_owner=branch_owner,
+                          parent=branch_reference(1, 99, 1), merge_parent=None, restored_from=None),
+            head=branch_target, attempt=branch_attempt,
+            validation=dict(attempt=branch_attempt, candidate=dict(bytes=512, sha256=[8]*32),
+                            checked_objects=10000, conflicts=0, complete=True),
+            decision=dict(attempt=branch_attempt, position=dict(partition=13, next_lsn=18),
+                          writer_epoch=2, policy_epoch=9,
+                          outcome=dict(published=dict(reference=branch_reference(1, 102, 4), generation=104))))
         # Independent neutral Stream/Queue attribution fixture. Logical offsets,
         # physical WAL positions and original operations deliberately differ.
         log_scope = dict(realm=1, resource=7, catalog=2**64-1)

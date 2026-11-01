@@ -3510,6 +3510,7 @@
       "errors": {
         "BranchAlreadyExists": 1,
         "BranchCutIdentityMismatch": 1,
+        "BranchCutRegistryFull": 1,
         "BranchPermissionDenied": 1,
         "BranchTableWriteDenied": 1,
         "BrokenManifestDigestChain": 1,
@@ -3616,15 +3617,18 @@
         "HydratedSegmentDigestMismatch": 1,
         "IncompatibleDocumentMergeHistory": 1,
         "InvalidDocumentProvenanceSpan": 1,
+        "InvalidMergeRow": 1,
         "InvalidPolicyEpoch": 1,
         "InvalidRemoteAncestorVersion": 1,
         "InvalidUpstreamProposal": 1,
         "LiveConnectorEffectForbiddenOnRemoteMirrorBranch": 1,
-        "MergeCandidateBufferTooSmall": 4,
-        "MergeTokenJournalFull": 1,
+        "MergeCandidateBufferTooSmall": 5,
+        "MergeIdentityConflict": 2,
+        "MergeTokenJournalFull": 2,
         "MissingCapturedExchangeForReplay": 1,
         "PrimaryKeyMergeCollision": 1,
         "PropertyGraphDanglingEdgeOnMerge": 2,
+        "SchemaOnlyMergeRequiresConversion": 1,
         "SecondaryUniqueKeyMergeCollision": 1,
         "StaleTargetBranchHead": 1,
         "UnknownBranchName": 1,
@@ -3675,7 +3679,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 50,
         "catch": 0
       },
       "imports": [
@@ -18195,6 +18199,80 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/Branch.zig": {
+      "errors": {
+        "BranchIdentityConflict": 4,
+        "IncompatibleDefinition": 2,
+        "IncompleteBranchValidation": 1,
+        "InvalidBranchAncestry": 10,
+        "InvalidBranchAttempt": 1,
+        "InvalidBranchCreation": 1,
+        "InvalidBranchDecision": 5,
+        "InvalidBranchDirectory": 1,
+        "InvalidBranchHead": 1,
+        "InvalidBranchIdentity": 1,
+        "InvalidBranchLimits": 1,
+        "InvalidBranchManifest": 1,
+        "InvalidBranchMerge": 1,
+        "InvalidBranchReference": 1,
+        "InvalidBranchValidation": 1,
+        "StaleBranchHead": 1,
+        "UnresolvedBranchConflicts": 1
+      },
+      "outcomes": {
+        "Decision.outcome": [
+          "published",
+          "dropped",
+          "rejected",
+          "cancelled"
+        ],
+        "Intent": [
+          "create",
+          "merge",
+          "restore",
+          "drop"
+        ],
+        "Kind": [
+          "genesis",
+          "fork",
+          "commit",
+          "merge",
+          "restore"
+        ],
+        "Mode": [
+          "full_data",
+          "schema_only"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Attempt.requireSame()": "<inferred>",
+        "Attempt.validate()": "<inferred>",
+        "Decision.validate()": "<inferred>",
+        "Directory.validate()": "<inferred>",
+        "Head.requireSame()": "<inferred>",
+        "Head.validate()": "<inferred>",
+        "Identity.requireScope()": "<inferred>",
+        "Identity.validate()": "<inferred>",
+        "Intent.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Manifest.validate()": "<inferred>",
+        "MergeBasis.validate()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Validation.requirePublishable()": "<inferred>",
+        "Validation.validate()": "<inferred>",
+        "successor()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 45,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/DataLifecycle.zig": {
       "errors": {
         "DataIdentityConflict": 6,
@@ -19927,6 +20005,7 @@
       "imports": [
         "Authorization.zig",
         "Blocks.zig",
+        "Branch.zig",
         "DataLifecycle.zig",
         "Diagnostic.zig",
         "DocumentDeclaration.zig",
@@ -32570,6 +32649,112 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/BranchAncestry.zig": {
+      "errors": {
+        "BranchAncestryStagingLimit": 1,
+        "BranchAncestryWorkLimit": 1,
+        "BranchIdentityConflict": 1,
+        "IncompleteBranchAncestry": 1,
+        "InvalidBranchAncestry": 2,
+        "InvalidBranchLimits": 1
+      },
+      "outcomes": {
+        "Phase": [
+          "source",
+          "target",
+          "select",
+          "complete"
+        ],
+        "Resolution": [
+          "unrelated",
+          "unique",
+          "ambiguous"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "contains()": "<inferred>",
+        "enqueue()": "<inferred>",
+        "init()": "<inferred>",
+        "insert()": "<inferred>",
+        "key()": "<inferred>",
+        "reference()": "<inferred>",
+        "result()": "<inferred>",
+        "step()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 33,
+        "catch": 0
+      },
+      "imports": [
+        "BranchSnapshot.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/BranchSnapshot.zig": {
+      "errors": {
+        "BranchArtifactMissing": 1,
+        "BranchDecodeLimit": 1,
+        "BranchIdentityConflict": 7,
+        "BranchObjectLimit": 2,
+        "IncompatibleDefinition": 2,
+        "IncompleteBranchDirectory": 2,
+        "InvalidBranchArtifact": 5,
+        "InvalidBranchCursor": 1,
+        "InvalidBranchDirectory": 6,
+        "InvalidBranchLimits": 1,
+        "OutOfMemory": 1
+      },
+      "outcomes": {
+        "Artifact": [
+          "directory",
+          "entry",
+          "manifest"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Entry.validate()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "commitment()": "<inferred>",
+        "contentOf()": "<inferred>",
+        "cursor()": "<inferred>",
+        "encode()": "<inferred>",
+        "entryKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "load()": "<inferred>",
+        "loadEntry()": "<inferred>",
+        "loadManifest()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "page()": "<inferred>",
+        "put()": "<inferred>",
+        "reference()": "<inferred>",
+        "restore()": "<inferred>",
+        "seal()": "<inferred>",
+        "stage()": "<inferred>",
+        "stageManifest()": "<inferred>",
+        "verifyEntry()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 1
+      },
+      "imports": [
+        "TableSnapshot.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/CandidateObjects.zig": {
       "errors": {
         "CandidateMutationUnsupported": 2,
@@ -36083,6 +36268,8 @@
       },
       "imports": [
         "BitmapDirectory.zig",
+        "BranchAncestry.zig",
+        "BranchSnapshot.zig",
         "DocumentDeclaration.zig",
         "DocumentEvidence.zig",
         "DocumentIndex.zig",

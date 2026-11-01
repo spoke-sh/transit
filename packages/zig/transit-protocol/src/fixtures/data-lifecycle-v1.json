@@ -4369,5 +4369,887 @@
         "next_lsn": 17
       }
     }
+  },
+  "branch": {
+    "manifest": {
+      "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+      "identity": {
+        "scope": {
+          "realm": 1,
+          "resource": 3,
+          "catalog": 5
+        },
+        "branch": 18446744073709551615
+      },
+      "version": 1,
+      "kind": "fork",
+      "mode": "full_data",
+      "catalog": {
+        "partition": 13,
+        "next_lsn": 17
+      },
+      "objects": {
+        "content": {
+          "bytes": 512,
+          "sha256": [
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3,
+            3
+          ]
+        },
+        "objects": 10000
+      },
+      "retention_owner": {
+        "scope": {
+          "realm": 1,
+          "resource": 3,
+          "catalog": 5
+        },
+        "principal": 7,
+        "operation": 18446744073709551615
+      },
+      "parent": {
+        "identity": {
+          "scope": {
+            "realm": 1,
+            "resource": 3,
+            "catalog": 5
+          },
+          "branch": 1
+        },
+        "version": 99,
+        "content": {
+          "bytes": 256,
+          "sha256": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "merge_parent": null,
+      "restored_from": null
+    },
+    "head": {
+      "reference": {
+        "identity": {
+          "scope": {
+            "realm": 1,
+            "resource": 3,
+            "catalog": 5
+          },
+          "branch": 1
+        },
+        "version": 101,
+        "content": {
+          "bytes": 256,
+          "sha256": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "generation": 103
+    },
+    "attempt": {
+      "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 3,
+          "catalog": 5
+        },
+        "principal": 7,
+        "operation": 18446744073709551615
+      },
+      "request": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "intent": {
+        "merge": {
+          "base": {
+            "identity": {
+              "scope": {
+                "realm": 1,
+                "resource": 3,
+                "catalog": 5
+              },
+              "branch": 1
+            },
+            "version": 99,
+            "content": {
+              "bytes": 256,
+              "sha256": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          },
+          "source": {
+            "identity": {
+              "scope": {
+                "realm": 1,
+                "resource": 3,
+                "catalog": 5
+              },
+              "branch": 18446744073709551615
+            },
+            "version": 4,
+            "content": {
+              "bytes": 256,
+              "sha256": [
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2
+              ]
+            }
+          },
+          "target": {
+            "reference": {
+              "identity": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 3,
+                  "catalog": 5
+                },
+                "branch": 1
+              },
+              "version": 101,
+              "content": {
+                "bytes": 256,
+                "sha256": [
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "generation": 103
+          }
+        }
+      },
+      "limits": {
+        "resident_bytes": 4096,
+        "staged_bytes": 1048576,
+        "objects": 10000,
+        "work": 100000
+      }
+    },
+    "validation": {
+      "attempt": {
+        "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 3,
+            "catalog": 5
+          },
+          "principal": 7,
+          "operation": 18446744073709551615
+        },
+        "request": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "intent": {
+          "merge": {
+            "base": {
+              "identity": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 3,
+                  "catalog": 5
+                },
+                "branch": 1
+              },
+              "version": 99,
+              "content": {
+                "bytes": 256,
+                "sha256": [
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "source": {
+              "identity": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 3,
+                  "catalog": 5
+                },
+                "branch": 18446744073709551615
+              },
+              "version": 4,
+              "content": {
+                "bytes": 256,
+                "sha256": [
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2
+                ]
+              }
+            },
+            "target": {
+              "reference": {
+                "identity": {
+                  "scope": {
+                    "realm": 1,
+                    "resource": 3,
+                    "catalog": 5
+                  },
+                  "branch": 1
+                },
+                "version": 101,
+                "content": {
+                  "bytes": 256,
+                  "sha256": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                  ]
+                }
+              },
+              "generation": 103
+            }
+          }
+        },
+        "limits": {
+          "resident_bytes": 4096,
+          "staged_bytes": 1048576,
+          "objects": 10000,
+          "work": 100000
+        }
+      },
+      "candidate": {
+        "bytes": 512,
+        "sha256": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ]
+      },
+      "checked_objects": 10000,
+      "conflicts": 0,
+      "complete": true
+    },
+    "decision": {
+      "attempt": {
+        "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 3,
+            "catalog": 5
+          },
+          "principal": 7,
+          "operation": 18446744073709551615
+        },
+        "request": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "intent": {
+          "merge": {
+            "base": {
+              "identity": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 3,
+                  "catalog": 5
+                },
+                "branch": 1
+              },
+              "version": 99,
+              "content": {
+                "bytes": 256,
+                "sha256": [
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "source": {
+              "identity": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 3,
+                  "catalog": 5
+                },
+                "branch": 18446744073709551615
+              },
+              "version": 4,
+              "content": {
+                "bytes": 256,
+                "sha256": [
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2,
+                  2
+                ]
+              }
+            },
+            "target": {
+              "reference": {
+                "identity": {
+                  "scope": {
+                    "realm": 1,
+                    "resource": 3,
+                    "catalog": 5
+                  },
+                  "branch": 1
+                },
+                "version": 101,
+                "content": {
+                  "bytes": 256,
+                  "sha256": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                  ]
+                }
+              },
+              "generation": 103
+            }
+          }
+        },
+        "limits": {
+          "resident_bytes": 4096,
+          "staged_bytes": 1048576,
+          "objects": 10000,
+          "work": 100000
+        }
+      },
+      "position": {
+        "partition": 13,
+        "next_lsn": 18
+      },
+      "writer_epoch": 2,
+      "policy_epoch": 9,
+      "outcome": {
+        "published": {
+          "reference": {
+            "identity": {
+              "scope": {
+                "realm": 1,
+                "resource": 3,
+                "catalog": 5
+              },
+              "branch": 1
+            },
+            "version": 102,
+            "content": {
+              "bytes": 256,
+              "sha256": [
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4,
+                4
+              ]
+            }
+          },
+          "generation": 104
+        }
+      }
+    }
   }
 }

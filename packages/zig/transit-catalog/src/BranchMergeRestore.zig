@@ -42,6 +42,7 @@ pub const MergeCandidateTable = struct {
 
 pub const MergeOperationReceipt = struct {
     client_token: [16]u8,
+    request_digest: [32]u8,
     operation_id: u64,
     base_manifest_version: u64,
     source_manifest_version: u64,
@@ -53,6 +54,15 @@ pub const MergeOperationReceipt = struct {
 };
 
 pub const max_token_receipts: usize = 64;
+
+/// Caller-owned storage for the bounded in-memory model. Published cuts borrow
+/// this storage, the output table/segment arrays and input value/schema bytes;
+/// all must outlive every registry cut referring to them and must not be reused.
+/// The durable branch path uses immutable paged artifacts instead of this model.
+pub const MergeRows = struct {
+    cells: [8][32][s.max_columns]v.Cell = undefined,
+    rows: [8][32]H.HistoricalRow = undefined,
+};
 
 /// Tracks committed merge receipts by `(ClientToken)` so lost merge replies
 /// recover the original `manifest/v{N+1}` outcome instead of failing OCC CAS on retry.
@@ -68,7 +78,10 @@ pub const MergeTokenJournal = struct {
     }
 
     pub fn record(self: *MergeTokenJournal, receipt: MergeOperationReceipt) !void {
-        if (self.lookup(receipt.client_token) != null) return;
+        if (self.lookup(receipt.client_token)) |known| {
+            if (!std.meta.eql(known, receipt)) return error.MergeIdentityConflict;
+            return;
+        }
         if (self.count >= max_token_receipts) return error.MergeTokenJournalFull;
         self.receipts[self.count] = receipt;
         self.count += 1;
@@ -302,7 +315,8 @@ fn revalidatePropertyGraphEndpoints(
 
 /// Validate a three-way branch merge across all candidate tables and property graphs,
 /// commit the merged `ManifestCut` via `If-Match` OCC CAS on `expected_target_manifest_version`,
-/// and record the operation receipt in `MergeTokenJournal` for lost-reply recovery.
+/// and record the operation receipt in the bounded in-memory token model.
+/// This helper does not publish through DirectCatalog or acquire durable pins.
 pub fn validateAndPublishThreeWayMerge(
     registry: *B.BranchRegistry,
     token_journal: *MergeTokenJournal,
@@ -314,6 +328,7 @@ pub fn validateAndPublishThreeWayMerge(
     strategy: MergeStrategy,
     candidates: []const MergeCandidateTable,
     property_graphs: []const H.PropertyGraphDescriptor,
+    output: *MergeRows,
     merged_tables_out: []H.HistoricalTableBinding,
     merged_segments_out: []H.HistoricalSegment,
     grants: B.BranchGrantSet,
@@ -322,10 +337,30 @@ pub fn validateAndPublishThreeWayMerge(
     try grants.authorizePrivilege(.merge_branch);
     try grants.authorizePrivilege(.write_branch);
 
-    // 2. Lost-reply idempotency check: if `client_token` already committed, return its original receipt!
+    var hash_buffer: [4096]u8 = undefined;
+    var request_hash: std.Io.Writer.Hashing(std.crypto.hash.sha2.Sha256) = .init(&hash_buffer);
+    request_hash.hasher.update("transit.catalog.merge-model-request.v1\x00");
+    var encoder: std.json.Stringify = .{ .writer = &request_hash.writer };
+    try c.protocol.Json.write(.{
+        .operation = operation_id,
+        .source = source_branch_name,
+        .target = target_branch_name,
+        .expected_target = expected_target_manifest_version,
+        .strategy = strategy,
+        .candidates = candidates,
+        .graphs = property_graphs,
+    }, &encoder);
+    try request_hash.writer.flush();
+    const request_digest = request_hash.hasher.finalResult();
+
+    // Exact retries recover the original result even after the target moved.
     if (token_journal.lookup(client_token)) |existing_receipt| {
+        if (!std.mem.eql(u8, &existing_receipt.request_digest, &request_digest)) return error.MergeIdentityConflict;
         return existing_receipt;
     }
+    // Reserve bounded model capacity before advancing the head; receipt failure
+    // must not leave a publication that cannot be recovered under its token.
+    if (token_journal.count >= token_journal.receipts.len) return error.MergeTokenJournalFull;
 
     const src_idx = registry.findBranchIndexByName(source_branch_name) orelse return error.UnknownSourceBranch;
     const tgt_idx = registry.findBranchIndexByName(target_branch_name) orelse return error.UnknownTargetBranch;
@@ -346,8 +381,6 @@ pub fn validateAndPublishThreeWayMerge(
         return error.MergeCandidateBufferTooSmall;
     }
 
-    var cells_storage: [8][32][s.max_columns]v.Cell = undefined;
-    var rows_storage: [8][32]H.HistoricalRow = undefined;
     var row_slices: [8][]const H.HistoricalRow = undefined;
     var total_merged_rows: usize = 0;
     var resolved_conflicts: usize = 0;
@@ -355,24 +388,28 @@ pub fn validateAndPublishThreeWayMerge(
     if (src_branch.mode == .schema_only or strategy == .promote_schema_only) {
         // Schema-only promotion preserves target rows while promoting source schema
         for (candidates, 0..) |cand, i| {
+            if (!std.mem.eql(u8, &try cand.source_snap.schema.fingerprint(), &try cand.target_snap.schema.fingerprint())) return error.SchemaOnlyMergeRequiresConversion;
             const r_count = cand.target_snap.rows.len;
+            if (r_count > output.rows[i].len) return error.MergeCandidateBufferTooSmall;
             for (cand.target_snap.rows, 0..) |r, r_idx| {
-                @memcpy(cells_storage[i][r_idx][0..cand.source_snap.schema.columns.len], r.cells[0..cand.source_snap.schema.columns.len]);
-                rows_storage[i][r_idx] = .{ .cells = cells_storage[i][r_idx][0..cand.source_snap.schema.columns.len] };
+                if (r.cells.len != cand.source_snap.schema.columns.len) return error.InvalidMergeRow;
+                @memcpy(output.cells[i][r_idx][0..r.cells.len], r.cells);
+                output.rows[i][r_idx] = .{ .cells = output.cells[i][r_idx][0..r.cells.len] };
             }
-            row_slices[i] = rows_storage[i][0..r_count];
+            row_slices[i] = output.rows[i][0..r_count];
             total_merged_rows += r_count;
+            try revalidateCandidateUniquenessAndChecks(cand, row_slices[i]);
         }
     } else {
         for (candidates, 0..) |cand, i| {
             const r_count = try buildMergedCandidateRows(
                 cand,
                 strategy,
-                &cells_storage[i],
-                &rows_storage[i],
+                &output.cells[i],
+                &output.rows[i],
                 &resolved_conflicts,
             );
-            row_slices[i] = rows_storage[i][0..r_count];
+            row_slices[i] = output.rows[i][0..r_count];
             total_merged_rows += r_count;
             try revalidateCandidateUniquenessAndChecks(cand, row_slices[i]);
         }
@@ -434,6 +471,7 @@ pub fn validateAndPublishThreeWayMerge(
 
     const receipt: MergeOperationReceipt = .{
         .client_token = client_token,
+        .request_digest = request_digest,
         .operation_id = operation_id,
         .base_manifest_version = lca_ver,
         .source_manifest_version = src_branch.head_manifest_version,

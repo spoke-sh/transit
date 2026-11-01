@@ -17,6 +17,25 @@ including recovery from checkpoints. Shared workspaces and preparation barriers
 compose Table and KV through one decision; the catalog owns selection and current
 kind-specific rights. Stream/Queue transaction participation remains pending.
 
+`BranchSnapshot` stages immutable manifest proposals and paged Table source
+directories. Each entry binds an exact interpretation and accepted frontier to
+a Table snapshot handle. Canonical content checks, explicit object/work bounds
+and exact-root cursors preserve frozen selections across disk reopen; an empty
+or exhausted directory has explicit completion. `verifyEntry` checks the stored
+Table root's interpretation and accepted frontier. It does not traverse all
+referenced row/segment bytes. The enclosing catalog must separately
+verify live retention, acquire a coherent catalog/data cut, recheck current
+authority and accept publication. Staging these artifacts does not publish a
+branch, acquire pins or make them reachable to the storage collector.
+
+`BranchAncestry` visits exact stored manifests in bounded steps and stages its
+frontier and visited sets in paged private indexes. Exhaustive parent/merge-parent
+traversal distinguishes a unique maximal common ancestor, unrelated histories
+and ambiguous criss-cross bases. Branch-local versions are never compared across
+branches; restore-source provenance is not a merge edge. Missing content,
+conflicting references or exhausted work/staging budgets leave the result
+incomplete. The caller owns authorization, retention and scratch-object cleanup.
+
 `Tack` binds a queue segment's available, acquired, acked and archived state
 sets to its exact interpretation, offset range and accepted WAL frontier. The
 488-byte envelope references immutable paged `BitmapDirectory` roots and uses

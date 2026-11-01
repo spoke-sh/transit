@@ -27,6 +27,12 @@ and terminal-transfer types do not enable log runtime participation; the
 [transaction contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
 states the remaining owner and publication obligations.
 
+[`Branch`](src/Branch.zig) supplies exact branch identities, immutable manifest
+references, frozen merge/restore attempts, complete-validation bindings and
+forward publication decisions. Its [contract](../../../contracts/BRANCH_V1.md)
+separates neutral validation from retained cuts, current authority and atomic
+catalog publication. These types do not enable multi-branch service execution.
+
 [`IndexLifecycle`](src/IndexLifecycle.zig) supplies offline index declarations,
 build identities, exact source coverage and conditional publication bindings.
 Its [contract](../../../contracts/INDEX_LIFECYCLE_V1.md) pins column comparison

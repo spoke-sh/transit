@@ -17,6 +17,7 @@ pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
 pub const DataLifecycle = @import("DataLifecycle.zig");
 pub const Transaction = @import("Transaction.zig");
+pub const Branch = @import("Branch.zig");
 pub const IndexLifecycle = @import("IndexLifecycle.zig");
 pub const StreamQueue = @import("StreamQueue.zig");
 pub const StreamRead = @import("StreamRead.zig");
@@ -74,6 +75,7 @@ test {
     _ = Authorization;
     _ = DataLifecycle;
     _ = Transaction;
+    _ = Branch;
     _ = IndexLifecycle;
     _ = StreamQueue;
     _ = StreamQueueDeclaration;

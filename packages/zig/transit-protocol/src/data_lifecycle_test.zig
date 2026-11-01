@@ -193,4 +193,13 @@ test "independent lifecycle fixture binds the accepted write and its unflushed s
     try parsed.value.snapshot.requireSource(parsed.value.source_cut);
     try t.expect(try parsed.value.source_cut.needsWal());
     try t.expectEqual(.not_observed, std.meta.activeTag(parsed.value.observation));
+    const branch = parsed.value.branch;
+    try branch.manifest.validate();
+    try branch.head.validate();
+    try branch.attempt.validate();
+    try branch.validation.requirePublishable(branch.validation.candidate, 10000);
+    try branch.decision.validate();
+    try t.expectEqual(std.math.maxInt(u64), branch.manifest.identity.branch);
+    try t.expectEqual(@as(u64, 1), branch.manifest.version);
+    try t.expectEqual(@as(u64, 99), branch.manifest.parent.?.version);
 }

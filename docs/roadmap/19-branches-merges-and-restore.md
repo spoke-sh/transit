@@ -1,6 +1,6 @@
 # 19. Branches, merges and restore
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-30); [delivered evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-31); [foundation increment](#foundation-increment--2026-10-31); [earlier component evidence](#delivered-implementation-evidence--2026-10-30))
 
 Add isolated application-state branching, three-way merging and point-in-time
 restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
@@ -19,8 +19,8 @@ application data and its catalog interpretation under the realm's current policy
 Branch creation is not inherently export, new ownership or a new authority
 boundary. Define branch visibility, permissions and any inheritance explicitly;
 creation does not freeze source privileges. A higher-level project/application
-fork relationship is outside this milestone. Because committed table state is
-represented by immutable **Manifests (`manifest/v{N}`)** referencing immutable
+fork relationship is outside this milestone. In the target representation,
+committed table state uses immutable **Manifests (`manifest/v{N}`)** referencing immutable
 **`.tseg` Data Segments** and **`.tdel` Deletion Vectors** in `TransitObjectStore`,
 branch-head publication targets an $O(1)$ metadata operation over an already
 durable, pinned snapshot without copying all data files. Snapshot preparation
@@ -38,6 +38,10 @@ outbox records cannot become executable merely through branch creation or merge.
 
 ## Delivery sequence
 
+The operations and SQL forms in this sequence are delivery targets. The
+[source audit](#source-audit-reuse-and-unfinished-integration) distinguishes
+existing component helpers from executable branch operations.
+
 Use [#125](https://github.com/spoke-sh/transit/issues/125) for catalog/snapshot
 identity and [#127](https://github.com/spoke-sh/transit/issues/127) for durable
 WAL/object pins and retention. A new branch includes accepted unflushed rows; pointing
@@ -47,22 +51,23 @@ authority/process evidence separate from branchable application state.
 
 1. **Publish full-data and schema-only branches from exact retained versions:**
    use bounded independent copies as the correctness oracle while implementing
-   $O(1)$ branch-head publication (`refs/heads/<branch> -> manifest/v{N}`) and a
-   dedicated branch `TransitLog` partition for subsequent branch deltas. Assign
+   $O(1)$ branch-head publication (`refs/heads/<branch> -> manifest/v{N}`) and
+   branch-qualified `TransitLog` partitions for subsequent object/partition deltas. Assign
    branch identity and branch-scoped catalog bindings within the realm; evaluate
    current branch-creation and data access rights. Define conditional head publication
    (`If-None-Match` CAS) and source retention/expiry protection so garbage
    collection preserves every `.tseg`/`.tdel` object reachable from any active
    branch or retained snapshot, including its required WAL/history references.
 2. **Isolate branch writes over shared `.tseg` segments:** writes on a branch
-   append to the branch's `TransitLog` partition and flush new `.tseg` segments
+   append to branch-owned `TransitLog` partitions and flush new `.tseg` segments
    and branch-local `.tdel` deletion vectors without mutating parent segments.
    Parent/child deletion and restart must preserve every reachable byte.
 3. **Implement segment-aware two-way/three-way `DIFF` (`DIFF` and `DIFF_SCHEMA`) and reviewed KV/Table merges:**
    given a two-way pair (**`from` Manifest**, **`to` Manifest**) or a three-way
    common ancestor (**`base` Manifest**, **`source` Manifest** and **`target`
-   Manifest**), skip all `.tseg` segments and `.tdel` bitmaps shared identically
-   in $O(1)$ ([A4: `BranchMergeAlgebra.lean`](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
+   Manifest**), skip identical `.tseg`/`.tdel` entries with matching interpretation,
+   visibility and retained-tail coverage in $O(1)$ per entry
+   ([A4: `BranchMergeAlgebra.lean`](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
    and compute key-aligned diffs using logical change lineage, retained tail
    state, added segments and divergent deletion vectors:
    - **First-class relational and document `DIFF(object, ...)`:** align rows by
@@ -91,7 +96,7 @@ authority/process evidence separate from branchable application state.
 4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), 2D/3D geospatial & volumetric models ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
    replica state-vector convergence, use `.tseg` 2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert
-   zone maps for $O(1)$ spatial and volumetric segment skipping during viewport-scoped diffs
+   zone maps for per-entry spatial and volumetric pruning during viewport-scoped diffs
    and surface conflicting edits to shared `.topo_arc` / `.topo_face` boundary chains/faces or 3D assembly clash collisions as
    five-state `IS CONFLICT` cells, preserving causal/tombstone semantics,
    fresh replica identities and valid graph endpoints; incompatible histories
@@ -101,9 +106,9 @@ authority/process evidence separate from branchable application state.
    history. Define pending input, job and subscription disposition, explicit
    activation and external-outcome reconciliation.
 6. **Support Git-like remote $\leftrightarrow$ local incremental mirroring, lazy `.tseg` fetch and local migration testing ("Git remotes for data"):**
-   because committed state forms a content-addressed Merkle DAG (`manifest/v{N}`
+   define a transferable content-addressed Merkle DAG (`manifest/v{N}`
    commits $\to$ `DefinitionId` catalog trees $\to$ immutable SHA-256 `.tseg`
-   blobs and `.tdel`/`.tack` bitmaps plus `TWAL1` delta tails), allow a local or
+   blobs and `.tdel`/`.tack` bitmaps plus `TWAL1` delta tails), then allow a local or
    staging Transit instance to attach to an upstream remote Transit peer
    (`CREATE REMOTE`, `FETCH`, continuous `MIRROR`) under the caller's scoped
    `policy_epoch` grants (enforcing security-barrier RLS and dynamic masking at
@@ -173,390 +178,572 @@ Never revive retired processes, restore revoked rights or redispatch historical
 effects. Independent exports, higher-level forks, cross-realm collaboration and
 live realm rollback require separate contracts.
 
+## Implementation plan — 2026-10-31
+
+### Outcome, baseline and delivery profile
+
+A caller selects an exact retained application-data cut, creates an independently
+writable branch, inspects bounded data/schema differences, and conditionally
+publishes a validated merge or forward restore. After disconnect or restart the
+caller recovers the original operation and its decision. Readers can identify
+the branch, definitions, source cut, completeness and current access basis.
+
+**Audited baseline:** fetched `origin/main` at
+`0e2fba44727ca858bd1e8e4a775b62fbcf1a665d`, 2026-10-31. This plan replaces the
+[October 30 implementation plan](#implementation-plan--2026-10-30), retaining its
+[component inventory](#delivered-implementation-evidence--2026-10-30) and the
+milestone's full scope. Source inspection establishes the gaps below; this
+planning change executes no runtime qualification and marks no work package
+complete. Milestone 19 remains **In Progress**.
+
+Start with one local catalog/database, one realm, a fenced authority and the
+existing disk-backed storage providers. Tables are the first executable data
+profile. Extend KV, Documents and other declared objects only through their
+qualified owners. This is a delivery order, not removal of the multi-model or
+remote-sync completion criteria. A Table-only slice cannot close M19.
+
+Use [data lifecycle identities](../../contracts/DATA_LIFECYCLE_V1.md),
+[direct operations](../../contracts/DIRECT_TABLE_V1.md),
+[retained versions](../../contracts/READ_VERSIONS_V1.md),
+[current authorization](../../contracts/AUTHORIZATION_V1.md) and the
+[state model](../handbook/internals/state-model.md#schema-history-and-branches).
+The state-model branch sections are design analysis, not an executable contract.
+Resolve differences there as implementation establishes behavior; in particular,
+branch publication must use the database owner, not the historical proposal to
+coordinate through a Station resource turn.
+
+### Source audit: reuse and unfinished integration
+
+| Area | Evidence at the audited baseline | Implementation consequence |
+| --- | --- | --- |
+| Live branch selection | [`DataLifecycle.ResourceInitialization`](../../packages/zig/transit-protocol/src/DataLifecycle.zig), [`DirectCatalogRecords.Configuration`](../../packages/zig/transit-catalog/src/DirectCatalogRecords.zig) and [`DirectTableProtocol.Connection`](../../packages/zig/transit-catalog/src/DirectTableProtocol.zig) still require branch one. [`HistoricalTimeline.publishHeadConditional`](../../packages/zig/transit-catalog/src/HistoricalCatalog.zig) rejects multi-commit non-main branching. | Remove restrictions only with durable branch ownership, authorization, readers and publication wired together. A nonzero branch field alone cannot enable the feature. |
+| Branch lifecycle helper | [`BranchLifecycle`](../../packages/zig/transit-catalog/src/BranchLifecycle.zig) has a 128-entry branch array, 256-cut array, borrowed row/tail slices and calculated publication metrics. It models creation, ancestry, overlays and reachability. | Replace total-cardinality arrays with paged persistent directories; acquire real pins and WAL partitions. Its metrics are not measured publication latency or storage accounting. |
+| Diff helper | [`BranchDiff`](../../packages/zig/transit-fuze/src/BranchDiff.zig) implements finite segment/row/schema comparisons, five-state conflicts and spatial checks over supplied inputs. | Build retained-source iterators, complete schema/dependency comparison, typed result bindings and bounded spill. Prove skip eligibility against interpretation, visibility and tails as well as segment bytes. |
+| Merge helper | [`BranchMergeRestore`](../../packages/zig/transit-catalog/src/BranchMergeRestore.zig) uses at most eight candidate tables, 32 rows per table and a 64-entry token-only `MergeTokenJournal`; publication changes `BranchRegistry`. Candidate row slices originate in local work arrays. | Use immutable staged roots and owned batch lifetimes, durable account/token bindings, complete candidate membership and a real atomic decision. Audit escaping slices before reusing algorithms. Raising limits is not the solution. |
+| Restore helper | `restoreBranchForward` changes the in-memory registry and returns dataflow/outbox/discontinuity dispositions. | Persist the decision and disposition work; integrate actual computation, reader and effect owners. A returned enum does not suspend a running computation or prevent dispatch. |
+| Remote helper | `fetchIncrementalFromRemote` counts supplied segment IDs and returns a policy flag; `hydrateLazySegmentOnDemand` hashes supplied bytes. | Implement authenticated transfer, real egress policy, resumable storage and cache admission. Neither helper establishes network transfer, RLS filtering, mirroring or proposal publication. |
+| Existing durable owners | [`DirectCatalog`](../../packages/zig/transit-catalog/src/DirectCatalog.zig), [`DirectClientToken`](../../packages/zig/transit-catalog/src/DirectClientToken.zig), [`TableSnapshot`](../../packages/zig/transit-storage/src/TableSnapshot.zig), [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) and the [Table transaction profile](05-transactions-and-atomic-composition.md) supply paged ownership, original attempts, retained cuts and common decisions. | Extend these owners rather than installing a second branch registry, permission store or merge receipt authority. Branch heads must agree with ordinary DDL/DML and transaction visibility. |
+| Caller integration | The branch helpers are referenced by package exports/tests and each other; the audited live SQL [`Statement`](../../packages/zig/transit-sql/src/Statement.zig) and signed direct request dispatcher do not expose their lifecycle. | Add typed native operations and SQL lowering with capability reporting; parser acceptance cannot establish execution. There is no `transit-sql/src/Parser.zig` at this baseline. |
+| Evidence | [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) compares generated JSON fixtures and checks source-symbol presence. Zig component suites exist; no M19 end-to-end qualification record was found in the [ledger](../history/qualification/README.md). | Preserve the fixtures as contract examples. Add an independent executable oracle and disk/service fault schedules; do not count fixture booleans or symbol checks as executed recovery, GC, masking or scale evidence. |
+
+### Recent foundations and upcoming milestone boundaries
+
+Statuses below are roadmap statuses at the baseline, not claims that every
+proposed mechanism in those plans is implemented. Recheck the owning contracts
+when each dependent package starts; do not base delivery on unmerged worktrees.
+
+| Owner and status | M19 dependency or handoff |
+| --- | --- |
+| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed | Reuse neutral identities, local durability, logical statement results and the qualified local multi-Table decision domain. M5 completion does not qualify native KV/Document or log/lease participants. M19 must prove schema/data branch-head publication in that domain. |
+| [M3](03-live-storage-and-sql-cutover.md) — In Progress | Extend installed lifecycle, exact retained roots, current rights and resumable collection. Preserve accepted unflushed WAL rows and original receipts through archive/trim/reopen. |
+| [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Recent direct Stream/Queue owners, shared bitmap storage and database-owned SQL recovery are reusable. Direct KV, mixed participants and the Station transaction cutover remain gates. Never turn copied consumer offsets, `.tack` claims, timers or outbox bytes into execution rights. |
+| [M7](07-document-storage-and-station-decoupling.md) — In Progress | Logical merge and `DocumentPartition` storage foundations exist; the plan still gates direct dispatch and consumer/transaction cutover. M19 branches and merges Documents through that owner, not old Station storage. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md), [M9](09-client-foundation-and-language-apis.md) — In Progress | Reuse `DatabaseRuntime`, event-driven accepted-work recovery and shared callers. The latest main merge also delivers [declarative browser publications](../handbook/reference/reactive.md#declarative-browser-publications); add branch identity to their source/recovery bindings without confusing browser refresh with native reactive subscriptions. |
+| [M10](10-standards-and-catalogs.md) — In Progress | Exact historical catalog/data cuts, stable column lineage, collations and constraint semantics are prerequisites. Historical helper types alone do not supply durable cut acquisition or current-policy enforcement. Close shared gaps with this owner before branch exposure. |
+| [M11](11-indexing-and-access-paths.md) — Planned | Branch-local index definitions, coverage and uniqueness integrate when the index owner qualifies them. Until then, use a qualified bounded complete scan where semantics exist, or refuse that profile; never assume copied indexes are ready. |
+| [M12](12-sql-and-dataflows.md) — In Progress | Bind copied definitions inactive; preserve result/source provenance. Merge/restore schedules owner-managed invalidation, suspension or recomputation. An in-memory disposition must not claim service activation or DBSP coverage. |
+| [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md) — In Progress; [M15](15-data-centric-compilation-and-specialization.md) — Planned | Share memory/IO budgets, measured compaction policy and qualified collation comparisons. Vectorization, string prefixes and compiled execution optimize the same oracle-tested semantics; none is a correctness prerequisite for the first branch path. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md) — Planned | Gate profile-aware Document provenance, spatial/topological validation, graph endpoints and foreign manifests on their exact owner contracts. Bound the first local slice independently, but keep these M19 integrations open until qualified. |
+| [M20](20-service-and-sdk-coverage.md), [M21](21-formal-semantics-and-correspondence.md) — In Progress | M19 supplies shared branch operations and migrates affected consumers; M20 broadens the installed adapter matrix. M21's T6 candidate is `BranchMerge.tla`, A4 is `BranchMergeAlgebra.lean`; these are proposed obligations, not existing `specs/lean` proofs. |
+| [M22](22-storage-providers-and-concurrency.md)–[M25](25-clustered-execution.md) — Planned | Local branch CAS is not distributed multi-writer qualification. Remote mirroring is not replication/failover. M24 owns complete installation backup/restore and upgrades; M19 restores selected application data forward under current authority. |
+| [M26](26-control-and-policy-plane.md), [M27](27-published-resources-and-investigations.md), [M29](29-board-reimplementation.md) — In Progress; [M28](28-reviewed-data-collaboration.md) — Planned | Use current native policy first, expose exact candidate/target bindings for later delegation, publication and review, and preserve read-only Board inspection and its initial workbench work. M28 owns proposal/approval lifecycle and human-only approval, avoiding a dependency cycle in local M19 completion. M19 owns remote candidate transfer; full `PROPOSE` review journeys close in M28. |
+| [M35](35-qualification-and-benchmarks.md) — Planned | Combine later evidence at one revision; M19 must supply its own caller, failure, growth and benchmark evidence now rather than defer correctness to final qualification. |
+
+### Contract decisions to settle before runtime exposure
+
+The following are recommended implementation constraints. Exact fields, errors
+and syntax must land in the owning current-v1 contracts before adapters. They
+are not already accepted wire definitions or runnable SQL examples.
+
+**Identity and scope.** A branch has immutable realm/catalog identity and a
+non-reused branch ID, a mutable name, a generation, a head and current policy
+references. Keep logical object lineage and `ColumnId` lineage separate from
+branch-local object bindings and physical partitions. Preserve lineage on a fork;
+allocate collision-free identities for independent additions. Drop/recreate of a
+branch or object name cannot retarget an old operation or cursor. Bind a statement
+to one resolved head; bind an explicit transaction to its admitted branch and cut.
+Prepared statements acquire a fresh execution cut while preserving their original
+metadata contract. Switching branch must not retarget an open transaction.
+
+**Publication and history.** One database decision publishes the complete
+candidate schema/data directory and branch head. Every ordinary write path must
+participate in that visibility protocol; a head-only CAS over independently live
+Table mutations would expose inconsistent snapshots. Reuse M5 guards and decisions,
+including private prepared roots and recovery, without routing through Station.
+Do not serialize all row payloads through a branch log: retain per-object and
+per-partition data logs, with branch-qualified allocation/ownership and a bounded
+catalog publication record. A dedicated branch delta namespace is not one mailbox
+or a single data-ingestion bottleneck.
+
+A frozen manifest commits to its entire interpretation, dependency closure,
+retained roots and per-partition frontiers, provenance and parent edges. Catalog
+positions and Table WAL positions remain distinct. A descriptor or digest does
+not acquire a pin. Pins must survive owner replacement before publication becomes
+visible. Snapshot acquisition over the supported atomic domain must include every
+accepted unflushed row at the cut. Unsupported mixed-domain acquisition refuses;
+an independently sampled vector cannot be called an atomic snapshot.
+
+**Three-way meaning.** Resolve immutable base/source/target and preserve them
+through preview, resolution and publication. Initially reject ambiguous merge bases
+or unavailable ancestry rather than choose an arbitrary common ancestor. Bind
+resolutions to the candidate digest and expected target generation/head. Source
+movement after freezing does not silently enlarge the candidate; target movement
+requires a new explicit plan. Distinguish same-key divergent edits, delete/modify,
+concurrent inserts, key changes, schema conflicts and non-conflicting edits that
+jointly violate constraints. Composite keys use declared collation semantics;
+keyless Tables require durable row lineage or explicit refusal, never physical
+row offsets as identity. Opaque KV merges are per-key byte comparisons unless an
+application supplies an explicit supported interpretation.
+
+A durable conflict record carries base/source/target provenance and resolution
+state. A five-state `conflict` cell is a query projection of that evidence, not
+an instruction to persist unresolved conflicts into ordinary Table rows. Define
+missing-column versus SQL NULL/default behavior through schema projection, not a
+renderer. Schema-only omission is not row deletion; promotion validates a migration
+against current target rows and preserves them unless an explicit data migration
+is included. Unsupported conversions and histories reject before publication.
+
+**Policy and recovery.** Reuse the native policy catalog for separate inspect,
+create, read, write, drop, merge, restore and remote-disclosure actions. Specify
+branch inheritance and source-lifetime obligations; branch creation freezes neither
+grants nor source privileges. Recheck policy at admission, publication and every
+protected disclosure, including metadata, conflicts, receipts and empty terminals.
+Merge-disabled installations reject merges; protected destinations reject equivalent
+DDL/DML, transaction, restore and import bypasses unless explicitly authorized by
+the same publication policy. Do not invent a second `GrantSet` authority.
+
+All mutating operations bind the original account/token, request fingerprint,
+branch identities, source cuts and expected destination. Extend `DirectClientToken`
+and the common operation namespace; do not keep a token-only merge journal.
+Decision, receipt and head visibility must agree after lost replies or restart.
+Changing request content under an old token rejects. Cancellation before decision
+can close staged work; after acceptance it cannot retract publication. Missing
+response or timeout is unresolved, never automatic retry under a new identity.
+
+**Lifetime and bounded work.** Unlimited retention remains the default. Logical
+branch deletion, pin release, eligible expiry and physical cleanup are separate
+operations. The retained graph includes all live heads, historical cuts, read pins,
+active transactions, staged candidates, unresolved operations, original receipts
+and remote transfer holds. Catalog roots, manifests, branch lists, ancestry walks,
+conflict sets and token indexes must be paged independently of their cardinality.
+Use reusable scratch/output arenas, bounded batches and declared spill/work quotas;
+exhaustion returns typed refusal or resumable progress, not truncated success.
+
+Constant-size head publication means no data-sized copying after preparation;
+it is not a claim of constant total work. Paged directory lookup/update has its
+own cost. Segment planning visits metadata; equal entries can skip payload reads
+only with equal logical interpretation, deletion/visibility state and tail coverage.
+Authenticated compaction lineage can justify a skip; a caller-supplied multiset
+hash cannot establish equivalence. Constraint checking may require the entire
+candidate and dependency closure even when the physical delta is small.
+
+### Data-kind and execution disposition
+
+| Object or evidence | Create, merge and forward-restore rule |
+| --- | --- |
+| Tables | Share immutable roots plus protected tails; writes use isolated roots and deletion overlays. Publish complete schema/data interpretation and validate all applicable constraints. |
+| KV | Include declared application data through the qualified direct KV owner. Do not clone native framework/control records or infer field merge semantics from opaque values. |
+| Documents | Preserve revisions, causal predecessors, tombstones, profiles and raw provenance. Allocate fresh replica namespaces durably; gate mutation and merge on M7 participation and exact compatible histories. |
+| Streams | Retained payload history may be exposed as explicitly historical slices. New writes use fresh branch-qualified partitions/epochs; consumer progress is not a live consumer assignment. |
+| Queues and Station inboxes | Payloads may be historical evidence; copied leases, ACK eligibility, timers and claims never become active work. Re-enqueue requires an explicit new authorized operation. Unsupported inclusion or merge must reject or be explicitly excluded in the manifest. |
+| Indexes, views and dataflows | Copy definitions inactive. Reuse derived bytes only with exact coverage; otherwise invalidate and rebuild/recompute through the owner. Retained prior results keep their original basis and cannot masquerade as current. |
+| Foreign data and captured exchanges | Bind immutable content and profile/decoder commitments with explicit availability. A URL is not a snapshot. Missing dependencies fail visibly; replay cannot fetch a live replacement as equivalent evidence. |
+| Grants, credentials, PIDs, operation receipts, retirement and effect control | Remain current authority/recovery evidence outside branchable application data. Do not rewind them. Historical effect intents/outcomes may be inspected but cannot redispatch or be relabeled successful/cancelled. |
+
+### Work packages and delivery gates
+
+`R0`–`R10` name the remaining work, replacing the earlier `P0`–`P8` sequence.
+Each package includes owner documentation and focused executable checks. Add
+vertical typed-caller tests as each owner lands; R8 completes the cross-interface
+journeys rather than postponing all caller validation until the end.
+
+| Package | Depends on | Reviewable outcome |
+| --- | --- | --- |
+| R0 | M1/M4/M5 contracts; M10 coordination | Neutral branch/cut/candidate/decision and current-policy contracts, fixture and consumer migration inventory |
+| R1 | R0 | Durable paged branch directory, history and original-operation recovery |
+| R2 | R1; qualified retained-cut owners | Full-data/schema-only Table creation, protected unflushed tails and independent-copy equivalence |
+| R3 | R2 | Isolated ordinary writes/transactions, branch-aware retention/GC and compaction |
+| R4 | R2–R3; M10 semantics | Bounded two-/three-way data and schema diffs with complete result evidence |
+| R5 | R3–R4 | Whole-candidate constraint validation and atomic merge publication |
+| R6 | R3–R5; qualified M6/M7/M11/M16–M18 profiles | KV/Document and specialized model/index integration |
+| R7 | R3–R5; execution disposition contracts | Durable forward restore and actual computation/subscription/effect fencing |
+| R8 | R0 onward; R4/R5/R7 for full journeys | Shared native/SQL client execution, installed recovery and read-only inspection |
+| R9 | R2–R8; qualified egress/capture contracts | Remote fetch/mirror, verified hydration and exact candidate transfer |
+| R10 | All applicable gates | Disk/service faults, independent oracles, bounded scale, measured scorecard and public promotion |
+
+#### R0 — Contracts and one current-v1 cutover
+
+Extend `DataLifecycle`, transaction bindings and the direct request/result types
+with branch identity, immutable cut references, policy requirements, candidate
+progress/conflicts, expected-head guards and original decisions. Define branch
+selection for ordinary reads/writes, prepared statements and transactions; define
+`DIFF`/`DIFF_SCHEMA` output schemas, terminal coverage and conflict attribution.
+Agree manifest encoding, definition commitments, parent edges, pin ownership,
+operation states and budgets before choosing new storage files.
+
+Update [DATA_LIFECYCLE_V1](../../contracts/DATA_LIFECYCLE_V1.md),
+[DIRECT_TABLE_V1](../../contracts/DIRECT_TABLE_V1.md), affected retained-read and
+[SQL session](../../contracts/SQL_SESSION_V1.md)/[result](../../contracts/SQL_RESULTS_V1.md)
+contracts and the [reference grammar](../../contracts/sql/README.md).
+Allocate new branch-specific contract files only if they have a distinct owner;
+keep a single source of generated types. Inventory all single-branch checks,
+including transaction, resource-initialization, signed-envelope and configuration
+checks, instead of changing only the three guards named in the source audit.
+
+The cutover replaces incompatible definitions, persisted layouts, signed fixtures,
+binding resources and affected consumers together under the
+[versioning policy](../handbook/reference/versioning.md). Reject missing/foreign
+definitions before execution; never default old artifacts to branch one/current
+compatibility or silently reset accepted state. Keep grammar-only and executable
+capabilities explicit. Exit with neutral fixtures for stale heads, wrong scopes,
+name reuse, incompatible definitions and altered-content token reuse.
+
+#### R1 — Durable directory, ancestry and recovery
+
+Extend `DirectCatalogRecords`, `DirectCatalogRoots`, paged `TreeStore` directories
+and `HistoricalCatalog` through the existing catalog owner. Persist non-reused
+branch/object allocations, names, generations, parent edges and exact head roots.
+Replace the runtime role of fixed `BranchRegistry`/`MergeTokenJournal` arrays;
+small independent models may remain test-only. Retained manifest contents must
+outlive scratch buffers and may not retain function-local row slices.
+
+Use bounded operation transitions for admission, preparation, publication and
+cleanup, driven by the service's existing event-driven recovery. Publish head
+and recoverable outcome through the same accepted decision. List branches and
+walk ancestry with exact cursors and current authorization. Detect missing or
+corrupt parents and multiple merge bases explicitly. Exit with disk reopen,
+allocation interruption, duplicate-name races, branch-name reuse, and branch/cut/
+receipt cardinalities beyond resident caches and old helper capacities.
+
+#### R2 — Exact cut preparation and branch creation
+
+Reuse Table snapshot acquisition, accepted archives and transaction cut guards.
+Capture the catalog interpretation and all participating roots at the declared
+common decision. Persist `.tseg`/`.tdel`/metadata dependencies and exact retained
+WAL/archive tails before branch visibility. Transfer durable pin ownership from
+creation work to the published branch atomically, with recoverable abandonment;
+TTL expiry of a preparation cannot delete a published branch's dependencies.
+
+Full-data creation shares eligible immutable objects and allocates branch-local
+write ownership. Schema-only creation records separate schema/data inclusion,
+empty roots and inactive computations without treating omitted data as deletes.
+Do not claim no-data-copy creation by first copying the whole database during
+unreported preparation. Exit through real typed callers with before-flush and
+concurrent-write tests, a bounded independent materialized-copy oracle, and kills
+before/after pin acquisition, partition initialization and head publication.
+
+#### R3 — Write isolation, transactions and retained reachability
+
+Route branch-selected DDL, point/bulk DML, prepared statements and transaction
+commits through isolated roots and partition identities. Extend the M5 visibility
+protocol so source definitions, candidate roots and head movement agree; test
+concurrent ordinary writes against merge/restore rather than CAS in isolation.
+Preserve current policy checks and one selected atomic domain.
+
+Extend `TableStorageWalk`, `DirectStorageGraph`, catalog retention and local
+maintenance to enumerate every branch and preparation root with bounded work.
+Keep tail/archive ownership valid through flush, checkpoint and physical WAL
+trim. Parent deletion does not sever child ancestry or data; branch deletion
+retires live selection while existing reads/operations retain their exact bases.
+Bound ancestry read amplification through persistent root structure/checkpointing,
+not ever-growing recursive overlays in memory.
+
+Derive compaction eligibility from durable reachability and actual branch-local
+visibility. Treat reference counts as safe only if their update/recovery protocol
+is proven; a complete fenced mark remains the deletion authority. Benchmark
+branch-local and shared rewrites before selecting cost thresholds; retire the
+old plan's unmeasured fixed dead-row formula. Exit with parent/child isolation,
+retained-reader and prepared-candidate races against GC, trim and compaction,
+including crash/restart during each maintenance step.
+
+#### R4 — Streaming data/schema diff and candidate inspection
+
+Adapt `BranchDiff` to retained-source adapters and bounded Fuze batches; carry
+schema/column lineage, composite keys, all five cell states, interpretation and
+byte ownership. Stream divergent keys and schema/dependency edges with declared
+spill budgets. Compare against an independent full logical diff for additions,
+deletes, renames, changed defaults, type/collation conversions, key changes and
+physical compaction. Unchanged bytes under changed interpretation are not an
+unchanged logical value. Keep metadata traversal and payload skip costs separate.
+
+`DIFF_SCHEMA` covers constraints, indexes, views, graph/foreign mappings and exact
+dependencies, distinguishing rename from replacement. Two-way and three-way
+results include frozen bases, conflict identities and terminal coverage. A limited
+preview is not a complete merge assessment. Recheck current rights after buffering,
+including empty pages and completion; early close/failure releases temporary holds.
+Exit with oracle equivalence, incomplete-result and revocation tests, and scratch
+reset/retained-output lifetime tests over multi-batch results.
+
+#### R5 — Atomic three-way merge and exact retry
+
+Freeze and retain base/source/target; derive candidate membership from those
+manifests, not an unverified caller list of changed tables. Retain unchanged
+objects and dependency closure. Stage schema changes and row mutations privately,
+record resumable validation progress and expose attributed conflicts/resolutions.
+Require explicit resolution; initially use fail-on-conflict. Any later
+source-/target-wins policy must remain scoped, recorded and constraint-checked.
+
+Validate primary/composite keys, supported secondary uniqueness, row `CHECK`s,
+foreign keys and graph dependencies against the complete candidate. Include
+unchanged referenced tables and disjoint edits that jointly violate constraints.
+For schema-only promotion, execute or stage the qualified conversion and validate
+current target rows; never bypass checks because the source contains no rows.
+Unavailable validation coverage refuses publication rather than accepting a
+partial check. Index availability may optimize validation but cannot change truth.
+
+At the publication boundary recheck current policy, expected target generation/
+head, every required dependency guard and staged-root durability; publish one
+common decision and retain both parents. Recover that original decision after
+lost replies without recomputing against moved heads. Exit with stale-head and
+policy races, forged/incomplete candidates, missing referenced objects, unique/FK
+write skew, cancellation races, rejected-candidate cleanup and disk-reopen token
+recovery. Verify unrelated target objects and metadata survive publication.
+
+#### R6 — Multi-model and derived-state integration
+
+Implement per-kind adapters through the direct owners. KV requires M6's qualified
+mutation/transaction participant; do not use a raw native resource clone as a
+shortcut. Documents require M7's public cutover: preserve causal history,
+tombstones and persisted fresh replica epochs, use the selected versioned/CRDT
+merge rules, and verify permutation/convergence and incompatible-history refusal.
+M16 profiles additionally retain container/part/tree identity and raw byte spans.
+
+Consume M17's exact spatial semantics and topology checks; zone maps are only
+conservative pruning, and bounding-box overlap alone is not proof of a geometry
+or assembly clash. A viewport-limited preview cannot authorize an unrestricted
+merge. Consume M18 graph descriptors and validate endpoints across the full
+candidate. Foreign data needs frozen content/decoder commitments or explicit
+refusal. Integrate M11 index generations and M12 computations using exact source
+coverage and inactive/rebuild states. Exit each profile through its real storage,
+caller and constraint oracle; helper spatial booleans and Document labels cannot
+close these gates.
+
+#### R7 — Forward restore and execution discontinuities
+
+Resolve and retain the requested historical application-data cut under current
+rights, then stage a new successor of the current branch head with restore
+provenance. Preserve the prior head/history subject to explicit retention; never
+rewind native policy, operation tokens, principal sequences or retired identities.
+Use R5's decision/recovery infrastructure for restore too, including stale-target
+refusal, exact retry, quota failure and unknown outcomes.
+
+Persist a disposition plan before publication for active transactions, captured
+jobs, maintained results, consumer work, subscriptions and external intents.
+Old read-only cuts may finish if still retained and authorized; pre-restore writers
+must validate against the changed head. Preserve original accepted jobs and their
+source attribution; explicitly suspend/recompute dependencies through M12 owners.
+Recompute readiness requires completed new evidence, not an immediate `active`
+flag. Keep pending/unknown external outcomes in their existing reconciliation
+history; restoring data does not cancel an external action or redispatch it.
+
+Fence executable consumers before the restored head is usable; resume through
+recorded owner actions, not a best-effort notification after publication. Extend
+native reactive and browser contracts separately with branch/generation
+attribution and an explicit discontinuity/reset. Never splice a restored snapshot
+into an earlier result stream. Exit with actual running consumer/connector
+schedules demonstrating zero historical dispatch, durable suspension/recovery,
+current-policy revocation and no lost original operation after restart.
+
+#### R8 — Native operations, SQL and existing consumers
+
+Add typed catalog operations/client recovery and node dispatch, then lower the
+agreed branch commands, selection and `DIFF` functions through the existing Fuze
+SQL compiler and `transit-sql/Statement`/`DatabaseRuntime`. Keep reference grammar,
+parser, binder, capability reporting and executable profile synchronized; branch
+merge and SQL relational `MERGE INTO` are distinct operations.
+
+Use [transit-sql-client](../../packages/zig/transit-sql-client/README.md) command
+completion and `ResultSet` lifecycles. Do not invent console-only jobs, polling
+state machines or row protocols. Preserve exact attribution in saved operations,
+prepared reads, command receipts, empty/multi-batch diffs and bounded display.
+Inspection through Board remains read-only over public clients; any publication
+uses its separately authorized application surface. M29 owns the broader UI.
+
+Migrate affected Zig/ABI/generated/SDK and service consumers with the cutover;
+M20 owns additional coverage, not repair of broken existing callers. Exit with
+installed native and SQL create/write/diff/merge/restore journeys, uncertain
+operation recovery after session replacement, revoked disclosure, early close,
+unsupported-profile refusal and runtime validation at TypeScript boundaries.
+
+#### R9 — Remote transfer, mirroring and local migration testing
+
+First specify remote identity/trust, current definition negotiation, credential
+references, destination ownership, retention holds, resumption and quotas. Separate
+borrowed online access from explicitly authorized independent export: downloaded
+bytes cannot be made revocable retroactively. Same-realm branching alone grants
+no right to copy data into another installation. Refuse unsupported cross-realm
+or egress profiles until their contract exists.
+
+Implement transfer of verified missing content and manifest ancestry with bounded
+work, durable receive staging and atomic tracking-ref advancement. Prove ancestry
+by commitments, not numeric version subtraction. Verify declared bytes, complete
+dependency closure and compatibility before exposure; missing archives, definitions,
+`.tdel`/`.tack`, raw parts or foreign artifacts are incomplete transfer. Eager
+completion means the promised closure is available offline. Lazy completion
+records remote availability/retention and authenticates metadata before pruning;
+whole-object SHA-256 cannot authenticate an isolated page unless the format adds
+verified chunk commitments. Fetch and validate a whole bounded object if necessary.
+
+At every egress boundary apply actual current authorization, RLS/masking where
+qualified, and metadata protection. Raw shared segments cannot bypass filtered
+views; filtered derivatives get distinct content/provenance and cannot impersonate
+an upstream branch root. Reject promotion of a partial/masked view as a complete
+unfiltered merge candidate. Apply current checks to repeated/lazy requests too.
+M26 policy helpers or caller flags alone are insufficient enforcement.
+
+A mirror follows explicit remote heads with bounded progress, gap/error reporting
+and recoverable subscriptions/notifications where available; reconnection cannot
+silently replace a pinned local basis. Local testing uses fresh execution bindings
+and a connector fence at the actual dispatch boundary. Network-free replay over
+M16 captured exchanges must fail on missing evidence rather than fall through to
+live calls. Lazy storage hydration is separately authorized network I/O; fully
+offline testing requires eager dependency hydration.
+
+Transfer immutable candidate content, schema migration intent, expected upstream
+base/target and provenance for M28. Transfer success is not approval, merge or
+activation. M19 qualifies transfer and conditional native publication; M28 adds
+`PROPOSE`, reviewer identity and approval journeys. Exit with two real instances,
+interrupted/resumed transfer, corruption/missing-object cases, revocation while
+streaming/hydrating, filtered-egress leakage checks, and connector attempts
+observably blocked during local migration tests.
+
+#### R10 — Qualification, performance and public promotion
+
+The acceptance matrix below is planned evidence, not a report of executed tests.
+Extend existing domain runners and register any new executable in the
+[test inventory](../../tests/runner/suite.json); do not add success-reporting
+placeholders. Keep component algebra checks, real disk/service schedules,
+formal correspondence and deployment evidence distinct.
+
+| Gate | Required executable evidence |
+| --- | --- |
+| G1 — Identity and current policy (R0–R1/R8) | Wrong realm/branch/definition, name reuse, revoked reads/receipts, empty-terminal disclosure, all merge-disabled and protected-head bypass paths reject. |
+| G2 — Exact creation (R2) | Full copy oracle agrees before/after flush and concurrent commits; partial pin acquisition cannot publish; schema-only records omission explicitly; no grants/PIDs/active work copied. |
+| G3 — Isolation and visibility (R3/R5) | Parent/child point/bulk writes and transactions stay isolated; catalog/schema/data readers see one old or new complete cut through crashes and publication races. |
+| G4 — Reachability and cleanup (R2–R3) | Concurrent branch drop, candidate abandonment, read release, compaction, GC and tail trim preserve every retained dependency; interrupted cleanup resumes with bounded work. |
+| G5 — Diff and merge algebra (R4–R6) | Independent full logical oracle agrees for compaction, divergent deletions/tails, schema/collation changes, composite/keyless identity policy, five-state conflicts and ambiguous ancestry refusal. |
+| G6 — Candidate validity (R5–R6) | Changed and unchanged objects, unique/check/FK/graph closure, schema-only migrations and explicit resolutions are all validated; stale or incomplete candidates cannot publish. |
+| G7 — Decision recovery (R1/R5/R7/R8) | Lose requests/replies and kill before/after staging, decision and receipt observation; same identity resolves once; changed content rejects; cancellation cannot erase a committed outcome. |
+| G8 — Data-kind safety (R6) | Direct KV semantics, versioned/CRDT Documents, fresh replicas/tombstones/provenance, qualified spatial/graph checks and derived-index coverage survive branch/merge/reopen. |
+| G9 — Restore and effects (R7) | Monotonic successor preserves prior history/current authority; actual jobs, consumers and both subscription families obey disposition; zero historical external dispatch and explicit unknown outcomes. |
+| G10 — Remote lifecycle (R9) | Two-instance eager/lazy transfer and mirror resume, exact content/ancestry, retained dependencies, actual filtering/masking, offline availability and proposal-transfer boundaries. |
+| G11 — Growth and resources (all) | Data exceeds RAM/cache; branch, manifest, receipt and conflict counts exceed old helper capacities. Bounded resident bytes, allocations, ancestry work, spill/IO and control fairness hold without retention opt-in. |
+| G12 — Caller/result lifecycle (R8) | Installed native/SQL results preserve schema/basis/completion over empty/multi-batch reads, close, denial, missing terminal and uncertain writes. Existing affected adapters remain compatible with the new definition. |
+
+Use [M21 T6](21-formal-semantics-and-correspondence.md#t6-branch-isolation-logical-merge-and-reviewed-publication)
+for local publication/retention races and
+[A4](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)
+for logical merge/skip equivalence. Add negative controls and concrete Zig trace
+replay where claimed, with explicit bounded-model assumptions. Reviewed approval
+and delegation extensions stay with M28/M26. Do not claim that finite models or
+algebraic proofs establish physical durability, throughput or arbitrary geometry.
+
+Record an M13 scorecard with separately measured snapshot/pin preparation,
+head-directory publication, full caller completion, metadata/row diff work,
+constraint-validation work, cold/warm branch reads and ancestry depth, shared vs.
+branch-owned bytes, compaction/write amplification, index/recompute cost and remote
+bytes/hydration. Vary logical delta size independently of physical rewrites and
+branch divergence. Include control traffic under load, quotas and failure/recovery;
+report hardware, versions, workload, cache budgets and regressions. No fixed
+branch count alone proves out-of-core behavior.
+
+Use the pinned `nix develop` environment. During implementation select owning
+package checks, `just check contracts`, `just check::native`,
+`just test::catalog` and `just test::direct-table-service` as affected; extend the
+real service suites for branch scenarios. `just check fast` includes the existing
+fixture checker but cannot close G1–G12. Before pushing implementation, run affected
+`just ci clean --lane NAME` lanes against committed HEAD: core, storage-query,
+interfaces and affected SDK/installation/browser/formal lanes according to the
+[task inventory](../../tasks/README.md). Record executed commands and omissions;
+selected passes are not complete qualification.
+
+Promote supported semantics and exact limits into the owning data/state/Table/
+Document, storage/retention/security, SQL/history, caller and reactive references,
+component guides, contracts and `state-model`/storage/query internals. Record raw
+source-attributed outcomes in [qualification history](../history/qualification/README.md).
+Update milestone and index together only when all required gates close; unavailable
+dependent profiles remain named outstanding work. This planning-only change
+requires repository link/fence and whitespace checks; runtime evidence stays open.
+
+### First implementation changes
+
+1. Land R0's identity/atomic-domain/disposition decisions and executable neutral
+   fixtures, with an inventory of every affected persisted/signed consumer.
+2. Implement R1/R2 as one vertical local Table slice: create from an unflushed cut,
+   inspect through a typed caller, restart, and compare the frozen branch to an
+   independent copy while the parent advances. Include durable pin cleanup.
+3. Complete R3 isolation and GC races before enabling writable branches generally;
+   then add R4 diff and R5 merge. Integrate R6 profiles as their owners qualify,
+   and R7 restore with real execution fences before exposing it in R8.
+4. Start R9 protocol/ownership design once exact cut commitments are settled;
+   qualify transfer only after local lifetime/recovery gates pass. Close R10 on
+   the resulting common revision, without treating M28's future approvals as an
+   existing authorization mechanism.
+
+## Foundation increment — 2026-10-31
+
+The first implementation increment adds these owners without enabling branch
+operations in the installed service:
+
+- [`Branch`](../../packages/zig/transit-protocol/src/Branch.zig) and the
+  [neutral contract](../../contracts/BRANCH_V1.md): full-width branch identities,
+  content-bound manifests, branch-local ancestry, frozen source/target attempts,
+  exact retries, complete candidate-validation bindings and forward decisions.
+  The reflected lifecycle schema and independently authored fixtures include
+  these types. Existing execution and persisted formats are unchanged; their
+  incompatible runtime extension still requires R0's coordinated cutover.
+- [`BranchSnapshot`](../../packages/zig/transit-storage/src/BranchSnapshot.zig):
+  immutable canonical manifests and paged Table source directories, exact-root
+  pagination, explicit object/index-work bounds, original Table pin handles and
+  stored interpretation/frontier verification. The
+  [owner tests](../../packages/zig/transit-storage/src/branch_snapshot_test.zig)
+  cover 137 entries with a one-page cache, old-root disk reopen, quota/work
+  refusal, missing artifacts and a real unflushed Table pin that excludes a later
+  accepted write. Staging supplies neither live retention nor catalog publication.
+- [`BranchAncestry`](../../packages/zig/transit-storage/src/BranchAncestry.zig):
+  bounded manifest visits with paged frontier/visited sets and a complete result
+  distinguishing a unique maximal common ancestor, unrelated histories and
+  ambiguous criss-cross bases. Restore-source provenance is not a merge edge.
+  [Tests](../../packages/zig/transit-storage/src/branch_ancestry_test.zig) cover
+  disk history deeper than the old 256-cut array, missing/contradictory parents,
+  budget refusal and an independent materialized transitive-closure oracle.
+- The existing bounded `BranchMergeRestore` model now keeps published rows in
+  explicit caller-owned storage, binds retries to all request inputs and checks
+  receipt capacity before advancing its head. Schema-only changes requiring
+  conversion refuse rather than copying incompatible cell positions. The
+  `BranchLifecycle` model no longer fabricates latency or physical-byte metrics.
+  These repairs do not turn either model into a durable catalog owner.
+
+R0–R2 remain **partial**, and no end-to-end completion gate is closed by this
+increment. In particular, R1 still needs branch directories and recoverable
+decisions in `DirectCatalog`; R2/R3 need a coherent catalog/data decision and
+accepted pin transfer before ordinary branch writes can be enabled. Current
+Table acceptance is independent of catalog-head movement. Connecting private
+manifests to head pointers alone would misrepresent that visibility boundary.
+R4–R9 still require streaming logical diffs, whole-candidate publication,
+multi-model integration, actual execution fencing, caller APIs and remote I/O.
+The new private artifacts are not storage-collector roots. Their authorization,
+retention and cleanup remain caller responsibilities until owner integration.
+
 ## Implementation plan — 2026-10-30
 
-### Plan basis and starting point
-
-This plan is grounded in `origin/main` at `54e176fd0` and reconciles Milestone 19's
-deliverables with the completed and in-progress roadmap milestones across the
-repository:
-
-- **Completed foundations (`origin/main` at `54e176fd0`):**
-  - **[Milestone 1 — Data identities, declarations and commit contracts](01-declarative-data-lifecycle.md) & [Milestone 2 — Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md):**
-    `TransitLog` (`TWAL1`), `TransitObjectStore` immutable `.tseg` data segments,
-    `transit-bitmap` (`RBC1` Roaring containers backing `.tdel` deletion vectors and
-    `.tack` queue state vectors), `NvmeCache`, and `policy_epoch` lease fencing are
-    production-qualified.
-  - **[Milestone 4 — SQL statement results and client consumption](04-statement-results-and-consumption.md) & [Milestone 5 — Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md):**
-    `DirectCatalog` (`packages/zig/transit-catalog/src/DirectCatalog.zig`) owns
-    catalog-acquired common cuts, immutable private Table roots (`W`), sequence-ordered
-    statement outcomes (`R`), pending statement recovery (`P`), durable client-token
-    deduplication (`DirectClientToken.zig`), and single-database multi-table
-    `SERIALIZABLE` atomic commit/rollback without routing through `Station` actors.
-  - **[Milestone 10 — Standards, collations and historical catalogs (core landed in PR #262)](10-standards-and-catalogs.md):**
-    `HistoricalCatalog.zig` (`packages/zig/transit-catalog/src/HistoricalCatalog.zig`)
-    implements `ManifestCut`, `BranchHead`, `HistoricalTimeline`, `AsOfSelector`
-    (`snapshot_version`, `manifest_digest`, `branch_head`, `system_time_ns`),
-    `GrantSet` (`policy_epoch` security-barrier enforcement), and `HistoricalCursor`
-    with revocation rechecks between fetch batches. `TableConstraints.zig`
-    (`packages/zig/transit-fuze/src/TableConstraints.zig`) implements five-state
-    `CheckConstraint` evaluation (`evaluateCheckRow`), `ForeignKeyConstraint`
-    validation, and `EvolutionPlan` (`RewriteKind` classification and
-    `inspectSegmentProjectionCoverage`).
-- **In-progress milestones and active branches to align with:**
-  - **[Milestone 3 — Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md):**
-    `DirectCatalogRetention` (`packages/zig/transit-catalog/src/DirectCatalogRetention.zig`),
-    `TableSnapshot.zig` (`TPINOBJ1` immutable `.tman` snapshots under `table-snapshots/`),
-    `TableStorageWalk.zig`, and `DirectStorageGraph.zig` provide bounded paged
-    reachability walks across accepted catalog roots, snapshots, WAL frontiers, and
-    `.tseg` segments.
-  - **[Milestone 6 — Declarative streams, queues and durable runtime architecture](06-streams-queues-and-durable-runtime.md):**
-    `StreamPartition.zig`, `QueuePartition.zig`, and `Tack.zig` (`.tack` Roaring
-    state vectors) are integrated into `DirectCatalog` and `DirectStorageGraph`
-    with hierarchical timer wheels and fenced leases.
-  - **[Milestone 7 — Logical document storage, `.tseg` trees and Station decoupling (PR #259 landed)](07-document-storage-and-station-decoupling.md):**
-    `DocumentPartition.zig` (`TDOC1`) is integrated into `DirectCatalog` and
-    `DirectStorageGraph.zig`. `VersionedMerge.zig`
-    (`packages/zig/transit-document/src/VersionedMerge.zig`) already implements
-    five-state (`value`, `null_value`, `missing`, `type_error`, `conflict`)
-    three-way structural merges over `Node` and $2N$-bit balanced-parentheses (`BP`)
-    `SuccinctTree` encodings with `RawProvenance` (`part_id`, `byte_start`,
-    `byte_end`), while `Document.zig` implements the 24-permutation `causal_crdt`
-    convergence profile.
-  - **[Milestone 8 — Gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md) & [Milestone 9 — Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md):**
-    `transit-sql-client` (`StatementResult`, `ResultSet`) and `DirectTableClient`
-    preserve original operation identities across uncertain transport outcomes and
-    check current authorization before disclosing every batch.
-  - **[Milestone 12 — Managed computations and WAL-activated dataflows](12-sql-and-dataflows.md):**
-    On `feat/managed-computations-and-dataflows`, analytical SQL, bitemporal
-    `AS OF JOIN`, `CHANGES(...)` / `STREAM_SLICE(...)` table-valued functions, SQL
-    `MERGE INTO`, and the incremental DBSP Z-set engine (`FuzeDelta.zig`) with the
-    five-state computation lifecycle (`Validated` $\to$ `Published` $\to$ `Active`
-    $\to$ `Suspended` $\to$ `Completed`) are implemented.
-  - **[Milestone 13 — Data structures, query optimization and runtime performance](13-data-structures-and-performance.md) & [Milestone 14 — First-class strings, perfect hashing and vectorized search execution](14-vectorized-strings-and-search.md):**
-    Zero steady-state heap allocation on hot storage/query paths (`scratch` vs.
-    `output` arenas), 16-byte `GermanString`, `PerfectHash`, and Block-Max WAND
-    BM25 inverted index segments.
-  - **[Milestone 20 — Service and SDK coverage](20-service-and-sdk-coverage.md), [Milestone 21 — Formal semantics and implementation correspondence](21-formal-semantics-and-correspondence.md), [Milestone 29 — Board reimplementation and data-first workbench](29-board-reimplementation.md), & [Milestone 35 — Qualification and complete benchmarks](35-qualification-and-benchmarks.md):**
-    Lean 4 proof obligations `T6` (`SnapshotRetentionSafety.lean`) and `A4`
-    (`BranchMergeAlgebra.lean`), deterministic simulation fault injection, and
-    conformance gates.
-
-### Pre-implementation source audit (`54e176fd0` baseline)
-
-| Milestone 19 capability | Current source owner(s) at `54e176fd0` | Delivered baseline | Remaining gap for Milestone 19 |
-| --- | --- | --- | --- |
-| **1. Realm-scoped branch identity & multi-branch admission** | `packages/zig/transit-protocol/src/DataLifecycle.zig`, `packages/zig/transit-catalog/src/DirectCatalogRecords.zig`, `packages/zig/transit-catalog/src/DirectTableProtocol.zig`, `contracts/DIRECT_TABLE_V1.md` | `DataLifecycle.Object` already carries `branch: u64` (`1` = default branch), and `DirectClientToken.Key` scopes deduplication across connections. | `DataLifecycle.ResourceInitialization.validate` (line 73) and `DirectCatalogRecords.Configuration.validate` (line 27) reject `branch != 1`. `DirectCatalogRoots.zig` stores a single trunk root (`DROOT2`) rather than a paged branch directory (`refs/heads/<branch>`). |
-| **2. $O(1)$ branch-head publication & multi-commit branch timelines** | `packages/zig/transit-catalog/src/HistoricalCatalog.zig` | `ManifestCut`, `BranchHead`, and `HistoricalTimeline` track committed cuts (`v{N}`), schema bindings (`DefinitionId` $\to$ `TableSchema`), segment digests, and `AsOfSelector` resolution under current `GrantSet` (`policy_epoch`). | `HistoricalTimeline.publishHeadConditional` (lines 501–503) explicitly rejects non-trunk branch names/IDs with `error.MultiCommitBranchingDeferredToM19`. Lacks `CREATE BRANCH ... FROM ...` (full-data and `SCHEMA ONLY`), `DROP BRANCH`, and branch-scoped `TransitLog` partition allocation. |
-| **3. Pinned-tail snapshot cut preparation (including unflushed `TWAL1` rows)** | `packages/zig/transit-storage/src/TableSnapshot.zig`, `packages/zig/transit-storage/src/TablePartitionRecord.zig`, `packages/zig/transit-catalog/src/DirectCatalogRetention.zig` | `TableSnapshot` (`TPINOBJ1`) stages immutable `.tman` snapshots of `TablePartitionRecord.Root` + `TableSchema`, and `TablePartitionRecord` (`TACCEPT1`) tracks both `.segment` and `.wal` row locators (`r.Locator`) plus `history_pins` and `history_floor`. | Needs a multi-resource catalog cut coordinator that freezes or checkpoints accepted unflushed `TWAL1` tail frontiers (`next_lsn`) alongside `.tseg` manifests in one durable `ManifestCut` so a new branch includes all accepted unflushed rows without copying `.tseg` files. |
-| **4. Copy-on-write branch write/delete isolation & branch-aware GC/compaction** | `packages/zig/transit-storage/src/TableStorageWalk.zig`, `packages/zig/transit-catalog/src/DirectStorageGraph.zig`, `packages/zig/transit-catalog/src/DirectCatalog.zig` | `TableStorageWalk` and `DirectStorageGraph` walk one catalog root, its transaction workspaces (`W`), snapshots, `.tseg` segments, and WAL positions in $O(1)$ resident depth per step. | Needs branch-isolated `TransitLog` delta partitions, branch-local `.tdel` Roaring deletion vector overlays over shared ancestor `.tseg` segments, multi-branch reachability walking in `DirectStorageGraph`, and branch-aware compaction cost thresholds to prevent $O(B)$ storage amplification. |
-| **5. Segment-skipping 2-way & 3-way `DIFF` and `DIFF_SCHEMA`** | `packages/zig/transit-storage/src/TableSchemaProjection.zig`, `packages/zig/transit-fuze/src/TableConstraints.zig`, `contracts/sql/TransitExtensions.g4` | `TableSchemaProjection` maps stable `ColumnId` lineage across schema revisions; `TableConstraints.EvolutionPlan` classifies Class A vs. Class B DDL changes; `TransitExtensions.g4` (line 101) already includes `CONFLICT` in `cellState`. | No relational/KV/Document `DIFF(object, ...)` or catalog `DIFF_SCHEMA(...)` operators yet; needs $O(1)$ identical `.tseg`/`.tdel` skipping (`A4`), compaction-invariant logical row digests, key-aligned `_diff_op` projection, and five-state `IS CONFLICT` cell construction. |
-| **6. Reviewed 3-way KV/Table merge with constraint revalidation & OCC CAS** | `packages/zig/transit-fuze/src/TableConstraints.zig`, `packages/zig/transit-catalog/src/DirectCatalog.zig` | `TableConstraints` evaluates five-state `CHECK` rows and validates `FOREIGN KEY` schema pairs; `DirectCatalog` provides atomic multi-table staging and client-token deduplication. | Needs 3-way merge coordinator (`BASE`, `SOURCE`, `TARGET`) that aligns evolved schemas, revalidates primary/secondary uniqueness (M11), row-level `CHECK`, and cross-table `FOREIGN KEY` constraints across the combined merge candidate, and publishes via conditional CAS (`Multi-Writer OCC`). |
-| **7. Multi-model diff & merge (Documents, 2D/3D Geospatial, Property Graphs)** | `packages/zig/transit-document/src/VersionedMerge.zig`, `packages/zig/transit-document/src/Document.zig`, `packages/zig/transit-document/src/DocumentPartition.zig` | `VersionedMerge.threeWayMerge` and `threeWayMergeSuccinct` already compute 5-state (`conflict`-tagged) 3-way merges over `Node` and $2N$-bit `BP` trees with `RawProvenance`; `Document.zig` implements 24-permutation `causal_crdt` merge. | Needs wiring of `VersionedMerge` and `causal_crdt` (with fresh branch replica IDs) into branch `DIFF`/`MERGE` over `DocumentPartition`, plus hooks for M17 `BBOX2D`/`BBOX3D` and `S2`/`OCT_CELL` zone-map skipping, `.topo_arc`/`.topo_face`/`SCENE3D` conflict tagging, and M18 property-graph endpoint checks. |
-| **8. Forward Restore (`manifest/v{N+1}`) under current authority** | `packages/zig/transit-catalog/src/HistoricalCatalog.zig`, `packages/zig/transit-catalog/src/DirectCatalog.zig` | `HistoricalCatalog` resolves historical `ManifestCut`s and enforces current `GrantSet` (`policy_epoch`) on reads. | Needs forward restore command (`RESTORE BRANCH ... TO AS OF ...`) that publishes an earlier `ManifestCut`'s data/schema bindings as `manifest/v{N+1}` under current `policy_epoch` grants, explicitly disposes of pending jobs/subscriptions/M12 dataflows, and never redispatches historical connector effects. |
-| **9. Git-like Remote $\leftrightarrow$ Local incremental mirroring & proposal push** | `packages/zig/transit-storage/src/TransitObjectStore.zig`, `packages/zig/transit-storage/src/NvmeCache.zig` | Content-addressed SHA-256 `.tseg`/`.tman` storage and local `NvmeCache` exist. | Needs `CREATE REMOTE`, incremental Merkle-DAG `FETCH` / `MIRROR` protocol (under remote `policy_epoch` RLS/masking), eager/lazy `.tseg` hydration into `NvmeCache`, network-free connector replay fencing on local branches, and upstream M28 proposal push (`PROPOSE`). |
-
-### Coordination and handoffs across milestones
-
-| Milestone | Relationship to Milestone 19 |
-| --- | --- |
-| **[M1](01-declarative-data-lifecycle.md) – [M3](03-live-storage-and-sql-cutover.md)** | M19 reuses `TransitLog` (`TWAL1`), `TransitObjectStore` (`.tseg`), `TableSnapshot` (`TPINOBJ1`), and `DirectStorageGraph` paged reachability. Every branch operation checks current native credentials and `policy_epoch`; branch creation never copies live process identities, grants, or effect rights. |
-| **[M4](04-statement-results-and-consumption.md) & [M5](05-transactions-and-atomic-composition.md)** | A branch is a durable multi-commit history (`refs/heads/<branch>`), not an open interactive transaction (`W`). Interactive transactions in M5 open against a selected branch's current head cut and commit to that branch's `Harmony` / `DirectCatalog` timeline via conditional CAS. |
-| **[M6 — Streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md)** | Branches do not clone live consumer-group leases (`_lease_epoch`), in-flight queue `.tack` acquisitions, or active `Station` actor timers. Full-data branches capture immutable retained `StreamPartition` `.tseg` segments as read-only historical slices (`STREAM_SLICE(...)`), while branch-local stream/queue writes start from a fresh branch partition epoch; staged or historical outbox records are never executable on a branch or after merge/restore. |
-| **[M7 — Document storage](07-document-storage-and-station-decoupling.md) & [M16 — Document profiles](16-document-profiles-and-gateway-exchange-lifecycle.md)** | M19 consumes M7's `VersionedMerge.zig` ($2N$-bit `BP` `SuccinctTree` 3-way merge with `IS CONFLICT` and `RawProvenance`) and `causal_crdt` convergence for `DocumentPartition`, and extends structural diff/merge to M16's typed profiles (`JSON`, `XML`, `EDI`, `PDF`, `DOCX`, `XLSX`, `ODF`). Local branches testing migrations fence external effects to network-free replay over M16 captured `DocumentPartition` exchanges. |
-| **[M8 — Gateway/Ingress](08-gateway-architecture-and-protocol-ingress.md) & [M9 — Client/SDKs](09-client-foundation-and-language-apis.md)** | `DIFF`, `DIFF_SCHEMA`, `SHOW BRANCHES`, and `MERGE` previews stream through M9's `transit-sql-client` `ResultSet` cursor with per-batch `policy_epoch` revalidation. Reactive watches bind to an explicit `(branch_id, definition_id)` and receive a typed discontinuity frame on branch forward-restore. |
-| **[M10 — Standards and catalogs](10-standards-and-catalogs.md)** | M19 directly extends M10's `HistoricalCatalog.zig` (lifting `error.MultiCommitBranchingDeferredToM19`) and `TableConstraints.zig` (reusing 5-state `evaluateCheckRow`, `ForeignKeyConstraint`, and `EvolutionPlan` during `DIFF_SCHEMA` and 3-way `MERGE`). |
-| **[M11 — Indexing and access paths](11-indexing-and-access-paths.md)** | Secondary unique/non-unique B-tree, ART, Roaring bitmap, and GIN/HNSW index segments are shared across branches only for identical `.tseg` segments and matching $\kappa$ descriptors. Copying an index definition on a schema-only or migrated branch never publishes index readiness without verified segment coverage; 3-way merge revalidates secondary uniqueness across disjoint branch edits. |
-| **[M12 — Managed computations and dataflows](12-sql-and-dataflows.md)** | Branching a catalog copies view/dataflow definitions in the `Published` (inactive) state—never `Active`. When a branch merges or restores forward (`manifest/v{N+1}`), dependent M12 incremental DBSP dataflows (`FuzeDelta.zig`) either advance via the merge delta Z-set or suspend/recompute from the new snapshot (`RESUME WITH (on_resume = 'recompute_snapshot')`). |
-| **[M13 — Data structures and performance](13-data-structures-and-performance.md)** | M19 extends the M13 performance scorecard with five explicit metrics: (1) durable snapshot preparation/pinning latency, (2) $O(1)$ branch-head CAS publication latency, (3) segment-skipping `DIFF`/`MERGE` throughput vs. actual logical delta size, (4) cross-branch compaction write/storage amplification across $B$ active branches, and (5) branch-local index maintenance cost. |
-| **[M14 — Vectorized strings and search](14-vectorized-strings-and-search.md) & [M15 — Data-centric compilation](15-data-centric-compilation-and-specialization.md)** | Key alignment and cell comparisons in `DIFF` and `MERGE` use M14's 16-byte `GermanString` prefix short-circuiting under declared collations ($\kappa$: `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `ICU:<locale>`). Immutable BM25 (`.tidx`) index segments are skipped in $O(1)$ when underlying `.tseg`/`.tdel` digests match. |
-| **[M17 — Geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md)** | Spatial and 3D volumetric `DIFF`/`MERGE` use `.tseg` `BBOX2D`/`BBOX3D` and `S2`/`H3`/`OCT_CELL` Hilbert/Roaring zone maps for $O(1)$ viewport segment skipping, and surface conflicting edits to shared `.topo_arc`/`.topo_face` boundary chains/faces or 3D assembly (`SCENE3D`) clash collisions as five-state `IS CONFLICT` cells under declared $\kappa_{\text{spatial}}$. |
-| **[M18 — Multi-model and foreign relations](18-multi-model-and-foreign-relations.md)** | `DIFF_SCHEMA` tracks `PropertyGraphDescriptor` (`CREATE PROPERTY GRAPH`) vertex/edge table bindings, and 3-way `MERGE` revalidates graph edge endpoint integrity when one branch deletes a vertex while another inserts an incident edge. |
-| **[M21 — Formal semantics and correspondence](21-formal-semantics-and-correspondence.md)** | M19's snapshot pinning and segment-skipping 3-way merge implement the exact state machines mechanized in `T6` (`SnapshotRetentionSafety.lean`: zero dangling `.tseg`/`.tdel` reads under concurrent compaction/GC) and `A4` (`BranchMergeAlgebra.lean`: $O(1)$ skipping of identical `(tseg_id, tdel_id)` pairs is observationally equivalent to full key-by-key 3-way merge). |
-| **[M24 — Operations and recovery](24-operations-and-recovery.md)** | Forward restore (`manifest/v{N+1}`) is a realm-scoped application-data operation under current authority; cluster-wide backup capture, disaster recovery, and node upgrades remain in M24. |
-| **[M26 — Control and policy plane](26-control-and-policy-plane.md) & [M28 — Reviewed data collaboration](28-reviewed-data-collaboration.md)** | M19 provides the storage/catalog primitives (`CREATE BRANCH`, `DIFF`, `DIFF_SCHEMA`, `MERGE`, `RESTORE`, `REMOTE`/`FETCH`/`MIRROR`). M26 binds enterprise RBAC/ABAC and row/column security barriers at remote egress, and M28 builds human/agent reviewed proposals (`PROPOSE`), intent-bound approvals, and Board visual diff review on top of M19's `ManifestCut` and `IS CONFLICT` algebra. |
-
-### Accepted architectural decisions (`D1`–`D7`)
-
-```mermaid
-flowchart TD
-    subgraph ControlPlane["Control & Policy Plane (transit-catalog)"]
-        BD["BranchDirectory (refs/heads/<branch>)<br/>BranchId, parent_branch_id, base_cut, head_cut, mode"]
-        HC["HistoricalTimeline & ManifestCut (v{N})<br/>CatalogId -> DefinitionId -> TableRoot / DocRoot + WAL Frontier"]
-        G["GrantSet & policy_epoch Fence<br/>Independent branch create / read / write / merge / restore grants"]
-        BD --> HC
-        G --> BD
-        G --> HC
-    end
-
-    subgraph DataPlane["Direct Data Plane (transit-storage / transit-document)"]
-        WALMain["Main TransitLog Partition (TWAL1)"]
-        WALBranch["Branch TransitLog Partition (TWAL1)"]
-        SharedSeg["Shared Ancestor .tseg Segments<br/>(Immutable SHA-256 in TransitObjectStore)"]
-        BranchSeg["Branch-Local .tseg Segments & .tdel Roaring Bitmaps<br/>(Copy-on-Write Delta Overlay)"]
-        GC["DirectStorageGraph & BranchCompactionPolicy<br/>Multi-branch reachability watermark & O(B) amplification guard"]
-    end
-
-    subgraph Engine["Diff, Merge, Restore & Remote Sync Engine (transit-fuze / transit-sql)"]
-        Diff["Segment-Skipping 2-Way & 3-Way DIFF / DIFF_SCHEMA<br/>O(1) shared (.tseg, .tdel) skip (A4) + ColumnId lineage + IS CONFLICT"]
-        Merge["Reviewed 3-Way Merge Coordinator<br/>PK/Unique (M11) + 5-State CHECK + FK + Graph Endpoint + Multi-Writer OCC CAS"]
-        Restore["Forward Restore (manifest/v{N+1})<br/>Monotonic cut under current policy_epoch + Dataflow/Effect disposition"]
-        Remote["Merkle-DAG Remote Sync (FETCH / MIRROR / PROPOSE)<br/>Delta .tseg/.tdel transfer + Lazy NvmeCache hydration + Replay fence"]
-    end
-
-    HC --> WALMain
-    HC --> WALBranch
-    WALMain --> SharedSeg
-    WALBranch --> BranchSeg
-    BranchSeg -. "Overlay (.tdel) without mutating ancestor" .-> SharedSeg
-    GC --> SharedSeg
-    GC --> BranchSeg
-    HC --> Diff
-    Diff --> Merge
-    Merge -- "If-Match CAS head_cut -> v{N+1}" --> BD
-    Restore -- "Publish forward v{N+1}" --> BD
-    Remote <--> HC
-    Remote <--> SharedSeg
-```
-
-#### `D1` — Realm-scoped branch registry (`refs/heads/<branch>`), pinned-tail snapshot preparation, and $O(1)$ conditional CAS head publication
-
-1. **Multi-branch identity and paged directory (`BranchDirectory.zig`):**
-   - Lift the single-branch (`branch == 1`) restriction in `DataLifecycle.ResourceInitialization.validate` (`packages/zig/transit-protocol/src/DataLifecycle.zig`) and `DirectCatalogRecords.Configuration.validate` (`packages/zig/transit-catalog/src/DirectCatalogRecords.zig`).
-   - Replace the single-branch trunk assumption in `DirectCatalogRoots.zig` and `HistoricalCatalog.zig` (removing `error.MultiCommitBranchingDeferredToM19` at line 502) with a paged `TreeStore` directory mapping realm-scoped `branch_name` (`refs/heads/<branch>`) and monotonic `branch_id: u64` (`1` reserved for `main`) to `BranchHead`:
-     - `branch_id: u64`, `parent_branch_id: ?u64`, `created_at_ns: i64`, `created_by_principal: u64`
-     - `mode: enum(u8) { full_data = 1, schema_only = 2 }`
-     - `base_manifest_version: u64`, `base_manifest_digest: [32]u8`
-     - `head_manifest_version: u64`, `head_manifest_digest: [32]u8`, `head_commit_lsn: u64`
-     - `delta_wal_partition: u64` (dedicated branch `TransitLog` partition ID)
-     - `merge_policy: enum(u8) { allow_merge = 1, merge_disabled = 2, protected_head = 3 }`
-2. **Pinned-tail snapshot preparation vs. $O(1)$ head publication:**
-   - A new full-data branch must include all accepted rows at the selected source cut—including rows accepted into `TransitLog` (`TWAL1`) that have not yet been flushed to `.tseg` segments. Pointing only at the latest flushed Table manifest is forbidden.
-   - `ManifestCut` preparation (`prepareBranchSourceCut`) pins every participating `TablePartitionRecord.Root` and `DocumentPartition` root via `TableSnapshot` (`TPINOBJ1`), recording both the immutable `.tseg`/`.tdel` root references **and** the exact exclusive `TWAL1` frontier (`wal_position: DataLifecycle.Position { partition, next_lsn }`) plus `TableArchive` coverage.
-   - Once the source `ManifestCut` is durable and pinned in `DirectCatalogRetention`, publishing the new branch head (`refs/heads/<branch> -> manifest/v{N}`) is an $O(1)$ conditional CAS (`If-None-Match` for `CREATE BRANCH`, `If-Match` on `expected_head_manifest_version` for branch advances) in the catalog control log, plus allocation of a fresh branch `TransitLog` partition (`delta_wal_partition`) for subsequent branch writes.
-3. **Schema-only branches (`CREATE BRANCH <name> FROM <source> WITH (mode = 'schema_only')`):**
-   - Copies the source `ManifestCut`'s `CatalogId`, `DefinitionId`, `ColumnId`, `TableSchema`, `CheckConstraint`, `ForeignKeyConstraint`, and index definitions into the new branch with empty data roots (`rows = empty`, `scan_rows = empty`, `segment_digests = []`) and a fresh branch `TransitLog` partition.
-4. **Strict authority and process/effect non-inheritance:**
-   - Branch creation checks current `CREATE BRANCH` privilege on the realm/database and current `SELECT` privilege on every source object (enforcing `policy_epoch` via `GrantSet`).
-   - Branches never copy live `Station` actor PIDs, consumer-group leases, grants, or connector effect rights. Any copied view or M12 dataflow definition is recorded in the `Published` (inactive) state, and any historical or staged outbox/effect records in the source cut are marked non-executable on the branch.
-
-#### `D2` — Copy-on-write branch write/delete isolation and branch-aware compaction/GC
-
-1. **Copy-on-write branch mutations over shared ancestor `.tseg` segments:**
-   - Reads on a branch resolve rows across the branch's inherited ancestor `.tseg` segments (and pinned ancestor `TWAL1` prefix up to `base_cut.wal_position`), masked by the branch's local `.tdel` Roaring deletion vectors (`transit-bitmap` `RBC1`), unioned with the branch's own flushed `.tseg` segments and active branch `TransitLog` (`delta_wal_partition`) tail.
-   - `INSERT`, `UPDATE`, and `DELETE` on a branch append exclusively to `delta_wal_partition`, flush new branch-owned `.tseg` files to `TransitObjectStore`, and write branch-local `.tdel` deletion bitmaps keyed by `(branch_id, segment_sha256, deletion_generation)`. Ancestor `.tseg` and `.tdel` objects are immutable and never modified in place.
-2. **Multi-branch reachability walk (`DirectStorageGraph.zig` & `TableStorageWalk.zig`):**
-   - Extend `DirectStorageGraph` so a maintenance pass walks the union of:
-     1. Every active `BranchHead` in `BranchDirectory` (`refs/heads/*`),
-     2. Every retained historical `ManifestCut` within the realm's retention policy or pinned by an active `HistoricalCursor` / `TableSnapshot` (`TPINOBJ1`), and
-     3. Active M5 transaction workspaces (`W`, `P`, `R`) scoped to their target `branch_id`.
-   - Deleting a parent branch or dropping a table on `main` never reclaims a `.tseg`, `.tdel`, `.tman`, or archived `TWAL1` frame while any child branch or retained snapshot still references it (`T6: SnapshotRetentionSafety.lean`).
-3. **Branch-aware compaction (`BranchCompactionPolicy.zig`):**
-   - Naive compaction on `main` that rewrites shared `.tseg` segments would force $B$ child branches to retain the old uncompacted `.tseg` segments while `main` writes duplicate compacted segments—causing up to $O(B)$ storage amplification.
-   - Introduce a branch-aware compaction cost model in `DirectCatalog.maintenanceNext`:
-     - **Shared-segment reference counting:** Track `branch_ref_count` (and pinned snapshot count) per `.tseg` digest in the catalog storage graph.
-     - **Delta-first compaction:** Compact branch-local `.tseg` tail segments (`branch_ref_count == 1`) eagerly using standard M13 size-tiered/leveled thresholds.
-     - **Shared-ancestor compaction guard:** For `.tseg` segments shared across $k > 1$ branches (`branch_ref_count == k`), rewrite the shared segment only when dead-row ratio $\tau_{\text{dead}}$ exceeds a branch-scaled threshold $\tau_{\text{dead}} \ge \min(0.80,\; 0.20 \times k)$ **or** when all $k$ branches share a common `.tdel` tombstone bitmask intersection $\bigcap_{b=1}^{k} \text{tdel}_b$ large enough to amortize the rewrite across all $k$ branch manifests simultaneously.
-
-#### `D3` — Segment-skipping 2-way and 3-way `DIFF` and `DIFF_SCHEMA` with 5-state `IS CONFLICT` projection
-
-1. **Formal segment-skipping algebra (`A4: BranchMergeAlgebra.lean`):**
-   - For any two-way diff `(from_cut, to_cut)` or three-way diff/merge `(base_cut, source_cut, target_cut)` over a table or document partition:
-     - First, compute the symmetric difference of `(segment_sha256, tdel_sha256)` pairs in $O(S)$ metadata time (where $S$ is the segment count). Any `.tseg` segment whose content digest and effective `.tdel` deletion bitmap digest are identical across `(from, to)` or across `(base, source, target)` contributes zero logical delta rows and is skipped in $O(1)$ without reading segment pages from `TransitObjectStore` or `NvmeCache`.
-     - Second, to prevent **physical compaction rewrites** from inventing false merge changes or conflicts when one branch compacted segments `{s1, s2} -> s3` without logical row changes, each `TablePartitionRecord` compaction record (`TableCompactionResult.zig`) records a compaction lineage edge `(input_segment_digests, input_tdel_digests) -> (output_segment_digest, logical_row_multiset_hash)`. If `logical_row_multiset_hash` matches the uncompacted `(input_segment_digests, input_tdel_digests)` on the peer branch, the compacted segment group is recognized as logically identical and skipped in $O(1)$; otherwise, the diff engine streams keys in sort order from both segment sets and suppresses rows whose primary key and column cell values are bit-for-bit (or $\kappa$-collation) identical to `base`.
-2. **First-class `DIFF(object, ...)` table-valued function (`BranchDiff.zig`):**
-   - Support two-way `SELECT * FROM DIFF(table_name, FROM => selector_a, TO => selector_b)` and three-way `SELECT * FROM DIFF(table_name, BASE => selector_base, SOURCE => selector_src, TARGET => selector_tgt)`:
-     - Aligns rows by declared primary key (or `_row_id` for keyless tables / tree path for Documents) using the declared column collation $\kappa$ (`UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `ICU:<locale>`).
-     - Projects columns across compatible `DefinitionId` schema evolutions using stable `ColumnId` lineage (`TableSchemaProjection.zig`). Columns added on only one branch evaluate to their declared lazy `DEFAULT` (or `MISSING` if none) on the branch where they were absent.
-     - Emits a leading `_diff_op` UTF8 column (`'added'`, `'modified'`, `'removed'`, `'conflict'`) followed by the aligned table columns:
-       - If a cell was modified on `source` ($v_s \neq v_b$) and unchanged on `target` ($v_t = v_b$), the projected cell holds $v_s$ (and symmetrically $v_t$ if changed only on `target`).
-       - If a cell was modified identically on both branches ($v_s = v_t \neq v_b$), the change converges cleanly (`_diff_op = 'modified'`) with cell value $v_s$.
-       - If a row or cell was modified to incompatible values on both `source` and `target` ($v_s \neq v_b$, $v_t \neq v_b$, $v_s \neq v_t$), or modified on one branch and deleted on the other, `_diff_op` is `'conflict'` and each conflicting cell is tagged with Transit's native **five-state `conflict` cell tag** (`CellState.conflict`, queryable via `WHERE col IS CONFLICT` in `TransitExtensions.g4`), carrying a structured conflict payload `(base_value, source_value, target_value)`.
-3. **First-class catalog and schema diff (`DIFF_SCHEMA(...)` in `SchemaDiff.zig`):**
-   - `SELECT * FROM DIFF_SCHEMA(FROM => selector_a, TO => selector_b)` compares the `CatalogId`, `DefinitionId`, and `ColumnId` graphs between two snapshots, branches, or remotes:
-     - Distinguishes true table/column renames (same `CatalogId`/`ColumnId`, new name) and Class A metadata-only evolutions (`ADD COLUMN ... DEFAULT`, `DROP COLUMN`) from drop-and-recreate mutations (new `CatalogId`/`ColumnId`) or Class B physical type/collation rewrites (`TableConstraints.RewriteKind`).
-     - Reports added/modified/removed `CHECK` constraints, `FOREIGN KEY` edges, secondary indexes (M11), property-graph descriptors (M18), and downstream M12 views/dataflows whose `DefinitionId` dependency vectors are invalidated.
-
-#### `D4` — Atomic 3-way merge validation and conditional CAS publication (`Multi-Writer OCC`)
-
-1. **Three-way merge lifecycle (`BranchMerge.zig`):**
-   - `MERGE BRANCH <source> INTO <target> [WITH (strategy = 'fail_on_conflict' | 'source_wins' | 'target_wins', expected_target_version = N)]`:
-     - Resolves the lowest common ancestor `base_cut = LCA(source_head, target_head)` from the `ManifestCut` parent DAG in `HistoricalTimeline`.
-     - Computes the schema merge (`SchemaDiff.mergeSchemas(base, source, target)`):
-       - Disjoint column additions (`ColumnId`s) and compatible non-overlapping renames merge automatically into a new target `DefinitionId`.
-       - Incompatible DDL changes to the same `ColumnId` (e.g., conflicting type changes, conflicting `COLLATE` descriptors $\kappa$, or conflicting `CHECK` expressions) abort the merge with a structured schema-conflict diagnostic before data merge begins.
-       - For `schema_only` source branches (`mode == .schema_only`), promotes the validated `DefinitionId` evolution onto `<target>` while preserving `<target>`'s existing data rows (applying lazy Class A `TableSchemaProjection` or scheduling a verified Class B rewrite).
-2. **Whole-candidate constraint revalidation (preventing write-skew anomalies across branches):**
-   - Segment reuse alone supplies no constraint guarantee when disjoint branch commits touch related keys. Before publishing the merged `ManifestCut`, `BranchMerge` validates across the combined merge candidate:
-     - **Primary-key and M11 secondary `UNIQUE` index constraints:** Detects when `source` inserts `(pk=10, email='a@x')` and `target` inserts `(pk=20, email='a@x')` on disjoint segments.
-     - **Row-level five-state `CHECK` constraints (`TableConstraints.evaluateCheckRow`):** Evaluates any newly added or modified `CHECK` constraints (and merged rows where `source` updated column `a` while `target` updated column `b` of the same row) under the five-state truth rule (`value(true)` or `null_value` passes; `value(false)`, `missing`, `type_error`, or `conflict` rejects).
-     - **Cross-table `FOREIGN KEY` referential integrity (`TableConstraints.ForeignKeyConstraint`):** Detects cross-branch referential write skew where `source` deletes a parent key in `accounts` while `target` inserts a child row referencing that parent key in `orders`.
-3. **Conditional CAS publication and original operation-token recovery:**
-   - Merge admission binds a `DirectClientToken` (`(AccountId, ClientToken) -> OperationId`) recording `(base_manifest_version, source_manifest_version, expected_target_manifest_version)`.
-   - Publication performs an atomic `If-Match` compare-and-swap on `refs/heads/<target>` (`head_manifest_version == expected_target_manifest_version`), creating `manifest/v{N+1}` with two parent pointers (`parent_manifest_version = target.head`, `merge_parent_manifest_version = source.head`).
-   - If `<target>` advanced concurrently, CAS rejects with `Conflict` (`StaleTargetBranchHead`) without mutating `<target>`. If a transport reply is lost after CAS acceptance, retrying with the same `DirectClientToken` recovers the original merge receipt and `manifest/v{N+1}` outcome under current `policy_epoch` rights.
-
-#### `D5` — Multi-model diff and merge: Documents (M7/M16), 2D/3D Geospatial (M17), and Property Graphs (M18)
-
-1. **`DocumentPartition` versioned 3-way merge and `causal_crdt` convergence:**
-   - **Versioned profile (`versioned`):** Invokes `VersionedMerge.threeWayMergeSuccinct` (`packages/zig/transit-document/src/VersionedMerge.zig`) directly over the base, source, and target $2N$-bit balanced-parentheses (`BP`) `SuccinctTree` representations in `.tseg` segments. Subtrees with identical SHA-256 node digests across `(base, source, target)` are skipped in $O(1)$ without decoding children. Conflicting scalar or structural edits emit `CellState.conflict` nodes while preserving zero-copy `RawProvenance` (`part_id`, `byte_start`, `byte_end`) for M16 profile artifacts (`JSON`, `XML`, `EDI`, `PDF`, `DOCX`, `XLSX`, `ODF`).
-   - **Causal CRDT profile (`causal_crdt`):** When branching a `causal_crdt` document (`Document.zig`), the new branch is assigned a fresh deterministic replica namespace `(branch_id, replica_epoch)` so concurrent operations on parent and child branches never collide in causal `(counter, replica_id)` space. Merging two `causal_crdt` branches joins their causal operation logs and state vectors under the 24-permutation commutative/associative/idempotent lattice, preserving tombstones (`CausalOp.Kind.delete`) and verifying that histories with incompatible schema profiles or corrupted causal predecessors are refused before publication.
-2. **2D/3D Geospatial and Volumetric diff & merge (Milestone 17 integration):**
-   - **Viewport-scoped $O(1)$ spatial segment skipping:** When `DIFF` or `MERGE` includes a spatial/volumetric predicate (`ST_Intersects(geom, viewport)` or `ST_3DIntersects(solid, bbox3d)`), the diff planner inspects each `.tseg` segment's `BBOX2D`/`BBOX3D` and `S2_CELL`/`H3_CELL`/`OCT_CELL` Roaring zone-map summary first: segments disjoint from the query viewport or identical across branches are skipped in $O(1)$.
-   - **Topological and 3D assembly conflict promotion:** Under declared $\kappa_{\text{spatial}}$ (SRID, `PLANAR`/`GEODESIC`, snap-rounding grid $\delta_{\text{grid}}$, Shewchuk exact predicates), if `source` and `target` concurrently modify a shared `.topo_arc` boundary chain or `.topo_face` winged-edge surface in a way that violates planar/manifold closure (e.g., creating a self-intersection, gap, or sliver), or if concurrent `SCENE3D` sub-assembly transforms introduce a hard 3D volumetric clash (`ST_3DDistance < clearance`), the affected topological edge/face or assembly node is tagged as a five-state `IS CONFLICT` cell in the `DIFF` / `MERGE` preview rather than silently corrupting the mesh.
-3. **Qualified Property Graph mappings (Milestone 18 integration):**
-   - For every `PropertyGraphDescriptor` registered in the catalog, 3-way `MERGE` verifies that merged edge tables reference valid vertex keys in their bound endpoint tables (`SOURCE KEY`, `DESTINATION KEY`); dangling edges introduced by concurrent vertex deletion on one branch and edge insertion on the other fail merge validation with an attributed graph-endpoint conflict diagnostic.
-
-#### `D6` — Forward Restore (`manifest/v{N+1}`) under current authority
-
-1. **Monotonic forward publication (`BranchRestore.zig`):**
-   - `RESTORE BRANCH <branch> TO AS OF (SNAPSHOT <v> | MANIFEST '<sha256>' | BRANCH '<other>' | TIMESTAMP '<iso>')` never truncates `HistoricalTimeline` or rewrites past `ManifestCut` numbers. Instead, it constructs a new successor `ManifestCut` (`manifest/v{N+1}`) whose catalog and data root bindings match the selected historical cut `v{K}`, appended via conditional CAS on `refs/heads/<branch>` with provenance metadata `restored_from_manifest_version = K`.
-   - Every intermediate cut `v{K+1} .. v{N}` remains inspectable via `AS OF SNAPSHOT` and subject to normal retention/GC rules.
-2. **Authority, computation, subscription, and effect disposition:**
-   - **Current authority only:** Restore checks current `RESTORE` / `ALTER` and table DML privileges at the current `policy_epoch`. Historical `GrantSet` entries from `v{K}` are **never** restored; reading or restoring historical application data cannot revive revoked roles or grants.
-   - **Managed computations and dataflows (M12):** Restoring a branch marks downstream `Active` M12 incremental dataflows (`FuzeDelta.zig`) bound to `<branch>` as `Suspended (reason = 'source_branch_restored')` unless the caller explicitly specifies `WITH (dataflows = 'recompute_snapshot')`, which triggers a clean snapshot reset without feeding a synthetic backward delta into stateful window operators.
-   - **Pending jobs, reactive subscriptions (M8), and external connector effects:**
-     - Open interactive M5 transactions (`W`) targeting `<branch>` at `v{N}` fail at commit CAS (`StaleTargetBranchHead`).
-     - Active M8 SSE/WebSocket reactive subscriptions on `<branch>` receive a typed `branch_restored` control frame carrying `(old_manifest_version: N, new_manifest_version: N+1, restored_from_version: K)` and re-anchor their watch cursor.
-     - Historical connector outbox intents present at `v{K}` are recorded with terminal replay-fenced status (`RestoredHistoricalIntent`) and are **never** redispatched to external HTTP/gRPC connectors.
-
-#### `D7` — Git-like Remote $\leftrightarrow$ Local incremental mirroring, lazy `.tseg` hydration, and proposal push
-
-1. **Content-addressed Merkle DAG remote sync (`RemoteSync.zig`):**
-   - Because every `ManifestCut` (`manifest/v{N}`) forms a signed Merkle DAG over `DefinitionId` schemas, immutable SHA-256 `.tseg` segments, `.tdel`/`.tack` Roaring bitmaps, and `TPINOBJ1` snapshots, a local or staging Transit instance can attach to an upstream Transit peer:
-     - `CREATE REMOTE <name> FROM '<https://...>' WITH (credential = SECRET('...'))`
-     - `FETCH FROM REMOTE <name> [BRANCH '<remote_branch>']`
-     - `CREATE MIRROR <local_ref> FROM REMOTE <name> BRANCH '<remote_branch>' WITH (hydration = 'lazy' | 'eager', poll_ms = 5000)`
-   - **Incremental negotiation:** The client sends its last known remote `(branch_id, manifest_version, manifest_digest)` and receives only the signed `ManifestCut` chain `v{K+1} .. v{N}` plus the manifest diff of new `.tseg`/`.tdel` SHA-256 digests.
-   - **Remote egress security barrier (M26):** The remote peer evaluates the caller's current `policy_epoch` `GrantSet` before disclosing any manifest or segment. If a table has security-barrier Row-Level Security (RLS) or dynamic column masking attached for that caller, the remote materializes a filtered/masked derivative `.tseg` cut for the caller rather than streaming raw unauthorized `.tseg` bytes.
-2. **Eager vs. lazy `.tseg` hydration into `NvmeCache`:**
-   - Under `hydration = 'eager'`, `FETCH` downloads all missing `.tseg` and `.tdel` blobs before completing, enabling full offline execution.
-   - Under `hydration = 'lazy'`, `FETCH` downloads only the compact `ManifestCut` metadata, `TableSchema` definitions, and `.tseg` footer zone maps (`BBOX`, min/max, `S2`/Roaring summaries). When a local Fuze scan or `DIFF` passes zone-map pruning and touches an unhydrated `.tseg` page range, `TransitObjectStore` fetches the segment on demand, verifies its SHA-256 digest once on admission into `NvmeCache` (following M13's LeanStore/Umbra zero-copy cache policy), and serves subsequent reads locally.
-3. **Local migration testing with network-free replay fencing and upstream M28 proposal push:**
-   - A developer or agent creates a local branch from the remote tracking ref (`CREATE BRANCH local_mig FROM REMOTE 'prod/main'`), applies candidate DDL migrations (`ALTER TABLE`), and executes local queries, M12 dataflows, and `Station` behaviors.
-   - Local branches created from a remote enforce `connector_effect_mode = 'replay_only'` by default: outbound connector calls never touch production networks and instead resolve deterministically against captured M16 `DocumentPartition` gateway exchange transcripts.
-   - Once local validation succeeds, `PROPOSE BRANCH local_mig TO REMOTE 'prod/main' WITH (title = '...', expected_base_version = K)` uploads only the local branch's delta `.tseg`/`.tdel` objects, `EvolutionPlan` migration steps, and candidate `ManifestCut` to the remote as a [Milestone 28 reviewed collaboration proposal](28-reviewed-data-collaboration.md) for three-way `DIFF` / `DIFF_SCHEMA` inspection and atomic `If-Match` CAS merge publication.
-
-### Work package sequence (`P0`–`P8`)
-
-#### `P0` — Neutral contracts, grammar cutover, and multi-branch protocol identifiers
-
-- **Goal:** Replace single-branch (`branch == 1`) protocol guards with realm-scoped multi-branch selectors and add neutral wire/SQL contracts for `BRANCH`, `DIFF`, `DIFF_SCHEMA`, `MERGE BRANCH`, `RESTORE BRANCH`, and `REMOTE` under the current-v1 hard-cutover policy.
-- **Files to create or modify:**
-  - `packages/zig/transit-protocol/src/DataLifecycle.zig`: Lift `self.interpretation.object.branch != 1` in `ResourceInitialization.validate` (require `branch >= 1`), and add `BranchId`, `BranchMode` (`full_data`, `schema_only`), and `BranchMergePolicy`.
-  - `packages/zig/transit-catalog/src/DirectCatalogRecords.zig` & `packages/zig/transit-catalog/src/DirectTableProtocol.zig`: Allow `branch >= 1` in `Configuration.validate`; add typed direct actions `branch_create`, `branch_drop`, `branch_list`, `branch_diff`, `branch_diff_schema`, `branch_merge`, `branch_restore`, and `remote_sync`, bumping the shared contract definition identifier (`DIRECT_TABLE_V1`).
-  - `contracts/sql/TransitExtensions.g4` & `packages/zig/transit-sql/src/Parser.zig`:
-    - Replace the isolated `asOfFragment` integer stub with typed historical/branch selectors (`AS OF SNAPSHOT <int>`, `AS OF MANIFEST <string>`, `AS OF BRANCH <string>`, `FOR SYSTEM_TIME AS OF <timestamp>`).
-    - Add DDL/command productions for `CREATE BRANCH`, `DROP BRANCH`, `SHOW BRANCHES`, `MERGE BRANCH ... INTO ...`, `RESTORE BRANCH ... TO AS OF ...`, `CREATE REMOTE`, `FETCH FROM REMOTE`, `CREATE MIRROR`, and `PROPOSE BRANCH`, plus table-valued function forms `DIFF(...)` and `DIFF_SCHEMA(...)`.
-  - `contracts/DIRECT_TABLE_V1.md`, `contracts/READ_VERSIONS_V1.md`, `contracts/direct-table-v1.schema.json`: Regenerate schemas and signing fixtures via `zig build check-contracts` and `python3 -B tasks/version.py`.
-- **Verification:** `zig build check-contracts`, `zig build test`, and `python3 -B tests/runner/checks.py fast`.
-
-#### `P1` — `BranchDirectory`, pinned-tail `ManifestCut` preparation, and $O(1)$ branch head CAS
-
-- **Goal:** Deliver Step 1 of the delivery sequence—full-data and schema-only branch creation from exact retained cuts (including accepted unflushed `TWAL1` rows) with $O(1)$ head publication and a dedicated branch `TransitLog` partition.
-- **Files to create or modify:**
-  - `packages/zig/transit-catalog/src/BranchDirectory.zig` *(new)*: Paged `TreeStore` directory for `refs/heads/<branch>` and `BranchId -> BranchHead`, supporting `If-None-Match` creation, `If-Match` head CAS (`expected_head_manifest_version`), `merge_policy` enforcement (`allow_merge`, `merge_disabled`, `protected_head`), and `SHOW BRANCHES` cursor iteration.
-  - `packages/zig/transit-catalog/src/HistoricalCatalog.zig`: Remove `error.MultiCommitBranchingDeferredToM19` in `HistoricalTimeline.publishHeadConditional` (line 502); index `ManifestCut` history as a multi-branch DAG with `parent_manifest_version: ?u64` and `merge_parent_manifest_version: ?u64` plus `findLowestCommonAncestor(branch_a, branch_b)`.
-  - `packages/zig/transit-catalog/src/DirectCatalog.zig` & `packages/zig/transit-catalog/src/DirectCatalogRoots.zig`:
-    - Implement `prepareBranchSourceCut`: pins each participating `TablePartitionRecord.Root` and `DocumentPartition` root via `TableSnapshot` (`TPINOBJ1`), capturing both flushed `.tseg` digests and the exact accepted `TWAL1` frontier (`wal_position: { partition, next_lsn }`).
-    - Implement `createBranch` (`full_data` and `schema_only`): verifies current `CREATE BRANCH` + source `SELECT` privileges under `policy_epoch`, allocates a fresh branch `TransitLog` partition (`delta_wal_partition`), marks any copied M12 dataflows as `Published` (never `Active`), fences any historical outbox records, and publishes `refs/heads/<branch>` in $O(1)$.
-- **Verification:** Unit and disk-reopen tests in `packages/zig/transit-catalog/src/historical_catalog_test.zig` and `direct_catalog_test.zig` comparing $O(1)$ branch creation (including unflushed `TWAL1` rows before flush) against a full independent copy oracle.
-
-#### `P2` — Copy-on-write branch write/delete isolation, multi-branch GC reachability, and branch-aware compaction
-
-- **Goal:** Deliver Step 2 of the delivery sequence and the policy boundary's branch-aware compaction/GC requirements.
-- **Files to create or modify:**
-  - `packages/zig/transit-storage/src/TablePartitionRecord.zig` & `packages/zig/transit-storage/src/TableStorageWalk.zig`: Support composite branch-over-ancestor read resolution (inherited `.tseg` segments + pinned ancestor `TWAL1` prefix up to `base_cut.wal_position`, masked by branch-local `.tdel` Roaring bitmaps, unioned with branch-owned `.tseg` segments and `delta_wal_partition` tail).
-  - `packages/zig/transit-catalog/src/DirectStorageGraph.zig`: Extend the bounded state-machine walk to iterate all active `BranchHead` roots in `BranchDirectory`, all retained `ManifestCut`s, and branch-scoped M5 transaction workspaces without growing resident stack depth with branch count $B$.
-  - `packages/zig/transit-catalog/src/BranchCompactionPolicy.zig` *(new)* & `packages/zig/transit-storage/src/TableCompactionResult.zig`:
-    - Record `(input_segment_digests, input_tdel_digests, logical_row_multiset_hash)` on every compaction pass.
-    - Enforce `branch_ref_count`-aware compaction thresholds so compacting `main` neither invalidates ancestor pins nor causes unmitigated $O(B)$ storage amplification across $B$ active branches.
-- **Verification:** Multi-branch isolation and GC torture tests (parent/child concurrent writes, deletes, restarts, parent branch drop, child branch drop, retained-tail WAL trim, and concurrent compaction with active historical readers).
-
-#### `P3` — Segment-skipping 2-way and 3-way `DIFF` and `DIFF_SCHEMA` with 5-state `IS CONFLICT` cells
-
-- **Goal:** Deliver Step 3a and Step 3b—$O(1)$ segment-skipping relational/KV `DIFF(...)` and catalog `DIFF_SCHEMA(...)` with native five-state `IS CONFLICT` cell projection.
-- **Files to create or modify:**
-  - `packages/zig/transit-fuze/src/BranchDiff.zig` *(new)*:
-    - Implement `planSegmentDiff(from_cut, to_cut)` and `planThreeWaySegmentDiff(base_cut, source_cut, target_cut)`: skip identical `(segment_sha256, tdel_sha256)` pairs and compaction-equivalent segment groups (`logical_row_multiset_hash`) in $O(1)$ (`A4: BranchMergeAlgebra.lean`).
-    - Implement vectorized sort-merge key alignment over remaining divergent `.tseg` segments and `TWAL1` tails under declared column collations ($\kappa$: `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `ICU:<locale>`), using `TableSchemaProjection.zig` (`ColumnId` lineage) across compatible schema evolutions.
-    - Emit `_diff_op IN ('added', 'modified', 'removed', 'conflict')` and populate five-state `CellState.conflict` cells (with `(base, source, target)` conflict metadata) so standard SQL predicates `WHERE col IS CONFLICT` or `WHERE _diff_op = 'conflict'` filter conflicts directly.
-  - `packages/zig/transit-catalog/src/SchemaDiff.zig` *(new)*:
-    - Compare `CatalogId`, `DefinitionId`, and `ColumnId` graphs between any two `ManifestCut`s, distinguishing `ColumnId`-preserving renames and Class A lazy projections from drop-and-recreate or Class B physical rewrites, and listing affected `CHECK` constraints, `FOREIGN KEY` edges, M11 indexes, M18 property graphs, and M12 dataflows.
-- **Verification:** Property tests and copy-oracle equivalence tests in `packages/zig/transit-fuze/src/branch_diff_test.zig` proving that segment-skipping `DIFF` (including across compacted segments and `ColumnId` renames/additions) produces the exact same row/cell delta as a full key-by-key scan.
-
-#### `P4` — Reviewed 3-way KV/Table merge coordinator, whole-candidate constraint revalidation, and OCC CAS
-
-- **Goal:** Deliver Step 3c—atomic three-way merge validation and conditional CAS publication (`Multi-Writer OCC`) with full constraint revalidation and lost-reply recovery.
-- **Files to create or modify:**
-  - `packages/zig/transit-catalog/src/BranchMerge.zig` *(new)*:
-    - Freeze `(base_cut, source_cut, target_cut)` via `HistoricalTimeline.findLowestCommonAncestor`.
-    - Run `SchemaDiff.mergeSchemas` and `BranchDiff.planThreeWaySegmentDiff`. If unresolved row/cell conflicts exist and strategy is `fail_on_conflict`, return a structured conflict summary without mutating `<target>`.
-    - Revalidate across the combined merge candidate:
-      1. Primary-key and M11 secondary `UNIQUE` index constraints across disjoint branch segment additions,
-      2. Five-state row-level `CHECK` constraints (`TableConstraints.evaluateCheckRow`), and
-      3. Cross-table `FOREIGN KEY` referential integrity (`TableConstraints.ForeignKeyConstraint`), catching parent deletes on one branch racing with child inserts on the other.
-    - Stage merged `.tseg`/`.tdel` root manifests, bind the caller's `DirectClientToken`, and publish `manifest/v{N+1}` onto `refs/heads/<target>` via `If-Match` CAS on `expected_target_manifest_version`.
-- **Verification:** Conformance tests covering clean fast-forward and 3-way merges, stale-head OCC rejection (`Conflict`), secondary-key collision detection across disjoint branch writes, cross-branch FK delete/insert skew rejection, `schema_only` promotion, and disk-reopen recovery after a lost merge reply.
-
-#### `P5` — Multi-model diff and merge: Documents (M7/M16), 2D/3D Geospatial (M17), and Property Graphs (M18)
-
-- **Goal:** Deliver Step 4—extend branch `DIFF` and 3-way `MERGE` to `DocumentPartition` (`versioned` and `causal_crdt`), 2D/3D geospatial/volumetric models, and property graphs.
-- **Files to create or modify:**
-  - `packages/zig/transit-document/src/VersionedMerge.zig` & `packages/zig/transit-document/src/DocumentPartition.zig`:
-    - Connect `VersionedMerge.threeWayMergeSuccinct` ($2N$-bit `BP` tree merge with $O(1)$ subtree digest skipping and `RawProvenance`) to `DIFF(doc_name, ...)` and `MERGE BRANCH` for `versioned` documents and M16 profiles (`JSON`, `XML`, `EDI`, `PDF`, `DOCX`, `XLSX`, `ODF`).
-    - Assign fresh `(branch_id, replica_epoch)` causal namespaces when branching `causal_crdt` documents (`Document.zig`), join replica state vectors and tombstones on merge, and reject incompatible schema/causal histories.
-  - `packages/zig/transit-fuze/src/SpatialBranchDiff.zig` *(new)*:
-    - Use `.tseg` `BBOX2D`/`BBOX3D` and `S2`/`H3`/`OCT_CELL` Hilbert/Roaring zone maps to skip out-of-viewport or unchanged spatial segments in $O(1)$ during viewport-scoped `DIFF`.
-    - Detect conflicting concurrent edits to shared `.topo_arc` / `.topo_face` topological chains/faces or `SCENE3D` 3D assembly clash collisions under $\kappa_{\text{spatial}}$ and emit five-state `IS CONFLICT` cells.
-  - `packages/zig/transit-catalog/src/BranchMerge.zig`: Add `PropertyGraphDescriptor` endpoint key verification across merged vertex and edge tables.
-- **Verification:** Multi-model branch/merge tests for `versioned` `BP` trees (`IS CONFLICT` + provenance), 24-permutation `causal_crdt` branch convergence, viewport-pruned spatial diffs, topological/3D clash conflict tagging, and property-graph dangling-edge rejection.
-
-#### `P6` — Forward Restore (`manifest/v{N+1}`) and computation/subscription/effect disposition
-
-- **Goal:** Deliver Step 5—forward restore as a monotonic successor `manifest/v{N+1}` under current `policy_epoch` authority with explicit disposition of M12 dataflows, M8 subscriptions, and external connector effects.
-- **Files to create or modify:**
-  - `packages/zig/transit-catalog/src/BranchRestore.zig` *(new)*:
-    - Implement `restoreBranchForward(branch_id, target_as_of_selector, options)`: verifies current `RESTORE` and table privileges via `GrantSet` at current `policy_epoch` (never restoring historical grants from the target cut), constructs `manifest/v{N+1}` pointing to the target cut's data/schema roots with `restored_from_manifest_version = K`, and commits via `If-Match` CAS on `refs/heads/<branch>`.
-    - Transition dependent M12 dataflows to `Suspended` (or trigger `recompute_snapshot` when requested), emit `branch_restored` control notifications to active M8 reactive sessions, fence historical outbox records as `RestoredHistoricalIntent` so replay never dispatches external connector effects, and preserve `DirectClientToken` idempotency across lost replies.
-- **Verification:** Restore qualification tests verifying monotonic `manifest/v{N+1}` history preservation, post-revocation `policy_epoch` enforcement (revoked user cannot read/restore old cut; restore does not reinstate old grants), zero external connector effect re-dispatch, and M12 dataflow suspension/recompute.
-
-#### `P7` — Git-like Remote $\leftrightarrow$ Local incremental mirroring, lazy `.tseg` hydration, and M28 proposal push
-
-- **Goal:** Deliver Step 6—content-addressed Merkle DAG remote sync (`CREATE REMOTE`, `FETCH`, `MIRROR`), eager/lazy `.tseg` hydration into `NvmeCache`, replay-fenced local migration testing, and upstream M28 proposal push (`PROPOSE`).
-- **Files to create or modify:**
-  - `packages/zig/transit-catalog/src/RemoteSync.zig` *(new)* & `packages/zig/transit-storage/src/TransitObjectStore.zig`:
-    - Implement `RemoteDescriptor` (`CREATE REMOTE`), incremental Merkle-DAG manifest negotiation (`findCommonAncestorCut` $\to$ stream signed `ManifestCut` deltas `v{K+1}..v{N}` and missing `.tseg`/`.tdel` SHA-256 digests), and remote egress security-barrier RLS / dynamic masking evaluation under the caller's `policy_epoch`.
-    - Implement `hydration = 'eager' | 'lazy'` in `TransitObjectStore` + `NvmeCache`: lazy mode fetches `.tseg` footer zone maps immediately and hydrates data pages on demand with single-pass SHA-256 verification on cache admission.
-    - Enforce `connector_effect_mode = 'replay_only'` on local branches forked from a remote (`CREATE BRANCH ... FROM REMOTE ...`) over captured M16 `DocumentPartition` exchanges, and implement `proposeBranchToRemote` (`PROPOSE BRANCH`) uploading delta `.tseg`/`.tdel` blobs, `EvolutionPlan`, and candidate `ManifestCut` for M28 review.
-- **Verification:** End-to-end local $\leftrightarrow$ remote integration tests covering incremental `FETCH`/`MIRROR` after ancestor cuts, lazy `.tseg` `NvmeCache` hydration on zone-map hit, remote RLS/masking enforcement at egress, network-free replay fencing during local `ALTER TABLE` + dataflow testing, and upstream proposal push + 3-way merge CAS.
-
-#### `P8` — End-to-end qualification, out-of-core scale benchmarks, Lean 4 correspondence, and handbook promotion
-
-- **Goal:** Complete all Milestone 19 completion evidence, M13 scorecard benchmarks, M21 Lean 4 correspondence checks (`T6`, `A4`), and public documentation updates.
-- **Files to create or modify:**
-  - `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig` *(new)*: Out-of-core qualification suite testing data, branch ($B \ge 64$), and conflict counts exceeding resident RAM and `NvmeCache` budgets, with deterministic fault injection across flush, compaction, GC, WAL tail trim, and parent/child restarts.
-  - `specs/lean/Transit/Storage/SnapshotRetentionSafety.lean` (`T6`) & `specs/lean/Transit/Storage/BranchMergeAlgebra.lean` (`A4`): Connect mechanized theorems to differential Zig conformance runners.
-  - `docs/handbook/reference/state.md`, `docs/handbook/reference/tables.md`, `docs/handbook/reference/sql.md`, `docs/handbook/reference/sql/as-of.md`, `docs/handbook/internals/state-model.md`, and `docs/history/qualification/README.md`: Promote established branch, diff, merge, restore, and remote-mirroring semantics and scorecard evidence into the public handbook.
-- **Verification:** `just check::core` (`python3 -B tests/runner/checks.py fast`, `zig build check-contracts`, and `zig build test`).
-
-### Acceptance matrix and verification schedule
-
-| Requirement | Proof / test artifact | Gate criteria |
-| --- | --- | --- |
-| **Full-data & schema-only branch creation (`P1`)** | `packages/zig/transit-catalog/src/historical_catalog_test.zig`, `direct_catalog_test.zig` | $O(1)$ `refs/heads/<branch>` CAS publication matches independent full-copy oracle bit-for-bit, including accepted unflushed `TWAL1` rows before `.tseg` flush; copied M12 dataflows remain `Published` (inactive) and historical outbox records never execute. |
-| **Write/delete isolation & multi-branch GC safety (`P2`, `T6`)** | `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig`, `SnapshotRetentionSafety.lean` | Parent and child writes/deletes never mutate shared `.tseg` segments; parent/child deletion, WAL tail trim, and concurrent compaction/GC preserve 100% of reachable bytes across all active branches and pinned snapshots (`TPINOBJ1`). |
-| **Segment-skipping 2-way & 3-way `DIFF` / `DIFF_SCHEMA` (`P3`, `A4`)** | `packages/zig/transit-fuze/src/branch_diff_test.zig`, `BranchMergeAlgebra.lean` | Identical `(tseg_sha256, tdel_sha256)` pairs and compaction-rewritten segment groups (`logical_row_multiset_hash`) are skipped in $O(1)$; `_diff_op` and five-state `IS CONFLICT` cells match full scan oracle under all collations ($\kappa$) and `ColumnId` schema evolutions. |
-| **Reviewed 3-way KV/Table merge & OCC CAS (`P4`)** | `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig` | Revalidates PK/secondary uniqueness (M11), 5-state `CHECK`, and cross-table `FOREIGN KEY` constraints across disjoint branch edits; stale target heads reject with `Conflict`; lost merge replies recover original `DirectClientToken` receipt on reopen. |
-| **Multi-model Document, Spatial & Graph diff/merge (`P5`)** | `packages/zig/transit-document/src/VersionedMerge.zig`, `SpatialBranchDiff.zig` | `versioned` $2N$-bit `BP` tree merge and 24-permutation `causal_crdt` merge converge with fresh branch replica IDs; `BBOX2D`/`BBOX3D` and `S2`/`OCT_CELL` zone maps skip unchanged segments in $O(1)$; `.topo_arc`/`.topo_face`/`SCENE3D` conflicts emit `IS CONFLICT`; dangling graph edges reject. |
-| **Forward Restore under current authority (`P6`)** | `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig` | Publishes `manifest/v{N+1}` without truncating `v{1}..v{N}`; enforces current `policy_epoch` `GrantSet` (never restoring revoked grants); suspends or recomputes M12 dataflows; zero external connector effect re-dispatch. |
-| **Remote $\leftrightarrow$ Local mirroring, lazy hydration & proposal push (`P7`)** | `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig` | `FETCH`/`MIRROR` transfers only delta `ManifestCut`s and missing `.tseg`/`.tdel` blobs since LCA under remote RLS/masking; lazy `NvmeCache` hydration verifies SHA-256 on admission; local replay fence blocks live network calls; `PROPOSE` stages M28 proposal. |
-| **Out-of-core scale & M13 performance scorecard (`P8`)** | `packages/zig/transit-catalog/src/branch_merge_qualification_test.zig` | Separately reports (1) snapshot preparation/pinning latency, (2) $O(1)$ head CAS latency, (3) merge validation time vs. logical delta size, (4) shared vs. branch-owned `.tseg` byte amplification across $B$ branches, and (5) index maintenance cost under bounded resident memory. |
+The [original plan at the audited main revision](https://github.com/spoke-sh/transit/blob/0e2fba44727ca858bd1e8e4a775b62fbcf1a665d/docs/roadmap/19-branches-merges-and-restore.md#implementation-plan--2026-10-30)
+remains historical planning evidence. Its `P0`–`P8` labels describe the inventory
+below. The October 31 plan supersedes its runtime assumptions,
+speculative file paths, unmeasured complexity/compaction claims and
+claimed Lean proof locations. No previously recorded runtime qualification is
+removed or promoted by this revision.
 
 ### Delivered implementation evidence — 2026-10-30
 
-| Work package | Delivered implementation & contracts | Executable verification |
+Retained component inventory from the earlier plan. These sources and tests exist;
+this table does not establish installed branch operations, durable publication,
+real remote policy enforcement or completed milestone gates. Tests were not rerun
+for this plan. The Python check validates fixtures and source symbols, as described
+in the source audit.
+
+| Earlier work package | Delivered component sources | Existing checks and limits |
 | --- | --- | --- |
-| **`P1` & `P2`: Multi-branch directory, pinned-tail `ManifestCut` preparation, copy-on-write isolation & branch-aware compaction/GC** | [`BranchLifecycle.zig`](../../packages/zig/transit-catalog/src/BranchLifecycle.zig) (`BranchRegistry`, `createBranchConditional`, `advanceBranchHeadConditional`, `dropBranch`, `findLowestCommonAncestor`, `PinnedTailFrontier`, `materializeBranchTableRows`, `verifyAgainstIndependentCopyOracle`, `computeMultiBranchReachability`, and `evaluateBranchAwareCompaction`) | [`branch_lifecycle_test.zig`](../../packages/zig/transit-catalog/src/branch_lifecycle_test.zig), [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) |
-| **`P3` & `P5`: Segment-skipping 2-way/3-way `DIFF` & `DIFF_SCHEMA`, 5-state `IS CONFLICT` cells, and 2D/3D spatial/topological conflict promotion** | [`BranchDiff.zig`](../../packages/zig/transit-fuze/src/BranchDiff.zig) (`planTwoWaySegmentDiff`, `planThreeWaySegmentDiff`, `CompactionLineageEdge`, `SpatialViewportFilter`, `computeTwoWayRowDiff`, `computeThreeWayRowDiff`, `evaluateTopologicalEditConflict`, `evaluateScene3DClashConflict`, and `diffTableSchemas`) | [`branch_diff_test.zig`](../../packages/zig/transit-fuze/src/branch_diff_test.zig), [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) |
-| **`P4`, `P5`, `P6` & `P7`: Reviewed 3-way KV/Table/Document/Graph merge, `Multi-Writer OCC` CAS, `ClientToken` recovery, Forward Restore & Git-like remote sync** | [`BranchMergeRestore.zig`](../../packages/zig/transit-catalog/src/BranchMergeRestore.zig) (`validateAndPublishThreeWayMerge`, `MergeTokenJournal`, `mergeDocumentBranches`, `restoreBranchForward`, `fetchIncrementalFromRemote`, `hydrateLazySegmentOnDemand`, `checkLocalBranchConnectorExecution`, and `prepareUpstreamProposalPush`), [`contracts/catalog/branch-merge-restore-fixtures.json`](../../contracts/catalog/branch-merge-restore-fixtures.json) | [`branch_merge_restore_test.zig`](../../packages/zig/transit-catalog/src/branch_merge_restore_test.zig), [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) |
+| P1/P2 | [`BranchLifecycle.zig`](../../packages/zig/transit-catalog/src/BranchLifecycle.zig): creation/head/ancestry model, supplied tail materialization, reachability and compaction helpers | [`branch_lifecycle_test.zig`](../../packages/zig/transit-catalog/src/branch_lifecycle_test.zig); bounded in-memory model, not persistent branch ownership or physical GC qualification |
+| P3/P5 | [`BranchDiff.zig`](../../packages/zig/transit-fuze/src/BranchDiff.zig): finite segment/row/schema diff and spatial conflict helpers | [`branch_diff_test.zig`](../../packages/zig/transit-fuze/src/branch_diff_test.zig); does not establish installed SQL or M17 spatial execution |
+| P4–P7 | [`BranchMergeRestore.zig`](../../packages/zig/transit-catalog/src/BranchMergeRestore.zig): candidate validation, registry merge/restore, token journal and remote helper results | [`branch_merge_restore_test.zig`](../../packages/zig/transit-catalog/src/branch_merge_restore_test.zig), [`fixtures`](../../contracts/catalog/branch-merge-restore-fixtures.json), [`fixture checker`](../../tests/catalog/tables/branch_merge_restore.py); no durable service/transfer proof follows from these helpers |
