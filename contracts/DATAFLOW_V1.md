@@ -130,7 +130,12 @@ from the exact retained reference. The pending reference survives output commit
 until original transaction cleanup and work bookkeeping complete. A suspension
 changes the same KV that the output transaction reads/writes, so the common
 serializable decision enforces the control fence. Replacement resumes that exact
-accepted work under the service's existing activation fence.
+accepted work under the service's existing activation fence. Pending work tokens
+have an independently paged directory: a prepared control-KV participant may
+refuse ordinary head reads, so recovery discovers and settles the original
+transaction without first reading that head. An abort disposition is durably
+recorded before abort settlement can install participant barriers. Each recovery
+unit advances at most one transaction participant.
 
 The output Table, source read guard, head and completed revision key share one
 common transaction. Completion inspection reads its committed decision; neither

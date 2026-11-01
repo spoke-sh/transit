@@ -37,8 +37,20 @@ fn control(manager: M, declaration: M.Declaration, command: c.protocol.Dataflow.
     const first = try manager.applyControl(saved);
     try t.expectEqualDeep(first, try manager.applyControl(saved));
 }
+fn pendingWork(manager: M, declaration: M.Declaration) !?c.DirectClientToken.Key {
+    var after: ?u64 = null;
+    while (true) {
+        const page = try c.DirectClientToken.list(manager.client, M.workAccount(), after, true);
+        for (page.entries) |slot| if (slot) |entry| {
+            const work = try manager.load(M.Work, entry.record orelse entry.receipt.binding.intent.external.record, M.work_format);
+            defer work.deinit();
+            if (std.meta.eql(work.value.lease.target, try declaration.interpretation(manager.client.allocator))) return entry.receipt.binding.key;
+        };
+        after = page.next orelse return null;
+    }
+}
 fn drain(manager: M, declaration: M.Declaration, io: std.Io, directory: std.Io.Dir) !void {
-    const pending = try manager.start(declaration) orelse return;
+    const pending = (try pendingWork(manager, declaration)) orelse (try manager.start(declaration)) orelse return;
     for (0..1000) |_| if (!try manager.step(pending, io, directory, null)) return;
     return error.ManagedTableDidNotSettle;
 }
@@ -105,6 +117,17 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     // replacement process, while fresh readers still see the old complete output.
     for (0..5) |_| try t.expect(try manager.step(pending, init.io, .cwd(), null));
     try count(client, 0);
+    // Advance one participant per unit until preparation blocks ordinary head
+    // reads. Replacement must discover the saved work independently of that head.
+    for (0..40) |_| {
+        try t.expect(try manager.step(pending, init.io, .cwd(), null));
+        _ = manager.inspect(declaration) catch |err| {
+            try t.expectEqual(error.Conflict, err);
+            try t.expectEqualDeep(pending, (try pendingWork(manager, declaration)).?);
+            return;
+        };
+    }
+    return error.PreparedHeadWasNotBlocked;
 }
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(M.max_definition_bytes));

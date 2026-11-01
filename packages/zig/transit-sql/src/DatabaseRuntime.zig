@@ -40,6 +40,7 @@ managed_directory: ?std.Io.Dir = null,
 managed_route: usize = 0,
 managed_after: ?u64 = null,
 managed_pending: bool = false,
+managed_work: bool = true,
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
@@ -179,6 +180,7 @@ pub fn tick(self: *Self) !bool {
         self.retry_pending = false;
         self.managed_route = 0;
         self.managed_after = null;
+        self.managed_work = true;
         self.managed_pending = false;
     }
     errdefer {
@@ -274,6 +276,7 @@ pub fn tick(self: *Self) !bool {
     if (self.managed_pending) {
         self.managed_route = 0;
         self.managed_after = null;
+        self.managed_work = true;
         self.managed_pending = false;
         return true;
     }
@@ -288,9 +291,29 @@ fn managedStep(self: *Self) !bool {
     const caller = self.private.table(bindings[self.managed_route]);
     const M = g.direct.ManagedTable;
     const manager: M = .{ .client = caller };
-    const page = try c.DirectClientToken.list(caller, M.account(), self.managed_after, false);
+    const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
     for (page.entries) |slot| if (slot) |entry| {
         self.managed_after = entry.id();
+        if (self.managed_work) {
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.work_format) return error.InvalidManagedTableRecord;
+            if (entry.receipt.binding.intent.external.namespace != bindings[self.managed_route].namespace) return true;
+            const token = entry.receipt.binding.key;
+            const selected = self.claim(token.token);
+            if (!selected.tryLock()) {
+                self.retry_pending = true;
+                return true;
+            }
+            defer selected.unlock(self.io);
+            const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+                if (err == error.Canceled or err == error.Cancelled) return err;
+                self.direct_work_failure.store(@intFromError(err), .release);
+                if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
+                return true;
+            };
+            self.direct_work_failure.store(0, .release);
+            self.managed_pending = self.managed_pending or pending;
+            return true;
+        }
         if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.declaration_format) return error.InvalidManagedTableRecord;
         const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
         defer declared.deinit();
@@ -304,21 +327,19 @@ fn managedStep(self: *Self) !bool {
         };
         return true;
     };
+    if (self.managed_work) {
+        self.managed_work = false;
+        self.managed_after = null;
+        return true;
+    }
     self.managed_route += 1;
     self.managed_after = null;
+    self.managed_work = true;
     return self.managed_route < bindings.len;
 }
 fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
     if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
-    if (try manager.start(declared)) |pending| {
-        const selected = self.claim(pending.token);
-        if (!selected.tryLock()) {
-            self.retry_pending = true;
-            return;
-        }
-        defer selected.unlock(self.io);
-        if (try manager.step(pending, self.io, self.managed_directory.?, null)) self.managed_pending = true;
-    }
+    if (try manager.start(declared) != null) self.managed_pending = true;
 }
 fn finishSweep(self: *Self, retry: bool) void {
     self.work.finish(self.io, self.sweep.?, retry);

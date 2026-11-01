@@ -19840,7 +19840,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"262f2133bf02cbb32c9ce739bf8745542079a2699fdf1ee00f1759582a48fe6a\""
+          "@\"082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1\""
         ],
         "Effect.phase": [
           "pending",
@@ -21264,7 +21264,7 @@
         "IncompatibleDefinition": 3,
         "IncompleteDataflowCoverage": 3,
         "InvalidManagedTableHead": 2,
-        "InvalidManagedTableRecord": 8,
+        "InvalidManagedTableRecord": 11,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
         "ManagedTableCleanupPending": 1,
@@ -21295,6 +21295,7 @@
           "staging",
           "checkpoint",
           "deciding",
+          "aborting",
           "complete"
         ]
       },
@@ -21326,7 +21327,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 151,
+        "try": 153,
         "catch": 5
       },
       "imports": [
@@ -28744,8 +28745,8 @@
     "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Canceled": 3,
-        "Cancelled": 3,
+        "Canceled": 4,
+        "Cancelled": 4,
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
         "GatewayCatalogDenied": 1,
@@ -28756,7 +28757,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayTerminal": 1,
-        "InvalidManagedTableRecord": 1,
+        "InvalidManagedTableRecord": 2,
         "InvalidSqlReadRecovery": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
@@ -28803,8 +28804,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 112,
-        "catch": 13
+        "try": 111,
+        "catch": 14
       },
       "imports": [
         "root.zig",

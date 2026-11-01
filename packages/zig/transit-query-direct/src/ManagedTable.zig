@@ -103,7 +103,8 @@ pub const Work = struct {
     lease: flow.Lease,
     previous: Head,
     transaction: c.DirectClientToken.Key,
-    phase: enum { acquiring, evaluating, staging, checkpoint, deciding, complete },
+    phase: enum { acquiring, evaluating, staging, checkpoint, deciding, aborting, complete },
+    failure: ?flow.Blocked,
     pages: ?c.DirectRecord.Reference,
     page_count: u64,
     rows: u64,
@@ -124,6 +125,12 @@ client: c.DirectTableClient,
 pub fn account() [32]u8 {
     var result: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash("transit.managed.table.declarations.v1", &result, .{});
+    return result;
+}
+/// Pending work remains discoverable while its transaction blocks head reads.
+pub fn workAccount() [32]u8 {
+    var result: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash("transit.managed.table.work.v1", &result, .{});
     return result;
 }
 pub fn nameKey(self: Self, namespace: u64, name: c.TableAuthority.Name) c.DirectClientToken.Key {
@@ -452,6 +459,7 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
         .previous = claimed,
         .transaction = self.workKey(value, claimed.attempt, "transit.managed.table.transaction.v1"),
         .phase = .acquiring,
+        .failure = null,
         .pages = null,
         .page_count = 0,
         .rows = 0,
@@ -498,6 +506,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     defer loaded.deinit();
     var work = loaded.value;
     if (work.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    if ((work.phase == .aborting and work.failure == null) or (work.phase != .aborting and work.phase != .complete and work.failure != null)) return error.InvalidManagedTableRecord;
     if (work.phase == .complete) return false;
     const declared = try self.load(Declaration, work.declaration, declaration_format);
     defer declared.deinit();
@@ -507,9 +516,20 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     try work.transaction.validate();
     if (!std.meta.eql(work.lease.target, try value.interpretation(self.client.allocator)) or !std.meta.eql(work.transaction.connection, self.client.connection) or work.page_count != work.rows or work.sequence > work.rows + 2) return error.InvalidManagedTableRecord;
     const tx: Tx = .{ .catalog = self.client };
+    // A prepared participant can refuse ordinary head reads. Its original
+    // decision must remain resumable without reading any participant first.
+    if (work.phase == .aborting) return self.abort(value, token, progress, work, work.failure orelse return error.InvalidManagedTableRecord);
+    if (work.phase == .deciding) {
+        const status = try tx.settle(work.transaction, self.operation(value, "commit", work.lease.epoch), .commit, 1);
+        if (status.observation != .decided or !status.cleanup_complete) return true;
+        if (status.observation.decided.outcome != .committed) return self.abort(value, token, progress, work, .none);
+        work.phase = .complete;
+        try self.progressWork(progress, work);
+        return false;
+    }
     const observed = try self.inspect(value);
     const current = std.meta.eql(observed.head.control, work.lease.control) and observed.head.pending != null and std.meta.eql(observed.head.pending.?, token) and observed.head.attempt == work.lease.epoch;
-    if (!current and work.phase != .deciding) return self.abort(value, token, progress, work, .lease_fenced);
+    if (!current) return self.abort(value, token, progress, work, .lease_fenced);
     switch (work.phase) {
         .acquiring => {
             var targets = [_]p.Transaction.Target{
@@ -623,13 +643,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                 work.statement = try tx.stageKV(work.transaction, client.transaction.?.revision, work.sequence + 1, mutation_);
             }
         },
-        .deciding => {
-            const status = try tx.settle(work.transaction, self.operation(value, "commit", work.lease.epoch), .commit, 8);
-            if (status.observation != .decided or !status.cleanup_complete) return true;
-            if (status.observation.decided.outcome != .committed) return self.abort(value, token, progress, work, .none);
-            work.phase = .complete;
-        },
-        .complete => unreachable,
+        .deciding, .aborting, .complete => unreachable,
     }
     try self.progressWork(progress, work);
     return work.phase != .complete;
@@ -696,11 +710,21 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
 }
 
 fn abort(self: Self, value: Declaration, token: c.DirectClientToken.Key, progress: c.DirectClientToken.Progress, original: Work, reason: flow.Blocked) !bool {
+    if (original.phase != .aborting) {
+        // Persist the original disposition before abort can prepare/barrier a
+        // participant. Recovery cannot depend on inspecting that participant.
+        var closing = original;
+        closing.phase = .aborting;
+        closing.failure = reason;
+        try self.progressWork(progress, closing);
+        return true;
+    }
+    const disposition = original.failure orelse return error.InvalidManagedTableRecord;
     const tx: Tx = .{ .catalog = self.client };
     if (try c.DirectClientToken.lookup(self.client, original.transaction)) |_| {
         const before = try tx.inspect(original.transaction);
         const identity = if (before.attempt) |attempt| attempt.operation else self.operation(value, "abort", original.lease.epoch);
-        const status = try tx.settle(original.transaction, identity, .abort, 8);
+        const status = try tx.settle(original.transaction, identity, .abort, 1);
         if (status.observation != .decided or !status.cleanup_complete) return true;
         // A decision already accepted as committed must remain authoritative.
         if (status.observation.decided.outcome == .committed) {
@@ -713,7 +737,7 @@ fn abort(self: Self, value: Declaration, token: c.DirectClientToken.Key, progres
     const observed = try self.inspect(value);
     if (observed.head.pending) |pending| if (std.meta.eql(pending, token)) {
         var next = observed.head;
-        next.blocked = reason;
+        next.blocked = disposition;
         try self.put(value, observed.storage, observed.position, next, self.operation(value, "abandoned", observed.position.next_lsn), .present);
     };
     var completed = original;

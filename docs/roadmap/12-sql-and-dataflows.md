@@ -263,7 +263,7 @@ Executable acceptance owners are
 [`managed_table.zig`](../../tests/catalog/tables/managed_table.zig) and
 [`server_managed_tables.py`](../../tests/interfaces/installation/server_managed_tables.py),
 registered as `just test::managed-tables`. Their assertions cover exact output
-rows, process replacement after private staging, original decisions, control
+rows, process replacement with a prepared head barrier, original decisions, control
 races, dependency-cycle and budget refusal, empty successors, restart while suspended and
 idle parking. Registration and this implementation record do not certify an
 execution; completed runner evidence and selected clean lanes are reported with
