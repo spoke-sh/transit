@@ -9,6 +9,92 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Frozen workload tokens and native terminal settlement — 2026-11-01
+
+Implementation `30643158f` adds complete Stream/Queue workload references to the
+existing Catalog client-token owner. Installed caller registration follows in
+`b54da41b036fccecf4a998c2878f389957f527fb`. The branch was rebased onto
+`f49a3da6502ac8d3e12347a3812d6d81404d8d47` before this batch; earlier records retain
+their original source attribution. The shared current-v1 definition is
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
+
+The [direct contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+and [Streams reference](../../handbook/reference/streams.md) describe the delivered
+semantics. Token acceptance verifies the entire immutable body, current rights,
+account scope and retained-byte reservation before reserving the original native
+identity. Settlement reads the existing bounded partition owner and requires a
+matching success or durable closure. Neither absence, incomplete recovery nor a
+sticky cancellation flag supplies completion. The host preserves verified replay
+progress across a pending terminal probe. SQL recovery excludes these typed
+workload tokens until its workload result consumer is implemented.
+
+Candidate component checks for this batch passed in the pinned shell:
+
+| Owner | Command/selection | Result |
+| --- | --- | --- |
+| `transit-catalog` | `zig build test -Dtest-filter=workload -Dtest-filter='direct client log token' -Doptimize=ReleaseSafe --summary all` | **7/7** |
+| `transit-sql` | `zig build test -Doptimize=ReleaseSafe --summary all` | **11/11** |
+| Root | `just check contracts` | **19/19** |
+| Root | `just check fast` | **60/60**, including 10,059 local documentation links |
+
+The catalog disk schedule covers Stream and Queue success/cancellation over four
+openings. It loses token acceptance, native data/control append and final
+bookkeeping replies independently. It checks unchanged bindings, conflicting
+native reuse, insufficient reservation, unavailable readers, absent receipts,
+incomplete replay, revocation after buffering, sticky cancellation, exact settled
+retries and accepted body/source reachability. Independent Python vectors verify
+signed references and their commitments; those envelope fixtures do not claim
+that their synthetic content descriptors exist in storage.
+
+Earlier local runs exposed two fixture mistakes. The one-frame recovery control
+initially completed because open had already read initialization; adding another
+independent accepted frame makes that control genuinely incomplete. The lost-reply
+injector initially covered data I/O only; cancellation uses reserved control I/O,
+so the corrected fixture intercepts both capabilities. Production recovery steps,
+deadlines and durability remain unchanged. An initial compile rejected two
+shadowed identifiers, and the first fast run rejected formatting of the new
+hexadecimal enum tag. All these runs are retained; none is counted as passed.
+
+Raw local component logs and SHA-256:
+
+- `/var/tmp/transit-m6-workload-token5.log`:
+  `da82464f2a0ff66a701f6084e5d2d777bf5960ceaa202c8c336441d2e43f13a7`
+- `/var/tmp/transit-m6-workload-token-sql1.log`:
+  `746cf669ebbfeef20cd1fd97ab3277c62ef207a36958ff4e9212fc61142428f5`
+- `/var/tmp/transit-m6-workload-token-contracts1.log`:
+  `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf`
+- `/var/tmp/transit-m6-workload-token-fast2.log`:
+  `d2526d2e49dd3c28413767133502a7531bda7e74385d3f08828ba47cc46a8621`
+
+On clean `b54da41b0`, the installed `test::direct-workload-token` scenario
+**passed** with 559 signed requests. It retains exact saved bindings, injects
+lost token-binding, native-execution and terminal-bookkeeping replies, and
+performs three SIGKILL/restarts over a 257-frame prefix per partition. The cold
+terminal probe advances bounded recovery through a conflict response before
+settlement; neither an absent receipt nor that response settles the token.
+Late cancellation returns the original successful empty consume/claim. This is
+process-replacement evidence, not a power-loss or performance qualification.
+
+The clean build command was `zig build transit-node direct-table-proof
+test-local-catalog -Dlocal-catalog-filter='shared refusals'
+-Doptimize=ReleaseSafe --summary all`: **13/13 build steps and 2/2 tests** passed.
+The installed command was `python3 -B tests/runner/launch.py
+tests/storage/tables/direct_table_service.py zig-out/bin/transit-node
+zig-out/bin/transit-direct-table-proof workload-token`, in the pinned shell.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Node | `5bbd2f51bb7502eeab7151b08ed0f3e160c03698f7966adb26ff0a7b77e5f38e` |
+| Proof caller | `31acee2b3ebe4c77a0a9ffc3c783a4f312f6512e8eff9ad66711a8d8a26c05cd` |
+| Original saved bindings | `fc1a1fabf55cb54b6059f66a637240ba25d406eaf95b14057c86550429f9b72e` |
+| `/var/tmp/transit-m6-workload-token-runtime1.log` | `ce2508ca1fa1dea6ede78a532dd5656fb353ab9b2ad732f0c5d7434236a6811e` |
+| `/var/tmp/transit-m6-workload-token-installed1.log` | `5d4248c7119839f775cde3439dd6eb282bce1c3e42ccae78b7a04d38bc5bcd79` |
+
+The private installation `/var/tmp/transit-table-workload-token-exeh4026`
+retains the signed attempts and original binding file. SQL result reopening,
+workload grammar, replacement Station services, performance and common milestone
+qualification remain separate open gates.
+
 ## Workload terminal closures and installed Queue regression — 2026-11-01
 
 Implementation `3549e606e` (identical change committed as
