@@ -125,6 +125,53 @@ fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentSt
 }
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 
+test "browser record storage remains distinct from protected branch records across recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var access: Access = .{};
+    const record_scope: c.DirectRecord.Scope = .{
+        .definition = p.Growth.current_definition,
+        .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null },
+        .account = @splat(9),
+    };
+    const value: c.BrowserRecordStore.Record = .{
+        .definition = p.Growth.current_definition,
+        .namespace = 1,
+        .kind = .secret,
+        .key = c.BrowserRecordStore.digest("oauth"),
+        .mutation = @splat(7),
+        .previous = null,
+        .payload = "{\"name\":\"oauth\",\"enabled\":true,\"file\":\"oauth\"}",
+    };
+    try value.validate();
+    const bytes = try p.Json.valueAlloc(arena.allocator(), value);
+    const encoded = try c.DirectTableProtocol.Binary.encode(arena.allocator(), bytes);
+    var reference: c.DirectRecord.Reference = undefined;
+    {
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        reference = (try catalog.directRecord(arena.allocator(), .{ .stage = .{ .scope = record_scope, .format = c.BrowserRecordStore.format, .bytes = encoded } }, access.policy())).reference;
+        // Changing a caller's format cannot stage or disclose server-owned
+        // branch state, even with current database CONNECT rights.
+        try t.expectError(error.BranchOperationRequired, catalog.directRecord(arena.allocator(), .{ .stage = .{ .scope = record_scope, .format = c.DirectBranch.format, .bytes = encoded } }, access.policy()));
+        var branch = reference;
+        branch.format = c.DirectBranch.format;
+        try t.expectError(error.BranchOperationRequired, catalog.directRecord(arena.allocator(), .{ .read = branch }, access.policy()));
+    }
+    var reopened = try owner(&wal, &objects);
+    defer reopened.deinit();
+    try reopened.recover();
+    const readback = try reopened.directRecord(arena.allocator(), .{ .read = reference }, access.policy());
+    try t.expectEqualStrings(bytes, try readback.bytes.?.decode(arena.allocator(), c.DirectRecord.max_bytes));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, reopened.directRecord(arena.allocator(), .{ .read = reference }, access.policy()));
+}
+
 test "direct Table recovery hints evict safely and cannot replace current metadata or authority" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
