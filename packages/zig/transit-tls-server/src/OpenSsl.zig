@@ -59,6 +59,16 @@ pub const ASN1_INTEGER = opaque {};
 pub const ASN1_TIME = opaque {};
 pub const X509_STORE = opaque {};
 pub const X509_STORE_CTX = opaque {};
+pub const X509V3_CTX = extern struct {
+    flags: c_int,
+    issuer_cert: ?*X509,
+    subject_cert: ?*X509,
+    subject_req: ?*anyopaque,
+    crl: ?*anyopaque,
+    db_meth: ?*anyopaque,
+    db: ?*anyopaque,
+    issuer_pkey: ?*EVP_PKEY,
+};
 pub const STACK_X509 = opaque {};
 pub const SSL_CTRL_GET_CHAIN_CERTS = 115;
 pub const X509_PURPOSE_SSL_SERVER = 2;
@@ -66,6 +76,8 @@ pub const X509_CHECK_FLAG_NEVER_CHECK_SUBJECT = 0x20;
 pub extern "c" fn X509_STORE_new() ?*X509_STORE;
 pub extern "c" fn X509_STORE_free(*X509_STORE) void;
 pub extern "c" fn X509_STORE_load_file(*X509_STORE, [*:0]const u8) c_int;
+pub extern "c" fn X509_STORE_set_flags(*X509_STORE, c_ulong) c_int;
+pub const X509_V_FLAG_X509_STRICT = 0x20;
 pub extern "c" fn X509_STORE_CTX_new() ?*X509_STORE_CTX;
 pub extern "c" fn X509_STORE_CTX_free(*X509_STORE_CTX) void;
 pub extern "c" fn X509_STORE_CTX_init(*X509_STORE_CTX, *X509_STORE, *X509, ?*STACK_X509) c_int;
@@ -90,7 +102,8 @@ pub extern "c" fn X509_get_subject_name(*const X509) *X509_NAME;
 pub extern "c" fn X509_NAME_add_entry_by_txt(*X509_NAME, [*:0]const u8, c_int, [*]const u8, c_int, c_int, c_int) c_int;
 pub extern "c" fn X509_set_issuer_name(*X509, *const X509_NAME) c_int;
 pub extern "c" fn OBJ_txt2nid([*:0]const u8) c_int;
-pub extern "c" fn X509V3_EXT_nconf_nid(?*anyopaque, ?*anyopaque, c_int, [*:0]const u8) ?*X509_EXTENSION;
+pub extern "c" fn X509V3_set_ctx(*X509V3_CTX, ?*X509, ?*X509, ?*anyopaque, ?*anyopaque, c_int) void;
+pub extern "c" fn X509V3_EXT_nconf_nid(?*anyopaque, ?*X509V3_CTX, c_int, [*:0]const u8) ?*X509_EXTENSION;
 pub extern "c" fn X509_EXTENSION_free(*X509_EXTENSION) void;
 pub extern "c" fn X509_add_ext(*X509, *X509_EXTENSION, c_int) c_int;
 pub extern "c" fn X509_sign(*X509, *EVP_PKEY, *const EVP_MD) c_int;

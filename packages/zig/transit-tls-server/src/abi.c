@@ -2,6 +2,9 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
+#include <stddef.h>
+_Static_assert(sizeof(X509V3_CTX) == 64 && offsetof(X509V3_CTX, issuer_cert) == 8 && offsetof(X509V3_CTX, issuer_pkey) == 56, "extension context layout");
+_Static_assert(X509_V_FLAG_X509_STRICT == 0x20, "strict certificate verification");
 _Static_assert(MBSTRING_UTF8 == 0x1000, "certificate text encoding");
 _Static_assert(SSL_CTRL_GET_CHAIN_CERTS == 115 && X509_PURPOSE_SSL_SERVER == 2 && X509_CHECK_FLAG_NEVER_CHECK_SUBJECT == 0x20, "local certificate verification");
 _Static_assert(OPENSSL_VERSION_NUMBER == 0x30600040L, "review OpenSSL upgrade");
