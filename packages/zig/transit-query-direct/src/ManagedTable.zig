@@ -230,8 +230,17 @@ pub fn publish(self: Self, value: Declaration) !Observation {
     try value.validate();
     if (!std.meta.eql(value.connection, self.client.connection)) return error.DataflowIdentityConflict;
     const token = self.nameKey(value.namespace, value.name);
+    const digest = try value.digest(self.client.allocator);
+    if (try c.DirectClientToken.lookup(self.client, token)) |known| {
+        if (!std.mem.eql(u8, &known.binding.fingerprint, &digest)) return error.ManagedTableNameConflict;
+    } else {
+        // Preparation is a convenience, not an admission authority. Revalidate
+        // the full public declaration before binding its first durable token.
+        const prepared = try self.prepare(value.namespace, value.name.slice(), value.object.object, value.operation.operation, value.output.name.slice(), value.sql, value.options);
+        if (!std.mem.eql(u8, &digest, &try prepared.digest(self.client.allocator))) return error.DataflowSourceChanged;
+    }
     const reference = try self.store(token.account, declaration_format, value);
-    const receipt = try c.DirectClientToken.bind(self.client, .{ .key = token, .fingerprint = try value.digest(self.client.allocator), .intent = .{ .external = .{ .connection = value.connection, .namespace = value.namespace, .operation = value.operation.operation, .record = reference } } });
+    const receipt = try c.DirectClientToken.bind(self.client, .{ .key = token, .fingerprint = digest, .intent = .{ .external = .{ .connection = value.connection, .namespace = value.namespace, .operation = value.operation.operation, .record = reference } } });
     try receipt.binding.intent.external.record.requireSame(reference);
     if ((try c.DirectClientToken.inspect(self.client, token)).?.cancel) return error.DataflowSourceChanged;
     return self.initialize(value, token);

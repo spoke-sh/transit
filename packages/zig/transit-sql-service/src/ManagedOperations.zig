@@ -105,7 +105,7 @@ pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
     defer saved.deinit();
     const m = manager(host);
     apply(m, saved.value) catch |err| switch (err) {
-        error.DataflowSourceChanged, error.ManagedTableConflict => {
+        error.DataflowSourceChanged, error.ManagedTableNameConflict, error.ManagedTableConflict => {
             try ops.complete(&reader, id, .rejected);
             return status(host, id);
         },

@@ -1009,3 +1009,19 @@ test "direct KV consumes independently signed declaration and mutation commitmen
     defer restored.deinit();
     try t.expectEqualDeep(value.mutation.action.kv.mutate, restored.value.mutation);
 }
+
+test "direct record staging round trips its signed application context" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .record = .{ .stage = .{ .scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9) }, .format = c.BrowserRecordStore.format, .bytes = try w.Binary.encode(alloc, "application record") } } } };
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, alloc) }, key);
+    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    try request.validate(alloc);
+    const bytes = try p.Json.valueAlloc(alloc, request);
+    const parsed = try w.Request.parse(alloc, bytes);
+    defer parsed.deinit();
+    try t.expectEqualDeep(request.proof, parsed.value.proof);
+}

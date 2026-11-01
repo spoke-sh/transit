@@ -7,8 +7,11 @@ establishes acceptance of an input, independently of its processing or result.
 The shared Zig implementation owns canonical encoding, signatures, response
 validation and recovery. Go owns typed values, cancellation and native lifetime.
 
-The module is `github.com/spoke-sh/transit/sdks/go`. Its public entry point is
-`github.com/spoke-sh/transit/sdks/go/client`. Catalog, query and Station handler
+The module is `github.com/spoke-sh/transit/sdks/go`. Its raw entry point is
+`github.com/spoke-sh/transit/sdks/go/client`. The additive
+[`serving` package](serving/README.md) uses a bounded installed native process for
+Serving recovery and subject proofs. The C ABI instructions below apply to `client`.
+Catalog, query and Station handler
 packages are not exposed. The raw client has no Station library dependency.
 
 ## Installation

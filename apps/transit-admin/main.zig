@@ -37,6 +37,7 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const request = try std.json.parseFromSlice(catalog.BrowserAdministration.Request, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
         var client = wire.Client.init(allocator, init.io, args[4]);
         defer client.deinit();
+        client.observer = diagnostics;
         const store: catalog.BrowserRecordStore = .{ .client = .{ .allocator = allocator, .authority = &client, .service = &client, .connection = request.value.connection, .key = key }, .namespace = request.value.namespace };
         return print(init.io, try catalog.BrowserAdministration.execute(store, request.value));
     }

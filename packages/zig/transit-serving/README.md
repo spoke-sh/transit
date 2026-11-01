@@ -5,9 +5,14 @@ with the neutral listener. Socket/challenge ownership stays outside these durabl
 service and reactive semantics.
 
 Qualified M19 implementation of the [serving profile](../../../contracts/SERVING_V1.md).
-This library composes public growing Station turns. It has no HTTP, raw storage,
+The service core composes public growing Station turns. It has no HTTP, raw storage,
 private key storage, clock or gateway retry database. Admission and disposition
 records live in the service's private resource; reads use current public clients.
+
+`Caller` is the client composition: exact command preparation/recovery, shared
+subject proofs and bounded verified HTTP through the public native client. Its
+[one-request host](../../../apps/transit-serving-client/README.md) reads an external
+credential only for preparation or observation and owns no durable journal.
 
 `Service` binds one ingress to a service, administrator and timer observer. Install
 both `interface()` and `guard()` on the host, initialize it privately, then publish

@@ -31,7 +31,18 @@ def await_head(fixture, name, ready):
     deadline = time.monotonic() + 180
     try:
         while True:
-            batch = client.concurrent_read(f'SHOW DATAFLOW {name}')['batch']
+            try:
+                batch = client.concurrent_read(f'SHOW DATAFLOW {name}')['batch']
+            except AssertionError as failure:
+                detail = failure.args[0] if failure.args else None
+                error = detail.get('err', {}) if isinstance(detail, dict) else {}
+                # This SHOW is a pure metadata observation and returned no
+                # batch. A new observation cannot splice a result or replay work.
+                if error.get('code') not in ('AuthorityTimeout', 'AuthorityUnavailable', 'Conflict') or error.get('operation') is not None:
+                    raise
+                assert time.monotonic() < deadline, detail
+                time.sleep(.1)
+                continue
             assert batch['complete'] and batch['completion']['rows'] == 1
             current = json.loads(text(batch['rows'][0][0]))
             client.call(dict(close_result=batch['cursor']))

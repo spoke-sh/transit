@@ -84,7 +84,7 @@ half-committed transaction as a completed result.
      result while any successor is incomplete, and define dependency/schema
      changes, revocation, unavailable history and policy expiry without inventing
      cross-owner atomicity. When a computation or connector sink depends on a
-     catalog `SECRET` ([Milestone 26](26-control-and-policy-plane.md)) whose
+     catalog `SECRET` ([Milestone 27](27-control-and-policy-plane.md)) whose
      OAuth 2.1 / PKCE challenge-response flow or lease refresh is pending, the
      computation records `BlockedReason.credential_pending` in `Suspended` and
      resumes from its checkpointed source watermark when the secret's
@@ -97,7 +97,7 @@ half-committed transaction as a completed result.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    expose the same typed lifecycle state machine and DDL verbs across SQL
    (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and
-   Board; [SQL grammar and dialect ergonomics](34-sql-grammar-and-dialect-ergonomics.md)
+   Board; [SQL grammar and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md)
    audits these forms against PostgreSQL (`ENABLE`/`DISABLE`) and Snowflake
    (`SUSPEND`/`RESUME`/`REFRESH`) dialects. Inspection and `EXPLAIN` do no work.
    Board consumes the same definitions and evidence through its explicit
@@ -182,7 +182,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Formal model follow-through
 
-Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](21-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
+Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](22-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
 as the computation and phased-DDL contracts settle. Verify that `ACTIVATE`,
 `SUSPEND`, `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
 `REFRESH` and `RETIRE` preserve last-completed-revision invariants when racing
@@ -193,7 +193,7 @@ production Zig catalog and dataflow state reducers.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](31-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](32-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot
@@ -874,8 +874,8 @@ coordinates with the active in-progress and recently completed milestones:
 | [M11: Indexing & access paths](11-indexing-and-access-paths.md) | `IndexLifecycle.zig`, `OrderedKeyIndex.zig` and `TableKeyRange.zig` (with full secondary index access paths and online phased Class B rewrites in M11) | Indexed Z-set arrangement lookup interfaces and deterministic handling of Class A lazy projection vs. Class B phased rewrites on upstream dataflow sources |
 | [M13: Data structures & performance](13-data-structures-and-performance.md), [M14: Strings & search](14-vectorized-strings-and-search.md) & [M15: Compilation](15-data-centric-compilation-and-specialization.md) | `transit-memory` bounded arenas/slabs (`#194`) and `transit-io` | Correctness, bounded Tier 2 NVMe spill, morsel-budgeted execution and `comptime`/plan-bound perfect-hash `IN (...)` lookup baselines that M13/M14/M15 accelerate via CedarDB hash tables, Umbra strings and data-centric push fusion |
 | [M17: Geospatial & 3D computing](17-geospatial-and-spatio-temporal-computing.md) & [M18: Multi-model & foreign relations](18-multi-model-and-foreign-relations.md) | Reserved $\kappa_{\text{spatial}}$ descriptors in `DecimalArithmetic.zig` and `ForeignTableDescriptor`/`PropertyGraphDescriptor` in `HistoricalCatalog.zig` | DBSP Z-set arrangement and bilinear join hooks extended by M17 for incremental `ST_Union` ($\partial_2$), `ST_3DUnion` ($\partial_3$), Discrete Divergence Theorem volume aggregates and `INTERIOR`/`BOUNDARY` cell-covering spatial joins; streaming `AS OF JOIN` interpolation hook for 4D `TRAJECTORY`; `SOURCE`/`SINK` catalog foundation extended by M18 for foreign formats and streaming CDC ingress |
-| [M19: Branches, merges & restore](19-branches-merges-and-restore.md) | Single-branch (`main`) `ManifestCut` timeline in `HistoricalCatalog.zig` | Strict separation between relational SQL `MERGE INTO` (DML) and catalog branch `MERGE` (M19), plus branch-scoped computation watermark bindings |
-| [M21: Formal semantics](21-formal-semantics-and-correspondence.md), [M29: Board](29-board-reimplementation.md), [M31: Reactive context](31-reactive-context-and-agent-activation.md) & [M34: SQL ergonomics](34-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M31 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
+| [M20: Branches, merges & restore](20-branches-merges-and-restore.md) | Single-branch (`main`) `ManifestCut` timeline in `HistoricalCatalog.zig` | Strict separation between relational SQL `MERGE INTO` (DML) and catalog branch `MERGE` (M20), plus branch-scoped computation watermark bindings |
+| [M22: Formal semantics](22-formal-semantics-and-correspondence.md), [M30: Board](30-board-reimplementation.md), [M32: Reactive context](32-reactive-context-and-agent-activation.md) & [M35: SQL ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M32 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
 
 ### Accepted architectural decisions
 
@@ -926,7 +926,7 @@ coordinates with the active in-progress and recently completed milestones:
    - `REFRESH` triggers a bounded one-shot catch-up or snapshot recomputation to
      a target or current `ManifestCut` while preserving the last completed
      revision until the successor commits. Dialect aliases such as PostgreSQL
-     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M34`)
+     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M35`)
      without collapsing the underlying 5-state machine.
 3. **D3 — Transaction-consistent multi-source `TransitLog` consumption, explicit consumer contracts and atomic snapshot-to-live handoff (`T5`):**
    Each managed computation declares one of three consumer contracts:

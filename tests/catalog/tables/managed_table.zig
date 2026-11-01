@@ -87,6 +87,16 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectEqual(.published, published.head.control.state);
     try t.expectEqual(@as(u64, 0), published.head.revision);
     _ = try manager.publish(declaration);
+    var conflict = declaration;
+    conflict.operation.operation = 652020;
+    try t.expectError(error.ManagedTableNameConflict, manager.publish(conflict));
+    var invalid = declaration;
+    invalid.name = try .init("invalid_budget");
+    invalid.object.object = 650002;
+    invalid.operation.operation = 652021;
+    invalid.options.requests = 0;
+    try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
+    try t.expect(try c.DirectClientToken.lookup(client, manager.nameKey(invalid.namespace, invalid.name)) == null);
     try control(manager, declaration, .authorize, 652005);
     try control(manager, declaration, .activate, 652006);
     try count(client, 0);
