@@ -611,7 +611,10 @@ test "retained reader binds pages, complete consumption and original schema with
     var found = (try reader.decodePoint(point, &identity)).?;
     defer found.deinit();
     try t.expectEqualStrings("\x00\xff\x80", found.row().cells[0].value.atom.bytes);
-    try t.checkAllAllocationFailures(t.allocator, pointAllocationFailures, .{ connection, source, point, &identity });
+    // Arena growth can resize in place depending on the backing address.
+    // Force allocation fallback so every failure index is exercised reliably.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), pointAllocationFailures, .{ connection, source, point, &identity });
     try t.expectError(error.InvalidTableResponse, reader.decodePoint(point, &try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 1 }).encode()));
     point.row = null;
     try t.expect(try reader.decodePoint(point, &identity) == null);
@@ -635,7 +638,7 @@ test "retained reader binds pages, complete consumption and original schema with
     var range_first = try reader.decodeRange(range_page, interval, null, .{});
     defer range_first.deinit();
     try t.expect(!range_first.batch.complete and range_first.next != null);
-    try t.checkAllAllocationFailures(t.allocator, rangeAllocationFailures, .{ connection, source, range_page, interval });
+    try t.checkAllAllocationFailures(no_resize.allocator(), rangeAllocationFailures, .{ connection, source, range_page, interval });
     var invalid_range = range_page;
     invalid_range.next.?.interval[0] ^= 1;
     try t.expectError(error.InvalidTableResponse, reader.decodeRange(invalid_range, interval, null, .{}));
@@ -705,7 +708,7 @@ test "retained reader binds pages, complete consumption and original schema with
     try t.expectEqual(@as(u64, 1), projected.consumed);
     projected_final.rows = projected_binary[1..];
     projected_final.encoded_bytes = projected_lengths[1] + projected_lengths[2];
-    try t.checkAllAllocationFailures(t.allocator, projectionAllocationFailures, .{ connection, source, projected_first, projected_final });
+    try t.checkAllAllocationFailures(no_resize.allocator(), projectionAllocationFailures, .{ connection, source, projected_first, projected_final });
     var projected_end = try projected.consume(projected_final, .{});
     defer projected_end.deinit();
     try t.expect(projected.complete and projected.consumed == 3);
