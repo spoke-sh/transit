@@ -59,14 +59,16 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
         diagnostic = result.stderr
         if startup:
             # Runtime startup emits bounded telemetry before its human error.
-            # Only these server events may precede it; argument/configuration
-            # failures and console diagnostics still start with the error.
+            # Server events and the sink's explicit loss counter may precede
+            # it; argument/configuration failures and console diagnostics still
+            # start with the error. Loss never removes the required diagnostic.
             lines = diagnostic.splitlines(keepends=True)
             while lines and not lines[0].startswith(prefix):
                 assert re.fullmatch(
                     rb'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z '
-                    rb'(?:INFO|ERROR) \[transit\] server\.startup\.'
-                    rb'(?:phase\.begin|phase|complete) [^\r\n]+\n', lines[0]), (args, lines[0])
+                    rb'(?:(?:INFO|ERROR) \[transit\] server\.startup\.'
+                    rb'(?:phase\.begin|phase|complete) [^\r\n]+'
+                    rb'|WARN \[transit\] telemetry\.loss dropped=\d+ suppressed=\d+)\n', lines[0]), (args, lines[0])
                 lines.pop(0)
             diagnostic = b''.join(lines)
         assert diagnostic.startswith(prefix), (args, result.stderr)
