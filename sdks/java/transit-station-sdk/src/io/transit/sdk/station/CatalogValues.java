@@ -38,7 +38,12 @@ final class CatalogValues {
             number(v.get("credential_epoch"), 1), number(v.get("audience"), 1), NativeValues.digest(v.get("context")));
     }
     static Schema schema(JsonElement value) {
-        JsonObject v = fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
+        JsonObject source = object(value).deepCopy();
+        if (source.has("integrity")) {
+            JsonObject integrity = fields(source.remove("integrity"), "next_id", "checks", "foreign_keys");
+            if (number(integrity.get("next_id"), 1) != 1 || !integrity.getAsJsonArray("checks").isEmpty() || !integrity.getAsJsonArray("foreign_keys").isEmpty()) throw incompatible("catalog-constraint-schema-unsupported");
+        }
+        JsonObject v = fields(source, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
         JsonArray cols = v.getAsJsonArray("columns"), keys = v.getAsJsonArray("primary_key");
         if (cols.isEmpty() || cols.size() > 128 || keys.size() > cols.size()) throw incompatible("catalog-schema-bound");
         List<Column> columns = new ArrayList<>();
@@ -206,6 +211,13 @@ final class CatalogValues {
         ObservationKind observedKind = variant(ObservationKind.class, new JsonPrimitive(kind));
         if (observedKind != expectedKind(original.kind(), original.binding())) throw incompatible("catalog-observation-kind");
         if (tag.equals("not_observed")) return new Observation(observedKind, OperationState.NOT_OBSERVED, original, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        if (tag.equals("finalizing")) {
+            JsonObject progress = object(raw.get("operation"));
+            if (!bool(progress.get("requires_settlement")) || !List.of("admitted", "ready").contains(string(progress.get("phase")))) throw incompatible("catalog-finalizing-phase");
+            if (observedKind != ObservationKind.DDL || !raw.getAsJsonObject("operation").get("binding").equals(original.binding())) throw incompatible("catalog-finalizing-binding");
+            Observation accepted = observation(obj("ddl", obj("committed", raw.get("evidence").deepCopy())), original);
+            return new Observation(observedKind, OperationState.FINALIZING, original, accepted.commit(), Optional.empty(), Optional.empty(), Optional.empty());
+        }
         if (!raw.get("binding").equals(original.binding())) throw incompatible("catalog-original-binding");
         if (observedKind == ObservationKind.NAME_ASSERTION) return new Observation(observedKind, variant(OperationState.class, raw.get("state")), original, Optional.empty(), Optional.empty(), Optional.of(variant(Reason.class, raw.get("reason"))), Optional.of(position(raw.get("position"))));
         if (tag.equals("committed")) {

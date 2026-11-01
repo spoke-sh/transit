@@ -93,7 +93,12 @@ parse_authority(V) ->
 parse_subject(V) ->
     fields(V,[<<"principal">>,<<"login_role">>,<<"role">>,<<"credential_epoch">>,<<"audience">>,<<"context">>]),
     #transit_catalog_subject{principal=zero(maps:get(<<"principal">>,V)),login_role=zero(maps:get(<<"login_role">>,V)),role=zero(maps:get(<<"role">>,V)),credential_epoch=counter(maps:get(<<"credential_epoch">>,V)),audience=counter(maps:get(<<"audience">>,V)),context=transit_station_value:digest(maps:get(<<"context">>,V))}.
-parse_schema(V) ->
+parse_schema(Input) ->
+    V=case maps:take(<<"integrity">>,Input) of
+        error -> Input;
+        {#{<<"next_id">>:=1,<<"checks">>:=[],<<"foreign_keys">>:=[]}=Integrity,Rest} when map_size(Integrity)=:=3 -> Rest;
+        _ -> erlang:error({incompatible_native,constraint_schema_unsupported})
+    end,
     fields(V,[<<"definition">>,<<"object">>,<<"revision">>,<<"next_column">>,<<"columns">>,<<"primary_key">>]),current(maps:get(<<"definition">>,V)),
     Columns=[parse_column(C)||C<-list(maps:get(<<"columns">>,V),128)],Keys=[wide(K)||K<-list(maps:get(<<"primary_key">>,V),length(Columns))],
     Out=#transit_catalog_schema{object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),next_column=wide(maps:get(<<"next_column">>,V)),columns=Columns,primary_key=Keys},schema(Out),Out.
@@ -251,7 +256,7 @@ check_request({observation,R},C,P) -> {_,RC,RP,_,_}=reference_info(R),check(RC=:
 check_request({retention,_,V},C,P) -> O=case V of #transit_catalog_snapshot_owner{}->V;#transit_catalog_snapshot_acquisition{owner=A}->A;#transit_catalog_snapshot{owner=A}->A end,
     check(O#transit_catalog_snapshot_owner.connection=:=C andalso O#transit_catalog_snapshot_owner.principal=:=P);
 check_request(_,_,_) -> ok.
-reasons() -> [none,name_conflict,object_conflict,stale_definition,stale_data,dependency,constraint,definition_changed,data_changed,duplicate_key,missing_row,invalid_rows,work_limit,condition_changed].
+reasons() -> [none,name_conflict,object_conflict,stale_definition,stale_data,dependency,constraint,definition_changed,data_changed,duplicate_key,missing_row,invalid_rows,work_limit,condition_changed,rewrite_required,check_violation].
 capabilities(V) ->
     current(get(definition,V)),#transit_catalog_capabilities{version=small(get(version,V)),definition=definition(),max_columns=small(get(max_columns,V)),max_rows=small(get(max_rows,V)),max_sql_bytes=small(get(max_sql_bytes,V)),max_intent_bytes=small(get(max_intent_bytes,V)),max_action_bytes=small(get(max_action_bytes,V)),metadata_page_entries=small(get(metadata_page_entries,V)),resident_intents=small(get(resident_intents,V))}.
 supported(#transit_catalog_capabilities{version=1,max_columns=128,max_rows=1024,max_sql_bytes=4096,max_intent_bytes=I,max_action_bytes=A,metadata_page_entries=8,resident_intents=1}) -> I=:=limit(<<"catalog_intent_bytes">>) andalso A=:=limit(<<"catalog_action_bytes">>);
@@ -269,6 +274,9 @@ observation(V,R) ->
     {Work,_,_,_,Binding}=reference_info(R),[{Tag,State}]=maps:to_list(V),Kind=known(Tag,[ddl,rows,name_assertion]),check(Kind=:=expected_kind(Work,Binding)),[{StateTag,Raw}]=maps:to_list(State),
     Out=#transit_catalog_observation{kind=Kind,reference=R},case StateTag of
         <<"not_observed">>->fields(Raw,[]),Out#transit_catalog_observation{state=not_observed};
+        <<"finalizing">>->check(Kind=:=ddl),check(get(binding,get(operation,Raw))=:=Binding),
+            check(get(requires_settlement,get(operation,Raw))=:=true),known(get(phase,get(operation,Raw)),[admitted,ready]),
+            Accepted=observation(#{<<"ddl">>=>#{<<"committed">>=>get(evidence,Raw)}},R),Accepted#transit_catalog_observation{state=finalizing};
         _->check(get(binding,Raw)=:=Binding),case Kind of
             name_assertion->check(StateTag=:= <<"outcome">>),Out#transit_catalog_observation{state=known(get(state,Raw),[unchanged,rejected]),reason=known(get(reason,Raw),reasons()),position=position(get(position,Raw))};
             _->case StateTag of

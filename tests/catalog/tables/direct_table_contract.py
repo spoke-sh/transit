@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+definition = "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -157,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
 
     dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
     source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
-    edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
+    edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1, "foreign_key": None}
     dependency_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1, "edge": edge, "action": "register", "authority": "dependent"}
     dependency_input = {**request_input, "action": {"dependency_operation": {"binding": dependency_binding, "command": "accept"}}}
     dependency_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(dependency_input)).digest()
@@ -632,7 +632,7 @@ def host_interpretation(value):
 
 
 host_edge = {"source": host_interpretation(source_definition),
-             "dependent": {"kind": "captured", "interpretation": host_interpretation(dependent_definition)}, "privileges": 1}
+             "dependent": {"kind": "captured", "interpretation": host_interpretation(dependent_definition)}, "privileges": 1, "foreign_key": None}
 host_dependency = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
                    "edge": host_edge, "action": "register", "authority": "dependent"}
 host_dependency_action = {"dependencies": {"operation": {"binding": host_dependency, "command": "accept"}}}
@@ -646,7 +646,7 @@ numeric_dependency_operation["dependencies"]["operation"]["binding"]["operation"
 assert not host_action_validator.is_valid(numeric_dependency_operation)
 dependency_cursor = {"definition": definition, "connection": host_reference["connection"],
                      "selection": {"dependents": host_edge["source"]["object"]}, "authority": "dependent",
-                     "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": edge_digest.hex()}
+                     "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": (struct.pack(">Q", 2**64 - 2) + b"\0" + edge_digest).hex()}
 host_action_validator.validate({"dependencies": {"page": {"selection": dependency_cursor["selection"],
                                                          "authority": "dependent", "cursor": dependency_cursor}}})
 host_resource = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),

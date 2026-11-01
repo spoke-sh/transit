@@ -925,6 +925,7 @@ fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Reques
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
             error.TableRowIdentityChanged, error.DuplicateTableRowIdentity => .invalid_rows,
+            error.CheckConstraintViolation => .check_violation,
             error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge, error.TableBuildBudget => .work_limit,
             else => return err,
         };
@@ -1057,6 +1058,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     var largest_row: usize = 0;
     for (changes) |change| switch (change) {
         inline .put, .replace => |value| {
+            try schema.validateWrite(value.row.cells);
             const length = try value.row.encodedSize(schema);
             if (length > max_row_bytes - row_bytes) return error.WriteFailed;
             row_bytes += length;
@@ -1426,6 +1428,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
     }
     var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
     var transition: ?f.TableEvolution.Transition = if (edit == .alter) try f.TableEvolution.apply(self.declaration.schema.schema, edit.alter.change, &columns) else null;
+    if (transition) |value| _ = try f.TableConstraints.checkSynchronousEvolutionAdmission(value, self.root.live_rows != 0);
     var replacement = try Declaration.prepare(self.allocator, .{
         .kind = self.root.kind,
         .object = self.root.interpretation.object,
@@ -1464,7 +1467,20 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
                     continue;
                 };
             }
-        } else try self.rewrite(allocator, &next, value.*);
+        } else if (value.work == .validate_rows) {
+            try self.validateTransition(allocator, value.*);
+        } else {
+            // Physical rewrites of populated Tables belong to the phased
+            // lifecycle. An empty current root can adopt the new layout while
+            // every historical root retains its own interpretation and data.
+            if (self.root.live_rows != 0) return error.OnlinePhasedRewriteRequired;
+            next.rows = null;
+            next.scan_rows = null;
+            next.identities = null;
+            next.ordered_rows = null;
+            next.physical_schemas = null;
+            next.column_origins = null;
+        }
     }
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = 0, .affected = 0, .live_rows = next.live_rows };
     var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .declaration = .{ .binding = binding, .changes = digest, .outcome = outcome } } };
@@ -1554,58 +1570,28 @@ fn orderedKeys(self: *Self) OrderedKeys {
     return .{ .store = &self.index };
 }
 
-fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f.TableEvolution.Transition) !void {
-    next.rows = null;
-    next.scan_rows = null;
-    next.identities = null;
-    next.ordered_rows = null;
-    next.physical_schemas = null;
-    next.column_origins = null;
-    var index_batch: RowIndexBatch = .{ .table = self, .root = next };
+/// A validation-only ALTER never rewrites row bytes or rebuilds indexes. The
+/// complete scan uses the statement's explicit work quota and one reused page
+/// arena. A failure publishes no successor definition or successful prefix.
+fn validateTransition(self: *Self, allocator: std.mem.Allocator, transition: f.TableEvolution.Transition) !void {
+    var budget: StatementBudget = .{ .rows = self.options.statement_scan_rows, .bytes = self.options.statement_scan_bytes };
+    if (self.root.live_rows > budget.rows) return error.TableStatementScanLimit;
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
     var cursor: ?pages.Key = null;
-    var done = false;
     var count: u64 = 0;
-    const encoded = try allocator.alloc(u8, max_row_bytes);
-    defer allocator.free(encoded);
-    while (!done) {
-        var arena = std.heap.ArenaAllocator.init(allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        var rows: std.ArrayList(f.TableRow.Row) = .empty;
-        var bytes: usize = 0;
-        group: while (rows.items.len < max_changes) {
-            const batch = try self.scan(self.root, cursor);
-            for (batch.entries) |slot| if (slot) |entry| {
-                const old = try self.readRow(a, self.root, entry.key, entry.value);
-                const cells = try a.alloc(f.Types.Values.Cell, transition.after.columns.len);
-                const row: f.TableRow.Row = .{ .identity = old.row().identity, .cells = try transition.row(old.row().cells, cells) };
-                const length = (try row.encode(transition.after, encoded)).len;
-                if (length > max_row_bytes - bytes or rows.items.len == max_changes) break :group;
-                try rows.append(a, row);
-                bytes += length;
-                cursor = try (try r.Locator.decode(entry.value)).scanKey();
-            };
-            if (batch.next == null) {
-                done = true;
-                break;
-            }
-        }
-        if (rows.items.len == 0) {
-            if (!done) return error.TableBatchTooLarge;
-            break;
-        }
-        const segment = try self.stageSegment(a, transition.after, next.next_segment, rows.items);
-        next.next_segment = try std.math.add(u64, next.next_segment, 1);
-        for (segment.footer.pk_index) |entry| {
-            const index_key = try r.rowKey(entry.pk_sort_key);
-            // Includes collisions across different bounded rewrite groups. A
-            // hash collision rejects conservatively; it never merges two rows.
-            if (try self.tree().get(next.rows, index_key) != null) return error.DuplicatePrimaryKey;
-            const locator: r.Locator = .{ .kind = .segment, .schema_revision = segment.footer.schema_revision, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
-            try index_batch.insert(entry.pk_sort_key, index_key, entry.identity, locator);
+    while (true) {
+        _ = scratch.reset(.retain_capacity);
+        const batch = try self.scan(self.root, cursor);
+        for (batch.entries) |slot| if (slot) |entry| {
+            var old = try self.readRowSchemaInto(scratch.allocator(), self.root, transition.before, entry.key, entry.value, .point);
+            const row = old.row();
+            try budget.visit(try row.encodedSize(transition.before));
+            var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+            _ = try transition.row(row.cells, &cells);
             count = try std.math.add(u64, count, 1);
-        }
-        try index_batch.flush();
+        };
+        cursor = batch.next orelse break;
     }
     if (count != self.root.live_rows) return error.InvalidTableHistory;
 }

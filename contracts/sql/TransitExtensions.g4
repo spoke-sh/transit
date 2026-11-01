@@ -204,7 +204,15 @@ secretRef
 createTable
     : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN
     ;
-tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN;
+tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN | tableConstraint;
+tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstraint);
+checkConstraint: CHECK LPAREN checkPredicate (AND checkPredicate)* RPAREN (NOT VALID)?;
+checkPredicate: columnReference (IS NOT? NULL_ | comparison (literal | columnReference));
+foreignKeyConstraint
+    : FOREIGN KEY constraintColumns REFERENCES identifier constraintColumns referentialClause* NOT ENFORCED
+    ;
+constraintColumns: LPAREN identifier (COMMA identifier)* RPAREN;
+referentialClause: ON (DELETE | UPDATE) (RESTRICT | NO ACTION | CASCADE | SET NULL_);
 columnDef: identifier dataType columnConstraint*;
 columnConstraint: nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation;
 collation: UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD;
@@ -229,6 +237,9 @@ typeField: identifier dataType nullability? OPTIONAL?;
 alterTable
     : ALTER TABLE identifier (
         ADD COLUMN? columnDef
+      | ADD tableConstraint
+      | DROP CONSTRAINT identifier RESTRICT?
+      | VALIDATE CONSTRAINT identifier
       | DROP COLUMN? identifier RESTRICT?
       | RENAME COLUMN? identifier TO identifier
       | RENAME TO identifier
@@ -329,10 +340,20 @@ legacyIdentifier
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
+    | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
     ;
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';
+CONSTRAINT: 'CONSTRAINT';
+CHECK: 'CHECK';
+FOREIGN: 'FOREIGN';
+REFERENCES: 'REFERENCES';
+ENFORCED: 'ENFORCED';
+VALID: 'VALID';
+VALIDATE: 'VALIDATE';
+NO: 'NO';
+ACTION: 'ACTION';
 STREAM: 'STREAM';
 QUEUE: 'QUEUE';
 STREAMS: 'STREAMS';

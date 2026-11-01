@@ -70,8 +70,30 @@ and reject duplicates. NULL and nested OPTIONAL MISSING retain separate states.
 Complete descriptor/default validation enforces recursive budgets, exact numeric
 ranges, NOT NULL and character constraints before returning a declaration.
 
-Named constraints, UNIQUE, CHECK, REFERENCES/foreign keys, generated/identity
-columns and auto-increment clauses reject. Text column declarations admit
+Table-level `[CONSTRAINT name] CHECK (...)` declarations bind a conjunction of
+column/scalar comparisons, compatible column/column comparisons and `IS [NOT]
+NULL` tests. Columns may appear later in the declaration. Anonymous constraints
+receive `constraint_<id>` names. `ALTER TABLE ... ADD [CONSTRAINT name] CHECK (...)`
+optionally accepts `NOT VALID`, which still enforces new writes. `VALIDATE
+CONSTRAINT name` requests existing-row validation; `DROP CONSTRAINT name
+[RESTRICT]` preserves the allocation floor. CASCADE, OR, effectful expressions,
+subqueries and parameters reject. The schema contract defines exact state rules
+and bounds; compilation does not claim that a validation scan has completed.
+
+Table-level `[CONSTRAINT name] FOREIGN KEY (local_columns) REFERENCES parent
+(target_columns) [ON DELETE action] [ON UPDATE action] NOT ENFORCED` freezes
+the parent's exact object, definition and ordered primary-key columns. Actions
+are `RESTRICT` (default), `NO ACTION`, `CASCADE` or `SET NULL`; they describe a
+staged constraint and do not execute. Each action clause may occur once, in either
+order. The same declaration is available through `ALTER TABLE ... ADD`.
+The catalog resolver requires current parent metadata access. Missing explicit
+`NOT ENFORCED`, self-references, cross-catalog references and activation
+of enforcement reject. Referenced types and collations must match; SET NULL
+requires nullable local columns. The catalog protects referenced parent columns
+before child publication, recovering each step with the original DDL identity.
+
+Inline CHECK/REFERENCES, UNIQUE, generated/identity columns and auto-increment
+clauses reject. Text column declarations admit
 `COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `EBCDIC_037_PAD` and
 `EBCDIC_1047_NOPAD`; defaults undergo the same repertoire validation as writes.
 Expression-level collation overrides and SQL changes to an existing column’s

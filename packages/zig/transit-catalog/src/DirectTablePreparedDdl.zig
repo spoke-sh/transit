@@ -23,6 +23,21 @@ pub const Write = union(enum) {
     }
 };
 
+const ForeignParents = struct {
+    client: c.DirectTableClient,
+    namespace: u64,
+    fn lookup(context: *anyopaque, allocator: std.mem.Allocator, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
+        const self: *ForeignParents = @ptrCast(@alignCast(context));
+        const response = try self.client.call(.{ .lookup = .{ .namespace = self.namespace, .name = name } });
+        defer response.deinit();
+        const metadata = response.value.result.lookup orelse return error.TableNotFound;
+        const binding = try c.DirectTableBinding.init(self.client.connection, metadata);
+        _ = try binding.require(self.client, .inspect);
+        const schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(allocator, f.TableSchema.max_bytes));
+        return .{ .schema = schema.schema, .definition = binding.interpretation.interpretation };
+    }
+};
+
 pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Self {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -38,7 +53,8 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
             schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
         }
     }
-    var compiled = try f.TableDdl.compileDialect(allocator, text, if (schema) |value| value.schema else null, location, dialect);
+    var parents = ForeignParents{ .client = client, .namespace = namespace };
+    var compiled = try f.TableDdl.compileWithForeignKeys(allocator, text, if (schema) |value| value.schema else null, location, dialect, .{ .context = &parents, .lookup = ForeignParents.lookup });
     errdefer compiled.deinit();
     var create_owner: ?u64 = null;
     if (target.kind == .create) {
@@ -155,5 +171,9 @@ pub fn encodeChange(allocator: std.mem.Allocator, change: f.TableEvolution.Chang
         .nullable => |v| .{ .nullable = .{ .column = v.column, .value = v.value } },
         .type => |v| .{ .type = .{ .column = v.column, .type = v.type, .max_characters = v.max_characters } },
         .physical => |v| .{ .physical = .{ .column = v.column, .encoding = v.encoding, .collation = v.collation } },
+        .integrity => |v| blk: {
+            var bytes: [f.TableSchema.max_bytes]u8 = undefined;
+            break :blk .{ .integrity = try .encode(allocator, try v.encode(&bytes)) };
+        },
     };
 }

@@ -77,7 +77,7 @@ pub const FeatureDescriptor = struct {
 pub const CompilerCase = struct {
     id: []const u8,
     feature: []const u8,
-    entrypoint: enum { table_ddl, relational_sql, inspection },
+    entrypoint: enum { table_ddl, table_ddl_catalog, relational_sql, inspection },
     sql: []const u8,
     accept: bool,
 };

@@ -36,6 +36,7 @@ pub const Change = union(enum) {
     nullable: struct { column: []const u8, value: bool },
     type: struct { column: []const u8, type: f.Types.Type, max_characters: ?u32 },
     physical: struct { column: []const u8, encoding: s.Encoding, collation: s.Collation },
+    integrity: f.TableSchemaJson.Schema,
 };
 /// Converted payloads are a lower bound on the final canonical intent size.
 /// Charge each cell immediately, before converting the next one. At most one
@@ -133,6 +134,7 @@ pub fn change(arena: *std.heap.ArenaAllocator, schema: s.Schema, value: Change) 
         .nullable => |nullable| .{ .nullable = .{ .column = try v.unsigned(nullable.column), .value = nullable.value } },
         .type => |typed| .{ .type = .{ .column = try v.unsigned(typed.column), .type = typed.type, .max_characters = typed.max_characters } },
         .physical => |physical| .{ .physical = .{ .column = try v.unsigned(physical.column), .encoding = physical.encoding, .collation = physical.collation } },
+        .integrity => |value_| .{ .integrity = try f.TableSchemaJson.native(arena, value_) },
     };
     var columns: [s.max_columns]s.Column = undefined;
     _ = try f.TableEvolution.apply(schema, result, &columns);

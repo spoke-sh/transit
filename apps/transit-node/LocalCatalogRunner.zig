@@ -172,6 +172,12 @@ fn runInner(self: *Self, comptime namespace: bool, catalog: *D, binding: anytype
     const registrar: client.AuthorizationClientWithTransport(Transport) = .{ .transport = &transport, .realm = self.engine.genesis.realm, .principal = self.principal, .key = self.key, .role = self.role };
     while (true) {
         const observed = try observe(namespace, catalog, binding, policy);
+        if (!namespace) if (observed == .finalizing) {
+            if (attempts == step_limit) return .{ .observation = observed, .native_steps = native_steps };
+            attempts += 1;
+            _ = try catalog.settle(binding, policy);
+            continue;
+        };
         const admitted = if (namespace) observed == .operation and observed.operation.phase == .admitted else observed == .admitted;
         if (!admitted) return .{ .observation = observed, .native_steps = native_steps };
         if (binding.action != .create) return .{ .observation = if (namespace) try catalog.namespaceOperation(binding, .execute, policy) else try catalog.perform(binding, policy), .native_steps = native_steps };

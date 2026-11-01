@@ -6393,6 +6393,300 @@
         "code": "sql.unrepresentable_cp1047",
         "category": "binding"
       }
+    },
+    {
+      "id": "integrity-check-one",
+      "sql": "CREATE TABLE items (id INT64, value INT64, CHECK (id >= 0))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-check-two",
+      "sql": "CREATE TABLE items (id INT64, value INT64, CONSTRAINT positive CHECK (id > 0 AND value < id) NOT VALID)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-check-three",
+      "sql": "CREATE TABLE items (id INT64, value INT64, CHECK (id IS NOT NULL AND value IS NULL AND value <> 0))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-check-named",
+      "sql": "CREATE TABLE items (id INT64, value INT64, CONSTRAINT ordered CHECK (id <= value))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-add-check",
+      "sql": "ALTER TABLE items ADD CHECK (value = 4)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-validate",
+      "sql": "ALTER TABLE items VALIDATE CONSTRAINT positive",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64, CONSTRAINT positive CHECK (value >= 0) NOT VALID)"
+    },
+    {
+      "id": "integrity-drop",
+      "sql": "ALTER TABLE items DROP CONSTRAINT positive",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64, CONSTRAINT positive CHECK (value >= 0) NOT VALID)"
+    },
+    {
+      "id": "integrity-drop-restrict",
+      "sql": "ALTER TABLE items DROP CONSTRAINT positive RESTRICT",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64, CONSTRAINT positive CHECK (value >= 0) NOT VALID)"
+    },
+    {
+      "id": "integrity-fk-simple",
+      "sql": "CREATE TABLE items (id INT64, value INT64, extra INT64, FOREIGN KEY (id) REFERENCES parent (id) NOT ENFORCED)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_resolution_required",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "integrity-fk-two",
+      "sql": "CREATE TABLE items (id INT64, value INT64, extra INT64, FOREIGN KEY (id, value) REFERENCES parent (id, value) ON DELETE RESTRICT NOT ENFORCED)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_resolution_required",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "integrity-fk-three",
+      "sql": "CREATE TABLE items (id INT64, value INT64, extra INT64, FOREIGN KEY (id, value, extra) REFERENCES parent (id, value, extra) ON UPDATE NO ACTION ON DELETE CASCADE NOT ENFORCED)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_resolution_required",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "integrity-fk-null",
+      "sql": "CREATE TABLE items (id INT64, value INT64, extra INT64, FOREIGN KEY (id) REFERENCES parent (id) ON DELETE SET NULL NOT ENFORCED)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_resolution_required",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "integrity-add-fk",
+      "sql": "ALTER TABLE items ADD CONSTRAINT parent_id FOREIGN KEY (id) REFERENCES parent (id) NOT ENFORCED",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_resolution_required",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "integrity-enforced-fk",
+      "sql": "CREATE TABLE items (id INT64, FOREIGN KEY (id) REFERENCES parent (id))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.foreign_key_enforcement_unavailable",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "integrity-check-or",
+      "sql": "CREATE TABLE items (id INT64, CHECK (id > 0 OR id < -1))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_check_expression",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "integrity-keyword-constraint",
+      "sql": "SELECT id AS CONSTRAINT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-check",
+      "sql": "SELECT id AS CHECK FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-foreign",
+      "sql": "SELECT id AS FOREIGN FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-references",
+      "sql": "SELECT id AS REFERENCES FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-enforced",
+      "sql": "SELECT id AS ENFORCED FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-valid",
+      "sql": "SELECT id AS VALID FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-validate",
+      "sql": "SELECT id AS VALIDATE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-no",
+      "sql": "SELECT id AS NO FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-keyword-action",
+      "sql": "SELECT id AS ACTION FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "integrity-name-limit",
+      "sql": "CREATE TABLE items (id INT64, CONSTRAINT cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc CHECK (id > 0))",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_constraint_name",
+        "category": "constraint"
+      }
     }
   ]
 }

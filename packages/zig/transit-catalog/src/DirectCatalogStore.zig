@@ -210,7 +210,7 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
     if (record.action == .dependency) return self.dependencyTransition(before, record);
     if (record.action == .log) return self.logTransition(before, record);
-    if (!std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
+    if (record.action != .operation and (!std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies))) return error.InvalidDirectCatalogTransition;
     if (record.action == .resource) return self.resourceTransition(before, record);
     if (record.action == .namespace) return self.namespaceTransition(before, record);
     if (record.action == .assertion) {
@@ -228,8 +228,29 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const next = record.action.operation;
     const previous = try self.operationAt(before, next.binding);
     if (previous) |known| {
-        if (!known.pending() or next.phase == .admitted or (next.phase == .ready and known.phase != .admitted) or !std.meta.eql(known.intent, next.intent)) return error.InvalidDirectCatalogTransition;
-    } else if (next.phase != .admitted and next.phase != .rejected) return error.InvalidDirectCatalogTransition;
+        if (!known.pending() or known.requires_settlement != next.requires_settlement or !std.meta.eql(known.intent, next.intent)) return error.InvalidDirectCatalogTransition;
+        if (next.phase == known.phase) {
+            if (next.dependency_steps != try std.math.add(u32, known.dependency_steps, 1) or next.protected_columns < known.protected_columns or next.protected_columns > known.protected_columns + 1) return error.InvalidDirectCatalogTransition;
+            if (known.closing) |close| if (!std.meta.eql(next.closing, @as(?r.Closure, close)) or next.protected_columns != known.protected_columns) return error.InvalidDirectCatalogTransition;
+            if (next.dependency_change) |change| {
+                if ((!change.remove and (next.protected_columns != known.protected_columns + 1 or next.closing != null)) or (change.remove and next.closing == null)) return error.InvalidDirectCatalogTransition;
+                try self.tableDependencyTransition(before, record.root, change);
+            } else if (next.protected_columns != known.protected_columns or !std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
+            if (known.closing == null) {
+                if (next.cleanup_after != null) return error.InvalidDirectCatalogTransition;
+            } else {
+                const prefix = try c.DirectDependency.dependentKey(next.binding.target);
+                const scanned = (try self.tree().scan(before.dependencies, known.cleanup_after orelse try pages.Key.init(&prefix))).entries[0] orelse return error.InvalidDirectCatalogTransition;
+                if (!std.meta.eql(next.cleanup_after, @as(?pages.Key, scanned.key))) return error.InvalidDirectCatalogTransition;
+                if (next.dependency_change) |change| if (!std.meta.eql(scanned.key, try change.edge.reverseKey())) return error.InvalidDirectCatalogTransition;
+            }
+        } else {
+            if (next.phase == .admitted or (next.phase == .ready and known.phase != .admitted) or next.dependency_steps != known.dependency_steps or next.protected_columns != known.protected_columns or next.dependency_change != null or !std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
+            if (known.closing) |close| if (next.phase != close.phase or next.reason != close.reason) return error.InvalidDirectCatalogTransition;
+        }
+    } else {
+        if ((next.phase != .admitted and next.phase != .rejected) or next.dependency_steps != 0 or next.closing != null or !std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
+    }
     const result = try self.tree().get(record.root.operations, try r.operationKey(next.binding.identity)) orelse return error.InvalidDirectCatalogTransition;
     if (result.len != 8 or std.mem.readInt(u64, result.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
     const object_key = try r.idKey(next.binding.target.object);
@@ -243,7 +264,7 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
         if (target.resource != null or target.log != null) return error.InvalidDirectCatalogTransition;
         if (next.binding.action == .create) {
             if ((next.phase == .ready) != (target.seed != null)) return error.InvalidDirectCatalogTransition;
-            if (next.phase == .ready) {
+            if (next.phase == .ready and previous.?.phase != .ready) {
                 const earlier = try self.tree().get(before.objects, object_key) orelse return error.InvalidDirectCatalogTransition;
                 const allocated = try r.fromValue(r.Entry, self.allocator, earlier);
                 if (allocated.seed != null or allocated.object != target.object or allocated.partition != target.partition) return error.InvalidDirectCatalogTransition;
@@ -256,6 +277,18 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
             if (after_pending != null) return error.InvalidDirectCatalogTransition;
         } else if (!std.meta.eql(before_pending, after_pending)) return error.InvalidDirectCatalogTransition;
     }
+}
+
+fn tableDependencyTransition(self: *Self, before: r.Root, after: r.Root, change: r.DependencyChange) !void {
+    const edge = change.edge;
+    const forward = try edge.forwardKey();
+    const reverse = try edge.reverseKey();
+    const previous = try self.tree().get(before.dependents, forward);
+    if (!std.meta.eql(previous, try self.tree().get(before.dependencies, reverse))) return error.InvalidDirectCatalogTransition;
+    if (change.remove != (previous != null)) return error.InvalidDirectCatalogTransition;
+    if (previous) |value| if (!std.meta.eql(edge, try r.fromValue(c.DirectDependency.Edge, self.allocator, value))) return error.InvalidDirectCatalogTransition;
+    const expected: ?pages.Value = if (change.remove) null else try r.pageValue(edge);
+    if (!std.meta.eql(expected, try self.tree().get(after.dependents, forward)) or !std.meta.eql(expected, try self.tree().get(after.dependencies, reverse))) return error.InvalidDirectCatalogTransition;
 }
 
 pub fn clientToken(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Receipt {

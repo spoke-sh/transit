@@ -108,10 +108,12 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072`.
-It admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across
+`3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d`.
+It persists CHECK and staged foreign-key integrity, exact parent definitions,
+column dependency indices and original-operation cleanup progress, including the
+`finalizing` DDL observation. It also admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across
 schemas, SQL, query plans and language bindings. The Table schema definition is
-`transit.table.schema.v1.2026-11-01`; earlier schemas and shared definitions
+`transit.table.schema.v1.2026-11-01.integrity`; earlier schemas and shared definitions
 reject before execution. Existing CP037 NO PAD comparison is unchanged.
 
 It also binds direct KV, mixed state/log transactions and frozen Stream/Queue

@@ -56,7 +56,10 @@ test "schema projection refuses incompatible layouts and reused identities" {
     try t.expectError(error.IncompatibleSchemaProjection, Projection.init(original, logical, &.{}));
     columns[1] = original.columns[1];
     columns[1].nullable = false;
-    try t.expectError(error.IncompatibleSchemaProjection, Projection.init(original, logical, &.{}));
+    const tightened = try Projection.init(original, logical, &.{});
+    var projected: [2]Cell = undefined;
+    try t.expectError(error.NullNotAllowed, tightened.row(&.{ number(1), .null }, &projected));
+    try t.expectEqualDeep(number(2), (try tightened.row(&.{ number(1), number(2) }, &projected))[1]);
     columns[1] = original.columns[1];
     logical.primary_key = &.{};
     try t.expectError(error.IncompatibleSchemaProjection, Projection.init(original, logical, &.{}));

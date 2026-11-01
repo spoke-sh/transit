@@ -446,13 +446,23 @@ impl Schema {
             .iter()
             .map(|v| Ok(positive(*v)?.to_string()))
             .collect::<Result<Vec<_>>>()?;
-        let out = json!({"definition":abi::ABI_DEFINITION,"object":positive(self.object)?.to_string(),"revision":positive(self.revision)?.to_string(),"next_column":positive(self.next_column)?.to_string(),"columns":columns,"primary_key":keys});
+        let out = json!({"definition":abi::ABI_DEFINITION,"object":positive(self.object)?.to_string(),"revision":positive(self.revision)?.to_string(),"next_column":positive(self.next_column)?.to_string(),"columns":columns,"primary_key":keys,"integrity":{"next_id":1,"checks":[],"foreign_keys":[]}});
         if serde_json::to_vec(&out).map_err(|_| invalid())?.len() > 2 * 1024 * 1024 {
             return Err(invalid());
         }
         Ok(out)
     }
     pub(crate) fn parse(v: &Value) -> Result<Self> {
+        let mut source = v.clone();
+        if let Some(integrity) = source.as_object_mut().and_then(|o| o.remove("integrity")) {
+            if integrity != json!({"next_id":1,"checks":[],"foreign_keys":[]}) {
+                return Err(Error::new(
+                    ErrorKind::IncompatibleNative,
+                    "catalog-constraint-schema-unsupported",
+                ));
+            }
+        }
+        let v = &source;
         object(
             v,
             &[
@@ -797,9 +807,9 @@ tags!(write Ingestion {Point=>"point",Bulk=>"bulk"});
 tags!(write Dialect {Transit=>"transit",Mysql=>"mysql"});
 tags!(both WorkKind {Table=>"table",NameAssertion=>"name_assertion"});
 tags!(read ObservationKind {Ddl=>"ddl",Rows=>"rows",NameAssertion=>"name_assertion"});
-tags!(read OperationState {NotObserved=>"not_observed",Admitted=>"admitted",Rejected=>"rejected",Cancelled=>"cancelled",Committed=>"committed",Unchanged=>"unchanged"});
+tags!(read OperationState {NotObserved=>"not_observed",Admitted=>"admitted",Rejected=>"rejected",Cancelled=>"cancelled",Committed=>"committed",Finalizing=>"finalizing",Unchanged=>"unchanged"});
 tags!(read Phase {Admitted=>"admitted",Ready=>"ready",Settled=>"settled",Rejected=>"rejected",Cancelled=>"cancelled"});
-tags!(read Reason {None=>"none",NameConflict=>"name_conflict",ObjectConflict=>"object_conflict",StaleDefinition=>"stale_definition",StaleData=>"stale_data",Dependency=>"dependency",Constraint=>"constraint",DefinitionChanged=>"definition_changed",DataChanged=>"data_changed",DuplicateKey=>"duplicate_key",MissingRow=>"missing_row",InvalidRows=>"invalid_rows",WorkLimit=>"work_limit",ConditionChanged=>"condition_changed"});
+tags!(read Reason {None=>"none",NameConflict=>"name_conflict",ObjectConflict=>"object_conflict",StaleDefinition=>"stale_definition",StaleData=>"stale_data",Dependency=>"dependency",Constraint=>"constraint",DefinitionChanged=>"definition_changed",DataChanged=>"data_changed",DuplicateKey=>"duplicate_key",MissingRow=>"missing_row",InvalidRows=>"invalid_rows",WorkLimit=>"work_limit",ConditionChanged=>"condition_changed",RewriteRequired=>"rewrite_required",CheckViolation=>"check_violation"});
 tags!(read EvolutionWork {Metadata=>"metadata",ValidateRows=>"validate_rows",RewriteRows=>"rewrite_rows"});
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1810,6 +1820,20 @@ impl Observation {
             object(raw, &[])?;
             return Ok(out);
         }
+        if tag == "finalizing" {
+            object(raw, &["evidence", "operation"])?;
+            if raw["operation"]["requires_settlement"] != json!(true)
+                || !matches!(raw["operation"]["phase"].as_str(), Some("admitted" | "ready"))
+            {
+                return Err(malformed());
+            }
+            if kind != ObservationKind::Ddl || raw["operation"]["binding"] != *original.binding() {
+                return Err(malformed());
+            }
+            let mut result = Self::parse(&json!({"ddl":{"committed":raw["evidence"]}}), original)?;
+            result.state = OperationState::Finalizing;
+            return Ok(result);
+        }
         if raw["binding"] != *original.binding() {
             return Err(malformed());
         }
@@ -1850,7 +1874,16 @@ impl Observation {
             if kind == ObservationKind::Rows {
                 &["binding", "intent", "basis", "phase", "reason"]
             } else {
-                &["binding", "intent", "phase", "reason"]
+                &[
+                    "binding",
+                    "intent",
+                    "phase",
+                    "reason",
+                    "dependency_steps",
+                    "protected_columns",
+                    "requires_settlement",
+                    "closing",
+                ]
             },
         )?;
         Content::parse(&raw["intent"])?;
@@ -2642,7 +2675,7 @@ mod tests {
     fn physical_schema_and_alter_preserve_explicit_descriptors() {
         let wire = json!({"definition":abi::ABI_DEFINITION,"object":"7","revision":"2","next_column":"2",
             "columns":[{"id":"1","name":"text","type":{"utf8":{}},"nullable":true,"default":null,
-                "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[]});
+                "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[],"integrity":{"next_id":1,"checks":[],"foreign_keys":[]}});
         let schema = Schema::parse(&wire).unwrap();
         assert_eq!(schema.columns[0].encoding, Encoding::Ebcdic);
         assert_eq!(schema.columns[0].collation, Collation::EbcdicCp037);

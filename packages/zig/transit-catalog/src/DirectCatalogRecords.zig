@@ -138,8 +138,16 @@ pub const Root = struct {
 };
 
 pub const Phase = enum { admitted, ready, rejected, cancelled, settled };
-pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_data, dependency, constraint };
+pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_data, dependency, constraint, rewrite_required, work_limit };
+pub const DependencyChange = struct { edge: c.DirectDependency.Edge, remove: bool };
+pub const Closure = struct { phase: Phase, reason: Reason };
 pub const Operation = struct {
+    requires_settlement: bool = false,
+    dependency_steps: u32 = 0,
+    protected_columns: u16 = 0,
+    dependency_change: ?DependencyChange = null,
+    closing: ?Closure = null,
+    cleanup_after: ?pages.Key = null,
     binding: d.Binding,
     intent: d.Content,
     phase: Phase,
@@ -150,6 +158,19 @@ pub const Operation = struct {
     pub fn validate(self: Operation, config: Configuration) !void {
         try self.binding.validate();
         try self.intent.validate();
+        if (self.protected_columns > c.fuze.TableConstraints.max_constraints_per_table * c.fuze.TableSchema.max_columns or self.protected_columns > self.dependency_steps) return error.InvalidDirectCatalogOperation;
+        if (self.dependency_change) |change| {
+            try change.edge.validate();
+            if (self.dependency_steps == 0 or change.edge.foreign_key == null or !std.meta.eql(change.edge.dependent.interpretation.object, self.binding.target)) return error.InvalidDirectCatalogOperation;
+            if (change.remove != (self.closing != null)) return error.InvalidDirectCatalogOperation;
+        }
+        if (self.cleanup_after) |after| {
+            after.validate() catch return error.InvalidDirectCatalogOperation;
+            if (after.len != 64 or !std.mem.startsWith(u8, after.slice(), &try c.DirectDependency.dependentKey(self.binding.target))) return error.InvalidDirectCatalogOperation;
+        }
+        if (self.closing) |close| {
+            if (close.phase == .admitted or close.phase == .ready or (close.phase == .rejected) != (close.reason != .none)) return error.InvalidDirectCatalogOperation;
+        } else if (self.cleanup_after != null) return error.InvalidDirectCatalogOperation;
         if (!std.meta.eql(self.binding.identity.scope, config.scope) or self.binding.target.branch != config.branch or self.intent.bytes > max_intent_bytes or
             (self.phase == .rejected) != (self.reason != .none) or (self.phase == .ready and self.binding.action != .create)) return error.InvalidDirectCatalogOperation;
         switch (self.binding.action) {

@@ -764,6 +764,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                 .duplicate_key => .{ "23505".*, "Primary key already exists in the transaction workspace" },
                 .missing_row => .{ "02000".*, "Required row is absent from the transaction workspace" },
                 .invalid_rows => .{ "23000".*, "Row constraints rejected the transaction statement" },
+                .check_violation => .{ "23514".*, "A CHECK constraint rejected the transaction statement" },
                 .work_limit => .{ "54000".*, "Transaction statement work budget exceeded" },
                 .data_changed, .definition_changed => .{ "40001".*, "Transaction source changed" },
             };
@@ -791,6 +792,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     4 => .{ "02000".*, "Required row no longer exists" },
                     5 => .{ "23000".*, "Row constraints rejected the mutation" },
                     6 => .{ "54000".*, "Statement work budget exceeded" },
+                    7 => .{ "23514".*, "A CHECK constraint rejected the mutation" },
                     else => .{ "23000".*, "Table mutation rejected; inspect its recorded outcome" },
                 },
                 .ddl => switch (terminal.reason) {
@@ -798,6 +800,8 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     2, 3, 4 => .{ "40001".*, "Table identity, definition or data changed" },
                     5 => .{ "2BP01".*, "A registered dependency blocks the change" },
                     6 => .{ "23000".*, "Schema constraints rejected the change" },
+                    7 => .{ "0A000".*, "Populated Table change requires an online phased rewrite" },
+                    8 => .{ "54000".*, "Schema validation work budget exceeded" },
                     else => .{ "55000".*, "Table declaration rejected" },
                 },
             };

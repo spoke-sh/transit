@@ -189,6 +189,25 @@ records the original audit, before this increment.
 
 ### Current implementation and remaining gaps
 
+The next implementation increment persists bounded CHECK and explicitly staged
+foreign-key descriptors in Table schemas. SQL and typed writes enforce CHECK,
+including transaction candidates; NOT VALID defers only old-row validation.
+Foreign-key publication registers exact parent/column protection before child
+visibility and records bounded original-operation cleanup. `finalizing` separates
+an accepted Table commit from completed dependency settlement. Physical rewrites
+on populated Tables reject pending M11; bounded validation preserves physical
+row roots and retained old definitions.
+
+Independent Python CHECK/FK byte fixtures, Fuze compiler/codec tests, disk Table
+validation tests, disk foreign-key interruption/cancellation tests and the
+transaction/savepoint constraint test have executed during development. The
+diagnostic grammar and representative Python/TypeScript value checks also pass.
+These working-tree checks do not qualify installed SQL/caller composition or
+close P2/P3/P8; final committed-revision qualification remains required.
+
+The following table preserves the original source audit. It is not a description
+of the newer increments above.
+
 The source owners below distinguish integrated behavior from reusable helpers.
 The dated proof records qualify their own revisions; their union is not a pass
 at this source.

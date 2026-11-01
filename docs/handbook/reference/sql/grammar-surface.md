@@ -70,7 +70,9 @@ different [recovery behavior](../queries.md).
 | `UPDATE ... SET ... [WHERE ...]` | **Implemented — execution** | Multiple constant/default assignments and typed Boolean/state predicates; frozen selection and one atomic publication |
 | `DELETE FROM ... [WHERE ...]` | **Implemented — execution** | Point or selected finite predicates; committed matched/changed counts |
 | `CREATE TABLE` | **Implemented — execution** | 1–128 columns, all logical families, explicit single/composite/no primary key, nullable defaults and deterministic typed defaults; authorized catalog routing |
-| `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and selected exact type changes; retained schema identity and atomic rewrite publication |
+| `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and constraints; lazy projection and bounded validation; populated physical rewrites reject pending the phased runtime |
+| Table-level `CHECK` | **Implemented — execution** | Bounded deterministic comparisons and NULL tests, new-write enforcement with optional NOT VALID, explicit bounded validation |
+| `FOREIGN KEY ... NOT ENFORCED` | **Implemented — staged declarations** | Exact parent definitions and primary-key columns with recoverable dependency protection; row enforcement and referential actions remain unavailable |
 | `DROP TABLE` | **Implemented — execution** | IF EXISTS and RESTRICT, explicit dependency checks, live-name retirement and safe name reuse; retained evidence remains separate from cleanup |
 | `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Separate offline definitions and canonical review SQL |
 | `CREATE KV`, `CREATE DOCUMENT` publication | **Planned — checked grammar** | No catalog creation operation, provisioning or default decoder/replica follows from offline compilation |
@@ -327,9 +329,9 @@ standards text. Runtime and installed caller checks remain separate.
 | Feature | Parse | Lower | Execute | Recover | Transport | Reference | Scope and limits |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | E021-E051 | implemented | implemented | implemented | implemented | implemented | unverified | Selected scalar types only. Stored DECIMAL does not imply SQL decimal arithmetic or a manifest-bound rounding descriptor; standalone helpers are separately tested. |
-| F031-F034 | implemented | implemented | implemented | implemented | implemented | unverified | Selected CREATE/ALTER/DROP operations only. Online physical rewrites and the standalone evolution classifier are not integrated. |
-| F491 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone CHECK descriptor/evaluator only. TableDdl rejects CHECK; schemas, writes and recovery do not carry these constraints. |
-| F492 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone foreign-key descriptors only. TableDdl rejects FOREIGN KEY/REFERENCES; no durable dependency or write-enforcement integration. |
+| F031-F034 | implemented | implemented | implemented | implemented | implemented | unverified | Selected CREATE/ALTER/DROP operations, lazy projection and bounded validation scans. Populated physical rewrites reject pending the phased rewrite runtime. |
+| F491 | implemented | implemented | implemented | implemented | implemented | unverified | Table-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, inline CHECK, subqueries and effects reject. |
+| F492 | implemented | implemented | staged | staged | staged | unverified | Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the M11 index runtime. |
 | F111 | implemented | implemented | implemented | implemented | implemented | unverified | Admits SERIALIZABLE and READ ONLY common cuts; rejects weaker isolation levels. |
 | T181-X003 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner. FOR SYSTEM_TIME AS OF is a separate reference grammar fragment, not an alias for an LSN or manifest. |
 | X001-RANGE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone interval helper. RANGE and MULTIRANGE are absent from current logical type/value/schema codecs and SQL execution. |

@@ -48,8 +48,10 @@ pub fn init(physical: s.Schema, logical: s.Schema, initials: []const Initial) !S
 }
 
 fn compatibleColumn(before: s.Column, after: s.Column) !bool {
-    return try before.type.eql(after.type) and before.nullable == after.nullable and
-        before.max_characters == after.max_characters and before.encoding == after.encoding and
+    // Tighter nullability/length limits are checked by the publication owner's
+    // validation scan and by validateRow on each projected result. They do not
+    // require changing the physical representation of an existing cell.
+    return try before.type.eql(after.type) and before.encoding == after.encoding and
         before.collation == after.collation;
 }
 

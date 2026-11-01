@@ -172,6 +172,15 @@ requires a fresh listing. Every metadata call rechecks current inspection and
 native rights. The [catalog caller](../../../packages/zig/transit-catalog/README.md) uses the same
 Zig owner; query connections do not enable administration.
 
+Zig, Python and TypeScript preserve schema-owned CHECK and staged foreign-key
+descriptors, including full-width parent definitions and owned literal values.
+The other typed Catalog wrappers currently admit empty integrity descriptors and
+explicitly reject nonempty ones; they never discard constraints when copying a
+schema. SQL submissions use the shared compiler independently of these schema
+wrapper limits. DDL observations distinguish `finalizing` (Table commit accepted,
+dependency cleanup pending) from `committed`; continue the original operation
+to settlement rather than resubmitting SQL.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

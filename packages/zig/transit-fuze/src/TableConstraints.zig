@@ -2,6 +2,7 @@
 //! lazy vs. online phased `ALTER TABLE` evolution classification, and
 //! multi-version `.tseg` segment schema projection provenance.
 const std = @import("std");
+const Definition = @import("transit_protocol").DataLifecycle.Definition;
 const s = @import("TableSchema.zig");
 const t = @import("Types.zig");
 const v = t.Values;
@@ -11,6 +12,237 @@ const TableSchemaProjection = @import("TableSchemaProjection.zig");
 
 pub const ConstraintId = u32;
 pub const max_constraints_per_table: usize = 64;
+
+fn validateName(id: ConstraintId, name: []const u8) !void {
+    if (id == 0 or name.len == 0 or name.len > 63 or !std.unicode.utf8ValidateSlice(name) or std.mem.indexOfScalar(u8, name, 0) != null) return error.InvalidConstraintName;
+}
+
+/// Immutable schema-owned integrity. The floor survives DROP CONSTRAINT, so a
+/// new declaration never reuses a historical constraint identity.
+pub const Integrity = struct {
+    pub const json_schema_sequence_bounds = .{ .checks = max_constraints_per_table, .foreign_keys = max_constraints_per_table };
+    next_id: ConstraintId = 1,
+    checks: []const CheckConstraint = &.{},
+    foreign_keys: []const ForeignKeyConstraint = &.{},
+
+    pub fn empty(self: Integrity) bool {
+        return self.next_id == 1 and self.checks.len == 0 and self.foreign_keys.len == 0;
+    }
+    pub fn validate(self: Integrity, schema: s.Schema) !void {
+        if (self.next_id == 0 or self.checks.len + self.foreign_keys.len > max_constraints_per_table) return error.InvalidConstraintCount;
+        for (self.checks, 0..) |check, i| {
+            if (check.id >= self.next_id) return error.InvalidConstraintIdentity;
+            try check.validateShape(schema);
+            for (self.checks[0..i]) |previous| try distinct(check.id, check.name, previous.id, previous.name);
+        }
+        for (self.foreign_keys, 0..) |fk, i| {
+            if (fk.id >= self.next_id) return error.InvalidConstraintIdentity;
+            try fk.validateShape(schema);
+            try fk.checkWriteAdmission(false);
+            const target = fk.target_definition orelse return error.ForeignKeyDefinitionRequired;
+            try target.validate();
+            if (target.object.object != fk.target_object or target.object.branch != 1) return error.ForeignKeyTargetMismatch;
+            // One acceptance guard covers the dependent and at most four
+            // distinct parent objects and their namespaces.
+            var distinct_targets: usize = 0;
+            for (self.foreign_keys[0 .. i + 1], 0..) |candidate, at| {
+                var seen = false;
+                for (self.foreign_keys[0..at]) |earlier| if (earlier.target_object == candidate.target_object) {
+                    seen = true;
+                    break;
+                };
+                if (!seen) distinct_targets += 1;
+            }
+            if (distinct_targets > 4) return error.ForeignKeySourceLimit;
+            for (self.foreign_keys[0..i]) |previous| try distinct(fk.id, fk.name, previous.id, previous.name);
+            for (self.checks) |check| try distinct(fk.id, fk.name, check.id, check.name);
+        }
+    }
+    fn distinct(id: ConstraintId, name: []const u8, other_id: ConstraintId, other_name: []const u8) !void {
+        if (id == other_id) return error.DuplicateConstraintIdentity;
+        if (std.mem.eql(u8, name, other_name)) return error.DuplicateConstraintName;
+    }
+    pub fn enforce(self: Integrity, schema: s.Schema, cells: []const v.Cell, failure: ?*CheckViolation) !void {
+        // NOT VALID skips only the existing-row validation scan. New writes
+        // always execute every CHECK after assignment/default resolution.
+        for (self.checks) |check| try evaluateBoundCheckRow(schema, check, cells, failure);
+        for (self.foreign_keys) |fk| try fk.checkWriteAdmission(false);
+    }
+    /// The caller has already validated schema, descriptors and row shape.
+    pub fn validateExisting(self: Integrity, schema: s.Schema, cells: []const v.Cell, failure: ?*CheckViolation) !void {
+        for (self.checks) |check| if (check.validated) try evaluateBoundCheckRow(schema, check, cells, failure);
+    }
+    /// Returns whether an existing-row validation is required. Descriptors
+    /// retain identity only while their meaning is unchanged.
+    pub fn evolution(before: Integrity, after: Integrity) !bool {
+        if (after.next_id < before.next_id) return error.ReusedConstraintIdentity;
+        var scan = false;
+        for (after.checks) |check| {
+            var found = false;
+            for (before.checks) |old| if (old.id == check.id) {
+                found = true;
+                if (!sameCheck(old, check) or (old.validated and !check.validated)) return error.ReusedConstraintIdentity;
+                if (!old.validated and check.validated) scan = true;
+                break;
+            };
+            if (!found) {
+                if (check.id < before.next_id) return error.ReusedConstraintIdentity;
+                if (check.validated) scan = true;
+            }
+        }
+        for (after.foreign_keys) |fk| {
+            var found = false;
+            for (before.foreign_keys) |old| if (old.id == fk.id) {
+                found = true;
+                if (!std.mem.eql(u8, old.name, fk.name) or old.target_object != fk.target_object or old.target_revision != fk.target_revision or !std.meta.eql(old.target_definition, fk.target_definition) or
+                    !std.mem.eql(s.ColumnId, old.local_columns, fk.local_columns) or !std.mem.eql(s.ColumnId, old.target_columns, fk.target_columns) or
+                    old.on_delete != fk.on_delete or old.on_update != fk.on_update or old.enforcement != fk.enforcement) return error.ReusedConstraintIdentity;
+                break;
+            };
+            if (!found and fk.id < before.next_id) return error.ReusedConstraintIdentity;
+        }
+        return scan;
+    }
+    fn sameCheck(a: CheckConstraint, b: CheckConstraint) bool {
+        if (!std.mem.eql(u8, a.name, b.name) or a.atoms.len != b.atoms.len) return false;
+        for (a.atoms, b.atoms) |left, right| {
+            if (std.meta.activeTag(left) != std.meta.activeTag(right)) return false;
+            switch (left) {
+                .compare_literal => |l| {
+                    const r = right.compare_literal;
+                    if (l.column != r.column or l.op != r.op or std.meta.activeTag(l.literal) != std.meta.activeTag(r.literal)) return false;
+                    if (l.literal == .bytes) {
+                        if (!std.mem.eql(u8, l.literal.bytes, r.literal.bytes)) return false;
+                    } else if (!std.meta.eql(l.literal, r.literal)) return false;
+                },
+                .compare_columns => |l| if (!std.meta.eql(l, right.compare_columns)) return false,
+                .is_null => |id| if (id != right.is_null) return false,
+                .is_not_null => |id| if (id != right.is_not_null) return false,
+            }
+        }
+        return true;
+    }
+    pub fn write(self: Integrity, schema: s.Schema, writer: *std.Io.Writer) !void {
+        try writer.writeInt(u32, self.next_id, .little);
+        try writer.writeByte(@intCast(self.checks.len));
+        var value: [s.max_bytes]u8 = undefined;
+        for (self.checks) |check| {
+            try writeName(writer, check.id, check.name);
+            try writer.writeByte(@intFromBool(check.validated));
+            try writer.writeByte(@intCast(check.atoms.len));
+            for (check.atoms) |atom| switch (atom) {
+                .compare_literal => |cmp| {
+                    try writer.writeByte(1);
+                    try writer.writeInt(u64, cmp.column, .little);
+                    try writer.writeByte(@backingInt(cmp.op));
+                    const column = schema.columns[try schema.index(cmp.column)];
+                    const bytes = t.Codec.encode(.{ .value = .{ .atom = cmp.literal } }, column.field(), &value) catch |err| return if (err == error.WriteFailed) error.TableSchemaTooLarge else err;
+                    try writer.writeInt(u32, @intCast(bytes.len), .little);
+                    try writer.writeAll(bytes);
+                },
+                .compare_columns => |cmp| {
+                    try writer.writeByte(2);
+                    try writer.writeInt(u64, cmp.left_column, .little);
+                    try writer.writeByte(@backingInt(cmp.op));
+                    try writer.writeInt(u64, cmp.right_column, .little);
+                },
+                .is_null, .is_not_null => |id, tag| {
+                    try writer.writeByte(if (tag == .is_null) 3 else 4);
+                    try writer.writeInt(u64, id, .little);
+                },
+            };
+        }
+        try writer.writeByte(@intCast(self.foreign_keys.len));
+        for (self.foreign_keys) |fk| {
+            try writeName(writer, fk.id, fk.name);
+            try writer.writeInt(u64, fk.target_object, .little);
+            try writer.writeInt(u64, fk.target_revision, .little);
+            const target = fk.target_definition.?;
+            for ([_]u64{ target.object.scope.realm, target.object.scope.resource, target.object.scope.catalog, target.object.branch, target.object.object, target.revision }) |part| try writer.writeInt(u64, part, .little);
+            try writer.writeAll(&target.digest);
+            try writer.writeByte(@backingInt(fk.on_delete));
+            try writer.writeByte(@backingInt(fk.on_update));
+            try writer.writeByte(@backingInt(fk.enforcement));
+            try writer.writeByte(@intCast(fk.local_columns.len));
+            for (fk.local_columns, fk.target_columns) |local, remote_column| {
+                try writer.writeInt(u64, local, .little);
+                try writer.writeInt(u64, remote_column, .little);
+            }
+        }
+    }
+    fn writeName(writer: *std.Io.Writer, id: ConstraintId, name: []const u8) !void {
+        try writer.writeInt(u32, id, .little);
+        try writer.writeByte(@intCast(name.len));
+        try writer.writeAll(name);
+    }
+    pub fn read(a: std.mem.Allocator, schema: s.Schema, reader: *std.Io.Reader) !Integrity {
+        var out: Integrity = .{ .next_id = try reader.takeInt(u32, .little) };
+        const count = try reader.takeByte();
+        if (count > max_constraints_per_table) return error.InvalidConstraintCount;
+        const checks = try a.alloc(CheckConstraint, count);
+        for (checks) |*check| {
+            const id = try reader.takeInt(u32, .little);
+            const name = try a.dupe(u8, try reader.take(try reader.takeByte()));
+            const validated = switch (try reader.takeByte()) {
+                0 => false,
+                1 => true,
+                else => return error.InvalidTableSchemaEncoding,
+            };
+            const atoms_count = try reader.takeByte();
+            if (atoms_count == 0 or atoms_count > 32) return error.InvalidCheckConstraint;
+            const atoms = try a.alloc(CheckAtom, atoms_count);
+            for (atoms) |*atom| {
+                const tag = try reader.takeByte();
+                const column_id = try reader.takeInt(u64, .little);
+                atom.* = switch (tag) {
+                    1 => blk: {
+                        const op = try comparison(reader);
+                        const size = try reader.takeInt(u32, .little);
+                        if (size > s.max_bytes) return error.TableSchemaTooLarge;
+                        const decoded = try t.Codec.decode(a, try reader.take(size));
+                        const column = schema.columns[try schema.index(column_id)];
+                        if (decoded.cell != .value or decoded.cell.value != .atom or !try decoded.field.type.eql(column.type) or decoded.field.nullable != column.nullable or decoded.field.optional) return error.InvalidCheckConstraint;
+                        break :blk .{ .compare_literal = .{ .column = column_id, .op = op, .literal = decoded.cell.value.atom } };
+                    },
+                    2 => .{ .compare_columns = .{ .left_column = column_id, .op = try comparison(reader), .right_column = try reader.takeInt(u64, .little) } },
+                    3 => .{ .is_null = column_id },
+                    4 => .{ .is_not_null = column_id },
+                    else => return error.InvalidCheckConstraint,
+                };
+            }
+            check.* = .{ .id = id, .name = name, .validated = validated, .atoms = atoms };
+        }
+        out.checks = checks;
+        const foreign_count = try reader.takeByte();
+        if (@as(usize, count) + foreign_count > max_constraints_per_table) return error.InvalidConstraintCount;
+        const foreign_keys = try a.alloc(ForeignKeyConstraint, foreign_count);
+        for (foreign_keys) |*fk| {
+            const id = try reader.takeInt(u32, .little);
+            const name = try a.dupe(u8, try reader.take(try reader.takeByte()));
+            const object = try reader.takeInt(u64, .little);
+            const revision = try reader.takeInt(u64, .little);
+            const target_definition: Definition = .{ .object = .{ .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) }, .branch = try reader.takeInt(u64, .little), .object = try reader.takeInt(u64, .little) }, .revision = try reader.takeInt(u64, .little), .digest = (try reader.take(32))[0..32].* };
+            const on_delete = std.enums.fromInt(ReferentialAction, try reader.takeByte()) orelse return error.InvalidForeignKeyAction;
+            const on_update = std.enums.fromInt(ReferentialAction, try reader.takeByte()) orelse return error.InvalidForeignKeyAction;
+            const enforcement = std.enums.fromInt(ForeignKeyEnforcement, try reader.takeByte()) orelse return error.InvalidForeignKeyEnforcement;
+            const columns_count = try reader.takeByte();
+            if (columns_count == 0 or columns_count > s.max_columns) return error.InvalidForeignKeyArity;
+            const local = try a.alloc(s.ColumnId, columns_count);
+            const target = try a.alloc(s.ColumnId, columns_count);
+            for (local, target) |*l, *r| {
+                l.* = try reader.takeInt(u64, .little);
+                r.* = try reader.takeInt(u64, .little);
+            }
+            fk.* = .{ .id = id, .name = name, .target_object = object, .target_revision = revision, .target_definition = target_definition, .local_columns = local, .target_columns = target, .on_delete = on_delete, .on_update = on_update, .enforcement = enforcement };
+        }
+        out.foreign_keys = foreign_keys;
+        try out.validate(schema);
+        return out;
+    }
+    fn comparison(reader: *std.Io.Reader) !std.math.CompareOperator {
+        return std.enums.fromInt(std.math.CompareOperator, try reader.takeByte()) orelse error.InvalidCheckConstraint;
+    }
+};
 
 pub const ReferentialAction = enum(u8) {
     restrict = 1,
@@ -46,6 +278,7 @@ pub const CheckAtom = union(enum) {
 };
 
 pub const CheckConstraint = struct {
+    pub const json_schema_sequence_bounds = .{ .atoms = 32 };
     id: ConstraintId,
     name: []const u8,
     atoms: []const CheckAtom,
@@ -53,19 +286,26 @@ pub const CheckConstraint = struct {
 
     pub fn validate(self: CheckConstraint, schema: s.Schema) !void {
         try schema.validate();
-        if (self.id == 0 or self.name.len == 0 or self.name.len > 63) return error.InvalidConstraintName;
+        try self.validateShape(schema);
+    }
+
+    /// Schema validation calls this without recursively validating the schema.
+    pub fn validateShape(self: CheckConstraint, schema: s.Schema) !void {
+        try validateName(self.id, self.name);
         if (self.atoms.len == 0 or self.atoms.len > 32) return error.InvalidCheckConstraint;
         for (self.atoms) |atom| switch (atom) {
             .compare_literal => |cmp| {
                 const idx = try schema.index(cmp.column);
                 const col = schema.columns[idx];
                 try t.Semantics.validate(cmp.literal, col.type);
+                _ = try Collation.compareAtom(cmp.literal, cmp.literal, col.type, col.collation);
             },
             .compare_columns => |cmp| {
                 const l_idx = try schema.index(cmp.left_column);
                 const r_idx = try schema.index(cmp.right_column);
                 const l_col = schema.columns[l_idx];
                 const r_col = schema.columns[r_idx];
+                if (!s.keyType(l_col.type)) return error.UnsupportedCheckExpression;
                 if (!try l_col.type.eql(r_col.type) or l_col.collation != r_col.collation) {
                     return error.IncompatibleCheckColumns;
                 }
@@ -111,6 +351,9 @@ pub fn evaluateCheckRow(
     violation_out: ?*CheckViolation,
 ) !void {
     try constraint.validate(schema);
+    return evaluateBoundCheckRow(schema, constraint, row_cells, violation_out);
+}
+fn evaluateBoundCheckRow(schema: s.Schema, constraint: CheckConstraint, row_cells: []const v.Cell, violation_out: ?*CheckViolation) !void {
     if (row_cells.len != schema.columns.len) return error.InvalidColumnCount;
 
     for (constraint.atoms) |atom| {
@@ -293,24 +536,39 @@ fn orderMatches(ord: std.math.Order, op: std.math.CompareOperator) bool {
 /// Declarative cross-table `FOREIGN KEY ... REFERENCES ...` constraint bound to
 /// stable `(Object, DefinitionRevision, ColumnId)` identities.
 pub const ForeignKeyConstraint = struct {
+    pub const json_schema_sequence_bounds = .{ .local_columns = s.max_columns, .target_columns = s.max_columns };
     id: ConstraintId,
     name: []const u8,
     local_columns: []const s.ColumnId,
     target_object: u64,
     target_revision: u64,
+    target_definition: ?Definition = null,
     target_columns: []const s.ColumnId,
     on_delete: ReferentialAction = .restrict,
     on_update: ReferentialAction = .restrict,
     enforcement: ForeignKeyEnforcement = .staged_awaiting_index,
 
+    pub fn validateShape(self: ForeignKeyConstraint, child_schema: s.Schema) !void {
+        try validateName(self.id, self.name);
+        if (self.target_object == 0 or self.target_revision == 0) return error.ForeignKeyTargetMismatch;
+        if (self.local_columns.len == 0 or self.local_columns.len > s.max_columns or self.local_columns.len != self.target_columns.len) return error.InvalidForeignKeyArity;
+        for (self.local_columns, self.target_columns, 0..) |local_id, target_id, i| {
+            const child_col = child_schema.columns[try child_schema.index(local_id)];
+            if (target_id == 0) return error.InvalidColumnIdentity;
+            for (self.local_columns[0..i]) |previous| if (previous == local_id) return error.DuplicateForeignKeyColumn;
+            for (self.target_columns[0..i]) |previous| if (previous == target_id) return error.DuplicateForeignKeyColumn;
+            if ((self.on_delete == .set_null or self.on_update == .set_null) and !child_col.nullable) return error.ForeignKeySetNullRequiresNullableColumn;
+        }
+    }
+
     pub fn validateAgainstSchemas(self: ForeignKeyConstraint, child_schema: s.Schema, parent_schema: s.Schema) !void {
         try child_schema.validate();
         try parent_schema.validate();
-        if (self.id == 0 or self.name.len == 0 or self.name.len > 63) return error.InvalidConstraintName;
+        try self.validateShape(child_schema);
         if (self.local_columns.len == 0 or self.local_columns.len != self.target_columns.len) {
             return error.InvalidForeignKeyArity;
         }
-        if (parent_schema.object != self.target_object) return error.ForeignKeyTargetMismatch;
+        if (parent_schema.object != self.target_object or parent_schema.revision != self.target_revision) return error.ForeignKeyTargetMismatch;
         if (!std.mem.eql(s.ColumnId, parent_schema.primary_key, self.target_columns)) {
             return error.ForeignKeyTargetNotUniqueKey;
         }
@@ -382,7 +640,7 @@ pub fn validateChangeAgainstConstraints(
                 }
             }
         },
-        .add, .rename, .default => {},
+        .add, .rename, .default, .integrity => {},
     }
 }
 
@@ -430,6 +688,7 @@ pub const SegmentDescriptor = struct {
 pub const SegmentProjectionSummary = struct {
     target_object: u64,
     target_revision: u64,
+    target_definition: ?Definition = null,
     total_segments: u32,
     native_target_segments: u32,
     lazily_projected_segments: u32,

@@ -25,6 +25,7 @@ pub const Schema = struct {
     next_column: []const u8,
     columns: []const Column,
     primary_key: []const []const u8,
+    integrity: @import("TableIntegrityJson.zig").Integrity = .{},
 };
 fn unsigned(text: []const u8) !u64 {
     if (text.len == 0 or text.len > 20 or (text.len > 1 and text[0] == '0')) return error.InvalidIntegerEncoding;
@@ -59,7 +60,7 @@ pub fn foreignInto(allocator: std.mem.Allocator, source: s.Schema) !Schema {
     };
     const primary_key = try allocator.alloc([]const u8, value.primary_key.len);
     for (value.primary_key, primary_key) |id, *output| output.* = try decimal(allocator, id);
-    return .{ .definition = p.Growth.current_definition, .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .next_column = try decimal(allocator, value.next_column), .columns = columns, .primary_key = primary_key };
+    return .{ .definition = p.Growth.current_definition, .object = try decimal(allocator, value.object), .revision = try decimal(allocator, value.revision), .next_column = try decimal(allocator, value.next_column), .columns = columns, .primary_key = primary_key, .integrity = try @import("TableIntegrityJson.zig").foreign(allocator, value) };
 }
 /// Convert through the shared schema validator, then copy into the enclosing
 /// arena. No caller-owned strings, descriptor pointers or defaults survive.
@@ -86,7 +87,8 @@ pub fn native(arena: *std.heap.ArenaAllocator, value: Schema) !s.Schema {
     }
     const primary_key = try allocator.alloc(s.ColumnId, value.primary_key.len);
     for (value.primary_key, primary_key) |id, *output| output.* = try unsigned(id);
-    const schema: s.Schema = .{ .object = try unsigned(value.object), .revision = try unsigned(value.revision), .next_column = try unsigned(value.next_column), .columns = columns, .primary_key = primary_key };
+    var schema: s.Schema = .{ .object = try unsigned(value.object), .revision = try unsigned(value.revision), .next_column = try unsigned(value.next_column), .columns = columns, .primary_key = primary_key };
+    schema.integrity = try @import("TableIntegrityJson.zig").native(allocator, value.integrity, schema);
     return (try schema.clone(allocator)).schema;
 }
 pub fn encode(allocator: std.mem.Allocator, schema: s.Schema) ![]u8 {

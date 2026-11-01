@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
+  "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+          "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
         ]
       },
       "T3": {
@@ -804,7 +804,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+          "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
         ]
       },
       "T3": {
@@ -1761,7 +1761,8 @@
           "duplicate_key",
           "missing_row",
           "invalid_rows",
-          "work_limit"
+          "work_limit",
+          "check_violation"
         ]
       },
       "T51": {
@@ -3679,7 +3680,7 @@
       "T21": {
         "type": "string",
         "enum": [
-          "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+          "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
         ]
       },
       "T22": {

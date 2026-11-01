@@ -150,30 +150,33 @@ pub fn fromResult(binding: d.Binding, result: w.Result) !?Self {
     if ((value.kind == .ddl and result != .ddl) or (value.kind == .dml and result != .rows)) return error.InvalidGatewayTerminal;
     switch (result) {
         inline .ddl, .rows => |observation| switch (observation) {
-            .not_observed, .admitted => return null,
-            .committed => |evidence| {
-                try binding.requireSame(evidence.binding);
-                try evidence.resulting.validate();
-                try evidence.outcome.position.validate();
-                const expected_revision = switch (binding.action) {
-                    .create => @as(u64, 1),
-                    .alter, .rename, .drop => try std.math.add(u64, binding.expected_definition.?.revision, 1),
-                    else => binding.expected_definition.?.revision,
-                };
-                if (!std.meta.eql(binding.target, evidence.resulting.interpretation.object) or evidence.resulting.interpretation.revision != expected_revision or evidence.resulting.retired != (binding.action == .drop)) return error.InvalidGatewayTerminal;
-                if (value.kind == .dml and !std.meta.eql(binding.expected_definition.?, evidence.resulting.interpretation)) return error.InvalidGatewayTerminal;
-                if (binding.expected_data) |expected| if (evidence.outcome.position.partition != expected.partition or evidence.outcome.position.next_lsn <= expected.next_lsn) return error.InvalidGatewayTerminal;
-                value.partition = evidence.outcome.position.partition;
-                value.next_lsn = evidence.outcome.position.next_lsn;
-                value.resulting_revision = evidence.resulting.interpretation.revision;
-                value.matched = evidence.outcome.matched;
-                value.changed = evidence.outcome.affected;
-            },
-            inline .rejected, .cancelled => |operation, tag| {
-                try binding.requireSame(operation.binding);
-                if (!std.mem.eql(u8, @tagName(operation.phase), @tagName(tag))) return error.InvalidGatewayTerminal;
-                value.state = if (tag == .rejected) .rejected else .cancelled;
-                value.reason = @backingInt(operation.reason);
+            inline else => |item, tag| {
+                if (comptime std.mem.eql(u8, @tagName(tag), "not_observed") or std.mem.eql(u8, @tagName(tag), "admitted") or std.mem.eql(u8, @tagName(tag), "finalizing")) return null;
+                if (comptime std.mem.eql(u8, @tagName(tag), "committed")) {
+                    const evidence = item;
+                    try binding.requireSame(evidence.binding);
+                    try evidence.resulting.validate();
+                    try evidence.outcome.position.validate();
+                    const expected_revision = switch (binding.action) {
+                        .create => @as(u64, 1),
+                        .alter, .rename, .drop => try std.math.add(u64, binding.expected_definition.?.revision, 1),
+                        else => binding.expected_definition.?.revision,
+                    };
+                    if (!std.meta.eql(binding.target, evidence.resulting.interpretation.object) or evidence.resulting.interpretation.revision != expected_revision or evidence.resulting.retired != (binding.action == .drop)) return error.InvalidGatewayTerminal;
+                    if (value.kind == .dml and !std.meta.eql(binding.expected_definition.?, evidence.resulting.interpretation)) return error.InvalidGatewayTerminal;
+                    if (binding.expected_data) |expected| if (evidence.outcome.position.partition != expected.partition or evidence.outcome.position.next_lsn <= expected.next_lsn) return error.InvalidGatewayTerminal;
+                    value.partition = evidence.outcome.position.partition;
+                    value.next_lsn = evidence.outcome.position.next_lsn;
+                    value.resulting_revision = evidence.resulting.interpretation.revision;
+                    value.matched = evidence.outcome.matched;
+                    value.changed = evidence.outcome.affected;
+                } else {
+                    const operation = item;
+                    try binding.requireSame(operation.binding);
+                    if (!std.mem.eql(u8, @tagName(operation.phase), @tagName(tag))) return error.InvalidGatewayTerminal;
+                    value.state = if (tag == .rejected) .rejected else .cancelled;
+                    value.reason = @backingInt(operation.reason);
+                }
             },
         },
         else => return error.InvalidGatewayTerminal,

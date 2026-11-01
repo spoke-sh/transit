@@ -53,6 +53,7 @@ pub const AuthorizationSql = @import("AuthorizationSql.zig");
 pub const TableDml = @import("TableDml.zig");
 pub const TableDmlPrepared = @import("TableDmlPrepared.zig");
 pub const TableSchemaJson = @import("TableSchemaJson.zig");
+pub const TableIntegrityJson = @import("TableIntegrityJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
 pub const TableProjection = @import("TableProjection.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");

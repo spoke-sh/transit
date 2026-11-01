@@ -22,9 +22,9 @@ public static partial class Catalog
     public enum Dialect { Transit, Mysql }
     public enum WorkKind { Table, NameAssertion }
     public enum ObservationKind { Ddl, Rows, NameAssertion }
-    public enum OperationState { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged }
+    public enum OperationState { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged, Finalizing }
     public enum Phase { Admitted, Ready, Settled, Rejected, Cancelled }
-    public enum Reason { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged }
+    public enum Reason { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged, RewriteRequired, CheckViolation }
     public enum EvolutionWork { Metadata, ValidateRows, RewriteRows }
     public sealed record Scope {
         public ResourceRef Resource { get; }

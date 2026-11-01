@@ -183,7 +183,7 @@ def identity_fixture():
         encoded = s.encode()
         return bytes([len(encoded)]) + encoded
     def schema(object_id):
-        encoded = b'FTS1' + text('transit.table.schema.v1.2026-11-01') + struct.pack('<QQQH', object_id, 1, 3, 2)
+        encoded = b'FTS1' + text('transit.table.schema.v1.2026-11-01.integrity') + struct.pack('<QQQH', object_id, 1, 3, 2)
         descriptor = b'FTY1' + text('transit.fuze.types.v1.2026-09-30') + b'\1'
         for identity, label in [(1, 'key'), (2, 'value')]:
             encoded += struct.pack('<Q', identity) + text(label) + struct.pack('<H', len(descriptor)) + descriptor

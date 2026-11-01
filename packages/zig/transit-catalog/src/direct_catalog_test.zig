@@ -242,7 +242,7 @@ test "direct preview checks current expectations and schema work without claims 
     try t.expectError(error.InvalidTableAccessRequest, catalog.checkAccess(.{ .namespace = 1, .target = null, .access = .read }, access.policy()));
     const previewed = try catalog.preview(altered, access.policy());
     try t.expectEqual(.none, previewed.reason);
-    try t.expectEqual(c.fuze.TableEvolution.Work.rewrite_rows, previewed.work.?);
+    try t.expectEqual(c.fuze.TableEvolution.Work.metadata, previewed.work.?);
     try t.expectEqualDeep(view.table.root.declared(), previewed.current.?.interpretation);
     altered.binding.expected_data = .{ .partition = view.table.root.partition, .next_lsn = 0 };
     try t.expectEqual(.stale_data, (try catalog.preview(altered, access.policy())).reason);
@@ -2934,6 +2934,9 @@ test "transaction admission retains selected directory pages through the catalog
 }
 
 fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClientToken.Binding {
+    return selectedTransactionIntegrity(catalog, access, count, false);
+}
+fn selectedTransactionIntegrity(catalog: *D, access: *Access, count: usize, integrity: bool) !c.DirectClientToken.Binding {
     var binding = try transactionToken(catalog, 9000, 1, 0);
     binding.intent.transaction.begin.limits.resident_bytes = 16 * 1024 * 1024;
     const identity = binding.intent.transaction.begin.identity;
@@ -2942,7 +2945,12 @@ fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClie
     for (0..count) |i| {
         var buffer: [32]u8 = undefined;
         const name = try std.fmt.bufPrint(&buffer, "selected_{d}", .{i});
-        const create = try creation(i + 10, i + 100, name);
+        var create = try creation(i + 10, i + 100, name);
+        const constraint: c.fuze.TableConstraints.CheckConstraint = .{ .id = 1, .name = "bounded_id", .validated = false, .atoms = &.{.{ .compare_literal = .{ .column = 1, .op = .lt, .literal = .{ .signed = 600 } } }} };
+        if (integrity) {
+            create.intent.action.create.schema.integrity = .{ .next_id = 2, .checks = (&constraint)[0..1] };
+            create.binding.intent = try create.intent.digest(t.allocator);
+        }
         _ = try catalog.admit(create, access.policy());
         _ = try catalog.perform(create.binding, access.policy());
         var view = (try resolve(catalog, access, name)).?;
@@ -6351,4 +6359,226 @@ test "direct KV and Document dependencies preserve kind rights recovery and DROP
     document_drop.operation = 11;
     _ = try catalog.resourceOperation(document_drop, .admit, access.policy());
     try t.expect((try catalog.resourceOperation(document_drop, .execute, access.policy())).operation.retired);
+}
+
+fn finishTableDdl(catalog: *D, access: *Access, binding: p.DataLifecycle.Binding) !void {
+    for (0..128) |_| {
+        const observed = try catalog.perform(binding, access.policy());
+        if (observed == .committed or observed == .finalizing) break;
+        try t.expect(observed == .admitted);
+    } else return error.TestUnexpectedResult;
+    for (0..128) |_| {
+        _ = try catalog.settle(binding, access.policy());
+        if ((try catalog.store.operation(binding)).?.phase == .settled) return;
+    }
+    return error.TestUnexpectedResult;
+}
+
+test "staged Table foreign keys recover protection before publication and bounded cleanup on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var child_binding: p.DataLifecycle.Binding = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const parent = try creation(7, 1, "parent");
+        _ = try catalog.admit(parent, access.policy());
+        try finishTableDdl(&catalog, &access, parent.binding);
+        var view = (try resolve(&catalog, &access, "parent")).?;
+        defer view.deinit();
+        var child = try creation(8, 2, "child");
+        const fk: c.fuze.TableConstraints.ForeignKeyConstraint = .{ .id = 1, .name = "parent_id", .local_columns = &.{1}, .target_object = 7, .target_revision = 1, .target_definition = view.table.root.interpretation, .target_columns = &.{1} };
+        child.intent.action.create.schema.integrity = .{ .next_id = 2, .foreign_keys = (&fk)[0..1] };
+        child.binding.intent = try child.intent.digest(t.allocator);
+        child_binding = child.binding;
+        _ = try catalog.admit(child, access.policy());
+        _ = try catalog.attachRegistration(child.binding, access.policy());
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.perform(child.binding, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    try t.expect(try resolve(&catalog, &access, "child") == null);
+    const progress = (try catalog.status(child_binding, access.policy())).admitted;
+    try t.expectEqual(@as(u16, 1), progress.protected_columns);
+    {
+        // A replay record cannot invent another protected column without the
+        // corresponding two graph entries, even with a valid operation index.
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        const guard = try Access.make(&access, arena.allocator(), try a.guard(access.policy().subject, profile, null, null, .database), null);
+        var batch: s.TreeStore.Batch = .{};
+        try catalog.store.index.beginBatch(catalog.options.index_work_bytes, &batch);
+        defer catalog.store.index.end();
+        var proposed = catalog.store.root;
+        proposed.next_lsn += 1;
+        try catalog.store.receipt(&proposed, child_binding);
+        var forged = progress;
+        forged.dependency_steps += 1;
+        forged.protected_columns += 1;
+        forged.dependency_change = null;
+        const before = catalog.store.root;
+        try t.expectError(error.InvalidDirectCatalogTransition, catalog.store.publish(proposed, .{ .operation = forged }, guard));
+        try t.expectEqualDeep(before, catalog.store.root);
+    }
+    var parent = (try resolve(&catalog, &access, "parent")).?;
+    defer parent.deinit();
+    const drop = try edit(&parent, 3, .drop);
+    try t.expectEqual(.dependency, (try catalog.admit(drop, access.policy())).reason);
+    const incompatible = try edit(&parent, 4, .{ .alter = .{ .type = .{ .column = 1, .type = .int32, .max_characters = null } } });
+    try t.expectEqual(.dependency, (try catalog.preview(incompatible, access.policy())).reason);
+    try t.expectEqual(.dependency, (try catalog.admit(incompatible, access.policy())).reason);
+    const rename = try edit(&parent, 5, .{ .rename = try a.Name.init("renamed") });
+    _ = try catalog.admit(rename, access.policy());
+    try finishTableDdl(&catalog, &access, rename.binding);
+    access.denied_metadata = 107;
+    try t.expectError(error.CatalogDenied, catalog.perform(child_binding, access.policy()));
+    access.denied_metadata = null;
+    try finishTableDdl(&catalog, &access, child_binding);
+    var child = (try resolve(&catalog, &access, "child")).?;
+    defer child.deinit();
+    try t.expectEqual(parent.table.root.interpretation, child.table.declaration.schema.schema.integrity.foreign_keys[0].target_definition.?);
+    const graph = try catalog.dependencyPage(.{ .dependencies = child_binding.target }, null, .dependent, access.policy());
+    try t.expectEqual(@as(u32, 1), graph.entries[0].?.foreign_key.?.constraint);
+    var erase = graph.entries[0].?;
+    erase.privileges = 0;
+    try t.expectError(error.TableDependencyOwned, catalog.dependencyOperation(.{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 1, .principal = 1, .role = null }, .operation = 90, .edge = erase, .action = .remove, .authority = .dependent }, .accept, access.policy()));
+    var replacement = child.table.declaration.schema.schema;
+    replacement.integrity = .{ .next_id = 2 };
+    const remove = try edit(&child, 6, .{ .alter = .{ .integrity = replacement } });
+    _ = try catalog.admit(remove, access.policy());
+    // Publication precedes graph cleanup; a crash here leaves protection.
+    try t.expect((try catalog.perform(remove.binding, access.policy())) == .finalizing);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.settle(remove.binding, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    try finishTableDdl(&catalog, &access, remove.binding);
+    try t.expect((try catalog.dependencyPage(.{ .dependencies = child_binding.target }, null, .dependent, access.policy())).entries[0] == null);
+    var renamed = (try resolve(&catalog, &access, "renamed")).?;
+    defer renamed.deinit();
+    const retire = try edit(&renamed, 7, .drop);
+    try t.expectEqual(.none, (try catalog.admit(retire, access.policy())).reason);
+    try finishTableDdl(&catalog, &access, retire.binding);
+    try catalog.recover();
+    try t.expect((try catalog.status(child_binding, access.policy())) == .committed);
+}
+
+test "staged Table foreign key cancellation resumes original cleanup after source revocation" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const parent = try creation(7, 1, "parent");
+    _ = try catalog.admit(parent, access.policy());
+    try finishTableDdl(&catalog, &access, parent.binding);
+    var view = (try resolve(&catalog, &access, "parent")).?;
+    defer view.deinit();
+    var child = try creation(8, 2, "child");
+    const fk: c.fuze.TableConstraints.ForeignKeyConstraint = .{ .id = 1, .name = "parent_id", .local_columns = &.{1}, .target_object = 7, .target_revision = 1, .target_definition = view.table.root.interpretation, .target_columns = &.{1} };
+    child.intent.action.create.schema.integrity = .{ .next_id = 2, .foreign_keys = (&fk)[0..1] };
+    child.binding.intent = try child.intent.digest(t.allocator);
+    _ = try catalog.admit(child, access.policy());
+    try t.expect((try catalog.perform(child.binding, access.policy())) == .admitted);
+    access.denied_metadata = 107;
+    try t.expectError(error.CatalogDenied, catalog.perform(child.binding, access.policy()));
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.cancel(child.binding, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const closing = (try catalog.status(child.binding, access.policy())).admitted;
+    try t.expectEqual(.cancelled, closing.closing.?.phase);
+    // Completing cancellation needs the child's current authority. Parent
+    // revocation cannot leak a registration or authorize a new publication.
+    for (0..8) |_| {
+        const outcome = try catalog.cancel(child.binding, access.policy());
+        if (outcome == .cancelled) break;
+        try t.expect(outcome == .admitted);
+    } else return error.TestUnexpectedResult;
+    try t.expect(try resolve(&catalog, &access, "child") == null);
+    access.denied_metadata = null;
+    try t.expect((try catalog.dependencyPage(.{ .dependents = parent.binding.target }, null, .dependent, access.policy())).entries[0] == null);
+    const drop = try edit(&view, 3, .drop);
+    _ = try catalog.admit(drop, access.policy());
+    try finishTableDdl(&catalog, &access, drop.binding);
+    try t.expect((try catalog.perform(child.binding, access.policy())) == .cancelled);
+}
+
+test "CHECK constraints fence transaction candidates and preserve savepoint recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransactionIntegrity(&catalog, &access, 1, true);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 800, .{ .create = try a.Name.init("valid") }), 8, access.policy());
+    // Binary ingress cannot stage an invalid candidate under this exact schema.
+    try t.expectError(error.CheckConstraintViolation, workspaceRequest(&catalog, &access, binding.key, 10, 2, 700));
+    const current = try catalog.inspectTransaction(binding.key, access.policy());
+    catalog.transaction_read = .{ .key = binding.key, .revision = current.revision };
+    var private = (try resolve(&catalog, &access, "selected_0")).?;
+    defer private.deinit();
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const schema = private.table.declaration.schema.schema;
+    const workspace = private.table.workspace_read.?;
+    var buffer: [65536]u8 = undefined;
+    const metadata: c.DirectTableProtocol.Definition = .{
+        .interpretation = private.table.root.declared(),
+        .namespace = private.properties.namespace,
+        .authorization = private.properties.authorization,
+        .name = private.properties.name,
+        .position = workspace.source.source.accepted,
+        .changed_lsn = workspace.source.changed_lsn,
+        .workspace = workspace,
+        .row_count = private.table.root.live_rows,
+        .schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&buffer)),
+    };
+    var compiled = try c.fuze.TableDml.compile(allocator, "UPDATE selected_0 SET id=700 WHERE id=500", "selected_0", schema, null);
+    defer compiled.deinit();
+    var intent = try c.DirectTableIntent.fromDml(allocator, binding.key.connection, metadata, 701, compiled.plan, .bulk);
+    defer intent.deinit();
+    catalog.transaction_read = null;
+    const request = try catalog.stageTransactionStatement(binding.key, current.revision, current.last_statement + 1, intent.parsed.value.work, access.policy());
+    const before = try catalog.transactionTableState(binding.key, request.binding.target, access.policy());
+    const outcome = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+    try t.expectEqual(.check_violation, outcome.rejected.reason);
+    try t.expectEqualDeep(before.root.rows, (try catalog.transactionTableState(binding.key, request.binding.target, access.policy())).root.rows);
+    try catalog.recover();
+    try t.expectEqualDeep(outcome, try catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    const rollback = try savepointRequest(&catalog, &access, binding.key, 801, .{ .rollback = try a.Name.init("valid") });
+    var complete = false;
+    for (0..8) |_| if ((try catalog.transactionSavepoint(binding.key, rollback, 8, access.policy())).completed != null) {
+        complete = true;
+        break;
+    };
+    try t.expect(complete);
+    const after = try catalog.inspectTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, after.last_statement + 1, 501), access.policy());
+    const result = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .commit, 8, access.policy());
+    try t.expect(result.cleanup_complete and result.observation.decided.outcome == .committed);
+    var published = (try resolve(&catalog, &access, "selected_0")).?;
+    defer published.deinit();
+    try t.expectEqual(@as(u64, 2), published.table.root.live_rows);
+    try t.expect(!published.table.declaration.schema.schema.integrity.checks[0].validated);
 }

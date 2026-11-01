@@ -721,10 +721,6 @@
           "code": "sql.incompatible_column_collation",
           "category": "binding"
         },
-        "UnsupportedColumnCollation": {
-          "code": "sql.unsupported_column_collation",
-          "category": "unsupported"
-        },
         "UnrepresentableEbcdic037": {
           "code": "sql.unrepresentable_cp037",
           "category": "binding"
@@ -732,6 +728,90 @@
         "UnrepresentableEbcdic1047": {
           "code": "sql.unrepresentable_cp1047",
           "category": "binding"
+        },
+        "UnsupportedColumnCollation": {
+          "code": "sql.unsupported_column_collation",
+          "category": "unsupported"
+        },
+        "CheckConstraintViolation": {
+          "code": "sql.check_violation",
+          "category": "constraint"
+        },
+        "UnsupportedCheckExpression": {
+          "code": "sql.unsupported_check_expression",
+          "category": "unsupported"
+        },
+        "UnknownTableConstraint": {
+          "code": "sql.unknown_table_constraint",
+          "category": "binding"
+        },
+        "DuplicateConstraintName": {
+          "code": "sql.duplicate_constraint_name",
+          "category": "constraint"
+        },
+        "InvalidConstraintCount": {
+          "code": "sql.invalid_constraint_count",
+          "category": "limit"
+        },
+        "InvalidCheckConstraint": {
+          "code": "sql.invalid_check_constraint",
+          "category": "constraint"
+        },
+        "IncompatibleCheckColumns": {
+          "code": "sql.incompatible_check_columns",
+          "category": "binding"
+        },
+        "ForeignKeyIndexEnforcementUnavailable": {
+          "code": "sql.foreign_key_enforcement_unavailable",
+          "category": "unsupported"
+        },
+        "ForeignKeyResolutionRequired": {
+          "code": "sql.foreign_key_resolution_required",
+          "category": "binding"
+        },
+        "InvalidConstraintName": {
+          "code": "sql.invalid_constraint_name",
+          "category": "constraint"
+        },
+        "DuplicateForeignKeyColumn": {
+          "code": "sql.duplicate_foreign_key_column",
+          "category": "constraint"
+        },
+        "ForeignKeySourceLimit": {
+          "code": "sql.foreign_key_source_limit",
+          "category": "limit"
+        },
+        "InvalidForeignKeyArity": {
+          "code": "sql.invalid_foreign_key_arity",
+          "category": "constraint"
+        },
+        "InvalidForeignKeyAction": {
+          "code": "sql.invalid_foreign_key_action",
+          "category": "unsupported"
+        },
+        "ForeignKeyTargetNotUniqueKey": {
+          "code": "sql.foreign_key_target_not_unique",
+          "category": "constraint"
+        },
+        "IncompatibleForeignKeyColumnType": {
+          "code": "sql.incompatible_foreign_key_columns",
+          "category": "binding"
+        },
+        "ForeignKeySetNullRequiresNullableColumn": {
+          "code": "sql.foreign_key_set_null_requires_nullable",
+          "category": "constraint"
+        },
+        "ColumnReferencedByCheckConstraint": {
+          "code": "sql.column_referenced_by_check",
+          "category": "constraint"
+        },
+        "ColumnReferencedByForeignKey": {
+          "code": "sql.column_referenced_by_foreign_key",
+          "category": "constraint"
+        },
+        "OnlinePhasedRewriteRequired": {
+          "code": "sql.phased_rewrite_required",
+          "category": "unsupported"
         }
       }
     },

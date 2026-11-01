@@ -230,7 +230,7 @@ try:
     owner._api.response['metadata']['binding']['name'] = 'changed'
     assert current.basis.name == 'items'
     rejects(IncompatibleNative, lambda: owner.lookup('items'))
-    physical_wire = dict(definition=definition, object=str(schema.object_id), revision='1', next_column='2',
+    physical_wire = dict(integrity={'next_id': 1, 'checks': [], 'foreign_keys': []}, definition=definition, object=str(schema.object_id), revision='1', next_column='2',
         columns=[dict(id='1', name='text', type={'utf8': {}}, nullable=True, default=None,
                       max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
     owner._api.response = {'metadata': dict(metadata, schema=physical_wire)}
@@ -322,3 +322,30 @@ async def cancellation():
 
 asyncio.run(cancellation())
 print('Python direct Tables: nested owned schemas/cells, exact widths, strict pages/identity, uncertain recovery and cancelled-await joined cleanup passed.')
+
+parent_definition = m.Interpretation(m.ObjectIdentity(scope, 1, 90), 8, 'ab' * 32)
+integrity = m.TableIntegrity(3, (m.CheckConstraint(1, 'check_id', (m.CheckLiteral(1, 'gte', l.Atom('signed', 0)),), False),),
+    (m.ForeignKeyConstraint(2, 'parent_id', (1,), parent_definition, 3, (7,)),))
+constrained = m.Schema(91, 2, 2, (m.Column(1, 'id', l.ScalarType('int64'), False),), (1,), integrity)
+assert v._schema(constrained._wire()) == constrained
+assert constrained.integrity.foreign_keys[0].target_definition.revision == 8
+assert constrained.integrity.foreign_keys[0].target_schema_revision == 3
+assert not constrained.integrity.checks[0].validated
+
+
+# A durable Table commit with unfinished dependency cleanup remains pending.
+final_reference_wire = copy.deepcopy(reference_wire)
+final_binding = final_reference_wire['table']['binding']
+final_binding['action'] = 'alter'
+final_original = m.Reference.restore(json.dumps(final_reference_wire))
+final_resulting = copy.deepcopy(stored)
+final_resulting['interpretation']['revision'] = str(int(final_binding['expected_definition']['revision']) + 1)
+final_evidence = dict(binding=final_binding, resulting=final_resulting, transaction=None,
+    outcome=dict(position=dict(partition='10', next_lsn='8'), matched='0', affected='0', live_rows='1'))
+final_operation = dict(binding=final_binding, intent=final_reference_wire['table']['content'], phase='admitted', reason='none',
+    dependency_steps=1, protected_columns=1, requires_settlement=True, closing=None)
+final_value = {'ddl': {'finalizing': dict(evidence=final_evidence, operation=final_operation)}}
+final_result = v._observation(final_value, final_original)
+assert final_result.state == 'finalizing' and final_result.reference is final_original and final_result.commit is not None
+final_operation['requires_settlement'] = False
+rejects(ValueError, lambda: v._observation(final_value, final_original))

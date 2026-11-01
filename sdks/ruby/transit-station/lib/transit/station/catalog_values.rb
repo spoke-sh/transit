@@ -269,6 +269,10 @@ module Transit
       module Values
         module_function
         def schema(value)
+          value = value.dup
+          if value.key?('integrity')
+            raise IncompatibleNative, 'Constraint-bearing schemas are unsupported by this caller' unless value.delete('integrity') == { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] }
+          end
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
           columns = v.fetch('columns').map do |c|
@@ -403,6 +407,11 @@ module Transit
           expected = original.kind == :name_assertion ? 'name_assertion' : (%w[insert update delete].include?(b.fetch('action')) ? 'rows' : 'ddl')
           raise IncompatibleNative, 'Changed observation kind' unless kind == expected
           return Observation.new(kind: kind.to_sym, state: :not_observed, reference: original) if state == 'not_observed'
+          if state == 'finalizing'
+            raise IncompatibleNative, 'Invalid finalizing phase' unless raw.fetch('operation').fetch('requires_settlement') == true && %w[admitted ready].include?(raw.fetch('operation').fetch('phase'))
+            raise IncompatibleNative, 'Changed finalizing binding' unless kind == 'ddl' && raw.fetch('operation').fetch('binding') == b
+            return observation({ 'ddl' => { 'committed' => raw.fetch('evidence') } }, original).with(state: :finalizing)
+          end
           raise IncompatibleNative, 'Changed original binding' unless raw.fetch('binding') == b
           if kind == 'name_assertion'
             return Observation.new(kind: :name_assertion, state: raw.fetch('state').to_sym, reference: original,

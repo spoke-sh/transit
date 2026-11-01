@@ -791,7 +791,7 @@ test "Table storage walk resolves real disk row pin receipt operation and archiv
     try t.expectEqualDeep(expected, table.root);
 }
 
-test "Table build memory bounds point bulk rewrite and flush candidates before publication" {
+test "Table build memory bounds point bulk and flush while physical ALTER requires phased work" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
     var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
@@ -832,18 +832,17 @@ test "Table build memory bounds point bulk rewrite and flush candidates before p
     const previous = table.root;
     const alteration = ddlBinding(&table, 3, .alter);
     const edit: P.Edit = .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .encoding = .bitpacked } }, .properties = "bounded" } };
-    // The intent fits, so declaration staging happens before rewrite allocation
-    // is refused. That durable candidate must not change the accepted schema.
+    // More memory cannot authorize a synchronous populated-table rewrite.
     table.options.build_resident_bytes = s.TransitLog.max_payload_bytes;
-    try t.expectError(error.TableBuildBudget, table.changeDefinition(alteration, edit, access.guard()));
+    try t.expectError(error.OnlinePhasedRewriteRequired, table.changeDefinition(alteration, edit, access.guard()));
     try t.expectEqualDeep(previous, table.root);
     try t.expectEqual(@as(usize, 1), table.declaration.schema.schema.columns.len);
     try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
     try table.recover();
     try t.expectEqualDeep(previous, table.root);
     table.options.build_resident_bytes = 64 * 1024 * 1024;
-    _ = try table.changeDefinition(alteration, edit, access.guard());
-    try t.expectEqual(.bitpacked, table.declaration.schema.schema.columns[0].encoding);
+    try t.expectError(error.OnlinePhasedRewriteRequired, table.changeDefinition(alteration, edit, access.guard()));
+    try t.expectEqual(.plain, table.declaration.schema.schema.columns[0].encoding);
     try t.expect(table.build_resident_peak <= table.options.build_resident_bytes);
     var key_bytes: [4096]u8 = undefined;
     // Cached rows and the accepted declaration outlive the private allocator.
@@ -2836,6 +2835,73 @@ fn ddlBinding(table: *P, operation: u64, action: p.DataLifecycle.Action) p.DataL
     return result;
 }
 
+test "Table CHECK admission and bounded validation preserve physical rows and retained violations on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    const negative: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = -1 } } };
+    const positive: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    const second: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+    var retained: P.SnapshotHandle = undefined;
+    var expected: P.Root = undefined;
+    const atoms = [_]f.TableConstraints.CheckAtom{.{ .compare_literal = .{ .column = 1, .op = .gte, .literal = .{ .signed = 0 } } }};
+    var check: f.TableConstraints.CheckConstraint = .{ .id = 1, .name = "positive_id", .validated = false, .atoms = &atoms };
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        _ = try table.apply(binding(&table, 1), &.{change(&negative, 1)}, .point, access.guard());
+        retained = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const original_rows = table.root.rows;
+        var proposed = table.declaration.schema.schema;
+        proposed.integrity = .{ .next_id = 2, .checks = (&check)[0..1] };
+        _ = try table.changeDefinition(ddlBinding(&table, 2, .alter), .{ .alter = .{ .change = .{ .integrity = proposed }, .properties = "" } }, access.guard());
+        try t.expectEqualDeep(original_rows, table.root.rows);
+        const before_rejection = table.root;
+        try t.expectError(error.CheckConstraintViolation, table.apply(binding(&table, 3), &.{ change(&positive, 3), change(&negative, 4) }, .bulk, access.guard()));
+        try t.expectEqualDeep(before_rejection, table.root);
+        check.validated = true;
+        proposed = table.declaration.schema.schema;
+        proposed.integrity = .{ .next_id = 2, .checks = (&check)[0..1] };
+        try t.expectError(error.CheckConstraintViolation, table.changeDefinition(ddlBinding(&table, 4, .alter), .{ .alter = .{ .change = .{ .integrity = proposed }, .properties = "" } }, access.guard()));
+        try t.expectEqualDeep(before_rejection, table.root);
+        var key_bytes: [4096]u8 = undefined;
+        var remove = binding(&table, 5);
+        remove.action = .delete;
+        _ = try table.apply(remove, &.{.{ .remove = try key(-1, &key_bytes) }}, .point, access.guard());
+        _ = try table.apply(binding(&table, 6), &.{ change(&positive, 6), change(&second, 7) }, .bulk, access.guard());
+        const before_validation = table.root;
+        proposed = table.declaration.schema.schema;
+        proposed.integrity = .{ .next_id = 2, .checks = (&check)[0..1] };
+        table.options.statement_scan_rows = 1;
+        try t.expectError(error.TableStatementScanLimit, table.changeDefinition(ddlBinding(&table, 8, .alter), .{ .alter = .{ .change = .{ .integrity = proposed }, .properties = "" } }, access.guard()));
+        try t.expectEqualDeep(before_validation, table.root);
+        table.options.statement_scan_rows = 10;
+        _ = try table.changeDefinition(ddlBinding(&table, 9, .alter), .{ .alter = .{ .change = .{ .integrity = proposed }, .properties = "" } }, access.guard());
+        try t.expectEqualDeep(before_validation.rows, table.root.rows);
+        try t.expectEqualDeep(before_validation.physical_schemas, table.root.physical_schemas);
+        try t.expect(table.declaration.schema.schema.integrity.checks[0].validated);
+        expected = table.root;
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        try t.expectEqualDeep(expected, table.root);
+        try t.expectError(error.CheckConstraintViolation, table.apply(binding(&table, 10), &.{change(&negative, 10)}, .point, access.guard()));
+        var key_bytes: [4096]u8 = undefined;
+        var old = (try table.readSnapshot(t.allocator, retained, try key(-1, &key_bytes), access.guard())).?;
+        defer old.deinit();
+        try t.expectEqual(@as(i128, -1), old.row().cells[0].value.atom.signed);
+    }
+}
+
 test "Table rename ALTER and DROP preserve exact receipts and pinned original interpretation on disk" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -3002,7 +3068,7 @@ test "Table lazy ALTER preserves row indexes beyond a rewrite group and publishe
     try t.expectEqual(@as(usize, 1028), count);
 }
 
-test "Table ALTER rejects duplicate collation keys without publishing schema or rows" {
+test "Table ALTER requires phased collation rewrites without publishing schema or rows" {
     for ([_]struct { text: []const u8, collation: f.TableSchema.Collation }{
         .{ .text = "a", .collation = .ascii_ci },
         .{ .text = "A ", .collation = .ebcdic_037_pad },
@@ -3022,7 +3088,7 @@ test "Table ALTER rejects duplicate collation keys without publishing schema or 
         _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), second }, .point, access.guard());
         const before = table.root;
         const request = ddlBinding(&table, 2, .alter);
-        try t.expectError(error.DuplicatePrimaryKey, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = case.collation } }, .properties = "names" } }, access.guard()));
+        try t.expectError(error.OnlinePhasedRewriteRequired, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = case.collation } }, .properties = "names" } }, access.guard()));
         try t.expectEqualDeep(before, table.root);
         try t.expect((try table.observe(request, access.guard())) == null);
         try table.recover();

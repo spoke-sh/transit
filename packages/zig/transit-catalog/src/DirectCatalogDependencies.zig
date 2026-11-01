@@ -12,14 +12,15 @@ pub const Edge = struct {
     source: h.Interpretation,
     dependent: struct { kind: @FieldType(d.Dependent, "kind"), interpretation: h.Interpretation },
     privileges: u64,
+    foreign_key: ?struct { constraint: u32, column: []const u8 } = null,
     pub fn native(self: Edge) !d.Edge {
-        const result: d.Edge = .{ .source = try self.source.native(), .dependent = .{ .kind = self.dependent.kind, .interpretation = try self.dependent.interpretation.native() }, .privileges = self.privileges };
+        const result: d.Edge = .{ .source = try self.source.native(), .dependent = .{ .kind = self.dependent.kind, .interpretation = try self.dependent.interpretation.native() }, .privileges = self.privileges, .foreign_key = if (self.foreign_key) |fk| .{ .constraint = fk.constraint, .column = try v.unsigned(fk.column) } else null };
         try result.validate();
         return result;
     }
     pub fn foreign(allocator: Allocator, value: d.Edge) !Edge {
         try value.validate();
-        return .{ .source = try h.Interpretation.foreign(allocator, value.source), .dependent = .{ .kind = value.dependent.kind, .interpretation = try h.Interpretation.foreign(allocator, value.dependent.interpretation) }, .privileges = value.privileges };
+        return .{ .source = try h.Interpretation.foreign(allocator, value.source), .dependent = .{ .kind = value.dependent.kind, .interpretation = try h.Interpretation.foreign(allocator, value.dependent.interpretation) }, .privileges = value.privileges, .foreign_key = if (value.foreign_key) |fk| .{ .constraint = fk.constraint, .column = try v.decimal(allocator, fk.column) } else null };
     }
 };
 pub const Binding = struct {
@@ -65,8 +66,11 @@ pub const Cursor = struct {
     pub fn native(self: Cursor, connection: w.Connection) !d.Cursor {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         if (!std.meta.eql(try self.connection.native(), connection)) return error.InvalidCatalogCursor;
-        const result: d.Cursor = .{ .selection = try self.selection.native(), .authority = self.authority, .position = try self.position.native(), .after = try v.digest(self.after) };
-        if (result.position.next_lsn == 0) return error.InvalidCatalogCursor;
+        if (self.after.len > 128 or self.after.len % 2 != 0) return error.InvalidCatalogCursor;
+        var bytes: [64]u8 = undefined;
+        const after = std.fmt.hexToBytes(&bytes, self.after) catch return error.InvalidCatalogCursor;
+        const result: d.Cursor = .{ .selection = try self.selection.native(), .authority = self.authority, .position = try self.position.native(), .after = try c.storage.TreeStore.pages.Key.init(after) };
+        try result.validate();
         return result;
     }
     fn check(self: Cursor, connection: w.Connection, selection: d.Selection, authority: d.Authority) !d.Cursor {
@@ -75,7 +79,7 @@ pub const Cursor = struct {
         return result;
     }
     fn foreign(allocator: Allocator, connection: w.Connection, value: d.Cursor) !Cursor {
-        return .{ .definition = p.Growth.current_definition, .connection = try h.Connection.foreign(allocator, connection), .selection = try Selection.foreign(allocator, value.selection), .authority = value.authority, .position = try h.Position.foreign(allocator, value.position), .after = try v.hex(allocator, &value.after) };
+        return .{ .definition = p.Growth.current_definition, .connection = try h.Connection.foreign(allocator, connection), .selection = try Selection.foreign(allocator, value.selection), .authority = value.authority, .position = try h.Position.foreign(allocator, value.position), .after = try v.hex(allocator, value.after.slice()) };
     }
 };
 pub const Outcome = struct {
@@ -153,7 +157,7 @@ test "direct dependency host recovery preserves original bindings and cursor sco
     var changed = parsed.value;
     changed.operation = "18446744073709551616";
     try t.expectError(error.InvalidCatalogInteger, changed.native());
-    const cursor: d.Cursor = .{ .selection = .{ .dependents = original.edge.source.object }, .authority = .dependent, .position = .{ .partition = std.math.maxInt(u64), .next_lsn = std.math.maxInt(u64) }, .after = fixture.value.edge_digest };
+    const cursor: d.Cursor = .{ .selection = .{ .dependents = original.edge.source.object }, .authority = .dependent, .position = .{ .partition = std.math.maxInt(u64), .next_lsn = std.math.maxInt(u64) }, .after = try original.edge.forwardKey() };
     const host_cursor = try Cursor.foreign(arena.allocator(), original.connection, cursor);
     try t.expectEqualDeep(cursor, try host_cursor.check(original.connection, cursor.selection, .dependent));
     try t.expectError(error.InvalidCatalogCursor, host_cursor.check(original.connection, .{ .dependencies = original.edge.dependent.interpretation.object }, .dependent));

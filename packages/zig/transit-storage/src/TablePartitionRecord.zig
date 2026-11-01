@@ -87,7 +87,7 @@ pub const Operation = struct {
     intent: d.Content,
     basis: struct { interpretation: d.Definition, position: d.Position, changed_lsn: u64 },
     phase: enum { admitted, rejected, cancelled },
-    reason: enum { none, definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit },
+    reason: enum { none, definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit, check_violation },
 
     pub fn validate(self: Operation) !void {
         try self.binding.validate();

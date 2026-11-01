@@ -799,8 +799,12 @@ and conditional name assertions. A reused identity must match the entire saved
 binding, including authority. Transport credential replacement does not change it.
 
 An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
-kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
-nonzero mask of required logical actions. Table sources accept Table action masks;
+kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`, `table`) and exact definition, and a
+mask of required logical actions. Generic registrations require a nonzero mask.
+Table-owned staged foreign-key edges carry `foreign_key {constraint, column}`
+and zero privileges: protection requires metadata authority and grants no row
+access. Generic `dependency_operation` cannot register or remove these edges.
+Table sources accept Table action masks;
 direct KV sources use `KVAuthority` privileges; named Document sources accept
 SELECT only, mapped to native INSPECT and READ.
 Stream/Queue sources accept their own five-bit action masks; their dependents
@@ -862,11 +866,31 @@ definitions and may leave a consumer stale; they do not rewrite it. Namespace
 DROP checks live/pending Table and named-resource membership. Neither registry discovers
 unregistered consumers or dependencies embedded in arbitrary payloads.
 
+Staged Table foreign keys are registered by the original admitted Table DDL.
+Each bounded step atomically records one referenced-column edge in both graph
+directions and advances `protected_columns`/`dependency_steps`. All required
+edges precede child visibility. Parent DROP and changes to a protected column's
+type, collation, physical encoding or membership reject with a generic dependency
+reason; compatible renames preserve bindings. A saved target definition remains
+unchanged by parent renames. Newly registered edges require the exact current
+parent definition and metadata rights, rechecked at publication.
+
+Table DDL with foreign keys records `requires_settlement`. After Table commit,
+`finalizing {evidence, operation}` exposes that durable outcome while bounded
+dependency cleanup remains pending. It is not a rejected or replayable new
+operation. Settlement records a closure before scanning one reverse edge per
+step; obsolete registrations are removed only against the original known Table
+outcome. Cancelled unpublished declarations release their acquired protection.
+Cleanup uses current child metadata authority and requires no parent grant.
+The object remains pending until settlement; retrying/cancelling a committed
+operation continues its original cleanup and cannot roll back the commit.
+`committed` is returned once this required settlement completes.
+
 `dependencies` selects `dependents` of a source object or `dependencies` of a
 dependent object, with an explicit authority and nullable cursor. Each call scans
 at most four edges; denied edges are omitted while scan progress advances.
 An empty page with `next` is incomplete. The cursor binds selection, authority,
-catalog position and the last scanned edge digest. A changed catalog position
+catalog position and the last scanned full index key. A changed catalog position
 returns HTTP 409 (`CatalogObservationChanged`), requiring a fresh traversal;
 pages from different observations cannot be joined into one complete graph.
 Durable graph cardinality is independent of resident cache and page size.
@@ -880,10 +904,13 @@ point observation does not certify data availability or a cross-catalog snapshot
 
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
-Document=2, captured=3, maintained=4), dependent definition, and a big-endian
+Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7), dependent definition, and a big-endian
 unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
 unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
-digest. Forward keys prefix the digest with the source's big-endian object ID.
+digest. Foreign-key digests append a big-endian u32 constraint ID and u64
+referenced ColumnId to that body. Forward keys contain the source's big-endian
+object ID, a one-byte kind (0 generic, 1 foreign key), the referenced big-endian
+ColumnId for kind 1, then the digest (41 or 49 bytes respectively).
 Reverse keys prefix it with SHA-256 over `transit.catalog.dependent.v1`, a zero
 byte and the dependent's five big-endian object fields. Full edge records must
 match when a key already exists. Persisted catalog roots require both graph

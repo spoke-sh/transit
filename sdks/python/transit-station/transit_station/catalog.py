@@ -13,6 +13,8 @@ from . import catalog_values as v
 from .catalog_values import (
     Scope as Scope, Connection as Connection, TableLimits as TableLimits,
     Configuration as Configuration, AuthorityProfile as AuthorityProfile, Subject as Subject,
+    CheckLiteral as CheckLiteral, CheckColumns as CheckColumns, CheckNull as CheckNull,
+    CheckConstraint as CheckConstraint, ForeignKeyConstraint as ForeignKeyConstraint, TableIntegrity as TableIntegrity,
     Column as Column, Encoding as Encoding, Collation as Collation, Schema as Schema,
     Identity as Identity, Basis as Basis, Metadata as Metadata, ObjectIdentity as ObjectIdentity,
     Interpretation as Interpretation, StoredDefinition as StoredDefinition, Position as Position,
@@ -24,6 +26,7 @@ from .catalog_values import (
     StatePredicate as StatePredicate, Comparison as Comparison, Insert as Insert, Update as Update,
     Delete as Delete, AddColumn as AddColumn, DropColumn as DropColumn, RenameColumn as RenameColumn,
     SetDefault as SetDefault, SetNullable as SetNullable, SetType as SetType, SetPhysical as SetPhysical,
+    SetIntegrity as SetIntegrity,
     Create as Create, Alter as Alter, Rename as Rename, Drop as Drop, Mutate as Mutate,
     Capabilities as Capabilities, Description as Description, Predicate as Predicate,
     Mutation as Mutation, Change as Change, Operation as Operation,

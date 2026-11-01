@@ -23,7 +23,7 @@ pub const Plan = struct {
             .insert => |rows| {
                 if (rows.len == 0 or rows.len > max_rows) return error.MutationBatchTooLarge;
                 if (self.predicate != null) return error.InvalidMutationPlan;
-                for (rows) |row| try self.schema.validateRow(row);
+                for (rows) |row| try self.schema.validateWrite(row);
             },
             .update => |assignments| {
                 if (assignments.len == 0 or assignments.len > self.schema.columns.len) return error.InvalidMutationColumns;

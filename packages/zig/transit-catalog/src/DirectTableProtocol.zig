@@ -112,6 +112,7 @@ pub const Change = union(enum) {
     nullable: struct { column: u64, value: bool },
     type: struct { column: u64, type: f.Types.Type, max_characters: ?u32 },
     physical: struct { column: u64, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation },
+    integrity: Binary,
 
     fn cell(allocator: std.mem.Allocator, value: ?Binary) !?f.Types.Values.Cell {
         const binary = value orelse return null;
@@ -128,6 +129,7 @@ pub const Change = union(enum) {
             .nullable => |value| .{ .nullable = .{ .column = value.column, .value = value.value } },
             .type => |value| .{ .type = .{ .column = value.column, .type = value.type, .max_characters = value.max_characters } },
             .physical => |value| .{ .physical = .{ .column = value.column, .encoding = value.encoding, .collation = value.collation } },
+            .integrity => |value| .{ .integrity = (try f.TableSchema.decode(allocator, try value.decode(allocator, f.TableSchema.max_bytes))).schema },
         };
     }
 };
@@ -526,7 +528,7 @@ pub const Request = struct {
                     },
                 }
                 if (value.cursor) |cursor| {
-                    try cursor.position.validate();
+                    try cursor.validate();
                     if (cursor.position.next_lsn == 0 or !std.meta.eql(cursor.selection, value.selection) or cursor.authority != value.authority) return error.InvalidCatalogCursor;
                 }
             },

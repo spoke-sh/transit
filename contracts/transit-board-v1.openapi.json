@@ -4796,7 +4796,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+                        "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
                       ]
                     },
                     "code": {
@@ -6877,7 +6877,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+                      "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
                     ]
                   },
                   "code": {
@@ -18369,7 +18369,7 @@
           "T148": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T149": {
@@ -20250,7 +20250,7 @@
           "T5": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T6": {
@@ -20650,7 +20650,7 @@
           "T25": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T26": {
@@ -21066,7 +21066,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
+              "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -21079,7 +21079,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T4": {
@@ -21545,7 +21545,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
+              "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
               "executed": false
             }
           },
@@ -21621,7 +21621,7 @@
           "T29": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T30": {
@@ -24353,7 +24353,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T2": {
@@ -24909,7 +24909,7 @@
                 ],
                 "properties": {
                   "dependencies": {
-                    "$ref": "#/components/schemas/CatalogResponse/$defs/T102"
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T129"
                   }
                 }
               }
@@ -25035,7 +25035,7 @@
             ],
             "x-transit-defaults": {
               "version": 1,
-              "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
+              "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
               "max_columns": 128,
               "max_rows": 1024,
               "max_sql_bytes": 4096,
@@ -25055,7 +25055,7 @@
           "T4": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T5": {
@@ -26099,7 +26099,8 @@
               "revision",
               "next_column",
               "columns",
-              "primary_key"
+              "primary_key",
+              "integrity"
             ],
             "properties": {
               "definition": {
@@ -26119,6 +26120,9 @@
               },
               "primary_key": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T101"
+              },
+              "integrity": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T102"
               }
             },
             "required": [
@@ -26127,9 +26131,16 @@
               "revision",
               "next_column",
               "columns",
-              "primary_key"
+              "primary_key",
+              "integrity"
             ],
-            "x-transit-defaults": {}
+            "x-transit-defaults": {
+              "integrity": {
+                "next_id": 1,
+                "checks": [],
+                "foreign_keys": []
+              }
+            }
           },
           "T50": {
             "type": "array",
@@ -28059,16 +28070,754 @@
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
+              "next_id",
+              "checks",
+              "foreign_keys"
+            ],
+            "properties": {
+              "next_id": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T6"
+              },
+              "checks": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T103"
+              },
+              "foreign_keys": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T124"
+              }
+            },
+            "required": [
+              "next_id",
+              "checks",
+              "foreign_keys"
+            ],
+            "x-transit-defaults": {
+              "next_id": 1,
+              "checks": [],
+              "foreign_keys": []
+            }
+          },
+          "T103": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/CatalogResponse/$defs/T104"
+            }
+          },
+          "T104": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "name",
+              "atoms",
+              "validated"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T105"
+              },
+              "name": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "atoms": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T107"
+              },
+              "validated": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T123"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "atoms",
+              "validated"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T105": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "T106": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T107": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/CatalogResponse/$defs/T108"
+            }
+          },
+          "T108": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "compare_literal"
+                ],
+                "properties": {
+                  "compare_literal": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T109"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "compare_columns"
+                ],
+                "properties": {
+                  "compare_columns": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T122"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "is_not_null"
+                ],
+                "properties": {
+                  "is_not_null": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "is_null"
+                ],
+                "properties": {
+                  "is_null": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              }
+            ]
+          },
+          "T109": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "column",
+              "op",
+              "literal"
+            ],
+            "properties": {
+              "column": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              },
+              "op": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T111"
+              },
+              "literal": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T112"
+              }
+            },
+            "required": [
+              "column",
+              "op",
+              "literal"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T110": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T111": {
+            "type": "string",
+            "enum": [
+              "lt",
+              "lte",
+              "eq",
+              "gte",
+              "gt",
+              "neq"
+            ]
+          },
+          "T112": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "missing"
+                ],
+                "properties": {
+                  "missing": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T113"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "null"
+                ],
+                "properties": {
+                  "null": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T113"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type_error"
+                ],
+                "properties": {
+                  "type_error": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T114"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T115"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "conflict"
+                ],
+                "properties": {
+                  "conflict": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T93"
+                  }
+                }
+              }
+            ]
+          },
+          "T113": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T114": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "int64",
+              "uint64",
+              "float64",
+              "boolean",
+              "utf8",
+              "binary",
+              "int8",
+              "int16",
+              "int32",
+              "int128",
+              "uint8",
+              "uint16",
+              "uint32",
+              "uint128",
+              "float32",
+              "decimal",
+              "date",
+              "time",
+              "timestamp",
+              "interval",
+              "uuid",
+              "structure",
+              "list",
+              "array",
+              "map",
+              "tagged_union",
+              "json",
+              "null_value",
+              "text",
+              "character"
+            ]
+          },
+          "T115": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "atom"
+                ],
+                "properties": {
+                  "atom": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T116"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T79"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T79"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T79"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "map"
+                ],
+                "properties": {
+                  "map": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T88"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tagged_union"
+                ],
+                "properties": {
+                  "tagged_union": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T119"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "json"
+                ],
+                "properties": {
+                  "json": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              }
+            ]
+          },
+          "T116": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "signed"
+                ],
+                "properties": {
+                  "signed": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unsigned"
+                ],
+                "properties": {
+                  "unsigned": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float_bits"
+                ],
+                "properties": {
+                  "float_bits": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T117"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date_days"
+                ],
+                "properties": {
+                  "date_days": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time_nanos"
+                ],
+                "properties": {
+                  "time_nanos": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp_micros"
+                ],
+                "properties": {
+                  "timestamp_micros": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T118"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                  }
+                }
+              }
+            ]
+          },
+          "T117": {
+            "type": "boolean"
+          },
+          "T118": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "properties": {
+              "months": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              },
+              "days": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              },
+              "nanos": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              }
+            },
+            "required": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T119": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "index",
+              "value"
+            ],
+            "properties": {
+              "index": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T120"
+              },
+              "value": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T121"
+              }
+            },
+            "required": [
+              "index",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T120": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T121": {
+            "$ref": "#/components/schemas/CatalogResponse/$defs/T112"
+          },
+          "T122": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "left_column",
+              "op",
+              "right_column"
+            ],
+            "properties": {
+              "left_column": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              },
+              "op": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T111"
+              },
+              "right_column": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+              }
+            },
+            "required": [
+              "left_column",
+              "op",
+              "right_column"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T123": {
+            "type": "boolean"
+          },
+          "T124": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/CatalogResponse/$defs/T125"
+            }
+          },
+          "T125": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "name",
+              "local_columns",
+              "target_object",
+              "target_revision",
+              "target_definition",
+              "target_columns",
+              "on_delete",
+              "on_update",
+              "enforcement"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T105"
+              },
+              "name": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "local_columns": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T101"
+              },
+              "target_object": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "target_revision": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "target_definition": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T126"
+              },
+              "target_columns": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T101"
+              },
+              "on_delete": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T127"
+              },
+              "on_update": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T127"
+              },
+              "enforcement": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T128"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "local_columns",
+              "target_object",
+              "target_revision",
+              "target_definition",
+              "target_columns",
+              "on_delete",
+              "on_update",
+              "enforcement"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T126": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "resource",
+              "catalog",
+              "branch",
+              "object",
+              "revision",
+              "digest"
+            ],
+            "properties": {
+              "realm": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "resource": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "catalog": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "object": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              },
+              "digest": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+              }
+            },
+            "required": [
+              "realm",
+              "resource",
+              "catalog",
+              "branch",
+              "object",
+              "revision",
+              "digest"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T127": {
+            "type": "string",
+            "enum": [
+              "restrict",
+              "no_action",
+              "cascade",
+              "set_null"
+            ]
+          },
+          "T128": {
+            "type": "string",
+            "enum": [
+              "staged_awaiting_index",
+              "enforced"
+            ]
+          },
+          "T129": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
               "entries",
               "next",
               "position"
             ],
             "properties": {
               "entries": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T103"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T130"
               },
               "next": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T108"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T137"
               },
               "position": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T26"
@@ -28081,51 +28830,58 @@
             ],
             "x-transit-defaults": {}
           },
-          "T103": {
+          "T130": {
             "type": "array",
             "minItems": 4,
             "maxItems": 4,
             "items": {
-              "$ref": "#/components/schemas/CatalogResponse/$defs/T104"
+              "$ref": "#/components/schemas/CatalogResponse/$defs/T131"
             }
           },
-          "T104": {
+          "T131": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T105"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T132"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T105": {
+          "T132": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
               "source",
               "dependent",
-              "privileges"
+              "privileges",
+              "foreign_key"
             ],
             "properties": {
               "source": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T31"
               },
               "dependent": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T106"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T133"
               },
               "privileges": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
+              "foreign_key": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T135"
               }
             },
             "required": [
               "source",
               "dependent",
-              "privileges"
+              "privileges",
+              "foreign_key"
             ],
-            "x-transit-defaults": {}
+            "x-transit-defaults": {
+              "foreign_key": null
+            }
           },
-          "T106": {
+          "T133": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -28134,7 +28890,7 @@
             ],
             "properties": {
               "kind": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T107"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T134"
               },
               "interpretation": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T31"
@@ -28146,7 +28902,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T107": {
+          "T134": {
             "type": "string",
             "enum": [
               "kv",
@@ -28154,20 +28910,52 @@
               "captured",
               "maintained",
               "stream",
-              "queue"
+              "queue",
+              "table"
             ]
           },
-          "T108": {
+          "T135": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T109"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T136"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T109": {
+          "T136": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "constraint",
+              "column"
+            ],
+            "properties": {
+              "constraint": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T6"
+              },
+              "column": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              }
+            },
+            "required": [
+              "constraint",
+              "column"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T137": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T138"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T138": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -28186,10 +28974,10 @@
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T22"
               },
               "selection": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T110"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T139"
               },
               "authority": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T111"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T140"
               },
               "position": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T26"
@@ -28208,7 +28996,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T110": {
+          "T139": {
             "oneOf": [
               {
                 "type": "object",
@@ -28236,7 +29024,7 @@
               }
             ]
           },
-          "T111": {
+          "T140": {
             "type": "string",
             "enum": [
               "dependent",
@@ -28272,7 +29060,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T2": {
@@ -28496,7 +29284,7 @@
               "lifetime_ms"
             ],
             "x-transit-defaults": {
-              "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
+              "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
               "readers": 4,
               "window_rows": 100,
               "window_bytes": 2097152,
@@ -28506,7 +29294,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             ]
           },
           "T3": {
@@ -28625,7 +29413,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
+              "definition": "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d"
             }
           },
           "T10": {

@@ -124,6 +124,7 @@ pub const Observation = union(enum) {
     not_observed,
     admitted: r.Operation,
     committed: P.Evidence,
+    finalizing: struct { evidence: P.Evidence, operation: r.Operation },
     rejected: r.Operation,
     cancelled: r.Operation,
 };
@@ -1533,7 +1534,7 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
         .external => {},
         .table => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => switch (try self.status(value.binding, policy)) {
-                .not_observed, .admitted => return error.ClientOperationPending,
+                .not_observed, .admitted, .finalizing => return error.ClientOperationPending,
                 else => {},
             },
             .insert, .update, .delete => switch (try self.rowStatus(value.binding, policy)) {
@@ -3672,6 +3673,7 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
         try self.requirements(policy, namespace, target, access)
     else
         try self.kvRequirements(policy, namespace, target, if (request.intent.action == .create) .create else .administer);
+    if (acceptance) requested = try self.foreignRequirements(policy, request, view, requested);
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
     return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
@@ -3691,6 +3693,7 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
     const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
     if (!observed.pending()) return false;
+    if (observed.requires_settlement) return true;
     if (target.seed == null) return true;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
@@ -3750,7 +3753,7 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
         if (view.table.root.pending != null or try self.pending(object, current)) return .object_conflict;
-        if (request.intent.action == .drop and try self.hasDependents(object)) return .dependency;
+        if ((request.intent.action == .drop and try self.hasDependents(object)) or try self.altersReferencedColumn(request)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
     if ((request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) return .name_conflict;
@@ -3829,7 +3832,8 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     defer self.store.index.end();
     try c.OperationBinding.claimInTree(self.allocator, &self.store.index, request.binding);
     const content = try IntentStore.stageInTree(self.allocator, &self.store.index, self.config(), request);
-    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none };
+    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none, .requires_settlement = request.intent.action != .rename and
+        (proposedIntegrity(request, if (existing) |*value| value else null).foreign_keys.len != 0 or if (existing) |value| value.table.declaration.schema.schema.integrity.foreign_keys.len != 0 else false) };
     var next = self.store.root;
     if (reason != .none) {
         operation.phase = .rejected;
@@ -3881,7 +3885,10 @@ pub fn status(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     };
     const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
     try check(current);
-    if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| return .{ .committed = accepted };
+    if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| {
+        if (operation.requires_settlement and operation.phase != .settled) return .{ .finalizing = .{ .evidence = accepted, .operation = operation } };
+        return .{ .committed = accepted };
+    };
     return switch (operation.phase) {
         .admitted, .ready => .{ .admitted = operation },
         .rejected => .{ .rejected = operation },
@@ -3972,10 +3979,25 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, true);
-    if (binding.action == .drop and try self.hasDependents(binding.target.object)) {
-        try self.terminal(observed.admitted, .rejected, .dependency, current);
+    const operation = (try self.store.operation(binding)).?;
+    if (operation.closing) |close| {
+        try self.terminal(operation, close.phase, close.reason, current);
         return self.status(binding, policy);
     }
+    if ((binding.action == .drop and try self.hasDependents(binding.target.object)) or try self.altersReferencedColumn(request.value)) {
+        try self.terminal(operation, .rejected, .dependency, current);
+        return self.status(binding, policy);
+    }
+    const advanced = self.protectForeignColumn(request.value, &view, policy, current) catch |err| {
+        switch (err) {
+            error.ForeignKeyTargetChanged, error.ForeignKeyTargetMismatch, error.ForeignKeyTargetNotUniqueKey, error.IncompatibleForeignKeyColumnType => {
+                try self.terminal(operation, .rejected, .dependency, current);
+                return self.status(binding, policy);
+            },
+            else => return err,
+        }
+    };
+    if (advanced) return self.status(binding, policy);
     var properties = view.properties;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
@@ -3993,14 +4015,178 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
             error.TableDataChanged => .stale_data,
             error.DuplicatePrimaryKey, error.MissingRequiredField, error.NullNotAllowed, error.Overflow, error.TableRetired => .constraint,
             error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037, error.UnrepresentableEbcdic1047 => .constraint,
+            error.CheckConstraintViolation, error.ColumnReferencedByCheckConstraint, error.ColumnReferencedByForeignKey, error.ForeignKeySetNullRequiresNullableColumn => .constraint,
+            error.OnlinePhasedRewriteRequired => .rewrite_required,
+            error.TableStatementScanLimit, error.TableBuildBudget => .work_limit,
             else => return err,
         };
-        try self.terminal(observed.admitted, .rejected, reason, current);
+        try self.terminal(operation, .rejected, reason, current);
         return self.status(binding, policy);
     };
     // No catalog publication is needed for visibility or the accepted result.
     // A later explicit settlement only removes the pending-work directory entry.
-    return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome, .transaction = null } };
+    const evidence: P.Evidence = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome, .transaction = null };
+    if (operation.requires_settlement) return .{ .finalizing = .{ .evidence = evidence, .operation = operation } };
+    return .{ .committed = evidence };
+}
+
+// FK registrations belong to the original DDL operation, never to separately
+// allocated client tokens. A bounded step protects one referenced ColumnId.
+fn proposedIntegrity(request: Request, view: ?*View) c.fuze.TableConstraints.Integrity {
+    return switch (request.intent.action) {
+        .create => |value| value.schema.integrity,
+        .alter => |change| if (change == .integrity) change.integrity.integrity else view.?.table.declaration.schema.schema.integrity,
+        .rename => view.?.table.declaration.schema.schema.integrity,
+        .drop => .{},
+    };
+}
+fn newForeignKey(request: Request, view: ?*View, id: u32) bool {
+    if (request.intent.action == .create) return true;
+    for (view.?.table.declaration.schema.schema.integrity.foreign_keys) |fk| if (fk.id == id) return false;
+    return true;
+}
+fn hasColumnDependents(self: *Self, object: u64, column: u64) !bool {
+    var prefix: [17]u8 = undefined;
+    std.mem.writeInt(u64, prefix[0..8], object, .big);
+    prefix[8] = 1;
+    std.mem.writeInt(u64, prefix[9..17], column, .big);
+    const page = try self.store.tree().scan(self.store.root.dependents, try pages.Key.init(&prefix));
+    const first = page.entries[0] orelse return false;
+    if (!std.mem.startsWith(u8, first.key.slice(), &prefix)) return false;
+    const edge = try r.fromValue(Dependency.Edge, self.allocator, first.value);
+    try edge.validate();
+    if (!std.meta.eql(first.key, try edge.forwardKey()) or edge.foreign_key.?.column != column) return error.InvalidCatalogDependency;
+    return true;
+}
+fn altersReferencedColumn(self: *Self, request: Request) !bool {
+    if (request.intent.action != .alter) return false;
+    const column: u64 = switch (request.intent.action.alter) {
+        .drop => |id| id,
+        .type => |value| value.column,
+        .physical => |value| value.column,
+        else => return false,
+    };
+    return self.hasColumnDependents(request.binding.target.object, column);
+}
+fn foreignRequirements(self: *Self, policy: Policy, request: Request, view: ?*View, requested: p.Authorization.Guard) !p.Authorization.Guard {
+    var out = requested;
+    const integrity = proposedIntegrity(request, view);
+    for (integrity.foreign_keys, 0..) |fk, i| {
+        if (!newForeignKey(request, view, fk.id)) continue;
+        const parent = fk.target_definition orelse return error.ForeignKeyDefinitionRequired;
+        if (!std.meta.eql(parent.object.scope, self.config().scope) or parent.object.branch != self.config().branch or parent.object.object == request.binding.target.object) return error.ForeignKeyScopeUnsupported;
+        var seen = false;
+        for (integrity.foreign_keys[0..i]) |earlier| if (earlier.target_object == fk.target_object and newForeignKey(request, view, earlier.id)) {
+            seen = true;
+            break;
+        };
+        if (!seen) out = try out.merge((try self.dependencySource(parent.object, policy, 0)).requirements);
+    }
+    return out;
+}
+fn protectForeignColumn(self: *Self, request: Request, view: *View, policy: Policy, current: P.Guard) !bool {
+    const operation = (try self.store.operation(request.binding)).?;
+    const integrity = proposedIntegrity(request, view);
+    var index: usize = 0;
+    for (integrity.foreign_keys) |fk| {
+        if (!newForeignKey(request, view, fk.id)) continue;
+        for (fk.target_columns) |column| {
+            defer index += 1;
+            if (index < operation.protected_columns) continue;
+            if (index != operation.protected_columns) return error.InvalidDirectCatalogOperation;
+            const parent = fk.target_definition.?;
+            const source = try self.dependencySource(parent.object, policy, 0);
+            if (!source.live or !std.meta.eql(parent, source.interpretation) or try self.pending(fk.target_object, current)) return error.ForeignKeyTargetChanged;
+            const entry_value = try self.entry(fk.target_object) orelse return error.ForeignKeyTargetChanged;
+            var parent_view = try self.open(self.allocator, entry_value, false);
+            defer parent_view.deinit();
+            if (parent_view.table.root.kind != .table) return error.CatalogKindMismatch;
+            var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const after_schema = switch (request.intent.action) {
+                .create => |value| value.schema,
+                .alter => |change| (try c.fuze.TableEvolution.apply(view.table.declaration.schema.schema, change, &columns)).after,
+                else => return error.InvalidDirectCatalogOperation,
+            };
+            try fk.validateAgainstSchemas(after_schema, parent_view.table.declaration.schema.schema);
+            var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = .table, .object = request.binding.target, .revision = if (request.intent.action == .create) 1 else try std.math.add(u64, view.table.declaration.definition.revision, 1), .schema = after_schema, .properties = view.table.declaration.definition.properties });
+            defer declaration.deinit();
+            const edge: Dependency.Edge = .{ .source = parent, .dependent = .{ .kind = .table, .interpretation = (try declaration.stored()).interpretation }, .privileges = 0, .foreign_key = .{ .constraint = fk.id, .column = column } };
+            if (try self.dependencyEdge(edge) != null) return error.InvalidCatalogDependency;
+            var batch: s.TreeStore.Batch = .{};
+            try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+            defer self.store.index.end();
+            var next = self.store.root;
+            const encoded = try r.pageValue(edge);
+            next.dependents = try self.store.tree().put(next.dependents, try edge.forwardKey(), encoded);
+            next.dependencies = try self.store.tree().put(next.dependencies, try edge.reverseKey(), encoded);
+            var progress = operation;
+            progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+            progress.protected_columns += 1;
+            progress.dependency_change = .{ .edge = edge, .remove = false };
+            try self.record(next, progress, current);
+            return true;
+        }
+    }
+    if (index != operation.protected_columns) return error.InvalidDirectCatalogOperation;
+    return false;
+}
+
+// Closing is recorded before cleanup, and stops further Table publication.
+// One step examines one reverse edge. Obsolete edges are removed only after
+// the original Table outcome is known; a missing reply never releases them.
+fn closeDependencies(self: *Self, operation: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !bool {
+    if (operation.closing == null) {
+        // No new registrations and no schema removal can need cleanup.
+        if (operation.protected_columns == 0 and (operation.binding.action == .create or operation.binding.action == .rename or phase != .settled)) return false;
+        const prefix = try Dependency.dependentKey(operation.binding.target);
+        const first = (try self.store.tree().scan(self.store.root.dependencies, try pages.Key.init(&prefix))).entries[0] orelse return false;
+        if (!std.mem.startsWith(u8, first.key.slice(), &prefix)) return false;
+        var progress = operation;
+        progress.closing = .{ .phase = phase, .reason = reason };
+        progress.dependency_change = null;
+        progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+        var batch: s.TreeStore.Batch = .{};
+        try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+        defer self.store.index.end();
+        try self.record(self.store.root, progress, current);
+        return true;
+    }
+    const prefix = try Dependency.dependentKey(operation.binding.target);
+    const page = try self.store.tree().scan(self.store.root.dependencies, operation.cleanup_after orelse try pages.Key.init(&prefix));
+    const item = page.entries[0] orelse return false;
+    if (!std.mem.startsWith(u8, item.key.slice(), &prefix)) return false;
+    const edge = try r.fromValue(Dependency.Edge, self.allocator, item.value);
+    try edge.validate();
+    if (!std.meta.eql(item.key, try edge.reverseKey())) return error.InvalidCatalogDependency;
+    var remove = false;
+    if (edge.foreign_key) |foreign| {
+        remove = true;
+        const target = try self.entry(operation.binding.target.object) orelse return error.InvalidDirectCatalogOperation;
+        if (target.seed != null) {
+            var view = try self.open(self.allocator, target, false);
+            defer view.deinit();
+            if (view.table.root.next_lsn != 0 and !view.table.root.retired) {
+                for (view.table.declaration.schema.schema.integrity.foreign_keys) |fk| if (fk.id == foreign.constraint) {
+                    remove = false;
+                    break;
+                };
+            }
+        }
+    }
+    var progress = operation;
+    progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+    progress.cleanup_after = item.key;
+    progress.dependency_change = if (remove) .{ .edge = edge, .remove = true } else null;
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    var next = self.store.root;
+    if (remove) {
+        next.dependents = try self.store.tree().remove(next.dependents, try edge.forwardKey());
+        next.dependencies = try self.store.tree().remove(next.dependencies, try edge.reverseKey());
+    }
+    try self.record(next, progress, current);
+    return true;
 }
 
 fn hasDependents(self: *Self, object: u64) !bool {
@@ -4026,9 +4212,9 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
             return c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, value.properties.target(object.object), if (write) .administer else .inspect);
         }
         if (try self.entry(object.object)) |target| if (target.seed) |seed| {
-            if (seed.kind != .kv) return error.CatalogKindMismatch;
             var view = try self.open(self.allocator, target, false);
             defer view.deinit();
+            if (seed.kind == .table) return self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .alter else .inspect);
             return self.kvRequirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .administer else .inspect);
         };
         const known = try self.namedRecord(object.object) orelse return error.CatalogDenied;
@@ -4166,6 +4352,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     try binding.validate();
     // Queue declaration edges also retain historical routing. Removing one
     // requires the Queue's closure/retention proof, not generic graph editing.
+    if (binding.edge.foreign_key != null) return error.TableDependencyOwned;
     if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -4256,10 +4443,11 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
     const position: d.Position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn };
     var after_key = prefix;
     if (cursor) |after| {
+        try after.validate();
         if (!std.meta.eql(after.selection, selection) or after.authority != authority) return error.InvalidCatalogCursor;
         if (!std.meta.eql(after.position, position)) return error.CatalogObservationChanged;
-        @memcpy(after_key.data[after_key.len..][0..32], &after.after);
-        after_key.len += 32;
+        if (!std.mem.startsWith(u8, after.after.slice(), prefix.slice())) return error.InvalidCatalogCursor;
+        after_key = after.after;
     }
     const page = try self.store.tree().scan(if (selection == .dependents) self.store.root.dependents else self.store.root.dependencies, after_key);
     var result: Dependency.Page = .{ .position = position };
@@ -4298,7 +4486,7 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
         count += 1;
     }
     if (last) |after| if (page.entries[Dependency.page_entries] != null or page.next != null) {
-        result.next = .{ .selection = selection, .authority = authority, .position = position, .after = after.slice()[prefix.len..][0..32].* };
+        result.next = .{ .selection = selection, .authority = authority, .position = position, .after = after };
     };
     try check(disclosure);
     return result;
@@ -4743,6 +4931,7 @@ pub fn rangeRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, ha
 }
 
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {
+    if (try self.closeDependencies(previous, phase, reason, current)) return;
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
@@ -4755,11 +4944,13 @@ fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason
     var operation = previous;
     operation.phase = phase;
     operation.reason = reason;
+    operation.dependency_change = null;
     try self.record(next, operation, current);
 }
 
 pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const observed = try self.status(binding, policy);
+    if (observed == .finalizing) return self.settle(binding, policy);
     if (observed != .admitted) return observed;
     var request = (try self.loadRequest(binding)).?;
     defer request.deinit();
@@ -4770,13 +4961,14 @@ pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
-    try self.terminal(observed.admitted, .cancelled, .none, current);
+    const close = observed.admitted.closing orelse r.Closure{ .phase = .cancelled, .reason = .none };
+    try self.terminal(observed.admitted, close.phase, close.reason, current);
     return self.status(binding, policy);
 }
 
 pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const observed = try self.status(binding, policy);
-    if (observed != .committed) return observed;
+    if (observed != .committed and observed != .finalizing) return observed;
     const operation = (try self.store.operation(binding)).?;
     if (operation.phase == .settled) return observed;
     var request = (try self.loadRequest(binding)).?;
@@ -4788,7 +4980,7 @@ pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, false);
     try self.terminal(operation, .settled, .none, current);
-    return observed;
+    return self.status(binding, policy);
 }
 
 fn branchGuard(self: *Self, allocator: std.mem.Allocator, intent: c.DirectBranch.Intent, policy: Policy, create: bool) !P.Guard {

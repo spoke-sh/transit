@@ -30,6 +30,41 @@ descriptor shares the [logical descriptor budgets](FUZE_TYPES_V1.md); defaults
 count toward schema bytes. One row shares the logical value byte/child/depth
 budgets across every column. These limits never bound total Table cardinality.
 
+## Declarative integrity
+
+`integrity` contains a monotonic `next_id` allocation floor and at most 64 total
+CHECK/foreign-key descriptors. Constraint IDs are nonzero u32 values below that
+floor; names are distinct, nonempty UTF-8 strings of at most 63 bytes without NUL.
+Dropping a constraint preserves its allocation floor. Reusing an identity for a
+changed expression, target or referential action rejects.
+
+A CHECK is an ordered conjunction of 1–32 deterministic comparisons between a
+column and a typed scalar literal, comparisons between two identically typed and
+collated columns, or `IS NULL`/`IS NOT NULL` predicates. References bind stable
+ColumnIds. Comparison literals must be representable under the column's declared
+collation. Parameters, subqueries, external reads, capture and dispatch are not
+CHECK expressions. TRUE and SQL UNKNOWN pass; FALSE, missing, type_error and
+conflict reject. A failure rejects the whole mutation before publication.
+
+`validated=false` means older rows have not been proved to satisfy the CHECK.
+Every new INSERT, UPDATE, replacement and private transaction write still
+enforces it after assignment/default resolution. Stored-row decoding and
+historical projection validate shape independently of CHECK enforcement, keeping
+older violations readable. Validation of existing rows must complete against
+one unchanged source basis before `validated=true` becomes visible. A failed
+validation preserves the earlier definition and data.
+
+CHECK/local foreign-key columns cannot be dropped or have their type/collation
+changed while referenced. A compatible rename preserves those bindings.
+Foreign keys carry ordered local and target columns, an exact target object and
+schema revision, exact `DataLifecycle.Definition`, referential actions and
+explicit enforcement state. The schema revision and definition revision are
+different identities. At most four distinct parent objects may be referenced,
+within the same catalog and branch one at publication. Staged
+descriptors do not assert referential integrity; `enforced` rejects without the
+owning index-backed runtime enforcer. Parent candidate-key/type/collation checks
+and dependency protection belong to catalog publication, beyond shape decoding.
+
 ## Physical representation and collation
 
 Logical types, physical encodings and collations are separate descriptors.
@@ -72,7 +107,7 @@ independent of a column’s collation.
 ## Canonical envelope
 
 The envelope contains magic `FTS1`, a u8-length mandatory definition
-`transit.table.schema.v1.2026-11-01`, three u64 identities (object, revision,
+`transit.table.schema.v1.2026-11-01.integrity`, three u64 identities (object, revision,
 next-column), and a u16 column count. Each column contains its u64 ID, u8-length
 UTF-8 name, u16-length `FTY1` descriptor, boolean nullable byte, u32 character
 limit (zero means absent), and boolean default-present byte. A present default
@@ -82,6 +117,19 @@ physical attributes include `FTP1` followed by each column's u8 encoding and u8
 collation in column order. All-default schemas omit the trailer; a redundant
 all-default trailer rejects. Enum values follow `TableSchema.Encoding` and
 `TableSchema.Collation` in the owning Zig types.
+Nonempty integrity follows the physical trailer, when present, as `FTI1`, u32
+next-ID, u8 CHECK count and CHECK records, then u8 foreign-key count and records.
+Each CHECK contains u32 ID, u8-length name, boolean validated flag, u8 atom count,
+and atoms: tag 1 + u64 column + u8 comparison + u32-length typed `FVL1` literal;
+tag 2 + u64 left column + u8 comparison + u64 right column; tag 3 (`IS NULL`) or
+4 (`IS NOT NULL`) + u64 column. Literal descriptors match column type/nullability.
+Each foreign key contains ID/name, u64 target object/schema revision, its exact
+80-byte target definition (u64 realm/resource/catalog/branch/object/revision,
+then 32 digest bytes), u8 delete/update/
+enforcement tags, u8 arity, then ordered pairs of u64 local/target columns. Tags
+use the owning Zig enums. The empty integrity value (floor 1, no constraints)
+omits `FTI1`; a redundant empty trailer rejects. A noninitial floor is retained
+even when the last constraint is dropped.
 All integers are little-endian; strings and blobs follow their length directly.
 
 Booleans are exactly 0 or 1. Decode rejects missing/foreign definitions,
@@ -97,6 +145,13 @@ requires the current shared Transit `definition`, decimal-string `object`,
 `revision` and `next_column`, an ordered `columns` array and an ordered
 `primary_key` array of decimal-string column IDs. Integer identity strings are
 canonical unsigned u64 values: no signs, leading zeroes or precision loss.
+
+The optional `integrity` member defaults to the empty declaration. Its column,
+target-object and target-revision IDs use the same decimal-string rule; CHECK
+literals use the shared logical cell projection. Foreign-key `target_definition`
+contains decimal-string realm/resource/catalog/branch/object/revision and a
+64-character lowercase hexadecimal digest. This default defines an empty
+current-format declaration and never substitutes a missing shared definition.
 
 Each column has `id`, `name`, a shared logical `type`, `nullable`, `default`,
 `max_characters`, `encoding` and `collation`. All fields are present, including
@@ -175,9 +230,11 @@ allocates the current next-column ID and advances the floor; dropping never
 lowers it. A primary-key column cannot be dropped or made nullable. Dropping the
 last column rejects. Rename preserves ID and rejects duplicate names.
 
-Name/default changes classify as metadata-only. Changed UTF-8 character limits
-require existing-row validation. A changed physical layout requires rewriting
-rows. These classifications are work requirements, not evidence that existing
+Name/default changes and NOT VALID CHECK additions classify as metadata-only.
+Tighter nullability/UTF-8 character limits and CHECK validation require an
+existing-row validation scan while preserving physical row indexes. A changed
+physical type, codec, comparison or key layout requires a phased rewrite on a
+populated Table. These classifications are work requirements, not evidence that existing
 rows passed. Adding a required field without a default may be valid for an empty
 Table; transforming any existing row fails. Changing defaults affects subsequent
 inserts/DEFAULT assignments, never earlier stored cells.
@@ -193,6 +250,10 @@ Storage must freeze the source basis, process complete validation/rewrites with
 bounded work, fence conflicting publication and atomically publish the successor
 head. A pure transition does not perform these steps. Retained readers continue
 to use their original schema; accepted operations cannot rebind to its successor.
+The direct Table owner's validation scan uses its statement row/byte quotas and
+one reused page arena. Exceeding a quota refuses activation. Ordinary ALTER does
+not perform a synchronous physical rewrite of a populated Table. An empty current
+root may adopt a new layout while retaining all earlier definitions and data cuts.
 
 ## Scalar SQL type-name resolver
 

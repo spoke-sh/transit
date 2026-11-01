@@ -273,6 +273,7 @@ const metadata = {
     object: "7",
     revision: "2",
     next_column: "2",
+    integrity: { next_id: 1, checks: [], foreign_keys: [] },
     primary_key: [],
     columns: [
       {
@@ -617,3 +618,47 @@ for await (const line of createInterface({input:process.stdin})) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+test("Table integrity preserves exact parent definitions and owned CHECK literals", () => {
+  const definition = { object: { scope: new Scope(new ResourceRef(1, 2), 3n), branch: 1n, objectId: 90n }, revision: 8n, digest: "ab".repeat(32) };
+  const literal = new Uint8Array([1, 2, 3]);
+  const value = new Schema(91n, 2n, 3n, [
+    { id: 1n, name: "id", type: { kind: "int64" }, nullable: false },
+    { id: 2n, name: "payload", type: { kind: "binary" }, nullable: true },
+  ], [1n], { nextId: 3, checks: [{ id: 1, name: "payload_check", atoms: [{ kind: "compareLiteral", column: 2n, op: "eq", literal: { kind: "binary", value: literal } }], validated: false }],
+    foreignKeys: [{ id: 2, name: "parent_id", localColumns: [1n], targetDefinition: definition, targetSchemaRevision: 3n, targetColumns: [7n], onDelete: "restrict", onUpdate: "no_action", enforcement: "staged_awaiting_index" }] });
+  literal[0] = 99;
+  const checks = value.integrity.checks;
+  assert.equal(checks[0]!.validated, false);
+  const atom = checks[0]!.atoms[0]!;
+  assert.ok(atom.kind === "compareLiteral" && atom.literal.kind === "binary");
+  assert.deepEqual([...atom.literal.value], [1, 2, 3]);
+  atom.literal.value[0] = 7;
+  const fresh = value.integrity.checks[0]!.atoms[0]!;
+  assert.ok(fresh.kind === "compareLiteral" && fresh.literal.kind === "binary");
+  assert.deepEqual([...fresh.literal.value], [1, 2, 3]);
+  assert.equal(value.integrity.foreignKeys[0]!.targetDefinition.revision, 8n);
+  assert.equal(value.integrity.foreignKeys[0]!.targetSchemaRevision, 3n);
+});
+
+
+test("committed DDL retains pending dependency settlement and its original identity", async () => {
+  const wire = structuredClone(recovery);
+  wire.table.binding.action = "alter";
+  const original = Reference.restore(JSON.stringify(wire));
+  const resulting = structuredClone(stored);
+  resulting.interpretation.revision = (BigInt(wire.table.binding.expected_definition.revision) + 1n).toString();
+  const evidence = { binding: wire.table.binding, resulting, transaction: null,
+    outcome: { position: { partition: "9", next_lsn: "10" }, matched: "0", affected: "0", live_rows: "0" } };
+  const operation = { binding: wire.table.binding, intent: wire.table.content, phase: "admitted", reason: "none",
+    dependency_steps: 1, protected_columns: 1, requires_settlement: true, closing: null };
+  const value = { observation: { ddl: { finalizing: { evidence, operation } } } };
+  await withHost(value, async (client) => {
+    const result = await client.inspect(original);
+    assert.equal(result.state, "finalizing");
+    assert.equal(result.reference, original);
+    assert.ok("commit" in result);
+  });
+  operation.requires_settlement = false;
+  await withHost(value, (client) => assert.rejects(client.inspect(original), IncompatibleNative));
+});

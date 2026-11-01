@@ -104,6 +104,11 @@ pub fn stateDdl(kind: c.storage.TableDeclaration.Kind, binding: d.Binding, value
     switch (value) {
         .not_observed => {},
         .committed => |result| try stateEvidence(kind, binding, result),
+        .finalizing => |value_| {
+            try stateEvidence(kind, binding, value_.evidence);
+            try binding.requireSame(value_.operation.binding);
+            if (!value_.operation.pending() or !value_.operation.requires_settlement) return error.InvalidTableResponse;
+        },
         inline .admitted, .rejected, .cancelled => |operation, tag| {
             try binding.requireSame(operation.binding);
             try operation.intent.validate();
@@ -415,7 +420,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try page.position.validate();
             if (page.position.next_lsn == 0) return error.InvalidTableResponse;
             if (input.cursor) |cursor| if (!std.meta.eql(cursor.position, page.position)) return error.InvalidTableResponse;
-            var previous: ?[32]u8 = if (input.cursor) |cursor| cursor.after else null;
+            var previous: ?c.storage.TreeStore.pages.Key = if (input.cursor) |cursor| cursor.after else null;
             var ended = false;
             for (page.entries) |slot| {
                 const edge = slot orelse {
@@ -429,14 +434,15 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     .dependents => |object| if (!std.meta.eql(edge.source.object, object)) return error.InvalidTableResponse,
                     .dependencies => |object| if (!std.meta.eql(edge.dependent.interpretation.object, object)) return error.InvalidTableResponse,
                 }
-                const digest = try edge.digest();
-                if (previous) |before| if (std.mem.order(u8, &before, &digest) != .lt) return error.InvalidTableResponse;
-                previous = digest;
+                const key = if (input.selection == .dependents) try edge.forwardKey() else try edge.reverseKey();
+                if (previous) |before| if (std.mem.order(u8, before.slice(), key.slice()) != .lt) return error.InvalidTableResponse;
+                previous = key;
             }
             if (page.next) |cursor| {
+                try cursor.validate();
                 if (!std.meta.eql(cursor.selection, input.selection) or !std.meta.eql(cursor.position, page.position) or cursor.authority != input.authority) return error.InvalidTableResponse;
-                if (input.cursor) |before| if (std.mem.order(u8, &before.after, &cursor.after) != .lt) return error.InvalidTableResponse;
-                if (previous) |before| if (std.mem.order(u8, &before, &cursor.after) == .gt) return error.InvalidTableResponse;
+                if (input.cursor) |before| if (std.mem.order(u8, before.after.slice(), cursor.after.slice()) != .lt) return error.InvalidTableResponse;
+                if (previous) |before| if (std.mem.order(u8, before.slice(), cursor.after.slice()) == .gt) return error.InvalidTableResponse;
             }
         },
         .namespace_preview => |value| {

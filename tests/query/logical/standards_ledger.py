@@ -63,12 +63,10 @@ def validate(ledger):
         assert case['id'] not in cases, case['id']
         cases.add(case['id'])
         feature = features[case['feature']]
-        assert case['entrypoint'] in {'table_ddl', 'relational_sql', 'inspection'}, case['id']
+        assert case['entrypoint'] in {'table_ddl', 'table_ddl_catalog', 'relational_sql', 'inspection'}, case['id']
         assert isinstance(case['accept'], bool) and case['sql'], case['id']
         if case['accept']:
             assert feature['states']['parse'] == 'implemented', case['id']
-        else:
-            assert feature['states']['parse'] == 'rejected', case['id']
     assert ledger['fixture_provenance']['license'] == 'MIT'
     payload = {k: v for k, v in ledger.items() if k != 'sha256'}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -153,7 +151,7 @@ def negative_controls(ledger):
     else:
         raise AssertionError('Self-dependent feature accepted')
     invalid = copy.deepcopy(ledger)
-    invalid['compiler_cases'][0]['accept'] = False
+    invalid['features'][0]['states']['parse'] = 'rejected'
     try:
         validate(invalid)
     except AssertionError:

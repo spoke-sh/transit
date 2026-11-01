@@ -115,12 +115,18 @@ uint32_t expected_kind(uint32_t work, const Json &binding) {
     if (work == TRANSIT_CATALOG_NAME_ASSERTION) return TRANSIT_CATALOG_NAME_OBSERVATION;
     const auto &kind = binding.at("action").string(); return kind == "insert" || kind == "update" || kind == "delete" ? TRANSIT_CATALOG_ROWS : TRANSIT_CATALOG_DDL;
 }
-uint32_t reason(const Json &v) { return choice(v, {"none", "name_conflict", "object_conflict", "stale_definition", "stale_data", "dependency", "constraint", "definition_changed", "data_changed", "duplicate_key", "missing_row", "invalid_rows", "work_limit", "condition_changed"}); }
+uint32_t reason(const Json &v) { return choice(v, {"none", "name_conflict", "object_conflict", "stale_definition", "stale_data", "dependency", "constraint", "definition_changed", "data_changed", "duplicate_key", "missing_row", "invalid_rows", "work_limit", "condition_changed", "rewrite_required", "check_violation"}); }
 transit_station_catalog_read_authority read_authority(const Json &v) {
     transit_station_catalog_read_authority out{counter_value(v.at("database")), counter_value(v.at("schema")), counter_value(v.at("table"))};
     require(out.database != out.schema && out.database != out.table && out.schema != out.table, "catalog-read-authority"); return out;
 }
-Schema decode_schema(const Json &v, Arena &a) {
+Schema decode_schema(const Json &input, Arena &a) {
+    Json v = input;
+    if (const auto *integrity = find(v, "integrity")) {
+        integrity->fields({"next_id", "checks", "foreign_keys"});
+        require(counter_value(integrity->at("next_id")) == 1 && integrity->at("checks").array(64).empty() && integrity->at("foreign_keys").array(64).empty(), "catalog-constraint-schema-unsupported");
+        for (auto it = v.members.begin(); it != v.members.end(); ++it) if (it->first == "integrity") { v.members.erase(it); break; }
+    }
     v.fields({"definition", "object", "revision", "next_column", "columns", "primary_key"}); current(v.at("definition"));
     // Bound the entire schema independently of each descriptor/default.
     (void)logical_detail::encode(v, 2 * 1024 * 1024);
@@ -290,6 +296,14 @@ std::unique_ptr<Observation> observation(const Json &v, const Reference &r) {
     const auto &binding = reference_binding(r); const auto &outer = v.variant(); view.kind = choice(Json::string(outer.first), {"ddl", "rows", "name_assertion"});
     require(view.kind == expected_kind(r.value.kind, binding), "catalog-observation-kind"); const auto &variant = outer.second.variant(); const auto &raw = variant.second;
     if (variant.first == "not_observed") { raw.fields({}); view.state = TRANSIT_CATALOG_NOT_OBSERVED; return out; }
+    if (variant.first == "finalizing") {
+        const auto &progress = raw.at("operation");
+        require(progress.at("requires_settlement").boolean() && (progress.at("phase").string() == "admitted" || progress.at("phase").string() == "ready"), "catalog-finalizing-phase");
+        require(view.kind == TRANSIT_CATALOG_DDL && equal(raw.at("operation").at("binding"), binding), "catalog-finalizing-binding");
+        auto accepted = observation(Json::object({{"ddl", Json::object({{"committed", raw.at("evidence")}})}}), r);
+        accepted->value.state = TRANSIT_CATALOG_FINALIZING;
+        return accepted;
+    }
     require(equal(raw.at("binding"), binding), "catalog-observation-binding");
     if (view.kind == TRANSIT_CATALOG_NAME_OBSERVATION) {
         require(variant.first == "outcome", "catalog-name-outcome"); const auto s = choice(raw.at("state"), {"unchanged", "rejected"});

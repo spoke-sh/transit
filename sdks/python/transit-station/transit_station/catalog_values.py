@@ -188,6 +188,107 @@ def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: lo
                 max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation))
 
 
+CheckComparison: TypeAlias = Literal['lt', 'lte', 'eq', 'gte', 'gt', 'neq']
+
+@dataclass(frozen=True, slots=True)
+class CheckLiteral:
+    column: int
+    op: CheckComparison
+    literal: logical.Atom
+
+@dataclass(frozen=True, slots=True)
+class CheckColumns:
+    left: int
+    op: CheckComparison
+    right: int
+
+@dataclass(frozen=True, slots=True)
+class CheckNull:
+    column: int
+    negate: bool = False
+
+CheckAtom: TypeAlias = CheckLiteral | CheckColumns | CheckNull
+
+@dataclass(frozen=True, slots=True)
+class CheckConstraint:
+    id: int
+    name: str
+    atoms: tuple[CheckAtom, ...]
+    validated: bool = True
+    def __post_init__(self) -> None: object.__setattr__(self, 'atoms', tuple(self.atoms))
+
+ReferentialAction: TypeAlias = Literal['restrict', 'no_action', 'cascade', 'set_null']
+
+@dataclass(frozen=True, slots=True)
+class ForeignKeyConstraint:
+    id: int
+    name: str
+    local_columns: tuple[int, ...]
+    target_definition: Interpretation
+    target_schema_revision: int
+    target_columns: tuple[int, ...]
+    on_delete: ReferentialAction = 'restrict'
+    on_update: ReferentialAction = 'restrict'
+    enforcement: Literal['staged_awaiting_index'] = 'staged_awaiting_index'
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'local_columns', tuple(self.local_columns))
+        object.__setattr__(self, 'target_columns', tuple(self.target_columns))
+
+@dataclass(frozen=True, slots=True)
+class TableIntegrity:
+    next_id: int = 1
+    checks: tuple[CheckConstraint, ...] = ()
+    foreign_keys: tuple[ForeignKeyConstraint, ...] = ()
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'checks', tuple(self.checks)); object.__setattr__(self, 'foreign_keys', tuple(self.foreign_keys))
+    def _wire(self) -> dict[str, Any]:
+        if len(self.checks) + len(self.foreign_keys) > 64: raise ValueError('Too many Table constraints')
+        checks, foreign_keys = [], []
+        for check in self.checks:
+            if not isinstance(check, CheckConstraint) or not 1 <= len(check.atoms) <= 32: raise ValueError('Invalid CHECK constraint')
+            atoms: list[dict[str, Any]] = []
+            for atom in check.atoms:
+                if isinstance(atom, CheckLiteral): atoms.append({'compare_literal': dict(column=str(_wide(atom.column)), op=_one_of(atom.op, ('lt', 'lte', 'eq', 'gte', 'gt', 'neq')), literal={'value': {'atom': logical.atom_wire(atom.literal)}})})
+                elif isinstance(atom, CheckColumns): atoms.append({'compare_columns': dict(left_column=str(_wide(atom.left)), op=_one_of(atom.op, ('lt', 'lte', 'eq', 'gte', 'gt', 'neq')), right_column=str(_wide(atom.right)))})
+                elif isinstance(atom, CheckNull): atoms.append({'is_not_null' if _boolean(atom.negate) else 'is_null': str(_wide(atom.column))})
+                else: raise ValueError('Invalid CHECK atom')
+            checks.append(dict(id=integer(check.id, 'constraint id', maximum=0xffffffff), name=_name(check.name), validated=_boolean(check.validated), atoms=atoms))
+        for fk in self.foreign_keys:
+            if not isinstance(fk, ForeignKeyConstraint) or not 1 <= len(fk.local_columns) <= 128 or len(fk.local_columns) != len(fk.target_columns): raise ValueError('Invalid foreign-key columns')
+            d = fk.target_definition; o = d.object; s = o.scope
+            definition = dict(realm=str(s.resource.realm), resource=str(s.resource.resource), catalog=str(_wide(s.catalog)), branch=str(_wide(o.branch)), object=str(_wide(o.object_id)), revision=str(_wide(d.revision)), digest=_digest(d.digest))
+            foreign_keys.append(dict(id=integer(fk.id, 'constraint id', maximum=0xffffffff), name=_name(fk.name), local_columns=[str(_wide(c)) for c in fk.local_columns], target_object=definition['object'], target_revision=str(_wide(fk.target_schema_revision)), target_definition=definition, target_columns=[str(_wide(c)) for c in fk.target_columns], on_delete=_one_of(fk.on_delete, ('restrict', 'no_action', 'cascade', 'set_null')), on_update=_one_of(fk.on_update, ('restrict', 'no_action', 'cascade', 'set_null')), enforcement=_one_of(fk.enforcement, ('staged_awaiting_index',))))
+        return dict(next_id=integer(self.next_id, 'constraint identity', maximum=0xffffffff), checks=checks, foreign_keys=foreign_keys)
+
+
+def _integrity(value: object) -> TableIntegrity:
+    if isinstance(value, dict): value = {'next_id': 1, 'checks': [], 'foreign_keys': [], **value}
+    v = _object(value, 'next_id checks foreign_keys'); checks, keys = [], []
+    if not isinstance(v['checks'], list) or not isinstance(v['foreign_keys'], list) or len(v['checks']) + len(v['foreign_keys']) > 64: raise ValueError('Invalid Table constraints')
+    for raw in v['checks']:
+        c = _object(raw, 'id name atoms validated')
+        atoms: list[CheckLiteral | CheckColumns | CheckNull] = []
+        if not isinstance(c['atoms'], list) or not 1 <= len(c['atoms']) <= 32: raise ValueError('Invalid CHECK atoms')
+        for raw_atom in c['atoms']:
+            tag, item = _variant(raw_atom)
+            if tag == 'compare_literal':
+                x = _object(item, 'column op literal'); cell = logical.cell_from_wire(x['literal'])
+                if not isinstance(cell, logical.Present) or not isinstance(cell.value, logical.Atom): raise ValueError('Invalid CHECK literal')
+                atoms.append(CheckLiteral(_decimal(x['column']), x['op'], cell.value))
+            elif tag == 'compare_columns':
+                x = _object(item, 'left_column op right_column'); atoms.append(CheckColumns(_decimal(x['left_column']), x['op'], _decimal(x['right_column'])))
+            elif tag in ('is_null', 'is_not_null'): atoms.append(CheckNull(_decimal(item), tag == 'is_not_null'))
+            else: raise ValueError('Invalid CHECK atom')
+        checks.append(CheckConstraint(c['id'], _name(c['name']), tuple(atoms), _boolean(c['validated'])))
+    for raw in v['foreign_keys']:
+        fk = _object(raw, 'id name local_columns target_object target_revision target_definition target_columns on_delete on_update enforcement')
+        d = _object(fk['target_definition'], 'realm resource catalog branch object revision digest')
+        if d['object'] != fk['target_object']: raise ValueError('Foreign-key identity mismatch')
+        definition = Interpretation(ObjectIdentity(Scope(ResourceRef(_decimal(d['realm']), _decimal(d['resource'])), _decimal(d['catalog'])), _decimal(d['branch']), _decimal(d['object'])), _decimal(d['revision']), _digest(d['digest']))
+        keys.append(ForeignKeyConstraint(fk['id'], _name(fk['name']), tuple(_decimal(c) for c in fk['local_columns']), definition, _decimal(fk['target_revision']), tuple(_decimal(c) for c in fk['target_columns']), fk['on_delete'], fk['on_update'], fk['enforcement']))
+    result = TableIntegrity(v['next_id'], tuple(checks), tuple(keys)); result._wire(); return result
+
+
 @dataclass(frozen=True, slots=True)
 class Schema:
     object_id: int
@@ -195,6 +296,7 @@ class Schema:
     next_column: int
     columns: tuple[Column, ...]
     primary_key: tuple[int, ...] = ()
+    integrity: TableIntegrity = field(default_factory=TableIntegrity)
     def __post_init__(self) -> None:
         _wide(self.object_id); _wide(self.revision); _wide(self.next_column)
         object.__setattr__(self, 'columns', tuple(self.columns)); object.__setattr__(self, 'primary_key', tuple(self.primary_key))
@@ -203,7 +305,7 @@ class Schema:
     def _wire(self) -> object:
         budget = _WireBudget(2 * 1024 * 1024)
         return dict(definition=DEFINITION, object=str(self.object_id), revision=str(self.revision), next_column=str(self.next_column),
-                    columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key])
+                    columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key], integrity=budget.take(self.integrity._wire()))
 
 
 
@@ -333,7 +435,12 @@ class SetPhysical:
     collation: Collation
 
 
-Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType | SetPhysical
+@dataclass(frozen=True, slots=True)
+class SetIntegrity:
+    schema: Schema
+
+
+Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType | SetPhysical | SetIntegrity
 
 
 @dataclass(frozen=True, slots=True)
@@ -382,14 +489,14 @@ def _scope(value: object) -> Scope:
 
 
 def _schema(value: object) -> Schema:
-    v = _object(value, 'definition object revision next_column columns primary_key')
+    v = _object(value, 'definition object revision next_column columns primary_key integrity')
     _definition(v['definition'])
     if not isinstance(v['columns'], list) or not 1 <= len(v['columns']) <= 128 or not isinstance(v['primary_key'], list): raise ValueError('Invalid columns')
     columns = []
     for item in v['columns']:
         c = _object(item, 'id name type nullable default max_characters encoding collation')
         columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation'])))
-    return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']))
+    return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']), _integrity(v['integrity']))
 
 
 def _assignments(values: tuple[Assignment, ...], budget: _WireBudget) -> object:
@@ -468,6 +575,7 @@ def _mutation_value(value: object) -> Mutation:
 
 
 def _change(value: Change) -> object:
+    if isinstance(value, SetIntegrity): return {'integrity': value.schema._wire()}
     if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation)}
     column = str(_wide(value.column))
     if isinstance(value, DropColumn): return {'drop': column}
@@ -792,8 +900,8 @@ class Observation:
     position: Position | None = None
 
 
-_ddl_reasons = ('none', 'name_conflict', 'object_conflict', 'stale_definition', 'stale_data', 'dependency', 'constraint')
-_row_reasons = ('none', 'definition_changed', 'data_changed', 'duplicate_key', 'missing_row', 'invalid_rows', 'work_limit')
+_ddl_reasons = ('none', 'name_conflict', 'object_conflict', 'stale_definition', 'stale_data', 'dependency', 'constraint', 'rewrite_required', 'work_limit')
+_row_reasons = ('none', 'definition_changed', 'data_changed', 'duplicate_key', 'missing_row', 'invalid_rows', 'work_limit', 'check_violation')
 
 
 def _one_of(value: object, options: tuple[str, ...]) -> str:
@@ -807,6 +915,13 @@ def _observation(value: object, original: Reference) -> Observation:
     if kind != expected_kind: raise ValueError('Changed observation kind')
     if state == 'not_observed':
         _object(record, ''); return Observation(original.kind, state, original)
+    if state == 'finalizing':
+        if kind != 'ddl': raise ValueError('Invalid finalizing operation kind')
+        final = _object(record, 'evidence operation')
+        if not isinstance(final['operation'], dict) or final['operation'].get('binding') != expected: raise ValueError('Changed finalizing binding')
+        if final['operation'].get('requires_settlement') is not True or final['operation'].get('phase') not in ('admitted', 'ready'): raise ValueError('Invalid finalizing operation phase')
+        commit = _observation({'ddl': {'committed': final['evidence']}}, original).commit
+        return Observation(original.kind, 'finalizing', original, commit=commit)
     if not isinstance(record, dict) or record.get('binding') != expected: raise ValueError('Changed original operation binding')
     if kind == 'name_assertion':
         if state != 'outcome': raise ValueError('Invalid name assertion state')
@@ -824,7 +939,7 @@ def _observation(value: object, original: Reference) -> Observation:
         if commit.affected > commit.matched or commit.definition.interpretation.object != _object_identity(expected['target']): raise ValueError('Changed commit evidence')
         return Observation(original.kind, state, original, commit=commit)
     _one_of(state, ('admitted', 'rejected', 'cancelled'))
-    record = _object(record, 'binding intent phase reason' + (' basis' if kind == 'rows' else '')); _content(record['intent'])
+    record = _object(record, 'binding intent phase reason' + (' basis' if kind == 'rows' else ' dependency_steps protected_columns requires_settlement closing')); _content(record['intent'])
     phase = _one_of(record['phase'], ('admitted', 'rejected', 'cancelled') if kind == 'rows' else ('admitted', 'ready', 'rejected', 'cancelled', 'settled'))
     reason = _one_of(record['reason'], _row_reasons if kind == 'rows' else _ddl_reasons)
     if (state == 'admitted' and phase not in ('admitted', 'ready', 'settled')) or (state != 'admitted' and state != phase): raise ValueError('Inconsistent operation phase')

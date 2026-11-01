@@ -130,8 +130,9 @@ test "standards ledger binds collation, physical codec and feature lifecycle sta
     try testing.expect(comp3.zone_map_pruning_sound);
 
     const fk_feat = StandardsLedger.findFeature("F492").?;
-    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.parse);
-    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.lower);
+    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.parse);
+    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.lower);
+    try testing.expectEqual(StandardsLedger.StageState.staged, fk_feat.states.execute);
 }
 
 test "operator traits preserve comparison failures" {
@@ -172,7 +173,6 @@ test "standards ledger unsupported declarations match the production compiler" {
         .{ "X002-VECTOR", "CREATE TABLE t (embedding VECTOR(3, FLOAT64))", error.InvalidTypeParameters },
     };
     inline for (cases) |case| {
-        try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findFeature(case[0]).?.states.parse);
         try testing.expectError(case[2], f.TableDdl.compile(testing.allocator, case[1], null, null));
     }
     inline for (.{"ICU_ROOT"}) |collation| {
@@ -190,6 +190,22 @@ test "standards ledger unsupported declarations match the production compiler" {
 
 fn compilerAccepts(case: StandardsLedger.CompilerCase) !bool {
     switch (case.entrypoint) {
+        .table_ddl_catalog => {
+            const Parent = struct {
+                fn lookup(_: *anyopaque, arena: std.mem.Allocator, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
+                    if (!std.mem.eql(u8, name, "parent")) return error.UnknownTable;
+                    const columns = try arena.dupe(f.TableSchema.Column, &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }});
+                    return .{ .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = columns, .primary_key = &.{1} }, .definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 1, .catalog = 1 }, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(4) } };
+                }
+            };
+            var context: u8 = 0;
+            var compiled = f.TableDdl.compileWithForeignKeys(testing.allocator, case.sql, null, null, .transit, .{ .context = &context, .lookup = Parent.lookup }) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer compiled.deinit();
+            return true;
+        },
         .table_ddl => {
             var compiled = f.TableDdl.compile(testing.allocator, case.sql, null, null) catch |err| {
                 if (err == error.OutOfMemory) return err;
@@ -216,6 +232,6 @@ test "standards ledger corpus exercises actual production compiler boundaries" {
         if (accepted != case.accept) std.debug.print("\nCapability case {s} ({s}): {s}\n", .{ case.id, case.feature, case.sql });
         try testing.expectEqual(case.accept, accepted);
         const declared = StandardsLedger.findFeature(case.feature).?.states.parse;
-        try testing.expectEqual(if (case.accept) StandardsLedger.StageState.implemented else .rejected, declared);
+        if (case.accept) try testing.expectEqual(StandardsLedger.StageState.implemented, declared);
     }
 }

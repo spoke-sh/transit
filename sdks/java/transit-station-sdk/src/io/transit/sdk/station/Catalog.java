@@ -29,10 +29,10 @@ public final class Catalog {
     public enum Dialect { TRANSIT, MYSQL }
     public enum WorkKind { TABLE, NAME_ASSERTION }
     public enum ObservationKind { DDL, ROWS, NAME_ASSERTION }
-    public enum OperationState { NOT_OBSERVED, ADMITTED, REJECTED, CANCELLED, COMMITTED, UNCHANGED }
+    public enum OperationState { NOT_OBSERVED, ADMITTED, REJECTED, CANCELLED, COMMITTED, UNCHANGED, FINALIZING }
     public enum Phase { ADMITTED, READY, SETTLED, REJECTED, CANCELLED }
     public enum Reason { NONE, NAME_CONFLICT, OBJECT_CONFLICT, STALE_DEFINITION, STALE_DATA, DEPENDENCY, CONSTRAINT,
-        DEFINITION_CHANGED, DATA_CHANGED, DUPLICATE_KEY, MISSING_ROW, INVALID_ROWS, WORK_LIMIT, CONDITION_CHANGED }
+        DEFINITION_CHANGED, DATA_CHANGED, DUPLICATE_KEY, MISSING_ROW, INVALID_ROWS, WORK_LIMIT, CONDITION_CHANGED, REWRITE_REQUIRED, CHECK_VIOLATION }
     public enum EvolutionWork { METADATA, VALIDATE_ROWS, REWRITE_ROWS }
     public record Scope(ResourceRef resource, BigInteger catalog) {
         public Scope { Objects.requireNonNull(resource); positive(catalog); }

@@ -5,7 +5,8 @@ covers every statement below with syntax, examples and execution limits, includi
 the separate [historical-read fragment](../../docs/handbook/reference/sql/as-of.md).
 The [grammar surface inventory](../../docs/handbook/reference/sql/grammar-surface.md)
 separates implemented profiles, checked grammar, proposed syntax and undecided
-syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI` and `EBCDIC_CP037` clauses
+syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
+`EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD` clauses
 belong to the checked Table grammar. Proposed graph, foreign-relation, physical
 encoding (`ENCODING`), expression collation, branching, and historical-selector examples are
 not inputs to this checked grammar. The integer system-time fragment has no
@@ -86,10 +87,13 @@ summary in the [grammar inventory](../../docs/handbook/reference/sql/grammar-sur
 Feature records require an explicit public profile, evidence sources and a
 `reference_verified` flag; unverified edition/clause labels are not standards
 conformance claims. The Transit-authored MIT compiler cases bind a feature to an
-actual `table_ddl`, `relational_sql` or `inspection` entry point and its expected
+actual `table_ddl`, `table_ddl_catalog`, `relational_sql` or `inspection` entry point and its expected
 acceptance. Fuze executes those cases against the production compiler.
-The check compares every field, rejects dependency cycles and contradictory
-compiler expectations, and verifies the generated public summary. This is a consistency
+The catalog DDL cases supply exact parent metadata to the production resolver;
+they do not publish a constraint or assert runtime authorization. Positive cases
+require an implemented parse profile; negative cases also cover exclusions within
+implemented profiles. The check compares every field, rejects dependency cycles
+and contradictory positive expectations, and verifies the generated public summary. This is a consistency
 check. Actual compiler tests and installed SQL session tests establish behavior;
 file presence and fixture regeneration do not establish execution or recovery.
 

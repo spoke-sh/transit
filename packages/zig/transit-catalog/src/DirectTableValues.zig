@@ -296,8 +296,12 @@ pub const DdlOperation = struct {
     intent: Content,
     phase: @FieldType(Native, "phase"),
     reason: @FieldType(Native, "reason"),
+    dependency_steps: u32,
+    protected_columns: u16,
+    requires_settlement: bool,
+    closing: ?struct { phase: @FieldType(Native, "phase"), reason: @FieldType(Native, "reason") },
     pub fn foreign(allocator: Allocator, value: Native) !DdlOperation {
-        return .{ .binding = try Binding.foreign(allocator, value.binding), .intent = try Content.foreign(allocator, value.intent), .phase = value.phase, .reason = value.reason };
+        return .{ .binding = try Binding.foreign(allocator, value.binding), .intent = try Content.foreign(allocator, value.intent), .phase = value.phase, .reason = value.reason, .dependency_steps = value.dependency_steps, .protected_columns = value.protected_columns, .requires_settlement = value.requires_settlement, .closing = if (value.closing) |close| .{ .phase = close.phase, .reason = close.reason } else null };
     }
 };
 pub const RowOperation = struct {
@@ -322,7 +326,7 @@ pub const AssertionOutcome = struct {
         return .{ .binding = try NameAssertion.foreign(allocator, value.binding), .position = try Position.foreign(allocator, value.position), .state = value.state, .reason = value.reason };
     }
 };
-pub const DdlState = union(enum) { not_observed, admitted: DdlOperation, rejected: DdlOperation, cancelled: DdlOperation, committed: Evidence };
+pub const DdlState = union(enum) { not_observed, admitted: DdlOperation, rejected: DdlOperation, cancelled: DdlOperation, committed: Evidence, finalizing: struct { evidence: Evidence, operation: DdlOperation } };
 pub const RowState = union(enum) { not_observed, admitted: RowOperation, rejected: RowOperation, cancelled: RowOperation, committed: Evidence };
 pub const AssertionState = union(enum) { not_observed, outcome: AssertionOutcome };
 pub const Observation = union(enum) {
@@ -336,6 +340,7 @@ pub const Observation = union(enum) {
                 .not_observed => .not_observed,
                 inline .admitted, .rejected, .cancelled => |item, tag| @unionInit(DdlState, @tagName(tag), try DdlOperation.foreign(allocator, item)),
                 .committed => |item| .{ .committed = try Evidence.foreign(allocator, item) },
+                .finalizing => |item| .{ .finalizing = .{ .evidence = try Evidence.foreign(allocator, item.evidence), .operation = try DdlOperation.foreign(allocator, item.operation) } },
             } },
             .rows => |state| .{ .rows = switch (state) {
                 .not_observed => .not_observed,

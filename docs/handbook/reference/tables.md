@@ -189,13 +189,29 @@ reconcile the original Table outcome before advancing native progress.
 
 [CREATE TABLE](sql/create-table.md) publishes the name, immutable definition and
 empty head. [ALTER TABLE](sql/alter-table.md) supports column and Table renames,
-column addition/removal, defaults, nullability and selected exact type changes.
-Metadata-only changes and complete row/index rewrites have separate execution
-paths. Existing rows must satisfy every tightened constraint before publication.
+column addition/removal, defaults, nullability and constraints. Metadata changes
+and bounded existing-row validation have separate execution paths. Populated
+Tables reject changes requiring physical rewrites until the phased rewrite
+runtime is available. Existing rows must satisfy tightened constraints before publication.
 Compatible additions, non-key renames and drops project older physical rows by
 stable column identity. Changing a default does not rewrite earlier values or
 change a column's frozen ADD-time value. Flush and bounded compaction normalize
 selected rows later; retained readers keep their original schema and values.
+
+Table-level CHECK constraints enforce bounded deterministic comparisons after
+defaults on every candidate write, including private transaction writes. TRUE
+and NULL pass; FALSE, missing, type_error and conflict reject the whole mutation.
+`NOT VALID` defers validation of existing rows while enforcing new writes.
+`ALTER TABLE ... VALIDATE CONSTRAINT` publishes validation only after a complete
+bounded scan; exceeding its work budget preserves the old definition.
+
+`FOREIGN KEY ... REFERENCES ... NOT ENFORCED` records a staged declaration with
+exact parent definition and column identities. It checks compatible types,
+collations and the parent primary key without asserting row-level integrity.
+The catalog protects parent columns before publishing the child and removes
+obsolete protection through recoverable bounded cleanup. Enforced foreign keys
+and referential actions await the index-backed enforcement runtime. Staged
+constraints never dispatch CASCADE or SET NULL writes.
 
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
 Historical references do not make a name live. The direct Table owner rejects
@@ -230,7 +246,10 @@ availability and schema-evolution work without staging or admitting a change.
 It does not scan rows to certify tightened constraints. Save the complete
 `DirectTableIntent`, explicitly admit it, then inspect, execute or cancel its
 original binding. Outcomes distinguish `not_observed`, `admitted`, `committed`,
-`rejected` and `cancelled`; inspection alone starts no work.
+`finalizing`, `rejected` and `cancelled`; inspection alone starts no work.
+`finalizing` carries a committed Table outcome whose required dependency cleanup
+is still pending. Continue the original operation to settlement; a retry as new
+SQL would be a different operation.
 
 Already captured readers retain their original schema and cut, subject to
 current authorization and their own lifetimes. New admissions cannot substitute
