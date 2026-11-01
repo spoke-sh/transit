@@ -1339,6 +1339,12 @@ fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectInt
         .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
         .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
+        .log => |value| blk: {
+            var intent = try c.DirectLogIntent.load(allocator, self.data_objects, value);
+            defer intent.deinit();
+            const request = try intent.parsed.value.work.request(allocator);
+            break :blk try self.logGuard(allocator, request, policy, true, true);
+        },
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
         .name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
     };
@@ -1438,6 +1444,13 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             }
         },
         .name_assertion => |value| try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, value),
+        .log => |value| {
+            var intent = try c.DirectLogIntent.load(self.allocator, self.data_objects, value);
+            defer intent.deinit();
+            _ = try self.previewLog(try intent.parsed.value.work.request(arena.allocator()), policy);
+            try check(current);
+            try c.OperationBinding.claimInTree(self.allocator, &self.store.index, value.binding);
+        },
         .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),
     }
     var next = self.store.root;
@@ -1529,6 +1542,10 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
             },
         },
         .name_assertion => |value| if (try self.assertName(value, .inspect, policy) == .not_observed) return error.ClientOperationPending,
+        .log => |value| switch (try self.logOperation(value.binding, .inspect, policy)) {
+            .not_observed => return error.ClientOperationPending,
+            .operation => |operation| if (operation.pending()) return error.ClientOperationPending,
+        },
         .namespace_change => |value| switch (try self.namespaceOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
             .operation => |operation| if (operation.phase == .admitted) return error.ClientOperationPending,

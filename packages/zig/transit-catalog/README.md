@@ -35,6 +35,13 @@ Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
 SQL Stream/Queue statements and automatic DLQ transfer scheduling remain unavailable.
 
+`DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
+account-scoped record before caller-token acceptance. The Catalog verifies the
+body, current declaration rights and original operation reservation. Exact token
+recovery resumes the existing declaration owner without resolving a new name or
+recompiling a proposal. Accepted work remains pending through incomplete partition
+initialization; only the owner's actual terminal observation permits settlement.
+
 Typed transactions can select Stream/Queue partitions as read dependencies
 alongside Table/KV state. The common cut retains original log pins, checks
 current READ rights and validates logical frontiers for serializable completion.

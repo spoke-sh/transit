@@ -468,6 +468,38 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 
+# A log declaration token commits to its complete canonical saved body before
+# declaration admission. Content, account and the original binding are explicit.
+saved_log = {"definition": definition, "connection": request_input["connection"], "work": log_input["action"]["log_admit"]}
+saved_log_bytes = canonical(saved_log)
+saved_log_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SavedLogIntent"})
+saved_log_validator.validate(saved_log)
+for field in ("definition", "connection", "work"):
+    invalid = copy.deepcopy(saved_log)
+    del invalid[field]
+    assert not saved_log_validator.is_valid(invalid), field
+invalid = {**saved_log, "definition": "0" * 64}
+assert not saved_log_validator.is_valid(invalid)
+log_reference = {"connection": request_input["connection"], "namespace": 1, "kind": "queue", "binding": log_binding,
+                 "record": {"scope": {"definition": definition, "connection": request_input["connection"], "account": token_key["account"]},
+                            "format": 0x4c444c31, "content": {"bytes": len(saved_log_bytes), "sha256": list(hashlib.sha256(saved_log_bytes).digest())}}}
+log_reference_digest = hashlib.sha256(b"transit.catalog.log.binding.v1\0" + b"GIR1" + bytes.fromhex(definition) + canonical({"log": log_reference})).digest()
+log_token_binding = {**token_binding, "intent": {"log": log_reference}}
+log_token_input = {**request_input, "action": {"client_token": {"bind": log_token_binding}}}
+log_token_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_token_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-log-token-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    log_token_request = {**log_token_input, "proof": {"claim": log_token_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_token_claim)).digest())}}
+validator.validate(log_token_request)
+for field in ("connection", "namespace", "kind", "binding", "record"):
+    invalid = copy.deepcopy(log_token_request)
+    del invalid["action"]["client_token"]["bind"]["intent"]["log"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.json",
+        (json.dumps({"request": log_token_request, "public_key": public_key, "bytes": {"base64": base64.b64encode(saved_log_bytes).decode()},
+                     "digest": list(log_reference_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.
 transaction_begin = {

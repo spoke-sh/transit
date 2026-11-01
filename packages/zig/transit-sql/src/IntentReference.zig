@@ -24,6 +24,12 @@ pub fn commandKind(self: Reference) !g.results.Command {
             .update => .update,
             .delete => .delete,
         },
+        .log => |value| switch (value.binding.action) {
+            .create => if (value.kind == .stream) .create_stream else .create_queue,
+            .alter, .rename => if (value.kind == .stream) .alter_stream else .alter_queue,
+            .drop => if (value.kind == .stream) .drop_stream else .drop_queue,
+            else => error.InvalidLogIntent,
+        },
         .name_assertion => |value| switch (value.action) {
             .create_if_not_exists => .create_table,
             .drop_if_exists => .drop_table,

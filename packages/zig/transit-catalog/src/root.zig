@@ -43,6 +43,7 @@ pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const DirectLog = @import("DirectLog.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
+pub const DirectLogIntent = @import("DirectLogIntent.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
 pub const DirectStreamMutation = @import("DirectStreamMutation.zig");
 pub const DirectStream = @import("DirectStream.zig");

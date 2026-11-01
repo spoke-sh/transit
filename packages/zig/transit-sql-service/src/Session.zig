@@ -778,6 +778,12 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     4 => .{ "2BP01".*, "A registered dependency blocks the schema change" },
                     else => .{ "55000".*, "Schema declaration rejected" },
                 },
+                .log_declaration => switch (terminal.reason) {
+                    1 => .{ "42P07".*, "Stream or Queue name already exists" },
+                    2, 3 => .{ "40001".*, "Stream or Queue identity or definition changed" },
+                    4 => .{ "2BP01".*, "A registered dependency blocks the declaration change" },
+                    else => .{ "55000".*, "Stream or Queue declaration rejected" },
+                },
                 .dml => switch (terminal.reason) {
                     1, 2 => .{ "40001".*, "Table definition or data changed" },
                     3 => .{ "23505".*, "Primary key already exists" },

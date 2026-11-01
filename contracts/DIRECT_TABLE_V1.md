@@ -85,7 +85,7 @@ including parameters and database selection. The database does not interpret or
 certify that fingerprint's SQL meaning. It verifies the saved intent's immutable
 bytes, checks current original-operation rights and claims that operation
 identity before accepting the token in the catalog WAL. Token payloads support
-Table DDL/DML, namespace changes, conditional name assertions, transaction begin
+Table DDL/DML, Stream/Queue declarations, namespace changes, conditional name assertions, transaction begin
 descriptors and external-owner records.
 
 The first accepted binding wins. A concurrent or repeated bind with the same key
@@ -96,7 +96,7 @@ the original binding, catalog `position` and mandatory nullable `coordination`;
 successful `bind` always returns a
 receipt. `lookup` returns null for absence and never admits or executes data.
 Lookup requires current CONNECT; existing-reference disclosure also requires
-current rights for the original Table operation, including on exact retries and
+current rights for the original operation, including on exact retries and
 after response buffering.
 
 Token acceptance is separate from data admission, execution and completion. Its
@@ -120,9 +120,24 @@ and quota refusal to `StorageQuota`. Storage failure can leave acceptance unknow
 Catalog roots require the token directory and count fields. Earlier definitions
 reject under the shared-v1 cutover without a default, converter or data reset.
 SQL database sessions use these same public operations. The intent is a tagged
-`DirectIntent.Reference`: Table, conditional name, namespace change, transaction or external
+`DirectIntent.Reference`: Table, log declaration, conditional name, namespace change, transaction or external
 owner. External records fix their connection, namespace, operation and immutable
 `DirectRecord` content; the external owner establishes its domain outcome.
+
+`DirectIntent.Reference.log` fixes the connection, namespace, Stream/Queue kind,
+original `DataLifecycle.Binding` and account-scoped immutable `DirectRecord`.
+Its `DirectLogIntent.Saved` body requires the current definition and complete
+`DirectLogProtocol.Ddl`, including schema, policy, limits and proposed owner.
+The format is `0x4c444c31`; canonical bytes, content digest and every reference
+field must agree. The record account must equal the token account. Binding checks
+current declaration rights and reserves the original operation in the control
+store without admitting the declaration. Recovery loads that same body and uses
+`admit_log` and `log_operation`; partial partition initialization resumes through
+the declaration owner. Pending removal requires a complete, rejected or cancelled
+owner observation. Retrying a token cannot substitute a changed declaration,
+account, operation or name. Immutable staging records retain the existing saved
+record lifetime and remain outside physical collection authority. The SQL
+compiler does not yet accept Stream/Queue declaration syntax.
 
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog

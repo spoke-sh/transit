@@ -119,7 +119,7 @@ pub const Operation = struct {
             .kind = self.command.?,
             .outcome = self.outcome.?,
             .counts = switch (self.command.?) {
-                .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema => .{ .matched = self.matched, .changed = self.changed },
+                .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .{ .matched = self.matched, .changed = self.changed },
                 else => null,
             },
             .operation = self.identity,
