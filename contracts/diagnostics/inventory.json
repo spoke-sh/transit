@@ -35795,7 +35795,7 @@
         "CandidateMutationUnsupported": 2,
         "CandidateObjectBudgetExceeded": 2,
         "ImmutableObjectConflict": 1,
-        "InvalidCandidateObject": 1,
+        "InvalidCandidateObject": 2,
         "InvalidCandidateObjectBase": 1,
         "InvalidCandidateObjectBudget": 2,
         "InvalidObjectRange": 1
@@ -35814,12 +35814,13 @@
         "persistSelected()": "<inferred>",
         "put()": "<inferred>",
         "reset()": "<inferred>",
+        "select()": "<inferred>",
         "slot()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
-        "catch": 1
+        "try": 12,
+        "catch": 2
       },
       "imports": [
         "TransitObjectStore.zig",
@@ -37051,7 +37052,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 891,
+        "try": 890,
         "catch": 20
       },
       "imports": [
@@ -37074,6 +37075,7 @@
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
         "QueueAffinity.zig",
+        "QueueCandidateObjects.zig",
         "QueueClaims.zig",
         "QueueIndex.zig",
         "QueueItem.zig",
@@ -37682,6 +37684,44 @@
         "catch": 0
       },
       "imports": [
+        "TreeStore.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-storage/src/QueueCandidateObjects.zig": {
+      "errors": {
+        "InvalidQueueRoot": 1
+      },
+      "outcomes": {
+        "Domain": [
+          "plain",
+          "sidecars",
+          "bitmap",
+          "keys",
+          "levels",
+          "blob"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "leaf()": "<inferred>",
+        "persist()": "<inferred>",
+        "schedule()": "<inferred>",
+        "tree()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "BitmapDirectory.zig",
+        "CandidateObjects.zig",
+        "LogPartitionRecord.zig",
+        "OrderedKeyIndex.zig",
+        "QueueSchedule.zig",
+        "QueueTimeDirectory.zig",
+        "Tack.zig",
         "TreeStore.zig",
         "std"
       ]

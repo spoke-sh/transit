@@ -153,6 +153,15 @@ intermediate staging objects. Persistence alone publishes no root and supplies n
 WAL acceptance. The enclosing owner must clear derived page caches when abandoning
 or resetting a candidate and must preserve original identity after uncertainty.
 
+Queue publication follows the proposed root's private index dependencies before
+staging. It includes `.tack` bitmap containers, full-key child directories and
+timer merges' frozen source and output roots. The traversal reuses the candidate
+entry allocation and stops at existing immutable provider objects. Superseded
+private index pages, containers and delta buffers are omitted; earlier accepted
+objects are never deleted. This changes staging work without changing accepted
+root bytes, lease checks or deterministic replay. The storage retention graph
+still owns physical collection.
+
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
 slices without copying, and keeps 64 trailing zero bytes for internal vector

@@ -49,6 +49,26 @@ test "candidate objects reuse bounded storage and resolve full keys without back
         try t.expectEqual(used, candidates.used);
         try put(store, "third", "3");
         try put(store, "fourth", "4");
+        candidates.beginSelection();
+        try candidates.select("base", 0, @splat(7));
+        try t.expect(candidates.nextSelected() == null);
+        try candidates.select(first_name, 2, @splat(7));
+        try candidates.select(first_name, 2, @splat(7));
+        try candidates.select(second_name, 1, @splat(8));
+        try t.expectEqualStrings(first_name, candidates.nextSelected().?.name);
+        // Requeue an examined object behind another pending object, and add
+        // another interpretation while it is already queued.
+        try candidates.select(first_name, 0, @splat(7));
+        try candidates.select(first_name, 7, @splat(7));
+        try t.expectEqualStrings(second_name, candidates.nextSelected().?.name);
+        try t.expectEqual(@as(u3, 0), candidates.nextSelected().?.domain);
+        try t.expectEqual(@as(u3, 7), candidates.nextSelected().?.domain);
+        try t.expect(candidates.nextSelected() == null);
+        try t.expectError(error.InvalidCandidateObject, candidates.select(first_name, 1, @splat(9)));
+        try t.expect(candidates.isSelected(first_name) and candidates.isSelected(second_name));
+        try t.expect(!candidates.isSelected("base") and !candidates.isSelected("third"));
+        candidates.beginSelection();
+        try t.expect(!candidates.isSelected(first_name) and candidates.nextSelected() == null);
         try t.expectError(error.CandidateObjectBudgetExceeded, put(store, "fifth", "5"));
         try t.expectError(error.CandidateMutationUnsupported, store.delete("base"));
         try t.expectError(error.CandidateMutationUnsupported, store.putConditional("base", .if_none_match, "changed"));

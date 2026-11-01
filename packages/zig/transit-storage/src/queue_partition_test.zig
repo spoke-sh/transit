@@ -111,6 +111,61 @@ fn selectedLease(objects: s.TransitObjectStore.ObjectStore, receipt: q.ClaimRece
     return selected.lease(at);
 }
 
+test "queue candidate persistence retains long FIFO key children and earlier roots" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const first: [65]u8 = @splat('A');
+    var other = first;
+    other[64] = 'B';
+    const alias: [65]u8 = @splat('a');
+    var bytes: [8192]u8 = undefined;
+    var encoder = try s.LogBatch.Encoder.init(declared.definition.schema, operation(2), .queue, 3, &bytes);
+    for ([_][]const u8{ &first, &other, &alias }) |name| try encoder.append(.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = name } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } } });
+    const payload = try encoder.finish();
+    _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(2), .kind = .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    const appended = owner.owner.root;
+    const receipt = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 3, .lease_ms = 100 }, policy.guard());
+    try t.expectEqual(@as(u32, 2), receipt.rows);
+    const lease = try selectedLease(objects.objectStore(), receipt, 0);
+    try t.expectEqual(@as(u64, 0), lease.offset);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .ack }, policy.guard());
+    const settled = owner.owner.root;
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    policy.epoch += 1;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    try t.expectEqualDeep(settled, owner.owner.root);
+    var bitmap: s.BitmapDirectory = undefined;
+    const queue = index(&owner, &bitmap);
+    var key_bytes: [256]u8 = undefined;
+    const column = declared.definition.schema.columns[0];
+    const key = try f.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = &first } } }, column.type, column.collation, &key_bytes);
+    try t.expect(key.len > 64);
+    try t.expectEqualDeep(s.QueueIndex.Head{ .first = 0, .last = 2 }, (try queue.head(appended.queue.?, key)).?);
+    try t.expectEqualDeep(s.QueueIndex.Head{ .first = 2, .last = 2 }, (try queue.head(settled.queue.?, key)).?);
+    try t.expectEqual(@as(u64, 2), (try queue.firstEligible(settled.queue.?, 100)).?.offset);
+    try t.expectEqualDeep(receipt, try owner.claim(initial.declared, receipt.claim, policy.guard()));
+}
+
 test "queue partition resumes accepted timer merges through reply loss retirement and disk recovery" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -152,8 +207,12 @@ test "queue partition resumes accepted timer merges through reply loss retiremen
     while (owner.owner.root.queue.?.eligible.work == null) try t.expect(try owner.scheduleMaintenanceUnit(initial.declared, 17, policy.guard()));
     var claimed: [2]q.ClaimReceipt = undefined;
     for (&claimed, 4..) |*receipt, id| {
+        const prior_puts = objects.puts;
         receipt.* = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(id), .maximum = 256, .lease_ms = 100 }, policy.guard());
         try t.expectEqual(@as(u32, 256), receipt.rows);
+        // Immutable derivation preserves replay roots, but superseded private
+        // pages and bitmap containers need not reach the provider.
+        try t.expect(objects.puts - prior_puts < owner.owner.candidate_objects.count);
     }
     try t.expectEqual(@as(u64, 2), owner.owner.root.queue.?.deadlines.pending_chunks);
     const old_first = try selectedLease(objects.objectStore(), claimed[0], 0);

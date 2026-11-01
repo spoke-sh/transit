@@ -709,7 +709,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility, .affinity = &self.queue_affinity, .timer_workspace = self.queue_timers, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = self.root.initialization.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .timer_read_work = self.options.queue_timer_read_work };
         }
         fn persistQueue(self: *Self, next: Root) !void {
-            try self.candidate_objects.persistSelected(try QueueSchedule.Buffers.init(next.queue.?.eligible, next.queue.?.deadlines));
+            try @import("QueueCandidateObjects.zig").persist(&self.candidate_objects, &self.store, &self.scratch, next);
         }
         fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
             return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;
