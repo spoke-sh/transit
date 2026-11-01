@@ -41,8 +41,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         return direct(dict(historical_catalog=action))['historical_catalog']
 
     owner = dict(scope=connection['scope'], principal=principal, operation=operation)
-    selection = call(dict(select=dict(selection=dict(owner=owner, branch=connection['branch'], directory=None),
-        namespace=1, name=dict(len=7, bytes=list(b'metrics')+[0]*56))))['selection']
+    selected_names = [dict(len=7, bytes=list(b'metrics')+[0]*56)]
     if operation == 900030:
         # Real signed declarations populate two metadata pages. Board only
         # receives the public read projection, never this provisioning identity.
@@ -76,7 +75,12 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                 assert result == 'registration_pending', result
             else:
                 raise AssertionError('Metadata declaration did not settle')
-            selection = call(dict(select=dict(selection=selection, namespace=1, name=named)))['selection']
+            selected_names.append(named)
+    # Declarations advance the namespace revision. Select only after provisioning
+    # finishes so the directory retains one exact namespace interpretation.
+    selection = dict(owner=owner, branch=connection['branch'], directory=None)
+    for named in selected_names:
+        selection = call(dict(select=dict(selection=selection, namespace=1, name=named)))['selection']
     token = dict(definition=definition, connection=connection, account=[91]*32, token=list(operation.to_bytes(16, 'little')))
     intent = dict(connection=connection, namespace=1, operation=owner['operation'],
                   selection=selection['directory'], common=None)
