@@ -42,14 +42,18 @@ LIMIT lowers each native page's row budget to the remaining output allowance.
 Completion at that limit preserves a partial native cursor, including LIMIT 0
 at the initial position; it neither exhausts the larger read nor commits a group.
 Workload observations carry the explicit nullable limit so clients validate that
-terminal distinction. SQL `CONSUME` admission remains separate from this reader.
+terminal distinction.
 `WorkloadOperations` projects native receipts and recorded closures and advances
 the same frozen work through Catalog's terminal settlement gate.
 `DirectLogPreparedAppend` freezes single-partition `PRODUCE INTO` and
 `ENQUEUE INTO` statements, including optional RETURNING. Native SQL admits a
 caller token; wire callers generate one identity and wait on progress signals
-for its original outcome. Consume, claim and settlement SQL remain unimplemented;
-group assignment and read-release tokens stay with their native owners.
+for its original outcome. `DirectLogPreparedConsume` freezes positional
+`CONSUME` requests, retaining a native upper cut at acceptance and applying the
+original typed predicate and logical LIMIT during bounded result delivery. A
+multi-partition Stream requires a predicate that selects exactly one partition.
+Group consumption, WAIT, claim and settlement SQL remain unimplemented; group
+assignment and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs

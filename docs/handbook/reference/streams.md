@@ -74,8 +74,9 @@ read dependency or settle work; native read release is explicit. Grouped
 consumption can prepare a saved authenticated offset handoff for either the
 exhausted read or an interval between two issued cursors from that same read.
 Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
-for budgets, empty results and unavailable retained history. This native support
-does not enable SQL consumption or settlement; SQL append admission is available.
+for budgets, empty results and unavailable retained history. SQL supports
+[append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
+group consumption, waits and settlement retain their native interfaces.
 
 ## Cancelling original workload operations
 

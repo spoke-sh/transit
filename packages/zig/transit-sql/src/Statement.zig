@@ -11,13 +11,17 @@ connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
 inspection: bool = false,
-plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, log_consume: c.DirectLogPreparedConsume, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue };
+pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume };
+pub fn isWorkload(self: *const Self) bool {
+    return self.plan == .log_append or self.plan == .log_consume;
+}
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
         .log_append => |value| if (value.definition.kind() == .stream) .produce else .enqueue,
+        .log_consume => .consume,
         .log_ddl => |value| switch (value.compiled.statement.action) {
             .create => .create,
             .alter, .rename => .alter,
@@ -54,6 +58,7 @@ pub fn parameters(self: *const Self) []const f.Types.Type {
         .select => |*value| value.parameterTypes(),
         .dml => |*value| value.parameterTypes(),
         .log_append => |*value| value.compiled.parameterTypes(),
+        .log_consume => |*value| value.compiled.parameterTypes(),
         else => &.{},
     };
 }
@@ -67,6 +72,12 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
     switch (self.plan) {
         .log_append => |*value| {
             var bound = try value.compiled.bind(allocator, values, null);
+            defer bound.deinit();
+        },
+        .log_consume => |*value| {
+            // Validate routing and the complete body before execution creates
+            // an identity. This pure witness is never staged or admitted.
+            var bound = try value.freeze(allocator, 1, values, null);
             defer bound.deinit();
         },
         .select => |*value| {
@@ -118,6 +129,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         plan = .{ .log_ddl = try c.DirectLogPreparedDdl.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (tokenIs(first, "PRODUCE") or tokenIs(first, "ENQUEUE")) {
         plan = .{ .log_append = try c.DirectLogPreparedAppend.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "CONSUME")) {
+        plan = .{ .log_consume = try c.DirectLogPreparedConsume.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
         // tokens belong to the shared single-Table compiler; strings/comments
@@ -146,9 +159,12 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         inline else => |*value| value.deinit(),
     };
     var output_fields: [g.Limits.max_parameters]f.Types.Field = undefined;
+    var consume_output: ?f.Types.Decoded = if (plan == .log_consume) try plan.log_consume.compiled.template.outputSchema(allocator) else null;
+    defer if (consume_output) |*schema| schema.deinit();
     const output: ?f.Types.Type = switch (plan) {
         .select => |value| value.output.type,
         .log_append => |value| if (value.compiled.output) |output| output.type else null,
+        .log_consume => consume_output.?.type,
         .relational => |value| try value.plan.outputSchema(&output_fields),
         else => null,
     };
@@ -172,6 +188,7 @@ fn tokenIs(token: f.Sql.Token, word: []const u8) bool {
 pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     if (self.plan == .log_append) return self.plan.log_append.validate(client.*);
+    if (self.plan == .log_consume) return self.plan.log_consume.validate(client.*);
     const right: c.TableAuthority.Access = switch (self.kind()) {
         .select => if (self.inspection) .inspect else .read,
         .insert => .insert,
@@ -180,7 +197,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .create => .create_table,
         .alter => .alter,
         .drop => .drop,
-        .produce, .enqueue => unreachable,
+        .produce, .enqueue, .consume => unreachable,
     };
     switch (self.plan) {
         .select => |value| _ = try value.binding.require(client.*, right),
@@ -189,7 +206,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .ddl => |*value| try value.validate(client.*),
         .log_ddl => |*value| try value.validate(client.*),
-        .log_append => unreachable,
+        .log_append, .log_consume => unreachable,
     }
 }
 pub const Write = union(enum) {
@@ -248,6 +265,7 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
     if (self.plan == .log_append) return .{ .workload = try self.plan.log_append.bindPrepared(allocator, client.*, operation, values, null, fresh) };
+    if (self.plan == .log_consume) return .{ .workload = try self.plan.log_consume.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;
         return .{ .log = try self.plan.log_ddl.bindPrepared(allocator, client.*, operation, fresh) };

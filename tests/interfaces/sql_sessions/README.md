@@ -11,6 +11,13 @@ reopens a 65-row original result after gateway replacement, repeats all three
 batches, and verifies revoked disclosure. A subsequent append proves that
 result delivery and recovery did not append again.
 
+The same installed task runs [positional consumption](consumes.py) through all
+four interfaces. It verifies filtered progress versus returned rows, LIMIT 0,
+partial-limit completion and exhaustion below the limit, 65 rows across three
+SQL batches, typed parameters and revoked buffered/empty terminals. A saved
+read and token must retain their original cut after a later append and service
+replacement. GROUP and WAIT remain explicit SQL refusals in this profile.
+
 The [session contract](../../../contracts/SQL_SESSION_V1.md) defines supported
 operations; [contribution instructions](AGENTS.md) describe their test boundary.
 

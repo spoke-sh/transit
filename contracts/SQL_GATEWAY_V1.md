@@ -123,10 +123,14 @@ row completion. `PRODUCE`/`ENQUEUE ... RETURNING` retain mutation admission
 rules, including PostgreSQL's single valid Sync boundary, then open the retained
 result of that original operation. PostgreSQL emits `PRODUCE n` or `ENQUEUE n`
 after verified exhaustion; MySQL uses its ordinary row-result completion.
+Positional `CONSUME` also requires mutation admission and opens its original
+accepted read. PostgreSQL emits `CONSUME n` after verified logical completion,
+including an explicit LIMIT that leaves native coverage partial; MySQL uses
+ordinary row-result completion. The count is returned rows, not offsets scanned.
 Commands without RETURNING report the native receipt's accepted row count.
 PostgreSQL carries that count in the custom command tag. Upstream libpq's
 `PQcmdTuples` recognizes a fixed set of PostgreSQL tags and returns no count for
-`PRODUCE` or `ENQUEUE`; clients must inspect the command tag instead. MySQL
+`PRODUCE`, `ENQUEUE` or `CONSUME`; clients must inspect the command tag instead. MySQL
 commands without RETURNING carry the count in the affected-rows field.
 The host owns a separate original-result descriptor until reader close, so
 reusing a prepared SQL template cannot replace the result's frozen projection.

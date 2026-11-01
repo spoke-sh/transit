@@ -2,7 +2,7 @@
 
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
-and appends. The transport of a result in
+and appends, plus positional Stream consumption. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -11,6 +11,7 @@ several batches does not make that query continuous.
 | --- | --- | --- |
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
+| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional `CONSUME`, typed predicates and logical `LIMIT` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
@@ -90,8 +91,8 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. `CONSUME`, `COMMIT OFFSET`, `CLAIM`, `ACK`, `NACK`
-and `EXTEND LEASE` still require typed native callers.
+are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`, `CLAIM`,
+`ACK`, `NACK` and `EXTEND LEASE` still require typed native callers.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -152,6 +153,53 @@ terminal batches. Revocation, incompatible definitions and unavailable retained
 history are failures, not empty successful results. Retain the original native
 SQL client token or reported wire operation after a lost reply; submitting new
 SQL creates new work.
+
+## Consume a finite Stream cut
+
+Native SQL, console, PostgreSQL and MySQL sessions admit positional consumption
+through the same Catalog workload identity and native Stream read owner:
+
+```sql
+CONSUME id, message, _offset FROM audit_events
+WHERE _offset >= 0 AND id >= 1 LIMIT 100;
+```
+
+The declared schema owns application types and collations. Projections accept
+columns, aliases and unqualified `_partition`/`_offset` metadata; `*` includes
+only application columns. Boolean comparisons and cell-state predicates use
+the same typed Fuze semantics as finite reads. Parameters are typed across
+the projection's predicate and LIMIT. Aggregates, joins, sorting and `_timestamp`
+metadata are outside this consumption profile.
+
+A statement selects one partition. For a multi-partition Stream, its predicate
+must establish one valid partition, for example `WHERE _partition = 2`.
+Conservative bounds preserve AND/OR/NOT semantics; an ambiguous selector is
+refused. Contradictory metadata bounds are also refused in this profile.
+A lower offset bound selects the start, defaulting to zero. Acceptance retains
+the then-current upper cut; later appends cannot enlarge it. An upper offset
+comparison remains a row predicate, so it does not truncate traversal coverage.
+Unavailable retained history and a start beyond the accepted cut are errors.
+
+LIMIT bounds returned rows after filtering. A result completes when that limit
+is reached or the original native read is exhausted. LIMIT 0 completes with no
+rows at the initial position. Completion retains the original native cursor:
+filtered rows contribute to traversal coverage, and reaching LIMIT can leave
+that cursor partial. A complete SQL result therefore does not imply that the
+whole Stream cut was traversed or that consumer progress was committed.
+
+Native SQL requires a client token because acceptance retains a durable read.
+The prepared descriptor exposes its row schema and mutation-admission flag.
+Wire adapters admit once and open that original result; PostgreSQL reports
+`CONSUME n` using the verified returned-row count. Repeating, closing and
+reopening delivery never captures another cut. Preserve the original identity
+after uncertainty. Current read rights and exact definitions are rechecked for
+buffered and terminal responses, including empty results. Native read release
+remains explicit and is separate from closing local result buffers.
+
+GROUP and WAIT can be parsed by the dedicated compiler but are refused by SQL
+admission. Consumption cannot run inside an attached interactive transaction
+in this profile. Group assignment and offset settlement retain their native
+owners; positional consumption does not advance a group checkpoint.
 
 ## Connections, sources and sinks
 

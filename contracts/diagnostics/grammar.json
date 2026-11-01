@@ -7043,6 +7043,18 @@
         "code": "sql.unknown_column",
         "category": "binding"
       }
+    },
+    {
+      "id": "log-consume-session-root",
+      "sql": "CONSUME * FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
     }
   ]
 }

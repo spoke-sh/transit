@@ -184,6 +184,8 @@ def run(root, port, postgres, mysql_options, restart, authorize, console):
                           listing_batches=[32, 3], empty_listing=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)
     appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    from interfaces.sql_sessions import consumes
+    consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
 
 
 def appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):

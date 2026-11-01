@@ -373,11 +373,17 @@ test "consumption diagnostics preserve the dedicated compiler cause" {
     try std.testing.expectEqualStrings("sql.unsupported_construct", value.code.slice());
     try std.testing.expectEqual(d.Outcome.not_submitted, value.outcome);
     try std.testing.expectEqual(@as(u64, 34), try value.location.?.offset.value());
+    const routed = bound("/* stream */ " ++ text, error.UnsupportedConstruct, true, .{ .location = .{ .offset = 47 } }).?;
+    try std.testing.expectEqualStrings(detail.summary, routed.summary);
+    try std.testing.expectEqual(@as(u64, 47), try (try routed.structured()).location.?.offset.value());
     try std.testing.expect(logConsume(text, error.OutOfMemory, .{}) == null);
 }
 
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
+    var lexer: sql.Lexer = .{ .text = text };
+    const first = lexer.next() catch null;
+    if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);

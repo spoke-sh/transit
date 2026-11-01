@@ -608,10 +608,10 @@ fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, sta
 pub const Execution = struct { terminal: g.Terminal, completion: g.results.CommandCompletion };
 
 /// Wire callers create one operation, then observe its original workload result.
-/// The protocol-neutral result distinguishes command completion from RETURNING;
+/// The protocol-neutral result distinguishes command completion from rows;
 /// neither branch recreates SQL or turns an absent receipt into rejection.
 pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
-    if (statement.plan != .log_append) return error.ExpectedSqlWorkload;
+    if (!statement.isWorkload()) return error.ExpectedSqlWorkload;
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);

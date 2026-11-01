@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | logAppendCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -145,10 +145,11 @@ logAppendRow: LPAREN logAppendValue (COMMA logAppendValue)* RPAREN;
 logAppendValue: DEFAULT | logAppendOperand;
 logAppendOperand: literal | PARAMETER;
 
-// Pure dedicated preparation only; not admitted by the session statement root.
-logConsumeStatement: CONSUME projection FROM identifier sourceAlias?
+// Grammar covers group/wait preparation; execution validates its narrower profile.
+logConsumeStatement: logConsumeCommand SEMI? EOF;
+logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
     (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
-    (WAIT workloadTextOperand)? SEMI? EOF;
+    (WAIT workloadTextOperand)?;
 workloadTextOperand: STRING | PARAMETER | NULL_;
 workloadWhereClause: WHERE workloadDisjunction;
 workloadDisjunction: workloadConjunction (OR workloadConjunction)*;

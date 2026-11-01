@@ -139,8 +139,14 @@ separately supports single-partition `PRODUCE INTO` and `ENQUEUE INTO`, with a
 required client token. Preparation binds the exact declared schema; admission
 freezes the bound native request and optional RETURNING projection in its
 workload intent. RETURNING exposes the original result through this same
-operation/result lifecycle. Other workload verbs and attached-transaction
-appends remain outside the SQL execution profile.
+operation/result lifecycle. Positional `CONSUME` also requires a client token;
+its exact source, typed predicate and nullable logical LIMIT are frozen in the
+workload intent. The native owner retains the upper cut once at acceptance.
+Returned rows may complete at LIMIT before native exhaustion; the final cursor
+preserves that distinction. Its prepared descriptor has a row schema and the
+mutation-admission flag because accepting the read retains native history.
+GROUP, WAIT, other workload verbs and attached-transaction workloads remain
+outside the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation

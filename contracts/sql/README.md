@@ -75,7 +75,9 @@ key. These forms are excluded from attached interactive transactions until
 their shared transaction lowering is implemented.
 
 `LogConsumeSql.Prepared` is a pure compiler with a separate checked
-`logConsumeStatement` root. It is not admitted by the SQL service:
+`logConsumeStatement` root and a command in the ordinary statement grammar.
+The SQL service admits the positional subset; GROUP and WAIT remain preparation
+only:
 
 ```text
 CONSUME * | column [AS name] [, column [AS name]]
@@ -98,8 +100,13 @@ positional parameters and backtick names.
 LIMIT is a logical output bound, not an offset interval or proof of completed
 native coverage. The schema fingerprint used during pure preparation is not a
 native operation/result binding. This helper performs no capture, group lookup,
-assignment, admission, waiting or offset settlement, and cannot freeze its plan
-as an original workload result. The [consumption corpus](corpus/log-consumes.json)
+assignment, admission, waiting or offset settlement. `DirectLogPreparedConsume`
+binds the positional subset to an exact catalog definition and native operation,
+then freezes its plan as an original workload result. A multi-partition Stream
+requires a predicate whose conservative metadata bounds select one partition.
+Lower offset bounds select the starting position; upper comparisons remain row
+predicates within the accepted native cut. Ambiguous or contradictory routing,
+GROUP and WAIT are refused by this adapter. The [consumption corpus](corpus/log-consumes.json)
 uses independent expected layouts and five-row predicate outcomes through
 `just test::table-dml-sql`; those checks establish preparation only.
 

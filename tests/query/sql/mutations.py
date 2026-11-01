@@ -265,6 +265,7 @@ def check_log_consumes(binary):
             except ValueError: pass
             else: raise AssertionError(('invalid consumption syntax accepted', case))
         else:
+            tree(case['sql'], 'statement')
             tree(case['sql'], 'logConsumeStatement')
         expected = dict(err=case['error']) if 'error' in case else case['expected']
         assert response == expected, (case, expected, response)

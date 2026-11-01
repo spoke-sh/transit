@@ -16046,7 +16046,7 @@
       "open_error_set_uses": 11,
       "propagation": {
         "try": 60,
-        "catch": 32
+        "catch": 33
       },
       "imports": [
         "AuthorizationSql.zig",
@@ -19463,7 +19463,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
+        "try": 62,
         "catch": 0
       },
       "imports": [
@@ -29926,14 +29926,14 @@
         "bind()": "<inferred>",
         "current()": "<inferred>",
         "currentOnce()": "<inferred>",
-        "executeAppend()": "<inferred>",
+        "executeWorkload()": "<inferred>",
         "fresh()": "<inferred>",
         "freshOn()": "<inferred>",
         "init()": "<inferred>",
         "initOptions()": "<inferred>",
         "loadCredential()": "<inferred>",
-        "openAppendResult()": "<inferred>",
         "openRead()": "<inferred>",
+        "openWorkloadResult()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareInner()": "<inferred>",
         "requireWorkloadOutcome()": "<inferred>",
@@ -30579,7 +30579,8 @@
           "alter",
           "drop",
           "produce",
-          "enqueue"
+          "enqueue",
+          "consume"
         ],
         "Profile": [
           "native",
@@ -30599,6 +30600,7 @@
           "ddl",
           "log_ddl",
           "log_append",
+          "log_consume",
           "relational",
           "namespace_change"
         ]
@@ -30619,7 +30621,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 42,
         "catch": 1
       },
       "imports": [
@@ -39832,7 +39834,7 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( selectStatement | mutationStatement | logAppendCommand | extensionStatement | transactionStatement ) SEMI ? EOF",
+      "statement": "( selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | extensionStatement | transactionStatement ) SEMI ? EOF",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -39890,7 +39892,8 @@
       "logAppendRow": "LPAREN logAppendValue ( COMMA logAppendValue ) * RPAREN",
       "logAppendValue": "DEFAULT | logAppendOperand",
       "logAppendOperand": "literal | PARAMETER",
-      "logConsumeStatement": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadTextOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ? SEMI ? EOF",
+      "logConsumeStatement": "logConsumeCommand SEMI ? EOF",
+      "logConsumeCommand": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadTextOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ?",
       "workloadTextOperand": "STRING | PARAMETER | NULL_",
       "workloadWhereClause": "WHERE workloadDisjunction",
       "workloadDisjunction": "workloadConjunction ( OR workloadConjunction ) *",

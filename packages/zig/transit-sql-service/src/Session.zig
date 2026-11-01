@@ -93,7 +93,12 @@ pub const Prepared = union(enum) {
     }
     pub fn rowCommand(self: *const Prepared) !g.results.Command {
         return switch (self.*) {
-            .native => |value| if (value.plan == .log_append) (if (value.plan.log_append.definition.kind() == .stream) .produce else .enqueue) else .select,
+            .native => |value| switch (value.kind()) {
+                .produce => .produce,
+                .enqueue => .enqueue,
+                .consume => .consume,
+                else => .select,
+            },
             .workload => |value| g.database.WorkloadOperations.command(value.intent.parsed.value.work),
             else => .select,
         };
@@ -610,7 +615,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     // attempt enters cleanup. ReadCache can retry preparation only after proving
     // the original pin is absent and its exact frontier can no longer be acquired;
     // an accepted/uncertain pin or opened iterator never switches its cut.
-    if (prepared.* == .native and prepared.native.plan == .log_append) return self.openAppendResult(prepared, values);
+    if (prepared.* == .native and prepared.native.isWorkload()) return self.openWorkloadResult(prepared, values);
     return self.acquireRead(prepared, values);
 }
 
@@ -623,7 +628,7 @@ fn requireWorkloadOutcome(result: g.session_protocol.Operation) !void {
         else => return error.InvalidSqlOperationReference,
     }
 }
-fn executeAppend(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.session_protocol.Operation {
+fn executeWorkload(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.session_protocol.Operation {
     try g.SessionTransaction.require(self, prepared);
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) self.fresh_prepared = null else try self.validate(prepared);
@@ -632,9 +637,9 @@ fn executeAppend(self: *Self, prepared: *Prepared, values: []const ?f.Types.Valu
     try self.current();
     return result;
 }
-fn openAppendResult(self: *Self, statement: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
+fn openWorkloadResult(self: *Self, statement: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     if (statement.fields().len == 0) return error.ExpectedGatewayRead;
-    const result = try self.executeAppend(statement, values);
+    const result = try self.executeWorkload(statement, values);
     if (result.result_kind != .rows or result.identity.kind != .workload) return error.InvalidSqlOperationReference;
     var source = try self.observer.source();
     const state = try source.operation(result.identity.id);
@@ -753,9 +758,9 @@ fn releasePins(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
-    if (prepared.* == .native and prepared.native.plan == .log_append) {
+    if (prepared.* == .native and prepared.native.isWorkload()) {
         if (prepared.fields().len != 0) return error.SqlRowsRequired;
-        return (try self.executeAppend(prepared, values)).completion();
+        return (try self.executeWorkload(prepared, values)).completion();
     }
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) {
