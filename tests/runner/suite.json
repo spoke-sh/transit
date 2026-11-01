@@ -65,6 +65,7 @@
       "test::direct-state-transaction",
       "test::direct-mixed-transaction",
       "test::direct-queue-transfer",
+      "test::direct-log-token",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",
