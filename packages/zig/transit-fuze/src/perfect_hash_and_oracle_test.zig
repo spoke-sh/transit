@@ -169,9 +169,9 @@ test "PerfectHash SIMD comparison accepts exact external allocations and every s
 }
 
 test "PerfectHash 16-byte SIMD string comparison at a protected page boundary" {
-    if (@import("builtin").os.tag != .linux) return;
+    if (@import("builtin").os.tag != .linux) return error.SkipZigTest;
     const linux = std.os.linux;
-    const page_len: usize = 4096;
+    const page_len = std.heap.pageSize();
     const map_addr = linux.mmap(
         null,
         page_len * 2,
@@ -181,10 +181,10 @@ test "PerfectHash 16-byte SIMD string comparison at a protected page boundary" {
         0,
     );
     try std.testing.expect(map_addr <= std.math.maxInt(usize) - 4096);
-    const base: [*]align(4096) u8 = @ptrFromInt(map_addr);
+    const base: [*]align(std.heap.page_size_min) u8 = @ptrFromInt(map_addr);
     defer _ = linux.munmap(base, page_len * 2);
 
-    // Protect the second 4 KiB page with PROT_NONE so any 16-byte SIMD overread faults immediately
+    // Protect the second OS page so any 16-byte SIMD overread faults immediately.
     try std.testing.expectEqual(@as(usize, 0), linux.mprotect(@ptrCast(base + page_len), page_len, .{}));
 
     const word = "select";
