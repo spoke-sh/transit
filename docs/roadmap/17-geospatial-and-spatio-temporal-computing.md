@@ -554,7 +554,7 @@ flowchart LR
   2D slice planes, trajectory streams, `PDF` layout bounding boxes and
   2-way/3-way 2D/3D spatial `DIFF` / clash (`IS CONFLICT`) overlays over public
   result APIs.
-- [SQL grammar, standards comparison and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md)
+- [SQL grammar, standards comparison and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md)
   audits `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`POINTCLOUD` type modifiers,
   2D `ST_*` and 3D `ST_3D*` functions and `RANGE` operators against **ISO/IEC
   13249-3 (SQL/MM Spatial)**, **OGC Simple Features**, **PostGIS / SFCGAL**,

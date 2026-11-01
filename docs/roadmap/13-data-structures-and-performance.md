@@ -240,7 +240,7 @@ scores.
 and [language composition](34-programming-model.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](36-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](42-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
@@ -569,7 +569,7 @@ other exhausted operators use a typed budget refusal. Never turn allocation
 pressure into expiry, accepted-work loss or an unbounded cleanup queue.
 
 **H — Apply the contract to strings and search.** Keep implementation in
-[milestone 12](14-vectorized-strings-and-search.md), with separately reviewable
+[milestone 14](14-vectorized-strings-and-search.md), with separately reviewable
 changes for string layout, lookup tables, encoded predicates, full-text indexes
 and execution, and hybrid composition. Ship usable closed-set `comptime` lookup
 work early when it depends only on B; keep index/search work behind its actual
@@ -599,12 +599,12 @@ Block-Max WAND or any later positional/substring/structural index profile.
 Hybrid composition waits for the qualified ANN/index owner and one supported
 snapshot model, while speculative research into declarative sequence, context
 and synthesis primitives belongs to
-[milestone 38](38-declarative-language-context-and-synthesis.md). Every new
+[milestone 44](44-declarative-language-context-and-synthesis.md). Every new
 operator starts with allocation gates; future syntax and algorithms do not
 become current supported capabilities.
 
 **I — Apply the contract to fusion and compilation.** Keep implementation in
-[milestone 13](15-data-centric-compilation-and-specialization.md). Review fused
+[milestone 15](15-data-centric-compilation-and-specialization.md). Review fused
 interpreter instructions and pipeline boundaries first, then per-group dense
 specialization, directory-tagged/prefetched joins, projection-specialized codecs,
 adaptive compilation and AOT separately. Retain the reference interpreter and

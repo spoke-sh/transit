@@ -189,19 +189,27 @@ real-time simulation systems:
    - **Audio, 3D Room/Wave Acoustics, `.wave_lpc_pyramid` Envelope Zone Maps & Vectorized Spectral DSP (`WAVEFORM`):**
      Multi-channel audio, spatial **Ambisonics (`FOA`/`HOA`)**, industrial
      vibration, hydrophone/seismic arrays and EEG/ECG biosignals (`WAVEFORM`)
-     encode sample blocks via **`.wave_lpc_pyramid`** (lossless Linear Predictive
-     Coding `LPC` + Rice residuals or error-bounded `.float_zfp`/MDCT) paired
-     with an inline **multi-resolution `(min_peak, max_peak, rms_energy, zero_crossing_rate, clipping_bitmap)`
-     mip-pyramid** in the `.tseg` zone map—enabling $O(1)$ zero-decode waveform
-     timeline rendering at any zoom level and $>90\%$ silence/trigger pruning
-     (`WHERE DSP_MaxRMS(wave) > -40.0`). 3D room acoustics combines
+     use a proposed **`.wave_lpc_pyramid`** profile pairing independently indexed
+     sample blocks with a multi-resolution
+     `(min_peak, max_peak, rms_energy, zero_crossing_rate, clipping_bitmap)`
+     summary pyramid. Qualify exact integer `LPC` + Rice coding separately from
+     declared `.float_zfp` modes and perceptual MDCT/Opus profiles; a codec name
+     alone establishes neither losslessness nor an error bound. Envelope views
+     can read summaries without decoding source samples; cost depends on index
+     traversal and the requested channel/bin count. Measure silence/trigger
+     pruning on named datasets, with explicit RMS windows and dBFS reference.
+     3D room acoustics combines
      `.topo_face` octave-band absorption/scattering ($\alpha_{125\text{Hz}..16\text{kHz}}$)
      and `.octree_roaring` ray/image-source tracing with low-frequency
      staggered-`MAC_GRID` Finite-Difference Time-Domain (`FDTD`) wave-equation
      propagation, while `Fuze` executes SIMD `DSP_FFT`, `DSP_STFT`,
      `DSP_MelSpectrogram`, `DSP_MFCC`, partitioned Overlap-Save fast convolution
-     (`DSP_ConvolveIR(dry_wave, room_ir)`), and **incremental DBSP `ITU-R BS.1770`
-     `LUFS` loudness / Parseval spectral-energy metering**.
+     (`DSP_ConvolveIR(dry_wave, room_ir)`), and spectral-energy/loudness metering.
+     [ITU-R BS.1770](https://www.itu.int/dms_pubrec/itu-r/rec/bs/R-REC-BS.1770-5-202311-I%21%21PDF-E.pdf)
+     integrated loudness requires K-weighted filter state and absolute/relative
+     gating. Maintain energy summaries plus the actual gating/window state;
+     integrated LUFS is not a linear sum. Qualify block boundaries, retractions,
+     changed gate membership and bounded recomputation against a finite oracle.
    - **Fused Cache-Blocked Face-Sweep Differential & Feature Extraction Kernels (`ST_Gradient`, `ST_Divergence`, `ST_Curl`, `ST_QCriterion`, `ST_IsoSurface`, `ST_Streamlines`):**
      Because `.topo_face` cells are ordered by `HILBERT_3D` / Reverse Cuthill–McKee
      (`RCM`), `Fuze` computes Green–Gauss and Least-Squares cell gradients
@@ -260,9 +268,29 @@ flowchart LR
 | **Continuum & Fluid Field Streams (`COCHAIN_FIELD` / `SPH_PARTICLES`)** | Coupled $(\kappa_{\text{spatial}}, \kappa_{\text{numeric}})$ over `.topo_face` (`C^2` face fluxes $\Phi_f$, `C^3` cell states $\rho, \rho\vec{u}, E, p$) or `.pcloud_hilbert` clustered at SPH smoothing radius $2h$; CFL stability threshold $C_{\max}$ and conservation residual tolerance $\varepsilon_{\text{cons}}$ | **`.float_zfp`** progressive bitplane blocks with conservation-preserving headers (`min`, `max`, exact 0th-coefficient block integral, `max_gradient_norm`, `max_divergence`) + `HILBERT_3D` / `RCM` cache-local face/particle ordering | CFL violation ($\text{CFL} > C_{\max}$), negative absolute pressure/density, `NaN`/`Inf` fluxes or conservation residual blowups $\to$ `IS TYPE_ERROR` with `(timestep, cell_id, face_id, cfl, residual)` witness; linear DBSP Z-set face-flux cancellation ($(+\Phi_f) + (-\Phi_f) = 0$) and wall Lift/Drag integrals |
 | **`SKELETON3D` & `ANIMATION_CLIP`** (Articulated bone hierarchies, vertex skinning & keyframe tracks) | Max bone count, root-motion coordinate convention, Influences-per-vertex limit ($k \in \{4, 8\}$), partition normalization tolerance ($\sum_{i=1}^k w_i = 1 \pm \epsilon$), and clip sample rate / ACL error threshold | **`.skin_weights`**: topological bone tree + inverse-bind 48B `TRANSFORM3D` array + per-vertex `u16x4` joint indices and `unorm8x4`/`unorm16x4` weights + sparse morph deltas; **`.anim_acl`**: uniform block-quantized rotation (`quat3` smallest-three), translation and scale tracks + root-motion `TRAJECTORY` + frame notify bitmaps | Cyclic bone parent links, joint index $\ge \text{num\_bones}$, unnormalized skin weights ($\sum w_i = 0$) or non-monotonic track timestamps $\to$ `IS TYPE_ERROR`; deterministic in-engine pose evaluation `ST_EvaluatePose(skeleton, clip, t)` |
 | **`MATERIAL` & `SHADER_VARIANT`** (PBR material graphs & target RHI shader permutations) | Material schema (`MaterialX` / `UsdShade` / `glTF` PBR metallic-roughness + clearcoat/transmission) and RHI target profile (`SPIRV_1_6`, `DXIL_6_6`, `MSL_3_1`, `WGSL`) | Composed over [`DocumentPartition`](07-document-storage-and-station-decoupling.md) $2N$-bit `BP` succinct trees + typed `CatalogId`/`DefinitionId` texture-slot dependency bindings + `.tseg` shader bytecode blobs keyed by `(graph_hash, permutation_mask, rhi_target)` | Dangling texture `DefinitionId`, type-mismatched shader node ports or failed deterministic shader compilation $\to$ `IS TYPE_ERROR` with node/line witness; WAL-activated DDC compilation on source graph edits |
-| **`WAVEFORM` & `AUDIO_CUE`** (Multi-channel audio, Ambisonics `FOA`/`HOA`, room impulse responses & high-rate seismic/sensor waveforms) | Coupled $(\kappa_{\text{asset}}, \kappa_{\text{numeric}})$ with sample rate, channel layout (`STEREO`, `5.1`/`7.1.4`, `AMBISONICS_ACN_SN3D`, `SENSOR_ARRAY`), octave-band acoustic surface impedance ($\alpha_{125\text{Hz}..16\text{kHz}}$), and `ITU-R BS.1770` `LUFS` gating rules | **`.wave_lpc_pyramid`**: frame-indexed lossless Linear Predictive Coding (`LPC` + Rice residuals), Opus or error-bounded `.float_zfp` sample blocks + inline multi-resolution `(min_peak, max_peak, rms_energy, zero_crossing_rate, clipping_bitmap)` mip-pyramid zone maps + [Milestone 14](14-vectorized-strings-and-search.md) `.audio_fingerprint` constellation hashes | ADC clipping, `NaN`/denormal dropouts, clock-rate discontinuity or corrupt frame headers $\to$ `IS TYPE_ERROR` with `(channel, sample_offset)` witness; $O(1)$ zero-decode envelope rendering, silence pruning, SIMD `DSP_STFT`/`DSP_ConvolveIR` and linear DBSP `LUFS`/energy sums |
+| **`WAVEFORM` & `AUDIO_CUE`** (Multi-channel audio, Ambisonics `FOA`/`HOA`, room impulse responses & high-rate seismic/sensor waveforms) | Coupled $(\kappa_{\text{asset}}, \kappa_{\text{numeric}})$ with sample rate, channel layout (`STEREO`, `5.1`/`7.1.4`, `AMBISONICS_ACN_SN3D`, `SENSOR_ARRAY`), octave-band acoustic surface impedance ($\alpha_{125\text{Hz}..16\text{kHz}}$), and `ITU-R BS.1770` `LUFS` gating rules | **`.wave_lpc_pyramid`**: indexed sample blocks with separately qualified lossless integer `LPC` + Rice, declared `.float_zfp` modes or perceptual coding; multi-resolution peak/energy/quality summaries and [M14](14-vectorized-strings-and-search.md) fingerprint indexes | Malformed frame/descriptor interpretation yields `IS TYPE_ERROR`; saturation, dropout and clock discontinuity retain separate quality/time evidence with `(channel, sample_offset)` provenance. Summary rendering is output-sized; gated LUFS retains filtering/window/gate state, while suitable energy summaries support additive updates |
 | **`NAVMESH` (`NavMesh` walkable cellular complex & portal graph)** | Agent locomotion profile $\kappa_{\text{nav}} = (r_{\text{agent}}, h_{\text{agent}}, h_{\text{step}}, \theta_{\max})$ over $\kappa_{\text{spatial}}$ plus dynamic obstacle clearance classes | **`.nav_topo`**: walkable 2.5D/3D `.topo_face` convex polygons + `.topo_arc` shared portal edges (`[left_poly, right_poly, portal_width, traversal_cost]`) partitioned by `OCT_CELL` tiles | Incremental DBSP Z-set maintenance: inserting/moving/deleting geometry in `OCT_CELL` $c$ updates only tile $c$'s walkable polygons and boundary portals in $O(|\Delta \text{octants}|)$, feeding SQL/PGQ `A*` and funnel string-pulling |
 | **ECS Archetype & Prefab Instance (`PREFAB_OVERRIDE`)** | Archetype component signature `(CompId_1..CompId_m)`, deterministic system tick order, and `LIVRPS`-ordered prototype-to-instance override resolution rule | 64-byte-aligned columnar `TablePartition` (`.tseg`) component vectors + 16-byte inline spatial headers + per-row `prototype_id` and sparse override bitmask (`override_mask: u64`) | Component schema mismatch or broken `prototype_id` $\to$ `IS TYPE_ERROR`; concurrent branch edits to the same `(entity_id, component_id)` slot surface as `IS CONFLICT` during 3-way world merge |
+
+## Measurement and workload handoff
+
+Keep capture validity, measurement quality and numerical approximation distinct.
+Saturated samples and small finite values are not automatically malformed;
+non-finite handling and dropout interpretation belong to the declared profile.
+[Scientific measurements](35-scientific-arrays-and-measurements.md) generalizes
+units, clocks, calibration, error bounds and operator dependency extents across
+these waveform/simulation profiles. [Video](36-video-and-multimodal-timelines.md)
+owns synchronized encoded-media tracks and decode dependencies;
+[Robotics](38-robotics-and-sensor-replay.md) owns calibrated episode replay.
+Those extensions reuse this milestone's independently qualified assets and DSP;
+they do not replace its original delivery requirements.
+
+Add qualification for sample/block boundaries, summary consistency after updates,
+quality flags, clipped-but-valid measurements, and raw-versus-encoded fidelity.
+Compare gated loudness with an independent implementation for silence, threshold
+crossings, changing relative gates and retractions. Record decoded bytes and
+viewport-sized summary reads; publish actual pruning rates and error instead of
+unconditional constant-time or percentage claims.
 
 ## Delivery sequence
 

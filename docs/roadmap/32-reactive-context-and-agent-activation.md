@@ -25,7 +25,7 @@ context delivery and protocol projections within the caller's WLM resource
 group. Reasoning loops remain applications, while speculative research into
 declarative sequence/span maps, context-conditioned continuation and
 branch-verified agency is tracked in
-[Milestone 38](38-declarative-language-context-and-synthesis.md).
+[Milestone 44](44-declarative-language-context-and-synthesis.md).
 
 ## Delivery sequence
 
@@ -84,7 +84,7 @@ Extend that journey through an authorized action and a later business observatio
 Bind the initial assessment, original action identity and subsequent observation
 without replacing the original prediction. Exercise delayed, missing and
 contradictory feedback as well as known success and failure. Use the
-[observation measures](36-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[observation measures](42-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 to qualify both sides of the loop; a notification or completed tool call alone
 does not establish the application's business consequence.
 

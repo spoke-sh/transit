@@ -131,7 +131,7 @@ does not supply a portable cross-vendor indexing grammar.
    [first-class strings and search](14-vectorized-strings-and-search.md),
    [multi-model and foreign relations](18-multi-model-and-foreign-relations.md),
    [reactive agent context](32-reactive-context-and-agent-activation.md) and
-   [declarative language, context and synthesis research](38-declarative-language-context-and-synthesis.md).
+   [declarative language, context and synthesis research](44-declarative-language-context-and-synthesis.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL

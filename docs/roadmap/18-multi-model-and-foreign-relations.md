@@ -26,6 +26,16 @@ and the direct-ingestion protocol. Each format becomes executable only when its
 adapter and caller path are qualified; external sources are not automatically
 participants in a native atomic commit.
 
+Later workload milestones extend these adapters through the same reader/import
+boundary: [scientific arrays](35-scientific-arrays-and-measurements.md) qualify
+named axes, units, calendars, quality and numerical fidelity;
+[Video](36-video-and-multimodal-timelines.md) owns media timing/decode dependencies;
+[Robotics](38-robotics-and-sensor-replay.md) owns sensor clock/frame/calibration
+interpretation and MCAP/ROS journeys; and
+[software evidence](39-software-build-and-deployment-evidence.md) owns source,
+attestation and build/test projections. Existing format slices retain their
+gates. A format reader alone supplies none of those application lifecycles.
+
 ## Delivery sequence
 
 Reuse [index identities, maintenance and coverage](11-indexing-and-access-paths.md)
@@ -93,7 +103,7 @@ retrieval, streaming CDC ingestion and import/export costs.
      query plan, handing off reactive context subscriptions to
      [Milestone 32](32-reactive-context-and-agent-activation.md) and
      declarative sequence/context synthesis research to
-     [Milestone 38](38-declarative-language-context-and-synthesis.md).
+     [Milestone 44](44-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - Bind external object-store and HTTP credentials through catalog `SECRET`
      declarations (`CREATE SECRET ... TYPE s3 | gcs | r2 | http ... SCOPE ...` in

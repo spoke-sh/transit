@@ -1,4 +1,4 @@
-# 36. Qualification and complete benchmarks
+# 42. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,7 +10,7 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
-- Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](35-sql-grammar-and-dialect-ergonomics.md)
+- Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](41-sql-grammar-and-dialect-ergonomics.md)
   at the common committed revision: verify zero ANTLR/production grammar
   conflicts, byte-identical `FQP1`/`FDM1`/`FTS1` plan lowering for ergonomic
   desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`,
@@ -123,6 +123,34 @@ remains a gate for every preceding milestone.
   lanes. Reuse artifacts without sharing authority or dropping coverage; local
   timings do not establish hosted budgets.
 
+## Scientific, media and evidence workload qualification
+
+Combine the dedicated workload owners at the same committed revision. Each
+must first pass its own installed caller and recovery gates; this matrix does
+not defer focused checks or infer support from schemas, parsers or fixtures.
+
+| Owner | Required common-revision journey and independent evidence |
+| --- | --- |
+| [Scientific arrays and measurements](35-scientific-arrays-and-measurements.md) | Forecast/asset analysis at the original knowledge cut; axis/unit/calendar/quality/calibration fidelity, sparse-zero versus missing semantics, halo/retraction equivalence and conservative numerical pruning |
+| [Video](36-video-and-multimodal-timelines.md) | Select and inspect an aligned media interval; independent frame/timing oracles, key/reference dependency decoding, gaps, bounded surfaces and current rights on previews/preroll/export |
+| [ML/AI](37-ml-ai-and-experiment-provenance.md) | Compare baseline/successor features and models on an exact evaluation basis; future-knowledge leakage, model/transform identity, partial backfills, authorized cache reuse and explicit reproducibility class |
+| [Robotics](38-robotics-and-sensor-replay.md) | Calibrated sensor/camera replay, revised calibration and changed features; clock drift/reset, transform validity, restart, retention gaps and zero physical effects during replay |
+| [Software evidence](39-software-build-and-deployment-evidence.md) | Source/dependency/build/test/artifact/deployment investigation; exact-candidate checks, forged attestations, incomplete negative queries, stale evidence and an independently qualified Platform exchange when claimed |
+| [Constrained planning](40-constrained-planning-and-optimization.md) | Frozen scheduling problem through feasible candidate, bounds, interruption and reviewed publication; independently checked feasibility/optimality scope and unknown-versus-infeasible outcomes |
+
+Run the calibrated-sensor demonstrator across scientific, media and robotics
+owners with lost replies, worker replacement, calibration changes and revocation
+during buffered disclosure. Compare every result to its original source basis;
+newer data or a healthy worker cannot substitute for completion. Keep predicted,
+simulated and observed outcomes separate throughout the observation loop.
+
+Record hardware, toolchain/model/codec/solver versions, inputs, formats, budgets,
+equality/tolerance, raw samples and negative controls. Measure source/decode bytes,
+resident/spill/accelerator memory where used, warm allocations, first useful
+output, complete-result latency, catch-up and control progress under mixed load.
+Report a supported-profile matrix and failed/unexecuted cases; no aggregate
+score establishes universal speed, accuracy, codec coverage or physical safety.
+
 ## Observation and consequence evidence
 
 Qualify the product thesis behind the
@@ -208,4 +236,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](37-releases.md).
+and immutable release links remain part of [release distribution](43-releases.md).
