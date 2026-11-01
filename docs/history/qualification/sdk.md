@@ -9,6 +9,57 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Local SQL recovery and context leases — 2026-10-31
+
+Source `53a02e10c5b07cf663771c4a3269cfe512e031f3` adds a Linux local-file
+recovery store, its SQL adapter and SQL leases in the existing bounded context.
+The pinned Zig toolchain is `0.17.0-dev.2267+48abf1a34`. Both changed packages
+pass standalone `zig build test`/`check`; the data client executes **23 tests**.
+The public Zig SDK consumer test passes, all **58 fast checks** pass, and the
+documentation checker validates **9,735 local links across 703 files**.
+The fast run precedes that commit and checks the same implementation; its raw
+report retains the preceding HEAD and dirty-worktree provenance.
+
+The complete `just check native` run, which executes the root `zig build test`,
+also passes at that committed revision from a clean working tree. Its retained
+report records completed validation and exit code 0. Component fixture stderr
+does not change that aggregate result. Raw fast/native reports, their logs and
+SHA-256 checksums are retained under `.cache/ci/m9/foundation/` and
+`.cache/ci/m9/sha256.json` in the implementation worktree; [PR #298](https://github.com/spoke-sh/transit/pull/298)
+records the reproduction commands and remaining broad-lane blockers.
+
+Actual-file tests cover exclusive-owner refusal, reopen, exact-original conflict,
+revision-checked evidence, private permissions, corrupt and missing-definition
+records, and 31 records traversed in three-key pages without a resident directory.
+Injected failures cover no space at creation, partial write followed by no space,
+cancelled write, file sync, rename and directory sync. A failed publication leaves
+complete original recovery material; a failure after rename can expose the new
+record without reporting success. Store and SQL-adapter backing allocators refuse
+new allocations after initialization while the bounded record workloads execute.
+This does not measure all I/O/runtime allocations or qualify power loss.
+
+The SQL loopback fixture negotiates a session through a context lease, checks the
+persisted original before receiving its execute, and simulates success, lost
+reply, pre-dispatch disk refusal and failed receipt persistence. Lost replies
+cause one execute and observation of the same token. A verified applied command
+remains visible alongside its receipt-storage error. The scripted peer is not a
+Transit service and this is not a killed-caller/service-restart recovery proof.
+
+Context tests cover constructor allocation failures, shared admission, stale
+lease release/cancellation, control capacity under data saturation and close
+timeout with an outstanding SQL lease. SQL primary/control transports retain
+separate existing reserves, totaling 40 MiB per facet plus metadata; the context
+does not create a worker pool. The lease must outlive all returned SQL outcomes
+and views. Managed result handles and installed Python/Node APIs are unqualified.
+
+The earlier clean core/SQL failures below remain recorded at their original
+revisions; these focused results do not convert either lane into a complete pass.
+Public ownership and limits are in the [context guide](../../../packages/zig/transit-data-client/docs/context.md)
+and [recovery guide](../../../packages/zig/transit-data-client/docs/recovery.md).
+M9 remains In Progress, including principal coordination, fair admission,
+ordinary Catalog settlement, full result/transaction composition, data bindings,
+installed languages, process-loss recovery and the M6/M7 facet handoffs.
+
 ## Catalog context and SQL submission persistence — 2026-10-31
 
 This slice checks bounded local ownership and persistence ordering, without
