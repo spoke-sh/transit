@@ -57,6 +57,37 @@ All 60 fast checks also pass on the installed-test source; their log
 `a9e613961755d20ef1984055ad46fbb14eca023ad79fd0b9fc7c3bfc5572da41`.
 Larger-population/resource schedules and common-revision lanes remain open.
 
+### Installed database regressions at the protected-transfer definition
+
+The same clean `e58935ced` source, definition and node/caller hashes pass five
+additional profiles. Each invocation runs inside the pinned Nix shell from a
+separate clean checkout, with the explicitly retained immutable executables:
+
+```sh
+python3 -B tests/runner/launch.py tests/storage/tables/direct_table_service.py \
+  NODE CALLER PROFILE
+```
+
+| Profile | Signed requests | Lost original replies | Raw log SHA-256 |
+| --- | --- | --- | --- |
+| `kv` | 41 | Mutation `641001`, pin `641002` | `88092e30195a0a892a48b278b533575c690844e57970155cce009ccbcd7fc120` |
+| `state-transaction` | 33 | Private statement `642012`, decision `642101` | `11b0019f1f216940b41cd59155cf8dd0e058d0b38dfd7c594766b684f65e5866` |
+| `mixed-transaction` | 85 | Private log statement `642016`, decision `642101` | `b9fa14143dc6b515721068f808b6846d550b31b40598698df37a25e37182ca0f` |
+| `queue-transfer` | 30 | Paired transfer `643006`, decision `643101` | `0f9ff1e79c97e1f2b0ed58e488ffcf9e70749206403338c80bde57ff3da031c5` |
+| `log-token` | 31 | Token binding and declaration admission | `4b8892fb6957f6a2587bd620045854d1d53654b6b6e3048da74e86c23073ef1c` |
+
+Logs are `/var/tmp/transit-m6-e589-PROFILE.log`, with the exact profile names
+above. `/var/tmp/transit-m6-e589-installed-matrix.json` retains all five zero exit
+codes and executable paths/hashes. Each fixture also performs node SIGKILL and
+disk restart. KV additionally kills the caller before an accepted reply and
+recovers solely from its saved request store. Transaction schedules retain exact
+statement and settlement identities; a later abort cannot replace the recovered
+commit. Independent reads verify the resulting state, log payloads and input
+settlement. The log-token schedule preserves the originally bound declaration
+through both reply losses. These passes qualify those installed profiles at
+this definition, not later replay optimizations, SQL workload verbs, the Station
+replacement or the full storage CI lane.
+
 ## Protected automatic DLQ transaction owner — 2026-11-01
 
 The implementation committed as `5c8671e71141911a95d09fc5fd957ae35eae4ca9`
