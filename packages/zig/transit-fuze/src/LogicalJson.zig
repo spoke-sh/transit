@@ -408,7 +408,10 @@ test "neutral JSON owns recursive descriptors and never rounds full width number
     const again = try encode(t.allocator, decoded.cell, decoded.field);
     defer t.allocator.free(again);
     try t.expectEqualStrings(encoded, again);
-    try t.checkAllAllocationFailures(t.allocator, struct {
+    // Arena growth must take the same allocation path in every failure run;
+    // in-place resize availability depends on the backing allocator's addresses.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), struct {
         fn run(allocator: std.mem.Allocator, bytes: []const u8) !void {
             var owner = try decode(allocator, bytes);
             defer owner.deinit();
