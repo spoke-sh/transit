@@ -288,7 +288,9 @@ payload is available or decoded, and their completion is separate from query
 completion. Traverse every continuation to account for the original total; an
 early stop reports partial coverage. Cursors bind the exact pin, so later ALTER,
 DROP or name reuse cannot change the inspection basis. The shared catalog caller
-exposes both reads through its `projection` action. Inspection never acquires,
+exposes private-pin reads through its `projection` action. Published historical
+catalogs expose the same coverage through `history.definitions` and
+`history.locations`, with selector/object/kind-bound continuations. Inspection never acquires,
 renews or releases retention.
 
 DROP does not physically erase retained data. The installed direct service

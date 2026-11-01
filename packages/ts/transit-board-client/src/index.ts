@@ -3,6 +3,10 @@ import { inspectionResponse, type Response } from "./effects";
 export { inspectionResponse, type Response } from "./effects";
 export { DataCatalog } from "./catalog";
 export type {
+  HistoricalSource,
+  HistoricalTables,
+  HistoricalCoverage,
+  HistoricalRead,
   CatalogDescription,
   CatalogTables,
   CatalogNamespaces,

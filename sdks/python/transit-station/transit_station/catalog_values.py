@@ -1620,3 +1620,96 @@ def _history_source(value: object, snapshot: HistoricalSnapshot, object_id: int)
     basis = _history_basis(value['snapshot'], snapshot); binding = _history_entry(value['binding']); schema = _schema(value['schema'])
     if binding.definition.interpretation.object.object_id != object_id or schema.object_id != object_id or binding.definition.interpretation.object.scope != basis.owner.scope or binding.definition.interpretation.object.branch != basis.branch: raise ValueError('Changed historical source object')
     return HistorySource(basis, binding, schema, _decimal(value['rows'], 0), _decimal(value['changed_lsn'], 0), _authority(value['authority']))
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionColumn:
+    column: int
+    physical: int | None
+    initial_definition: Interpretation | None
+    initial_state: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionDefinition:
+    physical: StoredDefinition
+    schema_revision: int
+    rows: int
+    columns: tuple[ProjectionColumn, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionLocation:
+    origin: int
+    operation: int
+    ordinal: int
+    physical: StoredDefinition
+    schema_revision: int
+    kind: str
+    position: int
+    offset: int
+    content: Content | None
+    row_bytes: int | None
+    row_digest: bytes | None
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCoverageCursor(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryCoverageCursor: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selector object kind source after')
+        HistoricalSnapshot(value['selector']); _decimal(value['object']); _content(value['source'])
+        if value['kind'] == 'definitions': _decimal(value['after'])
+        elif value['kind'] == 'locations': _hex(value['after'], 20, True)
+        else: raise ValueError('Invalid coverage kind')
+    def _check(self, snapshot: HistoricalSnapshot, object_id: int, kind: str) -> object:
+        value = self._wire()
+        if value['selector'] != snapshot.selector or _decimal(value['object']) != object_id or value['kind'] != kind: raise ValueError('Coverage cursor belongs to a different selection')
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCoverage:
+    basis: HistoryBasis
+    logical: StoredDefinition
+    accepted: Position
+    total_rows: int
+    definition: ProjectionDefinition | None
+    locations: tuple[ProjectionLocation, ...]
+    next: HistoryCoverageCursor | None
+
+
+def _history_coverage(value: object, snapshot: HistoricalSnapshot, object_id: int, kind: str, previous: HistoryCoverageCursor | None) -> HistoryCoverage:
+    value = _object(value, 'snapshot logical accepted total_rows definitions locations next')
+    basis = _history_basis(value['snapshot'], snapshot); logical = _stored(value['logical'])
+    if logical.interpretation.object.object_id != object_id or logical.interpretation.object.scope != basis.owner.scope or logical.interpretation.object.branch != basis.branch: raise ValueError('Changed coverage source')
+    definition = None
+    if value['definitions'] is not None:
+        if kind != 'definitions': raise ValueError('Changed coverage kind')
+        item = _object(value['definitions'], 'physical schema_revision rows columns')
+        columns = []
+        if not isinstance(item['columns'], list) or len(item['columns']) > 128: raise ValueError('Invalid coverage columns')
+        for column in item['columns']:
+            column = _object(column, 'column source'); source = column['source']
+            if isinstance(source, dict) and set(source) == {'physical'}: columns.append(ProjectionColumn(_decimal(column['column']), _decimal(source['physical']), None, None))
+            else:
+                source = _object(_object(source, 'initial')['initial'], 'definition state')
+                if source['state'] not in ('value', 'null', 'missing', 'type_error', 'conflict'): raise ValueError('Invalid initial state')
+                columns.append(ProjectionColumn(_decimal(column['column']), None, _interpretation(source['definition']), source['state']))
+        definition = ProjectionDefinition(_stored(item['physical']), _decimal(item['schema_revision']), _decimal(item['rows']), tuple(columns))
+    if not isinstance(value['locations'], list) or len(value['locations']) > 8 or (kind != 'locations' and value['locations']): raise ValueError('Invalid coverage locations')
+    locations = []
+    for entry in value['locations']:
+        entry = _object(entry, 'identity physical schema_revision location'); identity = _object(entry['identity'], 'origin operation ordinal')
+        location = entry['location']; content = None; row_bytes = None; row_digest = None
+        if isinstance(location, dict) and set(location) == {'segment'}:
+            item = _object(location['segment'], 'id row content'); location_kind = 'segment'; position = _decimal(item['id']); offset = integer(item['row'], 'row', minimum=0, maximum=4294967295); content = _content(item['content'])
+        else:
+            item = _object(_object(location, 'wal')['wal'], 'lsn offset bytes row_digest'); location_kind = 'wal'; position = _decimal(item['lsn'], 0); offset = integer(item['offset'], 'offset', minimum=0, maximum=4294967295); row_bytes = integer(item['bytes'], 'bytes'); row_digest = _hex(item['row_digest'], 32, True)
+        locations.append(ProjectionLocation(_decimal(identity['origin']), _decimal(identity['operation']), integer(identity['ordinal'], 'ordinal', minimum=0, maximum=4294967295), _stored(entry['physical']), _decimal(entry['schema_revision']), location_kind, position, offset, content, row_bytes, row_digest))
+    cursor = None if value['next'] is None else HistoryCoverageCursor.restore(encode(value['next']).decode())
+    if cursor:
+        cursor._check(snapshot, object_id, kind)
+        if previous and (cursor._wire()['source'] != previous._wire()['source'] or (int(cursor._wire()['after']) <= int(previous._wire()['after']) if kind == 'definitions' else cursor._wire()['after'] <= previous._wire()['after'])): raise ValueError('Coverage continuation failed to advance')
+    return HistoryCoverage(basis, logical, _position(value['accepted']), _decimal(value['total_rows'], 0), definition, tuple(locations), cursor)

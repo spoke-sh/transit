@@ -181,6 +181,14 @@ try {
       await persist('history-snapshot.json', status.basis.snapshot.save());
       const source = await client.historicalSource(status.basis.snapshot, objectId);
       assert.equal(source.rowCount, 9n); assert.equal(source.schema.columns.length, 2);
+      const coverage = await client.historicalCoverage(retained, objectId);
+      assert.equal(coverage.totalRows, 9n); assert.equal(coverage.definition.rows, 9n); assert.equal(coverage.next, undefined);
+      const locations = await client.historicalCoverage(retained, objectId, 'locations');
+      assert.equal(locations.locations.length, 8); assert.ok(locations.next);
+      const savedCursor = m.HistoryCoverageCursor.restore(locations.next.save());
+      const ending = await client.historicalCoverage(retained, objectId, 'locations', savedCursor);
+      assert.equal(ending.locations.length, 1); assert.equal(ending.next, undefined);
+      assert.deepEqual(ending.logical, source.binding.definition);
       write({published:true});
     } else if (command === 'history_denied') {
       const retained = m.HistoricalSnapshot.restore(await read('history-snapshot.json'));
@@ -193,6 +201,14 @@ try {
       assert.equal(await client.historicalLookup(retained, 1, name), objectId);
       const source = await client.historicalSource(retained, objectId);
       assert.equal(source.rowCount, 9n); assert.equal(source.schema.columns.length, 2);
+      const coverage = await client.historicalCoverage(retained, objectId);
+      assert.equal(coverage.totalRows, 9n); assert.equal(coverage.definition.rows, 9n); assert.equal(coverage.next, undefined);
+      const locations = await client.historicalCoverage(retained, objectId, 'locations');
+      assert.equal(locations.locations.length, 8); assert.ok(locations.next);
+      const savedCursor = m.HistoryCoverageCursor.restore(locations.next.save());
+      const ending = await client.historicalCoverage(retained, objectId, 'locations', savedCursor);
+      assert.equal(ending.locations.length, 1); assert.equal(ending.next, undefined);
+      assert.deepEqual(ending.logical, source.binding.definition);
       const page = await client.historicalTables(retained, 1);
       assert.equal(page.entries.length, 1); assert.equal(page.next, undefined); assert.equal(page.entries[0].name, name);
       assert.deepEqual(page.entries[0].definition, source.binding.definition);

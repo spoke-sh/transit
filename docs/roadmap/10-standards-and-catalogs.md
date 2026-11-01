@@ -279,6 +279,19 @@ catalog tests, four focused storage tests, 19 contract checks, 60 fast checks an
 569 diagnostic grammar cases. These checks do not replace P8's final
 committed-source qualification or close the remaining projection/view/caller work.
 
+Historical interpretation coverage now uses the original published selector and
+stable object through shared read operations. Definition pages expose accepted
+physical schemas and ADD-time defaults; eight-entry location pages expose WAL
+or segment placement independently of payload verification. Current metadata
+and SELECT permissions remain distinct, and inspection acquires no new pins.
+The shared owned Python/TypeScript catalog values preserve full-width cursors;
+Board exposes only the read subset and removes failed/revoked observations.
+Development checks pass 27 focused historical catalog tests, Python value checks
+and strict typing, 21 TypeScript catalog tests, and Board type checking. The
+installed SDK and Board scenarios include coverage traversal and denial, and
+remain pending execution at the final revision. Captured historical execution,
+versioned views/descriptors and P8 qualification remain open.
+
 The following table preserves the original source audit. It is not a description
 of the newer increments above.
 

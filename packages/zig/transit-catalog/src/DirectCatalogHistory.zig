@@ -151,6 +151,33 @@ pub const Entry = struct {
         return .{ .namespace = try Namespace.foreign(allocator, value.namespace), .name = try allocator.dupe(u8, value.properties.name.slice()), .declaration = try h.Stored.foreign(allocator, value.declaration), .accepted = try h.Position.foreign(allocator, value.source.accepted), .catalog = try h.Position.foreign(allocator, value.catalog) };
     }
 };
+/// Continuations bind the original catalog, stable object and coverage kind.
+pub const CoverageCursor = struct { selector: []const u8, object: []const u8, kind: enum { definitions, locations }, source: h.Content, after: []const u8 };
+pub const CoverageInput = struct { selector: []const u8, object: []const u8, after: ?CoverageCursor };
+pub const Coverage = struct {
+    pub const json_schema_sequence_bounds = .{ .locations = 8 };
+    snapshot: Snapshot,
+    logical: h.Stored,
+    accepted: h.Position,
+    total_rows: []const u8,
+    definitions: ?c.DirectCatalogProjection.Definition,
+    locations: []const c.DirectCatalogProjection.Location,
+    next: ?CoverageCursor,
+};
+/// This subset is safe to expose through read-only inspection capabilities.
+pub const Read = union(enum) {
+    lookup: @FieldType(Action, "lookup"),
+    namespace: @FieldType(Action, "namespace"),
+    list: @FieldType(Action, "list"),
+    source: @FieldType(Action, "source"),
+    definitions: CoverageInput,
+    locations: CoverageInput,
+    pub fn action(self: Read) Action {
+        return switch (self) {
+            inline else => |value, tag| @unionInit(Action, @tagName(tag), value),
+        };
+    }
+};
 pub const Action = union(enum) {
     select: struct { selection: Selection, namespace: u64, name: []const u8 },
     acquire: struct { key: Key, intent: Intent, budget: Budget = .{} },
@@ -161,6 +188,8 @@ pub const Action = union(enum) {
     lookup: struct { selector: []const u8, namespace: u64, name: []const u8 },
     namespace: struct { selector: []const u8, name: []const u8 },
     list: struct { selector: []const u8, namespace: u64, after: ?Cursor },
+    definitions: CoverageInput,
+    locations: CoverageInput,
     /// Metadata only. Rows use the shared SQL/query result lifecycle.
     source: struct { selector: []const u8, object: []const u8 },
 
@@ -171,6 +200,12 @@ pub const Action = union(enum) {
             inline .inspect, .advance, .abandon, .release => |key, tag| @unionInit(H.Request, @tagName(tag), try key.native()),
             .lookup => |value| .{ .lookup = .{ .snapshot = try H.Selector.decode(value.selector), .namespace = value.namespace, .name = try .init(value.name) } },
             .namespace => |value| .{ .namespace = .{ .snapshot = try H.Selector.decode(value.selector), .name = try .init(value.name) } },
+            inline .definitions, .locations => |value, tag| blk: {
+                const snapshot = try H.Selector.decode(value.selector);
+                const object = try v.unsigned(value.object);
+                if (value.after) |after| if (!std.mem.eql(u8, after.selector, value.selector) or !std.mem.eql(u8, after.object, value.object) or !std.mem.eql(u8, @tagName(after.kind), @tagName(tag))) return error.InvalidHistoricalCursor;
+                break :blk @unionInit(H.Request, @tagName(tag), .{ .snapshot = snapshot, .object = object, .after = if (value.after) |after| .{ .source = try after.source.native(), .after = if (comptime tag == .definitions) try v.unsigned(after.after) else try c.DirectCatalogProjection.locationKey(after.after) } else null });
+            },
             .source => |value| .{ .source = .{ .snapshot = try H.Selector.decode(value.selector), .object = try v.unsigned(value.object), .rows = false } },
             .list => |value| blk: {
                 const snapshot = try H.Selector.decode(value.selector);
@@ -188,12 +223,13 @@ pub const Action = union(enum) {
     }
     pub fn isRead(self: Action) bool {
         return switch (self) {
-            .inspect, .lookup, .namespace, .list, .source => true,
+            .inspect, .lookup, .namespace, .list, .source, .definitions, .locations => true,
             else => false,
         };
     }
 };
 pub const Result = union(enum) {
+    coverage: Coverage,
     selection: Selection,
     status: ?Status,
     object: ?[]const u8,
@@ -244,6 +280,16 @@ fn project(allocator: A, result: H.Result) !Result {
             var schema = try c.fuze.TableSchema.decode(allocator, try value.schema.decode(scratch.allocator(), c.fuze.TableSchema.max_bytes));
             defer schema.deinit();
             break :blk .{ .source = .{ .snapshot = try Snapshot.foreign(allocator, value.snapshot), .binding = try Entry.foreign(allocator, value.binding), .schema = try c.fuze.TableSchemaJson.foreignInto(allocator, schema.schema), .rows = try v.decimal(allocator, value.rows), .changed_lsn = try v.decimal(allocator, value.changed_lsn), .authority = value.authority } };
+        },
+        inline .definitions, .locations => |value, tag| blk: {
+            const page = value.evidence;
+            const snapshot = try Snapshot.foreign(allocator, value.snapshot);
+            const object = try v.decimal(allocator, value.source.interpretation.object.object);
+            const locations = try allocator.alloc(c.DirectCatalogProjection.Location, if (comptime tag == .locations) page.count else 0);
+            if (comptime tag == .locations) for (locations, page.entries[0..page.count]) |*out, entry| {
+                out.* = try c.DirectCatalogProjection.location(allocator, entry.?);
+            };
+            break :blk .{ .coverage = .{ .snapshot = snapshot, .logical = try h.Stored.foreign(allocator, page.logical), .accepted = try h.Position.foreign(allocator, page.accepted), .total_rows = try v.decimal(allocator, page.total_rows), .definitions = if (comptime tag == .definitions) (if (page.entry) |entry| try c.DirectCatalogProjection.definition(allocator, entry) else null) else null, .locations = locations, .next = if (page.next) |next| .{ .selector = snapshot.selector, .object = object, .kind = if (comptime tag == .definitions) .definitions else .locations, .source = try h.Content.foreign(allocator, next.source), .after = if (comptime tag == .definitions) try v.decimal(allocator, next.after) else try v.hex(allocator, &next.after) } else null } };
         },
         .page => error.InvalidHistoricalResponse,
     };
@@ -334,4 +380,25 @@ test "independent neutral history fixture matches shared caller projection" {
     defer output.deinit();
     const projected = try Snapshot.foreign(output.allocator(), native.value.snapshot);
     try t.expectEqualDeep(host.value.snapshot, projected);
+}
+
+test "read-only historical inspection excludes controls and binds coverage continuations" {
+    const t = std.testing;
+    inline for (.{ "select", "acquire", "advance", "abandon", "release", "scan" }) |tag| {
+        try t.expect(!@hasField(Read, tag));
+    }
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8, intent_digest: [32]u8, snapshot: d.Snapshot, selector: []const u8 };
+    const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-history-common-v1.json"));
+    defer fixture.deinit();
+    const cursor: CoverageCursor = .{ .selector = fixture.value.selector, .object = "18446744073709551615", .kind = .definitions, .source = .{ .bytes = "42", .sha256 = "0101010101010101010101010101010101010101010101010101010101010101" }, .after = "9007199254740993" };
+    const action: Action = .{ .definitions = .{ .selector = cursor.selector, .object = cursor.object, .after = cursor } };
+    const native = try action.native();
+    try t.expectEqual(@as(u64, 9007199254740993), native.definitions.after.?.after);
+    try t.expect(!native.mutation());
+    var changed = action;
+    changed.definitions.object = "7";
+    try t.expectError(error.InvalidHistoricalCursor, changed.native());
+    changed = action;
+    changed.definitions.after.?.kind = .locations;
+    try t.expectError(error.InvalidHistoricalCursor, changed.native());
 }

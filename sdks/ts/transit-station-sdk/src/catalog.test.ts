@@ -1038,3 +1038,45 @@ test("lost historical metadata replies remain read failures", async () => {
     ),
   );
 });
+
+test("historical coverage retains wide counts and scopes every continuation", async () => {
+  const coverage = {
+    snapshot: historyFixture.snapshot,
+    logical: historyEntry.declaration,
+    accepted: historyEntry.accepted,
+    total_rows: maximum.toString(),
+    definitions: {
+      physical: historyEntry.declaration,
+      schema_revision: maximum.toString(),
+      rows: maximum.toString(),
+      columns: [{ column: "1", source: { physical: "1" } }],
+    },
+    locations: [],
+    next: {
+      selector: historicalSnapshot.selector,
+      object: "7",
+      kind: "definitions",
+      source: historyFixture.snapshot.sources_root,
+      after: maximum.toString(),
+    },
+  };
+  await withHost({ history: { coverage } }, async (client, requests) => {
+    const result = await client.historicalCoverage(historicalSnapshot, 7n);
+    assert.equal(result.totalRows, maximum);
+    assert.equal(result.definition?.rows, maximum);
+    assert.deepEqual(result.definition?.columns[0]?.source, { physical: 1n });
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 8n, "definitions", result.next),
+      TypeError,
+    );
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 7n, "locations", result.next),
+      TypeError,
+    );
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 7n, "definitions", result.next),
+      IncompatibleNative,
+    );
+  });
+});

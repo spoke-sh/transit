@@ -29,6 +29,11 @@ from .catalog_values import (
     HistoryCursor as HistoryCursor,
     HistoryPage as HistoryPage,
     HistorySource as HistorySource,
+    HistoryCoverage as HistoryCoverage,
+    HistoryCoverageCursor as HistoryCoverageCursor,
+    ProjectionColumn as ProjectionColumn,
+    ProjectionDefinition as ProjectionDefinition,
+    ProjectionLocation as ProjectionLocation,
     Scope as Scope, Connection as Connection, TableLimits as TableLimits,
     Configuration as Configuration, AuthorityProfile as AuthorityProfile, Subject as Subject,
     CheckLiteral as CheckLiteral, CheckColumns as CheckColumns, CheckNull as CheckNull,
@@ -242,6 +247,10 @@ class _Queries:
     def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> _Request[HistorySource]:
         return _request({'history': {'source': dict(selector=snapshot.selector, object=str(v._wide(object_id)))}}, 'history source', lambda value: v._history_source(value, snapshot, object_id))
 
+    def historical_coverage(self, snapshot: HistoricalSnapshot, object_id: int, kind: str = 'definitions', cursor: HistoryCoverageCursor | None = None) -> _Request[HistoryCoverage]:
+        if kind not in ('definitions', 'locations'): raise ValueError('Invalid coverage kind')
+        return _request({'history': {kind: dict(selector=snapshot.selector, object=str(v._wide(object_id)), after=None if cursor is None else cursor._check(snapshot, object_id, kind))}}, 'history coverage', lambda value: v._history_coverage(value, snapshot, object_id, kind, cursor))
+
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         if basis.connection != self.connection or basis.principal != self.principal: raise ValueError('Foreign Table basis')
         return SnapshotAcquisition.restore(encode(dict(owner=dict(definition=v.DEFINITION, connection=self.connection._wire(self.principal),
@@ -369,6 +378,9 @@ class Client:
 
     def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
         return self._call(self._queries.historical_source(snapshot, object_id))
+
+    def historical_coverage(self, snapshot: HistoricalSnapshot, object_id: int, kind: str = 'definitions', cursor: HistoryCoverageCursor | None = None) -> HistoryCoverage:
+        return self._call(self._queries.historical_coverage(snapshot, object_id, kind, cursor))
 
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         return self._queries.prepare_snapshot(basis, position, operation)
@@ -500,6 +512,9 @@ class AsyncClient:
 
     async def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
         return await self._call(self._owner._queries.historical_source(snapshot, object_id))
+
+    async def historical_coverage(self, snapshot: HistoricalSnapshot, object_id: int, kind: str = 'definitions', cursor: HistoryCoverageCursor | None = None) -> HistoryCoverage:
+        return await self._call(self._owner._queries.historical_coverage(snapshot, object_id, kind, cursor))
 
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         return self._owner.prepare_snapshot(basis, position, operation)

@@ -189,3 +189,18 @@ empty pages that still have a continuation. A cursor remains bound to its
 snapshot, namespace and retained directory; a page is not complete coverage of
 the catalog. Metadata returns owned values, and all wide identities use `bigint`.
 Closing the client does not abandon acquisitions or release published history.
+
+## Historical interpretation coverage
+
+`historicalCoverage(snapshot, objectId, kind = "definitions", cursor)` returns one physical schema generation or, with
+`kind="locations"`, at most eight row placements. Definition coverage needs
+metadata rights; locations need SELECT. The result preserves the original
+catalog/source identity, logical declaration, accepted frontier and full-width
+counts. Continuations can be saved and restored as `HistoryCoverageCursor` and
+reject a different snapshot, object or coverage kind. Each call owns its copied
+evidence; it creates no retention and performs no cleanup.
+
+Consume pages within an explicit caller budget. A nonempty continuation means
+partial traversal; exhaustion establishes directory coverage only, not payload
+availability or completed query execution. Current authorization and snapshot
+release are checked on every request.

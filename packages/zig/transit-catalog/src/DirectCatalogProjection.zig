@@ -67,15 +67,7 @@ pub fn apply(allocator: A, client: c.DirectTableClient, action: Action) !Result 
             const retained = try R.Snapshot.foreign(allocator, input.snapshot.owner, page.snapshot);
             var entry: ?Definition = null;
             if (page.entry) |value| {
-                const columns = try allocator.alloc(Column, value.column_count);
-                for (columns, value.columns[0..value.column_count]) |*out, slot| {
-                    const column = slot.?;
-                    out.* = .{ .column = try v.decimal(allocator, column.column), .source = switch (column.source) {
-                        .physical => |id| .{ .physical = try v.decimal(allocator, id) },
-                        .initial => |initial| .{ .initial = .{ .definition = try h.Interpretation.foreign(allocator, initial.definition), .state = initial.state } },
-                    } };
-                }
-                entry = .{ .physical = try h.Stored.foreign(allocator, value.physical), .schema_revision = try v.decimal(allocator, value.schema_revision), .rows = try v.decimal(allocator, value.rows), .columns = columns };
+                entry = try definition(allocator, value);
             }
             break :blk .{ .snapshot = retained, .logical = try h.Stored.foreign(allocator, page.logical), .accepted = try h.Position.foreign(allocator, page.accepted), .total_rows = try v.decimal(allocator, page.total_rows), .coverage = .{ .definitions = entry }, .next = if (page.next) |next| .{ .snapshot = retained, .after = try v.decimal(allocator, next.after) } else null };
         },
@@ -84,10 +76,7 @@ pub fn apply(allocator: A, client: c.DirectTableClient, action: Action) !Result 
             const entries = try allocator.alloc(Location, page.count);
             for (entries, page.entries[0..page.count]) |*out, slot| {
                 const value = slot.?;
-                out.* = .{ .identity = .{ .origin = try v.decimal(allocator, value.identity.origin), .operation = try v.decimal(allocator, value.identity.operation), .ordinal = value.identity.ordinal }, .physical = try h.Stored.foreign(allocator, value.physical), .schema_revision = try v.decimal(allocator, value.schema_revision), .location = switch (value.location) {
-                    .wal => |wal| .{ .wal = .{ .lsn = try v.decimal(allocator, wal.lsn), .offset = wal.offset, .bytes = wal.bytes, .row_digest = try v.hex(allocator, &wal.row_digest) } },
-                    .segment => |segment| .{ .segment = .{ .id = try v.decimal(allocator, segment.id), .row = segment.row, .content = try h.Content.foreign(allocator, segment.content) } },
-                } };
+                out.* = try location(allocator, value);
             }
             break :blk .{ .snapshot = retained, .logical = try h.Stored.foreign(allocator, page.logical), .accepted = try h.Position.foreign(allocator, page.accepted), .total_rows = try v.decimal(allocator, page.total_rows), .coverage = .{ .locations = entries }, .next = if (page.next) |next| .{ .snapshot = retained, .after = try v.hex(allocator, &next.after) } else null };
         },
@@ -95,7 +84,7 @@ pub fn apply(allocator: A, client: c.DirectTableClient, action: Action) !Result 
     };
 }
 
-fn locationKey(encoded: []const u8) ![c.fuze.TableRow.Identity.encoded_bytes]u8 {
+pub fn locationKey(encoded: []const u8) ![c.fuze.TableRow.Identity.encoded_bytes]u8 {
     var key: [c.fuze.TableRow.Identity.encoded_bytes]u8 = undefined;
     if (encoded.len != key.len * 2) return error.InvalidCatalogCursor;
     _ = std.fmt.hexToBytes(&key, encoded) catch return error.InvalidCatalogCursor;
@@ -104,4 +93,23 @@ fn locationKey(encoded: []const u8) ![c.fuze.TableRow.Identity.encoded_bytes]u8 
     if (!std.mem.eql(u8, text, encoded)) return error.InvalidCatalogCursor;
     _ = try c.fuze.TableRow.Identity.decode(&key);
     return key;
+}
+
+pub fn definition(allocator: A, value: P.ProjectionEvidence.Entry) !Definition {
+    const columns = try allocator.alloc(Column, value.column_count);
+    for (columns, value.columns[0..value.column_count]) |*out, slot| {
+        const column = slot.?;
+        out.* = .{ .column = try v.decimal(allocator, column.column), .source = switch (column.source) {
+            .physical => |id| .{ .physical = try v.decimal(allocator, id) },
+            .initial => |initial| .{ .initial = .{ .definition = try h.Interpretation.foreign(allocator, initial.definition), .state = initial.state } },
+        } };
+    }
+    return .{ .physical = try h.Stored.foreign(allocator, value.physical), .schema_revision = try v.decimal(allocator, value.schema_revision), .rows = try v.decimal(allocator, value.rows), .columns = columns };
+}
+
+pub fn location(allocator: A, value: P.ProjectionLocations.Entry) !Location {
+    return .{ .identity = .{ .origin = try v.decimal(allocator, value.identity.origin), .operation = try v.decimal(allocator, value.identity.operation), .ordinal = value.identity.ordinal }, .physical = try h.Stored.foreign(allocator, value.physical), .schema_revision = try v.decimal(allocator, value.schema_revision), .location = switch (value.location) {
+        .wal => |wal| .{ .wal = .{ .lsn = try v.decimal(allocator, wal.lsn), .offset = wal.offset, .bytes = wal.bytes, .row_digest = try v.hex(allocator, &wal.row_digest) } },
+        .segment => |segment| .{ .segment = .{ .id = try v.decimal(allocator, segment.id), .row = segment.row, .content = try h.Content.foreign(allocator, segment.content) } },
+    } };
 }

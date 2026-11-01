@@ -6,6 +6,7 @@ const p = c.protocol;
 const d = p.DataLifecycle;
 const H = c.DirectHistoryDirectory;
 const w = c.DirectTableProtocol;
+const P = c.storage.TablePartition;
 pub const Selector = @import("DirectHistorySelector.zig");
 pub const format: u32 = 0x48495331;
 pub const max_bytes = 8192;
@@ -253,10 +254,12 @@ pub const Request = union(enum) {
     namespace: struct { snapshot: d.Snapshot, name: c.TableAuthority.Name },
     list: struct { snapshot: d.Snapshot, namespace: u64, after: ?H.Cursor },
     scan: Read,
+    definitions: struct { snapshot: d.Snapshot, object: u64, after: ?P.ProjectionEvidence.Cursor },
+    locations: struct { snapshot: d.Snapshot, object: u64, after: ?P.SnapshotCursor },
     pub fn mutation(self: Request) bool {
         return switch (self) {
             .select, .acquire, .advance, .abandon, .release => true,
-            .inspect, .source, .lookup, .namespace, .list, .scan => false,
+            .inspect, .source, .lookup, .namespace, .list, .scan, .definitions, .locations => false,
         };
     }
     pub fn validate(self: Request, connection: w.Connection) !void {
@@ -281,7 +284,7 @@ pub const Request = union(enum) {
                 try key.validate();
                 if (!std.meta.eql(key.connection, connection)) return error.HistoricalIdentityConflict;
             },
-            inline .source, .lookup, .namespace, .list, .scan => |value, tag| {
+            inline .source, .lookup, .namespace, .list, .scan, .definitions, .locations => |value, tag| {
                 try value.snapshot.validate();
                 if (value.snapshot.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
                 if (!std.meta.eql(value.snapshot.owner.scope, connection.scope) or value.snapshot.branch != connection.branch) return error.HistoricalIdentityConflict;
@@ -300,7 +303,7 @@ pub const Request = union(enum) {
         }
     }
 };
-pub const Result = union(enum) { selection: Selection, status: ?Status, object: ?u64, namespace: ?c.TableAuthority.Schema, listing: Listing, source: Source, page: Page };
+pub const Result = union(enum) { selection: Selection, status: ?Status, object: ?u64, namespace: ?c.TableAuthority.Schema, listing: Listing, source: Source, page: Page, definitions: struct { snapshot: d.Snapshot, source: d.SourceCut, evidence: P.ProjectionEvidence }, locations: struct { snapshot: d.Snapshot, source: d.SourceCut, evidence: P.ProjectionLocations } };
 
 /// Response owns schema/row bytes. Keep it alive through their bounded use.
 pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
@@ -372,6 +375,18 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             if (value.next) |cursor| {
                 if (!std.meta.eql(cursor.directory.content, input.snapshot.sources_root) or cursor.directory.count != input.snapshot.source_count or cursor.after < after or cursor.after <= (if (input.after) |previous| previous.after else 0)) return error.InvalidHistoricalResponse;
             }
+        },
+        inline .definitions, .locations => |input, tag| {
+            if (std.meta.activeTag(result) != @field(std.meta.Tag(Result), @tagName(tag))) return error.InvalidHistoricalResponse;
+            const value = @field(result, @tagName(tag));
+            if (!std.meta.eql(value.snapshot, input.snapshot) or value.source.interpretation.object.object != input.object or
+                !std.meta.eql(value.evidence.snapshot.owner, input.snapshot.owner) or !std.meta.eql(value.source.interpretation, value.evidence.logical.interpretation) or
+                !std.meta.eql(value.source.accepted, value.evidence.accepted)) return error.InvalidHistoricalResponse;
+            try input.snapshot.requireSource(value.source);
+            try value.evidence.snapshot.content.validate();
+            const selected: w.Snapshot = .{ .object = value.source.interpretation.object, .handle = value.evidence.snapshot };
+            const validation = @import("DirectTableResponse.zig");
+            if (comptime tag == .definitions) try validation.projectionDefinitions(connection, .{ .snapshot = selected, .after = input.after }, value.evidence) else try validation.projectionLocations(connection, .{ .snapshot = selected, .after = input.after }, value.evidence);
         },
         .source => |input| {
             if (result != .source) return error.InvalidHistoricalResponse;

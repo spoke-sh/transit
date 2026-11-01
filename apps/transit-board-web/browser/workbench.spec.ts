@@ -268,3 +268,60 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   expect(runs).toBe(1);
   expect(throttles).toBe(1);
 });
+
+test("retained catalog inspection is bounded and clears revoked coverage", async ({ page }) => {
+  const selector = process.env.BOARD_HISTORY_SELECTOR;
+  expect(selector).toMatch(/^[0-9a-f]{594}$/);
+  let runs = 0,
+    denied = false;
+  const actions: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
+  });
+  await page.route("**/api/v1/catalog", async (route) => {
+    const history = route.request().postDataJSON().action.history;
+    if (history) {
+      actions.push(Object.keys(history)[0]!);
+      if (denied) {
+        await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
+        return;
+      }
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.getByText("Inspect a retained catalog", { exact: true }).click();
+  await page.getByLabel("Snapshot selector", { exact: true }).fill(selector!);
+  await page.getByRole("button", { name: "Inspect snapshot", exact: true }).click();
+  const catalog = page.getByRole("region", { name: "Retained catalog", exact: true });
+  await expect(catalog).toContainText("single_partition");
+  await catalog.getByRole("button", { name: "metrics", exact: true }).click();
+  const interpretation = page.getByRole("region", { name: "Retained interpretation", exact: true });
+  await expect(interpretation).toContainText("145 retained rows");
+  await expect(interpretation).toContainText("physical column");
+  await interpretation.getByLabel("Coverage", { exact: true }).selectOption("locations");
+  await expect(interpretation).toContainText("Partial directory coverage");
+  await expect(interpretation).toContainText(
+    "Payload verification and query completion are separate",
+  );
+  const rows = () => interpretation.locator("p").filter({ hasText: /^Row / });
+  await expect(rows()).toHaveCount(8);
+  const before = await rows().allTextContents();
+  await interpretation.getByRole("button", { name: "Next coverage page", exact: true }).click();
+  await expect
+    .poll(async () => (await rows().allTextContents()).filter((row) => before.includes(row)).length)
+    .toBe(0);
+  await expect(rows()).toHaveCount(8);
+  denied = true;
+  await expect(page.getByRole("heading", { name: "Data connection unavailable" })).toBeVisible({
+    timeout: 12000,
+  });
+  await expect(page.getByText(/145 retained rows/)).toHaveCount(0);
+  expect(runs).toBe(0);
+  expect(actions.length).toBeGreaterThan(5);
+  expect(
+    actions.every((action) =>
+      ["namespace", "list", "source", "definitions", "locations"].includes(action),
+    ),
+  ).toBe(true);
+});

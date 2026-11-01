@@ -206,7 +206,7 @@ rounding any u64 through a floating-point host value.
 `DirectTableBridge.Action.history` exposes the same owner through the shared
 Catalog caller and ABI. Each action performs one bounded request: `select`,
 `acquire`, `inspect`, `advance`, `abandon`, `release`, `lookup`, `namespace`,
-`list` or metadata-only `source`. Row consumption uses the shared SQL/query
+`list`, metadata-only `source`, `definitions` or `locations`. Row consumption uses the shared SQL/query
 lifecycle. There is no host-specific snapshot registry or background settlement.
 
 Save the complete acquisition key and intent before `acquire`. The key carries
@@ -221,6 +221,29 @@ tokens, content digests and selectors use canonical lowercase hexadecimal.
 Namespace and native authorization IDs keep their existing safe-integer bounds.
 List cursors bind the exact selector, namespace and directory; changing any part
 rejects. An empty page with a continuation is not complete coverage.
+
+### Historical interpretation coverage
+
+`historical_catalog.definitions` returns one physical schema generation and its
+stable-column/ADD-origin mapping. It requires current metadata inspection rights.
+`historical_catalog.locations` requires current SELECT and returns at most eight
+original row identities with WAL locations or immutable segment content identities.
+Both open only the supplied published snapshot and stable object. Neither creates
+retention, reads row/segment payloads, executes a query nor releases the snapshot.
+Release and current-policy refusal apply before each page, including terminal pages.
+
+Each result retains the catalog snapshot, exact source cut, logical declaration,
+accepted frontier and directory row count. Native continuations bind the retained
+pin. Host continuations additionally bind the selector, object and coverage kind;
+changing any component rejects. A continuation marks partial traversal, and callers
+must retain at most their selected display/materialization budget. Directory
+exhaustion does not prove payload availability, checksum verification or query
+completion. Result buffers own their copied evidence independently of the request.
+
+Board's read-only `history` request admits only lookup, namespace, list, source,
+definitions and locations. Acquisition, controls, raw scans and release are absent
+from this request type. Its configured catalog identity still needs the owning
+current permissions; a saved selector grants none.
 
 ### Explicit historical namespace selection
 

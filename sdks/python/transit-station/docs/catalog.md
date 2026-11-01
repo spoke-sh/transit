@@ -195,3 +195,18 @@ owned, immutable, and retain full-width Python integers. `AsyncClient` provides
 the same remote methods as awaitables; all `prepare_*` methods remain local.
 Cancelling an await leaves the native work owned, and close joins it without
 abandoning acquisitions or releasing durable history.
+
+## Historical interpretation coverage
+
+`historical_coverage(snapshot, object_id, kind="definitions", cursor=None)` returns one physical schema generation or, with
+`kind="locations"`, at most eight row placements. Definition coverage needs
+metadata rights; locations need SELECT. The result preserves the original
+catalog/source identity, logical declaration, accepted frontier and full-width
+counts. Continuations can be saved and restored as `HistoryCoverageCursor` and
+reject a different snapshot, object or coverage kind. Each call owns its copied
+evidence; it creates no retention and performs no cleanup.
+
+Consume pages within an explicit caller budget. A nonempty continuation means
+partial traversal; exhaustion establishes directory coverage only, not payload
+availability or completed query execution. Current authorization and snapshot
+release are checked on every request.

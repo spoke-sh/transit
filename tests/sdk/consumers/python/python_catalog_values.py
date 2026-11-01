@@ -438,6 +438,13 @@ try:
     owner._api.response = {'history': {'source': dict(snapshot=history_fixture['snapshot'], binding=entry, schema=schema._wire(), rows=str(maximum), changed_lsn=str(maximum), authority=dict(database=9, schema=10, table=11))}}
     source = owner.historical_source(history_snapshot, maximum)
     assert source.row_count == maximum and source.changed_lsn == maximum
+    coverage = dict(snapshot=history_fixture['snapshot'], logical=entry['declaration'], accepted=entry['accepted'], total_rows=str(maximum), definitions=dict(physical=entry['declaration'], schema_revision=str(maximum), rows=str(maximum), columns=[dict(column='1', source=dict(physical='1'))]), locations=[], next=dict(selector=history_snapshot.selector, object=str(maximum), kind='definitions', source=history_fixture['snapshot']['sources_root'], after=str(maximum)))
+    owner._api.response = {'history': {'coverage': coverage}}
+    observed = owner.historical_coverage(history_snapshot, maximum)
+    assert observed.total_rows == maximum and observed.definition.rows == maximum and observed.definition.columns[0].physical == 1
+    cursor = m.HistoryCoverageCursor.restore(observed.next.save())
+    rejects(ValueError, lambda: owner.historical_coverage(history_snapshot, maximum, 'locations', cursor))
+    rejects(IncompatibleNative, lambda: owner.historical_coverage(history_snapshot, maximum, cursor=cursor))
     calls = len(owner._api.calls)
 finally:
     owner.close()

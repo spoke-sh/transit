@@ -1,15 +1,76 @@
 """Installed Board over public catalog callers and shared SQL result readers."""
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import sys
 
 from runner.paths import ROOT
 from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
+from interfaces.http.serving import compact
+from interfaces.installation.server_application_faults import ExistingKey, native, post
+
+
+def retained_metrics(fixture, definition, connection, seed, operation=900030):
+    """Provision through the signed owner, outside Board's read-only boundary."""
+    key = ExistingKey(fixture.root, seed)
+    port = fixture.config['ports']['node']
+    realm, principal = connection['scope']['realm'], connection['principal']
+    identity = post(port, '/v1/query', native(key, realm, principal,
+        dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
+
+    def call(action):
+        body = dict(definition=definition, connection=connection, nonce=[91]*16,
+                    action=dict(historical_catalog=action), delegation=None, closure=None,
+                    borrow=None, lease=None, transaction=None)
+        context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
+        claim = dict(definition=definition, realm=realm, principal=principal,
+                     credential_epoch=identity['credential_epoch'], role=None,
+                     audience=connection['audience'], context=list(context))
+        signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
+        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']['historical_catalog']
+
+    owner = dict(scope=connection['scope'], principal=principal, operation=operation)
+    selection = call(dict(select=dict(selection=dict(owner=owner, branch=connection['branch'], directory=None),
+        namespace=1, name=dict(len=7, bytes=list(b'metrics')+[0]*56))))['selection']
+    token = dict(definition=definition, connection=connection, account=[91]*32, token=list(operation.to_bytes(16, 'little')))
+    intent = dict(connection=connection, namespace=1, operation=owner['operation'],
+                  selection=selection['directory'], common=None)
+    # Save the exact acquisition before dispatch; every subsequent call addresses
+    # this identity. The test never reacquires a moving head after uncertainty.
+    (fixture.root / f'history-intent-{operation}.json').write_text(json.dumps(dict(key=token, intent=intent)))
+    status = call(dict(acquire=dict(key=token, intent=intent,
+        budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608))))['status']
+    for _ in range(32):
+        if status['state']['phase'] == 'published':
+            break
+        assert status['state']['phase'] in ('acquiring', 'verifying'), status
+        status = call(dict(advance=token))['status']
+    else:
+        raise AssertionError('Retained source did not publish within its bounded schedule')
+    snapshot = status['state']['snapshot']
+    content, sources = snapshot['catalog_root'], snapshot['sources_root']
+    position = snapshot['consistency']['single_partition']
+    scope = owner['scope']
+    selector = (b'THSNAP01' + bytes.fromhex(definition)
+        + struct.pack('<6Q', scope['realm'], scope['resource'], scope['catalog'], principal, owner['operation'], connection['branch'])
+        + struct.pack('<Q', content['bytes']) + bytes(content['sha256'])
+        + struct.pack('<Q', sources['bytes']) + bytes(sources['sha256'])
+        + struct.pack('<QBQQ', 1, 1, position['partition'], position['next_lsn']) + bytes(104)).hex()
+
+    def release():
+        status = call(dict(release=token))['status']
+        for _ in range(32):
+            if status['state']['phase'] == 'released':
+                return
+            status = call(dict(advance=token))['status']
+        raise AssertionError('Retained source did not release within its bounded schedule')
+    return selector, release
 
 
 def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
@@ -80,6 +141,31 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'
+        native_connection = dict(scope=catalog['scope'], branch=catalog['branch'], audience=catalog['audience'],
+                                 principal=account['principals']['table'], role=None)
+        selector, _ = retained_metrics(fixture, definition, native_connection, account_dir / 'table.seed')
+        def history(action, expected=200):
+            return request('catalog', dict(history=action), expected)
+        namespace = history(dict(namespace=dict(selector=selector, name='public')))['history']['namespace']
+        assert namespace['id'] == 1
+        retained = history(dict(list=dict(selector=selector, namespace=1, after=None)))['history']['listing']
+        assert retained['snapshot']['selector'] == selector and retained['next'] is None
+        assert [item['name'] for item in retained['entries']] == ['metrics']
+        historical_object = retained['entries'][0]['declaration']['interpretation']['object']['object']
+        source = history(dict(source=dict(selector=selector, object=historical_object)))['history']['source']
+        assert source['rows'] == '145'
+        definitions = history(dict(definitions=dict(selector=selector, object=historical_object, after=None)))['history']['coverage']
+        assert definitions['total_rows'] == '145' and definitions['definitions']['rows'] == '145'
+        coverage_request = dict(selector=selector, object=historical_object, after=None)
+        locations = history(dict(locations=coverage_request))['history']['coverage']
+        assert len(locations['locations']) == 8 and locations['next'] is not None
+        next_locations = history(dict(locations=dict(coverage_request, after=locations['next'])))['history']['coverage']
+        assert len(next_locations['locations']) == 8 and next_locations['next'] != locations['next']
+        assert {json.dumps(item['identity'], sort_keys=True) for item in locations['locations']}.isdisjoint(
+            json.dumps(item['identity'], sort_keys=True) for item in next_locations['locations'])
+        # The Board request contract cannot carry retention controls or row scans.
+        for forbidden in ('select', 'acquire', 'advance', 'abandon', 'release', 'scan'):
+            history({forbidden: {}}, 400)
         first = run_sql(1, table['preview_sql'], binding=table['expected_definition'])['result']['view']
         assert len(first['rows']) == 100 and first['start'] == '0' and first['delivered'] == '100'
         assert first['complete_rows'] is None and first['stopped'] == 'row_limit'
@@ -119,19 +205,25 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
             screenshots = ROOT / '.cache/board-workbench'
             screenshots.mkdir(parents=True, exist_ok=True)
             env = dict(os.environ, BOARD_TEST_URL=fixture.board_url,
-                BOARD_SCREENSHOT=str(screenshots / 'workbench.png'))
+                BOARD_SCREENSHOT=str(screenshots / 'workbench.png'), BOARD_HISTORY_SELECTOR=selector)
             subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test',
                 'workbench.spec.ts'], cwd=ROOT, env=env, check=True)
+        released_selector, release_history = retained_metrics(fixture, definition, native_connection,
+                                                              account_dir / 'table.seed', operation=900031)
+        release_history()
+        assert history(dict(source=dict(selector=released_selector, object=historical_object)), 409)['err'] == 'QueryExpired'
         # A completed buffered result is not a continuing grant. Revoke its SQL
         # principal through the current public owner, then require no disclosure.
         run_sql(20, 'SELECT * FROM empty_metrics')
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
+        history(dict(source=dict(selector=selector, object=historical_object)), 403)
+        history(dict(locations=coverage_request), 403)
         close(20)
         fixture.stop()
         success = True
-        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity and terminal revocation passed.', flush=True)
+        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement and terminal revocation passed.', flush=True)
     finally:
         fixture.cleanup()
         if success:

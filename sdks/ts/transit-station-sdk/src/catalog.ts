@@ -1635,6 +1635,78 @@ export interface HistorySource {
   readonly changedLsn: bigint;
   readonly authority: ReadAuthority;
 }
+export interface ProjectionColumn {
+  readonly column: bigint;
+  readonly source:
+    | { readonly physical: bigint }
+    | { readonly initial: { readonly definition: Interpretation; readonly state: string } };
+}
+export interface ProjectionDefinition {
+  readonly physical: StoredDefinition;
+  readonly schemaRevision: bigint;
+  readonly rows: bigint;
+  readonly columns: readonly ProjectionColumn[];
+}
+export interface ProjectionLocation {
+  readonly origin: bigint;
+  readonly operation: bigint;
+  readonly ordinal: number;
+  readonly physical: StoredDefinition;
+  readonly schemaRevision: bigint;
+  readonly location:
+    | {
+        readonly wal: {
+          readonly lsn: bigint;
+          readonly offset: number;
+          readonly bytes: number;
+          readonly rowDigest: string;
+        };
+      }
+    | {
+        readonly segment: {
+          readonly id: bigint;
+          readonly row: number;
+          readonly contentBytes: bigint;
+          readonly contentDigest: string;
+        };
+      };
+}
+export class HistoryCoverageCursor {
+  readonly snapshot: HistoricalSnapshot;
+  readonly objectId: bigint;
+  readonly kind: "definitions" | "locations";
+  private constructor(value: NonNullable<HistoryInput<"definitions">["after"]>) {
+    this.snapshot = new HistoricalSnapshot(value.selector);
+    this.objectId = positive(nativeWide(value.object));
+    this.kind = value.kind;
+    nativeWide(value.source.bytes);
+    digest(value.source.sha256);
+    if (value.kind === "definitions") positive(nativeWide(value.after));
+    else if (!/^[0-9a-f]{40}$/.test(value.after))
+      throw new IncompatibleNative("Invalid placement continuation");
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoryCoverageCursor {
+    return new HistoryCoverageCursor(
+      checked<NonNullable<HistoryInput<"definitions">["after"]>>(parseSaved(input), (after) => ({
+        history: { definitions: { selector: after?.selector, object: after?.object, after } },
+      })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+export interface HistoryCoverage {
+  readonly basis: HistoryBasis;
+  readonly logical: StoredDefinition;
+  readonly accepted: Position;
+  readonly totalRows: bigint;
+  readonly definition?: ProjectionDefinition;
+  readonly locations: readonly ProjectionLocation[];
+  readonly next?: HistoryCoverageCursor;
+}
 function historyField<K extends Tags<HistoryResult>>(
   value: CatalogResult,
   key: K,
@@ -2394,6 +2466,120 @@ export class Client {
       rowCount: nativeWide(value.rows),
       changedLsn: nativeWide(value.changed_lsn),
       authority: Object.freeze({ ...value.authority }),
+    });
+  }
+  async historicalCoverage(
+    snapshot: HistoricalSnapshot,
+    objectId: bigint,
+    kind: "definitions" | "locations" = "definitions",
+    cursor?: HistoryCoverageCursor,
+  ): Promise<HistoryCoverage> {
+    if (
+      cursor &&
+      (cursor.snapshot.selector !== snapshot.selector ||
+        cursor.objectId !== objectId ||
+        cursor.kind !== kind)
+    )
+      throw new TypeError("Coverage cursor belongs to a different selection");
+    const input = {
+      selector: snapshot.selector,
+      object: positive(objectId).toString(),
+      after: cursor ? (JSON.parse(cursor.save()) as HistoryInput<"definitions">["after"]) : null,
+    };
+    const value = historyField(
+      await this.#bridge.call({
+        history: kind === "definitions" ? { definitions: input } : { locations: input },
+      }),
+      "coverage",
+    );
+    const basis = historyBasis(value.snapshot, snapshot),
+      logical = stored(value.logical);
+    if (
+      value.logical.interpretation.object.object !== objectId.toString() ||
+      !isDeepStrictEqual(value.logical.interpretation.object.scope, value.snapshot.owner.scope) ||
+      value.logical.interpretation.object.branch !== value.snapshot.branch ||
+      (kind === "definitions" && value.locations.length !== 0) ||
+      (kind === "locations" && value.definitions !== null)
+    )
+      throw new IncompatibleNative("Changed coverage source or kind");
+    const next = value.next ? HistoryCoverageCursor.restore(JSON.stringify(value.next)) : undefined;
+    if (
+      next &&
+      (next.snapshot.selector !== snapshot.selector ||
+        next.objectId !== objectId ||
+        next.kind !== kind)
+    )
+      throw new IncompatibleNative("Changed coverage continuation");
+    if (
+      value.next &&
+      input.after &&
+      (!isDeepStrictEqual(value.next.source, input.after.source) ||
+        (kind === "definitions"
+          ? nativeWide(value.next.after) <= nativeWide(input.after.after)
+          : value.next.after <= input.after.after))
+    )
+      throw new IncompatibleNative("Coverage continuation failed to advance");
+    const physical = value.definitions;
+    return Object.freeze({
+      basis,
+      logical,
+      accepted: position(value.accepted),
+      totalRows: nativeWide(value.total_rows),
+      ...(physical
+        ? {
+            definition: Object.freeze({
+              physical: stored(physical.physical),
+              schemaRevision: nativeWide(physical.schema_revision),
+              rows: nativeWide(physical.rows),
+              columns: Object.freeze(
+                physical.columns.map((column) =>
+                  Object.freeze({
+                    column: nativeWide(column.column),
+                    source:
+                      "physical" in column.source
+                        ? Object.freeze({ physical: nativeWide(column.source.physical) })
+                        : Object.freeze({
+                            initial: Object.freeze({
+                              definition: interpretation(column.source.initial.definition),
+                              state: column.source.initial.state,
+                            }),
+                          }),
+                  }),
+                ),
+              ),
+            }),
+          }
+        : {}),
+      locations: Object.freeze(
+        value.locations.map((entry) =>
+          Object.freeze({
+            origin: nativeWide(entry.identity.origin),
+            operation: nativeWide(entry.identity.operation),
+            ordinal: entry.identity.ordinal,
+            physical: stored(entry.physical),
+            schemaRevision: nativeWide(entry.schema_revision),
+            location:
+              "wal" in entry.location
+                ? Object.freeze({
+                    wal: Object.freeze({
+                      lsn: nativeWide(entry.location.wal.lsn),
+                      offset: entry.location.wal.offset,
+                      bytes: entry.location.wal.bytes,
+                      rowDigest: digest(entry.location.wal.row_digest),
+                    }),
+                  })
+                : Object.freeze({
+                    segment: Object.freeze({
+                      id: nativeWide(entry.location.segment.id),
+                      row: entry.location.segment.row,
+                      contentBytes: nativeWide(entry.location.segment.content.bytes),
+                      contentDigest: digest(entry.location.segment.content.sha256),
+                    }),
+                  }),
+          }),
+        ),
+      ),
+      ...(next ? { next } : {}),
     });
   }
   private historyConnection(): HistoryInput<"inspect">["connection"] {

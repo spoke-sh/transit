@@ -197,6 +197,14 @@ async def run(mode, config_file):
                 persist(root / 'history-snapshot.json', status.basis.snapshot.save())
                 source = await resolve(client.historical_source(status.basis.snapshot, object_id))
                 assert source.row_count == 9 and len(source.schema.columns) == 2
+                coverage = await resolve(client.historical_coverage(retained, object_id))
+                assert coverage.total_rows == 9 and coverage.definition.rows == 9 and coverage.next is None
+                locations = await resolve(client.historical_coverage(retained, object_id, 'locations'))
+                assert len(locations.locations) == 8 and locations.next is not None
+                saved_cursor = m.HistoryCoverageCursor.restore(locations.next.save())
+                ending = await resolve(client.historical_coverage(retained, object_id, 'locations', saved_cursor))
+                assert len(ending.locations) == 1 and ending.next is None
+                assert ending.logical == source.binding.definition
                 write(dict(published=True))
             elif command == 'history_denied':
                 retained = m.HistoricalSnapshot.restore((root / 'history-snapshot.json').read_text())
@@ -211,6 +219,14 @@ async def run(mode, config_file):
                 assert await resolve(client.historical_lookup(retained, 1, name)) == object_id
                 source = await resolve(client.historical_source(retained, object_id))
                 assert source.row_count == 9 and len(source.schema.columns) == 2
+                coverage = await resolve(client.historical_coverage(retained, object_id))
+                assert coverage.total_rows == 9 and coverage.definition.rows == 9 and coverage.next is None
+                locations = await resolve(client.historical_coverage(retained, object_id, 'locations'))
+                assert len(locations.locations) == 8 and locations.next is not None
+                saved_cursor = m.HistoryCoverageCursor.restore(locations.next.save())
+                ending = await resolve(client.historical_coverage(retained, object_id, 'locations', saved_cursor))
+                assert len(ending.locations) == 1 and ending.next is None
+                assert ending.logical == source.binding.definition
                 page = await resolve(client.historical_tables(retained, 1))
                 assert len(page.entries) == 1 and page.next is None and page.entries[0].name == name
                 assert page.entries[0].definition == source.binding.definition

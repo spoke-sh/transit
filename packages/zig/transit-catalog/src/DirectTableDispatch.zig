@@ -709,6 +709,17 @@ fn historical(output: std.mem.Allocator, catalog: *D, policy: D.Policy, request:
         .lookup => |value| return .{ .object = try catalog.lookupHistory(value.snapshot, value.namespace, value.name, policy) },
         .namespace => |value| return .{ .namespace = try catalog.namespaceHistory(value.snapshot, value.name, policy) },
         .list => |value| return .{ .listing = try catalog.listHistory(output, value, policy) },
+        inline .definitions, .locations => |value, tag| {
+            var scratch = std.heap.ArenaAllocator.init(catalog.allocator);
+            defer scratch.deinit();
+            var selected = try catalog.openHistory(scratch.allocator(), value.snapshot, value.object, tag == .locations, policy);
+            defer selected.deinit();
+            const evidence = if (comptime tag == .definitions)
+                try selected.access.view.table.inspectProjection(scratch.allocator(), selected.binding.pin.?, value.after, selected.access.current)
+            else
+                try selected.access.view.table.inspectProjectionLocations(scratch.allocator(), selected.binding.pin.?, value.after, selected.access.current);
+            return @unionInit(c.DirectHistory.Result, @tagName(tag), .{ .snapshot = value.snapshot, .source = selected.binding.source, .evidence = evidence });
+        },
         .source, .scan => {},
     }
     const snapshot = if (request == .source) request.source.snapshot else request.scan.snapshot;

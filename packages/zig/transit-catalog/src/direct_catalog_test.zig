@@ -6970,6 +6970,28 @@ test "historical acquisition signed disclosure and collectible directory closure
     try t.expectEqual(@as(usize, 1), listing.entries.len);
     try t.expect(listing.next == null);
     try t.expectEqualStrings("events", listing.entries[0].properties.name.slice());
+    const definitions_request: c.DirectHistory.Request = .{ .definitions = .{ .snapshot = snapshot, .object = 7, .after = null } };
+    const locations_request: c.DirectHistory.Request = .{ .locations = .{ .snapshot = snapshot, .object = 7, .after = null } };
+    access.visible_despite_denied_privileges = true;
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    const coverage = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = definitions_request })).historical_catalog.definitions;
+    try t.expectEqualDeep(source.binding.declaration, coverage.evidence.logical);
+    try t.expectEqual(@as(u64, 10), coverage.evidence.entry.?.rows);
+    try t.expect(coverage.evidence.next == null);
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = locations_request }));
+    access.denied_privileges = null;
+    const locations = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = locations_request })).historical_catalog.locations;
+    try t.expectEqual(@as(u8, 8), locations.evidence.count);
+    const locations_tail: c.DirectHistory.Request = .{ .locations = .{ .snapshot = snapshot, .object = 7, .after = locations.evidence.next } };
+    const tail = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = locations_tail })).historical_catalog.locations;
+    try t.expectEqual(@as(u8, 2), tail.evidence.count);
+    try t.expect(tail.evidence.next == null);
+    var forged_coverage = coverage;
+    forged_coverage.source.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidHistoricalResponse, c.DirectHistory.validateResult(t.allocator, connection, definitions_request, .{ .definitions = forged_coverage }));
+    var forged_locations = locations;
+    forged_locations.evidence.next.?.source.sha256[0] ^= 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectHistory.validateResult(t.allocator, connection, locations_request, .{ .locations = forged_locations }));
     try t.expect(metadata_objects.reads > 0);
     try t.expectEqual(before_puts, objects.puts);
     try t.expectEqual(before_control, try wal.log().tail(catalog.store.root.configuration.partition));
@@ -7033,6 +7055,8 @@ test "historical acquisition signed disclosure and collectible directory closure
     _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } });
     _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .release = request.key } });
     try t.expectError(error.HistoricalSnapshotReleased, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } }));
+    try t.expectError(error.HistoricalSnapshotReleased, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = definitions_request }));
+    try t.expectError(error.HistoricalSnapshotReleased, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = locations_tail }));
     for (0..4) |_| {
         status = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .advance = request.key } })).historical_catalog.status.?;
         if (status.state.phase == .released) break;
