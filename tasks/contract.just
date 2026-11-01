@@ -16,6 +16,7 @@ generate:
     zig build application-installation-contract > "$generated/application-installation-v1.schema.json"
     zig build diagnostic-contract > "$generated/diagnostic-v1.schema.json"
     zig build data-lifecycle-contract > "$generated/data-lifecycle-v1.schema.json"
+    zig build document-profile-contract > "$generated/document-profile-v1.schema.json"
     zig build browser-contract > "$generated/browser-v1.schema.json"
     zig build index-lifecycle-contract > "$generated/index-lifecycle-v1.schema.json"
     mv "$generated/browser-v1.schema.json" contracts/browser-v1.schema.json
@@ -23,6 +24,7 @@ generate:
     mv "$generated/application-installation-v1.schema.json" contracts/application-installation-v1.schema.json
     mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json
     mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
+    python3 -B tests/runner/launch.py tests/catalog/tables/document_profile_contract.py --write < "$generated/document-profile-v1.schema.json"
     mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
     python3 -B tests/runner/launch.py tests/catalog/tables/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
     python3 -B tests/runner/launch.py tests/runtime/application/work_items_contract.py --write

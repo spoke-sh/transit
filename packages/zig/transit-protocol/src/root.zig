@@ -24,6 +24,7 @@ pub const StreamRead = @import("StreamRead.zig");
 pub const QueueRead = @import("QueueRead.zig");
 pub const StreamQueueDeclaration = @import("StreamQueueDeclaration.zig");
 pub const DocumentDeclaration = @import("DocumentDeclaration.zig");
+pub const DocumentProfile = @import("DocumentProfile.zig");
 pub const DocumentOperation = @import("DocumentOperation.zig");
 pub const DocumentRead = @import("DocumentRead.zig");
 pub const max_effect_observations = 16;
@@ -80,6 +81,7 @@ test {
     _ = StreamQueue;
     _ = StreamQueueDeclaration;
     _ = DocumentDeclaration;
+    _ = DocumentProfile;
     _ = DocumentOperation;
 }
 

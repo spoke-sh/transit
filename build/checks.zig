@@ -757,6 +757,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const lifecycle_export = b.addRunArtifact(exporter);
     lifecycle_export.addArg("--data-lifecycle");
     b.step("data-lifecycle-contract", "Export neutral data lifecycle and snapshot schemas").dependOn(&lifecycle_export.step);
+    const document_profile_export = b.addRunArtifact(exporter);
+    document_profile_export.addArg("--document-profile");
+    b.step("document-profile-contract", "Export Document interpretation and provenance schemas").dependOn(&document_profile_export.step);
     const index_export = b.addRunArtifact(exporter);
     index_export.addArg("--index-lifecycle");
     b.step("index-lifecycle-contract", "Export neutral index declaration and coverage schemas").dependOn(&index_export.step);
