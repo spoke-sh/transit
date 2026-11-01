@@ -383,7 +383,7 @@ latency objectives below remain unchanged.
 
 #### Follow-up performance delivery — 2026-11-01
 
-**Status: Planned follow-up within M8, which remains In Progress.** The source
+**Status: In Progress within M8.** The plan's source
 basis is merge `a000b8d18449fdee7901955d0c94417ceeab32eb` of
 [PR #302](https://github.com/spoke-sh/transit/pull/302). The intended outcome is
 that an application can start Transit, use its declared data through a console
@@ -392,6 +392,15 @@ measured latency and resource budgets. This plan coordinates the existing M8
 P0–P6 and startup S0–S6 obligations with
 [M9's SDK performance sequence](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01);
 it neither adds a milestone nor completes the broader gateway/client work.
+
+The first implementation packet adds nested authorization/SQL startup attribution,
+accelerates full executable SHA-256 verification and introduces the installed SDK
+driver. The [source-attributed evidence](../history/qualification/performance.md#executable-hashing-and-installed-sdk-measurement--2026-11-01)
+records exploratory restart reductions and the remaining failures. Fresh durable
+publication, owner I/O/wait counters, complete debug attribution within telemetry
+bounds, retained SQL work and the final sample schedule remain open. In particular,
+the passing SDK lane does not resolve the Station/WAL recovery failure or qualify
+the maintenance profile.
 
 **Delivered and still unqualified.** PR #302 implements S1 worker rotation,
 unchanged derived-file reuse from S2 and private-page/file-barrier batching from

@@ -494,12 +494,24 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 
 #### SDK performance implementation sequence — 2026-11-01
 
-**Status: Planned within P0/P8.** Coordinate with the
+**Status: In Progress within P0/P8.** Coordinate with the
 [M8 follow-up delivery plan](08-gateway-architecture-and-protocol-ingress.md#follow-up-performance-delivery--2026-11-01)
 at merged source `a000b8d18449fdee7901955d0c94417ceeab32eb`. Its startup probes
 and the existing SDK conformance results do not establish SDK performance.
 Start measurement on current installed APIs while P2–P6 continue; the following
 work neither requires the new data ABI first nor marks those packages complete.
+
+The installed Catalog/Query driver now covers public Zig, Python synchronous and
+asynchronous clients, and Node with one bounded independent oracle, native/package
+identity checks and explicit completion/close evidence. Its
+[first exploratory campaign](../history/qualification/performance.md#executable-hashing-and-installed-sdk-measurement--2026-11-01)
+uses the isolated maintenance-disabled profile. Default-maintenance and complete
+integrated campaign qualification, allocation/copy attribution, broader values
+and language coverage, future context/
+SQL adapters and numeric regression budgets remain open. Node module import is
+the leading measured cold-start cost; profile eager schema-validator compilation
+next and measure launch through the first verified response so deferred work
+cannot masquerade as a gain.
 
 The application journey is to open an installed client, inspect a declared Table,
 write/read typed values, consume a complete bounded result and close or recover

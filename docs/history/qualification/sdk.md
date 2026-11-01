@@ -4,6 +4,10 @@
 
 Installed language consumers, shared bindings, ABI ownership and cross-language conformance.
 
+The [2026-11-01 performance account](performance.md#executable-hashing-and-installed-sdk-measurement--2026-11-01)
+records installed SDK measurements, the passing clean scripting lane and the
+failed integrated performance attempts with their exact sources and limits.
+
 These records preserve their original dates, sources, failures and limits. They
 do not define current interfaces or qualify later changes. Commands and then-open
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
