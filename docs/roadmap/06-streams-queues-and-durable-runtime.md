@@ -548,7 +548,7 @@ not complete these gates.
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: named KV installed recovery passes; Table/KV transaction components tested; log participants and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R5 | Partial: native Table/KV/Stream/Queue mixed recovery passes; DLQ, complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
@@ -826,8 +826,12 @@ The current-definition regeneration and workspace checks pass: 206 catalog tests
 28 selected storage tests, 58 fast checks, 19 contract checks and the handbook
 build, with a successful native node build. The
 [qualification record](../history/qualification/transactions.md#native-mixed-state-and-log-statements--2026-10-31)
-keeps these component results separate from clean integrated qualification,
-installed mixed state/input/output proof and DLQ transfer, which remain open.
+keeps these component results separate from clean integrated qualification.
+The [installed mixed proof](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31)
+also passes: 85 signed requests, two lost replies and two node replacements
+recover the original state mutations, appends, Queue ACK and Stream offset.
+The remaining preparation/finalization fault matrix, clean integrated
+qualification and DLQ transfer remain open.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
