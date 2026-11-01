@@ -7,6 +7,63 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Protected automatic DLQ transaction owner — 2026-11-01
+
+The implementation committed as `5c8671e71141911a95d09fc5fd957ae35eae4ca9`
+uses one protected standard transaction, permanent source binding and paged
+pending index. Its current-v1 definition is
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
+The following pinned-shell ReleaseSafe checks ran on that implementation before
+commit; their working bases precede the commit and are not clean-lane evidence.
+
+| Invocation | Result |
+| --- | --- |
+| In `packages/zig/transit-catalog`: `zig build test -Dtest-filter='automatic Queue transfer' -Dtest-filter='Queue transfer plan' -Doptimize=ReleaseSafe --summary all` | 10/10 tests; 40 injected append failures across four durable logs |
+| At repository root: `zig build test-local-catalog -Dlocal-catalog-filter='automatic Queue maintenance' -Doptimize=ReleaseSafe --summary all` | 2/2 tests, including the native database-policy/worker composition |
+| In `packages/zig/transit-storage`: `zig build test -Dtest-filter='queue partition dead letter discovery' -Doptimize=ReleaseSafe --summary all` | 4/4 tests, including canonical destination-key routing |
+
+The catalog schedule alternates refusal before append and reply loss after
+durable append, reopens all owners, and verifies one original source binding,
+decision and cleanup. Tests also cover forged payloads, separate read/append
+denials, generic transaction/control bypass refusal, unrelated catalog
+publication after a failed initial acceptance, abort before/after private
+evaluation, quota refusal, unchanged recorded destination after policy edits,
+and graph reachability before acquisition. Cleanup after a recorded decision
+does not need a current clock. An aborted transfer retains its permanent source
+binding and publishes neither source archival nor a destination row.
+
+The native schedule uses a 32 MiB worker allocation budget and a 16 MiB
+transaction budget, separate from provider/native caches and process RSS. It
+checks that the checkpoint signer alone supplies no database authority, reclaims
+two unreferenced allocations in 314 real collection steps before acquisition,
+revokes/restores destination ownership, refuses adoption by another account,
+and alternates two worker instances through one original decision. Independent
+readback verifies the archived source and exactly one destination row with its
+original value. This is in-process native/disk composition, not an installed
+HTTP, process-kill, power-loss or saturation proof.
+
+The failed development runs remain local evidence: the initial admission
+allocated a maximum-sized payload buffer and exceeded its unchanged 16 MiB
+budget; exact payload allocation resolves it. Reservation recovery initially
+failed replay validation after unrelated publication. The native fixture first
+restored a clock older than collection's new floor, then exposed discovery
+encountering a prepared transaction. The fixture now advances its clock to that
+floor; discovery skips prepared participants while original transaction recovery
+continues. Neither budgets nor deadlines were raised to pass these checks.
+
+Raw successful logs and SHA-256 values are:
+
+- `/var/tmp/transit-m6-protected-dlq6.log`: `4c1c9fbb41917405b84a2b0dfbc3ad647a72e9b8a12e3db626812d9b0ec6cbda`.
+- `/var/tmp/transit-m6-dlq-native3.log`: `65c6fd2d77dbbbac4055eba9d492a6593a9744138ad5f077a3873848f1079d2c`.
+- `/var/tmp/transit-m6-dlq-routing1.log`: `65ea0e8413cc2bddf7705694948b7c677dbef9303080f907420c45d3c65e4b6d`.
+
+Regeneration passes all 19 contract checks; 60 fast checks pass during the
+change. The owning [direct contract](../../../contracts/DIRECT_TABLE_V1.md)
+and [node configuration](../../../apps/transit-node/docs/growing.md) describe
+the optional worker and exact authority/retention boundaries. Installed worker
+qualification, larger-population/resource schedules and common-revision lanes
+remain open. This evidence does not complete M6.
+
 ## Mixed disk decisions and frozen DLQ plans — 2026-11-01
 
 Committed source `f3c6f162b0b02b10b418989891b545276c66d574`, definition
