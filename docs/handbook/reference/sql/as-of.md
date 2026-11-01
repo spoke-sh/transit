@@ -35,10 +35,11 @@ submitting this statement:
 SELECT id FROM items AS OF SNAPSHOT 'selector';
 ```
 
-The snapshot is a selected set of Tables, not complete database history.
-Names, stable object/column identities, schemas, defaults and collations come
-from that selection. After a live rename or name reuse, the old spelling still
-resolves to the selected original object. A column added later is absent.
+The snapshot retains selected Tables and versioned catalog definitions. It does
+not represent complete database history. Names, stable object/column identities,
+schemas, defaults and collations come from that selection. After a live rename
+or name reuse, the old spelling still resolves to the selected original object.
+A column added later is absent.
 Unsupported or unavailable selections fail; they never fall back to live data.
 
 ## Results and access
