@@ -17,14 +17,23 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
   const inspector = page.getByRole("complementary", { name: "Inspector", exact: true });
+  const firstPage = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/catalog") &&
+      response.request().postDataJSON()?.action.tables?.cursor === null &&
+      response.status() === 200,
+  );
   await page.goto("/");
+  const firstEntries: { name: string }[] = (
+    await (await firstPage).json()
+  ).catalog.tables.entries.filter(Boolean);
   await expect(page.getByRole("navigation", { name: "Activities" })).toContainText("Workbooks");
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  await Promise.all([
+  const [secondPage] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/v1/catalog") &&
@@ -33,15 +42,24 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     ),
     page.getByRole("button", { name: "Next page", exact: true }).click(),
   ]);
-  await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
+  const secondEntries: { name: string }[] = (await secondPage.json()).catalog.tables.entries.filter(
+    Boolean,
+  );
+  // The object directory also contains five foreign definitions. Its bounded
+  // scan may return fewer Tables on a page without completing the traversal.
+  expect(firstEntries.length).toBeLessThanOrEqual(8);
+  expect(secondEntries.length).toBeLessThanOrEqual(8);
+  expect(firstEntries.length + secondEntries.length).toBe(11);
+  expect(new Set([...firstEntries, ...secondEntries].map((entry) => entry.name)).size).toBe(11);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(secondEntries.length + 1);
   await expect(page.getByRole("button", { name: "First page", exact: true })).toBeEnabled();
   expect(runs).toBe(0);
   await page.getByRole("button", { name: "First page", exact: true }).click();
-  await expect(page.getByRole("table").getByRole("row")).toHaveCount(9);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(firstEntries.length + 1);
   // Catalog pages follow object identity; a named Table can be on either page.
   if (!(await page.getByRole("link", { name: "metrics", exact: true }).count())) {
     await page.getByRole("button", { name: "Next page", exact: true }).click();
-    await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
+    await expect(page.getByRole("table").getByRole("row")).toHaveCount(secondEntries.length + 1);
   }
   await page.getByRole("link", { name: "metrics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();

@@ -93,7 +93,14 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         if status['state']['phase'] == 'published':
             break
         assert status['state']['phase'] in ('acquiring', 'verifying'), status
-        status = call(dict(advance=token))['status']
+        try:
+            status = call(dict(advance=token))['status']
+        except AssertionError:
+            state = status['state']
+            print(json.dumps(dict(profile='board_history_acquisition_failed', operation=operation,
+                phase=state['phase'], inflight=state['inflight'], after=state['after'],
+                descriptor_after=state['descriptor_after'])), flush=True)
+            raise
     else:
         raise AssertionError('Retained source did not publish within its bounded schedule')
     snapshot = status['state']['snapshot']
