@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import struct
 import sys
+from http.client import IncompleteRead, RemoteDisconnected
 
 from runner.paths import ROOT
 from interfaces.installation.server_board import Board
@@ -16,6 +17,8 @@ from harness.local_installation import freeze_executables
 from interfaces.http.serving import compact
 from interfaces.installation.server_application_faults import ExistingKey, native, post
 from query.logical.fuze_types import descriptor
+
+UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
 
 
 def retained_metrics(fixture, definition, connection, seed, operation=900030):
@@ -68,11 +71,18 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
             saved = dict(binding=binding, intent=intent)
             (fixture.root / f'definition-intent-{object_id}.json').write_text(json.dumps(saved))
             for _ in range(32):
-                result = direct(dict(descriptor=dict(declaration=dict(request=saved, command='accept', steps=16))))['descriptor']['observation']
+                # Exercise bounded registration progress under the installed
+                # request deadline, retaining the same saved declaration.
+                try:
+                    result = direct(dict(descriptor=dict(declaration=dict(request=saved, command='accept', steps=1))))['descriptor']['observation']
+                except UNCERTAIN_TRANSPORT:
+                    # Acceptance may already be durable. The next bounded
+                    # attempt addresses this exact binding and intent.
+                    continue
                 if 'operation' in result:
                     assert result['operation']['phase'] == 'applied', result
                     break
-                assert result == 'registration_pending', result
+                assert result == {'registration_pending': {}}, result
             else:
                 raise AssertionError('Metadata declaration did not settle')
             selected_names.append(named)
@@ -87,22 +97,41 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
     # Save the exact acquisition before dispatch; every subsequent call addresses
     # this identity. The test never reacquires a moving head after uncertainty.
     (fixture.root / f'history-intent-{operation}.json').write_text(json.dumps(dict(key=token, intent=intent)))
-    status = call(dict(acquire=dict(key=token, intent=intent,
-        budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608))))['status']
-    for _ in range(32):
-        if status['state']['phase'] == 'published':
-            break
-        assert status['state']['phase'] in ('acquiring', 'verifying'), status
-        try:
-            status = call(dict(advance=token))['status']
-        except AssertionError:
-            state = status['state']
-            print(json.dumps(dict(profile='board_history_acquisition_failed', operation=operation,
-                phase=state['phase'], inflight=state['inflight'], after=state['after'],
-                descriptor_after=state['descriptor_after'])), flush=True)
-            raise
-    else:
-        raise AssertionError('Retained source did not publish within its bounded schedule')
+    acquisition = dict(acquire=dict(key=token, intent=intent,
+        budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608)))
+
+    def settle(initial, terminal, pending):
+        action, status, uncertain = initial, None, 0
+        for _ in range(32):
+            try:
+                status = call(action)['status']
+            except UNCERTAIN_TRANSPORT:
+                # Inspect the saved operation after an incomplete reply. Never
+                # select a new frontier or assign a replacement acquisition.
+                uncertain += 1
+                action = dict(inspect=token)
+                continue
+            except AssertionError:
+                if status is not None:
+                    state = status['state']
+                    print(json.dumps(dict(profile='board_history_acquisition_failed', operation=operation,
+                        phase=state['phase'], inflight=state['inflight'], after=state['after'],
+                        descriptor_after=state['descriptor_after'])), flush=True)
+                raise
+            if status is None:
+                action = initial
+                continue
+            phase = status['state']['phase']
+            if phase == terminal:
+                if uncertain:
+                    print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
+                        phase=phase, uncertain_replies=uncertain)), flush=True)
+                return status
+            assert phase in pending, status
+            action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
+        raise AssertionError(f'Retained source did not reach {terminal} within its bounded schedule')
+
+    status = settle(acquisition, 'published', ('acquiring', 'verifying'))
     snapshot = status['state']['snapshot']
     content, sources = snapshot['catalog_root'], snapshot['sources_root']
     position = snapshot['consistency']['single_partition']
@@ -114,12 +143,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         + struct.pack('<QBQQ', 1, 1, position['partition'], position['next_lsn']) + bytes(104)).hex()
 
     def release():
-        status = call(dict(release=token))['status']
-        for _ in range(32):
-            if status['state']['phase'] == 'released':
-                return
-            status = call(dict(advance=token))['status']
-        raise AssertionError('Retained source did not release within its bounded schedule')
+        settle(dict(release=token), 'released', ('published', 'releasing'))
     return selector, release
 
 
