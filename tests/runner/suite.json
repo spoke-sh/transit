@@ -50,6 +50,7 @@
     "storage-query": [
       "test::arrow",
       "test::fuze-types",
+      "test::spatial",
       "test::fuze-sources",
       "test::file-query",
       "test::logical-arrow",

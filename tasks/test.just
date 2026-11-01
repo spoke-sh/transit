@@ -6,6 +6,10 @@ set working-directory := ".."
 _default:
     @just --list test
 
+# Exact spatial predicates, validity and reference bytes against independent rational oracles.
+spatial:
+    zig build test-spatial
+
 # Verified segment metadata/page ranges and the disk-backed direct Table reader.
 storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
@@ -414,6 +418,7 @@ packages:
     cd packages/zig/transit-data-client && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
+    cd packages/zig/transit-spatial && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test

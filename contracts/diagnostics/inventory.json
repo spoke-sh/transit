@@ -12299,41 +12299,19 @@
       "errors": {
         "DecimalOverflow": 2,
         "DivisionByZero": 2,
-        "IncompatibleGeodesicSrid": 1,
         "InexactDecimalRounding": 1,
-        "InvalidDecimalParameters": 5,
-        "InvalidSpatialSnapGrid": 1,
-        "InvalidSpatialSrid": 1,
-        "InvalidSpatialUnitScale": 1
+        "InvalidDecimalParameters": 5
       },
       "outcomes": {
         "RoundingMode": [
           "reject",
           "half_even",
           "toward_zero"
-        ],
-        "SpatialDescriptor.AxisOrientation": [
-          "right_handed_z_up",
-          "right_handed_y_up"
-        ],
-        "SpatialDescriptor.ExactPredicateMode": [
-          "shewchuk_adaptive"
-        ],
-        "SpatialDescriptor.Manifold": [
-          "planar",
-          "geodesic_wgs84"
-        ],
-        "SpatialDescriptor.SpaceFillingCurve": [
-          "none",
-          "s2_hilbert",
-          "h3",
-          "hilbert_3d"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "DecimalValue.validate()": "<inferred>",
-        "SpatialDescriptor.validate()": "<inferred>",
         "add()": "<inferred>",
         "checkPrecisionBounds()": "<inferred>",
         "div()": "<inferred>",
@@ -17779,6 +17757,7 @@
         "model.zig",
         "std",
         "transit_memory",
+        "transit_spatial",
         "zarrow",
         "zarrow_compute"
       ]
@@ -26080,6 +26059,187 @@
       "imports": [
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-spatial/src/Planar.zig": {
+      "errors": {
+        "InvalidSpatialBounds": 1,
+        "InvalidSpatialGeometry": 1,
+        "SpatialPrecisionMismatch": 1,
+        "SpatialWorkExceeded": 1
+      },
+      "outcomes": {
+        "Invalid.reason": [
+          "too_few_points",
+          "not_closed",
+          "repeated_vertex",
+          "self_intersection",
+          "zero_area",
+          "hole_outside",
+          "rings_intersect",
+          "nested_holes"
+        ],
+        "Location": [
+          "exterior",
+          "boundary",
+          "interior"
+        ],
+        "SegmentRelation": [
+          "disjoint",
+          "touch",
+          "cross",
+          "overlap"
+        ]
+      },
+      "error_sets": {
+        "invalid().<error>": [
+          "InvalidSpatialGeometry"
+        ]
+      },
+      "error_returns": {
+        "Box.contains()": "<inferred>",
+        "Box.intersects()": "<inferred>",
+        "Box.validate()": "<inferred>",
+        "Budget.charge()": "<inferred>",
+        "Polygon.area()": "<inferred>",
+        "Polygon.init()": "<inferred>",
+        "Polygon.locate()": "<inferred>",
+        "Ring.init()": "<inferred>",
+        "Ring.locate()": "<inferred>",
+        "Ring.signedArea()": "<inferred>",
+        "intersectingEdges()": "<inferred>",
+        "normalizeCoordinate()": "<inferred>",
+        "segmentRelation()": "<inferred>",
+        "twiceArea()": "<inferred>",
+        "validatePoint()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 42,
+        "catch": 0
+      },
+      "imports": [
+        "Predicates.zig",
+        "Reference.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-spatial/src/Predicates.zig": {
+      "errors": {
+        "InvalidSpatialCoordinate": 1,
+        "SpatialCoordinateRange": 1,
+        "SpatialPredicateWorkspaceExceeded": 1
+      },
+      "outcomes": {
+        "Path": [
+          "interval",
+          "exact"
+        ],
+        "Sign": [
+          "negative",
+          "zero",
+          "positive"
+        ]
+      },
+      "error_sets": {
+        "determinant().<error>": [
+          "SpatialPredicateWorkspaceExceeded"
+        ]
+      },
+      "error_returns": {
+        "Exact.add()": "<inferred>",
+        "Exact.append()": "<inferred>",
+        "Exact.compress()": "<inferred>",
+        "Exact.grow()": "<inferred>",
+        "Exact.mul()": "<inferred>",
+        "Exact.sub()": "<inferred>",
+        "Interval.add()": "<inferred>",
+        "Interval.mul()": "<inferred>",
+        "Interval.sub()": "<inferred>",
+        "determinant()": "error { SpatialPredicateWorkspaceExceeded }",
+        "evaluate()": "<inferred>",
+        "incircle()": "<inferred>",
+        "insphere()": "<inferred>",
+        "matrixFor()": "<inferred>",
+        "orient2d()": "<inferred>",
+        "orient3d()": "<inferred>",
+        "validateCoordinate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-spatial/src/Reference.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidSpatialEncoding": 7,
+        "InvalidSpatialFrame": 2,
+        "InvalidSpatialPrecision": 1,
+        "InvalidSpatialReference": 5,
+        "SpatialOutputTooSmall": 1,
+        "SpatialReferenceMismatch": 1,
+        "UnsupportedSpatialOperation": 1,
+        "UnsupportedSpatialReference": 1
+      },
+      "outcomes": {
+        "Axes": [
+          "xy",
+          "xyz",
+          "longitude_latitude",
+          "longitude_latitude_height"
+        ],
+        "Manifold": [
+          "planar",
+          "wgs84_ellipsoid"
+        ],
+        "Precision": [
+          "exact",
+          "binary_grid"
+        ],
+        "VerticalDatum": [
+          "none",
+          "local",
+          "wgs84_ellipsoid"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "requirePlanar()": "<inferred>",
+        "requireSame()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-spatial/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Planar.zig",
+        "Predicates.zig",
+        "Reference.zig"
       ]
     },
     "packages/zig/transit-sql-client/src/Client.zig": {

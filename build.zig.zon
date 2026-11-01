@@ -34,6 +34,7 @@
         .transit_memory = .{ .path = "packages/zig/transit-memory" },
         .transit_bitmap = .{ .path = "packages/zig/transit-bitmap" },
         .transit_io = .{ .path = "packages/zig/transit-io" },
+        .transit_spatial = .{ .path = "packages/zig/transit-spatial" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
         .transit_storage = .{ .path = "packages/zig/transit-storage" },
         .transit_station = .{ .path = "packages/zig/transit-station" },

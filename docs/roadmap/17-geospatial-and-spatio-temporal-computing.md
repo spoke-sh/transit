@@ -1,561 +1,701 @@
 # 17. Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries
 
-[Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
+[Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-11-01))
 
-Deliver first-class **2D/3D geospatial, volumetric 3D model, discrete exterior
-calculus (DEC) / finite-volume cochain field and spatio-temporal
-storage, logical compression, indexing and vectorized/incremental query
-execution** across `TablePartition`, `StreamPartition`, `DocumentPartition` and
-`Fuze`. Formalize spatial, 3D volumetric and continuum field data under Transit's orthogonal
-**logical type ($\tau$), spatial reference/manifold/precision rule
-($\kappa_{\text{spatial}}$) and physical codec ($\epsilon$)** architecture, and
-exploit the mathematical duality between **cellular chain complexes ($C_0, C_1,
-C_2, C_3$) / cochain spaces ($C^0, C^1, C^2, C^3$) / discrete grid graphs** and continuous geometry to compress
-polygonal coverages, 3D manifold meshes, volumetric polyhedral solids,
-topology-decoupled finite-volume/DEC field slices (`COCHAIN_FIELD` with
-error-bounded `.float_zfp` bitplane encoding), instanced
-scene graphs, LiDAR point clouds, cell/octree coverings and moving-object
-trajectories in concert with the **DBSP / Z-set incremental dataflow engine**.
+An application declares spatial columns and their coordinate, precision and
+temporal rules, writes features through ordinary database operations, and queries
+them through finite or maintained Fuze plans. It can inspect the exact definition,
+source basis, index coverage, result completion and stopped progress. Geometry
+storage, an index build and a maintained computation have separate lifecycles.
 
-## Prerequisites and architectural rationale
+Deliver the full 2D/3D scope: geometry and geography, meshes and solids, instanced
+scenes, point clouds, rasters/grids, sparse matrices, topology-bound cochain
+fields, discrete cells and trajectories; columnar and topological compression;
+spatial access paths and serializable predicates; finite and incremental spatial
+computation. Preserve the scientific, medical, structural-biology and chip-layout
+workloads described below. Keep logical types (τ), spatial semantics
+(κ_spatial) and physical codecs (ε) orthogonal. These are planned capabilities,
+not additional types or SQL accepted by the current build.
 
-Consume [data identities](01-declarative-data-lifecycle.md),
-[`.tseg` storage and codecs](02-storage-and-query-performance.md),
-[statement results](04-statement-results-and-consumption.md),
-[transactions](05-transactions-and-atomic-composition.md),
-[declarative streams and queues](06-streams-queues-and-durable-runtime.md),
-[logical Document storage](07-document-storage-and-station-decoupling.md),
-[standards, collations and type formalizations](10-standards-and-catalogs.md),
-[indexing and access paths](11-indexing-and-access-paths.md),
-[analytical SQL, bitemporal `AS OF JOIN` and WAL-activated dataflows](12-sql-and-dataflows.md),
-[zero-allocation slabs, `CLUSTER BY` space-filling curves and WCOJ](13-data-structures-and-performance.md),
-[16-byte inline vector headers and Roaring posting intersections](14-vectorized-strings-and-search.md),
-[data-centric compilation and SIMD specialization](15-data-centric-compilation-and-specialization.md)
-and [Document profiles and `PDF` spatial layout spans](16-document-profiles-and-gateway-exchange-lifecycle.md).
-Start from [Tables](../handbook/reference/tables.md),
-[data types](../handbook/reference/sql/types.md),
-[storage runtime](../handbook/internals/storage-runtime.md) and
-[query engine](../handbook/internals/query-engine.md).
+## Implemented foundation
 
-This milestone resolves four foundational problems in 2D/3D spatial, volumetric
-3D model and spatio-temporal data systems:
+[`transit-spatial`](../../packages/zig/transit-spatial/README.md) now owns explicit
+coordinate-reference descriptors and their canonical, definition-bound bytes;
+filtered exact 2D/3D determinant predicates; and bounded scalar planar ring and
+polygon validation, point/segment classification and area. Fuze exposes the
+package through `Spatial`. The old default-filled
+`DecimalArithmetic.SpatialDescriptor` is removed instead of kept as a parallel
+interpretation authority. The [spatial contract](../../contracts/SPATIAL_V1.md)
+records admitted coordinates, 64-component expansion workspace, borrowed
+lifetimes, strict polygon validity and refusal behavior.
 
-1. **Bridging the Cellular Chain Complex $\leftrightarrow$ Continuous Manifold Duality ($\tau \perp \kappa_{\text{spatial}} \perp \epsilon$):**
-   Discrete structures in 2D and 3D computational geometry form a graded
-   **Cellular Chain Complex ($C_0, C_1, C_2, C_3$)** equipped with linear
-   boundary operators $\partial_k: C_k \to C_{k-1}$ satisfying the fundamental
-   homological identity $\partial_{k-1} \circ \partial_k = 0$:
-   $$C_3 \text{ (3-Solids/Volumes)} \xrightarrow{\partial_3} C_2 \text{ (Oriented 2-Faces)} \xrightarrow{\partial_2} C_1 \text{ (Directed 1-Edges)} \xrightarrow{\partial_1} C_0 \text{ (0-Vertices)}$$
-   A 2D polygonal coverage or road network is a planar Doubly-Connected Edge
-   List (DCEL) over $(C_0, C_1, C_2)$, a 3D manifold mesh or polyhedral B-Rep
-   solid (`MESH3D`, `SOLID3D`) is a Half-Edge / Radial-Edge complex over
-   $(C_0, C_1, C_2, C_3)$ whose coboundary operator $\delta_2 = \partial_3^\top$
-   maps each shared 2-face to `(left_solid, right_solid)` (defining the dual room
-   / mechanical-part adjacency graph), a Discrete Global Grid or Octree (`S2`,
-   `H3`, `OCT_CELL`) is a hierarchical tree vertically and a $k$-regular
-   adjacency graph horizontally, and a 2D/3D spatial join (`ST_Intersects`,
-   `ST_3DIntersects`) defines a bipartite intersection or clash graph $G_\bowtie$.
-   Yet unlike a pure property graph where edges are declared by discrete key
-   equality (`u.id = e.src`), spatial and volumetric incidence is **implicit in
-   a continuous metric manifold**:
-   - Coordinates are interpreted under a **Coordinate Reference System (CRS /
-     SRID)**, vertical datum and axis/unit convention: Euclidean straight lines
-     and flat planes in `GEOMETRY` / `MESH3D` / `SOLID3D` (`PLANAR`, including
-     local engineering/CAD/BIM `SRID 0` with explicit unit scale `mm`/`m` and
-     `RightHanded_ZUp` vs. `YUp` orientation, or 3D `EPSG:4979` ellipsoidal /
-     `EGM2008` orthometric height) versus great-circle / ellipsoidal arcs on the
-     WGS84 ellipsoid in `GEOGRAPHY` (`GEODESIC`, with $\pm 180^\circ$
-     antimeridian wrapping and polar singularities).
-   - $\ge 2$-dimensional spaces have **no canonical 1D total order**: any
-     space-filling curve ($\mathbb{R}^2 \text{ or } \mathbb{R}^3 \to \mathbb{R}^1$
-     via 2D/3D Hilbert or Z-order/Morton) suffers quadrant/octant-boundary
-     discontinuities, requiring multi-dimensional bounding-box zone maps
-     (`BBOX2D` `[xmin, ymin, xmax, ymax]` and `BBOX3D` `+ [zmin, zmax]`) and
-     multi-interval range decomposition for sound pruning.
-   - Naive IEEE-754 `float64` coordinate arithmetic is non-associative and
-     topologically brittle: without **Shewchuk adaptive-precision exact
-     orientation predicates (`orient2d`, `orient3d`, `incircle`, `insphere`)**
-     and a **deterministic 2D/3D Snap-Rounding Grid ($\delta_{\text{grid}}$)**,
-     boolean overlays (`ST_Intersection`, `ST_Union`, `ST_3DUnion`,
-     `ST_3DDifference`) produce self-intersecting slivers, non-manifold edges or
-     platform-dependent FMA drift.
-   By formalizing $\kappa_{\text{spatial}} = (\text{SRID}, \text{Manifold},
-   \text{VerticalDatum/Axes}, \delta_{\text{grid}}, \text{SpaceFillingCurve})$ as
-   the spatial analog of string collation $\kappa$, every 2D/3D spatial
-   comparison, index probe, zone map and constructive operator executes
-   deterministically across architectures.
-2. **Logical 2D & 3D Compression in Concert with the DBSP / Z-Set Incremental Engine:**
-   Conventional spatial and 3D extensions (PostGIS / SFCGAL, DuckDB Spatial,
-   uncompressed STL/OBJ/WKB blobs) store each polygon or 3D triangle soup as an
-   isolated vertex/triangle array. That representation duplicates shared 1-edges
-   and 2-faces between adjacent features, wastes 384 bits per triangle on pointer
-   connectivity, duplicates identical CAD/BIM parts (`M8` bolts, structural
-   columns, chairs) thousands of times across an assembly, forces $O(F^2)$
-   triangle-triangle intersection tests during 3D clash detection, and makes
-   `ST_Union`, `ST_3DUnion` and `SUM(ST_Volume)` non-linear cascades that cannot
-   retract deleted (`-row`) features in an incremental dataflow. Transit combines
-   eight logical compression primitives with [Milestone 12's](12-sql-and-dataflows.md)
-   DBSP Z-set engine:
-   - **Topological Shared-Arc (`.topo_arc`) & Shared-Face (`.topo_face`) Decomposition + Discrete Divergence Theorem $\implies$ Linear Z-Set `ST_Union`, `ST_3DUnion` & Volume Aggregates:**
-     In 2D coverages (`.topo_arc`), shared 1-chains between junctions are stored
-     once per segment and polygons reference signed chain IDs (`[+e_1, +e_2, -e_7]`).
-     In 3D cellular complexes (`.topo_face`), shared 2-faces between adjacent 3D
-     solids (BIM rooms sharing a wall/slab, geological strata, finite-element
-     cells) are stored once with coboundary `(left_solid, right_solid)` links and
-     solids reference signed face IDs (`[+f_1, +f_4, -f_9]`). Because adjacent
-     regions traverse shared boundaries in opposite orientations ($+\vec{e}/-\vec{e}$
-     in 2D, $+\vec{f}/-\vec{f}$ in 3D), **boundary homology turns incremental
-     `ST_Union(geom)` and `ST_3DUnion(solid)`—including `-row` retractions—into
-     linear Z-set integer weight addition and cancellation**:
-     $$\partial_2(F_1 \cup F_2) = \partial_2 F_1 \oplus \partial_2 F_2 \quad ((+\vec{e}) + (-\vec{e}) = 0), \qquad \partial_3(V_1 \cup V_2) = \partial_3 V_1 \oplus \partial_3 V_2 \quad ((+\vec{f}) + (-\vec{f}) = 0)$$
-     Furthermore, by the **Discrete Divergence Theorem (Gauss–Ostrogradsky)**, the
-     signed volume, centroid and inertia tensor of any closed 3D solid $V$ reduce
-     to linear sums over its oriented boundary triangles $\partial_3 V$:
-     $$\text{Volume}(V) = \frac{1}{6} \sum_{f=(p_1, p_2, p_3) \in \partial_3 V} \text{orient3d}(0, p_1, p_2, p_3)$$
-     making incremental 3D volume, surface-area and mass-property maintenance an
-     $O(|\Delta \partial_3 V|)$ Abelian group sum in DBSP.
-   - **Succinct Edgebreaker Mesh Connectivity & Wavelet LOD (`.mesh_edgebreaker`) $\implies$ $<2\text{ Bits/Triangle}$ + Progressive Streaming:**
-     Instead of storing $3 \times 32 = 96$ bits of vertex indices per triangle,
-     manifold 3D meshes decompose into a **vertex spanning tree + dual triangle
-     spanning tree** encoded via **Rossignac Edgebreaker (`CLERS` opcodes)** and
-     [Milestone 7's](07-document-storage-and-station-decoupling.md) $2N$-bit
-     Balanced Parentheses (`BP`) succinct tree bitvectors in **$< 2$ bits per
-     triangle**, paired with **parallelogram vertex prediction**
-     ($\hat{v}_{\text{new}} = v_L + v_R - v_{\text{opp}}$) zig-zag varint
-     residuals, 16-bit **octahedral unit normals**, and **multi-resolution wavelet
-     LOD page prefixes** (`LOD_0` coarse base mesh $\to$ `LOD_k` progressive
-     vertex-split refinements) so queries and viewport renderers read only the
-     required LOD prefix.
-   - **Hierarchical `INTERIOR` / `BOUNDARY` 2D Cell (`.s2_roaring`) & 3D Octree/Voxel (`.octree_roaring`) Coverings $\implies$ $O(1)$ Short-Circuit Spatial Joins & 3D Clash Detection:**
-     2D geometries decompose into `S2`/`H3` cells (`.s2_roaring`) and 3D solids
-     decompose into 64-bit hierarchical Morton/Hilbert octree cells (`OCT_CELL`
-     in `.octree_roaring`), partitioned into **`INTERIOR` cells/octants** (100%
-     inside the polygon/solid, compressed into `.tseg` Roaring bitmaps with zero
-     vertex/triangle storage) and **`BOUNDARY` (narrow-band surface) cells/octants**
-     (storing only the clipped local edge/triangle patch or a quantized
-     Dual-Contouring Signed Distance Field `SDF` + Hermite surface normal). In
-     finite and incremental bilinear joins ($dA \bowtie B + A \bowtie dB + dA \bowtie dB$),
-     any collision with an `INTERIOR` cell/octant immediately evaluates
-     `ST_Intersects`, `ST_Contains` or 3D BIM/CAD clash detection
-     (`ST_3DIntersects`, `ST_3DClearance`) to `TRUE` in **$O(1)$ Roaring bitmask
-     time with zero floating-point triangle-triangle math**, while local surface
-     edits emit Z-set deltas (`+oct_cell`/`-oct_cell`) only for the touched
-     octants.
-   - **Instanced Scene-Graph DAGs (`.scene_dag`) & Lie Group $SE(3)/\text{Sim}(3)$ Action $\implies$ Zero-Copy Kinematic Updates:**
-     Canonical 3D part geometries (`MESH3D` / `SOLID3D`) are stored once in a
-     `.tseg` prototype dictionary (`prototype_id -> .mesh_edgebreaker + .octree_roaring`),
-     while scene graphs and CAD/BIM assemblies (`SCENE3D`) are stored as compact
-     relational DAG rows `(node_id, parent_id, prototype_id, transform_se3, world_bbox3d)`
-     with 48-byte `TRANSFORM3D` rigid/similarity transforms (`vec3` translation +
-     `quat4` unit quaternion + scale). Moving a robot arm, vehicle or assembly
-     sub-tree updates only the 48-byte `TRANSFORM3D` in `TWAL1` and transforms the
-     local octree/BBOX on the fly without copying or re-indexing the prototype's
-     triangles.
-   - **3D Hilbert Point-Cloud Compression (`.pcloud_hilbert`) & 4D Dead-Reckoning Trajectory Tubes $\implies$ Sub-Byte Point Clouds & Semantic Delta Suppression:**
-     LiDAR, photogrammetry and RGB-D `POINTCLOUD` tables cluster points by 3D
-     Hilbert key (`CLUSTER BY HILBERT3D(pt)`) into 4,096-point `.pcloud_hilbert`
-     blocks with Frame-of-Reference (`FOR`) bitpacked $(\Delta x, \Delta y, \Delta z)$
-     offsets from the block's `BBOX3D` origin. Moving-entity streams
-     (`StreamPartition`) compress colinear constant-velocity runs within
-     $\varepsilon_{\text{meters}}$ into 4D `(x0, y0, z0, t0) -> (x1, y1, z1, t1)`
-     `TRAJECTORY` tubes, waking downstream continuous geofences and 3D zone
-     watches only when a trajectory deflects outside its $\varepsilon$-tube or
-     crosses an `S2`/`H3`/`OCT_CELL` covering boundary.
-   - **Topology-Decoupled Discrete Exterior Calculus (DEC) / Finite-Volume Cochain Fields (`COCHAIN_FIELD`) & Error-Bounded Bitplane Float Compression (`.float_zfp`) $\implies$ Zero-Duplication Continuum Time Series & Linear Z-Set Flux Conservation:**
-     In Computational Fluid Dynamics (CFD), weather/ocean modeling and continuum
-     mechanics, an unstructured polyhedral finite-volume mesh (`polyMesh`) is a
-     `.topo_face` cellular complex $(C_0, C_1, C_2, C_3)$ whose coboundary
-     operator $\delta_2 = \partial_3^\top: C_2 \to C_3 \times C_3$ is the exact
-     `owner[f]` / `neighbour[f]` face-adjacency table. Rather than duplicating a
-     multi-gigabyte mesh across 10,000 timesteps, Transit stores the immutable or
-     incrementally remeshed `.topo_face` / `OCT_CELL` topology once in a cataloged
-     mesh table (`mesh_definition_id`, with cells ordered by `HILBERT_3D` or
-     Reverse Cuthill–McKee `RCM` bandwidth reduction so $>90\%$ of interior faces
-     connect cells within the same L1d/L2 cache morsel) and represents each
-     timestep's physical state as a **topology-decoupled `COCHAIN_FIELD` column**
-     over dual cochain spaces: 0-cochains $C^0$ (nodal potentials), 1-cochains
-     $C^1$ (edge circulations $\int_e \vec{u} \cdot d\vec{\ell}$), 2-cochains
-     $C^2$ (oriented face fluxes $\Phi_f = \int_f \rho \vec{u} \cdot d\vec{A}$)
-     and 3-cochains $C^3$ (cell-averaged conserved states $\rho, \rho\vec{u}, E, p$).
-     Because continuous IEEE-754 mantissas appear pseudo-random to integer
-     bitpacking/LZ4, floating-point field arrays in `COCHAIN_FIELD`,
-     `RASTER2D`/`GRID3D` and [Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md)
-     `VOLUME_GRID` use **`.float_zfp` error-bounded bitplane compression**: a
-     $4^d$ ($4\times 4\times 4$) `HILBERT_3D`-blocked decorrelating lifting
-     transform with embedded bitplane coding governed by $\kappa_{\text{numeric}}$
-     (`LOSSY_ABS_TOL(eps)` $\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$,
-     `FIXED_RATE(bits)` or `LOSSLESS`), storing conservation-preserving block
-     headers (`min`, `max`, exact block mean/integral in the 0th transform
-     coefficient, `max_gradient_norm`, `max_divergence`) and enabling progressive
-     most-significant-bitplane streaming. By the **Generalized Stokes /
-     Gauss–Ostrogradsky Theorem** ($\langle d\omega, c \rangle = \langle \omega, \partial c \rangle$),
-     net control-volume flux across any union of 3-cells reduces to a linear
-     DBSP Z-set sum over 2-cochain face fluxes where shared interior faces cancel
-     identically ($(+\Phi_f) + (-\Phi_f) = 0$).
-   - **2.5D VLSI / EDA Manhattan Chip Layouts (`.layout_manhattan`), 3D Structural-Biology Atomic Clouds & Block-Compressed Sparse Matrices (`.sparse_bcsr`) $\implies$ Incremental DBSP `DRC`/`LVS` & Spatial Multi-Omics:**
-     Semiconductor physical designs (`OASIS` / `GDSII` / `LEF` / `DEF`) repeat
-     standard cells and `SRAM` bitcells $10^8\text{–}10^{11}$ times on a
-     nanometer integer grid ($\delta_{\text{grid}} = 1\,\text{nm}$) across 50–100
-     metal/via layers (`M1..Mn`, `V1..Vn`). By specializing `.scene_dag` and
-     `.topo_arc` into **`.layout_manhattan`** (encoding axis-aligned/45° integer
-     rectangles, $D_4$ dihedral reflections/rotations, and 2D array pitch
-     `(nx, ny, dx, dy)`), **Design Rule Checking (`DRC`: minimum width, spacing,
-     enclosure via `ST_DWithin` / boundary cancellation)** and **Layout-Versus-Schematic
-     (`LVS`: via-connected SQL/PGQ netlist extraction)** evaluate incrementally in
-     DBSP in $O(|\Delta \text{tiles}|)$ when an engineer edits a cell on a branch.
-     In structural biology and spatial omics, 3D protein/molecular structures
-     (`PDB` / `mmCIF`) map onto `.pcloud_hilbert` at Ångström precision
-     ($\delta_{\text{grid}} = 10^{-3}\,\text{Å}$) with **Solvent-Accessible
-     Surface Area (`SASA`) and Connolly excluded volume** computed via
-     `.octree_roaring` (`INTERIOR`/`BOUNDARY` van der Waals sphere unions),
-     subcellular mRNA transcript spots (`10x Xenium`/`MERFISH`) join against 2D/3D
-     segmented cell boundaries via `INTERIOR`-short-circuited coverings, and
-     single-cell expression matrices (`AnnData` `.h5ad` / `TileDB-SOMA`) compress
-     into **`.sparse_bcsr` (Block-Compressed Sparse Row/Column with Roaring
-     non-zero bitmaps)**.
-3. **16-Byte Inline Spatial Vector Headers & Columnar `.geoarrow` / 3D Execution:**
-   Mirroring [Milestone 14's](14-vectorized-strings-and-search.md) 16-byte
-   Umbra/German string header, `Fuze`'s `Batch.zig` represents 2D and 3D spatial
-   columns with a **16-byte Inline Spatial Header**
-   (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`).
-   2D `POINT(x, y)` coordinates reside completely inline with zero pointer
-   indirection, while 2D/3D polylines, polygons, `MESH3D`, `SOLID3D` and
-   `POINTCLOUD` patches carry an inline quantized 64-bit 2D/3D bounding box and
-   32-bit `S2` or 3D Hilbert/`OCT_CELL` prefix so SIMD filter and join kernels
-   reject $>95\%$ of non-intersecting pairs in CPU registers before touching
-   out-of-line `.geoarrow` or `.mesh_edgebreaker` buffers.
-4. **Five-State 2D/3D Topological Validity & Three-Way Spatial/Volumetric Branch Merging:**
-   Malformed external 2D/3D geometries (unclosed polygon rings, bow-tie
-   self-intersections, non-manifold 3D edges with $>2$ incident faces, open /
-   non-watertight `SOLID3D` shells where $\partial_2(\partial_3 V) \neq 0$ or the
-   Euler–Poincaré invariant $V - E + F = 2(1 - g)$ fails, inverted face normals,
-   non-unit quaternions, `NaN`/`Inf` coordinates or unknown SRIDs) never abort a
-   bulk `COPY` or silently produce bogus `ST_Area` / `ST_Volume` results: they
-   are preserved as **`IS TYPE_ERROR`** cells with exact ring/face/edge/byte
-   provenance (`NonManifoldEdge at shell 0, edge 412; OpenBoundaryLoop at face 89`),
-   inspectable via `ST_IsValidReason` / `ST_IsSolid` and repairable via
-   declarative `ST_MakeValid` / `ST_3DMakeValid` (hole-filling, normal
-   orientation or SDF voxel-remeshing). Across branches
-   ([Milestone 20](20-branches-merges-and-restore.md)), incompatible edits to
-   shared `.topo_arc` / `.topo_face` boundaries or 3D spatial clash collisions
-   surface natively as **`IS CONFLICT`** cells.
+`just test::spatial` runs native Debug/ReleaseFast units and an independent
+rational oracle. This is the first S0/S1 implementation slice. Reference and
+predicate APIs do not add spatial Table/SQL/Arrow values, indexes, topological
+codecs or maintained queries. S0 still needs the full type/consumer cutover;
+S1 still needs exact constructions, additional planar operations, transforms,
+geodesic kernels and executed cross-target qualification. S2–S11 remain planned.
 
-```mermaid
-flowchart LR
-  subgraph Declare["1. Spatial & 3D Declarations (τ ⊥ κ_spatial ⊥ ε)"]
-    Types["τ: GEOMETRY · GEOGRAPHY · BBOX2D/3D\nMESH3D · SOLID3D · POINTCLOUD · SCENE3D · RASTER2D/GRID3D\nCOCHAIN_FIELD (C^0..C^3) · S2_CELL · H3_CELL · OCT_CELL · TRANSFORM3D · TRAJECTORY"]
-    Kappa["κ_spatial: CRS/SRID · Vertical Datum & Axes\nManifold (PLANAR / GEODESIC) · Grid δ_grid\nShewchuk Exact (orient2d/3d, incircle, insphere)\nCurve (S2_HILBERT / H3 / HILBERT_3D / RCM)"]
-  end
+## Implementation plan — 2026-11-01
 
-  subgraph Storage["2. Logical 2D/3D Compression & .tseg Storage"]
-    Codecs["ε Physical Codecs:\n• .geoarrow SoA & .twkb_delta Varints\n• .topo_arc (2D DCEL) & .topo_face (3D C_3 -> C_2 + C^k Cochains)\n• .mesh_edgebreaker (<2 bpt BP/CLERS + Wavelet LOD)\n• .s2_roaring (2D) & .octree_roaring (3D + Narrow-Band SDF)\n• .scene_dag (Prototype Dict + SE(3)) · .pcloud_hilbert · .float_zfp"]
-    Indexes["2D/3D Zone Maps & Access Paths:\n• Per-Row-Group BBOX2D / BBOX3D + S2/OCT Roaring\n• Static 2D/3D Hilbert R-Tree & S2/H3/OCT Covering Index\n• 2D/3D Spatial-Range SSI Conflict Tracking"]
-  end
+**Source basis:** fetched `origin/main` at
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. This plan includes merged progress
+through the Stream/Queue integration and transaction-replay correction. It does
+not assume changes on feature branches have landed. Implementation has begun with the local contract and kernel slice below.
+The remaining stages retain their gates; this does not complete S0 or S1.
+The implementation subsequently integrates `origin/main` at
+`3908dc68cd22c2b1f0fc156895f00709089fc922`, including its distinct browser/branch
+record cutover and shared definition. Spatial reference fixtures bind that
+current definition; earlier bytes are not reinterpreted.
+The next integration at `f49a3da6502ac8d3e12347a3812d6d81404d8d47` preserves
+the expanded scientific scope and new M19 game/simulation milestone; branches
+are now M20 and subsequent owners are renumbered. Its shared-client admission
+and direct-KV recovery changes do not change the spatial definition bytes.
 
-  subgraph Exec["3. Vectorized & Incremental DBSP Execution (Fuze)"]
-    Inline["16-Byte Inline Spatial Header in Batch.zig\n(Inline 2D Point / Register-Resident Quantized 2D/3D MBR)"]
-    DBSP["Algebraic Z-Set Incremental Operators:\n• Half-Edge ST_Union (+e + -e = 0) & Face ST_3DUnion (+f + -f = 0)\n• Divergence-Theorem Linear 3D Volume & Cochain Face Flux (+Φ_f + -Φ_f = 0)\n• INTERIOR-Short-Circuited 2D Joins & 3D Clash Detection\n• SE(3) Rigid-Body Instancing & Trajectory Tubes"]
-  end
+Start with [data identities](01-declarative-data-lifecycle.md),
+[local storage](02-storage-and-query-performance.md),
+[Tables](../handbook/reference/tables.md),
+[types](../handbook/reference/sql/types.md),
+[queries](../handbook/reference/queries.md),
+[storage mechanisms](../handbook/internals/storage-runtime.md) and
+[query mechanisms](../handbook/internals/query-engine.md).
+The [verification reference](../handbook/reference/verification.md) and
+[qualification ledger](../history/qualification/README.md) govern evidence.
+Historical passing runs qualify their own revisions; their union is not a
+passing integrated spatial profile.
 
-  Types --> Codecs
-  Kappa --> Codecs
-  Codecs --> Indexes
-  Indexes --> Inline --> DBSP
-```
+### Delivered foundations and actual gaps
 
-## Orthogonal spatial & 3D type, manifold and codec matrix ($\tau \perp \kappa_{\text{spatial}} \perp \epsilon$)
+| Boundary at the source basis | Reuse | Remaining work relevant to M17 |
+| --- | --- | --- |
+| M1–M5 data, storage and results | Direct Table identities, immutable definitions, retained cuts, WAL/segment publication, original-token recovery, local serializable Table transactions and shared command/result-set lifecycles | Add spatial interpretation to every affected persisted and caller boundary. M5's conservative whole-Table read conflicts do not provide spatial predicate SSI. M3 remains In Progress for its own installed-lifecycle obligations. |
+| [M6 Stream/Queue progress](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv) | Named direct KV; signed Stream/Queue operations; shared bitmap storage; native Table/KV plus append/ACK/offset composition, including an installed mixed-decision proof; installed Stream/Queue declaration SQL | Workload SQL verbs, retained Fuze `STREAM_SLICE`, transactional Station migration, automatic DLQ scheduling and final integrated fault qualification remain open. Trajectories must consume the real retained Stream owner. |
+| [M7 Document progress](07-document-storage-and-station-decoupling.md#delivered-basis-and-remaining-obligations) | `SuccinctTree`, `SpanText`, shredding and `DocumentPartition` components, authority and retained-graph foundations | Persisted tree/subcolumn integration, database-derived state, direct public operations, transactions and consumer cutover remain unfinished. A BP helper is not a ready paged mesh store or an installed spatial Document source. |
+| [M8 gateway](08-gateway-architecture-and-protocol-ingress.md#current-implementation-and-evidence) and [M9 clients](09-client-foundation-and-language-apis.md#current-implementation-and-gaps) | Co-hosted database SQL, event-driven recovery, resumable wire foundations; extracted data callers, result ownership and frozen SQL submissions | Compose new types with existing owners. Broader managed handles, wire/Flight coverage and coarse remote execution retain their own gates. No spatial polling service or independent retry/result protocol. |
+| [M10 types and history](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30) | Standards ledger, comparison helpers and caller-owned historical descriptors | `Types.Tag` and the type contract admit no spatial family. `DecimalArithmetic.SpatialDescriptor` is a standalone helper, rejects SRID 0, and is not persisted in Table schemas. Complete the descriptor/value/schema cutover; do not treat the helper's defaults as a selected CRS policy. |
+| [M11 indexes](11-indexing-and-access-paths.md) | `IndexLifecycle` neutral identities, bindings and coverage descriptors | Milestone remains Planned. No installed secondary-index declaration/build/publication or executable `CREATE INDEX`; spatial access methods require an explicit extension and M11's durable lifecycle. |
+| [M12 dataflows](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30) | Finite analytical and Z-set component oracles, managed-lifecycle helpers and source-frontier contracts | `FuzeDelta.ZSet` has 256 resident entries; `Arrangement` updates resident state and counters. Spatial invocation returns `SpatialZSetExecutionDeferredToM17`. These are not durable spatial arrangements, actual NVMe spill or installed WAL-driven spatial views. |
+| [M13 resources](13-data-structures-and-performance.md#result-path-implementation-checkpoint), [M14 strings/search](14-vectorized-strings-and-search.md#delivered-implementation-evidence--2026-10-30) | `transit-memory` reserves/leases/`AllocationProbe`, `GermanString`, compressed predicates, search oracles and bitmap intersections | Result-path and helper evidence does not establish zero-allocation spatial scans, a swizzled buffer pool or integrated search/index maintenance. Reuse ownership and measurement mechanisms, not string layouts verbatim. |
+| [M20 immutable Table branches](20-branches-merges-and-restore.md#local-table-branch-increment) | Named read-only single-Table branches retain exact definitions, unflushed rows and original outcomes through collection/restart | Preserve spatial descriptors and referenced codec objects in those cuts. Writable branches, three-way spatial merge, catalog-wide snapshots and forward restore remain M20 work. |
 
-| Logical Type ($\tau$) | Spatial Reference, Manifold & Precision ($\kappa_{\text{spatial}}$) | Physical `.tseg` & `Batch` Codecs ($\epsilon$) | Five-State & Incremental DBSP Semantics |
+Concrete starting points are
+[`Types`](../../packages/zig/transit-fuze/src/Types.zig),
+[`Values`](../../packages/zig/transit-fuze/src/Values.zig),
+[`TableSchema`](../../packages/zig/transit-fuze/src/TableSchema.zig),
+[`Batch`](../../packages/zig/transit-fuze/src/Batch.zig),
+[`TSeg`](../../packages/zig/transit-fuze/src/TSeg.zig),
+[`TSegReader`](../../packages/zig/transit-fuze/src/TSegReader.zig),
+[`DecimalArithmetic`](../../packages/zig/transit-fuze/src/DecimalArithmetic.zig)
+and [`FuzeDelta`](../../packages/zig/transit-fuze/src/FuzeDelta.zig).
+Comments naming a future codec or durable arrangement are not evidence that its
+storage and caller path exists.
+
+At the later integration, M9 additionally supplies bounded fair admission waits
+and shared-context direct-KV composition with persisted original mutation
+recovery. Spatial callers should reuse these owners when their own operations
+are admitted; this progress does not add spatial SQL/ABI values or general
+spatial retry semantics. The upstream branch fixture also now supplies its
+mandatory Table kind. Evidence from earlier revisions does not qualify these
+integrated changes automatically.
+
+### Scientific scope integrated from recent roadmap changes
+
+These requirements remain planned and are part of S0–S11, not a capability of
+the implemented scalar reference/predicate package. Define their logical types,
+semantic descriptors and physical encodings separately:
+
+| Family | Contract and implementation work | Stage and acceptance gate |
+| --- | --- | --- |
+| `COCHAIN_FIELD(degree, mesh_ref, T)` | Bind degree 0–3, exact mesh `DefinitionId`, ordered cell/edge/face/node identities, orientation, physical units, time and numeric rules. Store topology once through `.topo_face`/`OCT_CELL`, with explicit retained dependencies and remeshing/restriction/prolongation rules. Specify primal/dual interpretations: nodal samples, edge circulations, integrated face fluxes and cell averages are not interchangeable. | S0/S2 descriptors; S6/S7 topology; S8 field storage; S10 maintained flux. Refuse dimension/definition mismatches and test orientation, remeshing and retained mesh lifetime. |
+| `.float_zfp` field/grid encoding | Qualify a Zig block transform and progressive bitplane representation under distinct `LOSSLESS`, `FIXED_RATE(bits)` and `LOSSY_ABS_TOL(eps)` contracts. Define 4^d block packing, traversal, exception handling and error propagation. Conservative min/max and derivative summaries need proofs for each reconstruction level; exact integrals require separately retained exact information or a proved conservative transform. | S2/S8 encoding and S11 independent reconstruction/error oracles. Fixed rate alone promises no pointwise error bound; a truncated prefix is not exact completion. |
+| `RASTER2D` / `GRID3D` | Define dimensions, bands, nodata/validity, affine pixel-to-CRS or patient-frame mapping, axis order, units and resampling (`NEAREST`, `BILINEAR`, `MIN`, `MAX`). `.raster_morton` supplies bounded overview tiles and sound min/max/integral summaries; `.float_zfp` is an independent numeric codec choice. Include EO/DEM/pathology imagery and RAS/LPS medical frames. | S0/S2 typed admission; S3/S8 `ST_Value`, `ST_Band`, `ST_Clip`, `ST_Slope`, `ST_Hillshade`, map/volume algebra and terrain raycast. Test invalid transforms, nodata boundaries, rotated grids and error-qualified overviews. |
+| `SPARSE_MATRIX` / `.sparse_bcsr` | Bind shape, element type, row/column identities and duplicate/zero semantics. Implement paged block-compressed row/column data with Roaring nonzero indexes and bounded sparse reductions. Spatial interpretation requires an explicit axis/frame binding; sparse storage alone supplies none. | S0/S2/S8 values and codec; S3 finite reductions, coordinated with M18. Compare dense and independent sparse oracles, including empty rows, duplicate coordinates and huge logical shapes. |
+| EDA/VLSI `.layout_manhattan` | Specialize scene/topology storage for exact integer grids, layer identities, axis-aligned/45-degree boundaries, D4 transforms and repeated arrays `(nx, ny, dx, dy)`. Track changed instances and dependent spatial tiles for DRC width/spacing/enclosure and M18 graph-based LVS. | S0 grid/layer semantics; S6/S8 compressed instances; S10 delta maintenance. Compare finite recomputation after shared-cell edits; large fanout and global connectivity changes must be charged, not hidden behind an O(changed tiles) claim. |
+| Structural biology and spatial omics | Preserve explicit Ångström/micrometer frames and declared precision for atomic/transcript point clouds, typed attributes and segmentation boundaries. Qualify SASA/Connolly-volume oracles, sphere-union coverings and transcript-in-cell joins; connect expression matrices by declared row identities. | S0 interpretation; S7/S8 sphere/cloud representations; S3/S10 finite/incremental spatial joins. Exact and approximate surface/volume results carry separate error contracts. |
+
+Shared-face cancellation gives a linear net-flux sum only for consistent oriented
+incidence and one compatible field basis. Treat the coboundary as the transpose
+of the boundary incidence map on the corresponding cochain spaces; an
+owner/neighbour directory is its sparse incidence representation, not its whole
+type. Test cancellation under insertions, retractions, reversed orientation and
+mesh replacement. Floating-point conservation and derived gradients need their
+own accumulation/error rules. Positive density/pressure, CFL limits and DRC
+constraints are declared domain policies; they are not universal geometry
+validity rules or permissions for the generic kernel to repair accepted data.
+
+Evaluate `HILBERT_3D` and Reverse Cuthill–McKee ordering with explicit remapping
+identities and workload measurements. Cache-locality percentages, pruning ratios,
+compression factors and constant-time incremental claims are benchmark targets,
+not properties implied by choosing an ordering or codec. S11 must include
+independent scientific-field, raster, matrix and layout oracles alongside geometry.
+
+M18 owns external adapters for CGNS, VTK/VTU/VTI/PVD, OpenFOAM polyMesh/time
+directories, Zarr v3, NetCDF-4/HDF5, GRIB2, EXODUS II and Alembic, plus the
+relevant DICOM/NIfTI, PDB/mmCIF, AnnData/TileDB-SOMA and OASIS/GDSII/LEF/DEF
+profiles. M17 supplies their typed spatial/array interpretation and operators.
+M19 extends the same retained topology, fields and numeric rules into simulation
+streaming and asset cooking; see the later-owner boundary below.
+
+### Dependency gates and scope boundaries
+
+| Owner | Gate consumed by M17 | Work that can proceed before the whole owner milestone completes |
+| --- | --- | --- |
+| M6 | Retained Stream schema/offset cuts, current authorization, complete change coverage and applicable mixed commit decisions | Table spatial types, finite queries and codecs; Stream adapters wait for their exact source gate, not all Station migration. |
+| M7 | Integrated paged Document projections, raw-span evidence and accepted revision/change bindings | Independent spatial kernels and Table storage. Share BP algorithms through package interfaces only after checking their bounds; Document adapters wait for C2–C6. |
+| M10 | Immutable descriptor identity, historical interpretation and capability classification | Agree spatial descriptors alongside companion types. Basic exact Table cuts do not require general historical SQL; historical spatial selectors wait for M10's durable catalog work. |
+| M11 | Durable index declaration/build/catch-up/publication, row-version identity and predicate conflict tracking | Full-scan spatial execution, segment zone maps and private access-method prototypes. No installed spatial index or fine-grained SSI claim until the common lifecycle is ready. |
+| M12 | Paged arrangements, actual spill/checkpoint/recovery, complete WAL activation, common transaction barriers and event-time contracts | Finite spatial oracle and component delta algebra. Public maintained spatial execution waits for P5/P6 integration; `AS OF JOIN` waits for P4. |
+| M13/M14 | Shared allocation/resource meters, bounded source buffers and reusable bitmap/vector machinery | Scalar and bounded vector kernels with measured allocations. Full-query spill and zero-allocation claims need evidence from actual owners. |
+| [M15 compilation](15-data-centric-compilation-and-specialization.md) | Operator traits and stable batch ABI for fused/AOT/adaptive kernels | Interpreted/vector spatial execution is the initial implementation. Compiled specialization is an optimization after equivalent semantics; M17 does not build a second compiler. |
+| [M16 profiles](16-document-profiles-and-gateway-exchange-lifecycle.md) | Exact part/tree/span provenance and layout coordinate descriptors | Spatial types and WKT/WKB/GeoJSON value codecs. PDF page spans and compound CAD/BIM/document ingestion wait for their owning profiles. |
+
+The critical path for the first usable increment is **S0 → S1 → S2 → S3**.
+Spatial indexing follows **S3 → S4 → S5**, gated by M11. Topological and 3D work
+extends the same types and finite oracle through **S6 → S7 → S8**. Trajectory
+execution S9 needs the relevant M6/M10/M12 seams. Maintained execution S10 needs
+qualified finite operators and M12's durable runtime. S11 closes the integrated
+milestone. Independent kernels and fixtures can develop alongside prerequisites;
+a missing prerequisite keeps only its dependent public profile closed.
+
+### Implementation ownership
+
+| Owner | M17 responsibility |
+| --- | --- |
+| `packages/zig/transit-spatial` | Pure Zig predicates and coordinate rules, extended by planned topology, grid algorithms and scalar reference execution; no storage, policy, clock or transport dependency |
+| `transit-fuze` | Logical descriptors/values, SQL lowering, `Batch`/vector kernels, shared `.tseg` encoding/reading, spatial plans and delta operators |
+| `transit-storage` | Table/Stream/Document integration, paged topology/prototype/index objects, retained graph, maintenance and transaction participation |
+| `transit-catalog` and `transit-protocol` | Exact definition and dependency bindings, neutral lifecycle/transaction messages, current authorization and recoverable publication |
+| `transit-sql` and existing gateway adapters | Statement execution and individually admitted wire mappings over shared typed operations |
+| `transit-data-client`, `transit-sql-results`, `transit-sql-client`, ABI and SDK owners | Typed parameters/values, bounded result ownership, original-operation recovery and complete affected-consumer cutover |
+| `transit-memory`, shared bitmap owners and M12/M13 runtime owners | Accounted reusable buffers, conservative bitmap candidates and real paged/spill/checkpoint machinery |
+
+### Contract decisions before runtime exposure
+
+**Identity and lifetime.** A spatial value belongs to its ordinary Table, Stream
+or Document object. Bind source/column identities, exact definition, CRS registry
+content, precision and algorithm rules into schemas, plans, retained cuts,
+segments and index generations. Scene prototypes, topological dictionaries,
+transform grids, arrangement checkpoints and LOD pages need explicit retained
+references. A segment-local arc/face number is not a stable cross-segment identity.
+Compaction must remap physical references without changing logical equality,
+accepted rows, pins or delta multiplicities. Neither a CRS cache nor a prototype
+reference grants permission.
+
+**Coordinate semantics.** Specify dimension, axis order, units, horizontal and
+vertical reference, planar versus spherical versus ellipsoidal edge rules,
+rounding and overflow. SRID 0 is an explicit local engineering/layout frame with
+units and axes, not an invalid default. EPSG:4979 ellipsoidal height must not be
+silently interpreted as EGM2008 orthometric height. Registry/grid artifacts are
+pinned inputs loaded by the host; deterministic kernels perform no network I/O.
+Start with a documented registry subset and refuse unsupported transformations.
+Cross-descriptor operands require an explicit conversion; known mismatches reject
+during binding, dynamic mismatches at the checked evaluation boundary. A curve
+prefix accelerates access and never defines geometric equality or distance.
+
+**Exact predicates and construction.** Port the
+[Shewchuk predicate algorithms](https://www.cs.cmu.edu/~quake/robust.html) to Zig
+with explicit finite exponent ranges, expansion workspace, rounding/FMA rules and
+overflow refusal. Exact determinant signs do not provide exact constructed
+intersection coordinates. Select canonical noding/corefinement and snap-rounding
+rules separately; prove their result topology and reproducibility. Closed
+boundaries and Euler checks alone do not prove a valid solid: test orientation,
+self-intersection, shell nesting, cavities and manifold incidence. Repair is an
+explicit operation with changed-value provenance, never an ingestion side effect.
+
+**Value states and errors.** NULL and empty geometry are distinct. Define
+structural equality/hash separately from topological `ST_Equals`; do not invent
+a natural geometric total order. Preserve null/missing/type-error/conflict and
+failure order through projected/foreign data and query results. Ordinary Table
+writes currently reject type-error/conflict cells under
+[`TABLE_SCHEMA_V1`](../../contracts/TABLE_SCHEMA_V1.md).
+Malformed spatial writes must therefore reject atomically; a future explicit
+ingestion policy may preserve raw data and diagnostic projections. Do not claim
+that every invalid bulk write succeeds because queries support five states.
+Corrupt stored pages or incompatible definitions are storage/compatibility
+failures, not ordinary bad-geometry cells.
+
+**Physical layout.** The 16-byte spatial header is a measured design target.
+Eight payload bytes cannot hold two arbitrary float64 coordinates. Inline only a
+declared compact representation; otherwise use a bounded, generation-checked
+payload handle or column offset directory. Specify where exact coordinates,
+conservative MBRs and payload references live together. A u16 registry index is
+not the full SRID. Quantized bounds round outward, including transformed and
+geodesic bounds. BBOX2D/3D float64 payloads require 32/48 bytes; int32 versions
+require 16/24 bytes. A translation/quaternion/scale tuple has eight components;
+48-byte `TRANSFORM3D` needs a selected mixed/compact encoding, while eight
+float64 components require 64 bytes. Measure layouts before freezing them.
+
+**Coverage and spatial predicates.** A cell overlap is a candidate unless the
+particular predicate has a proved sufficient condition. An exact point in a
+certified interior cell can discharge point containment; an interior/interior
+intersection can discharge intersection. One hit cannot prove whole-feature
+containment, clearance or distance. H3's logical hierarchy does not imply exact
+geometric parent containment, and its ordinary polygon fill selects cell
+centroids; neither supplies a conservative outer covering. Use
+[H3's hierarchy semantics](https://h3geo.org/docs/) and
+[region semantics](https://h3geo.org/docs/api/regions/) to qualify separate
+covering algorithms. Bound refinement and use exact narrow-phase evaluation
+when proof is insufficient. Bitmap work scales with visited containers and
+candidates; do not promise constant-time whole joins.
+
+**Topological incremental algebra.** Oriented boundary addition implements the
+fast union path only on a verified common, noded cell complex with compatible
+orientation and interior-disjoint occupied cells. General overlapping polygons
+or solids require arrangement/corefinement and occupancy multiplicities before
+boundary extraction. Repeated rows and deletions must not toggle occupancy
+incorrectly. Maintain volume and first/second moments under selected numeric
+rules; derive centroid by division at finalization. Union surface area comes
+from exposed faces, not a signed sum of every input face area.
+`SUM(ST_Volume(solid))` and `ST_Volume(ST_3DUnion(solid))` differ on overlaps.
+The [CGAL mesh/boolean model](https://doc.cgal.org/latest/Polygon_mesh_processing/index.html)
+is an independent qualification reference, not a Transit runtime dependency.
+
+**Loss, approximation and time.** Lossless encoding, logical grid normalization,
+error-bounded trajectories, quantized normals, SDF approximations and display LOD
+are distinct policies. An approximate LOD/SDF cannot silently answer an exact
+predicate. State trajectory interpolation, timestamp equality, late corrections,
+angular tolerance, event time, watermark and expiry separately. Staying in one
+cell or within a motion tube does not imply unchanged distance, nearest neighbor
+or containment: suppress reevaluation only with a predicate-specific bound, and
+never omit required row/projection changes. Unlimited retention remains default;
+watermarks and memory pressure do not authorize deletion.
+
+## Work packages and reviewable outcomes
+
+Each package includes its neutral fixtures, owning implementation, caller
+integration where applicable, and public documentation for the delivered subset.
+The identifiers below are delivery units, not proposed public API names.
+Partial delivery keeps the remaining capability rows explicit.
+
+| Package | Outcome | Prerequisites | Exit gate |
 | --- | --- | --- | --- |
-| **`GEOMETRY(subtype, srid, dim)`** (`POINT`, `LINESTRING`, `POLYGON`, `POLYHEDRALSURFACE`, `TIN`, `MULTI*`, `XY`/`XYZ`/`XYM`/`XYZM`) | Planar Cartesian manifold (`PLANAR`); catalog-bound `SRID` (e.g., `0` local CAD/PDF layout, `3857` Web Mercator, UTM); snap-rounding grid scale $\delta_{\text{grid}}$; `HILBERT_2D` / `HILBERT_3D` curve order | **16B Inline Spatial Header** + `.geoarrow` Struct-of-Arrays (`float64` or quantized `int64` `x[]`, `y[]`, `z[]`, `m[]` + ring/part offsets) or `.twkb_delta` zig-zag varints | Unclosed rings, self-intersections or `NaN`/`Inf` $\to$ `IS TYPE_ERROR` with ring/edge witness; 3-way branch feature conflicts $\to$ `IS CONFLICT` |
-| **`GEOGRAPHY(subtype, srid, dim)`** (default `SRID 4326` WGS84 lon/lat or `4979` lon/lat/ellipsoidal-height) | Spherical / Karney WGS84 ellipsoidal geodesic manifold (`GEODESIC`); great-circle edge interpolation with $\pm 180^\circ$ antimeridian and polar cap handling; `S2_HILBERT` / `H3` ordering | **16B Inline Spatial Header** (unit-sphere / quantized `S2` cell prefix + geodesic bounding cap) + `.geoarrow` or `.twkb_delta` + `.s2_roaring` (`INTERIOR` / `BOUNDARY` covering) | Out-of-bounds latitude ($|\phi| > 90^\circ$) or degenerate antipodal edges $\to$ `IS TYPE_ERROR`; `INTERIOR` cell matches short-circuit narrow-phase geodesic math in $O(1)$ |
-| **Topological Coverage (`TOPOLOGY` / `.topo_arc` 2D & `.topo_face` 3D Cellular Complexes)** | 2D snap-rounded DCEL $(C_0, C_1, C_2)$ or 3D cellular complex $(C_0, C_1, C_2, C_3)$ at grid $\delta_{\text{grid}}$ with exact Shewchuk `orient2d` / `orient3d` predicates and coboundary adjacency ($\delta_1 = \partial_2^\top$, $\delta_2 = \partial_3^\top$) | `.topo_arc`: shared 1-chains + signed chain lists (`[+e_1, -e_7]`); `.topo_face`: shared oriented 2-faces + coboundary `(left_solid, right_solid)` + per-solid signed face lists (`[+f_1, -f_9]`) | Incremental `ST_Union` ($\partial_2$) and `ST_3DUnion` ($\partial_3$) evaluate as linear Z-set sums where shared internal boundaries cancel ($(+\vec{e}) + (-\vec{e}) = 0$, $(+\vec{f}) + (-\vec{f}) = 0$) |
-| **`MESH3D` & `SOLID3D`** (2-manifold surface meshes & closed watertight volumetric 3-solids / CSG / B-Rep) | 3D Euclidean (`SRID 0` with unit scale `mm`/`m` and `RightHanded_ZUp`/`YUp`) or geodetic (`EPSG:4979` + `EGM2008`); exact `orient3d`/`insphere` over 3D grid $\delta_{\text{grid}}$; boundary $\partial_2(\partial_3 V) = 0$ and Euler–Poincaré $\chi = V - E + F$ | **`.mesh_edgebreaker`** ($<2\text{ bpt}$ `BP`/`CLERS` dual spanning trees + parallelogram vertex delta-varints + 16-bit octahedral normals + progressive wavelet `LOD_0..LOD_k` pages) + **`.octree_roaring`** (`INTERIOR` octant Roaring bitmaps + narrow-band `BOUNDARY` triangle patches / quantized `SDF`) | Non-manifold edges ($>2$ incident faces), open shells on `SOLID3D` ($\partial_2 \partial_3 V \neq 0$), self-intersecting faces or inverted normals $\to$ `IS TYPE_ERROR` with `(shell_id, face_id, edge_id)` witness; linear Z-set volume/centroid/inertia via Discrete Divergence Theorem |
-| **`SCENE3D` & `TRANSFORM3D`** (Hierarchical instanced 3D assemblies, $SE(3)/\text{Sim}(3)$ poses & 2.5D VLSI/EDA chip cell hierarchies) | Lie group $SE(3)$ / $\text{Sim}(3)$ composition ($T_{\text{world}}(u) = T_{\text{world}}(\text{parent}(u)) \cdot T_{\text{local}}(u)$) with unit-quaternion normalization ($|q| = 1$) and positive scale ($s > 0$), or 2D dihedral group $D_4$ + lattice array pitch `(nx, ny, dx, dy)` on $\delta_{\text{grid}} = 1\,\text{nm}$ | **`.scene_dag`**: `.tseg` prototype dictionary (`prototype_id -> .mesh_edgebreaker + .octree_roaring`) + columnar DAG rows `(node_id, parent_id, prototype_id, transform_se3, world_bbox3d)` with unboxed 48-byte `TRANSFORM3D`; **`.layout_manhattan`**: multi-layer (`M1..Mn`, `V1..Vn`) axis-aligned/45° integer rectangles + $D_4$ array instances | Non-invertible transforms, zero/negative scale, cyclic `parent_id` links or DRC width/spacing violations $\to$ `IS TYPE_ERROR`; articulating a part or editing a VLSI cell updates only the instance/tile delta in $O(|\Delta \text{tiles}|)$ for incremental DBSP `DRC`/`LVS` |
-| **`POINTCLOUD`** (LiDAR, photogrammetry, RGB-D, 3D structural-biology atoms & spatial-transcriptomics spots) | 3D CRS + vertical datum (or local Ångström/micrometer frame $\delta_{\text{grid}} = 10^{-3}\,\text{Å}$) + `HILBERT_3D` / `MORTON_3D` spatial clustering order | **`.pcloud_hilbert`**: 4,096-point 3D Hilbert-sorted blocks with `BBOX3D` Frame-of-Reference (`FOR`) bitpacked $(\Delta x, \Delta y, \Delta z)$ integers and dictionary/RLE intensity, RGB, classification, atomic element/residue/B-factor or gene-ID subcolumns | Out-of-bounds coordinates or corrupt LAS/LAZ/PDB/mmCIF records $\to$ `IS TYPE_ERROR`; block-level `BBOX3D` + `OCT_CELL` zone maps prune $>98\%$ of blocks and accelerate `SASA` van der Waals unions and transcript-in-cell spatial joins |
-| **`RASTER2D` / `GRID3D` & `SPARSE_MATRIX`** (2D EO/DEM/pathology rasters, 3D regular/medical `DICOM`/`NIfTI` grids & sparse single-cell matrices) | Coupled $\kappa_{\text{spatial}}$ + affine geo- or patient-frame transform (`pixel_to_crs`, `RAS`/`LPS` millimeter frame) + band schema / `nodata` sentinel, pyramid resampling rule (`NEAREST`, `BILINEAR`, `MIN`/`MAX`) and $\kappa_{\text{numeric}}$ float compression rule | **`.raster_morton`** & **`.float_zfp`**: 2D/3D Morton-ordered (Z-curve) multi-resolution overview tiles (`64x64` / `256x256` with `FOR` bitpacking or $4^d$ `.float_zfp` error-bounded bitplanes) + per-tile `(min, max, integral, nodata_bitmap)` zone maps; **`.sparse_bcsr`**: Block-Compressed Sparse Row/Column with Roaring non-zero index bitmaps | Non-invertible geo/patient transform, corrupt tile blocks, dimension mismatch or `NaN` bands $\to$ `IS TYPE_ERROR`; supports vectorized map/volume algebra (`ST_Value`, `ST_Band`, `ST_Clip`, `ST_Slope`, `ST_Hillshade`), terrain raycast and sparse matrix-vector reductions |
-| **`COCHAIN_FIELD(degree, mesh_ref, T)`** (Topology-decoupled 0/1/2/3-cochain continuum/CFD field slices over `.topo_face` or `OCT_CELL`) | Coupled $(\kappa_{\text{spatial}}, \kappa_{\text{numeric}})$ bound to a cataloged mesh `DefinitionId` (`C^0` nodal potentials, `C^1` edge circulations, `C^2` oriented face fluxes $\Phi_f$, `C^3` cell-averaged conserved states $\rho, \rho\vec{u}, E, p$), ordered by `HILBERT_3D` / Reverse Cuthill–McKee (`RCM`) cache-locality permutation | **`.float_zfp`**: $4^d$ ($4\times 4\times 4$) `HILBERT_3D`-blocked decorrelating lifting transform + progressive bitplane encoding under `LOSSLESS`, `FIXED_RATE(bits)` or strict pointwise $L_\infty$ error bound (`LOSSY_ABS_TOL(eps)` $\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$) + conservation-preserving block headers (`min`, `max`, exact 0th-coefficient block integral, `max_gradient_norm`, `max_divergence`) | Element-count mismatch with referenced `mesh_definition_id`, `NaN`/`Inf` field components, negative absolute density/pressure or CFL/conservation residual blowups $\to$ `IS TYPE_ERROR` with `(timestep, cell_or_face_id)` witness; interior face fluxes cancel ($(+\Phi_f) + (-\Phi_f) = 0$) in DBSP Z-set control-volume sums |
-| **`BBOX2D` / `BBOX3D`** (`[xmin, ymin, xmax, ymax]` / `+ [zmin, zmax]`) | Axis-aligned 2D/3D planar box or spherical lon/lat/alt box (explicitly distinguishing antimeridian-crossing boxes where `xmin > xmax`); unified with [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md) `PDF` `(page_no, bbox, span)` layout spans | Unboxed 32-byte (`4 x f64` / `4 x i32`) or 48-byte (`6 x f64` / `6 x i32`) SIMD vector lanes + per-row-group summary zone maps | `xmin > xmax` (in non-wrapping planar `SRID`), `ymin > ymax` or `zmin > zmax` $\to$ `IS TYPE_ERROR`; supports 2D/3D box predicates (`&&`, `&&&`, `@>`, `<@`) |
-| **`S2_CELL` / `H3_CELL` / `OCT_CELL`** (`u64` discrete hierarchical 2D/3D grid & octree identifiers) | Hierarchical containment (`parent(level)`, `children(level)`), 2D/3D Hilbert/Morton range intervals (`[cell_min, cell_max]`), and $k$-ring / 6-face / 26-neighbor graph adjacency | 64-bit integer vector with `.bitpack` / `.for_delta` or `.s2_roaring` / `.octree_roaring` interval-run bitmaps; $O(1)$ bit-shift level truncation and range-join alignment | Corrupt/unassigned face, octant or resolution bits $\to$ `IS TYPE_ERROR`; native equijoin/range-join key for multi-resolution 2D/3D spatial aggregation |
-| **`TRAJECTORY`** (3D/4D `POINT` or 6-DoF `TRANSFORM3D` time series with kinematic interpolation) | Coupled $(\kappa_{\text{spatial}}, \kappa_{\text{tz}})$ with declared dead-reckoning spatial/angular tolerance $\varepsilon$ and temporal period `RANGE<TIMESTAMPTZ>` | Piecewise-linear/SLERP 4D/6-DoF tube segments (`[pose0, t0] -> [pose1, t1]`, $\varepsilon$) with delta-quantized waypoints in `StreamPartition` / `TablePartition` `.tseg` | Non-monotonic timestamps or invalid poses $\to$ `IS TYPE_ERROR`; suppresses downstream incremental dataflow deltas while motion stays within the active $\varepsilon$-tube and 2D/3D cell covering |
+| S0 | Spatial contract, capability and workload inventory | Source audit; agreements with M10/M11/M12 | Exact semantics, cutover/removal map and independent fixtures before adapters |
+| S1 | Deterministic 2D/3D primitives and registry | S0 | Exact-sign and construction oracles, bounded refusal, cross-target replay |
+| S2 | Stored spatial values and complete caller cutover | S0/S1; existing M4/M5 paths | Declare/write/read/recover through real SQL and typed callers |
+| S3 | Finite vectorized spatial SQL and result delivery | S2 | Full-scan oracle, five-state/failure-order and buffered-revocation equivalence |
+| S4 | Conservative zone maps and spatial access methods | S3; M11 source/coverage contracts | Scan/index equivalence at one exact cut including tails and deletes |
+| S5 | Online spatial index lifecycle and predicate SSI | S4; M11 lifecycle/transaction integration | Crash/resume, no-gap publication, phantom/write-skew and disjoint-region schedules |
+| S6 | Shared-arc/face topology and cell-covering codecs | S1–S4 | Lossless logical reconstruction and qualified covering/union fast paths |
+| S7 | Mesh/solid storage and exact finite 3D kernels | S1–S3/S6 | Mesh/solid oracle, validity, CSG and bounded large-value execution |
+| S8 | Scenes, point clouds, scientific fields/arrays and progressive output | S4/S7; S6 topology for fields | Retained prototypes/meshes, numeric error bounds, pose changes, streaming LOD/tile and resource proofs |
+| S9 | Temporal/kinematic types and finite queries | S2/S3/S8 for poses; M6/M10/M12 source/time gates | Retained Stream/Table equivalence, late corrections and temporal joins |
+| S10 | Durable incremental spatial computation | Relevant S3/S6–S9 operators; M12 P5/P6 | Finite equivalence at every completed basis through faults and spill |
+| S11 | Common-revision qualification and promotion | All declared scope and prerequisite gates | Installed caller, recovery, resource and benchmark evidence; full scope disposition |
 
-## Delivery sequence
+### S0 — Define contracts, fixtures and the cutover
 
-1. **Define the 2D/3D spatial catalog, CRS/vertical-datum registry and $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ contract.**
-   Extend [`FUZE_TYPES_V1.md`](../../contracts/FUZE_TYPES_V1.md),
-   [`TABLE_SCHEMA_V1.md`](../../contracts/TABLE_SCHEMA_V1.md) and `DirectCatalog`
-   alongside [Milestone 10's](10-standards-and-catalogs.md) companion type
-   formalizations (`RANGE<T>` / `MULTIRANGE<T>`, unboxed `VECTOR(dim, T)`,
-   deterministic `DECIMAL` arithmetic rules and manifest-pinned `TIMESTAMPTZ`):
-   - Bind every `GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`,
-     `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `COCHAIN_FIELD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`
-     and `TRAJECTORY` column to an immutable $\kappa_{\text{spatial}}$ (and, for
-     floating-point grids/fields, $\kappa_{\text{numeric}}$) descriptor
-     in the catalog manifest (`manifest/v{N}`), recording the exact `SRID`,
-     vertical datum / unit scale / axis orientation (`RightHanded_ZUp` vs. `YUp`),
-     `PLANAR` vs. `GEODESIC` manifold rule, 2D/3D snap-rounding grid scale
-     $\delta_{\text{grid}}$, space-filling curve / cell-ordering version (`S2_HILBERT`, `H3`,
-     `HILBERT_3D`, `MORTON_3D`, `RCM`) and error-bounded float policy (`LOSSLESS`,
-     `FIXED_RATE(bits)`, `LOSSY_ABS_TOL(eps)`).
-   - Ship a deterministic, zero-I/O in-engine CRS and 3D engineering-frame
-     registry for standard coordinate systems (`SRID 0` local CAD/BIM/PDF layout
-     with unit scale, `SRID 4326` WGS84 2D, `SRID 4979` WGS84 3D + `EGM2008`
-     geoid height, `SRID 3857` Web Mercator, and standard UTM / national grid
-     zones) with explicit `ST_Transform(geom, target_srid)` and rigid/similarity
-     `SE3_Transform(geom3d, transform3d)` conversions. Reject implicit cross-SRID
-     or mismatched-unit binary predicates at compile/admission time with an
-     actionable diagnostic rather than silently mixing coordinate systems.
-   - Implement **Shewchuk adaptive-precision exact 2D and 3D geometric predicates**
-     (`orient2d`, `orient3d`, `incircle`, `insphere`) in pure Zig with zero heap
-     allocations so 2D and 3D topological sign decisions, coplanarity checks and
-     snap-rounding on $\delta_{\text{grid}}$ are bit-for-bit identical across
-     `x86_64` and `aarch64` targets.
-2. **Deliver 16-byte inline spatial headers in `Batch.zig` and columnar `.geoarrow`, `.twkb_delta` and `.mesh_edgebreaker` codecs in `.tseg`.**
-   - Equip `Fuze`'s vectorized `Batch` execution lanes with the **16-byte Inline
-     Spatial Header**
-     (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`):
-     store 2D `POINT(x, y)` coordinates directly in the 8-byte payload slot, and
-     store a quantized 64-bit 2D/3D bounding box plus 32-bit `S2` or 3D
-     Hilbert/`OCT_CELL` prefix for `LINESTRING`, `POLYGON`, `MESH3D`, `SOLID3D`
-     and `POINTCLOUD` patches, guaranteeing 16–64 bytes of trailing zero-padding
-     on coordinate buffers for unconditional SIMD loads.
-   - Implement orthogonal `.tseg` physical codecs ($\epsilon$) for 2D geometries
-     and 3D surface meshes:
-     - **`.geoarrow` (Columnar Struct-of-Arrays):** separate 64-byte-aligned
-       `x[]`, `y[]` (and optional `z[]`, `m[]`) coordinate vectors and Arrow
-       `ring_offsets[]` / `part_offsets[]` / `geom_offsets[]` buffers so SIMD
-       bounding-box, distance and affine/`SE(3)`-transform kernels scan
-       coordinates sequentially without WKB byte-parsing.
-     - **`.twkb_delta` (Quantized Grid Delta-Varint):** snap coordinates to
-       $\delta_{\text{grid}}$ and encode sequential vertex deltas (`dx`, `dy`,
-       `dz`) with zig-zag bitpacking/varints for $3\times\text{–}6\times$ storage
-       compression on dense polylines and polygons.
-     - **`.mesh_edgebreaker` (Succinct 3D Mesh Connectivity, Parallelogram Prediction & Progressive Wavelet LOD):**
-       encode manifold 3D triangle/polygon meshes using Rossignac Edgebreaker
-       `CLERS` opcodes and [Milestone 7's](07-document-storage-and-station-decoupling.md)
-       $2N$-bit `BP` succinct tree bitvectors ($< 2\text{ bits/triangle}$),
-       parallelogram vertex prediction ($\hat{v}_{\text{new}} = v_L + v_R - v_{\text{opp}}$)
-       quantized on $\delta_{\text{grid}}$, 16-bit octahedral unit normals, and
-       progressive Hoppe wavelet LOD page prefixes (`LOD_0` coarse base mesh +
-       `LOD_1..LOD_k` detail deltas) so coarse-to-fine queries and viewport
-       renderers stream only the required LOD prefix.
-   - Preserve five-state cell tags (`value`, `null`, `missing`, `type_error`,
-     `conflict`): classify unclosed 2D rings, bow-tie self-intersections,
-     non-manifold 3D edges ($>2$ incident faces), open shells on `SOLID3D`
-     ($\partial_2 \partial_3 V \neq 0$), inverted face normals, invalid
-     coordinate bounds and corrupt WKB/GeoJSON/glTF frames as `type_error` cells
-     with exact ring/shell/face/edge/byte offsets, and expose `ST_IsValid`,
-     `ST_IsValidReason`, `ST_IsSolid`, `ST_MakeValid` and `ST_3DMakeValid`
-     without aborting table scans.
-3. **Deliver logical compression for 2D/3D cellular complexes (`.topo_arc`, `.topo_face`), `INTERIOR`/`BOUNDARY` 2D/3D coverings (`.s2_roaring`, `.octree_roaring`), instanced scenes (`.scene_dag`), point clouds (`.pcloud_hilbert`) and 4D/6-DoF trajectories.**
-   - **2D Shared-Arc (`.topo_arc`), 3D Shared-Face (`.topo_face`) Cellular Decomposition & Topology-Decoupled Cochain Fields (`COCHAIN_FIELD` + `.float_zfp`):**
-     decompose 2D polygonal coverages into shared directed 1-chains (`[+e_1, -e_7]`)
-     and 3D volumetric multi-solid models (BIM rooms/zones, CAD assemblies,
-     geological blocks, finite-volume `polyMesh` domains) into shared oriented 2-faces (`[+f_1, -f_9]`) with explicit
-     coboundary `(left_solid, right_solid)` (`owner[f]`, `neighbour[f]`) links over $\delta_{\text{grid}}$, so
-     adjacent 2D polygons and 3D solids share exact water-tight boundaries with
-     zero duplicate vertex/triangle storage and expose their dual adjacency graph
-     directly to [Milestone 18's](18-multi-model-and-foreign-relations.md)
-     SQL/PGQ engine. Allow time-series continuum tables and streams to declare
-     **`COCHAIN_FIELD(C^k, mesh_ref, T)`** columns bound to a cataloged
-     `.topo_face` or `OCT_CELL` mesh `DefinitionId` (permuted by `HILBERT_3D` or
-     Reverse Cuthill–McKee `RCM` so $>90\%$ of interior faces connect cells in the
-     same L1d/L2 cache morsel) and compress floating-point field arrays via
-     **`.float_zfp`** ($4^d$ lifting transform + progressive bitplanes under
-     $\kappa_{\text{numeric}}$ with conservation-preserving block headers storing
-     `min`, `max`, exact 0th-coefficient block integral, `max_gradient_norm` and
-     `max_divergence`).
-   - **Multi-Resolution `INTERIOR` / `BOUNDARY` 2D Cell (`.s2_roaring`) & 3D Octree/Voxel (`.octree_roaring`) Coverings:**
-     compute bounded adaptive `S2`/`H3` 2D coverings and 64-bit `OCT_CELL` 3D
-     octree coverings, separating **`INTERIOR` cells/octants** (stored as
-     compressed 64-bit prefix intervals in `.tseg` Roaring bitmaps sharing
-     [Milestone 6's](06-streams-queues-and-durable-runtime.md) and
-     [Milestone 22 A5's](22-formal-semantics-and-correspondence.md#a5-physical-codecs-and-selected-bitmap-representations)
-     Roaring container implementation) from **`BOUNDARY` (narrow-band surface)
-     cells/octants** (storing clipped edge/triangle slices or a quantized
-     Dual-Contouring Signed Distance Field `SDF` + Hermite surface plane per
-     boundary octant).
-   - **Instanced 3D Scene-Graph DAGs (`.scene_dag`) & Hilbert Point Clouds (`.pcloud_hilbert`):**
-     store deduplicated `MESH3D`/`SOLID3D` part prototypes once per segment in
-     `.scene_dag` and encode assembly hierarchies as `(node_id, parent_id, prototype_id, transform_se3, world_bbox3d)`
-     rows with 48-byte `TRANSFORM3D` poses; encode `POINTCLOUD` tables in
-     3D-Hilbert-clustered 4,096-point `.pcloud_hilbert` blocks with `BBOX3D`
-     Frame-of-Reference (`FOR`) bitpacked $(\Delta x, \Delta y, \Delta z)$ coordinates.
-   - **Kinematic 4D & 6-DoF Trajectory Tube Compression:** provide a declarative
-     trajectory segmenter over `StreamPartition` and `TablePartition` that merges
-     colinear constant-velocity (and constant-angular-velocity SLERP) observations
-     within tolerance $\varepsilon$ into 4D/6-DoF `TRAJECTORY` segments,
-     supporting exact error-bounded `ST_ValueAtTimestamp`, `ST_LocateAlong`,
-     `ST_ClosestPointOfApproach`, `ST_3DClosestPointOfApproach` and spatiotemporal
-     `AS OF JOIN`.
-4. **Integrate 2D/3D `.tseg` zone maps, Hilbert R-Tree / `S2` / `OCT` covering indexes and 2D/3D spatial SSI conflict tracking.**
-   Extend [Milestone 11](11-indexing-and-access-paths.md) and
-   [Milestone 13](13-data-structures-and-performance.md):
-   - Record **2D and 3D Bounding-Box Zone Maps (`BBOX2D` / `BBOX3D`)** (with
-     geodesic cap / antimeridian-aware bounds for `GEOGRAPHY`) and **Roaring
-     `S2`/`H3`/`OCT_CELL` summaries** in `.tseg` row-group and segment footers,
-     paired with `CLUSTER BY HILBERT(geom)`, `CLUSTER BY S2_CELL(geom)` and
-     `CLUSTER BY HILBERT3D(geom3d)` compaction so 2D/3D viewport, frustum, slice
-     and proximity queries skip non-overlapping `.tseg` segments and row groups
-     in $O(1)$.
-   - Deliver two qualified secondary spatial access-method profiles under
-     [`INDEX_LIFECYCLE_V1.md`](../../contracts/INDEX_LIFECYCLE_V1.md):
-     1. **Static 2D/3D Hilbert-Packed R-Tree (`USING RTREE`)** per immutable
-        `.tseg` segment with bounded memtable overlay for arbitrary 2D/3D
-        bounding-box, view-frustum, ray-cast and $k$-Nearest-Neighbor
-        (`ORDER BY geom <-> pt LIMIT k` and `ORDER BY geom3d <<->> pt3d LIMIT k`
-        branch-and-bound priority queue) queries.
-     2. **Inverted `S2` / `H3` / `OCT_CELL` Covering Index (`USING S2` / `USING H3` / `USING OCTREE`)**
-        backed by `.tseg` Roaring bitmaps with separate `INTERIOR` and
-        `BOUNDARY` posting lists for high-throughput point-in-polygon,
-        point-in-solid, 3D BIM/CAD clash detection and region-intersection joins.
-   - Extend [Milestone 11's](11-indexing-and-access-paths.md) fine-grained
-     **Serializable Snapshot Isolation (SSI)** validator to track **2D/3D
-     bounding-box and `S2` / `OCT_CELL` Hilbert-interval read/write predicates**,
-     allowing concurrent read-write transactions mutating features or 3D
-     assembly sub-trees in disjoint spatial regions/octants on the same Table to
-     commit without false whole-table SSI aborts while preventing spatial
-     phantoms and write skew.
-5. **Deliver vectorized 2D `ST_*` and 3D `ST_3D*` kernels and DBSP / Z-set incremental spatial & volumetric operators in `Fuze`.**
-   - Implement the core **ISO SQL/MM Spatial (ISO/IEC 13249-3), OGC Simple
-     Features and 3D Volumetric `ST_*` / `ST_3D*` function and aggregate library**
-     over `Fuze`'s two-stage broad-phase (16B inline 2D/3D MBR + Roaring
-     `INTERIOR`/`BOUNDARY` `S2`/`OCT_CELL` filter) and narrow-phase (SIMD
-     segment/triangle sweep + Bounding Volume Hierarchy `BVH` + Shewchuk exact
-     `orient2d`/`orient3d` predicates) pipeline:
-     - *Constructors, Transforms & Codecs:* `ST_Point`, `ST_MakeLine`,
-       `ST_MakePolygon`, `ST_MakeEnvelope`, `ST_3DMakeBox`, `ST_Extrude`,
-       `ST_RotateX/Y/Z`, `ST_Affine`, `SE3_Transform`, `ST_GeomFromText` (`WKT`),
-       `ST_GeomFromWKB` / `EWKB`, `ST_GeomFromGeoJSON`, `ST_MeshFromGlTF`,
-       `ST_AsText`, `ST_AsBinary`, `ST_AsGeoJSON`, `ST_AsMVTGeom` / `ST_AsMVT`,
-       `ST_AsGlTF` / `ST_As3DTiles`, `ST_LOD(mesh3d, level)`.
-     - *2D & 3D Topological / Volumetric Predicates:* 2D DE-9IM (`ST_Intersects`,
-       `ST_Contains`, `ST_Within`, `ST_Covers`, `ST_CoveredBy`, `ST_Touches`,
-       `ST_Crosses`, `ST_Overlaps`, `ST_Disjoint`, `ST_Equals`, `ST_Relate`) and
-       3D volumetric predicates (`ST_3DIntersects`, `ST_3DContains`,
-       `ST_3DWithin`, `ST_3DDWithin`, `ST_3DClearance`, `ST_RayIntersects`).
-     - *2D & 3D Measurement, Mass Properties & Distance:* planar and Karney WGS84
-       geodesic `ST_Distance`, `ST_DWithin`, `ST_Area`, `ST_Length`,
-       `ST_Perimeter`, `ST_Azimuth`, `ST_Centroid`, `ST_PointOnSurface`,
-       `ST_Envelope`, `ST_Extent`, plus 3D `ST_3DDistance`, `ST_3DMaxDistance`,
-       `ST_3DShortestLine`, `ST_3DArea`, `ST_Volume`, `ST_3DCentroid`,
-       `ST_InertiaTensor` and `ST_3DExtent`.
-     - *2D & 3D Constructive, Boolean CSG & Mesh Operations:* 2D
-       (`ST_Intersection`, `ST_Union`, `ST_Difference`, `ST_SymDifference`,
-       `ST_Buffer`, `ST_ConvexHull`, `ST_Simplify`, `ST_SnapToGrid`,
-       `ST_DelaunayTriangles`, `ST_VoronoiPolygons`) and 3D exact corefined CSG /
-       SDF operators (`ST_3DUnion`, `ST_3DIntersection`, `ST_3DDifference`,
-       `ST_3DConvexHull`, `ST_DelaunayTetrahedralize`, `ST_CrossSection(solid3d, plane)`
-       producing a 2D `POLYGON`, `ST_SimplifyMesh` via quadric error metrics).
-     - *Discrete 2D/3D Grid (`S2` / `H3` / `OCT_CELL`) Operations:*
-       `S2_CellFromPoint`, `S2_Covering`, `S2_CellToPolygon`, `H3_LatLngToCell`,
-       `H3_PolygonToCells`, `H3_GridDisk`, `OCT_CellFromPoint3D`, `OCT_Covering`,
-       `OCT_CellToBox3D`, `OCT_Parent`, `OCT_Children`.
-   - Implement **DBSP / Z-set incremental 2D and 3D spatial operators** for
-     [Milestone 12's](12-sql-and-dataflows.md) `TransitLog`-activated maintained
-     views and continuous queries:
-     - **Algebraic Z-Set 2D `ST_Union` ($\partial_2$), 3D `ST_3DUnion` ($\partial_3$), Linear Volume/Mass Aggregates & Cochain Face-Flux Cancellation:**
-       maintain keyed Z-sets of oriented 2D boundary half-edges ($\pm \vec{e}$)
-       and 3D oriented boundary faces ($\pm \vec{f}$) per group so inserting
-       (`+1`) or retracting (`-1`) a polygon or 3D solid cancels shared internal
-       half-edges ($(+\vec{e}) + (-\vec{e}) = 0$) and shared internal 2-faces
-       ($(+\vec{f}) + (-\vec{f}) = 0$) in $O(1)$ integer arithmetic, while
-       maintaining `ST_Volume`, `ST_3DArea`, `ST_3DCentroid`,
-       `ST_InertiaTensor` and control-volume 2-cochain net flux
-       ($\sum_{f \in \partial_3 V} \Phi_f$, where shared interior face fluxes
-       cancel $(+\Phi_f) + (-\Phi_f) = 0$) as strictly linear Abelian Z-set sums via the Discrete
-       Divergence / Stokes Theorem ($\frac{1}{6}\sum \text{orient3d}(0, p_1, p_2, p_3)$).
-     - **Incremental `INTERIOR` / `BOUNDARY` 2D Spatial Joins & 3D Clash Detection:**
-       maintain indexed `(cell_or_oct_id, is_interior, row_id)` Z-set
-       arrangements for `ST_Intersects`, `ST_Contains`, `ST_3DIntersects` and
-       `ST_3DClearance < min_dist` joins so streaming updates (`dA`, `dB`) or
-       `SE(3)` pose updates short-circuit narrow-phase triangle/edge evaluation
-       in $O(1)$ on `INTERIOR` Roaring hits and bound per-batch memory with
-       Tier 2 NVMe spill.
-     - **Semantic Trajectory & Kinematic Delta Suppression:** filter continuous
-       stream operators so moving 2D/3D entities and articulated `SCENE3D` nodes
-       emit downstream join deltas only when crossing an indexed
-       `S2`/`H3`/`OCT_CELL` covering boundary or exceeding their declared
-       $\varepsilon$ dead-reckoning tube.
-6. **Qualify correctness, resource budgets and performance against independent 2D/3D spatial oracles.**
-   Verify all operators against independent reference oracles (GEOS / PostGIS /
-   CGAL 3D Nef polyhedra & corefinement / Karney GeographicLib / reference `S2`,
-   `H3` & octree fixtures), enforce zero steady-state heap allocations after
-   warmup on 2D/3D scan/filter/join hot paths via `scratch` arenas, and record
-   benchmark scorecards against PostGIS / SFCGAL and DuckDB Spatial in the
-   [proof ledger](../history/qualification/README.md).
+Extend the owning contracts:
+[`FUZE_TYPES_V1`](../../contracts/FUZE_TYPES_V1.md),
+[`TABLE_SCHEMA_V1`](../../contracts/TABLE_SCHEMA_V1.md),
+[`TRANSIT_STORAGE_V1`](../../contracts/TRANSIT_STORAGE_V1.md),
+[`INDEX_LIFECYCLE_V1`](../../contracts/INDEX_LIFECYCLE_V1.md),
+[`FUZE_ARROW_V1`](../../contracts/FUZE_ARROW_V1.md) and the
+[SQL grammar](../../contracts/sql/README.md).
+Reuse [direct lifecycle operations](../../contracts/DIRECT_TABLE_V1.md),
+[statement results](../../contracts/SQL_RESULTS_V1.md) and
+[sessions](../../contracts/SQL_SESSION_V1.md).
+Add a dedicated spatial contract only if it has a distinct shared owner; avoid
+copies of the same descriptor in storage, SQL and SDKs.
 
-## Completion evidence
+Specify canonical value/descriptor bytes, empty geometry, malformed input,
+dimensions, exact versus approximate traits, five-state diagnostics with bounded
+ring/shell/face/edge/part/byte witnesses, and per-operation resource limits.
+Record every type/function by grammar, binding, finite execution, maintained
+execution and transport coverage. Freeze canonical fixtures independently of the
+Zig encoder, including unknown tags and missing/foreign definitions.
+
+Inventory every affected native message, schema, stored format, saved plan,
+Arrow/result encoding, ABI, SDK, generated resource and signing fixture. Apply
+the [current-v1 hard-cutover policy](../handbook/reference/versioning.md) at each
+incompatible integration: replace the shared definition and migrate affected
+consumers together. Never reinterpret old artifacts, silently reset data, add a
+legacy decoder or default missing persisted interpretation. Remove the reserved
+spatial helper/hook when its owning implementation replaces it.
+
+### S1 — Implement pure spatial kernels
+
+Create `transit-spatial` for deterministic geometry/registry code shared by Fuze
+and storage consumers; give it a manifest, declared imports and package checks.
+Keep policy, storage, sockets, clocks and external engines outside that library.
+Separate transient scratch from retained output, with explicit vertex, edge,
+face, intersection, expansion and refinement budgets.
+
+Define registry coverage for local SRID 0, WGS84 4326/4979, Web Mercator 3857,
+selected UTM/national grids and explicitly pinned vertical transforms. Admit
+each transformation only with its coordinate-domain and grid-artifact evidence.
+Implement orientation/incircle/insphere, coordinate and ring validation,
+canonical precision conversion, envelope construction, scalar planar predicates
+and distance, then geodesic kernels and explicit transforms. Define axis/unit
+fixtures before adapters. Compare degenerate and near-degenerate inputs with
+independent exact arithmetic and pinned GEOS/PostGIS, GeographicLib and grid
+fixtures. Run x86_64/aarch64 fixtures with controlled arithmetic; a cross-compile
+alone does not prove equal execution.
+
+### S2 — Carry spatial values through the database
+
+Extend `Types`, `Values`, logical codecs, `TableSchema`, native schema/value
+carriers and `DirectCatalog` binding before enabling SQL declarations.
+Implement `.geoarrow` coordinate/offset pages and `.twkb_delta` under the shared
+`TSeg`/`TSegReader` envelope. Follow the selected
+[GeoArrow layout](https://geoarrow.org/format.html) for interoperability while
+retaining Transit definition and five-state evidence separately. An internal
+codec name alone does not establish upstream format compatibility.
+
+Prove Table insert/update/delete, defaults, ALTER compatibility, WAL tail/flush,
+retained reads, compaction, checkpoint/reopen and branch retention. Make geometry
+size independent of resident working memory with paged payload access and
+explicit per-value admission bounds; do not raise scalar/actor caps as a storage
+design. Reject unsupported type/codec pairs before acceptance.
+
+Migrate `transit-data-client`, `transit-sql-results`, `transit-sql-client`,
+neutral ABI and affected existing SDK decoders together. Preserve exact widths,
+descriptor ownership, cancellation and original write identity. Admit protocol
+types individually; PostgreSQL/MySQL, Arrow C/IPC and Flight each need their own
+mapping and tests. Unsupported adapters return an explicit refusal rather than
+mislabeling geometry as generic text.
+
+### S3 — Deliver the first finite query journey
+
+The first installed increment supports a declared planar POINT/LINESTRING/POLYGON
+and BBOX2D profile, explicit precision, WKT/WKB conversion, validation, envelope,
+intersection/containment and distance/area/length. Add GEOGRAPHY and additional
+subtypes through the same capability rows. This is an initial slice, not the
+completion boundary for M17.
+
+Bind SQL and typed expressions to the same scalar/vector operators. Add spatial
+lanes to `Batch`/`VectorKernel` with accounted coordinate/payload directories,
+64-byte alignment and verified padding for any unconditional SIMD read. Preserve
+original source positions, eager failure order, state-only operations and
+borrowed lifetimes across batch reset. Keep storage pages, compute morsels, wire
+batches and display windows independent.
+
+Deliver one complete public journey: declare, inspect, insert, prepare/query,
+update, read a retained cut and recover the original uncertain mutation after
+restart. SELECT returns one schema and a verified terminal count through the
+existing result reader. Test empty and multi-batch results, a single large
+geometry, early close, cancellation and current authorization after buffering
+rows, schema, diagnostics and terminal counts.
+
+### S4 — Add sound pruning and spatial access methods
+
+Implement conservative row-group/segment BBOX2D/BBOX3D, geodesic cap/wrap bounds
+and cell summaries, bound to the exact descriptor and source interpretation.
+Zone maps may prune only when their bound proves non-matching rows; preserve
+observable error/state semantics. Unknown summaries require a qualified scan.
+
+Prototype immutable Hilbert-packed R-trees plus bounded mutable overlays, and
+inverted S2/H3/OCT cell postings using
+[`transit-bitmap`](../../packages/zig/transit-bitmap/README.md) and
+[`BitmapDirectory`](../../packages/zig/transit-storage/src/BitmapDirectory.zig).
+A 16-bit Roaring container does not directly encode a global 64-bit cell ID:
+specify the paged prefix directory, resolution, stable row/version mapping and
+duplicate suppression. Combine index candidates with MVCC visibility and
+`.tdel`; cover accepted unflushed rows and updates moving between cells.
+
+Implement bounded candidate discovery and k-NN queues with admissible distance
+lower bounds and deterministic row-identity tie-breaking. Include
+`<->`/`<<->>` in the checked grammar only after their exact metric is defined.
+Measure clustering by Hilbert/S2/Morton separately from logical row order.
+EXPLAIN reports actual eligible coverage, broad/narrow-phase work and scan
+fallback without initiating an index build.
+
+### S5 — Integrate index publication and transactions
+
+Extend M11's shared declaration and access-method contract for `RTREE`, `S2`,
+`H3` and `OCTREE`; do not introduce a spatial-only catalog or worker authority.
+Build from an exact retained cut, including WAL tails, consume complete
+intervening changes, validate, then conditionally publish coverage. Persist
+original build identity, owner fence, progress, staged roots and cancellation.
+DROP/rebuild and schema/CRS changes retain old reader generations until release.
+A stale index cannot claim current coverage.
+
+Extend the existing transaction owner with conservative spatial read/write
+predicates and common-cut evidence. Include insert/delete, old and new bounds
+on movement, empty-region reads, transformed/geodesic ranges and k-NN predicates.
+Keep whole-Table conflict protection for cases not yet proved by finer guards.
+Qualify disjoint-region concurrency and overlapping phantom/write-skew schedules;
+a range decomposition or index alone is not an SSI implementation. Resolve lost
+commit replies using the original decision; index and base visibility must agree
+through preparation, decision, restart and cleanup.
+
+### S6 — Implement topology and certified coverings
+
+Store canonical shared arcs and oriented faces once per qualified dictionary,
+with signed references, vertices, incidence/coboundary and enough residual data
+to reconstruct every feature. Pin dictionary interpretation and preserve
+references across segment boundaries, compaction and branch retention.
+Canonical noding/corefinement and occupancy handle overlap; the interior-disjoint
+coverage fast path requires explicit validation.
+
+Implement bounded S2/H3/OCT outer and certified-interior coverings plus exact
+boundary patches. If refinement exhausts its budget, return a conservative
+coarser covering or typed refusal, never an incomplete covering labeled complete.
+SDF/narrow-band representations carry error bounds and retain exact geometry
+when an exact predicate needs it. Qualify antimeridian/polar, pentagon,
+multi-resolution, thin-sliver and cell-boundary cases.
+
+Test `.topo_arc`, `.topo_face`, `.s2_roaring` and `.octree_roaring` round trips
+against the canonical logical model, independent of byte layout. Measure
+dictionary construction and changed-region work as well as compressed size.
+Expose adjacency data for M18 without implementing its property-graph engine.
+
+### S7 — Deliver meshes, solids and finite 3D computation
+
+Implement MESH3D/SOLID3D values with shell/face/edge provenance, exact validity,
+bounded BVHs and triangle narrow phases. Add finite 3D intersection, containment,
+distance/clearance, ray, mass properties and constructive/corefined boolean
+operations. Preserve cavities, disconnected components, coplanarity and thin
+features. Define explicit behavior for non-manifold output rather than repairing
+it silently. Qualify approximate SDF operations separately from exact CSG.
+
+Build `.mesh_edgebreaker` with CLERS connectivity, parallelogram coordinate
+prediction, selected octahedral normal encoding and wavelet/vertex-split LOD
+prefixes with explicit error and reconstruction metadata. Reuse BP navigation
+only where its actual package contract fits. The original
+[Edgebreaker work](https://faculty.cc.gatech.edu/~jarek/papers/EdgeBreaker.pdf)
+motivates the codec; a sub-two-bits/triangle target is not a universal bound on
+arbitrary meshes, coordinates or full stored objects. Record connectivity,
+coordinates, normals, exceptions, directories and LOD overhead separately.
+
+Stream large meshes through bounded page/work units. Prove malformed/truncated
+connectivity refusal, exact base reconstruction and retained-page ownership.
+A coarse LOD result identifies its selected level and error; it cannot establish
+full-resolution exact-query completion.
+
+### S8 — Compose scenes, point clouds, fields and output formats
+
+Implement `.scene_dag` prototypes and instance identities with cycle/depth
+validation, explicit instance paths for shared children, immutable prototype
+references and qualified SE(3)/Sim(3) transforms. A single-parent row is a tree;
+a multi-parent DAG needs distinct instance paths/world transforms. Pose updates
+reuse prototype geometry but still update affected world bounds, index coverage
+and join candidates under bounded progress.
+
+Implement `.pcloud_hilbert` blocks, FOR coordinate residuals and typed attribute
+subcolumns. Treat 4,096 points as an initial block target, not a total-cardinality
+limit or a promised compression ratio. Qualify lossless selected-grid round trips,
+outliers, coordinate overflow and selective attribute decoding.
+
+Add bounded MVT/glTF/3D Tiles value/output builders and progressive LOD delivery
+through shared results. Prototype identity, source basis, coordinate frame,
+completion and current disclosure remain visible. Container discovery,
+`FOREIGN TABLE`/`COPY` orchestration and external format ecosystems remain
+M18; interactive rendering remains M30.
+
+### S9 — Implement finite trajectories and kinematics
+
+Bind TRAJECTORY to spatial/time descriptors, interpolation, spatial/angular
+tolerances and an explicit temporal interval. Coordinate RANGE/TIMESTAMPTZ
+integration with M10 instead of treating standalone helpers as stored types.
+Support piecewise linear position and selected quaternion interpolation with
+defined duplicate-timestamp, discontinuity and antipodal/quaternion-sign rules.
+
+Read finite Table/Stream cuts through actual authorized paged sources. Implement
+value-at-time, locate-along, closest approach and the qualified spatiotemporal
+AS OF join. Connect Document layout spans only after M7/M16 supply exact part,
+page, revision and coordinate evidence. Compression retains the declared
+reconstruction/error contract; event-time ordering is separate from acceptance
+order and source progress.
+
+Test late/out-of-order corrections and gaps, time-zone interpretation, stationary
+and near-boundary motion, rotation/scale and source expiry. Retained results keep
+their original basis; missing history stops advancement explicitly. Queue/Station
+effects are not implied by a geofence result.
+
+### S10 — Maintain spatial results over durable changes
+
+Replace the reserved spatial hook with finite-equivalent delta operators after
+M12 supplies paged arrangements, actual spill and durable activation. Do not grow
+the existing 256-entry array into a production spatial store. Use durable
+arrangement keys for feature/version, canonical edge/face, cell/instance and
+group identities with checked signed multiplicities.
+
+Deliver coverage union and general overlap-aware union, exposed-boundary/moment
+aggregates, spatial/clash joins, scene pose changes and trajectory geofencing.
+For simultaneous input changes, include all bilinear join terms and deduplicate
+cell candidates without losing relation multiplicity. Distinguish delta size,
+arrangement lookup, corefinement, output reconstruction and publication costs.
+
+Publish operator state, output revision/delta and consumed source frontiers under
+the owning common-decision/checkpoint contract. Handle backfill-to-tail handoff,
+duplicate delivery, crash before/after checkpoint, source/schema changes,
+revocation, cancellation and unavailable history. A multi-source vector is only
+atomic when its actual transaction-cut evidence establishes that property.
+Retain the last complete result while a successor is blocked or incomplete.
+
+Apply event-time/window and correction rules from M12. Motion suppression needs
+a predicate-specific stability certificate; movement within one cell that changes
+distance or a projected coordinate is a required negative control. Compare every
+completed basis against finite recomputation, including retractions, duplicate
+polygons/solids and overlapping inputs.
+
+### S11 — Qualify and publish the integrated profile
+
+Run the acceptance journeys below at one committed revision using real public
+operations, disk-backed recovery and installed consumers. Preserve earlier failed
+and incomplete runs in their owning qualification accounts. Component algorithms,
+parser acceptance and neutral-fixture checks do not substitute for these journeys.
+
+Promote supported semantics and limits into the existing type, Table, Stream,
+Document, query, Arrow and SQL references; put consolidated spatial mechanisms,
+assumptions and oracle correspondence in Internals and package usage beside its
+owner. Public explanations must not require this roadmap. Keep capability and
+standards records aligned with actual operator and transport coverage.
+
+Run affected clean lanes from [the task inventory](../../tests/runner/suite.json),
+including dependent contract/core/storage/query/session/SDK/formal gates selected
+by the change. Register new spatial checks with real tasks before citing them.
+Closure requires the full scoped function/type matrix, or an explicit roadmap
+scope revision preserving unfinished work; the initial planar slice cannot close
+M17.
+
+## Type and function coverage retained by this plan
+
+| Family | Planned scope | Delivery owner |
+| --- | --- | --- |
+| Types and interpretation | GEOMETRY with POINT/LINESTRING/POLYGON/MULTI*/collections, POLYHEDRALSURFACE/TIN and XY/XYZ/XYM/XYZM; GEOGRAPHY; BBOX2D/3D; S2_CELL/H3_CELL/OCT_CELL; explicit CRS/axes/units/precision; MESH3D/SOLID3D/SCENE3D/TRANSFORM3D/POINTCLOUD/TRAJECTORY | S0–S3, S7–S9; every subtype has its own admitted dimension/operation profile |
+| Constructors, conversions and validation | `ST_Point`, `ST_MakeLine`, `ST_MakePolygon`, `ST_MakeEnvelope`, `ST_3DMakeBox`, `ST_Extrude`, `ST_Transform`, `ST_RotateX/Y/Z`, `ST_Affine`, `SE3_Transform`; WKT/WKB/EWKB/GeoJSON and selected glTF value conversion; `ST_IsValid[Reason]`, `ST_IsSolid`, `ST_MakeValid`, `ST_3DMakeValid` | S1–S3, S7/S8; repair and conversion never implicit |
+| 2D topology | DE-9IM and `ST_Intersects`, `Contains`, `Within`, `Covers`, `CoveredBy`, `Touches`, `Crosses`, `Overlaps`, `Disjoint`, `Equals`, `Relate` | S3/S6; names after the first retain the `ST_` prefix |
+| Measurement | Planar and selected geodesic distance/area/length/perimeter/azimuth/centroid/point-on-surface/envelope/extent and `ST_DWithin`; 3D distance/max-distance/shortest-line/area/volume/centroid/inertia/extent | S3/S7; pin metric, dimensional meaning and numeric rules |
+| Constructive operations | Intersection/union/difference/symmetric difference, buffer, convex hull, simplify, snap-to-grid, Delaunay triangles and Voronoi polygons; 3D union/intersection/difference/convex hull, tetrahedralization, cross-section and quadric-error mesh simplification | S6/S7; general overlays and approximate simplification have separate profiles |
+| 3D predicates and grids | `ST_3DIntersects`, `ST_3DContains`, `ST_3DWithin`, `ST_3DDWithin`, `ST_3DClearance`, `ST_RayIntersects`; S2 point/cell/covering, H3 lat-lng/cell/polygon/grid-disk and OCT point/box/covering/parent/children | S4/S6/S7; grid-specific hierarchy and boundary rules |
+| Access paths | 2D/3D box operators `&&`/`&&&`/`@>`/`<@`, metric `<->`/`<<->>`, zone maps, RTREE/S2/H3/OCTREE, Hilbert/Morton clustering and spatial SSI | S4/S5; syntax remains proposed until checked and executable |
+| Output and motion | `ST_AsText/Binary/GeoJSON`, `ST_AsMVTGeom`/`ST_AsMVT`, `ST_AsGlTF`/`ST_As3DTiles`, `ST_LOD`; `ST_ValueAtTimestamp`, `ST_LocateAlong`, 2D/3D closest approach and temporal joins | S8/S9; bounded complete output, explicit LOD/tolerance |
+| Maintained computation | Union, moment and boundary aggregates, 2D spatial/3D clash joins, pose updates and trajectory geofencing | S10; same finite semantics and source evidence at every completed basis |
+| Scientific arrays and domains | `COCHAIN_FIELD`, `RASTER2D`/`GRID3D`, `SPARSE_MATRIX`; `.float_zfp`, `.raster_morton`, `.sparse_bcsr`, `.layout_manhattan`; field flux conservation, raster/volume algebra, sparse reductions, DRC/LVS spatial participation and structural-biology/omics operators | S0–S3/S6–S11 as mapped in the scientific scope table; M18/M19 own external adapters and simulation/asset extensions |
+
+ISO SQL/MM Spatial and OGC Simple Features guide the standard 2D subset.
+PostGIS/SFCGAL-inspired 3D operations, grid functions and Transit extensions need
+explicit capability entries; their names do not establish standards conformance.
+
+## Acceptance and verification matrix
+
+All rows below are **planned checks**, not executed spatial evidence.
 
 | Journey | Required evidence |
 | --- | --- |
-| Declare and validate $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ across 2D & 3D | SQL and SDK callers declare `GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL` and `TRAJECTORY` columns with explicit `SRID`, vertical datum/axes, manifold and precision grid $\delta_{\text{grid}}$; cross-SRID/unit mismatches reject at compile time; malformed rings, non-manifold 3D edges or open `SOLID3D` shells ($\partial_2 \partial_3 V \neq 0$) surface as `IS TYPE_ERROR` with exact ring/shell/face/edge provenance |
-| Query through 2D/3D zone maps and `RTREE` / `S2` / `H3` / `OCTREE` indexes | Independent full-scan oracle at the same `SnapshotId` cut agrees on values, multiplicity, five-state tags and 2D/3D $k$-NN (`<->`, `<<->>`) tie-breaking across planar, 3D volumetric, antimeridian-wrapping (`\pm 180^\circ`), polar (`\pm 90^\circ`) and degenerate coplanar cases |
-| Logical 2D/3D compression & incremental DBSP equivalence | Incremental maintained views running `GROUP BY ... ST_Union(geom)` ($\partial_2$ half-edge cancellation), `ST_3DUnion(solid)` and `SUM(ST_Volume(solid))` ($\partial_3$ face cancellation and Discrete Divergence Theorem), `ST_Intersects` / `ST_3DIntersects` clash joins (via `INTERIOR`/`BOUNDARY` `S2` and `OCT_CELL` Roaring coverings), `SCENE3D` `SE(3)` pose updates and trajectory geofencing under `+row`/`-row` `TransitLog` updates match the finite recomputation oracle at every completed basis |
-| Concurrent 2D/3D spatial transactions & online index builds | Concurrent read-write transactions updating disjoint 2D regions or 3D octants/assembly sub-trees commit under 2D/3D Hilbert/cell-range SSI while overlapping write-skew/phantom schedules abort; interrupted online `RTREE`/`S2`/`OCTREE` index backfills catch up from `TWAL1` without omitting or double-counting features |
-| Exceed RAM and enforce `policy_epoch` | 2D/3D spatial joins, boolean CSG overlays, point-cloud scans and `ST_AsMVT` / `ST_As3DTiles` aggregations exceeding morsel memory budgets spill deterministically to Tier 2 NVMe and recheck current `policy_epoch` authorization before disclosing geometry/mesh batches |
+| Declare and retain interpretation | SQL and typed callers agree on type/CRS/units/grid/definition; rename, ALTER, DROP/recreate and retained branch reads cannot retarget accepted work; unsupported combinations reject before admission |
+| Validate geometry and states | Empty versus NULL, malformed rings/shells, NaN/Inf, overflow, self-intersection and unknown CRS; exact diagnostic witnesses; invalid Table writes publish nothing; projected five-state errors/conflicts survive |
+| Prove physical representation | Independent bytes and logical round trips for all codecs; corrupt lengths/offsets/connectivity, dictionary references and foreign definitions reject; exact and lossy profiles are distinguishable |
+| Preserve large-value ownership | One geometry/mesh larger than a compute or wire batch; page/reset/early-close/cancellation schedules; retained results outlive scratch; memory bounded independently of vertices and total rows |
+| Query at one source basis | Full scan agrees with vector/pruned/indexed plans on values, multiplicity, states and failure order; antimeridian, poles, H3 pentagons, mixed resolutions, degenerate and transformed bounds; stable k-NN ties |
+| Maintain indexes online | Build from a pinned cut including unflushed rows; concurrent insert/move/delete, duplicate catch-up, missing history, cancellation and process death; publish only complete coverage; old readers survive rebuild/compaction |
+| Preserve serializability | Disjoint regions/octants can commit under qualified fine guards; overlapping phantom/write-skew, empty-range, k-NN and movement schedules abort when required; lost decisions recover exactly |
+| Exercise topology and 3D | Adjacent and overlapping polygons/solids, duplicates, opposite orientation, cavities and non-manifold inputs; union differs correctly from bag sums; exact finite result matches independent oracle |
+| Exercise scenes and trajectories | Shared prototypes, cyclic DAG refusal, deep assemblies, pose-bound changes, point-cloud outliers, late events and within-cell predicate changes; approximate LOD/tubes never masquerade as exact results |
+| Exercise scientific fields and arrays | Mesh/field basis mismatches, oriented flux cancellation, remeshing and retained dependencies; lossless/fixed-rate/tolerance codec oracles; conservative progressive summaries; patient-frame/nodata raster cases; sparse duplicates/shape and repeated-layout edits; finite equivalence and explicit approximation bounds |
+| Preserve incremental results | Insert/delete/retract/both-input updates, topology edits and pose changes match finite recomputation at each completed basis; restart/checkpoint/spill preserve multiplicities and exact source frontiers |
+| Enforce current permission | Denied declaration/build/read/inspect, revocation after buffering, metadata/empty/terminal results, spill reads and worker replacement; no coordinate or diagnostic disclosure under stale `policy_epoch` |
+| Recover accepted writes and work | Lost admission/commit/publication replies and process death retain original operation/decision; cancellation races do not invent rejection or rollback; incomplete results never become complete replacements |
+| Bound resource use and lifetime | Sparse/dense/all-overlap workloads exceed RAM under fixed reserves; admitted spill profiles complete using actual spill, while exhausted quotas refuse without changing prior accepted state; pins/prototypes/checkpoints survive GC; no quota-triggered expiry |
+| Verify real callers | Installed console and typed Zig path, affected SDK/ABI and wire mappings, independent Arrow consumers where admitted; incompatible builds and saved artifacts reject before execution |
+
+Use independent GEOS/PostGIS fixtures for 2D, GeographicLib for geodesics,
+CGAL/SFCGAL for selected 3D profiles and upstream S2/H3 plus an independent
+octree oracle for grids. Pin oracle versions, input hashes, licenses, coordinate
+rules and tolerance; compare semantic results where serialization order differs.
+Reference engines run in qualification tooling only. Expected results must not
+be regenerated from the same Transit algorithm under test.
+
+Coordinate with [M22](22-formal-semantics-and-correspondence.md): A2 covers
+conservative spatial bounds/coverings and transform inflation, A3 covers
+qualified boundary/occupancy and join delta equivalence, and A5 covers selected
+codec/bitmap round trips. Extend models with explicit assumptions and connect
+them to executable Zig negative controls. No unexecuted theorem or bounded model
+substitutes for disk recovery, arithmetic or deployment evidence.
+
+## Resource and performance qualification
+
+Freeze workload sizes, hardware, compiler/build, oracle versions, precision,
+durability, isolation, concurrency and resource limits in S0. Report scalar
+baseline, full scan, vector scan, each access method, topology codec and
+incremental path separately, then run the installed composed journey.
+
+Include points, road lines, polygon coverages and overlaps, global coastlines,
+watertight/cavity solids, repeated assemblies, dense LiDAR and moving entities.
+Use uniform, clustered, skewed and adversarial all-overlap distributions;
+warm/cold cache, beyond-RAM input and concurrent maintenance/revocation are
+separate cases. Compare PostGIS/SFCGAL and DuckDB Spatial only on equivalent
+supported semantics; preserve unsupported cells and regressions in the scorecard.
+
+Measure first-row and verified-completion p50/p95/p99, sustained rows/features
+per second, candidate and narrow-phase counts, bytes read/written, write
+amplification, checkpoint/recovery time, maximum resident/scratch/spill bytes,
+allocation attempts and denied/incomplete outcomes. Compression reports all
+metadata, residuals, topology and refinement bytes.
+
+The hot-path gate is zero steady-state heap/OS allocation attempts after the
+declared warmup for admitted scan/filter/join kernels, checked with
+`AllocationProbe` and relevant backing-owner observations. Report setup,
+decoding, refinement, exact arithmetic and spill separately; do not generalize a
+kernel result to the whole service. Select numeric latency/throughput and
+regression budgets from reproduced baselines before optimization.
+
+The earlier 3–6× delta compression, sub-two-bits/triangle connectivity,
+sub-byte point-cloud and >95%/>98% pruning figures are hypotheses to measure,
+not admission guarantees or completed evidence. Spill must be actual bounded
+I/O through M13/M12 owners; increasing resident arrays or a run counter is not
+spill. Preserve control/recovery reserves and typed refusal when a profile
+cannot execute within its allowed resources.
+
+Spatial joins, boolean overlays, point-cloud scans and MVT/3D Tiles aggregation
+must each demonstrate their admitted beyond-RAM path using real Tier 2 spill
+within the configured disk/work quota. A safe refusal tests resource enforcement
+but does not satisfy that successful-execution gate.
+
+## First implementation changes
+
+1. Land S0's descriptors, canonical fixtures, semantics/capability matrix and
+   complete consumer/cutover inventory. Resolve precision/layout and union/
+   covering assumptions before assigning binary tags.
+2. Land S1's bounded exact predicates and scalar planar reference implementation,
+   including degeneracy, overflow and allocation controls.
+3. Deliver S2/S3's installed planar Table journey through stored values, finite
+   SQL, shared results and original-operation recovery; keep other profiles
+   explicitly unavailable.
+4. Add S4/S5 only against M11's qualified lifecycle, while extending topology
+   and 3D kernels with independent finite oracles. Do not expose a private
+   experimental index as an installed catalog capability.
+5. Integrate S9/S10 when retained Stream/Document sources and durable M12
+   arrangements meet their gates, then run S11 at one common revision.
 
 ## Later owners
 
-- [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md)
-  composes 2D spatial networks and 3D coboundary dual graphs ($\delta_2 = \partial_3^\top$
-  room/part/finite-volume adjacency and 3D clash graphs) with SQL/PGQ Property Graphs (`A*` /
-  3D shortest-path routing and WCOJ + spatial joins), **Geo- & 3D-Filtered Hybrid
-  Search** (combining 256-doc Block-Max BM25, ANN vector similarity and
-  `.s2_roaring` / `.octree_roaring` spatial bitmaps in one query plan), and
-  `FOREIGN TABLE` / `COPY` adapters for 2D geospatial (**`GeoParquet` v1.1**,
-  **`FlatGeobuf`**, **`GeoArrow`**, **`Cloud-Optimized GeoTIFF` (`COG`)**,
-  **`Shapefile` / `GeoPackage`**, **`PMTiles` / `MVT`**), 3D / CAD / BIM /
-  Point-Cloud formats (**`glTF 2.0` / `GLB`**, **`OpenUSD`
-  (`USDA`/`USDC`/`USDZ`)**, **`IFC` (`ISO 16739` BIM)**, **`STEP` (`ISO 10303-21`
-  CAD)**, **`CityGML` / `CityJSON`**, **`OGC 3D Tiles 1.1`**, and **`LAS` / `LAZ` /
-  `COPC`**), and scientific / CFD mesh & array formats (**`CGNS`**, **`VTK` /
-  `VTU` / `VTI` / `PVD`**, **OpenFOAM `polyMesh` + time-directory fields**,
-  **`Zarr v3`**, **`NetCDF-4` / `HDF5`**, **`GRIB2`**, **`EXODUS II`**, and
-  **`Alembic` `.abc`**).
-- [Interactive 3D worlds, game asset pipelines and simulation streaming](19-game-asset-pipelines-and-simulation-streaming.md)
-  extends `MESH3D`, `SOLID3D`, `SCENE3D`, `RASTER2D`/`GRID3D`, `COCHAIN_FIELD`,
-  `.topo_face`, `.octree_roaring`, `.float_zfp` and `TRAJECTORY` with virtualized
-  micropolygon meshlet cluster DAGs (`.mesh_cluster_dag`), block-compressed GPU
-  texture mip-pyramids and Morton Virtual Texture tiles (`.tex_mip_morton`),
-  sparse voxel hierarchies (`.vdb_hierarchy`), 3D Gaussian Splats
-  (`.splat_hilbert`), deformable skeletal rigs and keyframe animation clips
-  (`SKELETON3D`, `ANIMATION_CLIP`), WAL-activated Derived Data Cache (DDC) asset
-  cooking, incremental DBSP `NavMesh` & `HLOD` maintenance, **Eulerian/Lagrangian
-  fluid dynamics & continuum simulation streaming** (staggered MAC grids, 2:1 AMR
-  octree ghost/halo stencils, SPH/MPM $2h$ Hilbert neighbor sweeps, fused
-  face-sweep `ST_Gradient`/`ST_Divergence`/`ST_Curl`/`ST_QCriterion`/`ST_IsoSurface`/`ST_Streamlines`,
-  and incremental DBSP control-volume conservation & aerodynamic Lift/Drag force
-  audits), and authoritative ECS simulation / frustum AoI streaming.
-- [Branches, merges and restore](20-branches-merges-and-restore.md) uses `.tseg`
-  2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert zone maps for
-  $O(1)$ spatial and volumetric segment skipping in `DIFF(table, base, branch)`
-  and detects three-way topological arc/face/assembly conflicts and 3D clash
-  collisions (`IS CONFLICT`).
-- [Formal semantics and implementation correspondence](22-formal-semantics-and-correspondence.md)
-  extends **A2 (`CollationOrder.lean`)** to prove 2D/3D MBR / Hilbert / `S2` /
-  `OCT_CELL` covering pruning soundness (including geodesic edge-inflation and
-  $SE(3)$ bounding-box transformation bounds), **A3 (`FuzeDelta.lean`)** to prove
-  DBSP Z-set equivalence for oriented 2D half-edge `ST_Union`, 3D oriented face
-  `ST_3DUnion` ($\partial_2 \circ \partial_3 = 0$), Discrete Divergence Theorem
-  linear volume aggregates and `INTERIOR`/`BOUNDARY` 2D/3D joins, and **A5
-  (`CodecProofs.lean`)** to prove `.mesh_edgebreaker` (`BP`/`CLERS`) and Roaring
-  octree round-trip invariants.
-- [Enterprise identity and the Control & Policy Plane](27-control-and-policy-plane.md)
-  enforces **2D & 3D Geospatial/Volumetric Row-Level Security (Spatial RLS)**
-  (such as `USING (ST_CoveredBy(location, authorized_region))` or
-  `USING (ST_3DWithin(part_solid, authorized_zone3d))`) with security-barrier
-  evaluation so untrusted predicates or zone maps never leak out-of-region
-  geometry/mesh coordinates or `type_error` side-channels.
-- [Board reimplementation and data-first workbench](30-board-reimplementation.md)
-  renders read-only interactive 2D map layers (`MVT` / `GeoArrow`), progressive
-  wavelet-LOD 3D mesh/CAD/BIM scene-graph and LiDAR point-cloud viewports
-  (`glTF` / `3D Tiles` / `.mesh_edgebreaker` `LOD_0..LOD_k`), `ST_CrossSection`
-  2D slice planes, trajectory streams, `PDF` layout bounding boxes and
-  2-way/3-way 2D/3D spatial `DIFF` / clash (`IS CONFLICT`) overlays over public
-  result APIs.
-- [SQL grammar, standards comparison and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md)
-  audits `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`POINTCLOUD` type modifiers,
-  2D `ST_*` and 3D `ST_3D*` functions and `RANGE` operators against **ISO/IEC
-  13249-3 (SQL/MM Spatial)**, **OGC Simple Features**, **PostGIS / SFCGAL**,
-  **DuckDB Spatial**, **Snowflake** and **GoogleSQL**.
+- [M18 multi-model and foreign relations](18-multi-model-and-foreign-relations.md)
+  composes spatial/3D coboundary adjacency with property graphs, routing, WCOJ
+  and lexical/vector/spatial hybrid search. It owns foreign/COPY adapters for
+  GeoParquet 1.1, FlatGeobuf, GeoArrow, Shapefile/GeoPackage, PMTiles/MVT,
+  glTF/GLB, OpenUSD, IFC, STEP, CityGML/CityJSON, 3D Tiles and LAS/LAZ/COPC.
+  M17 supplies typed values, codecs and spatial operators; it does not imply
+  those complete external source lifecycles.
+- [M19 game assets and simulation](19-game-asset-pipelines-and-simulation-streaming.md)
+  extends the mesh, scene, raster/grid, cochain and trajectory owners with
+  `.mesh_cluster_dag`, `.tex_mip_morton`, `.vdb_hierarchy`, `.splat_hilbert`,
+  skeletal rigs/animation, DDC cooking, NavMesh/HLOD and authoritative ECS/AoI
+  streaming. Its continuum work owns staggered MAC grids, AMR ghost/halo
+  stencils, SPH/MPM neighbour sweeps, gradient/divergence/curl/Q-criterion,
+  isosurface/streamline pipelines and lift/drag audits. M17 provides compatible
+  topology, oriented flux, field codecs and retained result contracts without
+  claiming a simulation solver or rendering runtime.
+- [M20 branches](20-branches-merges-and-restore.md) consumes conservative spatial
+  summaries and stable topology/prototype identities for DIFF and three-way
+  merge. Conflicting edits and clashes need explicit merge policy and
+  `IS CONFLICT` evidence; compression alone establishes neither.
+- [M21 service and SDK coverage](21-service-and-sdk-coverage.md) owns additional
+  language/platform exposure. M17 still migrates every existing consumer affected
+  by its type/ABI cutover and proves representative installed spatial callers.
+- [M22 formal correspondence](22-formal-semantics-and-correspondence.md) owns the
+  broader A2/A3/A5 proof program while M17 supplies concrete spatial invariants,
+  counterexamples and implementation hooks.
+- [M27 policy](27-control-and-policy-plane.md) adds spatial RLS and security
+  barriers. M17 preserves current source rights and prevents pruning/errors
+  from bypassing those checks; it does not enable policy helpers as an RLS service.
+- [M30 Board](30-board-reimplementation.md) renders maps, progressive mesh/scene/
+  point-cloud views, cross-sections, trajectories and conflict overlays through
+  public results. No raw segment access or separate map permission authority.
+- [M41 standards](41-sql-grammar-and-dialect-ergonomics.md) audits the complete
+  selected spatial grammar and dialect coverage. M17 still owns correct checked
+  grammar and explicit unsupported forms as each implementation lands.
+- [M42 qualification](42-qualification-and-benchmarks.md) combines spatial evidence
+  with the broader workload matrix; local M17 correctness, recovery and resource
+  gates cannot be postponed to that milestone.

@@ -78,6 +78,23 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("serving-example", "Install the signed HTTP service example").dependOn(&install_serving.step);
     b.step("transit-serving-example", "Install the signed HTTP service artifact").dependOn(&install_serving.step);
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
+    const spatial_test = b.addSystemCommand(&.{ "python3", "-B" });
+    spatial_test.addFileArg(b.path("tests/runner/launch.py"));
+    spatial_test.addFileArg(b.path("tests/query/logical/spatial.py"));
+    inline for (.{ std.builtin.OptimizeMode.Debug, std.builtin.OptimizeMode.ReleaseFast }) |mode| {
+        const spatial = b.dependency("transit_spatial", .{ .target = target, .optimize = mode }).module("transit_spatial");
+        const fixture = b.addExecutable(.{ .name = "transit-spatial-" ++ @tagName(mode), .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/query/logical/spatial.zig"),
+            .target = target,
+            .optimize = mode,
+            .imports = &.{ .{ .name = "transit_spatial", .module = spatial }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = mode }).module("transit_protocol") } },
+        }) });
+        spatial_test.addArtifactArg(fixture);
+        spatial_test.step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = spatial })).step);
+    }
+    spatial_test.has_side_effects = true;
+    spatial_test.stdio = .inherit;
+    b.step("test-spatial", "Check exact spatial kernels against an independent rational oracle").dependOn(&spatial_test.step);
     const diagnostic_grammar = b.addExecutable(.{ .name = "transit-diagnostic-grammar", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/diagnostic_grammar.zig"),
         .target = target,

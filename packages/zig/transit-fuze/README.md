@@ -22,6 +22,11 @@ Typed JSON parsing keeps the input alive until the parsed result is released.
 `NeutralEncoding` owns the shared decimal/hex helpers, including their existing
 error names; Query and Station Document adapters re-export that implementation.
 
+`Spatial` exposes the [pure spatial library](../transit-spatial/README.md):
+explicit reference descriptors, exact determinant signs and budgeted planar
+ring/polygon operations. These local kernels do not add spatial logical values,
+SQL functions or maintained spatial plans.
+
 Finite logical plans bind a separate `QueryCollations` value to every input
 column. Binary, ASCII case folding and CP037 order apply consistently in scalar
 predicates, vector batches and resumable pages. Plan fingerprints and canonical

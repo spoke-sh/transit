@@ -69,6 +69,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-query](../../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-query-direct, transit-station, transit-station-document |
 | [transit-catalog](../../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Named Table creation, immutable definitions, bounded metadata, signed caller, neutral values and explicit catalog behavior | transit-client, transit-protocol, transit-fuze, transit-storage |
 | [transit-fuze](../../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
+| [transit-spatial](../../../packages/zig/transit-spatial/README.md) / `transit_spatial` | Explicit coordinate references, exact determinant predicates and bounded planar ring/polygon kernels; local library APIs | transit-protocol |
 
 
 ## Executables and examples
