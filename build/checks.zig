@@ -1085,6 +1085,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_server_test.has_side_effects = true;
     direct_server_test.stdio = .inherit;
     b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
+    const managed_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    managed_server_test.addFileArg(b.path("tests/runner/launch.py"));
+    managed_server_test.addFileArg(b.path("tests/interfaces/installation/server_managed_tables.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| managed_server_test.addArtifactArg(artifact);
+    managed_server_test.has_side_effects = true;
+    managed_server_test.stdio = .inherit;
+    b.step("test-server-managed-tables", "Prove installed managed Table lifecycle, WAL wakeups and replacement").dependOn(&managed_server_test.step);
     const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     single_server_test.addFileArg(b.path("tests/runner/launch.py"));
     single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));
@@ -1402,6 +1409,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_service.addPassthruArgs();
     direct_table_service.has_side_effects = true;
     direct_table_service.stdio = .inherit;
+    direct_table_client.root_module.addImport("fixture_managed_table", test_modules.get(.managed_table));
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
     const direct_kv = b.addSystemCommand(&.{ "python3", "-B" });
     direct_kv.addFileArg(b.path("tests/runner/launch.py"));

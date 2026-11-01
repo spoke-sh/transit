@@ -804,6 +804,10 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
             try Growth.maintenance(client, profile.growth.?, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "managed-prepare")) {
+            try @import("fixture_managed_table").prepare(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "managed-recover")) {
+            try @import("fixture_managed_table").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-prepare")) {
             try @import("fixture_direct_kv").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-prepare")) {

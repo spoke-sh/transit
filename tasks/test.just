@@ -1026,3 +1026,8 @@ vector-pipelines output:
 # Independent provider peers, durable browser claims and native read disclosure.
 declarative-browser:
     zig build test-declarative-browser -Doptimize=ReleaseSafe
+
+# Managed computation recovery through the typed owner and cohosted SQL service.
+managed-tables:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- managed
+    zig build test-server-managed-tables -Doptimize=ReleaseSafe
