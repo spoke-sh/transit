@@ -249,3 +249,10 @@ Schema validation precedes execution. Source identity, current authorization,
 allocation failure, cancellation and retained-source availability require their
 own implementation qualification. No optimizer rewrite is enabled by these
 proofs, and the downstream theorem does not prove moving a limit or aggregate.
+
+`ManagedSql` lowers the native cohosted managed Table forms in `managedCommand`.
+CREATE DATAFLOW targets an existing output Table; controls, SHOW DATAFLOW and
+EXPLAIN CREATE DATAFLOW share the typed owner's identities and checks. The
+[managed profile](../../docs/handbook/reference/queries.md#managed-table-computations)
+limits execution to one Table and finite recomputation. Parser acceptance does
+not enable these declarations on PostgreSQL/MySQL or standalone gateways.

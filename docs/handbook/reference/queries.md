@@ -510,6 +510,77 @@ work; they do not manufacture a terminal result. See the
 wait closure, retained evidence and duplicate handling.
 
 
+## Managed Table computations
+
+A managed Table computation declares a finite SELECT, an existing output Table,
+and a durable control object. The cohosted native SQL service reconciles active
+computations after database publication and at startup. It parks after settling
+work; a client session need not remain open.
+
+```sql
+CREATE TABLE input_values (id BIGINT PRIMARY KEY);
+CREATE TABLE projected_values (id BIGINT PRIMARY KEY);
+CREATE DATAFLOW projection INTO projected_values AS SELECT id FROM input_values;
+AUTHORIZE DATAFLOW projection;
+ACTIVATE DATAFLOW projection;
+SHOW DATAFLOW projection;
+SUSPEND DATAFLOW projection;
+RESUME DATAFLOW projection;
+REFRESH DATAFLOW projection;
+RETIRE DATAFLOW projection;
+```
+
+Publication, authorization and activation are separate commands. Activation
+completion confirms the control transition; `SHOW DATAFLOW` reports whether the
+first result has completed. Its `dataflow` column contains the immutable
+declaration, control state/epoch, pending work identity, blocked reason, last
+completed revision, row count, source position and common transaction decision.
+`EXPLAIN CREATE DATAFLOW ...` validates metadata and budgets without publishing,
+pinning a snapshot or running the SELECT.
+
+This profile accepts one ordinary Table source in the same connection and
+namespace as the output. It uses the existing finite relational projection,
+filter and grouped COUNT/SUM compiler. Output column names, logical types and
+nullability must match the SELECT. Source/output/control objects are distinct;
+managed output chaining and multiple managed writers are refused. PostgreSQL,
+MySQL and standalone remote gateways do not execute these declarations.
+
+Each successor acquires one serializable common cut of source, output and control
+KV. Rows remain private until a single transaction commits the complete output,
+checkpoint and revision record. A pending prepared decision can temporarily
+refuse inspection with `Conflict`; the service resumes its original work from
+a separate durable directory and settles the decision before reading the head. Readers see the previous or new complete Table,
+including an empty successor. Source/control conflicts cannot publish a stale
+candidate. Interrupted execution resumes its original transaction and retained
+cut. It never joins a prefix from one snapshot to rows from another. Suspension
+and retirement preserve the last output; retirement also closes dependency edges
+once pending work settles. Source definitions are exact: schema replacement
+blocks the computation and requires a new declaration.
+
+The output remains an ordinary Table governed by its current grants. Give its
+write privileges only to the computation's service identity when applications
+must not edit it independently. Inspection and SELECT recheck current rights;
+worker ownership and the Authorized state do not grant access. Scope or budget
+refusals retain accepted work and the last completed result. Explicit refresh
+clears a blocked attempt after its cause is resolved. Deterministic output
+constraint failures report `execution_failed` and preserve the complete output
+instead of repeatedly executing the same rejected result. Transport uncertainty stays
+pending for original recovery.
+
+SQL computations use 16 MiB each for query resident memory, spill and encoded
+result pages, at most 10,000 result rows, 1,000,000 execution steps and 10,000
+source requests. Immutable declaration/work/result records and revision keys
+use paged durable storage and the existing catalog/account quotas. Saved records
+have unlimited retention; this profile does not reclaim abandoned immutable
+staging records or expire completed revisions. Retirement is not data deletion.
+
+The consumer is `finite_recomputation`: it can consolidate intervening source
+changes into a new complete relation. It does not expose every-change delivery,
+net-change streams, incremental arrangements, event time, joins, Stream/KV/Document
+inputs, UDFs or external sinks. The existing retained Table history reader is a
+separate interface. See the [managed computation contract](../../../contracts/DATAFLOW_V1.md)
+and [direct query package](../../../packages/zig/transit-query-direct/README.md).
+
 ## Maintained Table revisions
 
 The typed Zig `RelationalMaintenance` owner publishes a complete result for each

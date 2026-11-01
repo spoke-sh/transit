@@ -53,11 +53,12 @@ pub const Prepared = union(enum) {
     inspection: Inspection,
     source: g.SourceSession.Prepared,
     captured: g.CapturedOperations.Prepared,
+    managed: g.ManagedOperations.Prepared,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
             .source => |*value| value.template.parameterTypes(),
-            .probe, .settings, .inspection, .captured, .transaction => &.{},
+            .probe, .settings, .inspection, .captured, .transaction, .managed => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
@@ -65,7 +66,7 @@ pub const Prepared = union(enum) {
             .native => |*value| value.fields(),
             .source => |*value| value.output.type.structure,
             .captured => |*value| value.output.type.structure,
-            .transaction => &.{},
+            .transaction, .managed => &.{},
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
             .settings => |value| if (value.output) |output| output.type.structure else &.{},
@@ -73,7 +74,7 @@ pub const Prepared = union(enum) {
     }
     pub fn mutation(self: *const Prepared) bool {
         return switch (self.*) {
-            .transaction => true,
+            .transaction, .managed => true,
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
             .inspection, .source, .captured => false,
@@ -164,6 +165,10 @@ pub const Read = struct {
                         for (statement.plan.relational.bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
                         metadata.definitions = definitions;
                     }
+                }
+                if (prepared.managed) |declared| {
+                    metadata.consistency = .independent_observations;
+                    metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, if (prepared.kind == .plan) &.{ declared.source.interpretation.interpretation, declared.output.interpretation.interpretation } else &.{ try declared.interpretation(allocator), declared.source.interpretation.interpretation, declared.output.interpretation.interpretation });
                 }
                 if (prepared.source) {
                     const definition = self.host.source.?.definition;
@@ -514,6 +519,13 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
         self.fresh_prepared = result;
         return result;
     }
+    if (try g.database.ManagedSql.parse(self.allocator, sql, self.dialect)) |managed| {
+        result.* = .{ .managed = managed };
+        errdefer result.managed.deinit();
+        try g.ManagedOperations.validate(self, &result.managed);
+        self.fresh_prepared = result;
+        return result;
+    }
     if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
         result.* = .{ .inspection = inspection };
         self.fresh_prepared = result;
@@ -525,6 +537,7 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (self.fresh_prepared == prepared) self.fresh_prepared = null;
+    if (prepared.* == .managed) prepared.managed.deinit();
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .source) prepared.source.deinit();
     if (prepared.* == .captured) prepared.captured.deinit();
@@ -552,6 +565,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
             if (statement.plan == .select) statement.plan.select.metadata = null;
         },
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
+        .managed => |*managed| try g.ManagedOperations.validate(self, managed),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
@@ -566,7 +580,7 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
             var bound = try self.source.?.bind(statement, values);
             bound.deinit();
         },
-        .probe, .settings, .inspection, .captured, .transaction => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection, .captured, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -591,7 +605,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
-        .transaction => return error.ExpectedGatewayRead,
+        .transaction, .managed => return error.ExpectedGatewayRead,
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
         .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
@@ -691,6 +705,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
         if (prepared.probe.kind != .set) return error.ExpectedGatewayWrite;
         return .{ .kind = .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
     }
+    if (prepared.* == .managed) return error.ManagedTableRequiresNativeSession;
     const result = try self.runtime.executePrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
     self.terminal = result.terminal;
     switch (result.terminal.state) {

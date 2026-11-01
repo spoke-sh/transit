@@ -593,6 +593,10 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         slot.acceptance_possible = true;
         return .{ .operation = try g.ConfigurationOperations.admit(host, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
     }
+    if (prepared.* == .managed) {
+        slot.acceptance_possible = true;
+        return .{ .operation = try g.ManagedOperations.admit(host, &prepared.managed, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
+    }
     if (prepared.mutation()) {
         if (prepared.* == .transaction or host.transaction.handle != null) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
@@ -750,6 +754,10 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         .query => unreachable,
     };
     try host.fresh(selectOperation, .{ host, reference });
+    if (reference.kind == .dataflow) {
+        if (input.action == .cancel) return error.ManagedControlCancellationUnsupported;
+        return self.response(allocator, .{ .operation = if (input.action == .@"resume") try g.ManagedOperations.resumeOperation(host, reference.id) else try g.ManagedOperations.status(host, reference.id) });
+    }
     if (reference.kind == .configuration) {
         if (input.action == .cancel) return error.ConfigurationCancellationUnsupported;
         return self.response(allocator, .{ .operation = if (input.action == .@"resume") try g.ConfigurationOperations.resumeOperation(host, reference.id) else try g.ConfigurationOperations.status(host, reference.id) });
@@ -788,6 +796,7 @@ fn operationPage(host: *g.Session, after: u64) !g.SessionOperations.Page {
 fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
         .table, .transaction => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .dataflow => try g.ManagedOperations.status(host, ref.id),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
     };

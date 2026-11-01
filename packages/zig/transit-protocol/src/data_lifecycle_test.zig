@@ -202,4 +202,12 @@ test "independent lifecycle fixture binds the accepted write and its unflushed s
     try t.expectEqual(std.math.maxInt(u64), branch.manifest.identity.branch);
     try t.expectEqual(@as(u64, 1), branch.manifest.version);
     try t.expectEqual(@as(u64, 99), branch.manifest.parent.?.version);
+    const dataflow = parsed.value.dataflow;
+    try dataflow.declaration.validate();
+    try dataflow.control.validate();
+    try dataflow.coverage.requireComplete(dataflow.source);
+    try dataflow.candidate.validate();
+    try dataflow.completion.validate();
+    try t.expectEqual(@as(u64, 10003), dataflow.declaration.dependencies.count);
+    try t.expectEqual(std.math.maxInt(u64), dataflow.declaration.interpretation.object.object);
 }

@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, mutation, application, relational, authorization, settings, transaction } = .query,
+    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, mutation, application, relational, authorization, settings, transaction, managed } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,16 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .managed => {
+            var parser = try f.SqlTyped.init(allocator, case.sql, location);
+            const explain = try parser.takeWord("EXPLAIN");
+            var value = (try @import("transit_sql_service").database.ManagedSql.parse(allocator, case.sql[if (explain) parser.lexer.start else 0..], .transit)) orelse return error.UnsupportedStatement;
+            defer value.deinit();
+            if (value.statement == .create) {
+                var query = try f.RelationalSql.parse(allocator, value.statement.create.sql, location);
+                defer query.deinit();
+            }
+        },
         .log_ddl => {
             var value = try f.LogDdl.compile(allocator, case.sql, .transit, location);
             defer value.deinit();

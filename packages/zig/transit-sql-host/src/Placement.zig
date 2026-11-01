@@ -7,7 +7,7 @@ base: Endpoint,
 counts: [4]std.atomic.Value(u64) = @splat(.init(0)),
 pub const Snapshot = struct { table: u64 = 0, native: u64 = 0, blocks: u64 = 0, payload: u64 = 0 };
 pub fn endpoint(self: *Self) Endpoint {
-    return .{ .context = self, .invoke = invoke };
+    return .{ .context = self, .invoke = invoke, .changes = self.base.changes };
 }
 pub fn snapshot(self: *const Self) Snapshot {
     return .{ .table = self.counts[0].load(.monotonic), .native = self.counts[1].load(.monotonic), .blocks = self.counts[2].load(.monotonic), .payload = self.counts[3].load(.monotonic) };

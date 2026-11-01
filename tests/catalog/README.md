@@ -14,6 +14,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Native/port result ownership and rejection | [Catalog ABI](tables/catalog_abi.py), [direct ABI](tables/direct_catalog_abi.py) |
 | Current authorization through native operations | [Authority schedule](authorization/authorization_native.py) |
 | Native declaration and dependency callers | [Lifecycle](tables/direct_table_lifecycle.zig), [dependencies](tables/direct_dependencies.zig), [named resources](tables/direct_named_resources.zig) |
+| Managed Table computation | [Typed lifecycle and replacement](tables/managed_table.zig), [installed cohosted SQL](../interfaces/installation/server_managed_tables.py); `just test::managed-tables` |
 | Mixed Table/KV transaction caller | [Private admission and common-decision recovery](tables/direct_state_transaction.zig); `just test::direct-state-transaction` |
 | Table/KV with Stream/Queue appends, offset and lease settlement | [Mixed transaction caller](tables/direct_state_transaction.zig); `just test::direct-mixed-transaction` |
 | Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](tables/direct_log_token.zig); `just test::direct-log-token` |

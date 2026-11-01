@@ -2657,6 +2657,29 @@
       "model": null
     },
     {
+      "id": "DATAFLOW-01",
+      "claim": "Finite managed Table output and completion checkpoint share one common decision; controls and original work survive replacement",
+      "owner": "docs/handbook/reference/queries.md",
+      "implementation": [
+        "packages/zig/transit-query-direct/src/ManagedTable.zig",
+        "packages/zig/transit-sql/src/DatabaseRuntime.zig"
+      ],
+      "profile": "dataflow-v1/finite-one-table/cohosted-native",
+      "tasks": [
+        "test::managed-tables"
+      ],
+      "scenarios": [
+        "Disk-backed replacement after private output staging preserves original transaction and complete output",
+        "Suspend fences pending work; resume and refresh publish complete successors including empty results",
+        "Frozen control races settle by original receipt; dependency cycles are refused",
+        "Cohosted publication wakes progress; settled active computation parks without storage polling",
+        "Rejected duplicate output keys block without publishing a partial result or retrying forever"
+      ],
+      "limits": "One Table input and predeclared Table output. Process-death schedules are not power-loss evidence. No ordered-change handoff, incremental algebra, historical output retention or abandoned-record collection claim.",
+      "qualification": "Executable typed and installed SQL scenarios; see their runner records for completion and source identity.",
+      "model": null
+    },
+    {
       "id": "DOCUMENT-PROFILE-01",
       "claim": "Offline interpretation and complete-part observation preserve descriptor identity, bounded workspace, raw provenance and late-failure uncertainty",
       "owner": "packages/zig/transit-document-profiles/README.md",

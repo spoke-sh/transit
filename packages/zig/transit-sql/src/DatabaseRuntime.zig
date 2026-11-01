@@ -36,6 +36,11 @@ cleanup_route: usize = 0,
 cleanup_swept_routes: usize = 0,
 activation: ?c.DirectClientToken.Progress = null,
 activation_record: ?c.DirectRecord.Reference = null,
+managed_directory: ?std.Io.Dir = null,
+managed_route: usize = 0,
+managed_after: ?u64 = null,
+managed_pending: bool = false,
+managed_work: bool = true,
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
@@ -159,6 +164,7 @@ pub const ReadSources = struct {
     resolve: ?*const fn (*const anyopaque, usize, std.mem.Allocator, std.Io, *wire.Client) anyerror!?c.DirectTableClient = null,
 };
 pub fn attachReadCache(self: *Self, directory: std.Io.Dir, sources: ReadSources) !void {
+    self.managed_directory = directory;
     if (self.read_pins != null) return error.InvalidSqlReadRecovery;
     const config = self.execution.configuration;
     self.read_pins = try g.ReadCache.init(self.allocator, self.io, directory, .{ .realm = config.realm, .account = config.account }, self.generation);
@@ -172,6 +178,10 @@ pub fn tick(self: *Self) !bool {
         self.after = 0;
         self.scan_complete = false;
         self.retry_pending = false;
+        self.managed_route = 0;
+        self.managed_after = null;
+        self.managed_work = true;
+        self.managed_pending = false;
     }
     errdefer {
         self.ready.store(false, .release);
@@ -262,8 +272,74 @@ pub fn tick(self: *Self) !bool {
     const was_ready = self.ready.swap(true, .release);
     if (!was_ready or progressed) self.notifyProgress();
     if (!self.scan_complete or cleanup_pending) return true;
+    if (self.managed_directory != null and try self.managedStep()) return true;
+    if (self.managed_pending) {
+        self.managed_route = 0;
+        self.managed_after = null;
+        self.managed_work = true;
+        self.managed_pending = false;
+        return true;
+    }
     self.finishSweep(self.retry_pending);
     return false;
+}
+/// Bounded declaration discovery over ordinary catalog pages. Active work gets
+/// another fair sweep; settled declarations cause no timer or upstream requests.
+fn managedStep(self: *Self) !bool {
+    const bindings = self.execution.configuration.bindings;
+    if (self.managed_route >= bindings.len) return false;
+    const caller = self.private.table(bindings[self.managed_route]);
+    const M = g.direct.ManagedTable;
+    const manager: M = .{ .client = caller };
+    const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
+    for (page.entries) |slot| if (slot) |entry| {
+        self.managed_after = entry.id();
+        if (self.managed_work) {
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.work_format) return error.InvalidManagedTableRecord;
+            if (entry.receipt.binding.intent.external.namespace != bindings[self.managed_route].namespace) return true;
+            const token = entry.receipt.binding.key;
+            const selected = self.claim(token.token);
+            if (!selected.tryLock()) {
+                self.retry_pending = true;
+                return true;
+            }
+            defer selected.unlock(self.io);
+            const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+                if (err == error.Canceled or err == error.Cancelled) return err;
+                self.direct_work_failure.store(@intFromError(err), .release);
+                if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
+                return true;
+            };
+            self.direct_work_failure.store(0, .release);
+            self.managed_pending = self.managed_pending or pending;
+            return true;
+        }
+        if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.declaration_format) return error.InvalidManagedTableRecord;
+        const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
+        defer declared.deinit();
+        if (declared.value.namespace != bindings[self.managed_route].namespace) return true;
+        self.managedOne(manager, declared.value, entry) catch |err| {
+            if (err == error.Canceled or err == error.Cancelled) return err;
+            self.direct_work_failure.store(@intFromError(err), .release);
+            // Transport uncertainty retains bounded retry debt. Policy/source
+            // refusals wait for a publication hint or explicit control command.
+            if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
+        };
+        return true;
+    };
+    if (self.managed_work) {
+        self.managed_work = false;
+        self.managed_after = null;
+        return true;
+    }
+    self.managed_route += 1;
+    self.managed_after = null;
+    self.managed_work = true;
+    return self.managed_route < bindings.len;
+}
+fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
+    if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
+    if (try manager.start(declared) != null) self.managed_pending = true;
 }
 fn finishSweep(self: *Self, retry: bool) void {
     self.work.finish(self.io, self.sweep.?, retry);

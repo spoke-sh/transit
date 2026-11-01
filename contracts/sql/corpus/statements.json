@@ -2350,7 +2350,16 @@
     "ROLLBACK TRANSACTION TO original",
     "SAVEPOINT original",
     "RELEASE SAVEPOINT original",
-    "RELEASE original"
+    "RELEASE original",
+    "CREATE DATAFLOW projection INTO output AS SELECT id FROM input;",
+    "AUTHORIZE DATAFLOW projection;",
+    "ACTIVATE DATAFLOW projection;",
+    "SUSPEND DATAFLOW projection;",
+    "RESUME DATAFLOW projection;",
+    "REFRESH DATAFLOW projection;",
+    "RETIRE DATAFLOW projection;",
+    "SHOW DATAFLOW projection;",
+    "EXPLAIN CREATE DATAFLOW projection INTO output AS SELECT id FROM input;"
   ],
   "table_select": [
     {

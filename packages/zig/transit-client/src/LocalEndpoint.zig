@@ -10,6 +10,28 @@ invoke: *const fn (*anyopaque, *Invocation) anyerror!void,
 /// has a different owner. Unselected routes use its configured remote endpoint;
 /// a selected local call never retries through that endpoint after failure.
 routes: ?[]const []const u8 = null,
+/// Optional cohosted publication hints. The embedding owner outlives every
+/// waiter; callers join waits before releasing the endpoint. Hints confer no
+/// authority and cannot replace discovery after process replacement.
+changes: ?*Changes = null,
+
+pub const Changes = struct {
+    mutex: std.Io.Mutex = .init,
+    condition: std.Io.Condition = .init,
+    generation: u64 = 1,
+    pub fn notify(self: *Changes, io: std.Io) void {
+        self.mutex.lockUncancelable(io);
+        defer self.mutex.unlock(io);
+        self.generation +%= 1;
+        self.condition.broadcast(io);
+    }
+    pub fn wait(self: *Changes, io: std.Io, previous: u64) !u64 {
+        try self.mutex.lock(io);
+        defer self.mutex.unlock(io);
+        while (self.generation == previous) try self.condition.wait(io, &self.mutex);
+        return self.generation;
+    }
+};
 pub fn handles(self: Self, path: []const u8) bool {
     const routes = self.routes orelse return true;
     for (routes) |route| if (std.mem.eql(u8, route, path)) return true;
@@ -176,4 +198,24 @@ test "owned local output refuses oversized materialization and releases partial 
     defer client.deinit();
     client.local = .{ .context = &context, .invoke = Host.run };
     try t.expectError(error.WriteFailed, client.callOwned([]const u8, "/local", .{}, .{ .response_bytes = 32 }));
+}
+
+test "publication hints coalesce without losing notification before wait registration" {
+    const t = std.testing;
+    var changes: Changes = .{};
+    const startup = try changes.wait(t.io, 0);
+    changes.notify(t.io);
+    changes.notify(t.io);
+    const after = try changes.wait(t.io, startup);
+    try t.expectEqual(startup + 2, after);
+    const Worker = struct {
+        fn wait(value: *Changes, io: std.Io, previous: u64) !u64 {
+            return value.wait(io, previous);
+        }
+    };
+    var waiter = try t.io.concurrent(Worker.wait, .{ &changes, t.io, after });
+    changes.notify(t.io);
+    try t.expectEqual(after + 1, try waiter.await(t.io));
+    var parked = try t.io.concurrent(Worker.wait, .{ &changes, t.io, after + 1 });
+    try t.expectError(error.Canceled, parked.cancel(t.io));
 }

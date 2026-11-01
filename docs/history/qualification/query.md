@@ -9,6 +9,89 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Managed finite Table lifecycle — 2026-11-01
+
+The selected installed slice declares one ordinary Table input and an existing,
+schema-matched Table output. The [public profile](../../handbook/reference/queries.md#managed-table-computations)
+and [contract](../../../contracts/DATAFLOW_V1.md) distinguish publication,
+authorization, activation, pending work and complete finite revisions. This is
+finite recomputation after publication notifications, not ordered change capture
+or incremental algebra.
+
+With the runtime implementation through `549798c32` and the pinned `ReleaseSafe`
+binaries, the [typed proof](../../../tests/catalog/tables/managed_table.zig)
+passes original-transaction recovery, atomic output/checkpoint publication,
+suspend/resume fencing, resume before old-worker cleanup, output-row budget
+refusal without a partial revision, invalid maximum-budget rejection before
+admission, managed dependency exclusions and retirement. The
+[driver](../../../tests/storage/tables/direct_table_service.py) kills and replaces
+the node after a prepared participant blocks ordinary head reads with `Conflict`.
+Independently paged pending work then recovers the original decision. The raw
+typed output is in `/tmp/transit-m12-final-overflow.log`; that combined command
+later failed in the installed watcher, so it is not a whole-command pass.
+
+The [installed SQL fixture](../../../tests/interfaces/installation/server_managed_tables.py)
+at `ab588a2f4`, run against those same binaries, passes publication without
+execution, explicit authorization/activation, five complete revisions including
+empty successors and refresh, suspend/SIGKILL/restart/resume, idle parking without
+storage polling, and retirement. Duplicate output keys settle as an execution
+failure without publishing a partial revision. Checked `SUM` overflow also
+settles and preserves the existing output value `7`. Its complete passing output
+is `/tmp/transit-m12-final-reconnect.log`. The fixture explicitly uses the
+existing direct-Table correctness profile: 120-second server commands and
+30-second authority requests. Fresh metadata observations, result closure and
+replacement observation sessions retain the original 180-second watch deadline.
+An uncertain retirement is inspected by its original identity and token; SQL is
+never resubmitted. `just test::managed-tables` is the reproduction entry point
+for both fixtures. This is not a latency qualification.
+
+Earlier installed attempts failed on canceled metadata observations, result-close
+timeouts, uncertain controls, missing local SQL sockets and permission denials
+after replacement. Reopening one retained installation established that original
+retirement operation `207` was terminal and applied without resubmission. A
+diagnostic run then exposed an actual overflow recovery defect: a fresh reader
+returns `Overflow`, while `FailedRelationalQuery` only describes reuse of an
+already failed reader. The former had remained pending until `549798c32` added
+its failure disposition. The watcher now reconnects only independent metadata
+observations after transport/session loss; permission denial still fails the
+fixture. These failures remain in `/tmp/transit-m12-final-installed-retry.log`,
+`/tmp/transit-m12-final-installed-isolated.log`,
+`/tmp/transit-m12-debug-refusal.log`, `/tmp/transit-m12-node-debug.log` and
+`/tmp/transit-m12-final-overflow.log`.
+
+The shared current-v1 definition is
+`082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1`.
+All 58 fast checks pass at `d05b55374`, and all 19 contract checks pass at
+`a826d6754` without inherited outputs. Schemas, signing fixtures and binding
+resources use that definition. Complete clean `interfaces-relational` and `interfaces-sql`
+lanes pass at `c2316c8ce385` and `35cc77b97534`, respectively; logs are retained
+as `/tmp/transit-m12-qualified-clean-interfaces-{relational,sql}.log`.
+These selections do not establish full qualification: SDK interop encountered
+MinIO `XMinioStorageFull`/HTTP 507, and the broader core/storage runs were
+interrupted to reduce shared-host I/O contention. Successful preceding checks
+do not qualify unfinished suffixes.
+
+The clean `installation-ui` attempt at `d05b55374` passes Board/documentation
+and Node binding checks, observability, server logging, single-executable startup,
+direct Tables, both managed fixtures together, installed direct faults and SQL
+lifetimes. The later `test::server-sql` fails on its read after TLS trust
+replacement with a generic request failure and no typed cause in the manager
+log. An unchanged rerun using the exact binaries reproduces that failure. Two
+diagnostic runs using those binaries with separately captured node stderr pass,
+at debug and normal info verbosity; they do not explain or clear the failures.
+The remaining installation tasks were not run. Evidence is retained in
+`/tmp/transit-m12-submission-clean-installation.log`,
+`/tmp/transit-m12-final-server-sql-exact.log`,
+`/tmp/transit-m12-final-server-sql-diagnostic.log` and
+`/tmp/transit-m12-final-server-sql-info.log`. The lane is incomplete; the source
+and fixture of its passing managed task are both `d05b55374`.
+
+This evidence does not close the full crash matrix, cardinality growth gates,
+dedicated installed revocation schedule, or T5/T8 implementation correspondence.
+It establishes no historical output snapshots, abandoned immutable-record
+collector, multi-source execution, Stream/KV/Document inputs, sink delivery or
+zero-allocation/performance guarantee. The broader milestone remains in progress.
+
 ## Collated TEXT relational execution and owned results — 2026-10-26
 
 The current-v1 cutover adds nullable `int64` and `utf8` relational values to

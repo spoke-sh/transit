@@ -11,6 +11,7 @@ name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
 log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
+managed: ?g.direct.ManagedTable.Declaration = null,
 source: bool = false,
 storage: bool = false,
 node_storage: bool = false,
@@ -74,6 +75,22 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
     }
     if (try parser.takeWord("SHOW")) {
+        if (try parser.takeWord("DATAFLOW")) {
+            if (!host.native_profile or host.source != null) return error.UnsupportedManagedTable;
+            const name = try c.TableMetadata.Name.init(try parser.name());
+            try parser.finish();
+            const manager: g.direct.ManagedTable = .{ .client = host.table };
+            const parsed = try manager.find(host.namespace, try .init(name.slice())) orelse return error.CatalogNameNotFound;
+            defer parsed.deinit();
+            var declared = parsed.value;
+            declared.sql = try a.dupe(u8, declared.sql);
+            const observed = try manager.inspect(declared);
+            _ = try declared.source.require(host.table, .read);
+            _ = try declared.output.require(host.table, .read);
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = observed }))});
+            return .{ .arena = arena, .name = name, .managed = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
+        }
         if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
             return null;
@@ -108,6 +125,18 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = &describe_fields };
     }
     if (try parser.takeWord("EXPLAIN")) {
+        if (try g.database.ManagedSql.parse(a, sql[parser.lexer.start..], host.dialect)) |parsed_value| {
+            var parsed = parsed_value;
+            defer parsed.deinit();
+            if (!host.native_profile or host.source != null or parsed.statement != .create) return error.UnsupportedManagedTable;
+            const value = parsed.statement.create;
+            const manager: g.direct.ManagedTable = .{ .client = host.table };
+            var declared = try manager.prepare(host.namespace, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
+            declared.sql = try a.dupe(u8, declared.sql);
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .consumer = "finite_recomputation", .sources = .{declared.source}, .output = declared.output, .limits = declared.options, .executed = false, .basis = @as(?[]const u8, null) }))});
+            return .{ .arena = arena, .managed = declared, .kind = .plan, .rows = rows, .output = &explain_fields };
+        }
         var statement = try g.Statement.prepare(host.allocator, &host.table, host.namespace, sql[parser.lexer.start..], host.dialect, .inspection, g.Session.read_options);
         errdefer statement.deinit();
         if (statement.kind() != .select or statement.parameters().len != 0) return error.UnsupportedConstruct;
@@ -162,6 +191,14 @@ fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []c
     return rows;
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
+    if (self.managed) |declared| {
+        _ = try declared.source.require(host.table, .read);
+        _ = try declared.output.require(host.table, .read);
+        if (self.kind != .plan) {
+            const manager: g.direct.ManagedTable = .{ .client = host.table };
+            _ = try manager.inspect(declared);
+        }
+    }
     if (self.node_storage) try validateNode(host);
     if (self.source) {
         const source = host.source orelse return error.UnknownSqlSource;

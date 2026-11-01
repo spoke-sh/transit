@@ -331,6 +331,7 @@ pub const SchemaTypes = struct {
     branch: p.Branch.SchemaTypes,
     stream_queue: p.StreamQueue.SchemaTypes,
     document: p.DocumentOperation.SchemaTypes,
+    dataflow: p.Dataflow.SchemaTypes,
 };
 
 test {

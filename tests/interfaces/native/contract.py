@@ -19,6 +19,8 @@ if sys.argv[1:] == ["--data-lifecycle"]:
     for path in (("binding",), ("commit", "binding"), ("snapshot",), ("resource_initialization",),
                  ("branch", "manifest"), ("branch", "attempt"),
                  ("branch", "validation", "attempt"), ("branch", "decision", "attempt"),
+                 ("dataflow", "declaration"), ("dataflow", "control"),
+                 ("dataflow", "candidate"), ("dataflow", "completion", "candidate"),
                  ("stream_queue", "append", "append", "target"),
                  ("stream_queue", "declaration"),
                  ("stream_queue", "producer", "target"),
