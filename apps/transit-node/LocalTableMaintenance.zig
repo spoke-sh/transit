@@ -80,7 +80,12 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
     self.last_class = null;
     for (0..4) |_| {
         const selected = self.next_kind;
-        self.next_kind = @fromBackingInt(@intCast((@backingInt(selected) + 1) % 4));
+        self.next_kind = switch (selected) {
+            .table => .stream,
+            .stream => .queue,
+            .queue => .transfer,
+            .transfer => .table,
+        };
         const worked = switch (selected) {
             .table => self.tableStep(engine, settings, signed),
             .stream => self.logStep(.stream, engine, settings, signed),
