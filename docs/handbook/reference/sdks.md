@@ -176,8 +176,9 @@ Zig owner; query connections do not enable administration.
 
 Zig, Python and TypeScript preserve schema-owned CHECK and staged foreign-key
 descriptors, including full-width parent definitions and owned literal values.
-The other typed Catalog wrappers currently admit empty integrity descriptors and
-explicitly reject nonempty ones; they never discard constraints when copying a
+The other typed Catalog wrappers emit and require the explicit empty integrity
+descriptor. They reject missing descriptors, nonempty constraints and retained
+constraint identity high-water marks; they never discard constraints when copying a
 schema. SQL submissions use the shared compiler independently of these schema
 wrapper limits. DDL observations distinguish `finalizing` (Table commit accepted,
 dependency cleanup pending) from `committed`; continue the original operation

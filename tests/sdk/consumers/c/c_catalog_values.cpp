@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
             try {
                 auto settings = sdk::ClientConfig::growing("http://127.0.0.1:9"); settings.native_directory(directory);
                 auto cpp = cat::Client::open(settings, sdk::Credential{46, 17, seed}, {{sdk::ResourceRef(46, 7), UINT64_MAX}, 3, 1, 23});
-                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->basis().interpretation().content.bytes == 300 && v->schema().columns[0].name == "id" && v->schema().columns[1].collation == cat::Collation::EbcdicCp037); }
+                if (command == "cpp_lookup") { auto v = cpp.lookup("items"); cpp.close(); assert(v && v->basis().interpretation().content.bytes == 300 && v->schema().columns[0].name == "id" && v->schema().columns[1].collation == cat::Collation::Ebcdic1047Nopad); }
                 else { auto v = cpp.execute(reference, 32); assert(v.commit()->affected == 9); }
             } catch (const cat::Uncertain &e) { assert(std::visit([](const auto &v) { return v.save(); }, e.original()) == original); result = e.failure(); }
             catch (const sdk::Error &e) { result = e.detail(); }

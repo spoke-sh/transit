@@ -39,10 +39,8 @@ final class CatalogValues {
     }
     static Schema schema(JsonElement value) {
         JsonObject source = object(value).deepCopy();
-        if (source.has("integrity")) {
-            JsonObject integrity = fields(source.remove("integrity"), "next_id", "checks", "foreign_keys");
-            if (number(integrity.get("next_id"), 1) != 1 || !integrity.getAsJsonArray("checks").isEmpty() || !integrity.getAsJsonArray("foreign_keys").isEmpty()) throw incompatible("catalog-constraint-schema-unsupported");
-        }
+        JsonObject integrity = fields(source.remove("integrity"), "next_id", "checks", "foreign_keys");
+        if (number(integrity.get("next_id"), 1) != 1 || !integrity.getAsJsonArray("checks").isEmpty() || !integrity.getAsJsonArray("foreign_keys").isEmpty()) throw incompatible("catalog-constraint-schema-unsupported");
         JsonObject v = fields(source, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
         JsonArray cols = v.getAsJsonArray("columns"), keys = v.getAsJsonArray("primary_key");
         if (cols.isEmpty() || cols.size() > 128 || keys.size() > cols.size()) throw incompatible("catalog-schema-bound");

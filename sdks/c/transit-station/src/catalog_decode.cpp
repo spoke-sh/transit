@@ -122,11 +122,10 @@ transit_station_catalog_read_authority read_authority(const Json &v) {
 }
 Schema decode_schema(const Json &input, Arena &a) {
     Json v = input;
-    if (const auto *integrity = find(v, "integrity")) {
-        integrity->fields({"next_id", "checks", "foreign_keys"});
-        require(counter_value(integrity->at("next_id")) == 1 && integrity->at("checks").array(64).empty() && integrity->at("foreign_keys").array(64).empty(), "catalog-constraint-schema-unsupported");
-        for (auto it = v.members.begin(); it != v.members.end(); ++it) if (it->first == "integrity") { v.members.erase(it); break; }
-    }
+    const auto &integrity = v.at("integrity");
+    integrity.fields({"next_id", "checks", "foreign_keys"});
+    require(counter_value(integrity.at("next_id")) == 1 && integrity.at("checks").array(64).empty() && integrity.at("foreign_keys").array(64).empty(), "catalog-constraint-schema-unsupported");
+    for (auto it = v.members.begin(); it != v.members.end(); ++it) if (it->first == "integrity") { v.members.erase(it); break; }
     v.fields({"definition", "object", "revision", "next_column", "columns", "primary_key"}); current(v.at("definition"));
     // Bound the entire schema independently of each descriptor/default.
     (void)logical_detail::encode(v, 2 * 1024 * 1024);
@@ -152,8 +151,10 @@ bool equal(const Json &a, const Json &b) {
     return true;
 }
 void validate(const char *key, const Json &v) {
-    static const Json action = logical_detail::JsonParser(generated::CatalogAction).parse();
-    static const Json result = logical_detail::JsonParser(generated::CatalogResult).parse();
+    // The generated definition directory grows with the closed contract. Its
+    // own derived bound does not enlarge the 256-field caller/reply parser.
+    static const Json action = logical_detail::JsonParser(generated::CatalogAction, logical_detail::json_bytes, 96, generated::CatalogActionFields).parse();
+    static const Json result = logical_detail::JsonParser(generated::CatalogResult, logical_detail::json_bytes, 96, generated::CatalogResultFields).parse();
     require(std::string_view(key) == "CatalogAction" || std::string_view(key) == "CatalogResult", "catalog-schema-name");
     const auto &root = std::string_view(key) == "CatalogAction" ? action : result;
     check_schema(root, v, root, 0);

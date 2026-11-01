@@ -122,7 +122,8 @@ public static partial class Catalog
         internal JsonObject Wire() {
             var budget = new WireBudget(2 * 1024 * 1024);
             var value = V.Obj(("definition", ContractDefinition), ("object", Turn.Decimal(ObjectId)), ("revision", Turn.Decimal(Revision)), ("next_column", Turn.Decimal(NextColumn)),
-                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)budget.Take(c.Wire())).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())));
+                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)budget.Take(c.Wire())).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())),
+                ("integrity", V.Obj(("next_id", 1u), ("checks", new JsonArray()), ("foreign_keys", new JsonArray()))));
             V.Text(value.ToJsonString(CatalogJson), 2 * 1024 * 1024); return value;
         }
     }

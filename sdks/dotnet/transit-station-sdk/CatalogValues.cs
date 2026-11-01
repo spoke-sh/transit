@@ -38,11 +38,9 @@ public static partial class Catalog
     }
     internal static Schema ParseSchema(JsonNode? value) {
         var source = (JsonObject)V.Object(value).DeepClone();
-        if (source.TryGetPropertyValue("integrity", out var descriptor)) {
-            var integrity = Fields(descriptor, "next_id", "checks", "foreign_keys");
-            if (integrity["next_id"]?.GetValue<uint>() != 1 || integrity["checks"] is not JsonArray { Count: 0 } || integrity["foreign_keys"] is not JsonArray { Count: 0 }) throw V.Incompatible("catalog-constraint-schema-unsupported");
-            source.Remove("integrity");
-        }
+        var integrity = Fields(source["integrity"], "next_id", "checks", "foreign_keys");
+        if (integrity["next_id"]?.GetValue<uint>() != 1 || integrity["checks"] is not JsonArray { Count: 0 } || integrity["foreign_keys"] is not JsonArray { Count: 0 }) throw V.Incompatible("catalog-constraint-schema-unsupported");
+        source.Remove("integrity");
         var v = Fields(source, "definition", "object", "revision", "next_column", "columns", "primary_key"); Current(V.String(v["definition"]));
         if (v["columns"] is not JsonArray { Count: > 0 and <= 128 } cols || v["primary_key"] is not JsonArray keys || keys.Count > cols.Count) throw V.Incompatible("catalog-schema-bound");
         List<Column> columns = [];

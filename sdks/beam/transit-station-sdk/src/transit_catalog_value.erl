@@ -59,7 +59,8 @@ end,Remaining,Values).
 schema(#transit_catalog_schema{object=Object,revision=Revision,next_column=Next,columns=Columns,primary_key=Keys}) ->
     list(Columns,128),check(Columns=/=[]),list(Keys,length(Columns)),
     {Encoded,_}=wire_map(fun column/1,Columns,2097152),
-    V=#{<<"definition">>=>definition(),<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision),<<"next_column">>=>decimal(Next),<<"columns">>=>Encoded,<<"primary_key">>=>[decimal(K)||K<-Keys]},
+    V=#{<<"definition">>=>definition(),<<"object">>=>decimal(Object),<<"revision">>=>decimal(Revision),<<"next_column">>=>decimal(Next),<<"columns">>=>Encoded,<<"primary_key">>=>[decimal(K)||K<-Keys],
+        <<"integrity">>=>#{<<"next_id">>=>1,<<"checks">>=>[],<<"foreign_keys">>=>[]}},
     check(byte_size(transit_sdk_value:encode(V))=<2097152),V.
 assignments(Values,Budget) -> wire_map(fun assignment/1,list(Values,128),Budget).
 assignment(#transit_catalog_assignment{column=Column,value=Value}) ->
@@ -95,7 +96,6 @@ parse_subject(V) ->
     #transit_catalog_subject{principal=zero(maps:get(<<"principal">>,V)),login_role=zero(maps:get(<<"login_role">>,V)),role=zero(maps:get(<<"role">>,V)),credential_epoch=counter(maps:get(<<"credential_epoch">>,V)),audience=counter(maps:get(<<"audience">>,V)),context=transit_station_value:digest(maps:get(<<"context">>,V))}.
 parse_schema(Input) ->
     V=case maps:take(<<"integrity">>,Input) of
-        error -> Input;
         {#{<<"next_id">>:=1,<<"checks">>:=[],<<"foreign_keys">>:=[]}=Integrity,Rest} when map_size(Integrity)=:=3 -> Rest;
         _ -> erlang:error({incompatible_native,constraint_schema_unsupported})
     end,

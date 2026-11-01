@@ -61,9 +61,13 @@ internal static class CatalogValues
         }
         var physical = Wire(Schema()); physical["columns"]![0]!["type"] = Obj(("utf8",Obj())); physical["columns"]![0]!["encoding"] = "ebcdic"; physical["columns"]![0]!["collation"] = "ebcdic_cp037";
         Check(((C.Schema)Decode("ParseSchema",physical)!).Columns[0].Collation == C.Collation.EbcdicCp037);
-        foreach (string field in new[] {"encoding","collation"}) {
+        foreach (string field in new[] {"encoding","collation","semantics"}) {
             var bad = physical.DeepClone(); bad["columns"]![0]!.AsObject().Remove(field); Reject<TransitException>(() => Decode("ParseSchema",bad));
         }
+        var missingIntegrity = physical.DeepClone(); missingIntegrity.AsObject().Remove("integrity");
+        Reject<TransitException>(() => Decode("ParseSchema",missingIntegrity));
+        var retiredIntegrity = physical.DeepClone(); retiredIntegrity["integrity"]!["next_id"] = 2;
+        Reject<TransitException>(() => Decode("ParseSchema",retiredIntegrity));
         L.Cell large = new L.Present(new L.Binary(new L.BinaryData(new byte[1024*1024]))); L.Cell invalid = new L.Present(new L.Sequence(L.SequenceKind.List,[large,large]));
         C.Schema oversized = new(1,1,3,[new C.Column(1,"data",new L.Scalar(L.ScalarKind.Binary),defaultValue:large),new C.Column(2,"later",new L.Scalar(L.ScalarKind.Binary),defaultValue:invalid)]);
         Check(Reject<ArgumentException>(() => Wire(oversized)).Message == "Table wire budget exceeded");

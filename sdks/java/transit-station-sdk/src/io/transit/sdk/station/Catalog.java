@@ -95,7 +95,8 @@ public final class Catalog {
         JsonObject wire() {
             WireBudget budget = new WireBudget(2 * 1024 * 1024);
             JsonArray cols = new JsonArray(), keys = new JsonArray(); columns.forEach(c -> cols.add(budget.take(c.wire()))); primaryKey.forEach(k -> keys.add(k.toString()));
-            JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys);
+            JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys,
+                "integrity", obj("next_id", 1, "checks", new JsonArray(), "foreign_keys", new JsonArray()));
             text(result.toString(), 2 * 1024 * 1024); return result;
         }
     }

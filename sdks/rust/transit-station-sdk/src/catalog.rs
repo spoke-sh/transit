@@ -458,13 +458,13 @@ impl Schema {
     }
     pub(crate) fn parse(v: &Value) -> Result<Self> {
         let mut source = v.clone();
-        if let Some(integrity) = source.as_object_mut().and_then(|o| o.remove("integrity")) {
-            if integrity != json!({"next_id":1,"checks":[],"foreign_keys":[]}) {
-                return Err(Error::new(
-                    ErrorKind::IncompatibleNative,
-                    "catalog-constraint-schema-unsupported",
-                ));
-            }
+        if source.as_object_mut().and_then(|o| o.remove("integrity"))
+            != Some(json!({"next_id":1,"checks":[],"foreign_keys":[]}))
+        {
+            return Err(Error::new(
+                ErrorKind::IncompatibleNative,
+                "catalog-constraint-schema-unsupported",
+            ));
         }
         let v = &source;
         object(
@@ -2682,7 +2682,7 @@ mod tests {
     fn physical_schema_and_alter_preserve_explicit_descriptors() {
         let wire = json!({"definition":abi::ABI_DEFINITION,"object":"7","revision":"2","next_column":"2",
             "columns":[{"id":"1","name":"text","type":{"utf8":{}},"nullable":true,"default":null,
-                "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037"}],"primary_key":[],"integrity":{"next_id":1,"checks":[],"foreign_keys":[]}});
+                "max_characters":null,"encoding":"ebcdic","collation":"ebcdic_cp037","semantics":{"rounding":null,"metric":null,"timezone":null,"spatial":null}}],"primary_key":[],"integrity":{"next_id":1,"checks":[],"foreign_keys":[]}});
         let schema = Schema::parse(&wire).unwrap();
         assert_eq!(schema.columns[0].encoding, Encoding::Ebcdic);
         assert_eq!(schema.columns[0].collation, Collation::EbcdicCp037);
@@ -2695,7 +2695,7 @@ mod tests {
             }
             .wire()
             .unwrap(),
-            json!({"physical":{"column":"1","encoding":"fsst","collation":"ascii_ci"}})
+            json!({"physical":{"column":"1","encoding":"fsst","collation":"ascii_ci","semantics":null}})
         );
         let added = Change::Add {
             name: "text".into(),
@@ -2710,7 +2710,16 @@ mod tests {
         .unwrap();
         assert_eq!(added["add"]["encoding"], "ebcdic");
         assert_eq!(added["add"]["collation"], "ebcdic_cp037");
-        for field in ["encoding", "collation"] {
+        let mut missing_integrity = wire.clone();
+        missing_integrity
+            .as_object_mut()
+            .unwrap()
+            .remove("integrity");
+        assert!(Schema::parse(&missing_integrity).is_err());
+        let mut retired_integrity = wire.clone();
+        retired_integrity["integrity"]["next_id"] = json!(2);
+        assert!(Schema::parse(&retired_integrity).is_err());
+        for field in ["encoding", "collation", "semantics"] {
             let mut bad = wire.clone();
             bad["columns"][0].as_object_mut().unwrap().remove(field);
             assert!(Schema::parse(&bad).is_err());

@@ -44,7 +44,7 @@ std::string encode_schema(const Schema &s) {
         column_fields(w, {c.name, c.type, c.nullable, c.default_value, c.max_characters, c.encoding, c.collation}); w.text("}");
     }
     w.text("],\"primary_key\":["); for (size_t i = 0; i < s.primary_key_count; ++i) { if (i) w.text(","); w.value(wide(s.primary_key[i])); }
-    w.text("]}"); return w.finish();
+    w.text("],\"integrity\":{\"next_id\":1,\"checks\":[],\"foreign_keys\":[]}}"); return w.finish();
 }
 void assignments(Writer &w, transit_station_catalog_assignments values) {
     array(values.data, values.size, 128); w.text("[");

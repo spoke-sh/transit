@@ -120,7 +120,8 @@ module Transit
         end
         def wire
           budget = Values::WireBudget.new(2 * 1024 * 1024)
-          { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map { |c| budget.take(c.wire) }, 'primary_key' => primary_key.map(&:to_s) }
+          { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map { |c| budget.take(c.wire) }, 'primary_key' => primary_key.map(&:to_s),
+            'integrity' => { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] } }
         end
       end
       Identity = Data.define(:operation, :namespace) do
@@ -270,9 +271,7 @@ module Transit
         module_function
         def schema(value)
           value = value.dup
-          if value.key?('integrity')
-            raise IncompatibleNative, 'Constraint-bearing schemas are unsupported by this caller' unless value.delete('integrity') == { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] }
-          end
+          raise IncompatibleNative, 'Missing or unsupported integrity descriptor' unless value.delete('integrity') == { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] }
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
           columns = v.fetch('columns').map do |c|
