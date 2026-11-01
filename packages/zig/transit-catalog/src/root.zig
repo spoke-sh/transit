@@ -45,6 +45,7 @@ pub const DirectLog = @import("DirectLog.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
 pub const DirectLogIntent = @import("DirectLogIntent.zig");
 pub const DirectWorkloadIntent = @import("DirectWorkloadIntent.zig");
+pub const DirectWorkloadResult = @import("DirectWorkloadResult.zig");
 pub const DirectLogPreparedDdl = @import("DirectLogPreparedDdl.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
 pub const DirectStreamMutation = @import("DirectStreamMutation.zig");

@@ -7298,6 +7298,7 @@ const WorkloadOwners = struct {
     clock: QueueClock = .{},
     steps: u16 = 256,
     revoke_after: ?u64 = null,
+    revoke_page_only: bool = false,
     fn deinit(self: *@This()) void {
         if (self.stream) |*value| value.deinit();
         if (self.queue) |*value| value.deinit();
@@ -7305,17 +7306,35 @@ const WorkloadOwners = struct {
     fn reader(self: *@This()) c.DirectWorkloadIntent.Reader {
         return .{ .context = self, .inspect = inspect };
     }
-    fn inspect(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, work: c.DirectWorkloadIntent.Work) !c.DirectWorkloadIntent.Reader.Result {
+    fn native(self: *@This()) c.DirectWorkloadResult.Native {
+        return .{ .context = self, .stream = resultStream, .queue = resultQueue };
+    }
+    const options: s.StreamPartition.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 256, .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 } };
+    fn resultStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
         const self: *@This() = @ptrCast(@alignCast(raw));
         var scratch: std.heap.ArenaAllocator = .init(t.allocator);
         defer scratch.deinit();
-        const options: s.StreamPartition.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 256, .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 } };
-        const result: c.DirectWorkloadIntent.Reader.Result = switch (work) {
-            .stream => |value| .{ .stream = try c.DirectStream.apply(scratch.allocator(), output, catalog, &self.stream, options, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = self.steps }, .{ .operation = value.work }, policy) },
-            .queue => |value| .{ .queue = try c.DirectQueue.apply(scratch.allocator(), output, catalog, &self.queue, options, .{ .clock = self.clock.source(), .recovery_steps = self.steps }, .{ .operation = value.work }, policy) },
+        const result = try c.DirectStream.apply(scratch.allocator(), output, catalog, &self.stream, options, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = self.steps }, request, policy);
+        if (self.revoke_after) |id| if (!self.revoke_page_only or request == .page) {
+            self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
         };
-        if (self.revoke_after) |id| self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
         return result;
+    }
+    fn resultQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        const result = try c.DirectQueue.apply(scratch.allocator(), output, catalog, &self.queue, options, .{ .clock = self.clock.source(), .recovery_steps = self.steps }, request, policy);
+        if (self.revoke_after) |id| if (!self.revoke_page_only or request == .page) {
+            self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
+        };
+        return result;
+    }
+    fn inspect(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, work: c.DirectWorkloadIntent.Work) !c.DirectWorkloadIntent.Reader.Result {
+        return switch (work) {
+            .stream => |value| .{ .stream = try resultStream(raw, output, catalog, policy, .{ .operation = value.work }) },
+            .queue => |value| .{ .queue = try resultQueue(raw, output, catalog, policy, .{ .operation = value.work }) },
+        };
     }
 };
 
@@ -7475,5 +7494,190 @@ test "workload token settlement requires original native evidence across lost di
                 }
             }
         }
+    }
+}
+
+test "workload results reopen original payload and selections without mutation across disk replacement" {
+    const Result = c.DirectWorkloadResult;
+    inline for (.{ c.DirectLog.Kind.stream, c.DirectLog.Kind.queue }) |kind| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var references: [2]Result.Reference = undefined;
+        var partition: u64 = undefined;
+        var original_tail: u64 = undefined;
+        var authorization: u64 = undefined;
+        var access: Access = .{ .exclusive = true };
+        const declaration_request = try logCreation(kind, 10, 1, "result-work", 1);
+        for (0..2) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            var owners: WorkloadOwners = .{ .access = &access };
+            defer owners.deinit();
+            const native = owners.native();
+            var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+            defer scratch.deinit();
+            var output: std.heap.ArenaAllocator = .init(t.allocator);
+            defer output.deinit();
+            if (restart == 0) {
+                try catalog.initialize(access.policy());
+                _ = try catalog.admitLog(declaration_request, access.policy());
+                _ = try catalog.logOperation(declaration_request.binding, .execute, access.policy());
+                const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
+                partition = definition.first_partition;
+                authorization = definition.properties.authorization;
+                const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+                var schema_buffer: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+                const schema = try c.DirectTableProtocol.Binary.encode(t.allocator, try declaration_request.intent.action.create.schema.encode(&schema_buffer));
+                defer t.allocator.free(schema.base64);
+                const source: c.DirectLogProtocol.Definition = .{ .declaration = definition, .schema = schema };
+                const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+                var bytes: [8192]u8 = undefined;
+                const payload = try s.LogBatch.encode(declaration_request.intent.action.create.schema, identity, kind, &.{
+                    .{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 10 } } }} },
+                    .{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 20 } } }} },
+                    .{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 30 } } }} },
+                }, &bytes);
+                const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+                defer t.allocator.free(encoded.base64);
+                const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 }, .operation = identity, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) };
+                const selected_operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 101 };
+                const works: [2]c.DirectWorkloadIntent.Work = .{
+                    if (kind == .stream) .{ .stream = .{ .work = .{ .append = append }, .payload = encoded } } else .{ .queue = .{ .work = .{ .enqueue = append }, .payload = encoded } },
+                    if (kind == .stream)
+                        .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = selected_operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
+                    else
+                        .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = selected_operation, .maximum = 3, .lease_ms = 100 } }, .payload = null } },
+                };
+                for (works, &references) |work, *reference| {
+                    var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, work);
+                    defer intent.deinit();
+                    const frozen = try intent.reference(@splat(7));
+                    _ = try c.DirectRecord.store(objects.objectStore(), frozen.record.scope, c.DirectWorkloadIntent.format, intent.bytes);
+                    const limits: Result.Limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 };
+                    try t.expectError(error.ClientOperationPending, Result.open(t.allocator, &catalog, frozen, limits, access.policy(), native));
+                    switch (work) {
+                        .stream => |value| {
+                            const result = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = value });
+                            result.deinit(t.allocator);
+                        },
+                        .queue => |value| {
+                            const result = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = value });
+                            result.deinit(t.allocator);
+                        },
+                    }
+                    var result = try Result.open(t.allocator, &catalog, frozen, limits, access.policy(), native);
+                    defer result.deinit();
+                    reference.* = result.reference;
+                    const page = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                    try expectWorkloadPage(page, 0, false, .live);
+                    var second_output: std.heap.ArenaAllocator = .init(t.allocator);
+                    defer second_output.deinit();
+                    _ = scratch.reset(.retain_capacity);
+                    const second = try result.next(&scratch, &second_output, &catalog, access.policy(), native);
+                    try expectWorkloadPage(second, 1, false, .live);
+                    try expectWorkloadPage(page, 0, false, .live);
+                    const first_encoded = switch (page) {
+                        inline else => |value| value.rows[0].encoded,
+                    };
+                    const first_bytes = try first_encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
+                    const first_row = try c.fuze.TableRow.decodeInto(scratch.allocator(), declaration_request.intent.action.create.schema, first_bytes);
+                    try t.expectEqual(@as(i64, 10), first_row.row().cells[0].value.atom.signed);
+                    // Early local close retains the native selection and receipt.
+                    _ = output.reset(.retain_capacity);
+                }
+                original_tail = try wal.log().tail(partition);
+            } else {
+                // A result is still the original claim after its lease expires.
+                owners.clock.now = .exact(1000);
+                for (references) |reference| {
+                    var result = try Result.reopen(t.allocator, &catalog, reference, access.policy(), native);
+                    defer result.deinit();
+                    try reference.requireSame(result.reference);
+                    for (0..3) |index| {
+                        if (index == 1) {
+                            const before = result.cursor;
+                            owners.revoke_after = authorization;
+                            owners.revoke_page_only = reference.selection != .append;
+                            try t.expectError(error.CatalogDenied, result.next(&scratch, &output, &catalog, access.policy(), native));
+                            try t.expectEqualDeep(before, result.cursor);
+                            owners.revoke_after = null;
+                            access.denied_privileges = null;
+                        }
+                        _ = scratch.reset(.retain_capacity);
+                        _ = output.reset(.retain_capacity);
+                        const page = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                        _ = scratch.reset(.retain_capacity);
+                        try expectWorkloadPage(page, index, index == 2, .expired);
+                        const encoded = switch (page) {
+                            inline else => |value| value.rows[0].encoded,
+                        };
+                        const row_bytes = try encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
+                        const decoded = try c.fuze.TableRow.decodeInto(scratch.allocator(), declaration_request.intent.action.create.schema, row_bytes);
+                        try t.expectEqual(@as(i64, @intCast((index + 1) * 10)), decoded.row().cells[0].value.atom.signed);
+                    }
+                    const prior = result.cursor;
+                    owners.revoke_after = authorization;
+                    owners.revoke_page_only = reference.selection != .append;
+                    try t.expectError(error.CatalogDenied, result.next(&scratch, &output, &catalog, access.policy(), native));
+                    try t.expectEqualDeep(prior, result.cursor);
+                    owners.revoke_after = null;
+                    access.denied_privileges = null;
+                    // Empty terminal disclosure still requires authority.
+                    const terminal = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                    switch (terminal) {
+                        .append => |page| try t.expect(page.complete and page.rows.len == 0),
+                        .consume => |page| try t.expect(page.cursor.coverage.complete and page.rows.len == 0),
+                        .claim => |page| try t.expect(page.cursor.complete() and page.rows.len == 0),
+                    }
+                    access.denied_privileges = .{ .id = authorization, .mask = c.LogAuthority.read };
+                    try t.expectError(error.CatalogDenied, Result.reopen(t.allocator, &catalog, reference, access.policy(), native));
+                    access.denied_privileges = null;
+                    var changed = reference;
+                    switch (changed.selection) {
+                        .append => |*receipt| receipt.accepted.next_lsn += 1,
+                        .consume => |*receipt| receipt.source.sha256[0] ^= 1,
+                        .claim => |*receipt| receipt.leases.?.sha256[0] ^= 1,
+                    }
+                    try t.expectError(error.WorkloadResultConflict, Result.reopen(t.allocator, &catalog, changed, access.policy(), native));
+                    if (reference.selection == .append) {
+                        var tiny = reference;
+                        tiny.limits.encoded_bytes = 1;
+                        var bounded = try Result.reopen(t.allocator, &catalog, tiny, access.policy(), native);
+                        defer bounded.deinit();
+                        const before = bounded.cursor;
+                        try t.expectError(error.WorkloadResultRowTooLarge, bounded.next(&scratch, &output, &catalog, access.policy(), native));
+                        try t.expectEqualDeep(before, bounded.cursor);
+                    }
+                }
+                try t.expectEqual(original_tail, try wal.log().tail(partition));
+            }
+        }
+    }
+}
+
+fn expectWorkloadPage(page: c.DirectWorkloadResult.Page, ordinal: usize, complete: bool, liveness: p.QueueRead.Liveness) !void {
+    switch (page) {
+        .append => |value| {
+            try t.expectEqual(@as(usize, 1), value.rows.len);
+            try t.expectEqual(ordinal, value.rows[0].offset);
+            try t.expectEqual(ordinal + 1, value.next);
+            try t.expectEqual(complete, value.complete);
+        },
+        .consume => |value| {
+            try t.expectEqual(@as(usize, 1), value.rows.len);
+            try t.expectEqual(ordinal, value.rows[0].offset);
+            try t.expectEqual(complete, value.cursor.coverage.complete);
+        },
+        .claim => |value| {
+            try t.expectEqual(@as(usize, 1), value.rows.len);
+            try t.expectEqual(ordinal, value.rows[0].lease.original.offset);
+            try t.expectEqual(ordinal + 1, value.cursor.next);
+            try t.expectEqual(complete, value.cursor.complete());
+            try t.expectEqual(liveness, value.rows[0].lease.liveness);
+        },
     }
 }

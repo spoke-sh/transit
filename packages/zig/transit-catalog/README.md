@@ -63,6 +63,19 @@ normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
 cancel flag supply no completion. SQL result recovery is not wired to this owner
 yet. Catalog storage traversal verifies the body and retains its source declaration.
 
+`DirectWorkloadResult` prepares the in-process original-result reader for service
+composition. Its reference binds the frozen workload, actual append/consume/claim
+receipt and delivery limits. Append/enqueue rows come from the verified saved
+payload; consume and claim pages use the native retained selection. Opening,
+paging and empty completion recheck current original-operation and READ rights.
+The caller supplies separate scratch/output arenas; cursor advancement occurs
+only after disclosure checks, and returned rows survive scratch resets. Delivery
+pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
+limits. Closing frees local buffers without releasing the shared durable read
+dependency or changing leases/group progress. This module is not yet exposed
+through a new native action or the SQL result lifecycle; SQL projection freezing,
+result reopening and finite-consumption handoff still need their service wiring.
+
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview
 checks current declaration and destination rights before staging.

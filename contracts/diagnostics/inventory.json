@@ -8027,6 +8027,56 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectWorkloadResult.zig": {
+      "errors": {
+        "CatalogDenied": 1,
+        "ClientOperationPending": 5,
+        "InvalidWorkloadResultBudget": 3,
+        "WorkloadResultConflict": 3,
+        "WorkloadResultRowTooLarge": 1,
+        "WorkloadResultUnavailable": 2
+      },
+      "outcomes": {
+        "Page": [
+          "append",
+          "consume",
+          "claim"
+        ],
+        "Selection": [
+          "append",
+          "consume",
+          "claim"
+        ],
+        "cursor": [
+          "append",
+          "consume",
+          "claim"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "Native.queue()": "anyerror",
+        "Native.stream()": "anyerror",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Selection.binding()": "<inferred>",
+        "authorize()": "<inferred>",
+        "next()": "<inferred>",
+        "observe()": "<inferred>",
+        "open()": "<inferred>",
+        "reopen()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 45,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DisclosurePolicy.zig": {
       "errors": {
         "DelegatedResourceNotPermitted": 1,
@@ -9242,6 +9292,7 @@
         "DirectTransactionSavepoint.zig",
         "DirectTransactionWorkspace.zig",
         "DirectWorkloadIntent.zig",
+        "DirectWorkloadResult.zig",
         "DisclosurePolicy.zig",
         "DocumentAuthority.zig",
         "ErasureAndWorkload.zig",
