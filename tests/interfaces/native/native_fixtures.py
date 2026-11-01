@@ -154,6 +154,7 @@ def generated():
                     transaction_definition(child)
 
         transaction_definition(transaction)
+        transaction_definition(lifecycle['dataflow'])
         transfer_destination = copy.deepcopy(transaction['log_action']['action']['append'])
         transfer_source = copy.deepcopy(transfer_destination['target'])
         transfer_destination['target']['interpretation']['object']['object'] += 1

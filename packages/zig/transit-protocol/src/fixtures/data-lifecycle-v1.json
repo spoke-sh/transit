@@ -5428,5 +5428,731 @@
         }
       }
     }
+  },
+  "dataflow": {
+    "declaration": {
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 18446744073709551615
+        },
+        "revision": 1,
+        "digest": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ]
+      },
+      "owner": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 42
+      },
+      "kind": "materialized_view",
+      "consumer": "finite_recomputation",
+      "resume_policy": "recompute_snapshot",
+      "plan": {
+        "bytes": 100,
+        "sha256": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "dependencies": {
+        "content": {
+          "bytes": 100,
+          "sha256": [
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5
+          ]
+        },
+        "count": 10003
+      },
+      "limits": {
+        "resident_bytes": 1048576,
+        "spill_bytes": 0,
+        "result_bytes": 1048576,
+        "work_steps": 1000000,
+        "output_rows": 100000
+      }
+    },
+    "control": {
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 42
+      },
+      "target": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 18446744073709551615
+        },
+        "revision": 1,
+        "digest": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ]
+      },
+      "expected": {
+        "state": "active",
+        "epoch": 3,
+        "refresh": 0
+      },
+      "command": "retire"
+    },
+    "source": {
+      "interpretation": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "branch": 1,
+          "object": 18446744073709551615
+        },
+        "revision": 1,
+        "digest": [
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23,
+          23
+        ]
+      },
+      "kind": "table",
+      "position": {
+        "partition": 17,
+        "next_lsn": 100
+      },
+      "retention_owner": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 42
+      }
+    },
+    "coverage": {
+      "from": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 18446744073709551615
+          },
+          "revision": 1,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "kind": "table",
+        "position": {
+          "partition": 17,
+          "next_lsn": 100
+        },
+        "retention_owner": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 42
+        }
+      },
+      "through": {
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 18446744073709551615
+          },
+          "revision": 1,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "kind": "table",
+        "position": {
+          "partition": 17,
+          "next_lsn": 100
+        },
+        "retention_owner": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 42
+        }
+      },
+      "complete": true
+    },
+    "candidate": {
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+      "lease": {
+        "target": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 18446744073709551615
+          },
+          "revision": 1,
+          "digest": [
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23,
+            23
+          ]
+        },
+        "control": {
+          "state": "active",
+          "epoch": 3,
+          "refresh": 0
+        },
+        "owner": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 42
+        },
+        "epoch": 9
+      },
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 0,
+        "operation": 42
+      },
+      "previous_revision": 0,
+      "sources": {
+        "content": {
+          "bytes": 100,
+          "sha256": [
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5
+          ]
+        },
+        "count": 10003
+      },
+      "result": {
+        "bytes": 100,
+        "sha256": [
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "rows": 0
+    },
+    "completion": {
+      "candidate": {
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+        "lease": {
+          "target": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 18446744073709551615
+            },
+            "revision": 1,
+            "digest": [
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23,
+              23
+            ]
+          },
+          "control": {
+            "state": "active",
+            "epoch": 3,
+            "refresh": 0
+          },
+          "owner": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "principal": 0,
+            "operation": 42
+          },
+          "epoch": 9
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 42
+        },
+        "previous_revision": 0,
+        "sources": {
+          "content": {
+            "bytes": 100,
+            "sha256": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ]
+          },
+          "count": 10003
+        },
+        "result": {
+          "bytes": 100,
+          "sha256": [
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5
+          ]
+        },
+        "rows": 0
+      },
+      "transaction": {
+        "begin": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 0,
+          "operation": 42
+        },
+        "branch": 1
+      },
+      "decision": {
+        "partition": 19,
+        "next_lsn": 7
+      }
+    }
   }
 }

@@ -1,5 +1,10 @@
 # transit-protocol
 
+`Dataflow` defines neutral managed computation identities, control fences,
+per-source coverage and common-transaction completion attribution. Its validation
+does not activate a service or grant source access. See the
+[managed computation contract](../../../contracts/DATAFLOW_V1.md).
+
 Public, language-neutral Transit contract types, exported as `transit_protocol`.
 The library depends only on Zig's standard library. Core and client both import
 it; no storage, transport or provider implementation belongs here.

@@ -16,6 +16,7 @@ pub const Growth = @import("Growth.zig");
 pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
 pub const DataLifecycle = @import("DataLifecycle.zig");
+pub const Dataflow = @import("Dataflow.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Branch = @import("Branch.zig");
 pub const IndexLifecycle = @import("IndexLifecycle.zig");
@@ -74,6 +75,7 @@ test {
     _ = EffectDiagnostic;
     _ = Authorization;
     _ = DataLifecycle;
+    _ = Dataflow;
     _ = Transaction;
     _ = Branch;
     _ = IndexLifecycle;
