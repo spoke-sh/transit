@@ -541,7 +541,7 @@ schedules pass at one definition, including two lost replies and node restarts
 per schedule; see [declaration/token and current-definition evidence](../history/qualification/catalog.md#streamqueue-declaration-tokens--2026-10-31)
 and [bounded transfer evaluation](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation).
 The complete preparation/decision/finalization fault matrix and automatic DLQ
-scheduling remain open. R6's dedicated SQL/shared caller/finite analytical
+scheduling remain open. R6's workload SQL/shared caller/finite analytical
 surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
@@ -553,8 +553,8 @@ not complete these gates.
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Partial: claims, bounded waits, retries, delays, maintenance, retention and explicit atomic DLQ delivered; automatic DLQ scheduling open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: native Table/KV/Stream/Queue mixed recovery passes; explicit DLQ implemented, installed DLQ proof, complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
-| R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
+| R5 | Partial: native Table/KV/Stream/Queue mixed recovery and installed explicit DLQ recovery pass; complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R6 | Partial: declaration SQL, named inspection and paged listings delivered; workload verbs, finite analytical bridge and mixed SQL open | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
 | R9 | Database write lifecycle and latency closure | Start after R0; coordinate M3, M8 and #211 | Original-token common envelope, bounded publication and matched installed latency evidence |
@@ -915,6 +915,15 @@ the original decision without re-running a handler. Document remains rejected
 until M7 supplies the same obligations.
 
 ### R6 Expose SQL and shared caller operations
+
+**Delivered declaration/inspection slice:** dedicated CREATE/ALTER/RENAME/DROP
+Stream/Queue syntax lowers through the shared Catalog and frozen caller-token
+owner. Named SHOW/DESCRIBE and paged SHOW STREAMS/QUEUES use the existing result
+lifecycle with current disclosure rights. The [installed SQL evidence](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31)
+covers native, console, PostgreSQL and MySQL callers, original-token recovery
+after service replacement, two-batch metadata, empty listings, exact-definition
+invalidation and buffered revocation. Workload verbs, retained analytical reads,
+mixed transaction SQL and clean dependent lanes remain open.
 
 Deliver four independently testable slices: declaration/inspection SQL over R2;
 standalone producer/consumer/lease SQL over R3/R4; finite retained `STREAM_SLICE`
