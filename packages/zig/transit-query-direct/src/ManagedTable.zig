@@ -491,7 +491,9 @@ pub fn step(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: s
             error.ManagedTableResultBudget, error.RelationalResultBudget, error.RelationalWorkBudget, error.RelationalResidentBudget, error.RelationalSpillBudget, error.RelationalSpillWorkBudget, error.QueryPageBudget, error.QueryResultBudget, error.TransactionMemoryLimit, error.TransactionWorkspaceLimit, error.KVBuildBudget => .budget,
             error.CatalogDenied, error.AccessDenied, error.Rejected => .authorization,
             error.TableDefinitionChanged, error.TableNotFound, error.DataflowSourceChanged => .source_changed,
-            error.FailedRelationalQuery => .execution_failed,
+            // A fresh reader returns the original checked arithmetic error.
+            // FailedRelationalQuery only describes reuse of that failed reader.
+            error.FailedRelationalQuery, error.Overflow => .execution_failed,
             else => return err,
         };
         const progress = try c.DirectClientToken.inspect(self.client, token) orelse return err;
