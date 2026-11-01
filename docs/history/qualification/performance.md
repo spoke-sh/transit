@@ -67,6 +67,19 @@ preserves the original requests, receipts, configuration and matching binaries.
 Later read-only investigation must preserve those identities and cannot turn
 this failed run into a passing measurement.
 
+A read-only follow-up restarts the same installation with that node and an
+`1c4106d54` caller modified only to emit the owner's recovery position. The
+original operation remains `1200001`, the 30-second logical deadline is unchanged,
+and no mutation is submitted. Nine responses advance by 256 frames each, from
+partition 5 position 257 to 2,305, then the read fails with `OwnerRecoveryBudget`.
+The owner is advancing; this is not repeated replay of the same prefix. The
+follow-up is diagnostic evidence, not another qualified performance run or a
+completed inspection. Its caller SHA-256 is
+`4c76e93d8e8592bd79dc98ec159a8410be955b90f07df38cc0611c3de6520db6`.
+The retained installation's `m6-replay-investigation.stdout` has SHA-256
+`13775cc3d56403301438f1bac4c610928a8a0404fe18eff77017d90731cce42f`,
+and `m6-replay-investigation.json` records matching runtime/caller attribution.
+
 ## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
 
 The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)

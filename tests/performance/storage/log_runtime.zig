@@ -95,7 +95,7 @@ fn Runner(comptime kind: Kind) type {
                     // A cold owner resumes bounded replay on read-only calls.
                     // Keep the exact operation/cursor, expose every progress
                     // response and include all replay time in the logical call.
-                    try emit(self.init, self.out, .{ .event = "recovery_step", .profile = self.config.id, .serial = self.serial, .http_call = http_calls });
+                    try emit(self.init, self.out, .{ .event = "recovery_step", .profile = self.config.id, .serial = self.serial, .http_call = http_calls, .progress = observed.value.result.recovering });
                     if (start.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) {
                         try emit(self.init, self.out, .{ .event = "failure", .profile = self.config.id, .serial = self.serial, .cause = "OwnerRecoveryBudget", .mutation_attempted = false });
                         return error.OwnerRecoveryBudget;
