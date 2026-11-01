@@ -263,7 +263,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             time.sleep(.02)
                 if slice == 'sessions-log':
                     from interfaces.sql_sessions.logs import run as log_declarations
-                    log_declarations(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'))
+                    log_declarations(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), str(Path(console).resolve()))
                     return
                 if slice == 'transactions':
                     from interfaces.sql_sessions.transactions import run as transactions
