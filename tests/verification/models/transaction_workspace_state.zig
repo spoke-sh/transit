@@ -354,7 +354,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
             const progress = (try catalog.clientProgress(.{ .inspect = b1.key }, auditor.policy())).state.?;
             const head = try c.DirectTransactionWorkspace.recover(allocator, catalog.data_objects, progress);
             last_seq = head.last_statement;
-            pending_seq = if (head.pending) |req| req.statement.sequence else 0;
+            pending_seq = if (head.pending) |req| req.statement().sequence else 0;
             const state = try catalog.transactionTableState(b1.key, view.table.root.interpretation.object, auditor.policy());
             private_rows = state.root.live_rows;
         }
