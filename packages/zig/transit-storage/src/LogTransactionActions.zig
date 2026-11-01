@@ -165,6 +165,10 @@ fn loadEntry(self: *Self, key: pages.Key, value: pages.Value) !Entry {
     if (!std.mem.eql(u8, indexed.slice(), key.slice())) return error.InvalidTransactionActions;
     return entry;
 }
+/// Exact immutable entry reference for bounded retention traversal.
+pub fn entryContent(self: *Self, at: Cursor) !d.Content {
+    return contentOf(try self.tree().get(self.root.entries, try entryKey(at)) orelse return error.MissingTransactionActions);
+}
 pub fn get(self: *Self, at: Cursor) !?Entry {
     const key = try entryKey(at);
     return try self.loadEntry(key, try self.tree().get(self.root.entries, key) orelse return null);

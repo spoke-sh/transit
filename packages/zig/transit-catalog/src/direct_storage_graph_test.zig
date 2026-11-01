@@ -586,3 +586,105 @@ test "direct graph retains transaction log source payloads after archive trim un
     // Replay history can still retain its earlier live pin independently.
     try t.expectError(error.LogTransactionSourceReleased, owner.inspectTransactionSource(pin, guard));
 }
+
+test "direct graph retains prepared log successors actions and frozen decision directories" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn walk(owner: *s.StreamPartition, wal: s.TransitLog.Log, workspace: *Workspace) !void {
+            // A barrier's public payload root cannot retain its private successor.
+            try workspace.enqueue(.{ .log_root = .{ .root = owner.root, .archive = owner.root.archive } });
+            var at: usize = 0;
+            var steps: usize = 0;
+            while (at < workspace.jobs.items.len) : (at += 1) {
+                var work = workspace.jobs.items[at];
+                while (true) {
+                    const queued = workspace.jobs.items.len;
+                    const complete = try Graph.step(t.allocator, &owner.store, wal, &work, workspace);
+                    try t.expect(workspace.jobs.items.len - queued <= 3);
+                    steps += 1;
+                    if (steps > 20000) return error.FixtureBudget;
+                    if (complete) break;
+                }
+            }
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const definition: s.LogDeclaration.Definition = .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 8 },
+        .revision = 1,
+        .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "value", .type = .utf8, .nullable = false, .collation = .utf8_binary }} },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "transaction-source-graph",
+    };
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
+    const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
+    _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
+    const options: s.StreamPartition.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 1024, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 8192, .resident_bytes = 16384 } };
+    var owner = try s.StreamPartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(guard, 1);
+    const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(definition.schema, operation, .stream, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = "retained" } } }} }}, &bytes);
+    _ = try owner.append(declared, .{ .target = initial.target(), .operation = operation, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, guard);
+
+    const identity: c.protocol.Transaction.Identity = .{ .begin = .{ .scope = scope_id, .principal = 1, .operation = 100 }, .branch = 1 };
+    const basis = try s.LogTransaction.logGuard(owner.root);
+    const pin = try owner.pinTransactionSource(declared, identity, owner.root.position(), guard);
+    var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, basis, 20, 1024 * 1024, 1, 1024 * 1024);
+    defer actions.deinit();
+    for (10..13) |id| {
+        const append_operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = id };
+        const batch = try s.LogBatch.encode(definition.schema, append_operation, .stream, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = "private" } } }} }}, &bytes);
+        try actions.put(.{ .statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(8) }, .ordinal = @intCast(id - 9), .action = .{ .append = .{ .target = initial.target(), .operation = append_operation, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(batch) } } }, batch);
+    }
+    const actions_root = try actions.seal();
+    var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), identity, .participants, 10, 1, 1024 * 1024);
+    defer selected.deinit();
+    try selected.put(.{ .participant = .{ .log = .{ .guard = basis, .actions = actions_root } } });
+    const directory = try selected.seal();
+    const binding: s.TransactionDecisionLog.Binding = .{
+        .begin = .{ .definition = c.protocol.Growth.current_definition, .identity = identity, .mode = .serializable, .selection = .explicit_objects, .objects = directory, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 2 } },
+        .attempt = .{ .definition = c.protocol.Growth.current_definition, .transaction = identity, .operation = .{ .scope = scope_id, .principal = 1, .operation = 101 }, .cut = directory.content, .workspace = directory.content, .participants = directory, .writes = 1, .last_statement = 1 },
+    };
+    var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);
+    try journal.recover();
+    try journal.freeze(guard);
+    _ = try owner.prepareTransaction(binding, 99, basis, pin, actions_root, .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 }, null, guard);
+    const reference = owner.root.transaction.?;
+    const preparation = try s.LogTransaction.loadPreparation(objects.objectStore(), reference);
+    var retained: Workspace = .{};
+    defer retained.deinit();
+    try Fixture.walk(&owner, wal.log(), &retained);
+    var name: [96]u8 = undefined;
+    try t.expect(retained.marks.contains(try s.LogTransaction.preparationKey(reference, &name)));
+    try t.expect(retained.marks.contains(try s.TreeStore.key(preparation.successor.batches.?.location, &name)));
+    try t.expect(retained.marks.contains(try s.TreeStore.key(preparation.successor.segments.?.location, &name)));
+    try t.expect(retained.marks.contains(try s.TreeStore.key(selected.root.entries.?.location, &name)));
+    try t.expect(retained.marks.contains(try s.LogTransactionActions.objectKey(actions_root.content, &name)));
+    for (1..4) |ordinal| {
+        const cursor: s.LogTransactionActions.Cursor = .{ .sequence = 1, .ordinal = @intCast(ordinal) };
+        try t.expect(retained.marks.contains(try s.LogTransactionActions.objectKey(try actions.entryContent(cursor), &name)));
+        const entry = (try actions.get(cursor)).?;
+        try t.expect(retained.marks.contains(try s.LogTransactionActions.payloadKey(entry.work.action.append.payload, &name)));
+    }
+    // Missing accepted private bytes stop traversal before it can establish a
+    // complete mark set. A cached page cannot disguise this missing payload.
+    const missing = (try actions.get(.{ .sequence = 1, .ordinal = 2 })).?.work.action.append.payload;
+    try objects.objectStore().delete(try s.LogTransactionActions.payloadKey(missing, &name));
+    var incomplete: Workspace = .{};
+    defer incomplete.deinit();
+    try t.expectError(error.MissingTransactionPayload, Fixture.walk(&owner, wal.log(), &incomplete));
+}

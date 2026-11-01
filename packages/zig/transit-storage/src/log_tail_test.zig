@@ -5,7 +5,7 @@ const Tail = @import("LogTail.zig");
 fn binding(lsn: u64, bytes: []const u8) Tail.Binding {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    return .{ .position = .{ .partition = 1, .next_lsn = lsn }, .content = .{ .bytes = bytes.len, .sha256 = digest } };
+    return .{ .position = .{ .partition = 1, .next_lsn = lsn }, .first = 0, .content = .{ .bytes = bytes.len, .sha256 = digest } };
 }
 
 test "log tail retains simultaneous sparse and complete views without weakening original identity checks" {
@@ -89,4 +89,23 @@ test "log tail rejects changed identities bad digests and exhausted budgets with
     try original.release();
     cache.next_serial = std.math.maxInt(u64);
     try t.expectError(error.TailBorrowIdentityExhausted, cache.borrow(bound));
+}
+
+test "log tail distinguishes batches sharing one transaction acceptance position" {
+    var cache = try Tail.init(t.allocator, .{ .slots = 2, .borrow_slots = 2, .slot_bytes = 128, .resident_bytes = 4096 });
+    defer cache.deinit() catch unreachable;
+    const first = binding(7, "first payload");
+    var second = binding(7, "second payload");
+    second.first = 128;
+    try cache.admit(first, "first payload");
+    try cache.admit(second, "second payload");
+    const one = (try cache.borrow(first)).?;
+    defer one.release() catch unreachable;
+    const two = (try cache.borrow(second)).?;
+    defer two.release() catch unreachable;
+    try t.expectEqualStrings("first payload", try one.bytes());
+    try t.expectEqualStrings("second payload", try two.bytes());
+    var changed = binding(7, "foreign payload");
+    changed.first = 128;
+    try t.expectError(error.TailContentConflict, cache.borrow(changed));
 }

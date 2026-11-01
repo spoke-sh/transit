@@ -57,6 +57,18 @@ pub fn inspectTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: G
 pub fn releaseTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !void {
     return self.owner.releaseTransactionSource(handle, guard);
 }
+pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.zig").Binding, coordination: u64, basis: p.Transaction.LogGuard, pin: p.Transaction.Pin, directory: p.Transaction.Directory, limits: @import("LogTransaction.zig").EvaluationLimits, guard: Guard) !p.Transaction.Prepared {
+    return self.owner.prepareTransaction(binding, coordination, basis, pin, directory, limits, null, guard);
+}
+pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared) !@import("LogTransaction.zig").DecisionTime {
+    return self.owner.verifyPrepared(expected);
+}
+pub fn verifyDecisionTime(self: *Self, check: @import("LogTransaction.zig").DecisionTime) !void {
+    return self.owner.verifyDecisionTime(check);
+}
+pub fn resolveTransaction(self: *Self, guard: Guard) !?p.Transaction.Decision {
+    return self.owner.resolveTransaction(guard);
+}
 pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Append, payload: []const u8, guard: Guard) !p.StreamQueue.AppendReceipt {
     return self.owner.append(declared, request, payload, guard);
 }

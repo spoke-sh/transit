@@ -809,8 +809,12 @@ decision owner. Its component checks include private KV reads, current rights,
 savepoint identity preservation, commit/abort replacement and retained graph
 traversal. Its installed Table/KV proof passes at `4771f5698`: 33 signed requests,
 two withheld replies and two node replacements recover the same private statement
-and committed decision. Clean integrated qualification, log retention pins,
-durable action directories/reservations and log participant adapters remain open.
+and committed decision. Storage components now retain log source pins, stage
+paged action directories, privately evaluate Stream/Queue appends and offset/ACK
+settlements, accept preparation barriers and resolve their actual common decision.
+Decision checks include final lease/retention deadlines; storage traversal follows
+prepared payloads and indexes. Clean integrated qualification, public log participant
+admission, complete mixed state/input/output proof and DLQ transfer remain open.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 

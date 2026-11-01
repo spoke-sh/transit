@@ -115,6 +115,8 @@ pub const Work = union(enum) {
     queue_timer_index: struct { context: TimerContext, reference: s.TreeStore.pages.Reference, kind: enum { pending, levels }, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     queue_timer_run: struct { context: TimerContext, audit: s.QueueTimeDirectory.Audit, started: bool = false },
     queue_selection: struct { context: LogContext, receipt: c.protocol.StreamQueue.ClaimReceipt, slot: u8 = 0 },
+    log_preparation: struct { reference: s.LogTransaction.Reference, archive: ?s.LogHistory.Coverage = null, slot: u8 = 0 },
+    log_actions: struct { context: LogContext, identity: c.protocol.Transaction.Identity, guard: c.protocol.Transaction.LogGuard, directory: c.protocol.Transaction.Directory, after: ?s.LogTransactionActions.Cursor = null, started: bool = false, count: u64 = 0, payload_bytes: u64 = 0 },
     log_transaction_source: struct { context: LogContext, handle: c.protocol.Transaction.Pin },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
@@ -142,7 +144,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -564,8 +566,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.kind != .preparations) return true;
             const page = try directory.page(value.after);
             const entry = page.entries[0] orelse return true;
-            _ = try entry.prepared.predecessor.requirePagedState();
-            try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
+            switch (entry.prepared.predecessor) {
+                .state => {
+                    _ = try entry.prepared.predecessor.requirePagedState();
+                    try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
+                },
+                .log => try workspace.enqueue(.{ .log_preparation = .{ .reference = .{ .content = entry.prepared.successor } } }),
+            }
             value.after = entry.cursor();
             return false;
         },
@@ -675,8 +682,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const queue = root.queue orelse s.QueueIndex.Root.empty;
             const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.transaction_pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
             const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .transaction_pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
-            if (value.slot > directories.len + 3) return error.InvalidLogStorageGraph;
-            if (value.slot == directories.len + 3) return true;
+            if (value.slot > directories.len + 4) return error.InvalidLogStorageGraph;
+            if (value.slot == directories.len + 4) return true;
             const context = try LogContext.fromRoot(root, value.archive);
             if (value.slot == 0) {
                 try workspace.enqueue(.{ .log_declaration = root.declared });
@@ -684,6 +691,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 if (root.compaction) |state| try workspace.enqueue(.{ .log_compaction = .{ .context = context, .state = state } });
             } else if (value.slot <= directories.len) {
                 if (directories[value.slot - 1]) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            } else if (value.slot == directories.len + 3) {
+                if (root.transaction) |reference| try workspace.enqueue(.{ .log_preparation = .{ .reference = reference, .archive = value.archive } });
             } else if (root.queue != null) {
                 const visible = value.slot == directories.len + 1;
                 const scheduled = if (visible) queue.eligible else queue.deadlines;
@@ -874,6 +883,70 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
             }
             value.slot += 1;
+            return false;
+        },
+        .log_preparation => |*value| {
+            const preparation = try s.LogTransaction.loadPreparation(index.store, value.reference);
+            const context = try LogContext.fromRoot(preparation.successor, value.archive orelse preparation.predecessor.archive);
+            switch (value.slot) {
+                0 => try markContent(workspace, try s.LogTransaction.preparationKey(value.reference, &key_buffer), value.reference.content),
+                1, 2 => if (value.archive) |archive| {
+                    const root = if (value.slot == 1) preparation.predecessor else preparation.successor;
+                    try workspace.enqueue(.{ .log_root = .{ .root = root, .archive = archive } });
+                },
+                3 => try workspace.enqueue(.{ .log_actions = .{ .context = context, .identity = preparation.binding.begin.identity, .guard = preparation.guard, .directory = preparation.actions } }),
+                4, 5 => {
+                    var journal = try s.TransactionDecisionLog.init(allocator, log, index.store, preparation.coordination, preparation.binding);
+                    try journal.recover();
+                    if (journal.next_lsn == 0) return error.TransactionNotFrozen;
+                    const directory = if (value.slot == 4) preparation.binding.attempt.participants else if (journal.decision) |decision| decision.prepared else {
+                        value.slot += 1;
+                        return false;
+                    };
+                    var selected = try s.TransactionDirectory.init(allocator, index.store, preparation.binding.begin.identity, if (value.slot == 4) .participants else .preparations, @max(1, directory.count), 0, 1);
+                    defer selected.deinit();
+                    try selected.restore(directory);
+                    try markContent(workspace, try s.TransactionDirectory.objectKey(directory.content, &key_buffer), directory.content);
+                    if (selected.root.entries) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .pages_only } });
+                },
+                6 => return true,
+                else => return error.InvalidLogStorageGraph,
+            }
+            value.slot += 1;
+            return false;
+        },
+        .log_actions => |*value| {
+            var actions = try s.LogTransactionActions.init(allocator, index.store, value.identity, value.guard, @max(1, value.directory.count), std.math.maxInt(u64), 0, 1);
+            defer actions.deinit();
+            try actions.restore(value.directory);
+            if (!value.started) {
+                try value.context.requireTarget(value.guard.source.target);
+                try markContent(workspace, try s.LogTransactionActions.objectKey(value.directory.content, &key_buffer), value.directory.content);
+                for ([_]?s.TreeStore.pages.Reference{ actions.root.entries, actions.root.operations }) |root| if (root) |reference| {
+                    try workspace.enqueue(.{ .log_index = .{ .context = value.context, .reference = reference, .kind = .pages_only } });
+                };
+                value.started = true;
+                return false;
+            }
+            const page = try actions.page(value.after);
+            const entry = page.entries[0] orelse {
+                if (value.count != actions.root.count or value.payload_bytes != actions.root.payload_bytes) return error.InvalidTransactionActions;
+                return true;
+            };
+            value.count = try std.math.add(u64, value.count, 1);
+            if (value.count > actions.root.count) return error.InvalidTransactionActions;
+            const at = s.LogTransactionActions.cursor(entry.work);
+            const content = try actions.entryContent(at);
+            try markContent(workspace, try s.LogTransactionActions.objectKey(content, &key_buffer), content);
+            if (entry.work.action == .append) {
+                const payload = entry.work.action.append.payload;
+                const bytes = try allocator.alloc(u8, @intCast(payload.bytes));
+                defer allocator.free(bytes);
+                _ = try actions.readPayload(entry.work, bytes);
+                try markContent(workspace, try s.LogTransactionActions.payloadKey(payload, &key_buffer), payload);
+                value.payload_bytes = try std.math.add(u64, value.payload_bytes, payload.bytes);
+            }
+            value.after = at;
             return false;
         },
         .log_transaction_source => |value| {
