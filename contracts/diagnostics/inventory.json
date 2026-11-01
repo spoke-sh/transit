@@ -6149,14 +6149,16 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 46,
+        "InvalidLogStorageGraph": 47,
         "InvalidQueueDestination": 2,
         "InvalidTableStorageGraph": 20,
+        "InvalidTransactionActions": 2,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
-        "TableSegmentMissing": 1
+        "TableSegmentMissing": 1,
+        "TransactionNotFrozen": 1
       },
       "outcomes": {
         "DocumentIndexKind": [
@@ -6218,6 +6220,8 @@
           "queue_timer_index",
           "queue_timer_run",
           "queue_selection",
+          "log_preparation",
+          "log_actions",
           "log_transaction_source",
           "log_read",
           "log_segment",
@@ -6267,7 +6271,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 434,
+        "try": 465,
         "catch": 1
       },
       "imports": [
@@ -18849,7 +18853,7 @@
           "deadline"
         ],
         "Definition": [
-          "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e"
+          "@\"8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7\""
         ],
         "Effect.phase": [
           "pending",
@@ -33735,6 +33739,7 @@
         "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
         "InvalidLogHistory": 40,
+        "InvalidLogPreparation": 14,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
@@ -33752,8 +33757,12 @@
         "InvalidStreamCompaction": 16,
         "InvalidStreamCompactionBudget": 3,
         "InvalidStreamMaintenance": 4,
+        "InvalidStreamReadAuthority": 1,
         "InvalidStreamReadBudget": 2,
         "InvalidStreamTimestampColumn": 1,
+        "InvalidTransactionActions": 4,
+        "InvalidTransactionDecision": 1,
+        "InvalidTransactionLimits": 1,
         "InvalidWalEpoch": 1,
         "LogAppendLimitExceeded": 1,
         "LogAppendUncertain": 2,
@@ -33774,21 +33783,23 @@
         "LogProducerConflict": 1,
         "LogRangeExpired": 1,
         "LogRecoveryMissing": 1,
-        "LogRecoveryRequired": 2,
+        "LogRecoveryRequired": 5,
         "LogRetentionNotDeclared": 2,
-        "LogRetentionWindowElapsed": 1,
+        "LogRetentionWindowElapsed": 3,
         "LogSegmentBudgetExceeded": 5,
         "LogTimeRegression": 3,
         "LogTimeUnavailable": 1,
-        "LogTransactionSourceNotPinned": 2,
+        "LogTransactionSourceNotPinned": 4,
         "LogTransactionSourceReleased": 2,
+        "OutstandingTailBorrows": 1,
+        "PrivateLogWorkspace": 4,
         "QueueClaimMissing": 2,
         "QueueItemMissing": 4,
-        "QueueLeaseExpired": 1,
+        "QueueLeaseExpired": 2,
         "QueueNotEligible": 1,
         "QueueReadBudgetExceeded": 1,
         "QueueReadReleased": 3,
-        "QueueTimeUnavailable": 5,
+        "QueueTimeUnavailable": 6,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
         "StreamCompactionNotDeclared": 1,
@@ -33797,8 +33808,12 @@
         "StreamReadMissing": 2,
         "StreamReadReleased": 1,
         "TransactionConflict": 1,
-        "TransactionIdentityConflict": 2,
-        "TransactionPrepared": 2
+        "TransactionIdentityConflict": 3,
+        "TransactionMemoryLimit": 2,
+        "TransactionNotFrozen": 2,
+        "TransactionObjectNotSelected": 1,
+        "TransactionPrepared": 7,
+        "UnsupportedTransactionTransfer": 2
       },
       "outcomes": {
         "Owner().<return>.ExpirationStatus": [
@@ -33847,6 +33862,8 @@
         "Owner().<return>.decodeFrame()": "<inferred>",
         "Owner().<return>.decodeValue()": "<inferred>",
         "Owner().<return>.deinit()": "<inferred>",
+        "Owner().<return>.evaluateTransaction()": "<inferred>",
+        "Owner().<return>.evaluateTransactionBounded()": "<inferred>",
         "Owner().<return>.expirationObservation()": "<inferred>",
         "Owner().<return>.expireHistory()": "<inferred>",
         "Owner().<return>.expireQueueOne()": "<inferred>",
@@ -33869,6 +33886,7 @@
         "Owner().<return>.original()": "<inferred>",
         "Owner().<return>.persistQueue()": "<inferred>",
         "Owner().<return>.pinTransactionSource()": "<inferred>",
+        "Owner().<return>.prepareTransaction()": "<inferred>",
         "Owner().<return>.producerState()": "<inferred>",
         "Owner().<return>.progress()": "<inferred>",
         "Owner().<return>.protectedOffset()": "<inferred>",
@@ -33895,6 +33913,8 @@
         "Owner().<return>.requireOriginalClaim()": "<inferred>",
         "Owner().<return>.requireReady()": "<inferred>",
         "Owner().<return>.requireTarget()": "<inferred>",
+        "Owner().<return>.requireTransactionTransition()": "<inferred>",
+        "Owner().<return>.resolveTransaction()": "<inferred>",
         "Owner().<return>.retainedRead()": "<inferred>",
         "Owner().<return>.rewriteCandidate()": "<inferred>",
         "Owner().<return>.rewriteMaintenanceUnit()": "<inferred>",
@@ -33908,19 +33928,24 @@
         "Owner().<return>.superseded()": "<inferred>",
         "Owner().<return>.terminalExpirationBatch()": "<inferred>",
         "Owner().<return>.timestampMatches()": "<inferred>",
+        "Owner().<return>.transactionBarrier()": "<inferred>",
         "Owner().<return>.transactionPinState()": "<inferred>",
+        "Owner().<return>.transactionSuccessor()": "<inferred>",
         "Owner().<return>.trimArchived()": "<inferred>",
         "Owner().<return>.validateExpiration()": "<inferred>",
         "Owner().<return>.verifyCompactionStep()": "<inferred>",
+        "Owner().<return>.verifyDecisionTime()": "<inferred>",
         "Owner().<return>.verifyGroup()": "<inferred>",
+        "Owner().<return>.verifyPrepared()": "<inferred>",
+        "Owner().<return>.verifyPreparedBounded()": "<inferred>",
         "Owner().<return>.verifyRewrite()": "<inferred>",
         "Owner().<return>.verifyTransition()": "<inferred>",
         "Owner().<return>.verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 726,
-        "catch": 18
+        "try": 809,
+        "catch": 20
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -33937,6 +33962,7 @@
         "LogTail.zig",
         "LogTime.zig",
         "LogTransaction.zig",
+        "LogTransactionActions.zig",
         "LogView.zig",
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
@@ -33954,6 +33980,8 @@
         "StreamCompaction.zig",
         "StreamMaintenanceState.zig",
         "Tack.zig",
+        "TransactionDecisionLog.zig",
+        "TransactionDirectory.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
@@ -33968,6 +33996,7 @@
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
         "InvalidLogHistory": 11,
+        "InvalidLogPreparation": 2,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 2,
         "InvalidLogSegment": 3,
@@ -33997,6 +34026,9 @@
           "checkpoint",
           "transaction_pin",
           "transaction_release",
+          "transaction_prepare",
+          "transaction_commit",
+          "transaction_abort",
           "maintenance"
         ]
       },
@@ -34020,7 +34052,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 45,
         "catch": 0
       },
       "imports": [
@@ -34273,35 +34305,51 @@
     },
     "packages/zig/transit-storage/src/LogTransaction.zig": {
       "errors": {
-        "IncompatibleDefinition": 2,
+        "IncompatibleDefinition": 4,
+        "InvalidLogPreparation": 10,
         "InvalidLogTransaction": 7,
+        "InvalidTransactionLimits": 1,
+        "LogPreparationMissing": 1,
         "LogTransactionSourceMissing": 1,
-        "OutOfMemory": 1,
-        "TransactionDecodeLimit": 1,
+        "OutOfMemory": 2,
+        "TransactionDecodeLimit": 2,
         "TransactionIdentityConflict": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "EvaluationLimits.validate()": "<inferred>",
+        "FixedTime.read()": "<inferred>",
         "Pin.decode()": "<inferred>",
         "Pin.encode()": "<inferred>",
+        "Preparation.prepared()": "<inferred>",
+        "Preparation.validate()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "Source.guard()": "<inferred>",
         "Source.validate()": "<inferred>",
+        "decision()": "<inferred>",
+        "encodePreparation()": "<inferred>",
         "encodeSource()": "<inferred>",
+        "loadPreparation()": "<inferred>",
         "loadSource()": "<inferred>",
         "logGuard()": "<inferred>",
+        "preparationKey()": "<inferred>",
         "sourceKey()": "<inferred>",
+        "stagePreparation()": "<inferred>",
         "stageSource()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
-        "catch": 1
+        "try": 51,
+        "catch": 2
       },
       "imports": [
         "LogBatch.zig",
         "LogPartitionRecord.zig",
+        "LogTime.zig",
+        "TransactionDecisionLog.zig",
+        "TransactionDirectory.zig",
+        "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
@@ -34318,7 +34366,7 @@
         "InvalidTransactionStatement": 1,
         "LogBatchTooLarge": 1,
         "LogPayloadConflict": 4,
-        "MissingTransactionActions": 1,
+        "MissingTransactionActions": 2,
         "MissingTransactionPayload": 1,
         "OutOfMemory": 1,
         "TransactionActionLimit": 2,
@@ -34333,6 +34381,7 @@
         "Root.validate()": "<inferred>",
         "contentOf()": "<inferred>",
         "encode()": "<inferred>",
+        "entryContent()": "<inferred>",
         "entryKey()": "<inferred>",
         "get()": "<inferred>",
         "init()": "<inferred>",
@@ -34357,7 +34406,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 68,
         "catch": 1
       },
       "imports": [
@@ -34720,16 +34769,20 @@
         "open()": "<inferred>",
         "operation()": "<inferred>",
         "pinTransactionSource()": "<inferred>",
+        "prepareTransaction()": "<inferred>",
         "readClaimPage()": "<inferred>",
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
         "releaseClaimRead()": "<inferred>",
         "releaseTransactionSource()": "<inferred>",
+        "resolveTransaction()": "<inferred>",
         "scheduleMaintenanceUnit()": "<inferred>",
         "settle()": "<inferred>",
         "transactionPinState()": "<inferred>",
-        "trimArchived()": "<inferred>"
+        "trimArchived()": "<inferred>",
+        "verifyDecisionTime()": "<inferred>",
+        "verifyPrepared()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -34745,6 +34798,7 @@
         "LogRecovery.zig",
         "LogTransaction.zig",
         "PublicationGuard.zig",
+        "TransactionDecisionLog.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "std",
@@ -36117,12 +36171,15 @@
         "InvalidTransactionLimits": 1,
         "InvalidTransactionPartition": 2,
         "LostAcknowledgement": 3,
+        "MissingTransactionVerification": 1,
         "OutOfMemory": 2,
+        "ReadOnlyTransaction": 1,
         "TransactionDecodeLimit": 1,
         "TransactionHistoryMissing": 2,
         "TransactionMemoryLimit": 1,
         "TransactionNotFrozen": 2,
-        "TransactionRecoveryRequired": 2
+        "TransactionRecoveryRequired": 2,
+        "UnsupportedTransactionParticipant": 1
       },
       "outcomes": {
         "Record.event": [
@@ -36134,6 +36191,7 @@
       "error_returns": {
         "Binding.requireSame()": "<inferred>",
         "Binding.validate()": "<inferred>",
+        "Verification.before_decision()": "anyerror",
         "Verification.participant()": "anyerror",
         "Verification.prepared()": "anyerror",
         "abort()": "<inferred>",
@@ -36156,9 +36214,9 @@
         "recover()": "<inferred>",
         "recoverBounded()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 3
       },
       "imports": [

@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+    "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
     "mutation": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {
@@ -311,7 +311,7 @@
   "replica": {
     "target": {
       "partition": {
-        "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+        "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
         "interpretation": {
           "object": {
             "scope": {
@@ -409,7 +409,7 @@
     "checkpoint": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {
@@ -531,7 +531,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {
@@ -649,7 +649,7 @@
     "request": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {
@@ -734,7 +734,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {
@@ -943,7 +943,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+            "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1064,45 +1064,45 @@
       "complete": true
     },
     "authentication": [
-      142,
-      230,
-      127,
-      88,
-      11,
-      224,
-      80,
-      200,
-      175,
-      13,
-      192,
-      212,
-      0,
-      70,
-      59,
-      182,
-      27,
-      106,
-      43,
-      82,
-      12,
-      204,
-      177,
-      193,
-      248,
+      126,
       165,
-      144,
-      18,
-      120,
-      75,
-      195,
-      117
+      14,
+      87,
+      118,
+      74,
+      253,
+      127,
+      193,
+      220,
+      68,
+      8,
+      113,
+      72,
+      172,
+      189,
+      53,
+      35,
+      59,
+      210,
+      130,
+      242,
+      10,
+      203,
+      14,
+      81,
+      81,
+      119,
+      139,
+      212,
+      116,
+      235
     ]
   },
   "read_release": {
     "release": {
       "target": {
         "partition": {
-          "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
+          "definition": "8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7",
           "interpretation": {
             "object": {
               "scope": {

@@ -40,6 +40,10 @@ pub const Verification = struct {
     context: *anyopaque,
     participant: *const fn (*anyopaque, x.Participant) anyerror!void,
     prepared: *const fn (*anyopaque, x.Prepared) anyerror!void,
+    /// Log writes require a final, allocation-free check after all potentially
+    /// slow successor verification. It rechecks collected lease/retention
+    /// deadlines under this same guard immediately before decision append.
+    before_decision: ?*const fn (*anyopaque) anyerror!void = null,
 };
 
 pub const Record = struct {
@@ -83,10 +87,12 @@ fn participants(self: *Self) !Directory {
         for (page.entries) |entry| if (entry) |value| {
             count = try std.math.add(u64, count, 1);
             if (count > result.root.count) return error.InvalidTransactionDirectory;
-            try value.participant.requireLocalState(self.binding.begin);
-            if (value.participant.state.guard.source.accepted.partition == self.partition)
+            try value.participant.validate(self.binding.begin.identity);
+            if (value.participant == .state and value.participant.state.kind == .document) return error.UnsupportedTransactionParticipant;
+            if (self.binding.begin.mode == .read_only and value.participant.writes()) return error.ReadOnlyTransaction;
+            if (value.participant.guard().accepted().partition == self.partition)
                 return error.InvalidTransactionPartition;
-            writes += @intFromBool(value.participant.state.access == .write);
+            writes += @intFromBool(value.participant.writes());
         };
         after = page.next orelse break;
     }
@@ -246,18 +252,22 @@ fn commitBounded(self: *Self, prepared_directory: x.Directory, verification: Ver
     defer prepared.deinit();
     var selected = try self.participants();
     defer selected.deinit();
+    var has_log_writes = false;
     var after: ?Directory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |entry| if (entry) |value| {
             try verification.participant(verification.context, value.participant);
-            if (value.participant.state.access == .write) {
+            if (value.participant.writes()) {
+                if (value.participant == .log) has_log_writes = true;
                 const original = (try prepared.get(value.target())).?.prepared;
                 try verification.prepared(verification.context, original);
             }
         };
         after = page.next orelse break;
     }
+    if (has_log_writes and verification.before_decision == null) return error.MissingTransactionVerification;
+    if (verification.before_decision) |check| try check(verification.context);
     try self.append(.{ .decision = decision }, fence);
     if (self.lose_reply) return error.LostAcknowledgement;
     return decision;

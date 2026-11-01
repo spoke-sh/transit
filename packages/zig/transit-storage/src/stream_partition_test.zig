@@ -1745,3 +1745,263 @@ test "log transaction stream pins page independently and refuse stale cuts and r
     while (!(try owner.recoverStep(policy.guard(), 3)).complete) {}
     try t.expectEqualDeep(before.position(), (try owner.inspectTransactionSource(first, policy.guard())).root.position());
 }
+
+test "log transaction private evaluation seals several append batches without public acceptance" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declared.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const accepted = try appendRequest(&declared, 2, null, &buffer);
+    _ = try owner.append(initial.declared, accepted.request, accepted.payload, policy.guard());
+    const basis = owner.root;
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
+    defer actions.deinit();
+    for (10..13) |id| {
+        const request = try appendRequest(&declared, id, null, &buffer);
+        try actions.put(.{ .statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(7) }, .ordinal = @intCast(id - 9), .action = .{ .append = request.request } }, request.payload);
+    }
+    const directory = try actions.seal();
+    const before = owner.root;
+    const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
+    const evaluated = try owner.evaluateTransaction(pin, directory, limits, null, policy.guard());
+    try t.expectEqualDeep(before, owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    try t.expectEqual(@as(u64, 8), evaluated.root.next_offset);
+    try t.expectEqual(before.next_lsn + 1, evaluated.root.next_lsn);
+    try t.expectEqual(evaluated.root.next_lsn, evaluated.root.changed_lsn);
+    try t.expectEqual(@as(u64, 0), evaluated.root.sealed_through);
+    try t.expect(evaluated.root.segments != null);
+    try t.expect(evaluated.resident_peak != 0 and evaluated.resident_peak <= limits.resident_bytes);
+    try t.expectEqualDeep(evaluated.root, (try owner.evaluateTransaction(pin, directory, limits, null, policy.guard())).root);
+    const fixtures = @import("transaction_test_support.zig");
+    var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), identity, .participants, 10, 1, 1024 * 1024);
+    defer selected.deinit();
+    try selected.put(.{ .participant = .{ .log = .{ .guard = try s.LogTransaction.logGuard(basis), .actions = directory } } });
+    const participants = try selected.seal();
+    const preparation: s.LogTransaction.Preparation = .{
+        .definition = p.Growth.current_definition,
+        .coordination = 99,
+        .binding = .{ .begin = fixtures.begin(participants), .attempt = fixtures.attempt(participants) },
+        .guard = try s.LogTransaction.logGuard(basis),
+        .source = pin,
+        .actions = directory,
+        .predecessor = before,
+        .successor = evaluated.root,
+        .observed = evaluated.observed,
+    };
+    const reference = try s.LogTransaction.stagePreparation(objects.objectStore(), preparation);
+    try t.expectEqualDeep(preparation, try s.LogTransaction.loadPreparation(objects.objectStore(), reference));
+    const prepared_receipt = try preparation.prepared(reference);
+    try t.expectEqualDeep(evaluated.root.position(), prepared_receipt.position);
+    try t.expectEqualDeep(preparation.guard, prepared_receipt.predecessor.log);
+    var substituted = preparation;
+    substituted.successor.transaction_pins = null;
+    try t.expectError(error.InvalidLogPreparation, substituted.validate());
+    substituted = preparation;
+    substituted.source.owner.operation += 1;
+    try t.expectError(error.InvalidLogPreparation, substituted.validate());
+    substituted = preparation;
+    substituted.coordination = initial.partition;
+    try t.expectError(error.InvalidLogPreparation, substituted.validate());
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &owner.store };
+    for (10..13) |id| {
+        const end = @as(u64, @intCast(id - 8)) * 2;
+        const evidence = try s.LogEvidence.load(t.allocator, objects.objectStore(), (try tree.get(evaluated.root.batches, try s.LogPartitionRecord.integerKey(end))).?);
+        const descriptor = try s.LogSegment.Descriptor.decode((try tree.get(evaluated.root.segments, try s.LogPartitionRecord.integerKey(end))).?);
+        var output: [8192]u8 = undefined;
+        const payload = try s.LogSegment.materialize(t.allocator, objects.objectStore(), descriptor, &declared, evidence, &output);
+        const expected = try appendRequest(&declared, id, null, &buffer);
+        try t.expectEqualSlices(u8, expected.payload, payload);
+        try t.expectEqual(before.next_lsn + 1, evidence.accepted().next_lsn);
+        try t.expect(try owner.operation(operation(id), policy.guard()) == null);
+    }
+    var small = limits;
+    small.resident_bytes = 4096;
+    try t.expectError(error.TransactionMemoryLimit, owner.evaluateTransaction(pin, directory, small, null, policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    policy.deny_at = policy.calls + 6;
+    try t.expectError(error.PermissionDenied, owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+}
+
+const TransactionVerification = struct {
+    owner: *Stream,
+    policy: *Policy,
+    time_check: ?s.LogTransaction.DecisionTime = null,
+    fn participant(raw: *anyopaque, selected: p.Transaction.Participant) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        try t.expect(selected == .log);
+        try selected.log.guard.requireUnchanged(try s.LogTransaction.logGuard(self.owner.root));
+    }
+    fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        self.time_check = try self.owner.verifyPrepared(value);
+    }
+    fn beforeDecision(raw: *anyopaque) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        try self.owner.verifyDecisionTime(self.time_check orelse return error.MissingTransactionVerification);
+    }
+    fn callbacks(self: *@This()) s.TransactionDecisionLog.Verification {
+        return .{ .context = self, .participant = participant, .prepared = prepared, .before_decision = beforeDecision };
+    }
+};
+
+test "log transaction decision barriers recover lost preparation and commit replies from disk" {
+    for ([_]bool{ false, true }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var initial: s.LogInitialization.Request = undefined;
+        var binding: s.TransactionDecisionLog.Binding = undefined;
+        var prepared: p.Transaction.Prepared = undefined;
+        var pin: p.Transaction.Pin = undefined;
+        var actions_root: p.Transaction.Directory = undefined;
+        var final_root: Stream.Root = undefined;
+        const authority = try s.LogRead.Authority.init(@splat(7));
+        const fixtures = @import("transaction_test_support.zig");
+        const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
+        var policy: Policy = .{};
+        var declared = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+        defer declared.deinit();
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+            var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+            var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+            defer owner.deinit() catch unreachable;
+            _ = try owner.recoverStep(policy.guard(), 1);
+            var bytes: [8192]u8 = undefined;
+            const original = try appendRequest(&declared, 2, null, &bytes);
+            _ = try owner.append(initial.declared, original.request, original.payload, policy.guard());
+            const assignment: q.GroupAssignment = .{ .operation = operation(4), .cut = try owner.observe(initial.declared, policy.guard()), .expected = null, .group = .{ .id = 7, .generation = 1, .principal = 0 }, .next = 0 };
+            _ = try owner.assign(initial.declared, assignment, policy.guard());
+            const read = try owner.beginRead(initial.declared, .{ .target = initial.target(), .operation = operation(5), .group = assignment.group, .from = 0, .until = null, .timestamp = null }, policy.guard());
+            var consumed = try owner.readPage(try owner.readCursor(read.handle(), authority, policy.guard()), authority, .{ .rows = 3, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+            defer consumed.deinit();
+            try t.expect(consumed.cursor.coverage.complete);
+            const basis = try s.LogTransaction.logGuard(owner.root);
+            pin = try owner.pinTransactionSource(initial.declared, fixtures.identity, owner.root.position(), policy.guard());
+            var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), fixtures.identity, basis, limits.actions, limits.payload_bytes, 1, 1024 * 1024);
+            defer actions.deinit();
+            for (10..13) |id| {
+                const work = try appendRequest(&declared, id, null, &bytes);
+                try actions.put(.{ .statement = .{ .transaction = fixtures.identity, .sequence = 1, .intent = @splat(8) }, .ordinal = @intCast(id - 9), .action = .{ .append = work.request } }, work.payload);
+            }
+            try actions.putOffset(.{ .statement = .{ .transaction = fixtures.identity, .sequence = 1, .intent = @splat(8) }, .ordinal = 4, .action = .{ .stream_offset = .{ .operation = operation(20), .group = assignment.group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 } } }, consumed.cursor);
+            actions_root = try actions.seal();
+            var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), fixtures.identity, .participants, 10, 1, 1024 * 1024);
+            defer selected.deinit();
+            try selected.put(.{ .participant = .{ .log = .{ .guard = basis, .actions = actions_root } } });
+            const directory = try selected.seal();
+            binding = .{ .begin = fixtures.begin(directory), .attempt = fixtures.attempt(directory) };
+            binding.begin.limits.resident_bytes = limits.resident_bytes;
+            var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);
+            try journal.recover();
+            const before = owner.root;
+            try t.expectError(error.TransactionNotFrozen, owner.prepareTransaction(binding, 99, basis, pin, actions_root, limits, authority, policy.guard()));
+            try journal.freeze(policy.guard());
+            try t.expectError(error.StreamCursorUnauthenticated, owner.prepareTransaction(binding, 99, basis, pin, actions_root, limits, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
+            try t.expectEqualDeep(before, owner.root);
+            fault.lose_reply = true;
+            try t.expectError(error.LogAppendUncertain, owner.prepareTransaction(binding, 99, basis, pin, actions_root, limits, authority, policy.guard()));
+            try t.expect(!owner.ready);
+            try t.expectEqual(before.next_lsn + 1, try wal.log().tail(initial.partition));
+        }
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+            var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+            defer owner.deinit() catch unreachable;
+            while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+            try t.expectEqual(@as(u64, 2), owner.root.next_offset);
+            try t.expectError(error.TransactionPrepared, owner.observe(initial.declared, policy.guard()));
+            try t.expectError(error.TransactionPrepared, owner.resolveTransaction(policy.guard()));
+            const preparation = try s.LogTransaction.loadPreparation(objects.objectStore(), owner.root.transaction.?);
+            prepared = try owner.prepareTransaction(binding, 99, preparation.guard, pin, actions_root, limits, authority, policy.guard());
+            try t.expectEqualDeep(prepared, try preparation.prepared(owner.root.transaction.?));
+            var prepared_directory = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), fixtures.identity, .preparations, 10, 1, 1024 * 1024);
+            defer prepared_directory.deinit();
+            try prepared_directory.put(.{ .prepared = prepared });
+            const sealed = try prepared_directory.seal();
+            var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);
+            try journal.recover();
+            var verify: TransactionVerification = .{ .owner = &owner, .policy = &policy };
+            policy.deny_at = policy.calls + 1;
+            try t.expectError(error.PermissionDenied, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            try t.expectEqual(@as(u64, 1), try wal.log().tail(99));
+            policy.deny_at = std.math.maxInt(usize);
+            if (commit) {
+                journal.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            } else _ = try journal.abort(policy.guard());
+            try t.expectError(error.TransactionPrepared, owner.observe(initial.declared, policy.guard()));
+            fault.lose_reply = true;
+            try t.expectError(error.LogAppendUncertain, owner.resolveTransaction(policy.guard()));
+        }
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+            defer owner.deinit() catch unreachable;
+            while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+            try t.expect(owner.root.transaction == null);
+            try t.expectEqual(@as(u64, if (commit) 8 else 2), (try owner.observe(initial.declared, policy.guard())).next);
+            try t.expect(try owner.resolveTransaction(policy.guard()) == null);
+            try t.expectEqual(@as(u64, if (commit) 2 else 0), (try owner.group(7, policy.guard())).?.next);
+            if (commit) {
+                const offset = (try owner.operation(operation(20), policy.guard())).?.outcome.offset;
+                // Rotation cannot invalidate the coverage authenticated before
+                // the accepted barrier and common decision.
+                try t.expectEqualDeep(offset.receipt, try owner.commitOffset(initial.declared, offset.receipt.commit, offset.cursor, try s.LogRead.Authority.init(@splat(8)), policy.guard()));
+            }
+            for (10..13) |id| {
+                const receipt = try owner.operation(operation(id), policy.guard());
+                try t.expect((receipt != null) == commit);
+                if (receipt) |value| {
+                    var borrowed = (try owner.readBatch(initial.declared, value.outcome.append.first, policy.guard())).?;
+                    defer borrowed.deinit();
+                    var bytes: [8192]u8 = undefined;
+                    const original = try appendRequest(&declared, id, null, &bytes);
+                    try t.expectEqualSlices(u8, original.payload, try borrowed.payload.bytes());
+                }
+            }
+            // Sealing the old WAL prefix must preserve already sealed private
+            // islands. Replaying that later history still uses the one decision.
+            if (commit) {
+                while (!(try owner.flush(owner.root.position(), policy.guard())).complete) {}
+            }
+            final_root = owner.root;
+        }
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+            defer owner.deinit() catch unreachable;
+            while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+            try t.expectEqualDeep(final_root, owner.root);
+        }
+    }
+}

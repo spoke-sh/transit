@@ -31,9 +31,9 @@ prepared directory, including each original attempt and predecessor. It scans
 both directories and checks their actual cardinalities. It performs no writes.
 It does not verify participant WAL acceptance or successor object availability.
 The directory supports neutral state and log evidence, while the current
-decision journal and catalog execution support Table and direct KV owners.
-Document and log transaction owners remain unavailable. Private state workspaces,
-pins and common-decision readers implement the two supported participant kinds.
+decision journal accepts Table, KV, Stream and Queue participants. The public
+catalog currently selects Table and direct KV only. Document participation and
+public log transaction admission remain unavailable.
 
 Directory objects are at most 16 KiB. Index caches and index staging use the
 existing `TreeStore` bounds. Entry quota is independent of resident page count;
@@ -80,7 +80,8 @@ accepted work. Restoring a saved directory cannot release globally consumed
 operation/statement identities. The transaction coordinator must retain the
 root and payload graph, apply current rights and participant guards, prepare
 offset reservations, and record a common decision before exposing output or
-settlement. Log participant preparation and execution remain unavailable.
+settlement. The serialized log owner supplies preparation and resolution below;
+the catalog does not yet admit these actions as public transaction work.
 
 ## Retained log transaction cuts
 
@@ -111,9 +112,75 @@ publication failures retain the original identity and ordinary WAL uncertainty.
 
 Source metadata is bounded to 64 KiB and decoded with fixed scratch buffers.
 Pin cardinality is independent of the page cache. These are storage components;
-the public catalog still refuses log transaction selection. They neither reserve
-append offsets nor settle a lease or consumer offset, and do not yet implement
-log preparation or common-decision visibility.
+the public catalog still refuses log transaction selection. A pin alone neither
+reserves append offsets nor settles a lease or consumer offset.
+
+## Log evaluation, preparation and resolution
+
+`StreamPartition.evaluateTransaction` constructs one private successor from a
+live source pin and a sealed `LogTransactionActions` directory. `QueuePartition`
+uses the same owner internally. Evaluation applies the existing append,
+authenticated offset-commit and fenced ACK validators in statement/ordinal order.
+It rejects already accepted operation identities, changed source data, forged
+coverage and expired leases. Terminal/DLQ transfers remain unsupported.
+
+Each proposed batch is sealed to immutable segments; several batches share the
+prospective preparation position and retain distinct original offsets and content
+identities. Existing WAL payloads can precede those sealed batches. Segment
+placement therefore permits sealed ranges beyond the contiguous `sealed_through`
+prefix. Tail-cache identity includes the batch's first offset as well as its
+position and content; a shared preparation position cannot alias different batches.
+Evaluation reserves no offsets, publishes no receipts, advances no group and
+settles no input. It restores the public root and clears derived index/scheduling
+caches on success and failure.
+
+`EvaluationLimits` independently bounds action count, cumulative append payloads,
+last statement and temporary heap bytes. Evaluation and prepared-owner checks
+meter newly allocated memory, while borrowing the owner's initialized slabs,
+page cache and serialized lifetime. Their scratch arenas live for the operation
+and reset with retained capacity between records. Caller outputs, fixed stack
+buffers, provider buffers and retained staged bytes remain separate reservations.
+A caller cannot retain a tail borrow across evaluation. `resident_peak` reports
+the evaluator's temporary heap peak; it is not total partition residency.
+
+`prepareTransaction` requires the exact frozen journal, selected guard/action
+directory and live source. It stages a bounded `LogTransaction.Preparation`, then
+accepts its reference in the partition WAL. This barrier preserves the predecessor
+and blocks ordinary reads, writes and maintenance. Exact retries return the same
+preparation. The stored successor binds all appends and settlements for that
+partition; its operation receipts identify the preparation frontier and become
+visible only after commit resolution. The host must retain private action roots
+before preparation and reserve the original operation identities globally.
+
+The journal's host holds all participant and current policy guards while checking
+preparations. `verifyPrepared` verifies the actual barrier, live source, action
+directory and current ACK leases, and returns a transient `DecisionTime` check.
+The host must separately traverse the complete successor graph and verify current
+names, rights and all participants. The catalog's `DirectStorageGraph` follows
+preparation predecessors/successors, action metadata, payloads and decision
+indexes in bounded steps. Missing dependencies leave that traversal incomplete.
+
+Log writes require the journal's `before_decision` callback. After every potentially
+slow participant/availability check, this callback calls `verifyDecisionTime` for
+every collected owner under the same publication guard. It allocates nothing and
+rechecks the collected ACK and append-retention deadlines immediately before the
+conditional decision append. Missing callbacks, expired deadlines or intervals
+spanning lease expiry leave the transaction preparing. A descriptor or callback
+that skips these checks does not establish a qualified transaction host.
+
+`resolveTransaction` consults the actual coordination journal and exact committed
+preparation membership. Commit publishes the immutable successor; abort preserves
+the predecessor's data and original leases. Both clear the barrier through one
+partition WAL record. Unknown decisions keep it in place. Recovery and resolution
+of an accepted decision do not recheck current time, reauthenticate old cursor
+keys, dispatch effects or reconstruct a different successor. Lease expiry after
+a committed decision cannot undo its ACK. The transaction host retains the
+publication fence across common-cut acquisition and resolution; independent reads
+are not a new atomic snapshot API.
+
+These checks qualify storage components, including disk reopen and lost replies.
+Public catalog selection/staging, aggregate transaction quotas, complete mixed
+state/log installation proof and terminal/DLQ transfer remain outstanding.
 
 ## Private Table and KV evaluation
 

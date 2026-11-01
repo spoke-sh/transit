@@ -15,7 +15,8 @@ Its disk checks cover reply loss, large values, cardinality beyond the page
 cache, sealing, archive/trim and restart. Table opens reject KV storage,
 including recovery from checkpoints. Shared workspaces and preparation barriers
 compose Table and KV through one decision; the catalog owns selection and current
-kind-specific rights. Stream/Queue transaction participation remains pending.
+kind-specific rights. Stream/Queue preparation and decision components exist; public mixed state/log
+transaction admission remains pending.
 
 `BranchSnapshot` stages immutable manifest proposals and paged Table source
 directories. Each entry binds an exact interpretation and accepted frontier to
@@ -520,8 +521,9 @@ and the catalog's retained dependency graph.
   [storage interface](docs/transaction-decisions.md#private-log-actions) does not
   reserve offsets, accept input settlement or enable log transaction execution.
 - `LogTransaction.zig`: Immutable retained partition cuts with paged live pins,
-  exact retry and release, current authority and storage-graph retention.
-  [Log cut acquisition](docs/transaction-decisions.md#retained-log-transaction-cuts)
+  exact retry and release, private evaluation, durable preparation barriers and
+  actual-journal resolution. Current lease checks and storage-graph retention
+  preserve accepted work. [Log cut acquisition](docs/transaction-decisions.md#retained-log-transaction-cuts)
   remains a storage component; public log transaction execution is unavailable.
 - `TableWorkspace.zig`: Private typed row and predicate DML over an authorized
   retained Table pin, using the existing Table evaluator and immutable indexes.

@@ -101,9 +101,9 @@ Read-only log dependencies have no action directory. A nonempty log action
 directory groups appends and settlements under one physical owner's guard;
 it contributes one write and requires one exact preparation. Acquired guards
 and prepared predecessors are kind-specific. Complete membership validation
-checks these neutral shapes, while the current decision journal and catalog
-require executable Table or direct KV participants. Other shapes do not enable
-public log transaction selection, append reservations, common visibility or terminal transfer.
+checks these neutral shapes. The decision journal supports Table/KV and log
+owners; public catalog execution still selects Table and direct KV only. Neutral
+shapes do not enable public log admission or terminal transfer.
 
 `LogTransactionActions` metadata uses `TXLACT1` followed by one zero byte,
 the mandatory definition at `8..40`, and canonical typed JSON within 16 KiB.
@@ -159,6 +159,38 @@ frontier. A live transaction pin retains its entire source graph under current
 archive coverage; a released entry alone does not retain that source. Older
 accepted replay roots retain their own live entries independently. These storage
 operations do not admit public log transactions or confer settlement authority.
+
+`LogTransaction.Preparation` uses `TLPREP1` followed by one zero byte, the
+mandatory definition at `8..40`, and canonical typed JSON within 64 KiB total.
+Its address is `log-preparations/<sha256>.data`. All fields are mandatory:
+`definition`, coordination partition, frozen journal `binding`, original log
+`guard`, retained `source` pin, `actions` commitment, full `predecessor` and
+`successor` roots, and nullable trusted-time `observed` bounds. Both roots have
+no preparation reference; their control directories agree. The successor has one
+prospective position for every private action, sealed append placements and the
+resulting producer/group/Queue indexes. Its changed frontier and maintenance
+source identify that prospective position. Extra batches can have immutable
+segment placements beyond the contiguous sealed prefix.
+
+A `transaction_prepare` partition record installs the reference and advances only
+the physical/control frontier. It requires the exact predecessor and actual
+frozen journal. While the reference exists, only `transaction_commit` or
+`transaction_abort` can advance the owner. Each resolution carries `prepared`
+and `decision`; recovery resolves the actual journal and compares the exact
+outcome, including committed directory membership. Commit publishes the stored
+data successor and advances `changed_lsn` to the resolution frontier; abort keeps
+the predecessor data and logical frontier. Both clear the preparation reference.
+Neither caller-supplied decisions nor expired clocks can resolve an unknown outcome.
+
+Prepared log operation receipts bind their distinct original operations and
+ranges to the shared preparation position. They are not public until commit
+resolution. Payloads are immutable segments, never fictitious WAL append frames.
+Recovery does not re-evaluate their authorization, trusted clock or cursor key.
+Before accepting the common decision, the host checks current authority, actual
+barriers, complete immutable availability and current lease liveness. Log writes
+also require a final `before_decision` check of all collected lease and retention
+deadlines after potentially slow participant verification. The callback runs
+under the same held publication guard and before the conditional decision append.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
 the same mandatory definition and canonical JSON within 16 KiB total. JSON stores

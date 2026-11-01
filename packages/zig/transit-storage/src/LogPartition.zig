@@ -29,6 +29,7 @@ const r = @import("LogPartitionRecord.zig");
 const pages = TreeStore.pages;
 const CandidateObjects = @import("CandidateObjects.zig");
 const Transaction = @import("LogTransaction.zig");
+const Actions = @import("LogTransactionActions.zig");
 const QueueIndex = @import("QueueIndex.zig");
 const QueueClaims = @import("QueueClaims.zig");
 const QueueSelection = @import("QueueSelection.zig");
@@ -94,6 +95,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         root: Root,
         commitment: [32]u8,
         ready: bool = false,
+        private_position: ?d.Position = null,
         candidate_objects: if (kind == .queue) CandidateObjects else void,
         queue_container: if (kind == .queue) Bitmap.Container else void,
         queue_leases: if (kind == .queue) []q.Lease else void,
@@ -201,6 +203,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn requireReady(self: *Self) !void {
             if (!self.ready) return error.LogRecoveryRequired;
+            if (self.private_position != null) return;
             if (!self.options.transaction_control and self.root.transaction != null) return error.TransactionPrepared;
             if (try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) {
                 self.ready = false;
@@ -274,6 +277,280 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             next.next_lsn = (try self.nextPosition()).next_lsn;
             next.transaction_pins = try self.tree().put(next.transaction_pins, try Evidence.operationKey(handle.owner), try (Transaction.Pin{ .source = handle.content, .released = true }).encode());
             try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .transaction_release = handle } }, &.{}, guard);
+        }
+        /// Build an immutable successor while borrowing this serialized owner's
+        /// bounded caches. No WAL acceptance or externally visible root changes.
+        pub fn evaluateTransaction(self: *Self, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
+            try limits.validate();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            if (self.root.transaction != null) return error.TransactionPrepared;
+            var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = limits.resident_bytes };
+            const result = self.evaluateTransactionBounded(memory.allocator(), handle, directory, limits, authority, guard) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
+            return .{ .root = result.root, .observed = result.observed, .resident_peak = memory.peak };
+        }
+        fn evaluateTransactionBounded(self: *Self, allocator: std.mem.Allocator, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
+            const source = try self.inspectTransactionSource(handle, guard);
+            const basis = try source.guard();
+            try basis.requireUnchanged(try Transaction.logGuard(self.root));
+            for (self.cache.held) |held| if (held != null) return error.OutstandingTailBorrows;
+            var actions = try Actions.init(allocator, self.objects, source.identity, basis, limits.actions, limits.payload_bytes, 1, self.options.index_work_bytes);
+            defer actions.deinit();
+            try actions.restore(directory);
+            try actions.verify();
+            if (actions.root.last == null or actions.root.last.?.cursor.sequence > limits.last_statement) return error.InvalidTransactionActions;
+            const buffer = try allocator.alloc(u8, self.options.batch_bytes);
+            defer allocator.free(buffer);
+            const observed = try Time.bounds(self.options.clock, self.root.clock_ms, false);
+            var fixed_time: Transaction.FixedTime = .{ .value = observed orelse .exact(0) };
+            const saved_root = self.root;
+            const saved_options = self.options;
+            const saved_allocator = self.allocator;
+            const saved_scratch = self.scratch;
+            const saved_index_allocator = self.store.allocator;
+            const prospective = try self.nextPosition();
+            const ordinary = self.enterControl(false);
+            self.private_position = prospective;
+            self.allocator = allocator;
+            self.store.allocator = allocator;
+            self.scratch = .init(allocator);
+            self.options.clock = if (observed != null) fixed_time.source() else null;
+            defer {
+                self.root = saved_root;
+                self.options = saved_options;
+                self.allocator = saved_allocator;
+                self.store.allocator = saved_index_allocator;
+                self.scratch.deinit();
+                self.scratch = saved_scratch;
+                self.private_position = null;
+                self.leaveControl(ordinary);
+                self.store.clearCache();
+                if (kind == .queue) {
+                    self.queue_deadlines.clear();
+                    self.queue_visibility.reset(null, 0, saved_root.clock_ms orelse 0);
+                    self.queue_affinity.clear();
+                }
+            }
+            var after: ?Actions.Cursor = null;
+            while (true) {
+                const page = try actions.page(after);
+                for (page.entries) |entry| if (entry) |value| {
+                    const work = value.work;
+                    if (try self.original(Actions.operation(work)) != null) return error.TransactionIdentityConflict;
+                    switch (work.action) {
+                        .append => |request| {
+                            const payload = try actions.readPayload(work, buffer);
+                            _ = try self.append(source.root.declared, request, payload, guard);
+                        },
+                        .stream_offset => |request| {
+                            _ = try self.commitOffset(source.root.declared, request, value.offset_cursor orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
+                        },
+                        .queue_ack => |request| {
+                            if (kind != .queue) return error.InvalidTransactionActions;
+                            _ = try self.settle(source.root.declared, request, guard);
+                        },
+                        .queue_terminal => return error.UnsupportedTransactionTransfer,
+                    }
+                };
+                after = page.next orelse break;
+            }
+            try authorize(guard);
+            return .{ .root = self.root, .observed = observed, .resident_peak = 0 };
+        }
+        fn transactionBarrier(preparation: Transaction.Preparation, reference: Transaction.Reference) !Root {
+            var barrier = preparation.predecessor;
+            barrier.next_lsn = (try preparation.prepared(reference)).position.next_lsn;
+            barrier.transaction = reference;
+            barrier.maintenance = try @import("StreamMaintenanceState.zig").transition(preparation.predecessor, barrier, @as(@FieldType(r.Record, "action"), .transaction_prepare));
+            return barrier;
+        }
+        fn transactionSuccessor(before: Root, preparation: Transaction.Preparation) !Root {
+            var next = preparation.successor;
+            next.next_lsn = try std.math.add(u64, before.next_lsn, 1);
+            next.changed_lsn = next.next_lsn;
+            next.transaction = null;
+            return next;
+        }
+        fn requireTransactionTransition(self: *Self, record: r.Record) !void {
+            const before = self.root;
+            const after = record.root;
+            const reference = if (record.action == .transaction_prepare) after.transaction else before.transaction;
+            if (reference) |ref| {
+                const preparation = try Transaction.loadPreparation(self.objects, ref);
+                if (record.action != .transaction_prepare and !std.meta.eql(before, try transactionBarrier(preparation, ref))) return error.InvalidLogPreparation;
+                var expected = before;
+                expected.next_lsn = try std.math.add(u64, before.next_lsn, 1);
+                switch (record.action) {
+                    .transaction_prepare => {
+                        if (before.transaction != null or !std.meta.eql(before, preparation.predecessor) or
+                            after.next_lsn != (try preparation.prepared(ref)).position.next_lsn) return error.InvalidLogPreparation;
+                        var journal = try @import("TransactionDecisionLog.zig").init(self.allocator, self.log, self.objects, preparation.coordination, preparation.binding);
+                        try journal.recover();
+                        if (journal.next_lsn == 0) return error.TransactionNotFrozen;
+                        expected.transaction = ref;
+                    },
+                    .transaction_commit, .transaction_abort => |resolution| {
+                        if (!std.meta.eql(ref, resolution.prepared)) return error.InvalidLogPreparation;
+                        const decision = try Transaction.decision(self.allocator, self.log, self.objects, preparation, ref) orelse return error.TransactionPrepared;
+                        if (!std.meta.eql(decision, resolution.decision) or
+                            (record.action == .transaction_commit) != (decision.outcome == .committed)) return error.InvalidTransactionDecision;
+                        if (decision.outcome == .committed) expected = try transactionSuccessor(before, preparation) else expected.transaction = null;
+                    },
+                    else => return error.TransactionPrepared,
+                }
+                expected.maintenance = try @import("StreamMaintenanceState.zig").transition(before, expected, record.action);
+                if (!std.meta.eql(expected, after)) return error.InvalidLogPreparation;
+            } else if (record.action == .transaction_prepare or record.action == .transaction_commit or
+                record.action == .transaction_abort or after.transaction != null) return error.InvalidLogPreparation;
+        }
+
+        /// Accept one immutable successor behind a barrier. The host must retain
+        /// the frozen attempt and serialize all selected owners and policy edits.
+        pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.zig").Binding, coordination: u64, basis: p.Transaction.LogGuard, pin: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, authority: ?Read.Authority, guard: Guard) !p.Transaction.Prepared {
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            try binding.validate();
+            try limits.validate();
+            try authorize(guard);
+            if (!self.ready or try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) return error.LogRecoveryRequired;
+            if (self.root.transaction) |reference| {
+                const prior_preparation = try Transaction.loadPreparation(self.objects, reference);
+                if (!std.meta.eql(prior_preparation.binding, binding) or prior_preparation.coordination != coordination or
+                    !std.meta.eql(prior_preparation.guard, basis) or !std.meta.eql(prior_preparation.source, pin) or
+                    !std.meta.eql(prior_preparation.actions, directory)) return error.TransactionPrepared;
+                try authorize(guard);
+                return prior_preparation.prepared(reference);
+            }
+            if (limits.resident_bytes > binding.begin.limits.resident_bytes or limits.payload_bytes > binding.begin.limits.workspace_bytes or
+                limits.actions > binding.begin.limits.workspace_bytes or limits.last_statement != binding.attempt.last_statement) return error.InvalidTransactionLimits;
+            const source = try self.inspectTransactionSource(pin, guard);
+            if (!std.meta.eql(source.identity, binding.begin.identity) or !std.meta.eql(try source.guard(), basis)) return error.InvalidLogPreparation;
+            try basis.requireUnchanged(try Transaction.logGuard(self.root));
+            var journal = try @import("TransactionDecisionLog.zig").init(self.allocator, self.log, self.objects, coordination, binding);
+            try journal.recover();
+            if (journal.next_lsn != 1) return error.TransactionNotFrozen;
+            var selected = try @import("TransactionDirectory.zig").init(self.allocator, self.objects, binding.begin.identity, .participants, binding.begin.limits.participants, 1, self.options.index_work_bytes);
+            defer selected.deinit();
+            try selected.restore(binding.attempt.participants);
+            const participant = (try selected.get((p.Transaction.Guard{ .log = basis }).target()) orelse return error.TransactionObjectNotSelected).participant;
+            if (participant != .log or !std.meta.eql(participant.log.guard, basis) or
+                !std.meta.eql(participant.log.actions, @as(?p.Transaction.Directory, directory))) return error.InvalidLogPreparation;
+            const evaluated = try self.evaluateTransaction(pin, directory, limits, authority, guard);
+            const preparation: Transaction.Preparation = .{
+                .definition = p.Growth.current_definition,
+                .coordination = coordination,
+                .binding = binding,
+                .guard = basis,
+                .source = pin,
+                .actions = directory,
+                .predecessor = self.root,
+                .successor = evaluated.root,
+                .observed = evaluated.observed,
+            };
+            const reference = try Transaction.stagePreparation(self.objects, preparation);
+            var next = self.root;
+            next.next_lsn = (try self.nextPosition()).next_lsn;
+            next.transaction = reference;
+            try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .transaction_prepare }, &.{}, guard);
+            return preparation.prepared(reference);
+        }
+
+        /// Called under the host's already-held common publication guard. It
+        /// cannot reacquire that guard. Current names/rights remain the host's
+        /// responsibility; live ACK leases are checked here immediately before
+        /// the decision. Recovery never calls this time-sensitive check.
+        pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared) !Transaction.DecisionTime {
+            if (!self.ready or self.private_position != null or try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) return error.LogRecoveryRequired;
+            const reference = self.root.transaction orelse return error.InvalidLogPreparation;
+            const preparation = try Transaction.loadPreparation(self.objects, reference);
+            var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(preparation.binding.begin.limits.resident_bytes) };
+            const saved_allocator = self.allocator;
+            const saved_scratch = self.scratch;
+            const saved_index_allocator = self.store.allocator;
+            self.allocator = memory.allocator();
+            self.store.allocator = self.allocator;
+            self.scratch = .init(self.allocator);
+            defer {
+                self.allocator = saved_allocator;
+                self.store.allocator = saved_index_allocator;
+                self.scratch.deinit();
+                self.scratch = saved_scratch;
+                self.store.clearCache();
+            }
+            return self.verifyPreparedBounded(expected, preparation, reference) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
+        }
+        fn verifyPreparedBounded(self: *Self, expected: p.Transaction.Prepared, preparation: Transaction.Preparation, reference: Transaction.Reference) !Transaction.DecisionTime {
+            if (!std.meta.eql(expected, try preparation.prepared(reference))) return error.InvalidLogPreparation;
+            if (!std.meta.eql(try transactionBarrier(preparation, reference), self.root)) return error.InvalidLogPreparation;
+            const pinned = try Transaction.Pin.decode(try self.tree().get(self.root.transaction_pins, try Evidence.operationKey(preparation.source.owner)) orelse return error.LogTransactionSourceNotPinned);
+            if (pinned.released or !std.meta.eql(pinned.source, preparation.source.content)) return error.LogTransactionSourceNotPinned;
+            const source = try Transaction.loadSource(self.objects, preparation.source);
+            if (!std.meta.eql(source.identity, preparation.binding.begin.identity) or !std.meta.eql(try source.guard(), preparation.guard)) return error.InvalidLogPreparation;
+            var actions = try Actions.init(self.allocator, self.objects, preparation.binding.begin.identity, preparation.guard, preparation.actions.count, preparation.binding.begin.limits.workspace_bytes, 1, self.options.index_work_bytes);
+            defer actions.deinit();
+            try actions.restore(preparation.actions);
+            try actions.verify();
+            const now = try Time.bounds(self.options.clock, preparation.successor.clock_ms, preparation.guard.kind == .queue);
+            var check: Transaction.DecisionTime = .{ .reference = reference, .floor_ms = if (now) |sample| sample.latest_ms else preparation.successor.clock_ms };
+            var after: ?Actions.Cursor = null;
+            while (true) {
+                const page = try actions.page(after);
+                for (page.entries) |entry| if (entry) |value| switch (value.work.action) {
+                    .queue_ack => |request| {
+                        if (kind != .queue) return error.InvalidTransactionActions;
+                        var bitmap: Bitmap = undefined;
+                        const index = self.queueIndex(&bitmap);
+                        const item = try index.item(self.root.queue.?, request.lease.offset);
+                        _ = try item.settle(try index.state(self.root.queue.?, item), request, self.root.declared.declaration.configuration.policy.queue, now.?);
+                        check.lease_expires_ms = @min(check.lease_expires_ms orelse std.math.maxInt(u64), request.lease.expires_ms);
+                    },
+                    .append => {
+                        if (preparation.observed) |observed| if (self.root.declared.declaration.configuration.retention.max_age_ms) |age| {
+                            if (now.?.latest_ms - observed.latest_ms >= age) return error.LogRetentionWindowElapsed;
+                            // An overflowing expiry lies beyond representable
+                            // time and cannot expire within this clock domain.
+                            if (std.math.add(u64, observed.latest_ms, age)) |expires| {
+                                check.append_expires_ms = @min(check.append_expires_ms orelse std.math.maxInt(u64), expires);
+                            } else |_| {}
+                        };
+                    },
+                    .stream_offset => {},
+                    .queue_terminal => return error.UnsupportedTransactionTransfer,
+                };
+                after = page.next orelse break;
+            }
+            return check;
+        }
+
+        /// No allocation or object traversal: the host calls this for every
+        /// collected owner immediately before the common decision append.
+        pub fn verifyDecisionTime(self: *Self, check: Transaction.DecisionTime) !void {
+            if (!self.ready or !std.meta.eql(self.root.transaction, @as(?Transaction.Reference, check.reference))) return error.InvalidLogPreparation;
+            if (check.lease_expires_ms == null and check.append_expires_ms == null) return;
+            const now = (try Time.bounds(self.options.clock, check.floor_ms, true)).?;
+            if (check.lease_expires_ms) |expires| {
+                if (now.earliest_ms >= expires) return error.QueueLeaseExpired;
+                if (now.latest_ms >= expires) return error.QueueTimeUnavailable;
+            }
+            if (check.append_expires_ms) |expires| if (now.latest_ms >= expires) return error.LogRetentionWindowElapsed;
+        }
+
+        /// Only an actual decision in the frozen coordination log can remove
+        /// the barrier. An expired lease after that decision does not undo ACK.
+        pub fn resolveTransaction(self: *Self, guard: Guard) !?p.Transaction.Decision {
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            try authorize(guard);
+            if (!self.ready or try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) return error.LogRecoveryRequired;
+            const reference = self.root.transaction orelse return null;
+            const preparation = try Transaction.loadPreparation(self.objects, reference);
+            const decision = try Transaction.decision(self.allocator, self.log, self.objects, preparation, reference) orelse return error.TransactionPrepared;
+            const ordinary = self.enterControl(true);
+            defer self.leaveControl(ordinary);
+            var next = self.root;
+            next.next_lsn = (try self.nextPosition()).next_lsn;
+            next.transaction = null;
+            const resolution: r.Resolution = .{ .prepared = reference, .decision = decision };
+            if (decision.outcome == .committed) next = try transactionSuccessor(self.root, preparation);
+            try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = if (decision.outcome == .committed) .{ .transaction_commit = resolution } else .{ .transaction_abort = resolution } }, &.{}, guard);
+            return decision;
         }
         fn original(self: *Self, identity: d.Operation) !?Evidence.Record {
             try identity.validate();
@@ -881,6 +1158,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return receipt;
         }
         fn nextPosition(self: *Self) !d.Position {
+            if (self.private_position) |position| return position;
             return .{ .partition = self.root.initialization.partition, .next_lsn = std.math.add(u64, self.root.next_lsn, 1) catch return error.LogPositionExhausted };
         }
         fn putGroup(self: *Self, next: *Root, previous: ?q.GroupProgress, updated: q.GroupProgress) !void {
@@ -1000,13 +1278,20 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             defer if (kind == .queue) self.store.clearCache();
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
-            const next = try self.candidate(evidence, payload, guard);
+            var next = try self.candidate(evidence, payload, guard);
+            if (self.private_position != null and evidence.outcome == .append) {
+                var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
+                defer declaration.deinit();
+                const segment = try Segment.stage(self.allocator, self.objects, &declaration, evidence, payload, self.options.segment_rows_per_group);
+                next.segments = try self.tree().put(next.segments, try r.integerKey(evidence.outcome.append.next), try segment.encode());
+                if (next.sealed_through == evidence.outcome.append.first) next.sealed_through = evidence.outcome.append.next;
+            }
             const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .operation = evidence } };
             if (kind == .queue) try self.persistQueue(next);
             try self.publishRecord(record, payload, guard);
             // Cache admission is optional after acceptance. Pressure cannot turn an
             // accepted append into rejection; reads can load its verified WAL payload.
-            if (evidence.outcome == .append) self.cache.admit(.{ .position = evidence.accepted(), .content = evidence.outcome.append.append.payload }, payload) catch {};
+            if (self.private_position == null and evidence.outcome == .append) self.cache.admit(.{ .position = evidence.accepted(), .first = evidence.outcome.append.first, .content = evidence.outcome.append.append.payload }, payload) catch {};
         }
         fn publishRecord(self: *Self, input: r.Record, payload: []const u8, guard: Guard) !void {
             var record = input;
@@ -1014,6 +1299,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             record.root.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, record.root, record.action);
             const next = record.root;
             if (next.next_lsn != (try self.nextPosition()).next_lsn or !std.mem.eql(u8, &record.previous, &self.commitment)) return error.InvalidLogHistory;
+            if (self.private_position != null) {
+                if (record.action != .operation) return error.PrivateLogWorkspace;
+                try record.validate(next.next_lsn - 1);
+                try authorize(guard);
+                self.root = next;
+                return;
+            }
+            try self.requireTransactionTransition(record);
             const bytes = try r.encode(record, payload, self.encoded);
             const fence = try guard.acquire(guard.context);
             defer guard.release(guard.context);
@@ -1701,6 +1994,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const next = record.root;
             if (next.changed_lsn != (if (record.changesData()) next.next_lsn else self.root.changed_lsn)) return error.InvalidLogHistory;
             try self.root.initialization.requireSame(next.initialization);
+            if (self.root.transaction != null or record.action == .transaction_prepare or record.action == .transaction_commit or record.action == .transaction_abort) {
+                try self.requireTransactionTransition(record);
+                return;
+            }
+            if (next.transaction != null) return error.InvalidLogPreparation;
             if (kind == .queue and (record.action == .operation or record.action == .queue_expire or record.action == .queue_schedule or record.action == .expire)) {
                 const ordinary = self.enterControl(true);
                 defer self.leaveControl(ordinary);
@@ -1730,6 +2028,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 expected.changed_lsn = next.changed_lsn;
                 switch (record.action) {
                     .operation => unreachable,
+                    .transaction_prepare, .transaction_commit, .transaction_abort => return error.InvalidLogPreparation,
                     .queue_expire, .queue_schedule => return error.InvalidLogHistory,
                     .maintenance => {},
                     .transaction_pin => |handle| {
@@ -1935,7 +2234,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 if (!std.meta.eql(value.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogSegment;
                 if (value.layout == .complete and (value.rows != receipt.append.rows or !std.meta.eql(value.view, receipt.append.payload))) return error.InvalidLogSegment;
             }
-            const binding: Tail.Binding = .{ .position = receipt.accepted, .content = receipt.append.payload, .view = if (segment) |value| (if (value.layout == .sparse) value.view else null) else null };
+            const binding: Tail.Binding = .{ .position = receipt.accepted, .first = receipt.first, .content = receipt.append.payload, .view = if (segment) |value| (if (value.layout == .sparse) value.view else null) else null };
             var borrowed = try self.cache.borrow(binding);
             if (borrowed == null) {
                 if (segment) |value| {

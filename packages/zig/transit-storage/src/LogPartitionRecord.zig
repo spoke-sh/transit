@@ -78,7 +78,7 @@ pub const Root = struct {
                 !std.meta.eql(work.source.declared.declaration.configuration.policy.stream, self.declared.declaration.configuration.policy.stream) or
                 work.source.cut.target.partition != self.initialization.ordinal or !std.meta.eql(work.source.hidden, self.hidden)) return error.InvalidStreamCompaction;
         }
-        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from) != (self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
+        if (self.next_lsn == 0 or self.retained_from > self.next_offset or (self.next_offset != self.retained_from) != (self.batches != null) or (self.producers != null) != (self.producer_receipts != null) or self.sealed_through > self.next_offset or self.sealed_through < self.retained_from or (self.sealed_through != self.retained_from and self.segments == null) or (self.next_offset == self.retained_from and self.segments != null) or (self.groups != null) != (self.group_offsets != null)) return error.InvalidLogRoot;
     }
     pub fn requireDeclaration(self: Root, declared: Declaration.Stored) !void {
         try self.requireControlDeclaration(declared);
@@ -115,6 +115,8 @@ pub const Root = struct {
     }
 };
 
+pub const Resolution = struct { prepared: @import("LogTransaction.zig").Reference, decision: p.Transaction.Decision };
+
 pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
@@ -134,6 +136,9 @@ pub const Record = struct {
         checkpoint,
         transaction_pin: p.Transaction.Pin,
         transaction_release: p.Transaction.Pin,
+        transaction_prepare,
+        transaction_commit: Resolution,
+        transaction_abort: Resolution,
         maintenance: Maintenance.Action,
     },
 
@@ -147,7 +152,7 @@ pub const Record = struct {
                 .append, .assignment, .offset, .claim, .settlement => true,
                 .read, .release, .queue_release => false,
             },
-            .expire, .queue_expire, .compaction_publish => true,
+            .expire, .queue_expire, .compaction_publish, .transaction_commit => true,
             else => false,
         };
     }
@@ -176,6 +181,16 @@ pub const Record = struct {
                 if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
             },
             .maintenance => {},
+            .transaction_prepare => {
+                if (self.root.transaction == null) return error.InvalidLogPreparation;
+            },
+            .transaction_commit, .transaction_abort => |resolution| {
+                try resolution.prepared.validate();
+                try resolution.decision.validate();
+                if (self.root.transaction != null or
+                    (self.action == .transaction_commit) != (resolution.decision.outcome == .committed)) return error.InvalidLogPreparation;
+                try resolution.decision.attempt.transaction.requireObject(self.root.declared.declaration.interpretation.object);
+            },
             .transaction_pin, .transaction_release => |pin| {
                 try pin.owner.validate();
                 try (@import("LogTransaction.zig").Reference{ .content = pin.content }).validate();

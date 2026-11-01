@@ -107,13 +107,15 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The retained log-transaction cutover replaces the shared definition with
-`d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e`.
+The log transaction decision cutover replaces the shared definition with
+`8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7`.
 Log partition records and recovery baselines require explicit logical-change,
 transaction-pin and preparation-reference fields. Immutable transaction sources
 bind the exact old root and original begin identity; earlier log roots cannot
-acquire these fields from current defaults. The retained-cut storage component
-does not yet enable log transaction execution.
+acquire these fields from current defaults. Log preparations now bind exact
+predecessor/successor roots and action directories; commit/abort records resolve
+only an actual shared decision. Earlier root and preparation formats reject.
+The public catalog still refuses log transaction selection.
 
 Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
 partitions, typed direct requests and KV policy; the native resource declaration
@@ -125,8 +127,8 @@ field. Earlier stored intents and responses reject under this definition.
 
 Transaction selection, kind-specific guards, prepared evidence and paged
 directory keys now bind logical owner partitions. Stream/Queue actions share one
-preparation per partition. This neutral vocabulary does not enable their runtime
-transaction participation; the executable state owner accepts Tables and direct KV.
+preparation per partition. Storage components implement their preparation and
+resolution; public transaction execution still accepts Tables and direct KV.
 Browser placement, retained configuration and typed request resources remain
 definition-bound. Earlier
 checkpoints, signed requests and histories reject rather than being silently

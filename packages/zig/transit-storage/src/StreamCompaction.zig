@@ -27,7 +27,7 @@ pub const Source = struct {
             self.cut.target.partition >= self.declared.declaration.configuration.partitioning.count or
             self.cut.accepted.next_lsn == 0 or self.sealed_through < self.cut.retained_from or self.sealed_through > self.cut.next or
             (self.batches != null) != (self.cut.next != self.cut.retained_from) or
-            (self.segments != null) != (self.sealed_through != self.cut.retained_from) or self.hidden.cardinality > self.cut.next) return error.InvalidStreamCompaction;
+            (self.sealed_through != self.cut.retained_from and self.segments == null) or (self.cut.next == self.cut.retained_from and self.segments != null) or self.hidden.cardinality > self.cut.next) return error.InvalidStreamCompaction;
     }
 };
 
