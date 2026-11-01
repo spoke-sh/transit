@@ -1,4 +1,4 @@
-# Table transaction qualification
+# Database transaction qualification
 
 The question is whether one local Catalog can preserve a common Table cut,
 provisional statements and one original decision across failure and caller loss.
@@ -6,6 +6,62 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [SQL session contract](../../../contracts/SQL_SESSION_V1.md) and
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
+
+## Paired Queue terminal transfers — 2026-10-31
+
+Implementation `b27aac9289dffd7804739b14e7ea6057ab824ba2` supports explicit
+native Queue transfers through the existing transaction workspace and decision
+owner. Definition
+`840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24`
+replaces the prior mixed-statement definition. The
+[native transaction contract](../../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+owns executable operations and authority requirements.
+
+The component run passes **109/109 protocol**, **208/208 catalog** and
+**75/75 selected storage tests** in ReleaseSafe. Storage selection includes
+`queue`, `Queue`, `log transaction` and `transaction decision`. The final
+catalog filters, `transaction log terminal transfers` and
+`transaction transfer reservations`, pass **5/5 tests**, covering the last
+authorization change after the full catalog run began. All **58 fast checks**,
+**19 contract checks**, the two focused native refusal checks and the full
+handbook check pass. These are workspace checks, not clean dependent lanes.
+
+Disk cases cover live NACK transfer, exhausted items whose recorded destination
+survives a later policy edit, lease expiry before the common decision, and
+savepoint rollback. Both operation identities stay reserved. Current destination
+append denial rejects staging, buffered outcome disclosure and commit; an absent
+outcome also rechecks authority before disclosure. A changed payload cannot
+terminalize the source. Lost decision replies recover the original committed or
+aborted outcome after reopening, under the existing 16 MiB transaction limit.
+Pending payloads remain reachable through the metered retained graph.
+
+Storage cases reject missing, mismatched and reused transfer counterparts. They
+verify private FIFO advancement and preserved old roots, and reject a correctly
+encoded standalone terminal WAL record before replay changes state. Source
+payload validation also runs after sealing and reopening, exercising the reused
+encoding buffer against a pinned cold-segment borrow. These checks do not prove
+an installed transfer, automatic DLQ scheduling, arbitrary concurrent execution,
+or the complete preparation/finalization fault matrix.
+
+The component output is `/var/tmp/transit-m6-queue-terminal-checks1.log`, SHA-256
+`1ccc58054dc317798d1f6a81d5c9f595517b4e42acd15b142822138c7b78d4c8`.
+Final checks are in `/var/tmp/transit-m6-queue-terminal-final.log`, SHA-256
+`c6662a91a63ff7c99ebf38d86618c489634c30c5c0f8d6b24965959cdb6c1289`.
+The final run used the committed implementation with the separate installed
+fixture being prepared in the workspace. Its production sources match the
+implementation above. Owning generators, bindings and independent fixtures
+complete in `/var/tmp/transit-m6-queue-terminal-generation2.log`, SHA-256
+`8b4c2cda8de06c1fe8baad09b89173abd9b3396ad3b91cee0c291edd3ad41a68`;
+version validation covers 158 manifests. These paths are local evidence, not
+portable download links.
+
+An earlier prototype exceeded the resident limit by opening both owners at
+once; sequential owner lifetimes fixed that failure without raising the limit.
+Earlier compiler/fixture failures and the first diagnostic-inventory failure
+remain failed attempts. The corrected current-definition runs above supply the
+passing evidence. The installed signed transfer schedule and common-revision
+clean qualification remain open, as do SQL/Station composition and performance
+measurements. No test duration is treated as a latency baseline.
 
 ## Native mixed state and log statements — 2026-10-31
 
