@@ -214,7 +214,7 @@ pub const features = [_]l.FeatureDescriptor{
         .title = "Declarative referential integrity: FOREIGN KEY ... REFERENCES with RESTRICT, NO ACTION, CASCADE, SET NULL",
         .owner = "packages/zig/transit-fuze/src/TableConstraints.zig",
         .dependencies = &.{"F031-F034"},
-        .deviations = "Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the M11 index runtime.",
+        .deviations = "Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the maintained-index runtime.",
         .corpus_sources = &.{"contracts/sql/corpus/declarations.json"},
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .staged, .recover = .staged, .transport = .staged },
         .reference_verified = false,

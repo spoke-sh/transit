@@ -447,7 +447,7 @@
       "dependencies": [
         "F031-F034"
       ],
-      "deviations": "Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the M11 index runtime.",
+      "deviations": "Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the maintained-index runtime.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
@@ -1094,7 +1094,7 @@
       ]
     }
   ],
-  "sha256": "e38cea5525e677e582d8e0e0d552b4b38f8b65714306c9fcaf5956aa7f910b0c",
+  "sha256": "31b9e0d8acfbbf37b96f58f21fb12180b59b5736e3f305c5a644ed87dfe0721f",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
