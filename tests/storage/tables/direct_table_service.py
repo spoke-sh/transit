@@ -95,6 +95,7 @@ def run(node, caller, mode="tables", *artifacts):
         pressure_scan = []
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
+        managed_fault = {"pages_before_failure": None, "failed": False}
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
@@ -112,6 +113,20 @@ def run(node, caller, mode="tables", *artifacts):
                 nonlocal growth_sequence
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
+                record = envelope.get("action", {}).get("record") if isinstance(envelope.get("action"), dict) else None
+                if (mode == "managed" and record and "read" in record
+                        and record["read"]["format"] == 0x44465031
+                        and managed_fault["pages_before_failure"] is not None):
+                    if managed_fault["pages_before_failure"] == 0:
+                        managed_fault.update(pages_before_failure=None, failed=True)
+                        data = b'{"err":"AuthorityUnavailable"}'
+                        self.send_response(503)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
+                    managed_fault["pages_before_failure"] -= 1
                 attempt = None
                 transaction_action = envelope.get("action", {}).get("transaction") if isinstance(envelope.get("action"), dict) else None
                 if mode in ("log-token", "workload-token", "workload-result") and isinstance(envelope.get("action"), dict):
@@ -712,7 +727,14 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([caller, endpoint, "managed-recover", str(profile)], check=True, timeout=600)
-                print("Managed Table: original transaction recovery, atomic complete output, suspend fencing, resume, refresh and retirement passed.", flush=True)
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
+                managed_fault["pages_before_failure"] = 1
+                subprocess.run([caller, endpoint, "managed-prefix", str(profile)], check=True, timeout=180)
+                assert managed_fault["failed"], managed_fault
+                print("Managed Table: original recovery, atomic output, retained nonempty/empty revisions after replacement and output edits, bounded reads, early close, incomplete prefix and current source/output/control denial passed.", flush=True)
                 return
             if mode == "queues":
                 subprocess.run([caller, endpoint, "queue-prepare", str(profile)], check=True, timeout=180)

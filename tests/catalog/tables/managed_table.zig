@@ -87,6 +87,31 @@ fn count(client: c.DirectTableClient, expected: u64) !void {
     std.mem.sort(i64, values[0..batch.len], {}, std.sort.asc(i64));
     for (values[0..batch.len], 1..) |value, want| try t.expectEqual(@as(i64, @intCast(want)), value);
 }
+fn retained(manager: M, declaration: M.Declaration, revision: u64, expected: []const i64) !void {
+    var reader = try q.ManagedRevision.open(manager, declaration, revision, .{});
+    defer reader.deinit();
+    try t.expectEqual(expected.len, reader.manifest.value.metadata.rows);
+    try t.expectEqual(revision, reader.manifest.value.metadata.revision);
+    try t.expectEqual(.committed, reader.decision.outcome);
+    try t.expect(!reader.complete);
+    var output: std.heap.ArenaAllocator = .init(manager.client.allocator);
+    defer output.deinit();
+    var values: [4]i64 = undefined;
+    var count_: usize = 0;
+    var first: ?q.fuze.TableRow.Row = null;
+    while (try reader.next(&output)) |row| {
+        try t.expect(count_ < values.len);
+        values[count_] = @intCast(row.cells[0].value.atom.signed);
+        if (first == null) first = row;
+        count_ += 1;
+        // Rows in caller output survive subsequent internal scratch resets.
+        try t.expectEqual(values[0], first.?.cells[0].value.atom.signed);
+    }
+    try t.expect(reader.complete);
+    try t.expect(try reader.next(&output) == null);
+    std.mem.sort(i64, values[0..count_], {}, std.sort.asc(i64));
+    try t.expectEqualSlices(i64, expected, values[0..count_]);
+}
 pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
     (try client.call(.initialize)).deinit();
     try ddl(client, "CREATE TABLE managed_input (id BIGINT PRIMARY KEY)", 652001, 652010);
@@ -115,6 +140,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try control(manager, declaration, .authorize, 652005);
     try control(manager, declaration, .activate, 652006);
     try count(client, 0);
+    try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration, 1, .{}));
     const pending = (try manager.start(declaration)).?;
     // Leave a real accepted common transaction and private staged rows for the
     // replacement process, while fresh readers still see the old complete output.
@@ -157,6 +183,8 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try drain(manager, declaration, init.io, .cwd());
     try count(client, 4);
     try t.expectEqual(@as(u64, 2), (try manager.inspect(declaration)).head.revision);
+    try retained(manager, declaration, 1, &.{ 1, 2, 3 });
+    try retained(manager, declaration, 2, &.{ 1, 2, 3, 4 });
     const before_race = try manager.inspect(declaration);
     const stale = try manager.prepareControl(declaration, .{ .definition = c.protocol.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 652013 }, .target = try declaration.interpretation(client.allocator), .expected = before_race.head.control, .command = .refresh });
     defer client.allocator.free(stale);
@@ -168,6 +196,12 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try control(manager, declaration, .refresh, 652011);
     try drain(manager, declaration, init.io, .cwd());
     try t.expectEqual(@as(u64, 3), (try manager.inspect(declaration)).head.revision);
+    try dml(client, "DELETE FROM managed_input", 652026);
+    try drain(manager, declaration, init.io, .cwd());
+    try retained(manager, declaration, 4, &.{});
+    try dml(client, "INSERT INTO managed_input (id) VALUES (1),(2),(3),(4)", 652027);
+    try drain(manager, declaration, init.io, .cwd());
+    try retained(manager, declaration, 1, &.{ 1, 2, 3 });
     const cycle = try manager.prepare(1, "managed_cycle", 650001, 652016, "managed_input", "SELECT id FROM managed_output", options);
     try t.expectError(error.DataflowSourceChanged, manager.publish(cycle));
     try t.expectEqual(.source_changed, (try manager.inspect(cycle)).head.blocked);
@@ -194,4 +228,89 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try count(client, 4);
     try control(manager, limited, .retire, 652025);
     try t.expect(try manager.start(limited) == null);
+    try dml(client, "DELETE FROM managed_output", 652028);
+    try retained(manager, declaration, 1, &.{ 1, 2, 3 });
+    try retained(manager, declaration, 2, &.{ 1, 2, 3, 4 });
+    try retained(manager, declaration, 4, &.{});
+}
+
+pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const u8, admin: anytype, role: u64) !void {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(M.max_definition_bytes));
+    const declaration = try c.protocol.Json.parseFromSlice(M.Declaration, init.gpa, bytes);
+    defer declaration.deinit();
+    const manager: M = .{ .client = client };
+    // No scheduler or source snapshot is needed after another node replacement.
+    try count(client, 0);
+    try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
+    try retained(manager, declaration.value, 2, &.{ 1, 2, 3, 4 });
+    try retained(manager, declaration.value, 4, &.{});
+    try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration.value, 6, .{}));
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    {
+        var limited = try q.ManagedRevision.open(manager, declaration.value, 1, .{ .rows = 1 });
+        defer limited.deinit();
+        _ = (try limited.next(&output)).?;
+        try t.expect(!limited.complete);
+        try t.expectError(error.ManagedTableResultBudget, limited.next(&output));
+        try t.expectError(error.FailedManagedRevision, limited.next(&output));
+        try t.expect(!limited.complete);
+    }
+    {
+        var early = try q.ManagedRevision.open(manager, declaration.value, 2, .{});
+        defer early.deinit();
+        _ = (try early.next(&output)).?;
+        try t.expect(!early.complete); // Close is local, not retirement or expiry.
+    }
+    {
+        var probe = try q.ManagedRevision.open(manager, declaration.value, 1, .{});
+        defer probe.deinit();
+        try t.expectError(error.ManagedTableResultBudget, q.ManagedRevision.open(manager, declaration.value, 1, .{ .bytes = probe.root.content.bytes - 1 }));
+        var limited = try q.ManagedRevision.open(manager, declaration.value, 1, .{ .bytes = probe.root.content.bytes + probe.next_page.?.content.bytes - 1 });
+        defer limited.deinit();
+        try t.expectError(error.ManagedTableResultBudget, limited.next(&output));
+        try t.expect(!limited.complete);
+    }
+    var authorities: [3]u64 = undefined;
+    for ([_]c.DirectTableBinding{ declaration.value.source, declaration.value.output }, 0..) |binding, i| {
+        const metadata = try client.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+        defer metadata.deinit();
+        authorities[i] = metadata.value.result.lookup.?.authorization;
+    }
+    authorities[2] = (try c.DirectKVClient.apply(&output, client, .{ .observe = declaration.value.object })).definition.authorization;
+    for (authorities) |authorization| {
+        var nonempty = try q.ManagedRevision.open(manager, declaration.value, 1, .{});
+        defer nonempty.deinit();
+        var empty = try q.ManagedRevision.open(manager, declaration.value, 4, .{});
+        defer empty.deinit();
+        _ = (try nonempty.next(&output)).?;
+        try t.expect(try empty.next(&output) == null);
+        const object = c.TableAuthority.reference(authorization);
+        _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = 0 } });
+        try t.expectError(error.AccessDenied, nonempty.validateDisclosure());
+        try t.expectError(error.AccessDenied, nonempty.next(&output));
+        try t.expectError(error.AccessDenied, empty.next(&output));
+        try t.expect(!empty.complete);
+        try t.expectError(error.AccessDenied, q.ManagedRevision.open(manager, declaration.value, 4, .{}));
+        _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });
+    }
+    try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
+}
+
+pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(M.max_definition_bytes));
+    const declaration = try c.protocol.Json.parseFromSlice(M.Declaration, init.gpa, bytes);
+    defer declaration.deinit();
+    const manager: M = .{ .client = client };
+    var reader = try q.ManagedRevision.open(manager, declaration.value, 1, .{});
+    defer reader.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    _ = (try reader.next(&output)).?;
+    // The real HTTP proxy refuses the second immutable page. A delivered
+    // prefix cannot become complete or silently restart at another basis.
+    try t.expectError(error.AuthorityUnavailable, reader.next(&output));
+    try t.expect(!reader.complete);
+    try t.expectError(error.FailedManagedRevision, reader.next(&output));
+    try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
 }
