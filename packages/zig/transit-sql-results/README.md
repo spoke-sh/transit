@@ -50,6 +50,9 @@ column buffers. `nextBatch` returns the remaining bounded view without transposi
 its values. `columnAt(i)` provides column access for either layout; `slice` adjusts
 only offset/count. `nextRow` uses reusable cell-descriptor scratch for columnar
 input while variable payloads continue to borrow their source buffers.
+Compact Fuze text/binary lanes retain their original bytes through this view,
+including inline strings. They borrow the vector owner until reset/deinit;
+`copyRow` detaches values when they must survive that boundary.
 
 For a verified plain column, `columnAt(i).arrowValues(&buffers)` borrows its Arrow
 nullable value child and honors the slice offset. The column view retains the

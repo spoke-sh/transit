@@ -34,6 +34,7 @@ pub const Column = union(enum) {
                         .states_only => return error.InvalidResultColumn,
                         .words => |words| if (words.len < count or !r.fuze.Batch.kernels.hot(value.type)) return error.InvalidResultColumn,
                         .values => |values| if (values.len < count) return error.InvalidResultColumn,
+                        .strings => |values| if (values.len < count or (value.type != .utf8 and value.type != .binary)) return error.InvalidResultColumn,
                     }
                     for (value.states, value.details[0..count]) |state, detail| switch (state) {
                         .type_error => if (detail != .type_error) return error.InvalidResultColumn,

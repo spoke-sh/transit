@@ -150,3 +150,47 @@ test "independent binary peer fixture decodes wide missing and null columns" {
     try t.expectEqual(.null, std.meta.activeTag(batch.cell(0, 2)));
     try t.expectEqual(1, frame.completion.?.rows);
 }
+
+test "compact Fuze string lanes cross SQL result encoding with detached raw bytes" {
+    const t = std.testing;
+    const fields = [_]r.Types.Field{
+        .{ .name = "text", .type = .utf8 },
+        .{ .name = "bytes", .type = .binary },
+    };
+    const texts = [_][]const u8{ "MiXeD  ", "MiXeD long original payload  " };
+    const binaries = [_][]const u8{ "\xff\x00", "\xfflong binary payload\x00" };
+    var encoded = std.heap.ArenaAllocator.init(t.allocator);
+    defer encoded.deinit();
+    const pages = block: {
+        var plan: api.fuze.LogicalQuery.Plan = .{ .schema = .{ .structure = &fields }, .source_basis = @splat(14), .projection = &.{ 0, 1 } };
+        plan.collations.columns[0] = .ascii_ci;
+        var source = try api.fuze.Batch.init(t.allocator, plan, .{ .rows = 2, .bytes = 65536 });
+        defer source.deinit();
+        for (texts, binaries, 0..) |text, binary, i| try source.append(&.{
+            .{ .value = .{ .atom = .{ .bytes = text } } },
+            .{ .value = .{ .atom = .{ .bytes = binary } } },
+        }, .{ .row = i + 1, .boundary = 1 });
+        var columns = [_]r.Batch.Column{
+            .{ .vector = source.columns[0].view(source.len) },
+            .{ .vector = source.columns[1].view(source.len) },
+        };
+        const batch = r.Batch.fromColumns(&columns, source.len);
+        const result = try encode(t.allocator, encoded.allocator(), &fields, batch);
+        columns[0].vector.flat.data.strings = columns[0].vector.flat.data.strings[0..1];
+        try t.expectError(error.InvalidResultColumn, batch.validate(&fields));
+        source.reset(); // Encoded output must not borrow the vector's inline bytes.
+        try source.append(&.{
+            .{ .value = .{ .atom = .{ .bytes = "changed" } } },
+            .{ .value = .{ .atom = .{ .bytes = "changed" } } },
+        }, .{ .row = 1, .boundary = 1 });
+        break :block result;
+    };
+    var decoded = std.heap.ArenaAllocator.init(t.allocator);
+    defer decoded.deinit();
+    const batch = try decode(t.allocator, decoded.allocator(), &fields, pages, 2);
+    try batch.validate(&fields);
+    for (texts, binaries, 0..) |text, binary, i| {
+        try t.expectEqualStrings(text, batch.cell(i, 0).value.atom.bytes);
+        try t.expectEqualSlices(u8, binary, batch.cell(i, 1).value.atom.bytes);
+    }
+}

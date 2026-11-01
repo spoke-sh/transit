@@ -28372,7 +28372,7 @@
     "packages/zig/transit-sql-results/src/Batch.zig": {
       "errors": {
         "InvalidResultChunk": 2,
-        "InvalidResultColumn": 13,
+        "InvalidResultColumn": 14,
         "InvalidResultRow": 3,
         "UnsupportedResultColumnLayout": 2
       },

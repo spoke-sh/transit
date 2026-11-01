@@ -144,7 +144,8 @@ the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
 `PhysicalCodecs.evaluateColumnPage` evaluates one `ColumnPredicate` over physical
 values, runs or dictionary codes. Its output owns one byte per row, preserving
 true, false, unknown, type error and conflict separately. RLE runs and dictionary
-entries evaluate once; symbol-table and EBCDIC strings use bounded transient
+entries evaluate once. Binary/ASCII symbol-table comparisons stream validated
+bytes; other symbol-table predicates and EBCDIC strings use bounded transient
 decoding. The caller keeps the typed literal alive during evaluation and owns
 scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared
