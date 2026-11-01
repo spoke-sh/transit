@@ -18,7 +18,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -37,7 +37,7 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer"):
+        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "log-token"):
             settings["request_metrics"] = True
         if mode in ("resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
             settings["genesis"]["max_clock_error_ms"] = 10000
@@ -77,6 +77,7 @@ def run(node, caller, mode="tables", *artifacts):
         queue_faults = set()
         kv_faults = set()
         state_transaction_faults = set()
+        log_token_faults = set()
         log_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
@@ -88,7 +89,7 @@ def run(node, caller, mode="tables", *artifacts):
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
-        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer") else None
+        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "log-token") else None
         if transaction_attempts is not None:
             transaction_attempts.mkdir(mode=0o700)
         growth_sequence = 0
@@ -104,6 +105,8 @@ def run(node, caller, mode="tables", *artifacts):
                 envelope = json.loads(body)
                 attempt = None
                 transaction_action = envelope.get("action", {}).get("transaction") if isinstance(envelope.get("action"), dict) else None
+                if mode == "log-token" and isinstance(envelope.get("action"), dict):
+                    transaction_action = envelope["action"]
                 if (growth_attempts is not None and self.path == "/table/v1"
                         and isinstance(envelope["action"], dict)
                         and set(envelope["action"]) & {"admit_ddl", "admit_rows", "operation", "pin"}):
@@ -205,6 +208,20 @@ def run(node, caller, mode="tables", *artifacts):
                             parsed["context"][0] ^= 1
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
+                        if mode == "log-token" and response.status == 200:
+                            proposed = envelope["action"].get("client_token", {}).get("bind", {}).get("intent", {}).get("log")
+                            admitted = envelope["action"].get("log_admit")
+                            phase = "bind" if proposed else "admit" if admitted else None
+                            selected = proposed or admitted
+                            if selected and selected["binding"]["identity"]["operation"] == 644002 and phase not in log_token_faults:
+                                parsed = json.loads(data)
+                                if phase == "bind":
+                                    assert parsed["result"]["client_token"]["binding"]["intent"]["log"] == proposed
+                                else:
+                                    assert parsed["result"]["log_admitted"]["phase"] == "admitted"
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                log_token_faults.add(phase)
                         kv = envelope["action"].get("kv", {})
                         transaction = envelope["action"].get("transaction", {})
                         if mode in ("state-transaction", "mixed-transaction", "queue-transfer") and response.status == 200:
@@ -388,6 +405,25 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "log-token":
+                saved = None
+                for phase in ("prepare", "recover", "verify"):
+                    subprocess.run([caller, endpoint, "log-token-" + phase, str(profile)], check=True, timeout=180)
+                    current = Path(str(profile) + ".log-token").read_bytes()
+                    if saved is None:
+                        saved = current
+                    assert current == saved
+                    assert log_token_faults == ({"bind"} if phase == "prepare" else {"bind", "admit"})
+                    if phase != "verify":
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = start()
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="direct_log_declaration_tokens", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
+                                      lost_replies=sorted(log_token_faults), passed=True)))
+                print("Stream/Queue declaration tokens: original immutable bodies, token and admission recovery, two SIGKILL/restarts, complete partition publication and terminal settlement passed.")
+                return
             if mode in ("state-transaction", "mixed-transaction", "queue-transfer"):
                 mixed = mode == "mixed-transaction"
                 transfer = mode == "queue-transfer"

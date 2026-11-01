@@ -158,6 +158,10 @@ direct-state-transaction:
 direct-mixed-transaction:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- mixed-transaction
 
+# Stream/Queue declaration tokens retain exact bodies through lost replies.
+direct-log-token:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- log-token
+
 # Queue source archive and destination append share one recoverable decision.
 direct-queue-transfer:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer
