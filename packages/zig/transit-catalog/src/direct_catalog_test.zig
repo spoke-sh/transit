@@ -4656,17 +4656,23 @@ fn terminalTransferCases() !void {
             defer objects.deinit();
             var catalog = try owner(&wal, &objects);
             defer catalog.deinit();
+            catalog.options.resident_pages = (D.Options{}).resident_pages;
             var clock: QueueClock = .{};
             var cached: ?c.DirectQueue.Cached = null;
             defer if (cached) |*value| value.deinit();
             if (restart == 0) {
                 try catalog.initialize(access.policy());
-                const destination = try logCreation(.queue, 12, 2, "dead_letters", 1);
+                var destination = try logCreation(.queue, 12, 2, "dead_letters", 1);
+                destination.intent.action.create.configuration.policy.queue.ordering = .key_fifo;
+                destination.intent.action.create.configuration.policy.queue.key_column = 1;
+                destination.binding.intent = try destination.intent.digest(t.allocator);
                 _ = try catalog.admitLog(destination, access.policy());
                 _ = try catalog.logOperation(destination.binding, .execute, access.policy());
                 const destination_definition = (try catalog.resolveLog(1, try .init("dead_letters"), access.policy())).?;
                 destination_target = .{ .definition = p.Growth.current_definition, .interpretation = destination_definition.stored.declaration.interpretation, .partition = 0 };
                 var source = try logCreation(.queue, 11, 1, "inbox", 1);
+                source.intent.action.create.configuration.policy.queue.ordering = .key_fifo;
+                source.intent.action.create.configuration.policy.queue.key_column = 1;
                 source.intent.action.create.configuration.policy.queue.dead_letter = destination_target.interpretation;
                 if (case == .exhausted) source.intent.action.create.configuration.policy.queue.maximum_attempts = 1;
                 source.binding.intent = try source.intent.digest(t.allocator);
@@ -4677,10 +4683,10 @@ fn terminalTransferCases() !void {
                 const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 600 };
                 const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
                 var bytes: [8192]u8 = undefined;
-                const original_payload = try s.LogBatch.encode(source.intent.action.create.schema, operation, .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &bytes);
+                const original_payload = try s.LogBatch.encode(source.intent.action.create.schema, operation, .queue, &.{ .{ .cells = &cells, .visible_ms = 75 }, .{ .cells = &cells, .visible_ms = 75 } }, &bytes);
                 const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, original_payload);
                 defer t.allocator.free(encoded.base64);
-                _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(original_payload) } }, .payload = encoded } }, 256);
+                _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 2, .payload = s.LogBatch.content(original_payload) } }, .payload = encoded } }, 256);
                 claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
                 const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
                 defer page.deinit(t.allocator);

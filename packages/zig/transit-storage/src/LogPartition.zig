@@ -298,7 +298,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try actions.restore(directory);
             try actions.verify();
             if (actions.root.last == null or actions.root.last.?.cursor.sequence > limits.last_statement) return error.InvalidTransactionActions;
-            const buffer = try allocator.alloc(u8, self.options.batch_bytes);
+            // Settlement-only actions need no append buffer. A verified action
+            // directory bounds each append by its total retained payload bytes;
+            // large directories still use at most one ordinary batch buffer.
+            const buffer = try allocator.alloc(u8, @intCast(@min(self.options.batch_bytes, actions.root.payload_bytes)));
             defer allocator.free(buffer);
             const observed = try Time.bounds(self.options.clock, self.root.clock_ms, false);
             var fixed_time: Transaction.FixedTime = .{ .value = observed orelse .exact(0) };
@@ -354,7 +357,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                         },
                         .queue_terminal => |request| {
                             if (kind != .queue) return error.InvalidTransactionActions;
-                            _ = try self.transferPrivate(source.root.declared, request, buffer, guard);
+                            _ = try self.transferPrivate(source.root.declared, request, guard);
                         },
                     }
                 };
@@ -899,7 +902,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 .exhausted => |item| item.offset,
             };
         }
-        fn transferPrivate(self: *Self, declared: Declaration.Stored, request: p.Transaction.TerminalTransfer, buffer: []u8, guard: Guard) !p.Transaction.TerminalReceipt {
+        fn transferPrivate(self: *Self, declared: Declaration.Stored, request: p.Transaction.TerminalTransfer, guard: Guard) !p.Transaction.TerminalReceipt {
             if (self.private_position == null) return error.PrivateLogWorkspace;
             try request.validate();
             try self.requireTarget(request.target());
@@ -911,7 +914,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const index = self.queueIndex(&bitmap);
             const item = try index.item(self.root.queue.?, transferOffset(request));
             _ = try item.transfer(try index.state(self.root.queue.?, item), request, declared.declaration.configuration.policy.queue, now);
-            try self.verifyTransferPayload(request, buffer, guard);
+            // Source borrows own a tail slab. Once verified, the publication
+            // buffer can be reused by the terminal record below.
+            try self.verifyTransferPayload(request, self.encoded[0..self.options.batch_bytes], guard);
             const receipt: p.Transaction.TerminalReceipt = .{ .transfer = request, .accepted = try self.nextPosition() };
             try self.publish(.{ .declared = declared, .outcome = .{ .terminal = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
             return receipt;
