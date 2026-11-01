@@ -66,8 +66,8 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     result = rows(original['identity'])
     values, sizes, observation, completion = result
     assert [list(map(unsigned, row)) for row in values] == [[i, 0, i, 1, 1] for i in range(65)]
-    assert sizes == [32, 32, 1] and observation['workload']['limit'] is None
-    receipt = observation['workload']['selection']['claim']
+    assert sizes == [32, 32, 1] and observation['data']['workload']['limit'] is None
+    receipt = observation['data']['workload']['selection']['claim']
     assert receipt['rows'] == 65 and receipt['claim']['maximum'] == 65
     # Wait only if the original receipt's actual deadline has not yet elapsed.
     # The separately qualified native owner proves authoritative expiry/fencing.
@@ -100,7 +100,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     empty = submit("CLAIM value FROM claim_manual WHERE _partition = 0 WITH LEASE '1s'")['identity']
     empty_rows = rows(empty)
     assert empty_rows[0] == [] and empty_rows[1] == [0]
-    assert empty_rows[2]['workload']['selection']['claim']['rows'] == 0
+    assert empty_rows[2]['data']['workload']['selection']['claim']['rows'] == 0
     for identity in (original['identity'], empty):
         batch = client.call(dict(result=identity))['batch']
         authorize(False)
