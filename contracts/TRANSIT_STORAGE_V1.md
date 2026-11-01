@@ -103,7 +103,7 @@ it contributes one write and requires one exact preparation. Acquired guards
 and prepared predecessors are kind-specific. Complete membership validation
 checks these neutral shapes, while the current decision journal and catalog
 require executable Table or direct KV participants. Other shapes do not enable
-log pin acquisition, append reservations, common visibility or terminal transfer.
+public log transaction selection, append reservations, common visibility or terminal transfer.
 
 `LogTransactionActions` metadata uses `TXLACT1` followed by one zero byte,
 the mandatory definition at `8..40`, and canonical typed JSON within 16 KiB.
@@ -132,6 +132,33 @@ The statement owner must retain this graph, verify payload schemas and complete
 statement membership, and preserve consumed identities across savepoint rollback.
 No object in this directory establishes an append reservation, lease settlement,
 partition preparation or transaction decision.
+
+`LogTransaction.Source` uses `TXLSRC1` followed by one zero byte, the mandatory
+definition at `8..40`, and canonical typed JSON within 64 KiB total. The address
+is `log-tx-sources/<sha256>.data`. Required fields are `definition`, transaction
+`identity` and the complete `LogPartitionRecord.Root`. The source must be live,
+have no preparation reference and have a null transaction-pin directory. Its
+identity must match the declared object's scope and branch. Loading checks the
+entire content identity, mandatory definition, canonical encoding and exact pin
+owner before returning owned fixed-size fields.
+
+Partition roots carry mandatory `changed_lsn`, `transaction_pins` and nullable
+`transaction` fields. A transaction-pin directory uses the ordinary sixteen-byte
+big-endian principal/operation keys. Each value has exactly 41 bytes: released
+flag (zero or one), eight-byte big-endian source length, and source SHA-256.
+The `transaction_pin` and `transaction_release` actions bind the original
+`Transaction.Pin`; each acceptance changes only its directory, physical frontier,
+maintenance bookkeeping and, on acquisition, the supplied current declaration.
+Recovery verifies the predecessor cut and source on acquisition, and the exact
+original live content on release. Neither action changes `changed_lsn`.
+
+Logical append, assignment, offset, claim, settlement, lease expiry, payload
+expiry and compaction publication set `changed_lsn` to their accepted frontier.
+Other physical/control actions preserve it. Recovery rejects a different logical
+frontier. A live transaction pin retains its entire source graph under current
+archive coverage; a released entry alone does not retain that source. Older
+accepted replay roots retain their own live entries independently. These storage
+operations do not admit public log transactions or confer settlement authority.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
 the same mandatory definition and canonical JSON within 16 KiB total. JSON stores

@@ -1414,3 +1414,44 @@ test "queue partition terminal retention replay refuses removal of another live 
     try t.expectEqual(puts, objects.puts);
     try t.expect(!recovered.owner.ready);
 }
+
+test "log transaction queue cuts retain prior claims and distinguish physical from logical progress" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var configured = options;
+    configured.clock = clock.source();
+    var queue = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer queue.deinit() catch unreachable;
+    _ = try queue.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const batch = try request(&declared, 2, &bytes);
+    _ = try queue.enqueue(initial.declared, batch.append, batch.payload, policy.guard());
+    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const basis = queue.owner.root;
+    try t.expectEqual(basis.next_lsn, basis.changed_lsn);
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const pin = try queue.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    const original = try queue.inspectTransactionSource(pin, policy.guard());
+    try t.expectEqualDeep(basis, original.root);
+    while (!(try queue.flush(queue.owner.root.position(), policy.guard())).complete) {}
+    while (try queue.scheduleMaintenanceUnit(initial.declared, 16, policy.guard())) {}
+    try (try original.guard()).requireUnchanged(try s.LogTransaction.logGuard(queue.owner.root));
+    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    _ = try queue.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .ack }, policy.guard());
+    try t.expectEqual(queue.owner.root.next_lsn, queue.owner.root.changed_lsn);
+    try t.expectError(error.TransactionConflict, (try original.guard()).requireUnchanged(try s.LogTransaction.logGuard(queue.owner.root)));
+    try t.expectEqualDeep(basis, (try queue.inspectTransactionSource(pin, policy.guard())).root);
+    try queue.deinit();
+    queue = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try queue.recoverStep(policy.guard(), 2)).complete) {}
+    try t.expectEqualDeep(basis, (try queue.inspectTransactionSource(pin, policy.guard())).root);
+    try queue.releaseTransactionSource(pin, policy.guard());
+    try t.expectError(error.LogTransactionSourceReleased, queue.inspectTransactionSource(pin, policy.guard()));
+}

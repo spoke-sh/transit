@@ -70,6 +70,7 @@ pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 pub const TransactionDirectory = @import("TransactionDirectory.zig");
 pub const LogTransactionActions = @import("LogTransactionActions.zig");
+pub const LogTransaction = @import("LogTransaction.zig");
 pub const TableWorkspace = @import("TableWorkspace.zig");
 pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 

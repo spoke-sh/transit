@@ -519,6 +519,10 @@ and the catalog's retained dependency graph.
   and explicit action/payload quotas. Its
   [storage interface](docs/transaction-decisions.md#private-log-actions) does not
   reserve offsets, accept input settlement or enable log transaction execution.
+- `LogTransaction.zig`: Immutable retained partition cuts with paged live pins,
+  exact retry and release, current authority and storage-graph retention.
+  [Log cut acquisition](docs/transaction-decisions.md#retained-log-transaction-cuts)
+  remains a storage component; public log transaction execution is unavailable.
 - `TableWorkspace.zig`: Private typed row and predicate DML over an authorized
   retained Table pin, using the existing Table evaluator and immutable indexes.
   Read-your-writes and private rollback preserve consumed statement identities;

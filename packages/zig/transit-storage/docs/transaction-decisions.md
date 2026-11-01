@@ -82,6 +82,39 @@ root and payload graph, apply current rights and participant guards, prepare
 offset reservations, and record a common decision before exposing output or
 settlement. Log participant preparation and execution remain unavailable.
 
+## Retained log transaction cuts
+
+`StreamPartition` and `QueuePartition` expose `pinTransactionSource`,
+`transactionPinState`, `inspectTransactionSource` and `releaseTransactionSource`
+to the serialized transaction host. Acquisition binds the original begin identity,
+current declaration and exact accepted position. Its WAL record publishes a
+paged live pin to an immutable `LogTransaction.Source`. An exact retry returns
+that source even after later data changes; substituting a newer cut rejects.
+A new pin against an old physical position rejects before publication.
+
+The source retains the complete partition root, including payload placement,
+group progress or Queue scheduling and lease state. It omits the transaction-pin
+directory and cannot contain a preparation barrier, avoiding recursive chains
+of earlier transaction pins. A snapshot descriptor or staged source alone does
+not confer retention. The catalog storage graph follows each accepted live pin,
+using current archive coverage to preserve older WAL payloads after trimming.
+Released pins retain their identity and closure marker but stop retaining the
+source through that edge. Independently live replay or checkpoint roots can
+still retain their earlier pin.
+
+`changed_lsn` tracks append, assignment, offset, claim, settlement, lease expiry,
+payload expiry and logical compaction. Pin/release, flush, archive, checkpoint and
+physical timer merging preserve it. A `LogGuard` can therefore tolerate physical
+maintenance while refusing changed data or interpretation. Every inspection,
+retry and release checks current authorization. Release uses the control reserve;
+publication failures retain the original identity and ordinary WAL uncertainty.
+
+Source metadata is bounded to 64 KiB and decoded with fixed scratch buffers.
+Pin cardinality is independent of the page cache. These are storage components;
+the public catalog still refuses log transaction selection. They neither reserve
+append offsets nor settle a lease or consumer offset, and do not yet implement
+log preparation or common-decision visibility.
+
 ## Private Table and KV evaluation
 
 `TableWorkspace` opens an existing retained Table pin with current authorization

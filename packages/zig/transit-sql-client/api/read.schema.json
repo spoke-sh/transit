@@ -1,6 +1,6 @@
 {
   "$id": "urn:transit:sql-read:v1",
-  "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+  "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
   "$defs": {
     "ReadRequest": {
       "$ref": "#/$defs/ReadRequest/$defs/T0",
@@ -29,7 +29,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d"
+            "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e"
           ]
         },
         "T2": {
@@ -253,7 +253,7 @@
             "lifetime_ms"
           ],
           "x-transit-defaults": {
-            "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
+            "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e",
             "readers": 4,
             "window_rows": 100,
             "window_bytes": 2097152,
@@ -263,7 +263,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d"
+            "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e"
           ]
         },
         "T3": {
@@ -382,7 +382,7 @@
             "stopped"
           ],
           "x-transit-defaults": {
-            "definition": "959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d"
+            "definition": "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e"
           }
         },
         "T10": {

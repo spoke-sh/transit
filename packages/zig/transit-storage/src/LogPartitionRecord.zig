@@ -19,6 +19,7 @@ pub const Root = struct {
     initialization: Initialization.Request,
     declared: Declaration.Stored,
     next_lsn: u64,
+    changed_lsn: u64,
     next_offset: u64,
     retained_from: u64,
     clock_ms: ?u64,
@@ -34,6 +35,8 @@ pub const Root = struct {
     groups: ?pages.Reference,
     group_offsets: ?pages.Reference,
     pins: ?pages.Reference,
+    transaction_pins: ?pages.Reference,
+    transaction: ?@import("LogTransaction.zig").Reference,
     archive: @import("LogHistory.zig").Coverage,
     recovery: ?@import("LogRecovery.zig").Reference,
     maintenance: Maintenance,
@@ -41,10 +44,12 @@ pub const Root = struct {
 
     pub fn initial(request: Initialization.Request) !Root {
         try request.validate();
-        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .archive = .empty, .recovery = null, .maintenance = .empty, .queue = if (request.declared.declaration.configuration.policy == .queue) .empty else null };
+        return .{ .initialization = request, .declared = request.declared, .next_lsn = 1, .changed_lsn = 0, .next_offset = 0, .retained_from = 0, .clock_ms = null, .batches = null, .segments = null, .sealed_through = 0, .hidden = .empty, .compaction = null, .compacted = null, .receipts = null, .producers = null, .producer_receipts = null, .groups = null, .group_offsets = null, .pins = null, .transaction_pins = null, .transaction = null, .archive = .empty, .recovery = null, .maintenance = .empty, .queue = if (request.declared.declaration.configuration.policy == .queue) .empty else null };
     }
     pub fn validate(self: Root) !void {
         try self.initialization.validate();
+        if (self.changed_lsn > self.next_lsn) return error.InvalidLogRoot;
+        if (self.transaction) |reference| try reference.validate();
         try self.requireControlDeclaration(self.declared);
         try self.archive.validate(self.next_lsn);
         try self.maintenance.validate(self);
@@ -127,6 +132,8 @@ pub const Record = struct {
         compaction_publish: d.Position,
         compaction_cancel: d.Position,
         checkpoint,
+        transaction_pin: p.Transaction.Pin,
+        transaction_release: p.Transaction.Pin,
         maintenance: Maintenance.Action,
     },
 
@@ -134,9 +141,21 @@ pub const Record = struct {
         return if (self.action == .operation and self.action.operation.outcome == .append) .row_delta else .manifest_checkpoint;
     }
 
+    pub fn changesData(self: Record) bool {
+        return switch (self.action) {
+            .operation => |value| switch (value.outcome) {
+                .append, .assignment, .offset, .claim, .settlement => true,
+                .read, .release, .queue_release => false,
+            },
+            .expire, .queue_expire, .compaction_publish => true,
+            else => false,
+        };
+    }
+
     pub fn validate(self: Record, lsn: u64) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.root.validate();
+        if (self.changesData() and self.root.changed_lsn != self.root.next_lsn) return error.InvalidLogHistory;
         if (lsn == 0 or self.root.next_lsn != try std.math.add(u64, lsn, 1) or
             std.mem.allEqual(u8, &self.previous, 0)) return error.InvalidLogHistory;
         switch (self.action) {
@@ -157,6 +176,11 @@ pub const Record = struct {
                 if (reference.next_lsn != lsn) return error.InvalidLogRecovery;
             },
             .maintenance => {},
+            .transaction_pin, .transaction_release => |pin| {
+                try pin.owner.validate();
+                try (@import("LogTransaction.zig").Reference{ .content = pin.content }).validate();
+                if (self.root.transaction_pins == null or !std.meta.eql(pin.owner.scope, self.root.declared.declaration.interpretation.object.scope)) return error.InvalidLogTransaction;
+            },
             .flush => |value| {
                 try value.cut.validate();
                 try value.receipt.validate();

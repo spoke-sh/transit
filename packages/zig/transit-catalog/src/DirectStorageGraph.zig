@@ -37,7 +37,7 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_read_releases };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, transaction_pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_read_releases };
 const TimerContext = struct {
     log: LogContext,
     seed: c.protocol.StreamQueue.Partition,
@@ -114,6 +114,7 @@ pub const Work = union(enum) {
     queue_timer_index: struct { context: TimerContext, reference: s.TreeStore.pages.Reference, kind: enum { pending, levels }, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     queue_timer_run: struct { context: TimerContext, audit: s.QueueTimeDirectory.Audit, started: bool = false },
     queue_selection: struct { context: LogContext, receipt: c.protocol.StreamQueue.ClaimReceipt, slot: u8 = 0 },
+    log_transaction_source: struct { context: LogContext, handle: c.protocol.Transaction.Pin },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
@@ -140,7 +141,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -284,6 +285,11 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             try context.requireTarget(progress.target);
             const key = if (kind == .groups) try s.LogPartitionRecord.integerKey(progress.group.id) else try s.LogPartitionRecord.groupOffsetKey(progress);
             if (progress.next > context.next_offset or !std.meta.eql(entry.key, key)) return error.InvalidLogStorageGraph;
+        },
+        .transaction_pins => {
+            const owner = try context.owner(entry.key);
+            const pin = try s.LogTransaction.Pin.decode(entry.value);
+            if (!pin.released) try workspace.enqueue(.{ .log_transaction_source = .{ .context = context, .handle = .{ .owner = owner, .content = pin.source } } });
         },
         .pins => {
             const owner = try context.owner(entry.key);
@@ -646,8 +652,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .log_root => |*value| {
             const root = value.root;
             const queue = root.queue orelse s.QueueIndex.Root.empty;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.transaction_pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .transaction_pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
             if (value.slot > directories.len + 3) return error.InvalidLogStorageGraph;
             if (value.slot == directories.len + 3) return true;
             const context = try LogContext.fromRoot(root, value.archive);
@@ -848,6 +854,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             }
             value.slot += 1;
             return false;
+        },
+        .log_transaction_source => |value| {
+            const source = try s.LogTransaction.loadSource(index.store, value.handle);
+            try value.context.requireTarget((try source.guard()).source.target);
+            if (source.root.initialization.partition != value.context.partition or source.root.next_lsn >= value.context.next_lsn or source.root.next_offset > value.context.next_offset) return error.InvalidLogStorageGraph;
+            try markContent(workspace, try s.LogTransaction.sourceKey(value.handle.content, &key_buffer), value.handle.content);
+            try workspace.enqueue(.{ .log_root = .{ .root = source.root, .archive = value.context.archive } });
         },
         .log_read => |*value| {
             const basis = try s.LogRead.load(allocator, index.store, value.handle);

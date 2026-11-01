@@ -28,6 +28,7 @@ const Guard = @import("PublicationGuard.zig");
 const r = @import("LogPartitionRecord.zig");
 const pages = TreeStore.pages;
 const CandidateObjects = @import("CandidateObjects.zig");
+const Transaction = @import("LogTransaction.zig");
 const QueueIndex = @import("QueueIndex.zig");
 const QueueClaims = @import("QueueClaims.zig");
 const QueueSelection = @import("QueueSelection.zig");
@@ -75,6 +76,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
             control: ?struct { log: Log.Log, objects: Objects.ObjectStore } = null,
+            /// Only the common transaction recovery owner may cross a barrier.
+            transaction_control: bool = false,
             clock: ?Time.Source = null,
             tail: Tail.Options = .{ .slots = 2, .borrow_slots = 16, .slot_bytes = 1024 * 1024, .resident_bytes = 3 * 1024 * 1024 },
         };
@@ -198,6 +201,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn requireReady(self: *Self) !void {
             if (!self.ready) return error.LogRecoveryRequired;
+            if (!self.options.transaction_control and self.root.transaction != null) return error.TransactionPrepared;
             if (try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) {
                 self.ready = false;
                 return error.LogRecoveryRequired;
@@ -206,6 +210,70 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn requireTarget(self: *Self, target: q.Partition) !void {
             try target.validate();
             if (target.partition != self.root.initialization.ordinal or !std.meta.eql(target.interpretation.object, self.root.initialization.declared.declaration.interpretation.object)) return error.LogPartitionConflict;
+        }
+        pub fn transactionPinState(self: *Self, owner: d.Operation, guard: Guard) !Transaction.PinState {
+            try owner.validate();
+            if (!std.meta.eql(owner.scope, self.root.initialization.operation.scope)) return error.TransactionIdentityConflict;
+            try authorize(guard);
+            try self.requireReady();
+            const encoded = try self.tree().get(self.root.transaction_pins, try Evidence.operationKey(owner));
+            const pin = if (encoded) |value| try Transaction.Pin.decode(value) else null;
+            const result: Transaction.PinState = .{ .handle = if (pin) |value| .{ .owner = owner, .content = value.source } else null, .released = if (pin) |value| value.released else false, .position = self.root.position() };
+            try authorize(guard);
+            return result;
+        }
+        /// The embedding catalog serializes acquisition across selected owners.
+        /// An exact retry observes the original cut, never a replacement snapshot.
+        pub fn pinTransactionSource(self: *Self, declared: Declaration.Stored, identity: p.Transaction.Identity, expected: d.Position, guard: Guard) !p.Transaction.Pin {
+            try identity.validate();
+            try identity.requireObject(self.root.declared.declaration.interpretation.object);
+            try expected.validate();
+            const prior_pin = try self.transactionPinState(identity.begin, guard);
+            if (prior_pin.handle) |handle| {
+                if (prior_pin.released) return error.LogTransactionSourceReleased;
+                const source = try Transaction.loadSource(self.objects, handle);
+                if (!std.meta.eql(source.identity, identity) or !std.meta.eql(source.root.declared, declared) or !std.meta.eql(source.root.position(), expected)) return error.TransactionIdentityConflict;
+                try authorize(guard);
+                return handle;
+            }
+            if (self.root.transaction != null) return error.TransactionPrepared;
+            try self.root.requireDeclaration(declared);
+            if (!std.meta.eql(self.root.position(), expected)) return error.TransactionConflict;
+            var basis = self.root;
+            basis.declared = declared;
+            basis.transaction_pins = null;
+            const handle = try Transaction.stageSource(self.objects, .{ .definition = p.Growth.current_definition, .identity = identity, .root = basis });
+            try self.store.begin(self.options.index_work_bytes);
+            defer self.store.end();
+            var next = self.root;
+            next.declared = declared;
+            next.next_lsn = (try self.nextPosition()).next_lsn;
+            next.transaction_pins = try self.tree().put(next.transaction_pins, try Evidence.operationKey(identity.begin), try (Transaction.Pin{ .source = handle.content, .released = false }).encode());
+            try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .transaction_pin = handle } }, &.{}, guard);
+            return handle;
+        }
+        pub fn inspectTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !Transaction.Source {
+            const state = try self.transactionPinState(handle.owner, guard);
+            if (state.released) return error.LogTransactionSourceReleased;
+            if (!std.meta.eql(state.handle, @as(?p.Transaction.Pin, handle))) return error.LogTransactionSourceNotPinned;
+            const source = try Transaction.loadSource(self.objects, handle);
+            if (source.root.initialization.partition != self.root.initialization.partition or
+                !std.meta.eql(source.root.initialization, self.root.initialization) or source.root.next_lsn > self.root.next_lsn) return error.InvalidLogTransaction;
+            try authorize(guard);
+            return source;
+        }
+        pub fn releaseTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !void {
+            const state = try self.transactionPinState(handle.owner, guard);
+            if (!std.meta.eql(state.handle, @as(?p.Transaction.Pin, handle))) return error.LogTransactionSourceNotPinned;
+            if (state.released) return;
+            const ordinary = self.enterControl(true);
+            defer self.leaveControl(ordinary);
+            try self.store.begin(self.options.index_work_bytes);
+            defer self.store.end();
+            var next = self.root;
+            next.next_lsn = (try self.nextPosition()).next_lsn;
+            next.transaction_pins = try self.tree().put(next.transaction_pins, try Evidence.operationKey(handle.owner), try (Transaction.Pin{ .source = handle.content, .released = true }).encode());
+            try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .transaction_release = handle } }, &.{}, guard);
         }
         fn original(self: *Self, identity: d.Operation) !?Evidence.Record {
             try identity.validate();
@@ -942,6 +1010,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn publishRecord(self: *Self, input: r.Record, payload: []const u8, guard: Guard) !void {
             var record = input;
+            record.root.changed_lsn = if (record.changesData()) record.root.next_lsn else self.root.changed_lsn;
             record.root.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, record.root, record.action);
             const next = record.root;
             if (next.next_lsn != (try self.nextPosition()).next_lsn or !std.mem.eql(u8, &record.previous, &self.commitment)) return error.InvalidLogHistory;
@@ -1604,7 +1673,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.root = decoded.record.root;
                 self.commitment = next_commitment;
             }
-            for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.hidden.containers, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.archive.directory }) |reference| if (reference) |value| {
+            for ([_]?pages.Reference{ self.root.batches, self.root.segments, self.root.hidden.containers, self.root.receipts, self.root.producers, self.root.producer_receipts, self.root.groups, self.root.group_offsets, self.root.pins, self.root.transaction_pins, self.root.archive.directory }) |reference| if (reference) |value| {
                 _ = try self.store.load(value);
             };
             if (kind == .queue) {
@@ -1630,6 +1699,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             const next = record.root;
+            if (next.changed_lsn != (if (record.changesData()) next.next_lsn else self.root.changed_lsn)) return error.InvalidLogHistory;
             try self.root.initialization.requireSame(next.initialization);
             if (kind == .queue and (record.action == .operation or record.action == .queue_expire or record.action == .queue_schedule or record.action == .expire)) {
                 const ordinary = self.enterControl(true);
@@ -1649,6 +1719,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     else => unreachable,
                 };
                 expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
+                expected.changed_lsn = next.changed_lsn;
                 if (!std.meta.eql(expected, next)) return error.InvalidLogHistory;
                 return;
             }
@@ -1656,10 +1727,30 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 var expected = self.root;
                 expected.next_lsn = next.next_lsn;
                 expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
+                expected.changed_lsn = next.changed_lsn;
                 switch (record.action) {
                     .operation => unreachable,
                     .queue_expire, .queue_schedule => return error.InvalidLogHistory,
                     .maintenance => {},
+                    .transaction_pin => |handle| {
+                        if (self.root.transaction != null or try self.tree().get(self.root.transaction_pins, try Evidence.operationKey(handle.owner)) != null) return error.InvalidLogTransaction;
+                        try self.root.requireDeclaration(next.declared);
+                        const source = try Transaction.loadSource(self.objects, handle);
+                        var basis = self.root;
+                        basis.declared = next.declared;
+                        basis.transaction_pins = null;
+                        if (!std.meta.eql(source.root, basis)) return error.InvalidLogTransaction;
+                        expected.declared = next.declared;
+                        expected.transaction_pins = next.transaction_pins;
+                        try self.verifyValue(next.transaction_pins, try Evidence.operationKey(handle.owner), try (Transaction.Pin{ .source = handle.content, .released = false }).encode());
+                    },
+                    .transaction_release => |handle| {
+                        const previous = try self.tree().get(self.root.transaction_pins, try Evidence.operationKey(handle.owner)) orelse return error.InvalidLogTransaction;
+                        const pin = try Transaction.Pin.decode(previous);
+                        if (pin.released or !std.meta.eql(pin.source, handle.content)) return error.InvalidLogTransaction;
+                        expected.transaction_pins = next.transaction_pins;
+                        try self.verifyValue(next.transaction_pins, try Evidence.operationKey(handle.owner), try (Transaction.Pin{ .source = handle.content, .released = true }).encode());
+                    },
                     .archive => |value| {
                         if (value.from_lsn != self.root.archive.through) return error.InvalidLogArchive;
                         try History.verifyExtension(self.allocator, &self.store, self.root.archive, next.archive, next.initialization.partition, self.root.next_lsn);
@@ -1740,6 +1831,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.declared = next.declared;
             expected.next_lsn = next.next_lsn;
             expected.maintenance = try @import("StreamMaintenanceState.zig").transition(self.root, next, record.action);
+            expected.changed_lsn = next.changed_lsn;
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
                 .claim, .settlement, .queue_release => return error.InvalidLogHistory,

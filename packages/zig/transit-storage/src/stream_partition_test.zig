@@ -1618,3 +1618,130 @@ test "stream partition staged checkpoint cannot grant trim or reconstruct missin
     try wal.log().trim(91, 1);
     try t.expectError(error.WalHistoryTrimmed, reopen(wal.log(), objects.objectStore(), initial, &policy));
 }
+
+test "log transaction stream cuts survive lost pin and release replies with exact disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declared.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var buffer: [8192]u8 = undefined;
+    const first = try appendRequest(&declared, 2, null, &buffer);
+    _ = try owner.append(initial.declared, first.request, first.payload, policy.guard());
+    const basis = owner.root;
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard()));
+    try t.expectError(error.LogRecoveryRequired, owner.transactionPinState(identity.begin, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    const handle = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    try t.expectEqualDeep(basis, (try owner.inspectTransactionSource(handle, policy.guard())).root);
+    try t.expectEqual(basis.changed_lsn, owner.root.changed_lsn);
+    try (try s.LogTransaction.logGuard(basis)).requireUnchanged(try s.LogTransaction.logGuard(owner.root));
+    const later = try appendRequest(&declared, 3, null, &buffer);
+    _ = try owner.append(initial.declared, later.request, later.payload, policy.guard());
+    try t.expectError(error.TransactionConflict, (try s.LogTransaction.logGuard(basis)).requireUnchanged(try s.LogTransaction.logGuard(owner.root)));
+    try t.expectEqualDeep(handle, try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard()));
+    try t.expectError(error.TransactionIdentityConflict, owner.pinTransactionSource(initial.declared, identity, owner.root.position(), policy.guard()));
+    try t.expectEqualDeep(basis, (try owner.inspectTransactionSource(handle, policy.guard())).root);
+    const cut = owner.root.position();
+    while (!(try owner.flush(cut, policy.guard())).complete) {}
+    while (!(try owner.archive(cut, .{ .frames = 2 }, policy.guard())).complete) {}
+    _ = try owner.checkpoint(cut, policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    const changed = owner.root.changed_lsn;
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.releaseTransactionSource(handle, policy.guard()));
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    fault.underlying = wal.log();
+    owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try owner.releaseTransactionSource(handle, policy.guard());
+    try t.expect((try owner.transactionPinState(identity.begin, policy.guard())).released);
+    try t.expectEqual(changed, owner.root.changed_lsn);
+    try t.expectError(error.LogTransactionSourceReleased, owner.inspectTransactionSource(handle, policy.guard()));
+    try t.expectError(error.LogTransactionSourceReleased, owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard()));
+    var foreign = handle;
+    foreign.content.sha256[0] ^= 1;
+    try t.expectError(error.LogTransactionSourceNotPinned, owner.releaseTransactionSource(foreign, policy.guard()));
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.transactionPinState(identity.begin, policy.guard()));
+    try t.expectError(error.PermissionDenied, owner.releaseTransactionSource(handle, policy.guard()));
+}
+
+test "log transaction stream pins page independently and refuse stale cuts and revoked publication" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declared.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const before = owner.root;
+    policy.deny_at = policy.calls + 3;
+    try t.expectError(error.PermissionDenied, owner.pinTransactionSource(initial.declared, identity, before.position(), policy.guard()));
+    try t.expectEqualDeep(before, owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    policy.deny_at = std.math.maxInt(usize);
+    for (100..173) |id| {
+        const current: p.Transaction.Identity = .{ .begin = operation(id), .branch = 1 };
+        const expected = owner.root.position();
+        const handle = try owner.pinTransactionSource(initial.declared, current, expected, policy.guard());
+        const source = try owner.inspectTransactionSource(handle, policy.guard());
+        try t.expectEqualDeep(expected, source.root.position());
+        try t.expect(source.root.transaction_pins == null);
+    }
+    try t.expectEqual(@as(usize, 1), owner.store.cache.len);
+    try t.expectEqual(@as(u64, 0), owner.root.changed_lsn);
+    try t.expectError(error.TransactionConflict, owner.pinTransactionSource(initial.declared, .{ .begin = operation(200), .branch = 1 }, before.position(), policy.guard()));
+    const first = (try owner.transactionPinState(identity.begin, policy.guard())).handle.?;
+    var name: [96]u8 = undefined;
+    var encoded: [s.LogTransaction.max_bytes]u8 = undefined;
+    const old = try objects.objectStore().getRange(try s.LogTransaction.sourceKey(first.content, &name), 0, @intCast(first.content.bytes), &encoded);
+    encoded[8] ^= 1;
+    const foreign = s.LogBatch.content(encoded[0..old.len]);
+    _ = try objects.objectStore().putImmutable(try s.LogTransaction.sourceKey(foreign, &name), encoded[0..old.len], foreign.sha256);
+    try t.expectError(error.IncompatibleDefinition, s.LogTransaction.loadSource(objects.objectStore(), .{ .owner = first.owner, .content = foreign }));
+    // A well-formed physical pin record cannot invent a logical mutation.
+    var frames = try wal.log().read(t.allocator, 91, 1, 1);
+    defer frames.deinit();
+    var forged = (try s.LogPartitionRecord.decode(t.allocator, frames.frames[0], 91, 1)).record;
+    forged.root.changed_lsn = forged.root.next_lsn;
+    const altered = try s.LogPartitionRecord.encode(forged, &.{}, &encoded);
+    var other = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer other.deinit();
+    _ = try initialize(other.log(), objects.objectStore(), &policy, &declared);
+    _ = try other.log().append(91, 1, 1, 1, .manifest_checkpoint, altered);
+    var rejected = try reopen(other.log(), objects.objectStore(), initial, &policy);
+    defer rejected.deinit() catch unreachable;
+    try t.expectError(error.InvalidLogHistory, rejected.recoverStep(policy.guard(), 1));
+    try owner.deinit();
+    owner = try reopen(wal.log(), objects.objectStore(), initial, &policy);
+    while (!(try owner.recoverStep(policy.guard(), 3)).complete) {}
+    try t.expectEqualDeep(before.position(), (try owner.inspectTransactionSource(first, policy.guard())).root.position());
+}

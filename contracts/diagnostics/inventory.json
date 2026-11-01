@@ -6149,7 +6149,7 @@
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 45,
+        "InvalidLogStorageGraph": 46,
         "InvalidQueueDestination": 2,
         "InvalidTableStorageGraph": 20,
         "LogHistoryUnavailable": 3,
@@ -6176,6 +6176,7 @@
           "groups",
           "group_offsets",
           "pins",
+          "transaction_pins",
           "bitmap",
           "ordered_keys",
           "queue_items",
@@ -6217,6 +6218,7 @@
           "queue_timer_index",
           "queue_timer_run",
           "queue_selection",
+          "log_transaction_source",
           "log_read",
           "log_segment",
           "log_wal",
@@ -6265,7 +6267,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 425,
+        "try": 434,
         "catch": 1
       },
       "imports": [
@@ -18847,7 +18849,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d\""
+          "d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e"
         ],
         "Effect.phase": [
           "pending",
@@ -33732,10 +33734,11 @@
         "InvalidLogArchive": 3,
         "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 39,
+        "InvalidLogHistory": 40,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
         "InvalidLogSegment": 8,
+        "InvalidLogTransaction": 5,
         "InvalidQueueAffinityBudget": 1,
         "InvalidQueueClaimBudget": 1,
         "InvalidQueueExpiration": 2,
@@ -33777,6 +33780,8 @@
         "LogSegmentBudgetExceeded": 5,
         "LogTimeRegression": 3,
         "LogTimeUnavailable": 1,
+        "LogTransactionSourceNotPinned": 2,
+        "LogTransactionSourceReleased": 2,
         "QueueClaimMissing": 2,
         "QueueItemMissing": 4,
         "QueueLeaseExpired": 1,
@@ -33790,7 +33795,10 @@
         "StreamReadByteBudgetTooSmall": 1,
         "StreamReadConflict": 3,
         "StreamReadMissing": 2,
-        "StreamReadReleased": 1
+        "StreamReadReleased": 1,
+        "TransactionConflict": 1,
+        "TransactionIdentityConflict": 2,
+        "TransactionPrepared": 2
       },
       "outcomes": {
         "Owner().<return>.ExpirationStatus": [
@@ -33847,6 +33855,7 @@
         "Owner().<return>.flushWithinBudget()": "<inferred>",
         "Owner().<return>.group()": "<inferred>",
         "Owner().<return>.historyFrame()": "<inferred>",
+        "Owner().<return>.inspectTransactionSource()": "<inferred>",
         "Owner().<return>.leaseObservation()": "<inferred>",
         "Owner().<return>.loadEvidence()": "<inferred>",
         "Owner().<return>.loadRead()": "<inferred>",
@@ -33859,6 +33868,7 @@
         "Owner().<return>.operation()": "<inferred>",
         "Owner().<return>.original()": "<inferred>",
         "Owner().<return>.persistQueue()": "<inferred>",
+        "Owner().<return>.pinTransactionSource()": "<inferred>",
         "Owner().<return>.producerState()": "<inferred>",
         "Owner().<return>.progress()": "<inferred>",
         "Owner().<return>.protectedOffset()": "<inferred>",
@@ -33879,6 +33889,7 @@
         "Owner().<return>.recoveryState()": "<inferred>",
         "Owner().<return>.releaseClaimRead()": "<inferred>",
         "Owner().<return>.releaseRead()": "<inferred>",
+        "Owner().<return>.releaseTransactionSource()": "<inferred>",
         "Owner().<return>.requireCompactionPublication()": "<inferred>",
         "Owner().<return>.requireGroup()": "<inferred>",
         "Owner().<return>.requireOriginalClaim()": "<inferred>",
@@ -33897,6 +33908,7 @@
         "Owner().<return>.superseded()": "<inferred>",
         "Owner().<return>.terminalExpirationBatch()": "<inferred>",
         "Owner().<return>.timestampMatches()": "<inferred>",
+        "Owner().<return>.transactionPinState()": "<inferred>",
         "Owner().<return>.trimArchived()": "<inferred>",
         "Owner().<return>.validateExpiration()": "<inferred>",
         "Owner().<return>.verifyCompactionStep()": "<inferred>",
@@ -33907,7 +33919,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 682,
+        "try": 726,
         "catch": 18
       },
       "imports": [
@@ -33924,6 +33936,7 @@
         "LogSegment.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogTransaction.zig",
         "LogView.zig",
         "OrderedKeyIndex.zig",
         "PublicationGuard.zig",
@@ -33954,10 +33967,11 @@
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
-        "InvalidLogHistory": 10,
+        "InvalidLogHistory": 11,
         "InvalidLogRecovery": 2,
-        "InvalidLogRoot": 1,
+        "InvalidLogRoot": 2,
         "InvalidLogSegment": 3,
+        "InvalidLogTransaction": 1,
         "InvalidQueueExpiration": 1,
         "InvalidQueueRoot": 2,
         "InvalidQueueSchedule": 1,
@@ -33981,6 +33995,8 @@
           "compaction_publish",
           "compaction_cancel",
           "checkpoint",
+          "transaction_pin",
+          "transaction_release",
           "maintenance"
         ]
       },
@@ -34004,7 +34020,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 42,
         "catch": 0
       },
       "imports": [
@@ -34017,6 +34033,7 @@
         "LogRecovery.zig",
         "LogSegment.zig",
         "LogTime.zig",
+        "LogTransaction.zig",
         "QueueIndex.zig",
         "QueueTimeRun.zig",
         "StreamCompaction.zig",
@@ -34251,6 +34268,43 @@
         "catch": 1
       },
       "imports": [
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/LogTransaction.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidLogTransaction": 7,
+        "LogTransactionSourceMissing": 1,
+        "OutOfMemory": 1,
+        "TransactionDecodeLimit": 1,
+        "TransactionIdentityConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Pin.decode()": "<inferred>",
+        "Pin.encode()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Source.guard()": "<inferred>",
+        "Source.validate()": "<inferred>",
+        "encodeSource()": "<inferred>",
+        "loadSource()": "<inferred>",
+        "logGuard()": "<inferred>",
+        "sourceKey()": "<inferred>",
+        "stageSource()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 1
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogPartitionRecord.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
         "transit_protocol"
       ]
     },
@@ -34661,16 +34715,20 @@
         "expireOne()": "<inferred>",
         "expireTerminalHistory()": "<inferred>",
         "flush()": "<inferred>",
+        "inspectTransactionSource()": "<inferred>",
         "observe()": "<inferred>",
         "open()": "<inferred>",
         "operation()": "<inferred>",
+        "pinTransactionSource()": "<inferred>",
         "readClaimPage()": "<inferred>",
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
         "releaseClaimRead()": "<inferred>",
+        "releaseTransactionSource()": "<inferred>",
         "scheduleMaintenanceUnit()": "<inferred>",
         "settle()": "<inferred>",
+        "transactionPinState()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -34685,6 +34743,7 @@
         "LogInitialization.zig",
         "LogPartition.zig",
         "LogRecovery.zig",
+        "LogTransaction.zig",
         "PublicationGuard.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
@@ -36357,6 +36416,7 @@
         "LogStorageRoots.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogTransaction.zig",
         "LogTransactionActions.zig",
         "LogView.zig",
         "NvmeCache.zig",
