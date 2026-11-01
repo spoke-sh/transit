@@ -62,7 +62,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     result = rows(original['identity'])
     values, sizes, observation, completion = result
     assert [list(map(unsigned, row)) for row in values] == [[i, i] for i in range(5, 8)]
-    assert sizes == [3] and observation['workload']['limit'] == 3
+    assert sizes == [3] and observation['data']['workload']['limit'] == 3
     coverage = completion['workload']['position']['consume']['coverage']
     assert {key: coverage[key] for key in ('from', 'until', 'through', 'rows', 'complete')} == dict(
         **{'from': 2}, until=65, through=8, rows=6, complete=False), coverage
