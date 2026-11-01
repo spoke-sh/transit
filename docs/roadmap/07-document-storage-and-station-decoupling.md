@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Document components and bounded recovery/read safeguards delivered; integrate logical storage, direct lifecycle and the existing mixed transaction owner before the Station/consumer cutover ([remaining implementation plan, 2026-11-01](#implementation-plan-for-remaining-work))
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — First causal map-tree storage slice integrated; complete succinct/shredded storage, direct lifecycle and the existing mixed transaction owner before the Station/consumer cutover ([remaining implementation plan, 2026-11-01](#implementation-plan-for-remaining-work))
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -252,6 +252,28 @@ and its owner tests. No runtime proofs were rerun to create this plan.
 | Mixed transaction owner (D5 prerequisite) | `DirectTransaction`, `TransactionDirectory`, private state/log workspaces and `TransactionDecisionLog` now execute Table/KV/Stream/Queue composition. Installed schedules recover original mixed decisions and explicit paired Queue transfers | Documents still reject in `Participant.requireLocalState`, `Guard.requirePagedState`, `DirectCatalog` selection and decision preparation. Add a partition-aware Document cut/workspace/preparation path; removing rejection branches alone is insufficient |
 | SQL, shared clients and installed consumers (D5) | M4 results, M6 frozen log declarations and paged metadata, M8 local dispatch/resumable wire engines, and M9 Catalog/context/SQL recovery owners exist | Add direct Document dispatch, SQL lowering and queries; migrate Station/ABI/SDK/Board/examples under one current-v1 definition. No direct Document lifecycle is exposed by these surrounding capabilities |
 
+#### First integrated storage slice — 2026-11-01
+
+Following this audit, the selected first increment connects canonical causal
+map changes to paged evaluation, `.tseg` storage and fenced WAL acceptance.
+`DocumentPartition.applyCausal` derives logical roots and conflicts; duplicate
+causal changes under new operation identities retain their first revision.
+Pinned path reads return owned, authenticated value pages with cumulative
+budgets and current disclosure checks. Retention follows accepted logical
+directories and segments and refuses corrupted state descriptors before format
+dispatch. The [contract](../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice)
+and [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md)
+own exact behavior and bounds; [qualification evidence](../history/qualification/storage.md#integrated-causal-document-map-trees--2026-11-01)
+records executed checks and their limits.
+
+This delivers parts of C0 and the causal C1–C3 path, without completing those
+packages. It uses the paged `DocumentIndex` map/register representation; BP
+topology, adaptive subcolumns, list/span edits, versioned merges and logical
+checkpoints remain integration work. Direct catalog/client/SQL exposure,
+collection routing and scans, Document transaction participation and the
+Station/consumer cutover remain open. The installed Document API still uses
+Station; the new path is a private storage-library API.
+
 The D0–D5 labels remain attributable delivery slices. C0–C8 below are completion
 packages, including integration gaps in D0–D3; they do not erase the earlier
 component work or declare D4 complete.
@@ -303,14 +325,13 @@ without requiring a finished Station adapter, then both qualify Document turns.
 Neither a Table-only transaction nor two recoverable commits opens that gate.
 
 **Independent delivery scope:** storage and participant changes can land with
-their own component evidence before installed exposure. The delivered storage
-increment enforces cumulative retained-read budgets, exact receipt/target binding,
-explicit owner signing keys and bounded replay with per-record scratch reuse.
-Its current API and limits are in the
+their own component evidence before installed exposure. The first integrated
+slice above extends the earlier retained-read and replay safeguards with causal
+map evaluation, persisted state and within-revision value paging. Its current
+API and limits are in the
 [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md).
-It supplies parts of C0/C3 without completing either: canonical evaluation,
-persisted tree/shredder integration, within-revision paging and the remaining
-C1–C8 obligations below still require their own implementation and evidence.
+The remaining tree/span/shredder integration and C0–C8 obligations below still
+require their own implementation and evidence.
 Keep one supported public Document engine until the coordinated consumer
 replacement passes; do not introduce a selectable second profile to work around
 the remaining Station atomicity dependency.

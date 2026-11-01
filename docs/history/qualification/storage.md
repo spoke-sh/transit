@@ -9,6 +9,88 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Integrated causal Document map trees — 2026-11-01
+
+The first integrated storage slice connects canonical causal map changes to
+`DocumentPartition` evaluation, private `.tseg` candidates and one fenced WAL
+acceptance. The [Document contract](../../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice)
+and [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md)
+describe the supported profile and numeric bounds. The initial implementation source is
+`c781c542240dd83006f294fd845bd717b00778aa`, based on `origin/main`
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. The integration source
+`5b81ed75dad317052a008ea5e7db7efc92e89dc2` merges `origin/main` at
+`f49a3da6502ac8d3e12347a3812d6d81404d8d47`, including the upstream shared
+definition cutover and client recovery work; Document implementation files are
+unchanged by that merge.
+
+Focused checks inside the pinned Nix shell pass:
+
+- The complete `transit-document` package tests reject every truncated canonical
+  prefix, exercise full-width dot ordering and borrowed wide values, and verify
+  concurrent-register permutations, observed removal, detached descendants and
+  refusal without changing the prior snapshot.
+- The storage test `document partition evaluates` uses disk-backed WAL and object
+  storage with 12 operations, a 160-byte field name and a 5,000-byte value. An
+  injected lost append reply is followed by closing and reopening both stores.
+  Original-operation recovery and duplicate causal changes under new operations
+  preserve the original revision. Later edits, empty conflict alternatives,
+  retained old reads, authenticated paging, byte/step exhaustion, wrong-path and
+  cursor tampering, revocation after buffering and pin release pass. A foreign
+  shared definition and an invalid dependency after an earlier candidate edit
+  refuse without publishing partial state.
+- The catalog graph check marks accepted logical directories and segments,
+  leaves an unpublished candidate unmarked and refuses a corrupted descriptor
+  marker before collection can reinterpret it as an opaque leaf. The serialized
+  maintenance cursor retains its existing shape. The focused local catalog
+  branch tests also pass, including collection and revocation after buffering.
+
+These are component and local-owner checks. No installed direct Document API,
+SQL or language binding is qualified by them. The representation uses paged
+map/register records with chunked values; this does not establish persisted BP
+topology, adaptive shredding, collaborative list/span editing, versioned merges,
+logical checkpoints, collection routing/scans, Document transaction participation
+or Station migration. Zero steady-state allocation and large-workload performance
+remain unqualified. The installed Document service continues to use Station.
+
+Clean-source lane results and raw evidence:
+
+- Before integrating the upstream definition cutover, `just ci clean --lane storage-query` passed all 29 tasks at `c781c542240dd83006f294fd845bd717b00778aa`
+  in 12,888.33 seconds. The clean evidence bundle is
+  `.cache/ci/clean/c781c542240d-transit-ci-v25q779e/`; its
+  `storage-query.meta.json` SHA-256 is
+  `e23e80d607915e203da4322a8ed978996786ade703e45bde7c050250144e0e5f`.
+  This result qualifies that source only.
+- On integration source `5b81ed75dad317052a008ea5e7db7efc92e89dc2`,
+  `just ci clean --lane core` passed all 28 tasks in 3,700.59 seconds. The
+  evidence bundle is `.cache/ci/clean/5b81ed75dad3-transit-ci-smlovii7/`;
+  `core.meta.json` SHA-256 is
+  `7cb0135030c99d473a27d2bf161ca8c022bd704541d99d9e77096ab3607bc65e`.
+- On the same integration source, `just ci clean --lane storage-query` passed
+  all 29 tasks in 7,104.78 seconds. The evidence bundle is
+  `.cache/ci/clean/5b81ed75dad3-transit-ci-c4axzfjh/`; its
+  `storage-query.meta.json` SHA-256 is
+  `02b7177dd341a78a0d219ff7c2fe5d1f123f38b15968beb3d6102a25988e86a2`.
+  This includes the local catalog graph/maintenance schedule, installed Document
+  recovery, and 139 initialized KV/Document resources with typed values and the
+  original receipt verified before and after node SIGKILL/restart.
+
+The clean runs use the pinned Nix development shell. The merged-source runs set
+`ZIG_GLOBAL_CACHE_DIR=/tmp/transit-m7-core-zig.vE4sij` for compiler artifacts;
+clean checkouts and disk-backed durability fixtures remain under `/var/tmp`.
+No durability fixture is moved to tmpfs. Full multi-lane release qualification
+was not run.
+
+An earlier clean storage/query attempt at `8fb332f73` passed its first 11 tasks
+but failed to compile the local catalog branch fixture because its
+`DirectDeclaration.Intent` omitted the mandatory object kind. The same omission
+exists at the plan base. Commit `c781c5422` identifies that fixture as a Table;
+upstream independently includes the same fix at the integration base. It does
+not add a runtime default or broaden its scope. The failed checkout and
+logs remain at `/var/tmp/transit-ci-j4aprhyz`, including
+`src/.cache/ci/runs/storage-query-4gc0v5fy/012.log`. This attempt is not a passing
+lane; subsequent tasks did not run. Local artifact paths are not portable
+download links.
+
 ## Bounded immutable publication groups — 2026-10-30
 
 The [publication mechanism](../../handbook/internals/storage-runtime.md#sharing-a-content-directory-barrier)
