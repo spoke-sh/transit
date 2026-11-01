@@ -328,3 +328,47 @@ test("verified Table positions require matching source evidence and full-width c
     ).toBe(false);
   }
 });
+
+test("companion ranges preserve wide bounds, canonical runs and explicit display", () => {
+  const type: LogicalType = { range: { int64: {} } };
+  const range = {
+    is_empty: false,
+    lower: { value: { signed: "9007199254740993" }, inclusive: true },
+    upper: { value: { signed: "9007199254740995" }, inclusive: false },
+  };
+  expect(validateUnifiedQuery(page(type, { value: { range } }))).toBe(true);
+  expect(unifiedCellText({ value: { range } }, type)).toBe("[9007199254740993, 9007199254740995)");
+  expect(
+    validateUnifiedQuery(
+      page(type, { value: { range: { ...range, upper: { ...range.upper, inclusive: true } } } }),
+    ),
+  ).toBe(false);
+  expect(
+    validateUnifiedQuery(
+      page({ multirange: { int64: {} } }, { value: { multirange: [range, range] } }),
+    ),
+  ).toBe(false);
+  expect(validateUnifiedQuery(page({ range: { utf8: {} } }, { value: { range } }))).toBe(false);
+});
+
+test("companion vectors reject bad shape and nonfinite unboxed elements", () => {
+  const type: LogicalType = { vector: { dimensions: 2, element: "float32" } };
+  expect(validateUnifiedQuery(page(type, { value: { vector: "0000803f00000040" } }))).toBe(true);
+  expect(logicalTypeText(type)).toBe("VECTOR(2, FLOAT32)");
+  expect(validateUnifiedQuery(page(type, { value: { vector: "0000803f" } }))).toBe(false);
+  expect(validateUnifiedQuery(page(type, { value: { vector: "0000807f00000040" } }))).toBe(false);
+  for (const [element, value] of [
+    ["float16", "007c"],
+    ["bfloat16", "807f"],
+  ] as const)
+    expect(
+      validateUnifiedQuery(
+        page({ vector: { dimensions: 1, element } }, { value: { vector: value } }),
+      ),
+    ).toBe(false);
+  expect(
+    validateUnifiedQuery(
+      page({ vector: { dimensions: 7, element: "binary" } }, { value: { vector: "00" } }),
+    ),
+  ).toBe(false);
+});
