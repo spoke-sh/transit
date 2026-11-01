@@ -55,6 +55,12 @@ main branch and regenerates the combined lifecycle schema and native fixtures;
 clean integration qualification remains pending. No interrupted run or registered
 task establishes a completion claim.
 
+The earlier named Document growth phase was subsequently interrupted while
+consolidating disk-heavy checks. Its separate restart phase passed, but the
+139-object growth phase remains incomplete. The integrated storage lane must
+rerun it; neither the partial growth output nor the earlier restart pass
+qualifies that growth schedule.
+
 ## Named direct KV cutover — 2026-10-31
 
 Implementation `cebc19fe7d1df0fb0ba1a376af74d1da79660d4a` moves named KV

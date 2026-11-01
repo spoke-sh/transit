@@ -5,7 +5,7 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.partitioned-transaction-participants.2026-10-31.
+/// SHA-256 of transit.v1.table-kv-transactions.2026-10-31.
 pub const Definition = enum {
     @"959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d",
 
