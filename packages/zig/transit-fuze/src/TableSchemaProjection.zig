@@ -12,6 +12,7 @@ pub const Source = union(enum) { physical: u8, initial: Cell };
 physical: s.Schema,
 logical: s.Schema,
 sources: [s.max_columns]Source,
+operator_traits: @import("OperatorTraits.zig").Summary,
 
 /// Schemas, initial values and projected cells borrow their original owners.
 /// Callers must detach cells before releasing an interpretation or source row.
@@ -29,7 +30,7 @@ pub fn init(physical: s.Schema, logical: s.Schema, initials: []const Initial) !S
         for (initials[0..i]) |previous| if (previous.column == initial.column) return error.DuplicateSchemaInitialValue;
         if (physical.index(initial.column)) |_| return error.UnexpectedSchemaInitialValue else |err| if (err != error.UnknownColumn) return err;
     }
-    var result: Self = .{ .physical = physical, .logical = logical, .sources = undefined };
+    var result: Self = .{ .physical = physical, .logical = logical, .sources = undefined, .operator_traits = undefined };
     for (logical.columns, 0..) |column, i| {
         const index = physical.index(column.id) catch |err| {
             if (err != error.UnknownColumn) return err;
@@ -44,7 +45,13 @@ pub fn init(physical: s.Schema, logical: s.Schema, initials: []const Initial) !S
         if (!try compatibleColumn(physical.columns[index], column)) return error.IncompatibleSchemaProjection;
         result.sources[i] = .{ .physical = @intCast(index) };
     }
+    result.operator_traits = @import("OperatorTraits.zig").forSchemaProjection(&result);
     return result;
+}
+
+/// Pure mapping traits are independent of the source scan's retention/effects.
+pub fn traits(self: *const Self) @import("OperatorTraits.zig").Summary {
+    return self.operator_traits;
 }
 
 fn compatibleColumn(before: s.Column, after: s.Column) !bool {

@@ -100,3 +100,18 @@ Expression-level collation overrides and SQL changes to an existing column’s
 collation reject. The compiler does not admit
 CTAS, arbitrary expressions, multi-action ALTER, transaction sessions or query
 execution. These limits are independent of the capabilities of typed values.
+
+
+### Constraint and projection operator traits
+
+CHECK expression-shape validation resolves the shared `OperatorTraits.Summary`
+with deterministic evaluation, fallible TRUE/NULL admission and column-bound
+comparison semantics. CHECK has no storage, retention or external effects.
+A Table mutation composes its CHECK summaries with read/mutation effects and an
+atomic mutation lifetime. Deletion does not evaluate new candidate-row CHECKs.
+
+A validated `TableSchemaProjection` retains a pure, fallible one-row mapping
+summary. Physical/destination validation remains authoritative; the summary does
+not permit coercing error cells, changing frozen initial values or bypassing
+source authorization. Scan/pin/publication effects belong to the enclosing owner.
+These summaries are derived runtime values, not another persisted schema field.

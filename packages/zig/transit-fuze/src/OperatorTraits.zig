@@ -64,7 +64,7 @@ pub const CollationRule = enum(u8) {
 pub const ChangeMode = enum(u8) {
     /// Metadata-only explanation; performs zero data work.
     explanation_zero_work = 0,
-    /// Bounded finite scan over an immutable snapshot or source cut.
+    /// Bounded finite evaluation over supplied values or an immutable source cut.
     snapshot_finite = 1,
     /// Append-only stream consumption over monotonic offsets.
     append_only_stream = 2,
@@ -144,7 +144,8 @@ pub const ExplainSummary = struct {
 
 /// Derive operator traits and effect bounds for a source-bound `LogicalQuery.Plan`.
 pub fn forLogicalPlan(plan: LogicalQuery.Plan) !Summary {
-    try plan.validate();
+    try plan.schema.validate(.{});
+    try plan.validateShape();
     var active_collations: u16 = 0;
     for (plan.collations.columns[0..plan.schema.structure.len]) |entry| {
         if (entry != .none) active_collations += 1;
@@ -187,7 +188,7 @@ pub fn forLogicalPlan(plan: LogicalQuery.Plan) !Summary {
 
 /// Derive operator traits and effect bounds for a relational `Relational.Plan`.
 pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
-    try plan.validate();
+    try plan.validateShape();
     var active_collations: u16 = 0;
     for (plan.sources) |source| {
         for (source.schema.columns) |col| {
@@ -238,6 +239,102 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
             .mutates_durable_state = plan.lifetime != .interactive,
         },
     };
+}
+
+/// Pure evaluation of one provided candidate row. CHECK never opens a source,
+/// acquires a pin or writes an outcome; the enclosing mutation owns those effects.
+/// Validation intentionally uses the expression shape, not Schema.validate,
+/// because schema validation derives these same traits for each declaration.
+pub fn forCheck(schema: @import("TableSchema.zig").Schema, check: @import("TableConstraints.zig").CheckConstraint) !Summary {
+    const ts = @import("TableSchema.zig");
+    if (schema.columns.len == 0 or schema.columns.len > ts.max_columns) return error.InvalidColumnCount;
+    try check.validateExpression(schema);
+    var referenced: [ts.max_columns]bool = @splat(false);
+    for (check.atoms) |atom| switch (atom) {
+        .compare_literal => |value| referenced[try schema.index(value.column)] = true,
+        .compare_columns => |value| {
+            referenced[try schema.index(value.left_column)] = true;
+            referenced[try schema.index(value.right_column)] = true;
+        },
+        .is_null, .is_not_null => {},
+    };
+    var collations: u16 = 0;
+    for (schema.columns, 0..) |column, index| {
+        if (referenced[index] and column.collation != .none) collations += 1;
+    }
+    return localRow(.check_constraint_true_or_null, collations);
+}
+
+/// The exact mapping has already been validated by TableSchemaProjection.init.
+/// This reports one row's pure mapping, including fallible destination validation.
+/// Retention and storage effects belong to the enclosing scan, not this mapping.
+pub fn forSchemaProjection(projection: *const @import("TableSchemaProjection.zig")) Summary {
+    var collations: u16 = 0;
+    for (projection.logical.columns) |column| if (column.collation != .none) {
+        collations += 1;
+    };
+    return localRow(.preserves_all_states, collations);
+}
+fn localRow(rule: FiveStateRule, collations: u16) Summary {
+    return .{
+        .effects = .none,
+        .deterministic = true,
+        .fallible = true,
+        .five_state_rule = rule,
+        .collation_rule = if (collations != 0) .column_bound else .none,
+        .active_collations = collations,
+        .change_mode = .snapshot_finite,
+        .work_bound = .{
+            .max_source_pins = 0,
+            .max_output_rows = 1,
+            // Recursive cells and comparisons have input-dependent validation
+            // work; an instruction count is not a CPU or resident-byte budget.
+            .max_resident_bytes = null,
+            .max_spill_bytes = 0,
+            .max_work_steps = null,
+            .acquires_data_pins = false,
+            .reads_storage_segments = false,
+            .mutates_durable_state = false,
+        },
+    };
+}
+
+/// Atomic Table mutation plus its row-local constraints. No CHECK gains effects
+/// merely because its caller publishes an atomic successor. Private candidate
+/// roots belong to that owner; this plan acquires no query snapshot pins.
+pub fn forTableDmlPlan(plan: @import("TableDml.zig").Plan) !Summary {
+    try plan.validateShape();
+    var summary: Summary = .{
+        .effects = .table_mutation,
+        .deterministic = true,
+        .fallible = true,
+        .five_state_rule = .checked_scalar,
+        .collation_rule = .none,
+        .active_collations = 0,
+        .change_mode = .atomic_mutation,
+        .work_bound = .{
+            .max_source_pins = 0,
+            .max_output_rows = 0,
+            .max_resident_bytes = null,
+            .max_spill_bytes = 0,
+            .max_work_steps = null,
+            .acquires_data_pins = false,
+            .reads_storage_segments = plan.action != .insert,
+            .mutates_durable_state = true,
+        },
+    };
+    for (plan.schema.columns) |column| if (column.collation != .none) {
+        summary.active_collations += 1;
+    };
+    if (summary.active_collations != 0) summary.collation_rule = .column_bound;
+    if (plan.action != .delete) for (plan.schema.integrity.checks) |check| {
+        const constraint = try forCheck(plan.schema, check);
+        summary.effects = summary.effects.merge(constraint.effects);
+        summary.deterministic = summary.deterministic and constraint.deterministic;
+        summary.fallible = summary.fallible or constraint.fallible;
+        summary.five_state_rule = constraint.five_state_rule;
+    };
+    return summary;
 }
 
 /// Derive operator traits and effect bounds for a Block-Max WAND or single-snapshot

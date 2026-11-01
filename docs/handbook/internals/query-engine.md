@@ -1365,3 +1365,28 @@ automatic fallback loading, execute an obsolete decoder or fetch historical code
 with ambient authority. Tests need rename, drop/recreate, changed views, defaults,
 type conversion failures, moved branch heads and current revocation. These are
 proposed cases, not additions to the executed finite-query evidence.
+
+
+## Resolved finite operator traits
+
+Logical, relational and Table mutation plans expose `traits()` through the shared
+`OperatorTraits` owner. Public plan validation derives that same summary; metadata
+EXPLAIN obtains it from the bound plan. Traits describe determinism, fallibility,
+five-state rules, declared collations, lifetime and data-work bounds. Unknown
+resident or CPU work remains unknown rather than being inferred from an expression
+count. EXPLAIN's own summary has zero source pins, segment reads and durable work.
+
+CHECK shape validation derives a deterministic, fallible, row-local summary:
+TRUE/NULL pass, and FALSE/missing/type_error/conflict refuse the candidate.
+Comparison collations come from referenced columns; repeated references count a
+column once. CHECK itself has no read, mutation, capture or dispatch effects.
+Table DML composes those traits with its own read/mutation effects and atomic
+publication lifetime. DELETE does not acquire CHECK's candidate-row rule.
+The typed mutation summary does not expand the executable SQL EXPLAIN profile.
+
+`TableSchemaProjection.init` retains a summary beside the validated stable-column
+mapping and frozen ADD-time cells. Mapping has no storage or retention effects;
+its enclosing scan owns those. It preserves admitted cell states and may fail
+physical/destination validation instead of converting errors to NULL. Its
+one-row output bound describes the mapping, not total query coverage. Default
+changes after ADD do not replace the mapping's recorded initial values.

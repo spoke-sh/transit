@@ -291,6 +291,13 @@ pub const CheckConstraint = struct {
 
     /// Schema validation calls this without recursively validating the schema.
     pub fn validateShape(self: CheckConstraint, schema: s.Schema) !void {
+        _ = try self.traits(schema);
+    }
+    pub fn traits(self: CheckConstraint, schema: s.Schema) !@import("OperatorTraits.zig").Summary {
+        return @import("OperatorTraits.zig").forCheck(schema, self);
+    }
+    /// Shape-only entry used by trait derivation without recursive schema checks.
+    pub fn validateExpression(self: CheckConstraint, schema: s.Schema) !void {
         try validateName(self.id, self.name);
         if (self.atoms.len == 0 or self.atoms.len > 32) return error.InvalidCheckConstraint;
         for (self.atoms) |atom| switch (atom) {

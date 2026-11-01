@@ -39,8 +39,10 @@ pub const Plan = struct {
     limit: ?u64 = null,
     pub const Atom = @import("LogicalPredicate.zig").Atom;
     pub fn validate(self: Plan) !void {
-        try self.schema.validate(.{});
-        try self.validateShape();
+        _ = try self.traits();
+    }
+    pub fn traits(self: Plan) !@import("OperatorTraits.zig").Summary {
+        return @import("OperatorTraits.zig").forLogicalPlan(self);
     }
     // Compiler-owned schemas have already passed Type.clone's validation and
     // remain immutable during lowering. Public plans still validate both parts.

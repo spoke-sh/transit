@@ -18,6 +18,13 @@ pub const Plan = struct {
     action: Action,
     predicate: ?Predicate.Program = null,
     pub fn validate(self: Plan) !void {
+        _ = try self.traits();
+    }
+    pub fn traits(self: Plan) !@import("OperatorTraits.zig").Summary {
+        return @import("OperatorTraits.zig").forTableDmlPlan(self);
+    }
+    /// Structural validation used by shared trait derivation; no I/O or effects.
+    pub fn validateShape(self: Plan) !void {
         try self.schema.validate();
         switch (self.action) {
             .insert => |rows| {

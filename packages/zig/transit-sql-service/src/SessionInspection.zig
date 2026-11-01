@@ -133,7 +133,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 bound.plan.collations = selected.collations;
                 break :blk try std.json.Stringify.valueAlloc(a, .{
                     .object = selected.binding.interpretation.interpretation.object.object,
-                    .traits = f.OperatorTraits.Summary.forExplain(try f.OperatorTraits.forLogicalPlan(bound.plan)),
+                    .traits = f.OperatorTraits.Summary.forExplain(try bound.plan.traits()),
                     .filter = bound.plan.predicate != .all,
                     .aggregate = @tagName(bound.plan.aggregate),
                     .limit = bound.plan.limit,
@@ -143,7 +143,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 }, .{});
             },
             .relational => |compilation| try std.json.Stringify.valueAlloc(a, .{
-                .traits = f.OperatorTraits.Summary.forExplain(try f.OperatorTraits.forRelationalPlan(compilation.plan)),
+                .traits = f.OperatorTraits.Summary.forExplain(try compilation.plan.traits()),
                 .consistency = if (compilation.catalog) |snapshot| @tagName(snapshot.consistency) else "independent_table_snapshots",
                 .sources = compilation.plan.sources.len,
                 .join = if (compilation.plan.join) |join| @tagName(join.kind) else "none",
