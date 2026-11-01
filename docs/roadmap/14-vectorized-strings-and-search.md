@@ -238,6 +238,15 @@ inventory remain below as historical context. Source inspection establishes the
 gaps here; it is not a new runtime, allocation or performance qualification.
 Milestone 14 remains **In Progress**.
 
+The first implementation increment is rebased onto `origin/main`
+`90b6a0737c606f4b43fb408d698ae9561d10f5fc`. That integration includes M9's
+fair client admission and original direct-KV recovery, the current protocol
+definition cutover, the expanded workload roadmap, and the offline Document
+profile and spatial foundations, and the M8 connection-ingress and M12
+managed-computation increments. Biological, chemical and audio search remain
+later work outside this strings increment. References below use the updated
+numbering; the source audit retains its original basis.
+
 Deliver the first installed profile over one direct Table's retained cut, with
 existing admitted text/binary types and collations. Extend the same owners to
 Document projections and stored vectors only as their contracts become usable.
@@ -278,7 +287,7 @@ R4–R9 remain explicitly open: durable search admission/build/publication and
 reopenable postings, exact vectorized lexical/proximity execution, retained-cut
 vector/hybrid composition, installed result delivery and final qualification.
 Their dependencies on M10 type admission, M11 lifecycle, M12 expressions,
-M13 resource control and M26 policy remain the gates described below.
+M13 resource control and M27 policy remain the gates described below.
 
 ### Source audit: reusable components and missing execution paths
 
@@ -307,7 +316,7 @@ their qualified profiles, not every proposed extension in their older plans.
 | [M11](11-indexing-and-access-paths.md) — Planned | Exact index declarations, generations, source cuts and conditional coverage descriptors exist offline. | Co-deliver the minimum durable lifecycle needed by search. M11 owns generic publication/maintenance/retirement; M14 owns lexical, positional/substring and ANN methods. Do not wait for every ordered/covering/constraint feature or invent a search-only catalog. |
 | [M12](12-sql-and-dataflows.md) — In Progress | Analytical, `PerfectHashIn`, incremental and managed-dataflow components exist; installed composition remains unfinished. | Agree on typed string/match expressions and bind-time constants. Wire finite execution first; maintained search consumes M12's eventual exact commit/catch-up owner, not another polling scheduler. |
 | [M13](13-data-structures-and-performance.md) — In Progress | Issue #194 A–E provides workspaces, slabs, quotas, allocation probes and bounded result/transport ownership. F/G/J still track source, cache, CPU/I/O and composed-process gaps. | H can qualify bounded kernels now. End-to-end zero-allocation and per-morsel CPU/I/O claims wait for those owners; `Budget` currently accounts memory, not a complete CPU/IOPS system. |
-| [M19](19-branches-merges-and-restore.md#local-table-branch-increment) — In Progress | Recent immutable single-Table branches retain exact definition/data pins and original outcomes. | Bind index coverage to branch and source interpretation. Preserve branch-held generations during compaction/retirement. Writable branches, catalog-wide cuts and merge support remain separate gates. |
+| [M20](20-branches-merges-and-restore.md#local-table-branch-increment) — In Progress | Recent immutable single-Table branches retain exact definition/data pins and original outcomes. | Bind index coverage to branch and source interpretation. Preserve branch-held generations during compaction/retirement. Writable branches, catalog-wide cuts and merge support remain separate gates. |
 
 ### Contract and correctness decisions before exposure
 
@@ -356,7 +365,7 @@ their qualified profiles, not every proposed extension in their older plans.
    evaluated atom. Rank pruning must not hide an earlier visible failure. Re-read
    authority through the owner after buffering and before every disclosure,
    including metadata, empty results and completion. Define permitted ranking
-   statistics under RLS with M26; do not leak hidden corpus facts through scores.
+   statistics under RLS with M27; do not leak hidden corpus facts through scores.
 6. **Distinguish exact and approximate outcomes.** Exact lexical top-k requires
    sound upper bounds and stable row-identity tie-breaking across segments. Q16
    saturation must never round an upper bound below a possible score: use a
@@ -603,7 +612,7 @@ lands; the roadmap must not become its usage specification.
 
 #### R9 — Correspondence, benchmarks and completion review
 
-Extend M21's [collation proof](../../contracts/sql/CollationOrder.lean) and
+Extend M22's [collation proof](../../contracts/sql/CollationOrder.lean) and
 five-state/rewrite correspondence for the admitted compact-key and encoded-filter
 profiles. Add the Block-Max pruning obligation with explicit scoring-domain,
 rounding, tie and coverage assumptions. Connect proofs to actual Zig vectors
@@ -641,7 +650,7 @@ inside `nix develop`. Extend the fixture driver and
 [query benchmark tooling](../../tests/performance/query/README.md) with real
 execution before counting those gates. Before implementation pushes, run affected
 `just ci clean --lane NAME` lanes against committed HEAD; cross-domain cutovers
-require dependent lanes. Final common-revision qualification belongs with M35.
+require dependent lanes. Final common-revision qualification belongs with M42.
 
 ### Upcoming consumers and first changes
 
@@ -649,9 +658,9 @@ require dependent lanes. Final common-revision qualification belongs with M35.
 | --- | --- |
 | [M15](15-data-centric-compilation-and-specialization.md) | Stable compact-key/value ownership, masks, failure frontiers and bounded kernel interfaces. Fusion, AOT, adaptive compilation and executable-code caches stay in M15. Do not freeze the current helper layout as a public ABI before R2. |
 | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M18](18-multi-model-and-foreign-relations.md) | Bounded vocabulary lookup, exact span provenance and reusable search methods. Profile/container parsing and multi-model source composition stay with those owners; require M7's qualified Document boundary. |
-| [M17](17-geospatial-and-spatio-temporal-computing.md) | Reusable bitmap, padded-buffer and late-materialization contracts. Similar 16-byte layouts do not establish spatial comparison, topology or pruning semantics. |
-| [M21](21-formal-semantics-and-correspondence.md), [M26](26-control-and-policy-plane.md), [M29](29-board-reimplementation.md), [M35](35-qualification-and-benchmarks.md) | Implementation correspondence, current policy/RLS integration, read-only inspection and common-revision scorecards respectively. No component helper certifies installed security or performance. |
-| [M31](31-reactive-context-and-agent-activation.md), [M37](37-declarative-language-context-and-synthesis.md) | Version-bound finite matches, spans and explicit exact/approximate ranking. Continuous activation, broader structural context and speculative synthesis remain later work; they are not prerequisites for finite search. |
+| [M17](17-geospatial-and-spatio-temporal-computing.md), [M19](19-game-asset-pipelines-and-simulation-streaming.md) | Reusable bitmap, padded-buffer, bounded vocabulary and late-materialization contracts. Similar 16-byte layouts do not establish spatial comparison, topology, asset interpretation or pruning semantics. |
+| [M22](22-formal-semantics-and-correspondence.md), [M27](27-control-and-policy-plane.md), [M30](30-board-reimplementation.md), [M42](42-qualification-and-benchmarks.md) | Implementation correspondence, current policy/RLS integration, read-only inspection and common-revision scorecards respectively. No component helper certifies installed security or performance. |
+| [M32](32-reactive-context-and-agent-activation.md), [M44](44-declarative-language-context-and-synthesis.md) | Version-bound finite matches, spans and explicit exact/approximate ranking. Continuous activation, broader structural context and speculative synthesis remain later work; they are not prerequisites for finite search. |
 
 Start with three reviewable changes: **(1)** R0 capability corrections and an
 actual Zig-versus-independent oracle harness, including raw-value preservation,
