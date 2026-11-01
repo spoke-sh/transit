@@ -33,7 +33,7 @@ def frame(tag, payload=b''):
 
 
 class PostgreSQL:
-    def __init__(self, options):
+    def __init__(self, options, *, before_proof=None, reject=False):
         self.sock = socket.create_connection((options['hostaddr'], options['port']), timeout=10)
         self.sock.sendall(struct.pack('!II', 8, 80877103))
         assert exact(self.sock, 1) == b'S'
@@ -56,7 +56,19 @@ class PostgreSQL:
         message = first+b','+challenge+b','+final
         signature = hmac.digest(hashlib.sha256(client_key).digest(), message, 'sha256')
         proof = bytes(a^b for a,b in zip(client_key, signature))
+        if before_proof is not None:
+            before_proof()
         self.sock.sendall(frame(b'p', final+b',p='+base64.b64encode(proof)))
+        if reject:
+            try:
+                # Admission must fail before server-final, AuthenticationOk,
+                # parameter disclosure or ReadyForQuery can be published.
+                tag, payload = self.read()
+                assert tag == b'E' and b'28000' in payload
+                assert self.sock.recv(1) == b''
+            finally:
+                self.close()
+            return
         replies = self.until(b'Z')
         server = hmac.digest(hmac.digest(salted,b'Server Key','sha256'),message,'sha256')
         assert (b'R', struct.pack('!I',12)+b'v='+base64.b64encode(server)) in replies
@@ -301,6 +313,14 @@ def run(root, postgres, mysql_options, controls, inventory, read_access, write_a
     # A password verifier is bound to a native identity, not an independent
     # source of role grants. Altering any binding fails new authentication.
     current = json.loads(credential_file.read_text())
+    try:
+        # The old verifier can still verify this in-flight proof. Session
+        # admission must independently observe the replacement credential.
+        PostgreSQL(postgres, before_proof=lambda: replace(current | {'revision': current['revision']+1}), reject=True)
+    finally:
+        replace(current)
+    with psycopg.connect(**postgres) as fresh:
+        assert fresh.execute('SELECT 1').fetchone() == (1,)
     for field in ('principal', 'login_role', 'credential_epoch'):
         replace(current | {field: current[field] + 1})
         try:
@@ -314,4 +334,4 @@ def run(root, postgres, mysql_options, controls, inventory, read_access, write_a
                     raise AssertionError(f'Forged native {field} authenticated')
         finally:
             replace(current)
-    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,select_revocation_keeps_mutation_receipt=True,exact_detached_outcome=True,credential_rotation=True, credential_cli=True,native_identity_binding=True)), flush=True)
+    print(json.dumps(dict(profile='database_wire_faults', deferred_write_cycles=True, suspended_cancel=True, detached_write=True, invalid_connections=10, native_revocation=True,revoked_metadata_suppressed=True,revoked_terminal_suppressed=True,select_revocation_keeps_mutation_receipt=True,exact_detached_outcome=True,credential_rotation=True, credential_rotation_during_scram=True, credential_cli=True,native_identity_binding=True)), flush=True)
