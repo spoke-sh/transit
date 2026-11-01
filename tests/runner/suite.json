@@ -68,6 +68,7 @@
       "test::direct-queue-transfer",
       "test::direct-automatic-queue-transfer",
       "test::direct-log-token",
+      "test::direct-workload-token",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",

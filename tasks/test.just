@@ -182,6 +182,10 @@ direct-mixed-transaction:
 direct-log-token:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- log-token
 
+# Stream/Queue workload tokens settle only original native outcomes after replacement.
+direct-workload-token:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- workload-token
+
 # Queue source archive and destination append share one recoverable decision.
 direct-queue-transfer:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer

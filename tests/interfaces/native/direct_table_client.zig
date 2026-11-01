@@ -823,6 +823,14 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
             try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-prepare")) {
+            try @import("fixture_direct_log_token").prepareWorkloads(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-execute")) {
+            try @import("fixture_direct_log_token").executeWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-settle")) {
+            try @import("fixture_direct_log_token").settleWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-verify")) {
+            try @import("fixture_direct_log_token").verifyWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-prepare")) {
             try @import("fixture_direct_log_token").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-recover")) {
