@@ -316,6 +316,7 @@ pub const Action = union(enum) {
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
     record: c.DirectRecord.Request,
+    workload_result: c.DirectWorkloadResultProtocol.Request,
     initialize,
     describe,
     namespace: u64,
@@ -474,6 +475,7 @@ pub const Request = struct {
                 try connection.object(value.target().interpretation.object);
                 try value.validate(connection.principal, connection.scope);
             },
+            .workload_result => |value| try value.validate(connection),
             .branch => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
@@ -816,6 +818,7 @@ pub const Result = union(enum) {
     branch: c.DirectBranch.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
+    workload_result: c.DirectWorkloadResultProtocol.Result,
     client_token: ?c.DirectClientToken.Receipt,
     client_progress: c.DirectClientToken.ProgressResult,
     initialized,

@@ -1,0 +1,418 @@
+{
+  "version": 1,
+  "scope": "Pure CONSUME preparation and independent five-row predicate oracle; no source capture, admission, wait, group assignment or offset settlement.",
+  "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+  "cases": [
+    {
+      "sql": "CONSUME * FROM items",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0,
+          1
+        ],
+        "names": [
+          null,
+          null
+        ],
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items;",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME _offset, id AS event_id FROM items WHERE body = 'a'",
+      "expected": {
+        "fields": [
+          {
+            "offset": {}
+          },
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0,
+          1
+        ],
+        "names": [
+          null,
+          "event_id"
+        ],
+        "matched": [
+          true,
+          false,
+          true,
+          false,
+          true
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME * FROM items WHERE _offset >= 102 LIMIT 1",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          },
+          {
+            "offset": {}
+          }
+        ],
+        "indices": [
+          0,
+          1
+        ],
+        "names": [
+          null,
+          null
+        ],
+        "matched": [
+          false,
+          false,
+          true,
+          true,
+          true
+        ],
+        "limit": 1,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME i.id FROM items AS i GROUP 'billing' WHERE _partition = 0 AND i.id >= 1 LIMIT 10 WAIT '250ms'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "partition": {}
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          false,
+          false,
+          true,
+          false,
+          true
+        ],
+        "limit": 10,
+        "group": "billing",
+        "wait_ms": 250
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items WHERE (id >= 0 AND id < 3) OR body IS NULL",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          false,
+          true,
+          true,
+          true,
+          false
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME body FROM items WHERE NOT (body = 'A')",
+      "expected": {
+        "fields": [
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          false,
+          true,
+          false,
+          false,
+          false
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items WHERE id = -1 OR id = 0 OR body IS NULL",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          true,
+          true,
+          false,
+          true,
+          false
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items WHERE id >= 0 AND id <= 3 AND body IS NOT NULL",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          false,
+          true,
+          true,
+          false,
+          true
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME _partition, _offset, body FROM items GROUP 'billing' LIMIT 0 WAIT '1m'",
+      "expected": {
+        "fields": [
+          {
+            "partition": {}
+          },
+          {
+            "offset": {}
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0,
+          1,
+          2
+        ],
+        "names": [
+          null,
+          null,
+          null
+        ],
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "limit": 0,
+        "group": "billing",
+        "wait_ms": 60000
+      }
+    },
+    {
+      "sql": "CONSUME id AS first, id AS second FROM items WAIT '1s'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          }
+        ],
+        "indices": [
+          0,
+          0
+        ],
+        "names": [
+          "first",
+          "second"
+        ],
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": 1000
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items WHERE body IS NULL",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "matched": [
+          false,
+          false,
+          false,
+          true,
+          false
+        ],
+        "limit": null,
+        "group": null,
+        "wait_ms": null
+      }
+    },
+    {
+      "sql": "CONSUME id FROM items GROUP NULL",
+      "error": "InvalidLogConsumeOperand"
+    },
+    {
+      "sql": "CONSUME id FROM items WAIT NULL",
+      "error": "InvalidLogConsumeOperand"
+    },
+    {
+      "sql": "CONSUME id FROM items GROUP ''",
+      "error": "InvalidLogGroupName"
+    },
+    {
+      "sql": "CONSUME id FROM items WAIT '0ms'",
+      "error": "InvalidLogWait"
+    },
+    {
+      "sql": "CONSUME id FROM items WAIT '1.5s'",
+      "error": "InvalidLogWait"
+    },
+    {
+      "sql": "CONSUME id FROM items WAIT '4294967296ms'",
+      "error": "InvalidLogWait"
+    },
+    {
+      "sql": "CONSUME _timestamp FROM items",
+      "error": "UnknownColumn"
+    },
+    {
+      "sql": "CONSUME other.id FROM items",
+      "error": "UnknownQualifier"
+    },
+    {
+      "sql": "CONSUME id, id FROM items",
+      "error": "DuplicateProjection"
+    },
+    {
+      "sql": "CONSUME COUNT(*) FROM items",
+      "error": "UnsupportedAggregate",
+      "syntax_error": true
+    },
+    {
+      "sql": "CONSUME id FROM items WHERE id = 1 GROUP 'late'",
+      "error": "UnsupportedConstruct",
+      "syntax_error": true
+    },
+    {
+      "sql": "CONSUME id FROM items; CONSUME id FROM items",
+      "error": "UnsupportedConstruct",
+      "syntax_error": true
+    }
+  ]
+}

@@ -15,13 +15,14 @@ pub const Record = struct {
     outcome: union(enum) {
         append: q.AppendReceipt,
         assignment: q.GroupAssignmentReceipt,
-        offset: struct { receipt: q.OffsetReceipt, cursor: p.StreamRead.Cursor },
+        offset: struct { receipt: q.OffsetReceipt, progress: p.StreamRead.Progress },
         read: p.StreamRead.Receipt,
         release: p.StreamRead.ReleaseReceipt,
         claim: struct { receipt: q.ClaimReceipt, observed: @import("LogTime.zig").Sample },
         settlement: struct { receipt: q.SettlementReceipt, observed: @import("LogTime.zig").Sample },
         terminal: struct { receipt: p.Transaction.TerminalReceipt, observed: @import("LogTime.zig").Sample },
         queue_release: p.QueueRead.ReleaseReceipt,
+        closed: p.LogWorkload.Closure,
     },
 
     pub fn operation(self: Record) d.Operation {
@@ -35,6 +36,7 @@ pub const Record = struct {
             .settlement => |value| value.receipt.settlement.operation,
             .terminal => |value| value.receipt.transfer.operation,
             .queue_release => |value| value.release.operation,
+            .closed => |value| value.binding.operation(),
         };
     }
     pub fn target(self: Record) q.Partition {
@@ -48,11 +50,13 @@ pub const Record = struct {
             .settlement => |value| value.receipt.settlement.lease.target,
             .terminal => |value| value.receipt.transfer.target(),
             .queue_release => |value| value.release.claim.claim.target,
+            .closed => |value| value.binding.target(),
         };
     }
     pub fn accepted(self: Record) d.Position {
         return switch (self.outcome) {
             inline .offset, .claim, .settlement, .terminal => |value| value.receipt.accepted,
+            .closed => |value| value.recorded,
             inline else => |value| value.accepted,
         };
     }
@@ -61,8 +65,8 @@ pub const Record = struct {
         switch (self.outcome) {
             .offset => |value| {
                 try value.receipt.validate();
-                try value.cursor.validate();
-                if (!std.meta.eql(value.receipt.commit.coverage, value.cursor.coverage) or value.receipt.commit.operation.principal != value.cursor.read.owner.principal) return error.InvalidLogEvidence;
+                try value.progress.validate();
+                if (!std.meta.eql(value.receipt.commit.coverage, try value.progress.coverage()) or value.receipt.commit.operation.principal != value.progress.end().read.owner.principal) return error.InvalidLogEvidence;
             },
             .claim => |value| {
                 try value.receipt.validate();
@@ -85,7 +89,7 @@ pub const Record = struct {
             inline else => |value| try value.validate(),
         }
         const selected = self.target();
-        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement or self.outcome == .terminal or self.outcome == .queue_release;
+        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement or self.outcome == .terminal or self.outcome == .queue_release or self.outcome == .closed;
         if (selected.partition >= self.declared.declaration.configuration.partitioning.count) return error.InvalidLogEvidence;
         if (control) {
             if (!std.meta.eql(selected.interpretation.object, self.declared.declaration.interpretation.object) or
@@ -94,6 +98,7 @@ pub const Record = struct {
         } else if (self.declared.retired or !std.meta.eql(selected.interpretation, self.declared.declaration.interpretation)) return error.InvalidLogEvidence;
         const kind = std.meta.activeTag(self.declared.declaration.configuration.policy);
         switch (self.outcome) {
+            .closed => |value| if (!std.mem.eql(u8, @tagName(value.binding), @tagName(kind))) return error.InvalidLogEvidence,
             .append => |value| if (!std.mem.eql(u8, @tagName(value.append.kind), @tagName(kind)) or
                 value.append.rows > self.declared.declaration.limits.append_rows or value.append.payload.bytes > self.declared.declaration.limits.append_bytes or
                 (self.declared.declaration.configuration.retention.max_age_ms != null and value.observed_ms == null)) return error.InvalidLogEvidence,
@@ -105,6 +110,29 @@ pub const Record = struct {
             },
             .settlement, .terminal, .queue_release => if (kind != .queue) return error.InvalidLogEvidence,
         }
+    }
+
+    /// Reconstruct the complete original identity from accepted evidence. A
+    /// protected paired-transfer record is not a standalone workload operation.
+    pub fn binding(self: Record, scratch: std.mem.Allocator) !p.LogWorkload.Binding {
+        const stream: ?p.LogWorkload.StreamRequest = switch (self.outcome) {
+            .append => |value| if (value.append.kind == .stream) .{ .append = value.append } else null,
+            .assignment => |value| .{ .assign = value.assignment },
+            .offset => |value| .{ .offset = .{ .commit = value.receipt.commit, .progress = value.progress } },
+            .read => |value| .{ .consume = value.request },
+            .release => |value| .{ .release = value.release },
+            else => null,
+        };
+        if (stream) |work| return .{ .stream = try work.binding(scratch) };
+        const queue: p.LogWorkload.QueueRequest = switch (self.outcome) {
+            .append => |value| .{ .enqueue = value.append },
+            .claim => |value| .{ .claim = value.receipt.claim },
+            .settlement => |value| .{ .settle = value.receipt.settlement },
+            .queue_release => |value| .{ .release = value.release },
+            .closed => |value| return value.binding,
+            else => return error.LogOperationConflict,
+        };
+        return .{ .queue = try queue.binding(scratch) };
     }
 };
 

@@ -3,7 +3,17 @@ const std = @import("std");
 const g = @import("root.zig");
 const c = g.catalog;
 const p = c.protocol;
-pub const Kind = enum(u8) { table = 1, configuration = 2, captured = 3, transaction = 4, dataflow = 5 };
+pub const Kind = enum(u8) {
+    table = 1,
+    configuration = 2,
+    captured = 3,
+    transaction = 4,
+    dataflow = 5,
+    workload = 6,
+    pub fn database(self: Kind) bool {
+        return self == .table or self == .transaction or self == .workload;
+    }
+};
 pub const Reference = struct {
     pub const magic = "GSR1";
     id: u64,
@@ -46,7 +56,7 @@ pub const External = struct {
         return .{ .resource = self.resource, .catalog = self.catalog, .owner = self.owner, .namespace = self.namespace, .role = if (self.role_present == 1) self.role else null };
     }
     pub fn validate(self: External) !void {
-        if (self.id == 0 or self.id > p.max_counter or (self.kind == .table or self.kind == .transaction) or self.resource == 0 or self.catalog == 0 or self.owner == 0 or self.namespace == 0 or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0) or self.expected_generation == 0) return error.InvalidSqlOperationReference;
+        if (self.id == 0 or self.id > p.max_counter or self.kind.database() or self.resource == 0 or self.catalog == 0 or self.owner == 0 or self.namespace == 0 or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0) or self.expected_generation == 0) return error.InvalidSqlOperationReference;
         if ((self.phase == .terminal) != (self.summary != .none) or (self.phase == .terminal and self.reservation != 0) or (self.phase != .terminal and self.reservation < 512)) return error.InvalidSqlOperationReference;
     }
 };
@@ -80,7 +90,7 @@ pub fn readInitial(source: *g.Client.Source, state: c.DirectClientToken.Progress
     if (!std.mem.eql(u8, &value.begin.nonce, &state.receipt.binding.key.token) or !std.mem.eql(u8, &value.begin.fingerprint, &state.receipt.binding.fingerprint)) return error.GatewayIdentityConflict;
     const connection = state.receipt.binding.key.connection;
     const selected = value.begin.binding;
-    if ((value.begin.kind == .table or value.begin.kind == .transaction) or value.begin.expected_generation == 0 or value.begin.reservation < 512 or
+    if (value.begin.kind.database() or value.begin.expected_generation == 0 or value.begin.reservation < 512 or
         selected.resource != connection.scope.resource or selected.catalog != connection.scope.catalog or selected.owner != connection.audience or selected.role != connection.role or selected.namespace != state.receipt.binding.intent.external.namespace) return error.InvalidSqlOperationReference;
     if (value.body) |body| {
         try body.validate();
@@ -107,6 +117,10 @@ pub fn reference(_: g.DatabaseAccount, source: *g.Client.Source, id: u64) !Refer
     return projection(source, try source.operation(id));
 }
 fn projection(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Reference {
+    if (state.receipt.binding.intent == .workload) {
+        if (!g.WorkloadOperations.supported(state.receipt.binding.intent.workload)) return error.UnsupportedSqlWorkload;
+        return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .kind = .workload };
+    }
     return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .kind = if (state.receipt.binding.intent == .external) (try readInitial(source, state)).begin.kind else if (state.receipt.binding.intent == .transaction_call) .transaction else .table };
 }
 pub fn lookup(_: g.DatabaseAccount, source: *g.Client.Source, nonce: [16]u8, fingerprint: ?[32]u8) !?Reference {
@@ -123,7 +137,7 @@ pub fn external(execution: g.DatabaseAccount, source: *g.Client.Source, id: u64)
 pub fn begin(source: *g.Client.Source, input: Begin, body: ?c.DirectRecord.Reference) !Reference {
     if (try lookup(source.client.execution, source, input.nonce, input.fingerprint)) |existing| return existing;
     try source.client.execution.admittedBinding(input.binding);
-    if (input.kind == .table or input.kind == .transaction) return error.InvalidSqlOperationReference;
+    if (input.kind.database()) return error.InvalidSqlOperationReference;
     const caller = source.client.table(input.binding);
     const initial: Initial = .{ .begin = input, .body = body };
     const bytes = try p.Json.valueAlloc(caller.allocator, initial);
@@ -156,6 +170,7 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
         if (page.next) |next| through = if (through) |previous| @min(previous, next) else next;
         for (page.entries) |slot| if (slot) |state| {
             if (state.receipt.binding.intent == .branch) continue;
+            if (state.receipt.binding.intent == .workload and !g.WorkloadOperations.supported(state.receipt.binding.intent.workload)) continue;
             if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
             for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
                 states[count] = state;

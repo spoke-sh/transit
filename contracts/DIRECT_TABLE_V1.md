@@ -137,10 +137,13 @@ the declaration owner. Pending removal requires a complete, rejected or cancelle
 owner observation. Retrying a token cannot substitute a changed declaration,
 account, operation or name. Immutable staging records retain the existing saved
 record lifetime and remain outside physical collection authority. The SQL
-compiler does not yet accept Stream/Queue declaration syntax.
+compiler accepts Stream/Queue declaration and named inspection syntax; workload
+verbs have separate, unfinished execution contracts.
 
-A transaction reference fixes the connection, selected namespace and
-`Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
+A transaction reference fixes the connection, selected namespace,
+`Transaction.Begin` descriptor and mandatory `purpose`. Ordinary requests use
+`interactive`. Missing purpose fields do not default to that value. Initial
+acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table/KV and partitioned
 Stream/Queue descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
@@ -155,6 +158,41 @@ CONNECT authorizes saving and recovering this caller-supplied descriptor. The
 descriptor grants no Table access and establishes no acquired cut, retained pin,
 workspace or decision. Selection descriptors do not make nonexistent Tables
 readable. Execution must independently acquire and authorize its complete cut.
+
+The internal exhausted-Queue transfer owner uses `purpose.queue_transfer`, an
+immutable `DQP1` plan reference. It admits exactly two Queue participants and one
+paired transfer statement. The plan fixes one account/token, the begin,
+settlement, source transfer and destination append identities, exact exhausted
+tuple and recorded destination. Admission reconstructs and verifies the payload
+under current source administration, both participants' read rights and
+destination append rights before one
+catalog acceptance publishes the token, permanent source binding and pending
+recovery index. The account's byte charge covers the plan and payload; ordinary
+transaction reservations also apply. The retained storage graph includes those
+definitions and payload before source pins or a workspace exist.
+
+If the immutable begin reservation survives a failed catalog append, the
+protected owner reuses its exact plan, token and selection even after unrelated
+catalog publication. Both admission and replay verify that original reservation;
+ordinary transactions still require the current catalog observation. A private
+reservation alone is not acceptance or a retention pin. Missing pre-acceptance
+artifacts refuse recovery rather than selecting new work under the old identity.
+
+The source key excludes caller/account, policy revision and destination, so a
+changed worker cannot create another attempt for the same exhausted item.
+Generic token binding, transaction mutations and caller-record access cannot
+create or modify this protected purpose. Internal advance uses the existing
+workspace to save the exact request before execution and the existing decision
+owner for commit/abort and cleanup. Only verified cleanup removes the pending
+entry; the source binding survives either outcome. An abort cannot replace a
+commit, and an aborted attempt does not authorize automatic fresh identities.
+The library requires exclusive host serialization across admission and each
+advance. The local node's optional `table.queue_transfers` worker uses these
+operations under its separately configured database signer. Recovery scans the
+paged pending index and advances one original transaction unit; discovery
+retains one finite Queue sweep. A worker cannot adopt another signer's or
+account's binding. The public wire surface exposes the existing transaction
+inspection; protected transfer mutation remains internal to this owner.
 
 The typed `transaction.begin` control accepts an ordered array of exact
 `Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the
@@ -282,8 +320,8 @@ independent Catalog `revision`, `pending`, sticky `cancel` and optional immutabl
 record reference. `update` compares the expected revision. An exact repeated
 update returns its existing state, including after a lost reply. A stale changed
 update conflicts; settled work cannot become pending and cancellation cannot be
-cleared. Table, name and namespace settlement requires an actual terminal owner
-observation. External bookkeeping is not evidence of external completion.
+cleared. Table, log declaration, workload, name and namespace settlement requires
+an actual terminal owner observation. External bookkeeping is not evidence of external completion.
 
 `Binding.budget` declares account limits for operations, retained recovery bytes
 and pending operations, plus this operation's byte reservation. Defaults are
@@ -300,6 +338,100 @@ binds exact byte length and SHA-256. `record.read` verifies both. Current CONNEC
 is required for staging and reading; these records never grant data or execution
 rights. Accepted references and subsequent progress records retain complete
 original work; a body alone does not establish token acceptance.
+
+`DirectWorkloadIntent` uses format `WLI1` (`0x574c4931`) for canonical JSON
+containing mandatory current `definition`, `connection`, complete source
+declaration/schema, native Stream/Queue mutation with its nullable payload, and
+an explicit nullable `projection` (no missing-field default).
+The source matches the exact original target; append/enqueue payload bytes,
+row attribution, schema and partition routing are validated before staging.
+The 4 MiB record ceiling includes base64 and metadata overhead. Restoring rejects
+noncanonical bytes and missing/foreign definitions; it never resolves a new name.
+When present, `projection` contains an ordered input layout and encoded Fuze
+plan. Validation binds it to the exact native operation, source schema (including
+collations), stable column IDs and selected metadata fields. The canonical body
+owns the plan, aliases and literals independently of compiler buffers. Restoration
+decodes the saved plan without reparsing SQL or resolving a current source name.
+Malformed layouts, truncated encodings and foreign plan definitions refuse as
+invalid requests; source mismatches remain conflicts. Allocation failure is
+preserved separately and never establishes invalid caller data.
+Current projections support application columns, partition and offset, plus
+original lease epoch and attempt for claims. They cannot aggregate or impose a
+result limit; native acquisition and coverage retain their own bounds. Predicates
+are supported only for Stream consumption; claim filtering must precede lease
+acquisition. The native result action returns raw original rows; the SQL service
+evaluates the frozen projection through its shared original-result reader.
+Its reference binds connection, namespace, canonical workload binding, original
+stored declaration and the account-scoped record. The shared helper loads that
+body before inspect/execute/cancel and checks the complete reference again.
+`DirectIntent.Reference.workload` selects this body under a caller token. Binding
+verifies the account and current original-operation rights, then reserves the
+same global Stream/Queue operation identity used by native mutation and cancel.
+It does not execute the work. Exact token retries return the first accepted
+reference before loading a competing proposal; a changed fingerprint conflicts.
+Catalog history retains the accepted body and original declaration. Its byte
+reservation must cover the body plus 4096 bytes for the bounded reference and
+512 bytes of token bookkeeping; `Reference.reservationBytes()` supplies that
+minimum. Under-reservation rejects before acceptance. Native payload and retained
+result storage remain subject to their separate owner quotas.
+
+Clearing workload `pending` requires the normal host-owned partition reader to
+return a matching success or durable closure for the original request. Bounded
+recovery and absent receipts leave it pending. Unavailable native owners and
+storage/authorization failures cannot supply completion. The service rechecks
+current rights after buffering the outcome and at Catalog publication. A sticky
+cancellation flag records caller intent only; it neither closes a workload nor
+rolls back an accepted mutation. Native cancellation uses the saved request.
+An exact repeated settled update returns the retained bookkeeping state without
+re-executing the operation. SQL operation recovery and result reopening use this
+shared owner. SQL workload text admission remains unavailable.
+
+### Original workload result delivery
+
+The signed read-only `workload_result` action opens and pages the original
+accepted append/enqueue, consume or claim. `open` takes the complete workload
+intent reference and explicit row/byte/scan budgets. It returns `opened` with
+the original native success receipt, frozen source/schema, delivery limits and
+initial position. A staged body or absent receipt is not an accepted result;
+incomplete native recovery and missing outcomes return pending conflict. Durable
+cancellation/refusal has no row result and remains inspectable through the
+original native operation. The action never executes or cancels a mutation.
+
+`page` carries that entire result reference and its saved delivery position.
+It reopens the same owner receipt and selection before reading. Append/enqueue
+rows come from the verified frozen payload and accepted offset range. Stream
+pages retain the original cut and authenticated coverage; Queue pages traverse
+the original claim and report current lease liveness. Refetch does not renew a
+lease, ACK, advance a group or choose another selection. Output binds the original
+schema and operation, exact row ordinals/offsets and next position. A complete
+empty selection remains empty even after later appends. Source-history or
+explicit read-release failures are visible; neither produces empty completion.
+
+A page request also requires an explicit positive `rows` budget no greater
+than the frozen delivery limit. Lowering it controls this page alone and cannot
+change the original selection, source or retained reference.
+
+One delivery page has at most 128 rows and 1 MiB of encoded row bytes, also within
+the frozen source's read limits; Stream scan work is bounded to 65,536 examined
+rows. A single row that exceeds the byte budget fails without advancing delivery.
+Encoded row bytes exclude base64 and schema overhead. The workload's existing
+4 MiB complete-body limit remains separate. Each read requires current
+original-operation rights plus READ and rechecks disclosure after buffering,
+including empty and repeated responses. Descriptors and cursor possession grant
+no permission. The service uses its normal bounded native owners and preserves
+verified replay progress when an original-result probe remains pending.
+
+There is no new durable cursor or implicit close mutation. Local page/cursor
+cleanup releases delivery buffers; explicit native read release remains a
+separate saved operation and can make future delivery unavailable. Stream
+`offsetWork` prepares a separate request from an exhausted authenticated read;
+`offsetIntervalWork` takes an earlier issued cursor from that read and settles
+only the traversed interval through the current cursor. Both preserve the
+original group generation. Save that exact handoff before
+dispatch; the native owner still authenticates it and checks current assignment
+and settlement rights. A requested numeric offset or SQL output count cannot
+replace it. SQL result reopening uses this native boundary; workload SQL text
+admission and its finite-consumption handoff remain unavailable.
 
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host

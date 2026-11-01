@@ -200,7 +200,7 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
         // Slot refusal precedes dispatch. It cannot create an accepted attempt
         // requiring settlement; other failures may follow a successful send.
         if (err == error.SqlResponseCapacity or err == error.SqlResponseBusy) return err;
-        out.value = try self.settle(&pending, err == error.ResultCancelled);
+        out.value = try self.settle(&pending, err == error.ResultCancelled, out, options);
         return out;
     };
     var retained = false;
@@ -208,12 +208,12 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
     switch (response.value.result) {
         .operation => |operation| {
             try pending.observe(operation);
-            out.value = try self.settle(&pending, false);
+            out.value = try self.settle(&pending, false, out, options);
         },
         .err => |err| {
             if (err.retry == .control or err.retry == .same_token) {
                 if (err.operation) |operation| try pending.observe(operation);
-                out.value = try self.settle(&pending, false);
+                out.value = try self.settle(&pending, false, out, options);
             } else out.value = .{ .failure = try self.failure(a, err) };
         },
         .completion => |completion| {
@@ -245,7 +245,7 @@ fn failure(self: *Self, allocator: std.mem.Allocator, value: api.Error) !r.Failu
     self.session_lost = self.session_lost or std.mem.eql(u8, value.code, "SqlSessionExpired");
     return result;
 }
-fn settle(self: *Self, pending: *sdk.Pending, cancel: bool) !r.StatementOutcome {
+fn settle(self: *Self, pending: *sdk.Pending, cancel: bool, out: *Outcome, options: Options) !r.StatementOutcome {
     self.enter(.wait);
     defer self.session_lost = self.session_lost or pending.session_lost;
     const value = self.awaitPending(pending, cancel) catch |err| {
@@ -258,8 +258,47 @@ fn settle(self: *Self, pending: *sdk.Pending, cancel: bool) !r.StatementOutcome 
             .reason = if (err == error.SqlObservationDenied) .denied else if (self.interrupted) .interrupted else if (err == error.SqlInstanceChanged or err == error.IncompatibleSqlDefinition) .identity_changed else .unavailable,
         } };
     };
+    if (value.result_kind == .rows) return self.openWorkload(value, pending.session_lost, out, options);
     const completion = try value.completion();
     return .{ .command = completion };
+}
+/// Only after original settlement, and before any rows have been delivered, a
+/// replacement session may open that retained result. This never replays SQL or
+/// joins an old prefix to a new cursor; NativeResult owns subsequent fetches.
+fn openWorkload(self: *Self, operation: api.Operation, session_lost: bool, out: *Outcome, options: Options) !r.StatementOutcome {
+    try operation.validate();
+    const evidence = operation.workload orelse return error.MissingWorkloadEvidence;
+    if (session_lost) {
+        var config = self.config;
+        config.instance = self.client.instance;
+        self.client.open(config, self.password) catch |err| return self.workloadUnresolved(operation, err);
+        if (!std.meta.eql(self.client.account, @as(?api.Account, operation.identity.account))) return self.workloadUnresolved(operation, error.SqlObservationDenied);
+        self.control.session = self.client.session;
+        self.control.account = self.client.account;
+    }
+    const response = self.call(.{ .result = operation.identity }, out.memory.allocator()) catch |err| {
+        return self.workloadUnresolved(operation, err);
+    };
+    var retained = false;
+    defer if (!retained) response.deinit();
+    if (response.value.result == .err) return .{ .failure = try self.failure(out.arena.allocator(), response.value.result.err) };
+    if (response.value.result != .batch) return error.InvalidSqlResponse;
+    const batch = response.value.result.batch;
+    errdefer self.release(.{ .close_result = batch.cursor });
+    const description = batch.description orelse return error.MissingResultObservation;
+    if (description.observation != .data or description.observation.data != .workload) return error.MissingWorkloadEvidence;
+    try evidence.requireObservation(description.observation.data.workload);
+    const result = try @import("NativeResult.zig").open(out.memory.allocator(), self, response, options.resident_bytes);
+    retained = true;
+    return .{ .rows = result };
+}
+fn workloadUnresolved(self: *Self, operation: api.Operation, cause: anyerror) r.StatementOutcome {
+    return .{ .unresolved = .{ .account = operation.identity.account, .instance = self.client.instance.?, .token = operation.token, .operation = operation.identity, .reason = switch (cause) {
+        error.ResultCancelled, error.Canceled => .interrupted,
+        error.SqlObservationDenied, error.AuthenticationFailed => .denied,
+        error.SqlInstanceChanged, error.IncompatibleSqlDefinition => .identity_changed,
+        else => .unavailable,
+    } } };
 }
 fn awaitPending(self: *Self, pending: *sdk.Pending, cancel: bool) anyerror!api.Operation {
     if (self.cancellation == null) return pending.settle(self.control, self.config, self.password, cancel);

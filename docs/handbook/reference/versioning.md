@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1`.
+`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -117,6 +117,64 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+This definition also integrates managed-computation operation identities, logical
+Document storage, and compact string results. Managed computations and database
+workloads have distinct SQL operation tags; a saved identifier from an earlier
+build cannot be reinterpreted as the other operation kind.
+
+Frozen workload projections include binary Queue lease receipts. Queue ACK
+retains the original exact lease, while its preparation metadata can describe a
+later declaration of the same stable object. This control-only binding differs
+from the exact-interpretation rule for appends, consumption and acquisition.
+The current definition replaces both the stored projection-field vocabulary and
+saved control-request validation together; earlier saved bodies and receipts
+cannot acquire these semantics implicitly.
+
+Stream/Queue workload outcomes include partition-owned terminal closures with a
+mandatory original binding, recorded position and cancellation/refusal reason.
+Native cancellation, mutation, wait and lookup share that identity. Earlier
+receipt shapes and stored definitions reject before execution; no missing
+closure field or old success-only profile is inferred. Generated consumers and
+independent signing fixtures use the same current definition.
+
+Caller tokens can also select a mandatory complete workload reference: its exact
+source declaration, canonical native binding and account-scoped saved body.
+Settlement verifies the original partition-owned terminal outcome through the
+normal recovery and current-authorization gates. Catalog storage traversal roots
+accepted workload bodies and source declarations. These stored token and graph
+variants require the same current definition; no older artifact gains them by
+default.
+
+Saved workload bodies require an explicit nullable projection. A present plan
+binds the exact native operation, ordered column/metadata layout and frozen
+schema, including semantic descriptors. Missing projection fields in earlier
+bodies reject rather than acquiring an inferred result shape.
+
+SQL result codecs include original workload observation and terminal coverage
+shapes. The binary result header requires an explicit workload-evidence byte
+length; ordinary results encode zero. Workload terminals carry their original
+intent and exact native position separately from output row count. The
+replacement definition rejects earlier frame layouts before interpretation.
+SQL operation messages also distinguish workload command completion from retained
+rows and carry original native receipt/closure evidence. The session service can
+inspect/recover these tokens and open their frozen projections. SQL append,
+positional consumption, routed claim and ACK admission use these shared workload
+operations. Missing native evidence cannot establish a terminal
+workload operation.
+
+The signed direct service also exposes original workload result opening and
+paging. Mandatory references bind the frozen intent, accepted selection and
+delivery limits; positions retain the same original append, consume or claim.
+These messages never repeat a mutation or implicitly release its retained read
+dependency. Earlier result definitions reject rather than acquiring inferred
+selection or completion fields.
+
+Transaction references also require an explicit purpose. Protected exhausted-Queue
+transfers retain their original paired request and use the ordinary workspace,
+decision and cleanup owner. Catalog roots require permanent source-binding and
+pending-recovery directories. Earlier roots and transaction references reject;
+missing purpose or directories never default to ordinary work or empty indexes.
 
 Caller-token records now carry an explicit log-declaration reference and its
 account-scoped immutable body. The saved body requires the current definition;
@@ -305,3 +363,11 @@ and new encoded-array layouts require their own definition review before use.
 They are not admitted merely because a current artifact contains an identity or
 position field. An incompatible extension replaces the shared definition and
 its affected owning formats, consumers and fixtures together.
+
+The current cutover also requires Stream settlement progress as either an
+exhausted cursor or two authenticated interval boundaries. Native requests,
+stored outcomes and transaction actions retain that proof. Workload page
+requests require a per-page row budget; SQL workload observations require an
+explicit nullable logical limit. Partial native coverage can complete SQL output
+only at that frozen limit. Older cursor-only settlement records and missing
+budget/limit fields reject; no compatibility value is inferred.

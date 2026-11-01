@@ -3,7 +3,7 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation, standalone Stream consumption preparation",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
@@ -15,7 +15,12 @@
         "packages/zig/transit-fuze/src/TableSelect.zig",
         "packages/zig/transit-fuze/src/LogicalPrepared.zig",
         "packages/zig/transit-fuze/src/RelationalSql.zig",
-        "packages/zig/transit-fuze/src/AuthorizationSql.zig"
+        "packages/zig/transit-fuze/src/AuthorizationSql.zig",
+        "packages/zig/transit-fuze/src/LogAppendSql.zig",
+        "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+        "packages/zig/transit-fuze/src/LogClaimSql.zig",
+        "packages/zig/transit-fuze/src/LogReadSql.zig",
+        "packages/zig/transit-fuze/src/LogSettlementSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -46,6 +51,18 @@
         {
           "source": "packages/zig/transit-fuze/src/relational_sql_test.zig",
           "name": "relational SQL binds shared three-valued predicates and precise unknown names"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+          "name": "log consume SQL owns typed projection predicate group and wait operands"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
+          "name": "log settlement SQL enforces typed complete operands without acquiring authority"
         }
       ],
       "exceptions": [
@@ -112,6 +129,30 @@
             {
               "source": "packages/zig/transit-fuze/src/table_schema_test.zig",
               "name": "oversized typed defaults report the schema limit before encoding"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "cause": "InvalidWorkloadProjection",
+          "disposition": "internal_invariant",
+          "reason": "The adapter supplied a native operation kind inconsistent with the already compiled append. This is an internal binding invariant, not a SQL-input or accepted-work outcome; projection refuses it before any dispatch.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "cause": "TableSchemaChanged",
+          "disposition": "internal_invariant",
+          "reason": "The adapter supplied a native binding with a different schema from the already compiled append. This internal binding invariant refuses projection before any dispatch; it does not reinterpret accepted work or classify a native outcome.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
             }
           ]
         }
@@ -727,6 +768,70 @@
         },
         "UnrepresentableEbcdic037": {
           "code": "sql.unrepresentable_cp037",
+          "category": "binding"
+        },
+        "InvalidLogAppendOperand": {
+          "code": "sql.invalid_log_append_operand",
+          "category": "binding"
+        },
+        "UnsupportedLogAppendOption": {
+          "code": "sql.unsupported_log_append_option",
+          "category": "unsupported"
+        },
+        "NullWorkloadParameter": {
+          "code": "sql.null_workload_parameter",
+          "category": "binding"
+        },
+        "InvalidLogVisibilityTime": {
+          "code": "sql.invalid_log_visibility_time",
+          "category": "binding"
+        },
+        "InvalidLogPartitioning": {
+          "code": "sql.invalid_log_partitioning",
+          "category": "binding"
+        },
+        "InvalidLogProducer": {
+          "code": "sql.invalid_log_producer",
+          "category": "binding"
+        },
+        "InvalidLogConsumeOperand": {
+          "code": "sql.invalid_log_consume_operand",
+          "category": "binding"
+        },
+        "InvalidLogGroupName": {
+          "code": "sql.invalid_log_group_name",
+          "category": "binding"
+        },
+        "InvalidLogWait": {
+          "code": "sql.invalid_log_wait",
+          "category": "binding"
+        },
+        "InvalidLogClaimMaximum": {
+          "code": "sql.invalid_log_claim_maximum",
+          "category": "binding"
+        },
+        "InvalidLogClaimOperand": {
+          "code": "sql.invalid_log_claim_operand",
+          "category": "binding"
+        },
+        "InvalidLogClaimPredicate": {
+          "code": "sql.invalid_log_claim_predicate",
+          "category": "binding"
+        },
+        "InvalidLogLeaseDuration": {
+          "code": "sql.invalid_log_lease_duration",
+          "category": "binding"
+        },
+        "IncompatibleDefinition": {
+          "code": "sql.incompatible_definition",
+          "category": "conflict"
+        },
+        "InvalidQueueLeaseHandle": {
+          "code": "sql.invalid_queue_lease_handle",
+          "category": "binding"
+        },
+        "InvalidLogSettlementOperand": {
+          "code": "sql.invalid_log_settlement_operand",
           "category": "binding"
         }
       }

@@ -102,7 +102,7 @@ pub fn Driver(comptime Session: type, comptime Host: type, comptime Transport: t
                     const value = try self.host.prepare(sql);
                     self.prepared[index] = .{ .id = id, .value = value };
                     self.disclosure = .{ .prepared = id };
-                    break :blk .{ .prepared = .{ .handle = id, .parameters = value.parameters(), .fields = value.fields(), .mutation = value.mutation(), .empty = value.empty() } };
+                    break :blk .{ .prepared = .{ .handle = id, .parameters = value.parameters(), .fields = value.fields(), .mutation = value.mutation(), .empty = value.empty(), .row_command = try value.rowCommand() } };
                 },
                 .destroy => |id| blk: {
                     for (&self.prepared) |*slot| if (slot.*) |entry| if (entry.id == id) {

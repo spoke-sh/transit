@@ -36,15 +36,16 @@ fn load(init: std.process.Init, path: []const u8) !Saved {
     try value.destination.requireSame(value.request.work.queue_transfer.destination.target);
     return value;
 }
-fn createQueue(init: std.process.Init, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, role: u64, destination: ?p.StreamQueue.Partition) !p.StreamQueue.Partition {
-    const object: u64 = if (destination != null) 643010 else 643020;
-    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init(if (destination != null) "transfer_inbox" else "transfer_dead_letters"), .action = .{ .create = .{
+fn createQueue(init: std.process.Init, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, role: u64, destination: ?p.StreamQueue.Partition, automatic: bool) !p.StreamQueue.Partition {
+    const base: u64 = if (automatic) 644000 else 643000;
+    const object: u64 = base + @as(u64, if (destination != null) 10 else 20);
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init(if (automatic) (if (destination != null) "automatic_transfer_inbox" else "automatic_dead_letters") else (if (destination != null) "transfer_inbox" else "transfer_dead_letters")), .action = .{ .create = .{
         .owner = role,
         .schema = schema(object),
-        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 300000, .maximum_lease_ms = 300000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = if (destination) |target| target.interpretation else null } } },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 300000, .maximum_lease_ms = 300000, .maximum_attempts = if (automatic) 1 else 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = if (destination) |target| target.interpretation else null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
-    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = operation(client, if (destination != null) 643001 else 643002), .target = .{ .scope = client.connection.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = operation(client, base + @as(u64, if (destination != null) 1 else 2)), .target = .{ .scope = client.connection.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
     _ = try c.DirectLogClient.apply(output, client, .{ .admit = request });
     const completed = (try c.DirectLogClient.apply(output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation;
     try t.expectEqual(.complete, completed.phase);
@@ -68,8 +69,8 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     (try client.call(.initialize)).deinit();
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
-    const destination = try createQueue(init, client, &output, role, null);
-    const source = try createQueue(init, client, &output, role, destination);
+    const destination = try createQueue(init, client, &output, role, null, false);
+    const source = try createQueue(init, client, &output, role, destination, false);
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
     var buffer: [8192]u8 = undefined;
     const input = try c.storage.LogBatch.encode(schema(source.interpretation.object.object), operation(client, 643004), .queue, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &buffer);
@@ -121,4 +122,111 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         try t.expectEqual(@as(u64, if (i == 0) 1 else 0), page.rows[0].lease.original.offset);
         try t.expectEqual(@as(i64, 42), page.rows[0].value.cells[0].value.atom.signed);
     }
+}
+
+const automatic_account: [32]u8 = @splat(0x51);
+const AutomaticSaved = struct {
+    definition: p.Growth.Definition,
+    source: p.StreamQueue.Partition,
+    destination: p.StreamQueue.Partition,
+    claim: p.StreamQueue.ClaimReceipt,
+};
+pub const AutomaticObservation = struct {
+    observed: bool = false,
+    pending: bool = false,
+    committed: bool = false,
+    cleanup_complete: bool = false,
+};
+fn saveJson(init: std.process.Init, path: []const u8, value: anytype) !void {
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = try p.Json.valueAllocBounded(init.arena.allocator(), value, 64 * 1024) });
+}
+fn loadAutomatic(init: std.process.Init, path: []const u8) !AutomaticSaved {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(64 * 1024));
+    const parsed = try p.Json.parseFromSlice(AutomaticSaved, init.gpa, bytes);
+    defer parsed.deinit();
+    const saved = parsed.value;
+    if (saved.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    try saved.source.validate();
+    try saved.destination.validate();
+    try saved.claim.validate();
+    try saved.source.requireSame(saved.claim.claim.target);
+    return saved;
+}
+fn savedMutation(init: std.process.Init, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, path: []const u8, action: @FieldType(Queue.Action, "mutate")) !Queue.Result {
+    const original = try Queue.save(init.arena.allocator(), client.connection, action);
+    const request_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}-{d}.request", .{ path, action.work.identity().operation });
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = request_path, .data = original });
+    // Keep every original identity and payload even when dispatch is uncertain.
+    return Queue.apply(output, client, .{ .mutate = action });
+}
+pub fn automaticPrepare(init: std.process.Init, client: c.DirectTableClient, role: u64, path: []const u8) !void {
+    (try client.call(.initialize)).deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const destination = try createQueue(init, client, &output, role, null, true);
+    const source = try createQueue(init, client, &output, role, destination, true);
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    const input = try c.storage.LogBatch.encode(schema(source.interpretation.object.object), operation(client, 644004), .queue, &.{.{ .cells = &cells }}, &buffer);
+    _ = try savedMutation(init, client, &output, path, .{ .work = .{ .enqueue = .{ .target = source, .operation = operation(client, 644004), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(input) } }, .payload = input });
+    const claim = (try savedMutation(init, client, &output, path, .{ .work = .{ .claim = .{ .target = source, .operation = operation(client, 644005), .maximum = 1, .lease_ms = 300000 } } })).operation.?.claim;
+    const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    try t.expectEqual(@as(usize, 1), page.rows.len);
+    try t.expectEqual(@as(u64, 0), page.rows[0].lease.original.offset);
+    try saveJson(init, path, AutomaticSaved{ .definition = p.Growth.current_definition, .source = source, .destination = destination, .claim = claim });
+    _ = try savedMutation(init, client, &output, path, .{ .work = .{ .settle = .{ .operation = operation(client, 644006), .lease = page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } } });
+    try t.expect(!(try automaticObserve(init, client, path)).observed);
+}
+pub fn automaticObserve(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !AutomaticObservation {
+    _ = try loadAutomatic(init, path);
+    const page = try c.DirectClientToken.list(client, automatic_account, null, false);
+    try t.expect(page.next == null);
+    for (page.entries[1..]) |entry| try t.expect(entry == null);
+    const progress = page.entries[0] orelse return .{};
+    try t.expect(progress.receipt.binding.intent == .transaction);
+    try t.expect(progress.receipt.binding.intent.transaction.purpose == .queue_transfer);
+    const receipt_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.receipt", .{path});
+    const original = std.Io.Dir.cwd().readFileAlloc(init.io, receipt_path, init.arena.allocator(), .limited(64 * 1024)) catch |err| switch (err) {
+        error.FileNotFound => null,
+        else => return err,
+    };
+    if (original) |bytes| {
+        const parsed = try p.Json.parseFromSlice(c.DirectClientToken.Receipt, init.gpa, bytes);
+        defer parsed.deinit();
+        try parsed.value.validate();
+        try t.expectEqualDeep(parsed.value, progress.receipt);
+    } else try saveJson(init, receipt_path, progress.receipt);
+    const tx: Tx = .{ .catalog = client };
+    const status = try tx.inspect(progress.receipt.binding.key);
+    const committed = status.observation == .decided and status.observation.decided.outcome == .committed;
+    if (status.observation == .decided) try t.expect(committed);
+    return .{ .observed = true, .pending = progress.pending, .committed = committed, .cleanup_complete = status.cleanup_complete };
+}
+pub fn automaticVerify(init: std.process.Init, client: c.DirectTableClient, path: []const u8, reopen: bool) !void {
+    const observed = try automaticObserve(init, client, path);
+    try t.expect(observed.observed and observed.committed and observed.cleanup_complete and !observed.pending);
+    const saved = try loadAutomatic(init, path);
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    try t.expectEqual(@as(u64, 1), (try Queue.apply(&output, client, .{ .observe = saved.source })).cut.next);
+    try t.expectEqual(@as(u64, 1), (try Queue.apply(&output, client, .{ .observe = saved.destination })).cut.next);
+    const source = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = saved.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    try t.expectEqual(@as(usize, 1), source.rows.len);
+    try t.expectEqual(p.QueueRead.State.archived, source.rows[0].lease.state);
+    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = saved.destination, .operation = operation(client, 644007), .maximum = 1, .lease_ms = 300000 } };
+    const receipt = if (reopen)
+        (try Queue.apply(&output, client, .{ .operation = claim })).operation.?.claim
+    else
+        (try savedMutation(init, client, &output, path, .{ .work = claim })).operation.?.claim;
+    const receipt_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.destination-claim", .{path});
+    if (reopen) {
+        const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, receipt_path, init.arena.allocator(), .limited(64 * 1024));
+        const parsed = try p.Json.parseFromSlice(p.StreamQueue.ClaimReceipt, init.gpa, bytes);
+        defer parsed.deinit();
+        try t.expectEqualDeep(parsed.value, receipt);
+    } else try saveJson(init, receipt_path, receipt);
+    const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = receipt, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    try t.expectEqual(@as(usize, 1), page.rows.len);
+    try t.expectEqual(@as(u64, 0), page.rows[0].lease.original.offset);
+    try t.expectEqual(@as(i64, 42), page.rows[0].value.cells[0].value.atom.signed);
 }

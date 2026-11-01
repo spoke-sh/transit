@@ -72,7 +72,10 @@ pub fn receive(self: *Self, chunk: Chunk) !void {
     try chunk.values.validate(self.schema.structure);
     var state = self.progress;
     if (chunk.values.len != 0) try state.receive(state.identity, chunk.values.len);
-    if (chunk.completion) |terminal| try state.finish(state.identity, terminal);
+    if (chunk.completion) |terminal| {
+        try terminal.validate(self.observation);
+        try state.finish(state.identity, terminal);
+    }
     self.progress = state;
     self.chunk = chunk.values;
     self.index = 0;

@@ -160,6 +160,8 @@ options: Options,
 transaction_read: ?c.DirectTransactionRead.Context = null,
 /// Borrowed only during the enclosing trusted host dispatch.
 log_environment: ?*const c.DirectTransactionLog.Environment = null,
+/// Borrowed only during the protected owner call, never cached authority.
+queue_transfer_owner: ?struct { key: [32]u8, plan: c.DirectRecord.Reference } = null,
 /// Failure injection after the Table acceptance and before its caller reply.
 lose_table_reply: bool = false,
 /// Failure injection after the original coordination acceptance.
@@ -1314,6 +1316,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
+    if (format == c.DirectQueueTransferPlan.format) return error.TransactionOperationRequired;
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
@@ -1344,6 +1347,13 @@ fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectInt
             defer intent.deinit();
             const request = try intent.parsed.value.work.request(allocator);
             break :blk try self.logGuard(allocator, request, policy, true, true);
+        },
+        .workload => |value| blk: {
+            var intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, value);
+            defer intent.deinit();
+            const work = intent.parsed.value.work;
+            const authorized = try self.logAuthorization(allocator, if (work == .stream) .stream else .queue, work.target(), work.access(), policy);
+            break :blk authorized.guard;
         },
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
         .name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
@@ -1378,6 +1388,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const database = try self.guard(arena.allocator(), policy, null, null, .database);
     try check(database);
     if (try self.store.clientToken(key)) |receipt| {
+        if (request == .bind) try self.requireTransactionMutation(receipt);
         const reference = receipt.binding.intent;
         const current = try self.intentGuard(arena.allocator(), reference, policy);
         try check(current);
@@ -1391,6 +1402,10 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     }
     const binding = request.bind;
     const reference = binding.intent;
+    if (reference == .transaction and reference.transaction.purpose == .queue_transfer) {
+        const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
+        if (!std.mem.eql(u8, &owner_value.key, &try key.digest()) or !std.meta.eql(owner_value.plan, reference.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
+    }
     const current = if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
@@ -1411,13 +1426,20 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             try c.OperationBinding.claimBranchInTree(self.allocator, &self.store.index, value);
         },
         .transaction => |value| {
-            if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
-                return error.TransactionCatalogChanged;
+            if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn > self.store.root.next_lsn) return error.TransactionCatalogChanged;
+            if (value.begin.catalog.next_lsn != self.store.root.next_lsn) {
+                // Only the protected owner can finish its already persisted
+                // reservation. Ordinary callers still require the current cut.
+                if (value.purpose != .queue_transfer or self.queue_transfer_owner == null) return error.TransactionCatalogChanged;
+                const saved = try c.OperationBinding.lookupTransaction(self.allocator, self.store.objects, value.identity()) orelse return error.TransactionCatalogChanged;
+                if (!std.meta.eql(saved.reference, value) or !std.mem.eql(u8, &saved.token, &try key.digest())) return error.TransactionIdentityConflict;
+            }
             try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options, server_selection);
             try check(current);
             try c.OperationBinding.claimTransactionInTree(self.allocator, &self.store.index, value, try key.digest());
         },
         .transaction_call => |value| {
+            if (try self.store.clientToken(value.key())) |transaction| try self.requireTransactionMutation(transaction);
             if (value.work == .statement) {
                 const request_value = value.work.statement.request;
                 var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request_value.intent);
@@ -1451,6 +1473,15 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             try check(current);
             try c.OperationBinding.claimInTree(self.allocator, &self.store.index, value.binding);
         },
+        .workload => |value| {
+            // The frozen body was verified by intentGuard. Native mutation and
+            // cancellation routes consult this same global identity owner.
+            try check(current);
+            switch (value.binding) {
+                .stream => |original_binding| try c.OperationBinding.claimStream(self.allocator, self.data_objects, original_binding),
+                .queue => |original_binding| try c.OperationBinding.claimQueue(self.allocator, self.data_objects, original_binding),
+            }
+        },
         .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),
     }
     var next = self.store.root;
@@ -1467,6 +1498,12 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
 /// Paged recovery metadata never substitutes for the operation owner's result.
 /// CAS updates and immutable payloads preserve exact retries across lost replies.
 pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy) !c.DirectClientToken.ProgressResult {
+    return self.clientProgressWithWorkloads(request, policy, null);
+}
+/// Workload completion uses the host's normal partition owner and its bounded
+/// recovery gates. Caller records, pending flags and missing receipts cannot
+/// establish a terminal operation outcome.
+pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) !c.DirectClientToken.ProgressResult {
     try self.requireInitialized();
     try request.validate();
     const scope = request.scope();
@@ -1503,7 +1540,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
-    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy);
+    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
     if (value.record) |reference| {
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
@@ -1523,7 +1560,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     try check(current);
     return .{ .state = state };
 }
-fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
+fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) anyerror!void {
     switch (reference) {
         .branch => return error.BranchOperationRequired,
         .transaction => return error.ClientOperationPending,
@@ -1545,6 +1582,10 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
         .log => |value| switch (try self.logOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
             .operation => |operation| if (operation.pending()) return error.ClientOperationPending,
+        },
+        .workload => |value| {
+            const reader = workloads orelse return error.WorkloadServiceUnavailable;
+            try reader.requireTerminal(self.allocator, self, policy, value);
         },
         .namespace_change => |value| switch (try self.namespaceOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
@@ -1623,6 +1664,7 @@ pub fn acquireTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
     if (!key.connection.matches(self.config()) or key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     const state = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (state.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(state.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(state.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -1786,6 +1828,7 @@ const TransactionPolicy = struct {
 pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, policy: Policy) !c.DirectClientToken.Receipt {
     try request.validate();
     if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
+        try self.requireTransactionMutation(receipt);
         if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
         return receipt;
     }
@@ -1851,7 +1894,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
         },
     }
     const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
-    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin } } };
+    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
 }
 
@@ -1871,6 +1914,144 @@ fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target
     return true;
 }
 
+fn requireTransactionMutation(self: *Self, receipt: c.DirectClientToken.Receipt) !void {
+    if (receipt.binding.intent != .transaction or receipt.binding.intent.transaction.purpose == .interactive) return;
+    const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
+    if (!std.mem.eql(u8, &owner_value.key, &try receipt.binding.key.digest()) or
+        !std.meta.eql(owner_value.plan, receipt.binding.intent.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
+}
+
+/// Admit one original exhausted-item transfer as a protected standard
+/// transaction. The host holds exclusive database publication access, including
+/// physical collection, throughout payload staging and catalog acceptance.
+pub fn admitQueueTransfer(self: *Self, plan: c.DirectQueueTransferPlan, original_policy: Policy) !c.DirectClientToken.Receipt {
+    try plan.validate();
+    try c.DirectTransaction.requireLimits(plan.limits, self.options.transaction_limits);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(plan.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.admitQueueTransferBounded(plan, original_policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn admitQueueTransferBounded(self: *Self, plan: c.DirectQueueTransferPlan, original_policy: Policy) !c.DirectClientToken.Receipt {
+    try self.requireInitialized();
+    if (self.queue_transfer_owner != null) return error.TransactionOperationRequired;
+    if (!plan.key.connection.matches(self.config()) or plan.key.connection.principal != original_policy.subject.principal()) return error.CatalogDenied;
+    var checked: TransactionPolicy = .{ .original = original_policy };
+    const policy = checked.policy();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    try check(try self.guard(scratch.allocator(), policy, null, null, .database));
+    if (try self.store.queueTransferSource(try plan.sourceKey())) |bound| {
+        const accepted = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, bound.receipt);
+        try plan.key.requireSame(accepted.key);
+        if (!std.meta.eql(plan, accepted)) return error.ClientTokenConflict;
+        return (try self.clientToken(.{ .lookup = plan.key }, policy)).?;
+    }
+    if (try self.store.clientToken(plan.key) != null) return error.ClientTokenConflict;
+    const reserved = try c.OperationBinding.lookupTransaction(self.allocator, self.store.objects, plan.operation);
+    if (reserved) |saved| {
+        if (saved.reference.purpose != .queue_transfer or !std.mem.eql(u8, &saved.token, &try plan.key.digest())) return error.TransactionIdentityConflict;
+        const frozen = try c.DirectQueueTransferPlan.load(self.allocator, self.data_objects, saved.reference.purpose.queue_transfer);
+        if (!std.meta.eql(frozen, plan)) return error.ClientTokenConflict;
+    }
+    const source = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.target(), .administer, policy);
+    const source_read = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.target(), .read, policy);
+    const destination = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.destination.target, .append, policy);
+    const destination_read = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.destination.target, .read, policy);
+    try check(source.guard);
+    try check(source_read.guard);
+    try check(destination.guard);
+    try check(destination_read.guard);
+    const work: TransactionLogWork.Work = .{ .queue_transfer = plan.transfer };
+    // Exact source reconstruction proves the blocked tuple, recorded destination
+    // and payload. A client-provided hash cannot reserve an unverified source.
+    const bytes = try self.allocator.alloc(u8, @intCast(plan.transfer.destination.payload.bytes));
+    defer self.allocator.free(bytes);
+    const payload_length = materialize: {
+        var view = try self.transactionLogView(source.definition, plan.transfer.target().partition, source_read.guard);
+        defer view.deinit();
+        const materialized = try view.owner.queue.deadLetterWork(source.definition.stored, .{
+            .source = plan.transfer.source.exhausted,
+            .destination = plan.transfer.destination.target.interpretation,
+        }, plan.transfer.operation, plan.transfer.destination.target, plan.transfer.destination.operation, bytes, source_read.guard);
+        if (!std.meta.eql(materialized.request, plan.transfer)) return error.InvalidTransactionTransfer;
+        break :materialize materialized.payload.len;
+    };
+    {
+        var target = try self.transactionLogView(destination.definition, plan.transfer.destination.target.partition, destination_read.guard);
+        defer target.deinit();
+        try target.validatePayload(work, bytes[0..payload_length]);
+    }
+    try TransactionLogWork.stagePayload(self.data_objects, work, bytes[0..payload_length]);
+    const reference = try plan.store(self.data_objects);
+    self.queue_transfer_owner = .{ .key = try plan.key.digest(), .plan = reference };
+    defer self.queue_transfer_owner = null;
+    var targets: [2]p.Transaction.Target = undefined;
+    const receipt = if (reserved) |saved|
+        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true)).?
+    else
+        try self.beginTransaction(try plan.begin(&targets), policy);
+    try plan.requireReceipt(receipt);
+    return receipt;
+}
+
+/// Recover the original statement and settlement in finite transaction units.
+/// No fresh operation, destination, lease, handler or decision is selected here.
+pub fn advanceQueueTransfer(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256 or self.queue_transfer_owner != null) return error.InvalidTransactionWork;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, progress.receipt);
+    self.queue_transfer_owner = .{ .key = try key.digest(), .plan = progress.receipt.binding.intent.transaction.purpose.queue_transfer };
+    defer self.queue_transfer_owner = null;
+    const observed = try self.inspectTransaction(key, policy);
+    if (observed.attempt) |attempt| {
+        if (!std.meta.eql(attempt.operation, plan.settlement)) return error.TransactionIdentityConflict;
+        return self.settleTransaction(key, plan.settlement, .commit, steps, policy);
+    }
+    if (progress.record == null) {
+        _ = try self.acquireTransaction(key, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    try plan.requireWorkspace(head);
+    const work: TransactionLogWork.Work = .{ .queue_transfer = plan.transfer };
+    if (head.pending) |saved| {
+        if (saved != .log or !std.meta.eql(saved.log.work, work) or saved.log.statement.sequence != 1) return error.InvalidTransactionWorkspace;
+        _ = try self.executeTransactionLog(key, saved.log, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    if (head.last_statement == 0) {
+        const payload = (try TransactionLogWork.loadPayload(self.allocator, self.data_objects, work)).?;
+        defer self.allocator.free(payload);
+        const request = try self.stageTransactionLog(key, head.revision, 1, work, payload, policy);
+        // The shared workspace publishes this exact request before evaluation.
+        _ = try self.admitTransactionLog(key, request, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const completed = try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, 1, key.scope(), TransactionWorkspace.statement_format) orelse return error.InvalidTransactionWorkspace;
+    try completed.validate();
+    if (completed != .log or !std.meta.eql(completed.log.request.work, work)) return error.InvalidTransactionWorkspace;
+    return self.settleTransaction(key, plan.settlement, if (completed.log.outcome == .provisional) .commit else .abort, steps, policy);
+}
+
+/// An explicit abort uses the frozen settlement identity. If a common commit
+/// already won, this request can only finish that decision's cleanup.
+pub fn abortQueueTransfer(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256 or self.queue_transfer_owner != null) return error.InvalidTransactionWork;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, progress.receipt);
+    self.queue_transfer_owner = .{ .key = try key.digest(), .plan = progress.receipt.binding.intent.transaction.purpose.queue_transfer };
+    defer self.queue_transfer_owner = null;
+    return self.settleTransaction(key, plan.settlement, .abort, steps, policy);
+}
+
 const TransactionWorkspace = c.DirectTransactionWorkspace;
 const TransactionStateWork = union(enum) { table: c.DirectTableIntent.Work, kv: c.DirectKV.Mutation };
 
@@ -1887,6 +2068,7 @@ pub fn stageTransactionKV(self: *Self, key: c.DirectClientToken.Key, basis: d.Po
 fn stageTransactionStateWork(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: TransactionStateWork, policy: Policy) !TransactionWorkspace.Request {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
     if (head.acquired.cut.begin.mode == .read_only) return error.ReadOnlyTransaction;
     if ((work == .table and work.table == .ddl) or sequence == 0 or sequence > head.acquired.cut.begin.limits.statements) return error.InvalidTransactionWork;
@@ -1962,6 +2144,7 @@ pub fn executeTransactionStatement(self: *Self, key: c.DirectClientToken.Key, re
 fn transactionStatementWork(self: *Self, key: c.DirectClientToken.Key, request: TransactionWorkspace.Request, policy: Policy, evaluate: bool) !?s.TableWorkspace.Outcome {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -2115,7 +2298,7 @@ fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void 
     if (work == .stream_offset) {
         const environment = self.log_environment orelse return error.InvalidStreamReadAuthority;
         const authority = environment.authority orelse return error.InvalidStreamReadAuthority;
-        try authority.verify(work.stream_offset.cursor);
+        try authority.verifyProgress(work.stream_offset.progress);
     }
 }
 
@@ -2124,6 +2307,7 @@ fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void 
 pub fn stageTransactionLog(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: TransactionLogWork.Work, payload: ?[]const u8, policy: Policy) !TransactionLogWork.Request {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     self.allocator = memory.allocator();
@@ -2189,6 +2373,7 @@ fn transactionLogStatement(self: *Self, key: c.DirectClientToken.Key, request: T
     try request.validate();
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     self.allocator = memory.allocator();
@@ -2285,7 +2470,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         defer actions.deinit();
         if (previous) |value| try actions.restore(value);
         const action_entry = request.work.entry(request.statement);
-        if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
+        if (action_entry.offset_progress) |issued| try actions.putOffset(action_entry.work, issued) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
         break :sealed try actions.seal();
     };
     var destination: ?TransactionTransferAdvance = null;
@@ -2600,6 +2785,7 @@ pub fn transactionSavepoint(self: *Self, key: c.DirectClientToken.Key, request: 
     if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -2799,6 +2985,7 @@ pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
 pub fn settleTransaction(self: *Self, key: c.DirectClientToken.Key, operation: d.Operation, command: TransactionControl.Command, steps: u16, policy: Policy) !TransactionControl.Status {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     if (steps == 0) return error.InvalidTransactionWork;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;

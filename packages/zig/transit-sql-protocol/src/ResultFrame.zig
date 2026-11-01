@@ -8,6 +8,7 @@ pub const content_type = "application/vnd.transit.sql-result";
 pub const alignment = 64;
 pub const header_bytes = 192;
 pub const max_description_bytes = 64 * 1024;
+pub const max_completion_bytes = 16 * 1024;
 pub const max_columns = (r.Types.Limits{}).nodes;
 pub const Description = struct { schema: []const u8, observation: r.Observation.Value };
 instance: api.Instance,
@@ -34,13 +35,16 @@ fn shape(self: Self) !void {
         (self.rows == 0 and (self.completion == null or self.columns.len != 0)) or
         (self.rows != 0 and self.columns.len == 0) or
         ((self.ordinal == 0) != (self.description != null))) return error.InvalidResultFrame;
-    if (self.completion) |completion| if (completion.rows < self.rows) return error.InvalidResultFrame;
+    if (self.completion) |completion| {
+        try completion.validateShape();
+        if (completion.rows < self.rows) return error.InvalidResultFrame;
+    }
     if (self.description) |description| {
         if (description.schema.len == 0 or description.schema.len > r.Types.max_encoding_bytes) return error.InvalidResultFrame;
     }
 }
 
-const Layout = struct { schema: []const u8, metadata_size: usize, directory: usize, size: usize };
+const Layout = struct { schema: []const u8, metadata_size: usize, completion_size: usize, directory: usize, size: usize };
 fn layout(self: Self) !Layout {
     try self.shape();
     var buffer: [256]u8 = undefined;
@@ -49,12 +53,18 @@ fn layout(self: Self) !Layout {
     if (self.description) |description| try api.Json.write(description.observation, &json);
     const metadata_size = std.math.cast(usize, counter.fullCount()) orelse return error.InvalidResultFrame;
     if (metadata_size > max_description_bytes) return error.InvalidResultFrame;
+    var completion_buffer: [256]u8 = undefined;
+    var completion_counter: std.Io.Writer.Discarding = .init(&completion_buffer);
+    var completion_json: std.json.Stringify = .{ .writer = &completion_counter.writer };
+    if (self.completion) |completion| if (completion.workload) |workload| try api.Json.write(workload, &completion_json);
+    const completion_size = std.math.cast(usize, completion_counter.fullCount()) orelse return error.InvalidResultFrame;
+    if (completion_size > max_completion_bytes) return error.InvalidResultFrame;
     const schema_bytes = if (self.description) |description| description.schema else &.{};
-    const directory = header_bytes + schema_bytes.len + metadata_size;
+    const directory = header_bytes + schema_bytes.len + metadata_size + completion_size;
     var size = try rounded(directory + self.columns.len * 8);
     for (self.columns) |column| size = try rounded(try std.math.add(usize, size, column.len));
     if (size > api.max_message_bytes) return error.SqlMessageTooLarge;
-    return .{ .schema = schema_bytes, .metadata_size = metadata_size, .directory = directory, .size = size };
+    return .{ .schema = schema_bytes, .metadata_size = metadata_size, .completion_size = completion_size, .directory = directory, .size = size };
 }
 pub fn encodedSize(self: Self) !usize {
     return (try self.layout()).size;
@@ -91,13 +101,20 @@ fn writeInto(destination: []align(alignment) u8, self: Self, plan: Layout) ![]al
     put(output, u32, 172, @intCast(schema_bytes.len));
     put(output, u32, 176, @intCast(plan.metadata_size));
     put(output, u32, 180, @intCast(self.columns.len));
+    put(output, u32, 184, @intCast(plan.completion_size));
     @memcpy(output[header_bytes..][0..schema_bytes.len], schema_bytes);
     if (self.description) |description| {
-        var writer: std.Io.Writer = .fixed(output[header_bytes + schema_bytes.len .. directory]);
+        var writer: std.Io.Writer = .fixed(output[header_bytes + schema_bytes.len ..][0..plan.metadata_size]);
         var json: std.json.Stringify = .{ .writer = &writer };
         try api.Json.write(description.observation, &json);
         std.debug.assert(writer.buffered().len == plan.metadata_size);
     }
+    if (self.completion) |completion| if (completion.workload) |workload| {
+        var writer: std.Io.Writer = .fixed(output[directory - plan.completion_size .. directory]);
+        var json: std.json.Stringify = .{ .writer = &writer };
+        try api.Json.write(workload, &json);
+        std.debug.assert(writer.buffered().len == plan.completion_size);
+    };
     var offset = try rounded(directory + self.columns.len * 8);
     @memset(output[directory + self.columns.len * 8 .. offset], 0);
     for (self.columns, 0..) |column, i| {
@@ -112,7 +129,7 @@ fn writeInto(destination: []align(alignment) u8, self: Self, plan: Layout) ![]al
 }
 
 /// Input remains owned by the caller and must outlive the frame. This parser
-/// allocates only the column directory and initial observation metadata. Column
+/// allocates only the column directory and observation/completion metadata. Column
 /// admission/type validation belongs to the shared physical codec and reader.
 pub fn parseBorrowed(arena: std.mem.Allocator, bytes: []align(alignment) const u8) !Self {
     const count = try columnCount(bytes);
@@ -127,18 +144,20 @@ fn columnCount(bytes: []align(alignment) const u8) !usize {
     return count;
 }
 /// Columns borrow caller-owned directory and immutable frame bytes. Only the
-/// initial observation uses metadata storage; it must outlive the frame view.
+/// observation and completion use metadata storage; it must outlive the frame view.
 pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const u8, bytes: []align(alignment) const u8) !Self {
     const count = try columnCount(bytes);
-    if (!std.mem.allEqual(u8, bytes[184..header_bytes], 0)) return error.InvalidResultFrame;
+    if (!std.mem.allEqual(u8, bytes[188..header_bytes], 0)) return error.InvalidResultFrame;
     const flags = get(bytes, u32, 96);
     const terminal = get(bytes, u64, 100);
     if (flags > 1 or (flags == 0 and terminal != 0)) return error.InvalidResultFrame;
     const schema_size: usize = get(bytes, u32, 172);
     const metadata_size: usize = get(bytes, u32, 176);
-    if (schema_size > r.Types.max_encoding_bytes or metadata_size > max_description_bytes or count > max_columns or
+    const completion_size: usize = get(bytes, u32, 184);
+    if (schema_size > r.Types.max_encoding_bytes or metadata_size > max_description_bytes or completion_size > max_completion_bytes or count > max_columns or
+        (flags == 0 and completion_size != 0) or
         ((schema_size == 0) != (metadata_size == 0))) return error.InvalidResultFrame;
-    const directory = header_bytes + schema_size + metadata_size;
+    const directory = header_bytes + schema_size + metadata_size + completion_size;
     const start = try rounded(directory + count * 8);
     if (start > bytes.len or !std.mem.allEqual(u8, bytes[directory + count * 8 .. start], 0)) return error.InvalidResultFrame;
     if (directory_storage.len < count) return error.ResultDirectoryTooSmall;
@@ -156,7 +175,7 @@ pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const
     }
     if (offset != bytes.len) return error.InvalidResultFrame;
     const description: ?Description = if (schema_size == 0) null else blk: {
-        const metadata = bytes[header_bytes + schema_size .. directory];
+        const metadata = bytes[header_bytes + schema_size ..][0..metadata_size];
         try api.fuze.Types.Json.preflight(metadata, .{ .bytes = max_description_bytes, .depth = 16, .tokens = 16384, .fields = 256 });
         const tree = try std.json.parseFromSlice(std.json.Value, metadata_arena, metadata, .{});
         defer tree.deinit();
@@ -164,6 +183,16 @@ pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const
         const observation = try std.json.parseFromSliceLeaky(r.Observation.Value, metadata_arena, metadata, .{ .allocate = .alloc_always });
         try r.Observation.validate(observation);
         break :blk .{ .schema = bytes[header_bytes..][0..schema_size], .observation = observation };
+    };
+    const workload: ?r.Workload.Completion = if (completion_size == 0) null else blk: {
+        const metadata = bytes[directory - completion_size .. directory];
+        try api.fuze.Types.Json.preflight(metadata, .{ .bytes = max_completion_bytes, .depth = 16, .tokens = 16384, .fields = 256 });
+        const tree = try std.json.parseFromSlice(std.json.Value, metadata_arena, metadata, .{});
+        defer tree.deinit();
+        try api.Json.validateShape(r.Workload.Completion, tree.value);
+        const value = try std.json.parseFromSliceLeaky(r.Workload.Completion, metadata_arena, metadata, .{ .allocate = .alloc_always });
+        try value.validateShape();
+        break :blk value;
     };
     const frame: Self = .{
         .instance = bytes[36..52].*,
@@ -174,7 +203,7 @@ pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const
         .observation = bytes[140..172].*,
         .description = description,
         .columns = columns,
-        .completion = if (flags == 1) .{ .rows = terminal } else null,
+        .completion = if (flags == 1) .{ .rows = terminal, .workload = workload } else null,
     };
     try frame.shape();
     return frame;

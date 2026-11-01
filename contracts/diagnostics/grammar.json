@@ -62,6 +62,26 @@
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure named Stream/Queue SHOW/DESCRIBE syntax used by the SQL service. No definition lookup or disclosure."
     },
+    "log_append": {
+      "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Standalone typed Stream/Queue append preparation and literal metadata binding; no upload, routing, admission or execution."
+    },
+    "log_consume": {
+      "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Pure typed projection/predicate/group/wait preparation. No native source capture, group identity, admission, waiting or offset completion."
+    },
+    "log_claim": {
+      "source": "packages/zig/transit-fuze/src/LogClaimSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Pure Queue acquisition predicate/projection and lease/maximum preparation, including receipt output layout. No native acquisition or settlement."
+    },
+    "log_settlement": {
+      "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
+      "contract": "contracts/QUEUE_V1.md",
+      "behavior": "Pure receipt and lease-extension preparation; no current authority or native settlement."
+    },
     "managed": {
       "source": "packages/zig/transit-sql/src/ManagedSql.zig",
       "contract": "contracts/DATAFLOW_V1.md",
@@ -6324,6 +6344,1145 @@
       "profile": "relational",
       "grammar": "sql",
       "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-0",
+      "sql": "PRODUCE INTO items DEFAULT VALUES",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES RETURNING *;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-2",
+      "sql": "PRODUCE INTO items VALUES (1, 'one', TRUE)",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-3",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 3 RETURNING _partition, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-4",
+      "sql": "ENQUEUE INTO items (value, id) VALUES ('one', 1), ('two', 2) RETURNING value AS body, id",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-5",
+      "sql": "PRODUCE INTO items (id, value, extra) VALUES (1, DEFAULT, DEFAULT), (2, NULL, FALSE), (3, 'three', TRUE) RETURNING items.id AS first_id, items.id AS again_id, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-6",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 2",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-7",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PARTITION 0 PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 2 SEQUENCE 3 WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z') RETURNING *",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-8",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '2000-01-01T00:00:00.123Z') RETURNING id, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-9",
+      "sql": "produce into \"items\" (\"id\", \"value\") values (9, '\u00e9\u6771\u4eac') returning \"items\".\"value\" as \"Body\";",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-10",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 4294967296",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_partitioning",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-11",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_append_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-12",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00000000-0000-0000-0000-000000000000' EPOCH 1 SEQUENCE 1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-13",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 0 SEQUENCE 1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-14",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 0",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-15",
+      "sql": "PRODUCE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_log_append_option",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "log-append-16",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:00.000001Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_visibility_time",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-17",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1969-12-31T23:59:59Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_visibility_time",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-18",
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING absent",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-19",
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING id, id",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_output_names",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-20",
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.parameter_type_conflict",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-21",
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $3",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.parameter_gap",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-27",
+      "sql": "PRODUCE INTO items (_offset) VALUES (1) RETURNING items._offset AS app_offset, _offset AS native_offset",
+      "basis": "CREATE TABLE items (_offset BIGINT)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-parameters-0",
+      "sql": "PRODUCE INTO items (id, value) VALUES ($1, $2) PARTITION $3 PRODUCER ID $4 EPOCH $5 SEQUENCE $6 RETURNING id;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-parameters-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES WITH (visible_at = $1)",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-contextual-keywords",
+      "sql": "CREATE TABLE named (produce BIGINT, enqueue BIGINT, producer BIGINT, id BIGINT, epoch BIGINT, sequence BIGINT, visible_at BIGINT, returning BIGINT)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-statement-0",
+      "sql": "PRODUCE INTO items DEFAULT VALUES",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-statement-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES RETURNING *;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-0",
+      "sql": "CONSUME * FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-1",
+      "sql": "CONSUME id FROM items;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-2",
+      "sql": "CONSUME _offset, id AS event_id FROM items WHERE body = 'a'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-3",
+      "sql": "CONSUME * FROM items WHERE _offset >= 102 LIMIT 1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-4",
+      "sql": "CONSUME i.id FROM items AS i GROUP 'billing' WHERE _partition = 0 AND i.id >= 1 LIMIT 10 WAIT '250ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-5",
+      "sql": "CONSUME id FROM items WHERE (id >= 0 AND id < 3) OR body IS NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-6",
+      "sql": "CONSUME body FROM items WHERE NOT (body = 'A')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-7",
+      "sql": "CONSUME id FROM items WHERE id = -1 OR id = 0 OR body IS NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-8",
+      "sql": "CONSUME id FROM items WHERE id >= 0 AND id <= 3 AND body IS NOT NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-9",
+      "sql": "CONSUME _partition, _offset, body FROM items GROUP 'billing' LIMIT 0 WAIT '1m'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-10",
+      "sql": "CONSUME id AS first, id AS second FROM items WAIT '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-11",
+      "sql": "CONSUME id FROM items WHERE body IS NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-12",
+      "sql": "CONSUME id FROM items GROUP NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_consume_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-13",
+      "sql": "CONSUME id FROM items WAIT NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_consume_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-14",
+      "sql": "CONSUME id FROM items GROUP ''",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_group_name",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-15",
+      "sql": "CONSUME id FROM items WAIT '0ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_wait",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-16",
+      "sql": "CONSUME id FROM items WAIT '1.5s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_wait",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-17",
+      "sql": "CONSUME id FROM items WAIT '4294967296ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_wait",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-18",
+      "sql": "CONSUME _timestamp FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-19",
+      "sql": "CONSUME other.id FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_qualifier",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-20",
+      "sql": "CONSUME id, id FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_projection",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-21",
+      "sql": "CONSUME COUNT(*) FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_aggregate",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "log-consume-22",
+      "sql": "CONSUME id FROM items WHERE id = 1 GROUP 'late'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_construct",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "log-consume-23",
+      "sql": "CONSUME id FROM items; CONSUME id FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_construct",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "log-consume-parameters-0",
+      "sql": "CONSUME id FROM items GROUP $1 WHERE id = $2 LIMIT $3 WAIT $4",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-parameters-1",
+      "sql": "CONSUME id FROM items GROUP $1 WHERE body IS NOT NULL AND (id > $2 OR id = $3) AND NOT id = $4 WAIT $5",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "logConsumeStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-consume-contextual-keywords",
+      "sql": "SELECT consume, wait FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-consume-session-root",
+      "sql": "CONSUME * FROM items",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_consume",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-0",
+      "sql": "CLAIM * FROM items WITH LEASE '30s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-1",
+      "sql": "CLAIM id FROM items LIMIT 2 WITH LEASE '1s' WAIT '250ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-2",
+      "sql": "CLAIM _offset, id AS task_id, _attempt, _lease_epoch FROM items WHERE body = 'a' AND _partition = 0 LIMIT 1 WITH LEASE '2s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-3",
+      "sql": "CLAIM body FROM items WHERE id >= 1 AND (body IS NULL OR body = 'b') WITH LEASE '1m'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-4",
+      "sql": "CLAIM * FROM items WHERE body IS NULL LIMIT 4 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-5",
+      "sql": "CLAIM id FROM items WHERE NOT (_offset >= 102 OR id < 0) WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-6",
+      "sql": "CLAIM _partition FROM items LIMIT 4294967295 WITH LEASE '4294967296ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-7",
+      "sql": "CLAIM x.id AS first, x.id AS second FROM items AS x WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-8",
+      "sql": "CLAIM id FROM items LIMIT 0 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_maximum",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-9",
+      "sql": "CLAIM id FROM items LIMIT 4294967296 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_maximum",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-10",
+      "sql": "CLAIM id FROM items WITH LEASE NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-11",
+      "sql": "CLAIM id FROM items WITH LEASE '0ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_lease_duration",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-12",
+      "sql": "CLAIM id FROM items WITH LEASE '1.5s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_lease_duration",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-13",
+      "sql": "CLAIM id FROM items WITH LEASE '1s' WAIT '0ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_wait",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-14",
+      "sql": "CLAIM id FROM items WHERE _attempt > 0 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-15",
+      "sql": "CLAIM id FROM items WHERE _lease_epoch = 1 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-16",
+      "sql": "CLAIM _receipt_handle FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-17",
+      "sql": "CLAIM wrong.id FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_qualifier",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-18",
+      "sql": "CLAIM id, id FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_projection",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-19",
+      "sql": "CLAIM id FROM items LIMIT -1 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_sql_syntax",
+        "category": "syntax"
+      }
+    },
+    {
+      "id": "log-claim-parameter",
+      "sql": "CLAIM id FROM items WHERE body = $1 LIMIT $2 WITH LEASE $3 WAIT $4;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-contextual",
+      "sql": "CLAIM lease FROM claim WITH LEASE '1s'",
+      "basis": "CREATE TABLE claim (lease BIGINT)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-session-root",
+      "sql": "CLAIM id FROM items WHERE _partition = $1 LIMIT $2 WITH LEASE $3",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-receipt-predicate",
+      "sql": "CLAIM id FROM items WHERE _receipt_handle IS NOT NULL WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ack-statement",
+      "sql": "ACK ON QUEUE jobs RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ack-root",
+      "sql": "ACK ON QUEUE jobs RECEIPT X'00';",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_queue_lease_handle",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ack-null",
+      "sql": "ACK ON QUEUE jobs RECEIPT NULL",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "extend-statement",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY '1s'",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "extend-root",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY $2;",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "extend-null",
+      "sql": "EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY NULL",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "settlement-identifier-ack",
+      "sql": "ACK ON QUEUE ack RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settlement-identifier-extend",
+      "sql": "ACK ON QUEUE extend RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "settlement-identifier-receipt",
+      "sql": "ACK ON QUEUE receipt RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "logSettlementStatement",
       "reference": true,
       "expected": {
         "accepted": true

@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1"
+definition = "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -247,6 +247,16 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_wait_input)).digest())}
     queue_wait_request = {**queue_wait_input, "proof": {"claim": queue_wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_wait_claim)).digest())}}
     queue_wait_fixture = {"request": queue_wait_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+        cancel_input = {**request_input, "action": {workload_kind: {"cancel": workload}}}
+        cancel_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(cancel_input)).digest())}
+        fixture_value["cancel_request"] = {**cancel_input, "proof": {"claim": cancel_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(cancel_claim)).digest())}}
+        request_kind = next(iter(workload))
+        fixture_value["closed"] = {
+            "binding": {workload_kind: {"definition": definition, "operation": workload[request_kind]["operation"],
+                         "target": workload[request_kind]["target"], "kind": request_kind, "intent": fixture_value["intent_digest"]}},
+            "recorded": {"partition": 91, "next_lsn": 11}, "reason": {"cancelled": {}},
+        }
     queue_release_work = {"release": {
         "operation": {**log_binding["identity"], "operation": 2**64-2},
         "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
@@ -316,6 +326,35 @@ for field in ("binding", "changes"):
     del invalid["action"]["kv"]["mutate"][field]
     assert not validator.is_valid(invalid), field
 validator.validate(stream_request)
+validator.validate(stream_fixture["cancel_request"])
+validator.validate(queue_fixture["cancel_request"])
+
+# The response reflector shares the closure definition between both native
+# unions. Check its independent evidence, mandatory fields and exact definition.
+def closure_shapes(node):
+    if isinstance(node, dict):
+        if set(node.get("properties", {})) == {"binding", "recorded", "reason"}:
+            yield node
+        for child in node.values():
+            yield from closure_shapes(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from closure_shapes(child)
+
+closure_schemas = list(closure_shapes(schema))
+assert len(closure_schemas) == 1
+for closure_schema in closure_schemas:
+    closure_validator = jsonschema.Draft202012Validator({**closure_schema, "$defs": schema["$defs"]})
+    for workload_kind, fixture_value in (("stream", stream_fixture), ("queue", queue_fixture)):
+        closed = fixture_value["closed"]
+        closure_validator.validate(closed)
+        for field in ("binding", "recorded", "reason"):
+            invalid = copy.deepcopy(closed)
+            del invalid[field]
+            assert not closure_validator.is_valid(invalid), field
+        invalid = copy.deepcopy(closed)
+        invalid["binding"][workload_kind]["definition"] = "0" * 64
+        assert not closure_validator.is_valid(invalid)
 validator.validate(queue_request)
 validator.validate(queue_wait_request)
 for field in ("claim", "milliseconds"):
@@ -500,6 +539,82 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.js
         (json.dumps({"request": log_token_request, "public_key": public_key, "bytes": {"base64": base64.b64encode(saved_log_bytes).decode()},
                      "digest": list(log_reference_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 
+# Independent workload reference/signature vectors. These descriptors exercise
+# commitment and envelope validation, not stored-body existence or admission;
+# disk owner tests stage and reconstruct actual schema-bound workload bytes.
+saved_workload_shape = schema
+for segment in schema["$defs"]["SavedWorkloadIntent"]["$ref"].split("/")[1:]:
+    saved_workload_shape = saved_workload_shape[segment]
+assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work", "projection"}
+workload_vectors = []
+workload_result_vectors = []
+for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+    policy = ({"compact_key_column": None, "timestamp_column": None} if workload_kind == "stream" else
+              {"ordering": "unordered", "key_column": None, "lease_ms": 1000, "maximum_lease_ms": 10000,
+               "maximum_attempts": 5, "backoff": {"initial_ms": 1, "maximum_ms": 100, "multiplier": 2}, "dead_letter": None})
+    declared = {"definition": definition, "interpretation": source_definition,
+                "schema": {"bytes": 128, "sha256": [29] * 32},
+                "configuration": {"partitioning": {"count": 2, "key_column": None, "hash": "sha256_64"},
+                                  "retention": {"max_age_ms": None}, "policy": {workload_kind: policy}},
+                "limits": {"append_rows": 128, "append_bytes": 1048576, "claim_rows": 16, "read_rows": 256,
+                           "read_bytes": 1048576, "active_leases": 64, "waiters": 64, "timer_steps": 64}}
+    workload_reference = {"connection": request_input["connection"], "namespace": 1,
+                          "binding": fixture_value["closed"]["binding"],
+                          "source": {"declaration": declared, "content": {"bytes": 1024, "sha256": source_definition["digest"]}, "retired": False},
+                          "record": {"scope": {field: token_key[field] for field in ("definition", "connection", "account")}, "format": 0x574c4931,
+                                     "content": {"bytes": 2048, "sha256": [31] * 32}}}
+    workload_intent = {"workload": workload_reference}
+    workload_reference_digest = hashlib.sha256(b"transit.catalog.workload.binding.v1\0" + b"GIR1" + bytes.fromhex(definition) + canonical(workload_intent)).digest()
+    workload_token_input = {**request_input, "action": {"client_token": {"bind": {**token_binding, "intent": workload_intent, "budget": {**token_binding["budget"], "bytes": 2048 + 4096 + 512}}}}}
+    workload_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(workload_token_input)).digest())}
+    with tempfile.TemporaryDirectory(prefix="transit-workload-token-contract-") as directory:
+        signing_key = Key(Path(directory), "public-test-key", 9)
+        workload_request = {**workload_token_input, "proof": {"claim": workload_claim,
+            "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(workload_claim)).digest())}}
+    validator.validate(workload_request)
+    for field in ("connection", "namespace", "binding", "source", "record"):
+        invalid = copy.deepcopy(workload_request)
+        del invalid["action"]["client_token"]["bind"]["intent"]["workload"][field]
+        assert not validator.is_valid(invalid), field
+    invalid = copy.deepcopy(workload_request)
+    invalid["action"]["client_token"]["bind"]["intent"]["workload"]["binding"][workload_kind]["definition"] = "0" * 64
+    assert not validator.is_valid(invalid)
+    workload_vectors.append({"request": workload_request, "public_key": public_key, "digest": list(workload_reference_digest)})
+    result_limits = {"rows": 2, "encoded_bytes": 4096, "scanned_rows": 16}
+    if workload_kind == "stream":
+        cut = {"target": workload["consume"]["target"], "accepted": {"partition": 91, "next_lsn": 10},
+               "retained_from": 0, "next": 2}
+        receipt = {"request": workload["consume"], "cut": cut, "until": 2,
+                   "source": {"bytes": 512, "sha256": [47] * 32}, "accepted": {"partition": 91, "next_lsn": 11}}
+        selection = {"consume": receipt}
+        position = {"consume": {"read": {"owner": receipt["request"]["operation"], "source": receipt["source"]},
+                               "coverage": {"cut": cut, "from": 0, "until": 2, "through": 1, "rows": 1, "complete": False},
+                               "authentication": [48] * 32}}
+    else:
+        receipt = queue_release_work["release"]["claim"]
+        selection = {"claim": receipt}
+        position = {"claim": {"receipt": receipt, "next": 1}}
+    result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
+    for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
+                          {"page": {"reference": result_reference, "position": position, "rows": 1}}):
+        result_input = {**request_input, "action": {"workload_result": result_action}}
+        result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
+        with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:
+            signing_key = Key(Path(directory), "public-test-key", 9)
+            result_request = {**result_input, "proof": {"claim": result_claim,
+                "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(result_claim)).digest())}}
+        validator.validate(result_request)
+        action_name, action_value = next(iter(result_action.items()))
+        for field in action_value:
+            invalid = copy.deepcopy(result_request)
+            del invalid["action"]["workload_result"][action_name][field]
+            assert not validator.is_valid(invalid), field
+        workload_result_vectors.append({"request": result_request, "public_key": public_key})
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-token-v1.json",
+        (json.dumps(workload_vectors, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-result-v1.json",
+        (json.dumps(workload_result_vectors, ensure_ascii=False, indent=2) + "\n").encode())
+
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.
 transaction_begin = {
@@ -511,7 +626,7 @@ transaction_begin = {
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
 }
-transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin}
+transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
 transaction_input = {**request_input, "action": {"client_token": {"bind": transaction_binding}}}
 transaction_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(transaction_input)).digest())}
@@ -520,6 +635,9 @@ with tempfile.TemporaryDirectory(prefix="transit-transaction-contract-") as dire
     transaction_request = {**transaction_input, "proof": {"claim": transaction_claim,
         "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(transaction_claim)).digest())}}
 validator.validate(transaction_request)
+missing_purpose = copy.deepcopy(transaction_request)
+del missing_purpose["action"]["client_token"]["bind"]["intent"]["transaction"]["purpose"]
+assert not validator.is_valid(missing_purpose), 'transaction purpose is mandatory'
 for field in transaction_begin:
     invalid = copy.deepcopy(transaction_request)
     del invalid["action"]["client_token"]["bind"]["intent"]["transaction"]["begin"][field]

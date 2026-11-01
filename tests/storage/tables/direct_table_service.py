@@ -20,9 +20,9 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
+    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode == "log-baseline" else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
@@ -39,9 +39,9 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "log-token"):
+        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
-        if mode in ("resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
+        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -67,11 +67,14 @@ def run(node, caller, mode="tables", *artifacts):
 
         def stop(child):
             child.terminate()
+            forced = False
             try:
                 child.wait(timeout=15)
             except subprocess.TimeoutExpired:
+                forced = True
                 child.kill()
                 child.wait(timeout=15)
+            return dict(requested_signal="SIGTERM", forced_kill=forced, exit_code=child.returncode)
 
         fault = {"changed": False, "log_admit": False, "log_publish": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
@@ -81,6 +84,8 @@ def run(node, caller, mode="tables", *artifacts):
         kv_faults = set()
         state_transaction_faults = set()
         log_token_faults = set()
+        workload_token_faults = set()
+        workload_result_faults = set()
         log_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
@@ -92,7 +97,7 @@ def run(node, caller, mode="tables", *artifacts):
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
-        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "log-token") else None
+        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result") else None
         if transaction_attempts is not None:
             transaction_attempts.mkdir(mode=0o700)
         growth_sequence = 0
@@ -108,7 +113,7 @@ def run(node, caller, mode="tables", *artifacts):
                 envelope = json.loads(body)
                 attempt = None
                 transaction_action = envelope.get("action", {}).get("transaction") if isinstance(envelope.get("action"), dict) else None
-                if mode == "log-token" and isinstance(envelope.get("action"), dict):
+                if mode in ("log-token", "workload-token", "workload-result") and isinstance(envelope.get("action"), dict):
                     transaction_action = envelope["action"]
                 if (growth_attempts is not None and self.path == "/table/v1"
                         and isinstance(envelope["action"], dict)
@@ -211,6 +216,52 @@ def run(node, caller, mode="tables", *artifacts):
                             parsed["context"][0] ^= 1
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
+                        if mode == "workload-result" and response.status == 200:
+                            mutation = envelope["action"].get("queue", {}).get("mutate")
+                            result_request = envelope["action"].get("workload_result", {})
+                            phase = None
+                            if mutation and mutation["work"].get("claim", {}).get("operation", {}).get("operation") == 647004:
+                                if json.loads(data)["result"]["queue"].get("operation") is not None:
+                                    phase = "claim"
+                            if result_request:
+                                result_phase, value = next(iter(result_request.items()))
+                                intent = value["intent"] if result_phase == "open" else value["reference"]["intent"]
+                                if intent["binding"].get("queue", {}).get("operation", {}).get("operation") == 647004:
+                                    phase = result_phase
+                            if phase and phase not in workload_result_faults:
+                                parsed = json.loads(data)
+                                if phase == "claim":
+                                    assert parsed["result"]["queue"]["operation"]["claim"]["rows"] == 3
+                                elif phase == "open":
+                                    assert parsed["result"]["workload_result"]["opened"]["reference"]["selection"]["claim"]["rows"] == 3
+                                else:
+                                    assert len(parsed["result"]["workload_result"]["page"]["page"]["claim"]["rows"]) == 2
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                workload_result_faults.add(phase)
+                        if mode == "workload-token" and response.status == 200:
+                            proposed = envelope["action"].get("client_token", {}).get("bind", {}).get("intent", {}).get("workload")
+                            mutation = envelope["action"].get("queue", {}).get("mutate")
+                            settlement = envelope["action"].get("client_progress", {}).get("update")
+                            phase = None
+                            if proposed and proposed["binding"].get("queue", {}).get("operation", {}).get("operation") == 644102:
+                                phase = "bind"
+                            if mutation and mutation["work"].get("claim", {}).get("operation", {}).get("operation") == 644102:
+                                if json.loads(data)["result"]["queue"].get("operation") is not None:
+                                    phase = "execute"
+                            if settlement and settlement["key"]["token"] == [0x58] * 16 and not settlement["pending"]:
+                                phase = "settle"
+                            if phase and phase not in workload_token_faults:
+                                parsed = json.loads(data)
+                                if phase == "bind":
+                                    assert parsed["result"]["client_token"]["binding"]["intent"]["workload"] == proposed
+                                elif phase == "execute":
+                                    assert parsed["result"]["queue"]["operation"]["claim"]["claim"] == mutation["work"]["claim"]
+                                else:
+                                    assert not parsed["result"]["client_progress"]["state"]["pending"]
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                workload_token_faults.add(phase)
                         if mode == "log-token" and response.status == 200:
                             proposed = envelope["action"].get("client_token", {}).get("bind", {}).get("intent", {}).get("log")
                             admitted = envelope["action"].get("log_admit")
@@ -409,10 +460,143 @@ def run(node, caller, mode="tables", *artifacts):
             settings["table"] = {"catalog": json.loads(profile.read_text())["catalog"], "registrar": {"principal": 0, "seed_file": str(seed)}}
             config.write_text(json.dumps(settings))
             authority = start()
+            if mode == "log-baseline":
+                from performance.storage.log_runtime import exercise
+                def baseline_restart():
+                    nonlocal authority
+                    stopped = stop(authority)
+                    authority = None
+                    if stopped['forced_kill'] or stopped['exit_code'] not in (0, -15):
+                        raise RuntimeError(f"Baseline owner did not stop under its restart profile: {stopped}")
+                    authority = start()
+                    return stopped
+                exercise(node, caller, root, profile, url, artifacts[0],
+                         baseline_restart, lambda: authority)
+                return
             proxy = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "automatic-queue-transfer":
+                subprocess.run([caller, endpoint, mode + "-prepare", str(profile)], check=True, timeout=180)
+                saved_path = Path(str(profile) + "." + mode)
+                saved = saved_path.read_bytes()
+                database_seed = root / "queue-transfer.seed"
+                database_seed.write_text("1d" * 32)
+                database_seed.chmod(0o600)
+                settings["table"]["queue_transfers"] = {
+                    "principal": 101, "seed_file": str(database_seed), "account": [0x51] * 32,
+                    "limits": {"resident_bytes": 16 * 1024 * 1024, "workspace_bytes": 1024 * 1024,
+                               "participants": 2, "statements": 1, "savepoints": 1},
+                    "budget": {"bytes": 16 * 1024},
+                }
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                config.write_text(json.dumps(settings))
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                deadline = time.monotonic() + 180
+                restart_observation = None
+                original = None
+                observations = []
+                while True:
+                    assert time.monotonic() < deadline, observations
+                    result = subprocess.run([caller, endpoint, mode + "-observe", str(profile)],
+                                            timeout=min(30, deadline - time.monotonic()), capture_output=True, text=True)
+                    with (root / "automatic-transfer-observe.stderr").open("a") as output:
+                        output.write(result.stderr)
+                    assert result.returncode == 0, result.stderr[-12000:]
+                    observed = json.loads(result.stdout)
+                    observations.append(observed)
+                    with (root / "automatic-transfer-observations.jsonl").open("a") as output:
+                        output.write(json.dumps(observed) + "\n")
+                    assert saved_path.read_bytes() == saved
+                    if observed["observed"]:
+                        receipt = Path(str(saved_path) + ".receipt").read_bytes()
+                        if original is None:
+                            original = receipt
+                        assert receipt == original
+                        if restart_observation is None:
+                            # Record the phase actually observed; process death
+                            # here does not claim an unobserved append boundary.
+                            restart_observation = observed
+                            authority.kill()
+                            authority.wait(timeout=15)
+                            authority = start()
+                            continue
+                        if observed["committed"] and observed["cleanup_complete"] and not observed["pending"]:
+                            break
+                    time.sleep(.1)
+                subprocess.run([caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
+                destination_claim = Path(str(saved_path) + ".destination-claim").read_bytes()
+                authority.kill()
+                authority.wait(timeout=15)
+                authority = start()
+                subprocess.run([caller, endpoint, mode + "-reopen", str(profile)], check=True, timeout=180)
+                assert Path(str(saved_path) + ".receipt").read_bytes() == original
+                assert Path(str(saved_path) + ".destination-claim").read_bytes() == destination_claim
+                assert saved_path.read_bytes() == saved
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="automatic_queue_transfer", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)],
+                                      original_receipt_sha256=hashlib.sha256(original).hexdigest(),
+                                      destination_claim_sha256=hashlib.sha256(destination_claim).hexdigest(),
+                                      limits=settings["table"]["queue_transfers"]["limits"],
+                                      maintenance=settings["maintenance"] | {"seed_file": "private"},
+                                      restart_observation=restart_observation, observations=observations, passed=True)), flush=True)
+                print("Automatic Queue transfer HTTP: explicitly authorized maintenance, one original transaction, source archival and destination payload, SIGKILL/restarts and unchanged original receipts passed.", flush=True)
+                return
+            if mode == "workload-result":
+                saved = None
+                positions = None
+                for phase in ("prepare", "open", "verify"):
+                    subprocess.run([caller, endpoint, "workload-result-" + phase, str(profile)], check=True, timeout=180)
+                    current = Path(str(profile) + ".workload-result").read_bytes()
+                    if saved is None:
+                        saved = current
+                    assert current == saved
+                    assert workload_result_faults == ({"claim"} if phase == "prepare" else {"claim", "open", "page"})
+                    if phase == "open":
+                        positions = Path(str(profile) + ".workload-result.positions").read_bytes()
+                    if phase != "verify":
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = start()
+                    if phase == "open":
+                        # The original 1-s leases and configured 10-s clock error
+                        # have elapsed before verification. The caller checks the
+                        # owner's trusted expired observation, not elapsed wall time.
+                        time.sleep(32)
+                assert Path(str(profile) + ".workload-result.positions").read_bytes() == positions
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="direct_workload_results", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
+                                      lost_replies=sorted(workload_result_faults), replay_prefix_per_partition=257,
+                                      original_bindings_sha256=hashlib.sha256(saved).hexdigest(),
+                                      positions_sha256=hashlib.sha256(positions).hexdigest(), passed=True)))
+                print("Workload results: original payloads, finite consumption and expired claims, saved positions and complete empty results, lost replies and SIGKILL/restarts passed.")
+                return
+            if mode == "workload-token":
+                saved = None
+                for phase in ("prepare", "execute", "settle", "verify"):
+                    subprocess.run([caller, endpoint, "workload-token-" + phase, str(profile)], check=True, timeout=180)
+                    current = Path(str(profile) + ".workload-token").read_bytes()
+                    if saved is None:
+                        saved = current
+                    assert current == saved
+                    expected = {"bind"} if phase == "prepare" else {"bind", "execute"} if phase == "execute" else {"bind", "execute", "settle"}
+                    assert workload_token_faults == expected
+                    if phase != "verify":
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = start()
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="direct_workload_tokens", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
+                                      lost_replies=sorted(workload_token_faults), replay_prefix_per_partition=257,
+                                      original_bindings_sha256=hashlib.sha256(saved).hexdigest(), passed=True)))
+                print("Stream/Queue workload tokens: original saved bindings, three lost replies and SIGKILL/restarts, bounded cold owner recovery and terminal settlement passed.")
+                return
             if mode == "log-token":
                 saved = None
                 for phase in ("prepare", "recover", "verify"):

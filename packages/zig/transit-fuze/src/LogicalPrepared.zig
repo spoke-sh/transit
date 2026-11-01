@@ -17,6 +17,8 @@ basis: [32]u8,
 types: [max_parameters]t.Type = undefined,
 sites: [max_parameters]?sql.Parameter = @splat(null),
 count: u8 = 0,
+extra: []const Parameter = &.{},
+pub const Parameter = struct { site: sql.Parameter, type: t.Type };
 
 pub fn init(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !Self {
     return initDialect(allocator, text, name, schema, basis, diagnostic, .transit);
@@ -34,7 +36,7 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
     var descriptor = try schema.clone(allocator);
     errdefer descriptor.deinit();
     var arena: std.heap.ArenaAllocator = .init(allocator);
-    errdefer arena.deinit();
+    defer arena.deinit();
     const alloc = arena.allocator();
     // Numeric literal tokens borrow lexer text; retain all text before parsing.
     const owned_text = try alloc.dupe(u8, text);
@@ -45,18 +47,42 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
     var parser = try Parser.initDialect(alloc, owned_text, &location, true, dialect);
     const syntax = try Select.syntax(&parser, descriptor.type);
     try parser.finish();
-    var result: Self = .{ .arena = arena, .descriptor = descriptor, .syntax = syntax, .name = try alloc.dupe(u8, name), .basis = basis };
+    return adoptOwned(&arena, descriptor, syntax, name, basis, &.{}, &location, diagnostic) catch |err| {
+        sql.Binding.nameFailure(diagnostic, owned_text, if (err == error.UnknownSource) name else syntax.qualifier, err, location);
+        return err;
+    };
+}
+
+/// Adopt shared projection/predicate syntax parsed by a dedicated workload
+/// compiler. Syntax and all borrowed text must belong to `arena`. Success moves
+/// the arena and resets its caller; failure leaves caller cleanup intact.
+/// Metadata operands share parameter type/gap checks with predicate operands.
+pub fn adoptSyntax(allocator: std.mem.Allocator, arena: *std.heap.ArenaAllocator, syntax: Select.Syntax, name: []const u8, schema: t.Type, basis: [32]u8, extra: []const Parameter, diagnostic: ?*sql.Binding) !Self {
+    if (diagnostic) |detail| detail.* = .{};
+    if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
+    var descriptor = try schema.clone(allocator);
+    errdefer descriptor.deinit();
+    var location: sql.Location = .{};
+    errdefer if (diagnostic) |detail| {
+        if (detail.location == null) detail.location = location;
+    };
+    return adoptOwned(arena, descriptor, syntax, name, basis, extra, &location, diagnostic);
+}
+fn adoptOwned(arena: *std.heap.ArenaAllocator, descriptor: t.Decoded, syntax: Select.Syntax, name: []const u8, basis: [32]u8, extra: []const Parameter, location: *sql.Location, diagnostic: ?*sql.Binding) !Self {
+    const alloc = arena.allocator();
+    var result: Self = .{ .arena = undefined, .descriptor = descriptor, .syntax = syntax, .name = try alloc.dupe(u8, name), .basis = basis };
+    const parameters = try alloc.alloc(Parameter, extra.len);
+    for (extra, parameters) |input, *output| output.* = .{ .site = input.site, .type = try input.type.cloneInto(alloc) };
+    result.extra = parameters;
     if (syntax.predicate) |predicate| for (predicate.instructions) |instruction| {
         if (instruction != .atom or instruction.atom != .compare) continue;
         const compare = instruction.atom.compare;
         if (compare.value != .parameter) continue;
-        const column = compare.column.resolve(syntax.qualifier, descriptor.type.structure, &location) catch |err| {
-            sql.Binding.nameFailure(diagnostic, owned_text, syntax.qualifier, err, location);
-            return err;
-        };
+        const column = try compare.column.resolve(syntax.qualifier, descriptor.type.structure, location);
         try result.register(compare.value.parameter, descriptor.type.structure[column].type, diagnostic);
     };
     if (syntax.limit_parameter) |site| try result.register(site, .uint64, diagnostic);
+    for (parameters) |parameter| try result.register(parameter.site, parameter.type, diagnostic);
     for (result.sites[0..result.count], 0..) |site, i| if (site == null) {
         if (diagnostic) |detail| detail.missing_parameter = @intCast(i + 1);
         return error.ParameterGap;
@@ -68,13 +94,11 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
         if (diagnostic) |detail| detail.expected = @tagName(kind);
         return err;
     };
-    _ = syntax.bindParametersDiagnostic(alloc, name, descriptor.type, basis, &location, witnesses[0..result.count], diagnostic) catch |err| {
-        sql.Binding.nameFailure(diagnostic, owned_text, if (err == error.UnknownSource) name else syntax.qualifier, err, location);
-        return err;
-    };
-    // Allocating the validation plan may grow arena after its earlier copy.
-    // Transfer only its final state; Syntax retains no diagnostic pointer.
-    result.arena = arena;
+    _ = try syntax.bindParametersDiagnostic(alloc, name, descriptor.type, basis, location, witnesses[0..result.count], diagnostic);
+    // Transfer only the final arena state, including validation allocations.
+    // Syntax retains no diagnostic pointer.
+    result.arena = arena.*;
+    arena.* = .init(arena.child_allocator);
     return result;
 }
 pub fn deinit(self: *Self) void {
@@ -110,6 +134,10 @@ fn at(self: *const Self, index: u32, diagnostic: ?*sql.Binding) void {
     };
     if (self.syntax.limit_parameter) |site| if (site.index == index and count < detail.parameter_sites.len) {
         detail.parameter_sites[count] = site.offset;
+        count += 1;
+    };
+    for (self.extra) |parameter| if (parameter.site.index == index and count < detail.parameter_sites.len) {
+        detail.parameter_sites[count] = parameter.site.offset;
         count += 1;
     };
     if (count != 0) detail.location = .{ .offset = detail.parameter_sites[0].? };

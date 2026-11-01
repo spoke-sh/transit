@@ -122,3 +122,67 @@ test "immutable page batches preserve duplicate pages and bounded failure output
     try t.expectEqualDeep(original, refs);
     try t.expectEqualDeep(page, try store.load(original[0]));
 }
+
+test "derived page eviction retains provider reads without masking absent accepted pages" {
+    const Candidates = @import("CandidateObjects.zig");
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var probe: @import("transit_fuze").memory.AllocationProbe = .{ .parent = t.allocator };
+    var store = try s.TreeStore.init(probe.allocator(), objects.objectStore(), 4);
+    defer store.deinit();
+    const tree: pages.Tree(s.TreeStore) = .{ .store = &store };
+    try store.begin(1024 * 1024);
+    const retained = try tree.put(null, try key(1), try pages.Value.init("retained"));
+    const missing = try tree.put(null, try key(2), try pages.Value.init("missing"));
+    const missing_page = try store.load(missing);
+    store.end();
+    store.clearCache();
+    const retained_page = try store.load(retained);
+    const provider_reads = objects.range_reads;
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TreeStore.key(missing.location, &name));
+
+    var candidates = try Candidates.init(t.allocator, objects.objectStore(), .{ .bytes = 1024 * 1024, .objects = 16, .resident_bytes = 2 * 1024 * 1024 });
+    defer candidates.deinit();
+    store.store = candidates.objectStore();
+    store.load_provenance = .{ .context = &candidates, .is_private = struct {
+        fn contains(raw: *anyopaque, object_key: []const u8) bool {
+            const private: *Candidates = @ptrCast(@alignCast(raw));
+            return private.contains(object_key);
+        }
+    }.contains };
+    probe.begin(true);
+    try store.begin(1024 * 1024);
+    // One reconstructed page matches an earlier verified provider read; the
+    // other can recreate an absent accepted page byte-for-byte.
+    try t.expectEqualDeep(retained, try store.stage(try retained_page.reference(), &retained_page));
+    try t.expectEqualDeep(missing, try store.stage(try missing_page.reference(), &missing_page));
+    store.end();
+    store.clearDerived();
+    try t.expectEqualDeep(missing_page, try store.load(missing)); // Overlay read, not provider evidence.
+    store.clearDerived();
+    store.store = objects.objectStore();
+    store.load_provenance = null;
+    try t.expectEqualDeep(retained_page, try store.load(retained));
+    try t.expectEqual(provider_reads, objects.range_reads);
+    try t.expectError(error.MissingDataIndexObject, store.load(missing));
+    try probe.verify();
+    probe.begin(false);
+}
+
+test "derived page eviction does not retain an unflushed batch read" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer store.deinit();
+    const tree: pages.Tree(s.TreeStore) = .{ .store = &store };
+    var batch: s.TreeStore.Batch = .{};
+    try store.beginBatch(1024 * 1024, &batch);
+    const private = try tree.put(null, try key(1), try pages.Value.init("unflushed"));
+    store.clearDerived();
+    _ = try store.load(private);
+    store.end();
+    store.clearDerived();
+    try t.expectEqual(@as(u64, 0), objects.puts);
+    try t.expectError(error.MissingDataIndexObject, store.load(private));
+}

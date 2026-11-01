@@ -194,3 +194,99 @@ test "compact Fuze string lanes cross SQL result encoding with detached raw byte
         try t.expectEqualSlices(u8, binary, batch.cell(i, 1).value.atom.bytes);
     }
 }
+
+test "independent workload frames preserve original selection and terminal coverage" {
+    const t = std.testing;
+    inline for (.{ "append", "consume", "claim", "consume-limit", "consume-zero" }) |kind| {
+        const text = std.mem.trim(u8, @embedFile("fixtures/workload-" ++ kind ++ "-frame.hex"), "\n");
+        const bytes = try t.allocator.alignedAlloc(u8, .fromByteUnits(64), text.len / 2);
+        defer t.allocator.free(bytes);
+        _ = try std.fmt.hexToBytes(bytes, text);
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        const frame = try api.ResultFrame.parseBorrowed(arena.allocator(), bytes);
+        const observation = frame.description.?.observation;
+        const workload = observation.data.workload;
+        const evidence: r.Workload.Evidence = .{
+            .intent = workload.intent,
+            .binding = try workload.selection.binding(arena.allocator()),
+            .receipt = switch (workload.selection) {
+                .append => |value| .{ .append = value },
+                .consume => |value| .{ .consume = value },
+                .claim => |value| .{ .claim = value },
+            },
+        };
+        const command: r.Command = switch (workload.selection) {
+            .append => .produce,
+            .consume => .consume,
+            .claim => .claim,
+        };
+        const counts = evidence.counts(command);
+        var operation: api.Operation = .{
+            .identity = .{ .account = @splat(9), .id = 99, .kind = .workload },
+            .command = command,
+            .token = @splat(8),
+            .phase = .terminal,
+            .outcome = .applied,
+            .result_kind = .rows,
+            .workload = evidence,
+            .matched = if (counts) |value| value.matched else 0,
+            .changed = if (counts) |value| value.changed else 0,
+        };
+        try operation.validate();
+        try t.expectError(error.SqlRowsRequired, operation.completion());
+        try evidence.requireObservation(workload);
+        var foreign = workload;
+        foreign.intent.sha256[0] ^= 1;
+        try t.expectError(error.WorkloadResultConflict, evidence.requireObservation(foreign));
+        operation.workload = null;
+        try t.expectError(error.MissingWorkloadEvidence, operation.validate());
+        operation.workload = evidence;
+        operation.result_kind = .command;
+        const settled = try operation.completion();
+        try t.expectEqualDeep(evidence, settled.workload.?);
+        operation.outcome = .cancelled;
+        try t.expectError(error.InvalidCommandCompletion, operation.validate());
+        operation.workload.?.receipt = .{ .closed = .{ .binding = evidence.binding, .recorded = .{ .partition = 1, .next_lsn = 2 }, .reason = .cancelled } };
+        operation.matched = 0;
+        operation.changed = 0;
+        try operation.validate();
+        operation.result_kind = .rows;
+        try t.expectError(error.InvalidSqlOperation, operation.validate());
+        try t.expectEqual(try r.Observation.fingerprint(arena.allocator(), observation), frame.observation);
+        try frame.completion.?.validate(observation);
+        const encoded = try api.ResultFrame.encode(t.allocator, frame);
+        defer t.allocator.free(encoded);
+        try t.expectEqualSlices(u8, bytes, encoded);
+        var completion = frame.completion.?;
+        completion.workload = null;
+        try t.expectError(error.MissingWorkloadCoverage, completion.validate(observation));
+        completion = frame.completion.?;
+        completion.workload.?.intent.sha256[0] ^= 1;
+        try t.expectError(error.WorkloadResultConflict, completion.validate(observation));
+        completion = frame.completion.?;
+        completion.rows += 10;
+        try t.expectError(error.InvalidWorkloadResultCount, completion.validate(observation));
+        completion = frame.completion.?;
+        if (workload.limit != null) {
+            var unlimited = observation;
+            unlimited.data.workload.limit = null;
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(unlimited));
+            var unsatisfied = observation;
+            unsatisfied.data.workload.limit.? += 1;
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(unsatisfied));
+        } else {
+            switch (completion.workload.?.position) {
+                .append => |*ordinal| ordinal.* -= 1,
+                .consume => |*cursor| {
+                    try t.expectEqual(1, completion.rows);
+                    try t.expectEqual(2, cursor.coverage.rows);
+                    cursor.coverage.through -= 1;
+                    cursor.coverage.complete = false;
+                },
+                .claim => |*cursor| cursor.next -= 1,
+            }
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(observation));
+        }
+    }
+}

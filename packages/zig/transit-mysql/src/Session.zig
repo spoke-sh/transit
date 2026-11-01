@@ -304,7 +304,7 @@ fn step(self: *Self) !void {
         },
         .execute => {
             const bound: s.Bound = .{ .prepared = self.prepared.handle, .values = self.values };
-            if (self.prepared.mutation) try self.request(.{ .write = bound }, .written) else try self.request(.{ .open_read = bound }, .opened);
+            if (self.prepared.mutation and self.prepared.fields.len == 0) try self.request(.{ .write = bound }, .written) else try self.request(.{ .open_read = bound }, .opened);
         },
         .written => {
             const result = self.result.completion;

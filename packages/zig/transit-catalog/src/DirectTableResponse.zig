@@ -149,6 +149,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
         .stream => .stream,
         .queue => .queue,
+        .workload_result => .workload_result,
         .branch => .branch,
         .kv => .kv,
         .kv_declaration => .kv_declaration,
@@ -212,6 +213,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     switch (response.result) {
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
+        .workload_result => |value| try c.DirectWorkloadResultProtocol.validate(allocator, request.connection, request.action.workload_result, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
         .kv => |value| {
             try c.DirectKVResponse.validate(allocator, request.action.kv, value);

@@ -26,6 +26,21 @@ pub const Execution = struct {
     queue: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectQueue.Request) anyerror!c.DirectQueue.Result = null,
 };
 
+fn inspectWorkload(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, work: c.DirectWorkloadIntent.Work) !c.DirectWorkloadIntent.Reader.Result {
+    return switch (work) {
+        .stream => |value| .{ .stream = try workloadStream(context, output, catalog, policy, .{ .operation = value.work }) },
+        .queue => |value| .{ .queue = try workloadQueue(context, output, catalog, policy, .{ .operation = value.work }) },
+    };
+}
+fn workloadStream(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
+    const execution: *const Execution = @ptrCast(@alignCast(context));
+    return (execution.stream orelse return error.StreamServiceUnavailable)(execution.context, output, catalog, policy, request);
+}
+fn workloadQueue(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+    const execution: *const Execution = @ptrCast(@alignCast(context));
+    return (execution.queue orelse return error.QueueServiceUnavailable)(execution.context, output, catalog, policy, request);
+}
+
 fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
     const buffer = try scratch_allocator.alloc(u8, c.fuze.TableSchema.max_bytes);
     defer scratch_allocator.free(buffer);
@@ -157,9 +172,14 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             const value = @field(action.*, @tagName(action_tag));
             return .{ .record = try catalog.directRecord(allocator, value, policy) };
         },
+        .workload_result => {
+            var owners = execution;
+            return .{ .workload_result = try c.DirectWorkloadResultProtocol.apply(allocator, catalog, policy, action.workload_result, .{ .context = &owners, .stream = workloadStream, .queue = workloadQueue }) };
+        },
         .client_progress => {
             const value = @field(action.*, @tagName(action_tag));
-            return .{ .client_progress = try catalog.clientProgress(value, policy) };
+            var owners = execution;
+            return .{ .client_progress = try catalog.clientProgressWithWorkloads(value, policy, .{ .context = &owners, .inspect = inspectWorkload }) };
         },
         .client_token => {
             const value = @field(action.*, @tagName(action_tag));

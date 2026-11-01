@@ -63,13 +63,22 @@ pub const Reference = struct {
     connection: c.DirectTableProtocol.Connection,
     namespace: u64,
     begin: p.Transaction.Begin,
+    /// Mandatory on saved work. Protected purposes use the same transaction
+    /// decision and workspace; generic callers cannot choose or replace them.
+    purpose: union(enum) { interactive, queue_transfer: c.DirectRecord.Reference },
 
     pub fn validate(self: Reference) !void {
         try self.connection.validate();
         try c.Model.nativeId(self.namespace);
         try self.begin.validate();
+        if (self.purpose == .queue_transfer) {
+            const plan = self.purpose.queue_transfer;
+            try plan.validate();
+            if (plan.format != c.DirectQueueTransferPlan.format or plan.content.bytes > c.DirectQueueTransferPlan.max_bytes or
+                !std.meta.eql(plan.scope.connection, self.connection)) return error.InvalidTransactionTransfer;
+        }
         if (!std.meta.eql(self.connection.scope, self.begin.identity.begin.scope) or
-            self.connection.principal != self.begin.identity.begin.principal)
+            self.connection.principal != self.begin.identity.begin.principal or self.connection.branch != self.begin.identity.branch)
             return error.TransactionIdentityConflict;
     }
 

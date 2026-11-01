@@ -120,6 +120,45 @@ for recovery. Status reads do not execute pending work. The client can retain pr
 making it durable. Adapter-specific admission restrictions remain in the wire
 adapters; the native codec preserves Fuze logical types.
 
+Existing native Stream/Queue workload tokens appear as operation kind `workload`.
+Status observes the original native receipt or recorded closure under current
+rights, preserving its saved intent and binding in `workload` evidence. Missing
+receipts and bounded owner recovery remain pending. Database recovery executes
+or cancels only that saved work and discharges pending accounting through the
+Catalog terminal-evidence gate; it never recompiles saved SQL. Native group
+assignment and explicit native read-release tokens are outside this SQL profile.
+
+`result_kind` specifies command or retained rows. `result` accepts a workload
+operation in the same account, selects its original authorized database route,
+and opens its frozen projection against the original append/consume/claim.
+Post-buffer disclosure, repeat fetch and empty/terminal responses recheck current
+rights. A new result cursor starts a new consumption of that same selection;
+it cannot renew a lease, ACK, commit an offset or release native retention.
+Result/recovery messages never admit another workload operation. `execute`
+separately supports single-partition `PRODUCE INTO` and `ENQUEUE INTO`, with a
+required client token. Preparation binds the exact declared schema; admission
+freezes the bound native request and optional RETURNING projection in its
+workload intent. RETURNING exposes the original result through this same
+operation/result lifecycle. Positional `CONSUME` also requires a client token;
+its exact source, typed predicate and nullable logical LIMIT are frozen in the
+workload intent. The native owner retains the upper cut once at acceptance.
+Returned rows may complete at LIMIT before native exhaustion; the final cursor
+preserves that distinction. Its prepared descriptor has a row schema and the
+mutation-admission flag because accepting the read retains native history.
+Partition-routed `CLAIM` also requires a client token and retains its exact
+original lease selection. Its positive LIMIT is an acquisition maximum; result
+delivery has no filtering or limit. The frozen duration must satisfy the declared
+lease policy before admission; native time, FIFO and capacity checks remain.
+A multi-partition Queue requires one exact `_partition` equality. CLAIM may
+project the exact original binary `_receipt_handle`. `ACK ON QUEUE ... RECEIPT`
+requires a new client token, freezes that lease and completes as a command with
+verified native settlement evidence and no relational counts. Its current
+preparation metadata may follow a compatible declaration change while its lease
+retains the original interpretation. Data appends, consumption and acquisition
+still require their exact preparation interpretation. GROUP, WAIT, Queue payload
+predicates, NACK, EXTEND LEASE and attached-transaction workloads remain outside
+the SQL execution profile.
+
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation
 flag remain explicit. Row-returning statements have a logical schema even when
@@ -224,7 +263,8 @@ little-endian; byte identities retain their exact bytes.
 | 172 | 4 | Schema byte length |
 | 176 | 4 | Observation byte length |
 | 180 | 4 | Column count |
-| 184 | 8 | Zero reserved bytes |
+| 184 | 4 | Workload completion JSON byte length, zero when absent |
+| 188 | 4 | Zero reserved bytes |
 
 Ordinal zero includes the schema immediately after the header, followed by
 canonical observation JSON. Subsequent ordinals set both lengths to zero and
@@ -233,6 +273,14 @@ those commitments before exposing rows. Schema is at most 16 KiB, observation at
 most 64 KiB. Observation JSON uses the shared type's declared field order and
 compact serialization. A descriptor commits meaning; it does not grant access
 or retain a source.
+
+When present, workload completion JSON follows the schema and observation bytes
+and precedes the column directory. It is bounded to 16 KiB and is permitted only
+on a terminal frame. It carries the shared result model's original intent and
+native delivery position; the terminal row count remains in the header. The
+reader checks it against the original workload observation before recording
+completion. Ordinary results have zero workload completion bytes. These shared
+codec shapes do not themselves enable workload SQL or service result reopening.
 
 The descriptors are followed by one eight-byte directory entry per column:
 absolute `u32` offset and `u32` byte length. Zero padding aligns the first column

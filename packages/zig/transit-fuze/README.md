@@ -47,6 +47,64 @@ These are transient implementation details; canonical values and saved plans
 retain their existing definitions. `GermanString` is a separate normalized
 comparison-key helper and is not a lossless projection representation.
 
+`WorkloadProjection` prepares finite row projections for original Stream/Queue
+results. Stable column IDs and explicit partition/offset or claim epoch/attempt
+fields form a bounded input layout. Its source basis binds the original native
+operation, exact schema and layout; canonical FQP1 plans retain aliases,
+predicates and collations and restore without SQL text or name resolution.
+Restored plans own their schema, names and literals. Only finite Stream
+consumption permits a projection predicate: claim filtering must happen before
+lease acquisition, and RETURNING describes every accepted append row. Limits
+and aggregates belong to other owners and are refused by this projection.
+`Projector` resolves stable IDs once and evaluates decoded rows in fixed input
+and output arrays without per-row allocation. It preserves the original claim's
+epoch and attempt and leaves native coverage independent of filtered output.
+The caller supplies verified frozen metadata and separately owns admission,
+selection, authority and completion. The SQL service owns workload admission
+and original-result delivery separately.
+
+Dedicated workload parsers can reuse `TableDml.insertValues` for column/VALUES
+syntax and `TableDmlPrepared.adoptSyntax` for typed binding. Successful adoption
+transfers the parser arena; failure leaves it with the caller. Row and metadata
+parameters share type, index and gap checks, and bound rows own their values.
+The enclosing parser still owns its verb, suffixes and statement boundary;
+these helpers provide no admission or execution authority.
+
+`LogAppendSql.Prepared` uses those helpers for dedicated `PRODUCE` and `ENQUEUE`
+syntax, optional partition/producer metadata, Queue visibility and RETURNING.
+It owns its source, schema, parameter descriptors and output layout; `bind`
+returns independently owned rows and validated metadata. `projection` freezes
+RETURNING against the adapter's exact original native binding, with borrowed
+fields and caller-owned encoded bytes. The [checked compiler
+profile](../../../contracts/sql/README.md) states types, collision refusals and
+limits. Preparation performs no Catalog reads, routing, uploads or admission;
+the SQL service's Catalog adapter owns those steps.
+
+`LogConsumeSql.Prepared` shares row headers and `LogicalPrepared.adoptSyntax`
+for typed projections, predicates, LIMIT and group/wait operands. The bound
+plan, input field layout and group name own their memory independently of the
+template. Star expands before predicate-only metadata is added to the input.
+`WorkloadProjection.schemaLayout` supplies that pure metadata layout without
+inventing an accepted operation. This preparation helper has no source capture,
+group identity, native wait or offset-settlement authority. The SQL service
+binds its positional subset through the Catalog. Its LIMIT remains a logical output bound. Original Stream
+workload projections can retain that bound; SQL result consumption stops with
+the exact native cursor and preserves partial coverage. Append and Queue claim
+projections continue to reject limits. See the [compiler
+profile](../../../contracts/sql/README.md) for exact boundaries.
+
+`LogClaimSql.Prepared` prepares Queue acquisition syntax using the shared
+`LogReadSql` text operands and row layout. Its predicate is an acquisition
+predicate, and LIMIT becomes a positive claim maximum, separate from output
+delivery. Generated lease epoch/attempt and binary receipt fields may be projected but cannot
+select work before acquisition. The bound plan and field layout own their
+memory independently of the template. This helper does not acquire a lease,
+bind a native selector or admit SQL. `LogSettlementSql.Prepared` owns typed
+ACK/extension operands and decodes an exact lease by value without a clock or
+current authority. Catalog binds ACK; extension execution still needs an updated
+receipt result. Post-filtering an accepted claim is not
+an implementation of this preparation contract.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies
@@ -303,6 +361,13 @@ exact supplied schema and source binding. Decode rejects foreign definitions and
 stale bindings before reading dependent literals, then returns an independently
 owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
 defines its byte budget, field layout and separation from query admission.
+
+`LogicalPrepared.adoptSyntax` lets dedicated workload parsers reuse the same
+typed projection/predicate binder and parameter checks. Metadata operands share
+its type and index space. Success transfers the parser arena; failure leaves
+cleanup with the caller. Bound FQP1 plans own their values independently of the
+template and metadata. The workload owner separately freezes metadata in its
+native operation; this compiler helper grants no admission or coverage.
 
 `LogicalPrepared` owns general logical SELECT templates with typed comparison
 and LIMIT parameters, including Boolean predicates and recursive projections.

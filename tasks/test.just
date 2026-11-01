@@ -28,6 +28,22 @@ storage-benchmark *args:
     zig build storage-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/performance/storage/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
+# Signed Stream/Queue call budgets and independent retained readback after restart.
+[positional-arguments]
+[script]
+log-runtime-baseline *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build test-log-runtime-baseline -Doptimize=ReleaseSafe -- "$@"
+
+# Actual GenServer handler state/output commits, with independent restart readback.
+[positional-arguments]
+[script]
+station-turn-baseline *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build test-station-turn-baseline -Doptimize=ReleaseSafe -- "$@"
+
 # Matched WAL/bulk ingestion, native turn commit and independent reopen readback.
 [positional-arguments]
 [script]
@@ -166,9 +182,21 @@ direct-mixed-transaction:
 direct-log-token:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- log-token
 
+# Stream/Queue workload tokens settle only original native outcomes after replacement.
+direct-workload-token:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- workload-token
+
+# Original payload/consume/claim results resume across lost replies and replacement.
+direct-workload-result:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- workload-result
+
 # Queue source archive and destination append share one recoverable decision.
 direct-queue-transfer:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer
+
+# Configured native maintenance recovers one protected DLQ transaction.
+direct-automatic-queue-transfer:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- automatic-queue-transfer
 
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:

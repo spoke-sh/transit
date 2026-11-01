@@ -93,6 +93,54 @@ A lost initial execute response is not equivalent to a lost fetch response.
 Durable operation observation preserves the original account/instance/token.
 Captured result reopening is explicit and begins a new consumption.
 
+### Original workload evidence
+
+The shared model also represents an original Stream/Queue workload through
+`Observation.data.workload`: the canonical saved intent content, frozen source
+schema and projection commitments, an explicit nullable logical output `limit`,
+and the native append, consume or claim receipt. Selection and delivery-position types are shared with the native result
+owner. A descriptor establishes neither current rights nor continued retention.
+
+A workload result's terminal includes the same intent content and a position
+in that original selection. Append and claim output counts equal their
+complete original row counts; their projections cannot hide accepted rows or
+leases. Stream output count may be smaller than authenticated traversal coverage
+because of filtering. Coverage retains the original range, cut, group and cursor
+authentication; a numeric output count cannot substitute for it or authorize an
+offset commit. The native owner must still authenticate any later settlement.
+A Stream result completes either by exhausting the native selection or by
+returning exactly the frozen logical limit. In the latter case its cursor may
+remain partial: the original range and completeness are preserved. Zero is a
+valid Stream limit and can complete at the initial cursor. Output cannot exceed
+the limit or the cursor's traversed row count. Append and claim limits must be
+null. The result reader lowers each native page's row budget to the remaining
+output allowance; filters can reduce matches but cannot hide a fetched matching
+suffix beyond the limit. A display cap still establishes no query completion.
+
+Missing coverage, a different intent or selection, a partial position without reaching the frozen limit, or an
+invalid output count rejects before semantic progress advances. Ordinary results
+reject unsolicited workload completion evidence. Closing an incomplete result
+does not manufacture coverage; closing after verified completion preserves that
+evidence without claiming all rows were delivered. Neither transition ACKs,
+renews, releases the native read dependency or advances a consumer group.
+
+Workload operation settlement carries `Workload.Evidence`: the saved intent
+content, original native binding and actual append/consume/claim, offset,
+settlement or closure receipt. Offset evidence retains its original authenticated
+request as well as the receipt; ACK/NACK/extension evidence fixes its exact lease
+and action. Receipt validation checks the binding before projecting an outcome.
+Only append/enqueue commands have matched/changed row counts, taken from the
+accepted append; other workload commands omit them. A recorded closure yields
+cancelled or rejected, with its original reason. Missing evidence remains pending.
+
+The SQL service projects these original tokens and opens their frozen result
+plans. An operation's typed `result_kind` distinguishes command completion from
+retained rows. A successful row operation cannot be converted to a command
+completion; rejected/cancelled outcomes have command shape. The shared client
+checks the returned intent and selection against settlement evidence. SQL text
+admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
+`RETURNING`. Other workload verbs remain unavailable through SQL admission.
+
 ## Ownership and consumers
 
 Consumers read a schema, typed rows and a terminal outcome through the shared

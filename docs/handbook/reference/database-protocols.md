@@ -46,7 +46,8 @@ body reads, and partial EOF cannot become another command or a completion.
 | Surface | Supported boundary |
 | --- | --- |
 | SQL execution | Autocommit general-Table `SELECT`, `CREATE TABLE`, `INSERT`, `UPDATE` and `DELETE` |
-| Parameters | Typed single-Table SELECT and mutations; the owning compiler imposes its plan limits |
+| Streams and Queues | [Declarations, metadata and single-partition appends](sql/streaming.md), including `PRODUCE`/`ENQUEUE ... RETURNING` |
+| Parameters | Typed single-Table SELECT/mutations and Stream/Queue appends; the owning compiler imposes its plan limits |
 | Relational reads | Selected literal int64 joins and grouping in the [relational profile](sql/relational.md) |
 | Values | int64, uint64, finite float64, Boolean, UTF-8, binary and SQL NULL |
 | PostgreSQL extended protocol | Prepared reads and suspended read portals; a write requires exactly one Execute followed by Sync |
@@ -58,8 +59,15 @@ be encoded as SQL NULL. Nested, decimal and other native logical descriptors
 outside these six types reject at the wire boundary. Each UTF-8 or binary bound
 parameter is limited to 4096 bytes, independently of frame size.
 
+Stream and Queue append completions use `PRODUCE n` and `ENQUEUE n` command
+tags. PostgreSQL clients can read the accepted count from the status tag;
+libpq's `PQcmdTuples` does not recognize these Transit commands, so psycopg's
+`rowcount` is `-1` for an append without `RETURNING`. MySQL reports the count
+in its ordinary affected-rows field. `RETURNING` uses the normal row-result
+lifecycle on both adapters.
+
 Disabling autocommit, multi-statement requests,
-ALTER/DROP, RETURNING, COPY, bulk upload, replication and arbitrary upstream
+general Table ALTER/DROP/RETURNING, COPY, bulk upload, replication and arbitrary upstream
 system catalogs are unsupported. The console's native statement/type profile
 is broader; parser acceptance in the common grammar does not widen a wire
 adapter's execution profile.

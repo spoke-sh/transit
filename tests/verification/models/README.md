@@ -509,13 +509,23 @@ namespace isolation, aggregate 6-dimension account quota reservation and public
 Table isolation).
 
 The safe configuration exhausts 304 distinct states. Eight independent negative
-controls remove registration token conflict detection, stale lease renewal,
-partial pin resume revalidation, mixed-cut publication refusal, autocommit
-statement token isolation, private-write public isolation, aggregate quota ceiling
-admission, and current disclosure authorization. Each negative control trace is
+controls remove coordinator isolation, account quota, common-cut epoch fencing,
+cut acquisition before statements, statement sequencing, operation namespace
+isolation, workspace quota and current disclosure authorization. Each negative control trace is
 replayed against `DirectCatalog` and `TablePartition` through
 [transaction_workspace_state.zig](transaction_workspace_state.zig) and
 [transaction_workspace_model.py](transaction_workspace_model.py).
+
+The same driver also runs twelve independently specified concrete mixed Table/Stream
+schedules. These exercise both pending-statement variants, shared ordering and
+operation reservations, revocation, and savepoint rollback across owner replacement.
+Execution reloads the original pending request from accepted workspace progress;
+no volatile request is carried across replacement. Projections separately report
+private Table rows, retained log actions and public Table/Stream rows. The existing
+TLC quota profile keeps its 128-KiB workspace bound; mixed schedules use an explicit
+1-MiB workspace for three selected participants. Both retain the 16-MiB resident limit.
+These additional schedules are concrete regression evidence, not exhaustive mixed
+model exploration, physical-disk fault qualification or a liveness proof.
 
 ## Finite storage lifecycle and retention closure model
 

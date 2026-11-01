@@ -8,7 +8,14 @@ const Self = @This();
 const header_bytes = 40;
 pub const max_resident_pages = 4096;
 pub const max_batch_object_bytes = header_bytes + pages.max_encoded_bytes;
-const Cached = struct { reference: pages.Reference, page: pages.Page };
+const Cached = struct { reference: pages.Reference, page: pages.Page, verified: bool };
+/// A derivation overlay can serve privately reconstructed objects through the
+/// same read interface as its underlying provider. Such reads are not evidence
+/// that an accepted page exists in that provider.
+pub const LoadProvenance = struct {
+    context: *anyopaque,
+    is_private: *const fn (*anyopaque, []const u8) bool,
+};
 
 pub const Batch = struct {
     keys: [objects.max_put_batch][96]u8 = undefined,
@@ -22,6 +29,7 @@ pub const Batch = struct {
 
 allocator: std.mem.Allocator,
 store: objects.ObjectStore,
+load_provenance: ?LoadProvenance = null,
 cache: []?Cached,
 used: [max_resident_pages / 64]u64 = @splat(0),
 next_slot: usize = 0,
@@ -158,7 +166,7 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
         }
         self.staged_pages +|= 1;
         self.staged_bytes +|= encoded.len;
-        self.remember(result, page.*, false);
+        self.remember(result, page.*, false, false);
         return result;
     }
     var name: [96]u8 = undefined;
@@ -166,7 +174,7 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     if (accepted.size != encoded.len or !std.mem.eql(u8, &accepted.sha256, &result.location)) return error.InvalidDataIndexObject;
     self.staged_pages +|= 1;
     self.staged_bytes +|= encoded.len;
-    self.remember(result, page.*, false);
+    self.remember(result, page.*, false, false);
     return result;
 }
 
@@ -227,7 +235,7 @@ pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []page
     for (batch, references[0..batch.len], lengths[0..batch.len]) |*page, reference, length| {
         self.staged_pages +|= 1;
         self.staged_bytes +|= length;
-        self.remember(reference, page.*, false);
+        self.remember(reference, page.*, false, false);
     }
     @memcpy(output, references[0..batch.len]);
 }
@@ -247,7 +255,7 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
                 const encoded = batch.buffers[i][0..batch.lengths[i]];
                 const page = try pages.Page.decode(self.allocator, encoded[header_bytes..]);
                 try reference.verify(&page);
-                self.remember(reference, page, true);
+                self.remember(reference, page, true, false);
                 return page;
             }
         };
@@ -255,11 +263,13 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
     self.misses +|= 1;
     var name: [96]u8 = undefined;
     const object_key = try key(reference.location, &name);
-    const metadata = try self.store.head(object_key) orelse return error.MissingDataIndexObject;
     var bytes: [header_bytes + pages.max_encoded_bytes]u8 = undefined;
+    const metadata = (self.store.getObject(object_key, &bytes) catch |err| switch (err) {
+        error.BufferTooSmall, error.ObjectTooLarge, error.ObjectSizeMismatch => return error.InvalidDataIndexObject,
+        else => return err,
+    }) orelse return error.MissingDataIndexObject;
     if (metadata.size < header_bytes or metadata.size > bytes.len or !std.mem.eql(u8, &metadata.sha256, &reference.location)) return error.InvalidDataIndexObject;
-    const encoded = try self.store.getRange(object_key, 0, @intCast(metadata.size), &bytes);
-    if (encoded.len != metadata.size) return error.InvalidDataIndexObject;
+    const encoded = bytes[0..@intCast(metadata.size)];
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(encoded, &digest, .{});
     if (!std.mem.eql(u8, &digest, &reference.location)) return error.InvalidDataIndexObject;
@@ -267,15 +277,19 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
     if (!std.mem.eql(u8, encoded[8..header_bytes], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const page = try pages.Page.decode(self.allocator, encoded[header_bytes..]);
     try reference.verify(&page);
-    self.remember(reference, page, true);
+    const verified = if (self.load_provenance) |source| !source.is_private(source.context, object_key) else true;
+    self.remember(reference, page, true, verified);
     return page;
 }
 
-fn remember(self: *Self, reference: pages.Reference, page: pages.Page, accessed: bool) void {
+fn remember(self: *Self, reference: pages.Reference, page: pages.Page, accessed: bool, verified: bool) void {
     if (self.cache.len == 0) return;
     for (self.cache, 0..) |slot, index| if (slot) |cached| {
         if (std.meta.eql(cached.reference, reference)) {
             if (accessed) self.markUsed(index);
+            // Reconstructing identical bytes cannot erase an earlier provider
+            // verification, and a cache hit alone cannot establish one.
+            if (verified) self.cache[index].?.verified = true;
             return;
         }
     };
@@ -286,7 +300,7 @@ fn remember(self: *Self, reference: pages.Reference, page: pages.Page, accessed:
             self.clearUsed(index);
             continue;
         }
-        self.cache[index] = .{ .reference = reference, .page = page };
+        self.cache[index] = .{ .reference = reference, .page = page, .verified = verified };
         if (accessed) self.markUsed(index) else self.clearUsed(index);
         return;
     }
@@ -308,6 +322,18 @@ pub fn clearCache(self: *Self) void {
     @memset(self.cache, null);
     self.used = @splat(0);
     self.next_slot = 0;
+}
+
+/// Discard candidate pages at a derivation boundary while keeping independently
+/// verified immutable provider pages within the existing resident-page budget.
+/// Changing the underlying object namespace still requires clearCache().
+pub fn clearDerived(self: *Self) void {
+    for (self.cache, 0..) |slot, index| if (slot) |cached| {
+        if (!cached.verified) {
+            self.cache[index] = null;
+            self.clearUsed(index);
+        }
+    };
 }
 
 pub fn residentBytes(self: *const Self) usize {

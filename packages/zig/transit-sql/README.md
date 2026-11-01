@@ -28,6 +28,42 @@ caller commands for Catalog-owned common cuts, private Table changes, savepoints
 and original commit/abort settlement. [Table transactions](../../../docs/handbook/reference/sql/transactions.md)
 describes the supported local serializable domain and provisional outcomes.
 
+`WorkloadRead` composes frozen workload bodies, Fuze projections and the signed
+native original-result API. It owns decoded metadata and retained scratch,
+resumes failed page requests at the same position, and exposes original selection
+and completion evidence. Returned rows are borrowed until the next pull: a batch
+owner must copy them and recheck disclosure after buffering, including repeated
+or empty terminal responses. Closing only releases local memory. The session
+service uses this adapter to reopen existing workload tokens.
+Native pages use the Stream reader's default 4,096-row scan budget and respect
+the declaration's row/byte limits. A SQL batch may span multiple native pages;
+filtered rows still contribute to original consumption coverage. A frozen Stream
+LIMIT lowers each native page's row budget to the remaining output allowance.
+Completion at that limit preserves a partial native cursor, including LIMIT 0
+at the initial position; it neither exhausts the larger read nor commits a group.
+Workload observations carry the explicit nullable limit so clients validate that
+terminal distinction.
+`WorkloadOperations` projects native receipts and recorded closures and advances
+the same frozen work through Catalog's terminal settlement gate.
+`DirectLogPreparedAppend` freezes single-partition `PRODUCE INTO` and
+`ENQUEUE INTO` statements, including optional RETURNING. Native SQL admits a
+caller token; wire callers generate one identity and wait on progress signals
+for its original outcome. `DirectLogPreparedConsume` freezes positional
+`CONSUME` requests, retaining a native upper cut at acceptance and applying the
+original typed predicate and logical LIMIT during bounded result delivery. A
+multi-partition Stream requires a predicate that selects exactly one partition.
+`DirectLogPreparedClaim` admits an unfiltered `CLAIM ... WITH LEASE` on one
+Queue partition. Exact `_partition` equality routes multi-partition declarations;
+LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
+capacity and lease checks remain authoritative. Group consumption, WAIT, Queue
+payload predicates and settlement SQL remain unimplemented; group assignment,
+lease settlement and read-release tokens stay with their native owners.
+
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs
 are registered in the [test index](../../../tests/README.md).
+
+Queue ACK uses the same durable workload admission and recovery path. The
+statement freezes the binary claim receipt, retains its original lease identity
+across compatible declaration changes, and completes from native settlement
+evidence without relational counts. See [SQL Queue settlement](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work).

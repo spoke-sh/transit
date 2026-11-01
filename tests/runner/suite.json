@@ -66,7 +66,10 @@
       "test::direct-state-transaction",
       "test::direct-mixed-transaction",
       "test::direct-queue-transfer",
+      "test::direct-automatic-queue-transfer",
       "test::direct-log-token",
+      "test::direct-workload-token",
+      "test::direct-workload-result",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",
@@ -339,7 +342,9 @@
       "bindings::release-test",
       "bindings::release-zig",
       "bindings::feedback",
-      "test::sdk-performance"
+      "test::sdk-performance",
+      "test::log-runtime-baseline",
+      "test::station-turn-baseline"
     ]
   },
   "nested_tasks": {

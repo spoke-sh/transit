@@ -118,6 +118,31 @@ including buffered rows and empty/terminal results. A resumed mutation reply
 observes the original accepted outcome through the database owner; it cannot
 re-execute SQL or require the original execution attachment to remain open.
 
+A prepared descriptor carries both mutation admission and the typed command for
+row completion. `PRODUCE`/`ENQUEUE ... RETURNING` retain mutation admission
+rules, including PostgreSQL's single valid Sync boundary, then open the retained
+result of that original operation. PostgreSQL emits `PRODUCE n` or `ENQUEUE n`
+after verified exhaustion; MySQL uses its ordinary row-result completion.
+Positional `CONSUME` also requires mutation admission and opens its original
+accepted read. PostgreSQL emits `CONSUME n` after verified logical completion,
+including an explicit LIMIT that leaves native coverage partial; MySQL uses
+ordinary row-result completion. The count is returned rows, not offsets scanned.
+Partition-routed `CLAIM ... WITH LEASE` uses the same mutation admission and
+original-result lifetime. PostgreSQL emits `CLAIM n` after every originally
+acquired row is delivered. The acquisition maximum never becomes an output
+filter or limit; refetching does not renew or reacquire leases. Binary
+`_receipt_handle` is carried as a normal binary column/parameter. ACK uses the
+shared original native settlement evidence, emits PostgreSQL's `ACK` tag and no
+relational count; MySQL carries zero affected rows without claiming that as a
+Queue message count.
+Append commands without RETURNING report the native receipt's accepted row count.
+PostgreSQL carries that count in the custom command tag. Upstream libpq's
+`PQcmdTuples` recognizes a fixed set of PostgreSQL tags and returns no count for
+`PRODUCE`, `ENQUEUE`, `CONSUME` or `CLAIM`; clients must inspect the command tag instead. MySQL
+commands without RETURNING carry the count in the affected-rows field.
+The host owns a separate original-result descriptor until reader close, so
+reusing a prepared SQL template cannot replace the result's frozen projection.
+
 Abort suppresses further execution and output without rolling back accepted
 work. The host joins outstanding borrowers, closes reads and destroys prepared
 objects before releasing codec memory. The installed blocking driver retains

@@ -127,6 +127,10 @@ bound a step. Graph/index allocations have a 64 MiB simultaneous limit, one cach
 page and an 8 MiB index-work budget per transition. Work items and progress are
 bounded to 128 KiB and 256 KiB respectively; paged queues/marks permit larger
 durable graphs. WAL buffers and fixed decoding buffers have separate bounds.
+Marking reuses one eight-page immutable batch buffer within that resident budget.
+Each graph transition flushes its pending pages before progress publication;
+failed staging leaves the prior checkpoint authoritative. Grouping does not
+increase the graph-work or elapsed-time limits.
 Directory discovery and segment verification can require substantial I/O.
 After graph completion, inventory WAL cleanup uses the same bounded units and
 resumption behavior as native collection above.

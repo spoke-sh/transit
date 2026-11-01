@@ -416,7 +416,7 @@ fn step(self: *Self) !void {
             if (prepared.empty) {
                 portal.complete = true;
                 try self.output(try self.backend.empty(.empty_query), .none, .execute_finish);
-            } else if (prepared.mutation) try self.request(.{ .write = .{ .prepared = prepared.handle, .values = portal.values } }, .written) else if (portal.read == null) try self.request(.{ .open_read = .{ .prepared = prepared.handle, .values = portal.values } }, .opened) else self.stage = .pull;
+            } else if (prepared.mutation and prepared.fields.len == 0) try self.request(.{ .write = .{ .prepared = prepared.handle, .values = portal.values } }, .written) else if (portal.read == null) try self.request(.{ .open_read = .{ .prepared = prepared.handle, .values = portal.values } }, .opened) else self.stage = .pull;
         },
         .written => {
             const result = self.result.completion;
@@ -456,7 +456,7 @@ fn step(self: *Self) !void {
             const portal = &self.portals[self.exec_index].?;
             if (self.batch.complete) {
                 portal.complete = true;
-                try self.output(try self.backend.complete(.select, portal.rows), .{ .read = portal.read.? }, .execute_finish);
+                try self.output(try self.backend.complete(self.statements[portal.statement].?.value.row_command, portal.rows), .{ .read = portal.read.? }, .execute_finish);
             } else {
                 if (self.exec_maximum != 0) self.exec_emitted += self.batch.len;
                 if (self.exec_maximum != 0 and self.exec_emitted >= self.exec_maximum) {

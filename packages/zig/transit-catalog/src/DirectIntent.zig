@@ -36,6 +36,7 @@ pub const Reference = union(enum) {
     external: External,
     table: c.DirectTableIntent.Reference,
     log: c.DirectLogIntent.Reference,
+    workload: c.DirectWorkloadIntent.Reference,
     name_assertion: c.NameAssertion.Binding,
     namespace_change: NamespaceChange,
     pub fn validate(self: Reference) !void {
@@ -60,6 +61,7 @@ pub const Reference = union(enum) {
             .external => |value| value.identity(),
             .table => |value| value.binding.identity,
             .log => |value| value.binding.identity,
+            .workload => |value| value.identity(),
             .name_assertion => |value| value.identity(),
             .namespace_change => |value| value.binding.identity(),
         };
@@ -68,6 +70,7 @@ pub const Reference = union(enum) {
         if (self == .table) return self.table.content.bytes;
         if (self == .external) return self.external.record.content.bytes;
         if (self == .log) return self.log.record.content.bytes;
+        if (self == .workload) return self.workload.record.content.bytes;
         var bytes: [max_bytes]u8 = undefined;
         return (try encode(self, &bytes)).len;
     }
@@ -96,6 +99,13 @@ pub const Reference = union(enum) {
                 digest_value.update(try encode(self, &bytes));
                 break :blk digest_value.finalResult();
             },
+            .workload => blk: {
+                var bytes: [max_bytes]u8 = undefined;
+                var hash = std.crypto.hash.sha2.Sha256.init(.{});
+                hash.update("transit.catalog.workload.binding.v1\x00");
+                hash.update(try encode(self, &bytes));
+                break :blk hash.finalResult();
+            },
             .name_assertion => |value| assertionDigest(value),
             .namespace_change => |value| namespaceDigest(value),
         };
@@ -111,6 +121,7 @@ pub const Reference = union(enum) {
         if (self == .external) return error.ExternalOperationOwnerRequired;
         if (self == .table) return self.table.admit(client);
         if (self == .log) return self.log.admit(client);
+        if (self == .workload) return self.workload.operation(client, .execute);
         if (self == .namespace_change) {
             try self.validate();
             if (!std.meta.eql(self.connection(), client.connection)) return error.CatalogIdentityConflict;
@@ -127,6 +138,11 @@ pub const Reference = union(enum) {
             .external => error.ExternalOperationOwnerRequired,
             .table => |value| value.operation(client, command, steps),
             .log => |value| value.operation(client, command, steps),
+            .workload => |value| value.operation(client, switch (command) {
+                .inspect => .inspect,
+                .execute => .execute,
+                .cancel => .cancel,
+            }),
             .name_assertion => |value| client.call(.{ .name_assertion = .{ .binding = value, .command = switch (command) {
                 .inspect => .inspect,
                 .execute => .accept,

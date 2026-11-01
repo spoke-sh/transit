@@ -9,6 +9,345 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Final-response deadline control and installed driver check — 2026-11-01
+
+Clean revision `a43c275fe7ae72806764c958d431563416e63355`, current definition
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`, fixes
+a measurement gap: the final successful response now has to arrive before the
+same 30-second logical deadline as incomplete replay responses. A late mutation
+receipt is retained before reporting `CallBudget`. The independent report oracle
+rejects late samples, and failure accounting distinguishes a failed measurement
+with a known outcome from unresolved work. Deadlines and owner budgets are unchanged.
+
+The reporting control suite passes **11/11**, including exact deadline boundaries,
+final completion after replay progress, and known/unknown mutation accounting.
+The clean ReleaseSafe node/proof-caller build passes **10/10 steps**. Running
+`tests/performance/storage/log_runtime.py` through `tests/runner/launch.py` with
+`--profiles 1 3 --warmup 1 --repeat 1` passes both Stream and Queue correctness
+profiles: each verifies two rows, eight foreground calls and ten restart calls.
+Each original receipt and retained selection is checked; no accepted request is
+replaced to complete the run.
+
+This is driver correctness evidence only. Unrelated build activity was present
+on the host, and one measured iteration cannot establish a tail percentile or
+regression budget. No artificial delay was injected into an installed response;
+the deadline boundaries are independent report controls. The larger Queue cold
+recovery failure below remains open.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Node | `4ae3d25db73fc32337cd5ba137976ed488fbeddf1aa1d30da998a8d81e7988d1` |
+| Proof caller | `74956f5948101b385c1eab0752cd38fa259efa3d05ac62689331d0eb1d25d09c` |
+| `/var/tmp/transit-m6-log-deadline-controls1.log` | `4c3b3b2f85f7f81206f2731efca1a5c61f58b2f6c54d820b4003b988757b84ec` |
+| `/var/tmp/transit-m6-log-deadline-build1.log` | `fb1674a866970702b98a549477a58ac429de1a6b4fa7a0f5897feb5a0d517c43` |
+| `/var/tmp/transit-m6-log-deadline-smoke1.log` | `2f6db6fb4c0a0dbc9f198a556dc3005d21af46d889092e96630223760a2ef15a` |
+| `.cache/performance/m6-log-deadline-smoke-1/report.json` in the clean checkout | `bd263fda2cf47a005e084e00b1611fff953a78849968cc68e74ce5e90561e7fe` |
+
+The private installation is `/var/tmp/transit-table-log-baseline-xa1gwke1`;
+the clean checkout is `/var/tmp/transit-m6-log-deadline`.
+
+## Combined read-path cold recovery follow-up — 2026-11-01
+
+A read-only restart of the original private installation with clean matching
+source `f1e66d5cbfc9169d7d2e8aa6bc4c8336d85e0fac` still **fails** the unchanged
+30-second logical deadline. This runtime ports verified-page retention, exact
+Queue timer membership and bounded whole-object reads onto the original
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`
+definition. It does not open that installation with a newer definition.
+
+The original operation `1200001` advances through ten 256-frame recovery
+responses to partition 5 position 2,561, then returns `OwnerRecoveryBudget`.
+One logical read was attempted, zero completed and no mutation was submitted.
+No agent-owned heavy build or fault suite overlapped; host load changed from
+3.293/5.374/6.317 to 3.629/5.235/6.235. This diagnostic supplies neither a
+successful recovery nor a matched speedup measurement. The original requests,
+receipts and installation remain retained.
+
+The matching node SHA-256 is
+`0553d1dd147abe15428a6d9f6303cd815ca21d75cb1b1ae706750748099f5ef9`;
+the progress-only caller is
+`4c76e93d8e8592bd79dc98ec159a8410be955b90f07df38cc0611c3de6520db6`.
+The external driver is `/var/tmp/transit-m6-inspect-original-fused.py`.
+Under `/var/tmp/transit-table-log-baseline-ak_56n_u/`, the report
+`m6-fused-replay-investigation.json` hashes to
+`20235137e549c909c3194da24697b69f75ee7bdf3ae64e4320b61a140404b5cd`;
+its stdout/stderr hashes are
+`90fad9e2ec9f804c2dbff54beccd97f4ab95c0bc8b94bba060639feb4070ee33`
+and `96d82bd3bb184530b450b22c51a32390c3c6e739a5395cadb333fabcbc4ac77b`.
+The wrapper's zero exit means that it retained its report; the recorded caller
+exit is one and the recovery gate remains failed.
+
+## Installed Stream/Queue baseline and cold recovery deadline — 2026-11-01
+
+The six-profile installed workload **failed** on clean source
+`1c4106d5470cc028fe6e9c444d1be94f7f5e0573`, definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`.
+Profiles 1–3 completed three warmup and twenty measured iterations and verified
+their original receipts, retained selections and exact payloads after restart.
+The 128-row unordered Queue profile completed all 3,335 foreground calls,
+including 3,151 durable mutations, but its first original-operation lookup
+after restart exceeded the existing 30-second logical recovery deadline. Nine
+incomplete recovery responses preceded `OwnerRecoveryBudget`; no mutation was
+attempted during that failed recovery. Profiles 5–6 did not execute.
+
+| Completed profile operation | Samples | p50 / p95 (ms) |
+| --- | ---: | ---: |
+| Stream single-row append | 20 | 584.193 / 751.257 |
+| Stream 128-row append | 20 | 586.633 / 754.616 |
+| Single-row Stream page | 20 | 6.660 / 7.881 |
+| 128-row Stream page | 20 | 14.877 / 17.811 |
+| Queue single-row enqueue | 20 | 403.609 / 446.782 |
+| Queue single-row claim | 20 | 450.063 / 480.221 |
+| Queue single-row ACK | 20 | 365.503 / 380.958 |
+
+The fourth profile's foreground observations remain in the failed report:
+twenty enqueues have p50/p95 9,076.220/13,774.941 ms, 160 claims have
+3,619.896/5,746.025 ms, and 2,560 ACKs have 419.298/759.441 ms. These
+observations do not qualify that profile's recovery or the whole baseline.
+The failed recovery denominator is one attempted logical read, zero successes,
+one failure and zero mutations; none of the foreground outcomes are discarded.
+
+```sh
+python3 -B tests/runner/launch.py tests/performance/storage/log_runtime.py \
+  zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof \
+  --output .cache/performance/log-clock-fixed-baseline-1 \
+  --profiles 1 2 3 4 5 6 --warmup 3 --repeat 20
+```
+
+The local disk, ReleaseSafe workload retains 128-byte payloads, one sequential
+caller, unlimited retention, 60-second leases, 30-second caller deadlines and
+10,000-ms configured clock uncertainty. The 48-CPU Linux 6.17.0-41 host's initial
+load averages were 16.736/23.646/28.407. No agent-owned heavy builds or fault
+suites overlapped measurement; other host work was uncontrolled. This is not a
+matched speedup comparison with earlier runs. Per-phase owner budgets, client
+allocation counts, node I/O/RSS and raw samples remain beside the report.
+Server allocations, storage IOPS and CPU cycles remain unmeasured. Sealed/cold
+payload reads, groups, waits, delays, expiry and offered load remain outside
+these completed profiles; their absence does not close M6's baseline gate.
+
+The report SHA-256 is
+`1b8ea81df96d0cd5d72a6da9648da78787c21a8c884c889db9ac470e33309787`.
+Matching node/caller hashes are
+`b4b5351ebbd3e2e235a4402ceb2f44864939fda2f003849ad686cad62bbefba3`
+and `dfd70a25f0efb12c6121d5d243b0b6fb196773e7253608d4df1121e2e61210c5`.
+The private installation `/var/tmp/transit-table-log-baseline-ak_56n_u`
+preserves the original requests, receipts, configuration and matching binaries.
+Later read-only investigation must preserve those identities and cannot turn
+this failed run into a passing measurement.
+
+A read-only follow-up restarts the same installation with that node and an
+`1c4106d54` caller modified only to emit the owner's recovery position. The
+original operation remains `1200001`, the 30-second logical deadline is unchanged,
+and no mutation is submitted. Nine responses advance by 256 frames each, from
+partition 5 position 257 to 2,305, then the read fails with `OwnerRecoveryBudget`.
+The owner is advancing; this is not repeated replay of the same prefix. The
+follow-up is diagnostic evidence, not another qualified performance run or a
+completed inspection. Its caller SHA-256 is
+`4c76e93d8e8592bd79dc98ec159a8410be955b90f07df38cc0611c3de6520db6`.
+The retained installation's `m6-replay-investigation.stdout` has SHA-256
+`13775cc3d56403301438f1bac4c610928a8a0404fe18eff77017d90731cce42f`,
+and `m6-replay-investigation.json` records matching runtime/caller attribution.
+
+A second read-only follow-up applies only the
+[verified-page cache change](storage.md#queue-replay-cache-provenance--2026-11-01)
+to the original matching runtime: source
+`8925ddf1f04287e404583034f54e83151424e161` on `1c4106d54`, retaining the
+same `8e441…` definition and caller above. Its node hash is
+`de1ff98f308965d52c67951e1a54a53521068b39bb0c4b5d77ad060d33cb4f0a`.
+This follow-up also **fails** the unchanged 30-second logical budget. Ten
+256-frame responses reach partition 5 position 2,561 before
+`OwnerRecoveryBudget`; the original operation is still `1200001`, with no
+mutation attempted. No owned builds or fault checks overlap; starting host load
+is 5.746/6.904/8.463. Different host conditions and an incomplete read do not
+establish a matched speedup. The cache change alone does not close recovery.
+
+The retained installation's `m6-cache-replay-investigation.stdout` has SHA-256
+`90fad9e2ec9f804c2dbff54beccd97f4ab95c0bc8b94bba060639feb4070ee33`;
+`m6-cache-replay-investigation.json` has SHA-256
+`f652ebf8b8693eb73a3cd2b4cc9d565b8b4c450454f89b1412c400dce7bca0f4`.
+The failed read and cleanly joined node are diagnostic evidence, not a passing
+baseline or permission to resubmit the original mutation.
+
+A subsequent `strace` diagnostic separates startup from the same original
+operation's request interval. It classifies object descriptors by fixed storage
+family in memory, retaining aggregate counts rather than filenames or payloads.
+Startup opens 242,530 object descriptors and 80,941 object payloads. During
+1,024 replayed frames, the request interval opens 66,934 bitmap descriptors and
+33,467 bitmap payloads, plus 37,530 index descriptors and 18,765 index payloads.
+Native-page opens are 138 descriptors and 69 payloads. This attributes most
+observed request-time file opens to direct bitmap/index storage, not native
+authorization. It does not establish CPU attribution or isolated latency.
+
+The traced original read still fails `OwnerRecoveryBudget` at position 1,025;
+no mutation is attempted. Runtime/caller and definition match the preceding
+follow-up, and no owned heavy work overlaps. Starting host load is
+7.421/7.925/8.814. The retained installation's
+`m6-cache-replay-families.json` has SHA-256
+`124630d017e37b3118c374c56d3dcfb4ccea0d83268a0eb6dfc0d919c4f8c918`;
+its `.stdout` has
+`c4d5b40f1d48131a8762ddf0db20888611a0e1145e139d26027a53042997021a`.
+The external diagnostic driver `/var/tmp/transit-m6-profile-original-families.py`
+has SHA-256
+`c34eef180085b7dfc85a05025ec396397ce20d58c88360f608699994f87ea635`.
+Tracing and classifier I/O make this diagnostic unsuitable for a performance gate.
+
+## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
+
+The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)
+**failed** on clean source `91d217cbd37bde345639f5be033eca554c7019c1`,
+definition `88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`.
+The first three profiles completed three warmup and twenty measured iterations,
+then verified every original receipt, retained selection and payload after a
+SIGTERM restart. Their independent oracles cover 23 single-row Stream payloads,
+2,944 payloads in 128-row Stream appends and 23 single-row Queue payloads.
+These completed profiles supply initial observations; they do not make the
+six-profile run a pass.
+
+| Completed profile operation | Samples | p50 / p95 (ms) |
+| --- | ---: | ---: |
+| Stream single-row append | 20 | 667.687 / 1,363.635 |
+| Stream 128-row append | 20 | 796.223 / 1,665.209 |
+| Single-row Stream page | 20 | 5.983 / 7.798 |
+| 128-row Stream page | 20 | 15.313 / 21.005 |
+| Queue single-row enqueue | 20 | 569.677 / 2,117.166 |
+| Queue single-row claim | 20 | 630.019 / 1,421.354 |
+| Queue single-row ACK | 20 | 457.285 / 1,051.735 |
+
+The fourth profile stopped during warmup with native cause `ClockRollback` on
+ACK operation `1200177`. Its 188 attempted calls include 187 successes and one
+unknown outcome, with no terminal rejection. The two FIFO profiles did not run.
+Reopening the retained installation with the matching node and inspecting the
+saved original request returned a null receipt; that observation does not prove
+rejection. No mutation was resubmitted. The private installation
+`/var/tmp/transit-table-log-baseline-bj2j4lpz` retains the original request, node
+log, inspection output and inspection report. Clock samples were not captured
+at the failed call, so its precise cause cannot be reconstructed from this run.
+
+The run uses ReleaseSafe binaries, local disk, 128-byte payloads, one sequential
+caller, unlimited retention, 60-second leases, a 30-second client timeout and
+10,000-ms configured clock-error allowance. The native cache has one page;
+catalog and partition caches each have sixteen. Per-phase `owner_budgets`
+records the separate index, tail, candidate and scheduling limits. Automatic
+maintenance is absent. The Linux 6.17.0-41 x86_64 host exposes 48 logical CPUs;
+starting load averages were 32.041 / 33.395 / 39.315. No agent-owned heavy build
+or fault suite overlapped measurement; other host work was uncontrolled.
+
+```sh
+just test::log-runtime-baseline \
+  --output .cache/performance/log-baseline-batched-1 --warmup 3 --repeat 20
+```
+
+The ignored report has SHA-256
+`d99736bc271f8140ba4b9397bcb413556664e865f936d656e290f069396cb8de`.
+Matching node/caller SHA-256 values are
+`da782babf971422c6a4b53764102d9091050797fcd9e7197f0f183d9f1370085` and
+`036cb5fae86ca59da1153298bba523fbe8c9861357cad84e93e0cc201533c8d3`.
+Raw JSONL, per-phase allocation counts, node usage and restart results remain
+beside the report. p99, server allocations, CPU cycles and storage IOPS remain
+unmeasured. Sealed/cold reads, groups, waits, delays, expiry and concurrent load
+remain outside these completed profiles.
+
+An earlier 128-row Queue correctness smoke at clean `f41050b9a` passed one
+warmup and one measured iteration, all 256 payload checks and restart recovery;
+its one measured enqueue took 15,320.271 ms. That is not enqueue percentile
+evidence. `.cache/performance/log-batched-smoke-1/report.json` has SHA-256
+`c6b9e852e57cb866129920191d7b1d4e58ea07a5bcb96060b38cd8c4d9c65537`.
+Before private candidate/index batching, the corresponding run timed out on
+enqueue `1200001`; inspection of its original private installation also found
+no receipt. Different populations and host conditions prevent a matched speedup
+claim. Both failed runs remain failures, independent of later improvements.
+
+### Clock-envelope regression follow-up
+
+The [local clock owner](../../../apps/transit-node/LocalLogClock.zig) now uses
+the configured uncertainty envelope rather than the varying reported kernel
+error. This prevents a narrower error estimate from moving the accepted upper
+bound backwards while UTC advances. Actual UTC rollback, missing authority and
+samples outside the configured allowance still refuse. The failed measurement
+above did not capture the clock samples needed to establish this as its cause.
+
+On clean pre-rebase source `c8cf13a0a766b9d7ff178426cc5189a1da1e4e11`, with
+definition `88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`,
+the following component/native composition check passed all four tests:
+
+```sh
+zig build test-local-catalog \
+  -Dlocal-catalog-filter='local log clock' \
+  -Dlocal-catalog-filter='log privileges' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The controlled-time Queue fixture checks timeout at UTC 154 with a five-ms
+allowance (lower bound 149), then visibility at UTC 155 (lower bound 150) and
+accepted upper bound 160. Its one-second wait budget is unchanged. The run also
+executes the existing native log authorization and physical-maintenance checks.
+Compilation took four minutes with 3 GB reported peak RSS; execution took
+fourteen minutes with 89 MB reported peak RSS. These are check-run resource
+observations, not workload latency measurements.
+
+Raw output is retained at `/var/tmp/transit-m6-log-clock-tests3.log`, SHA-256
+`09f161c5b2de879e0810fe3d9e462dd04da33bc88f6f99f140eebdd86936da6f`.
+An earlier run with the old controlled-time expectation was deliberately stopped
+and is not a pass. The later rebase retains the clock patch but adopts main's
+different current definition; this earlier pass does not qualify those new
+binaries or complete the failed six-profile benchmark.
+
+## Installed Station handler baseline — 2026-11-01
+
+The [handler workload](../../../tests/performance/load/station_turn.md) passed
+on clean source `6c4e101162238981107b518262ea616f24746c56`, shared definition
+`88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`.
+One real GenServer handles one input, checks and replaces one 128-byte state
+value, and publishes one outbound cast intent. Three warmup turns precede
+20 measured turns. All 23 inputs, state observations and original outbox entries
+pass the independent oracle; the final state and all 23 outputs pass again after
+a SIGTERM node stop and fresh node/caller start. Both stops exit through SIGTERM
+without fallback SIGKILL. No recipient or courier runs.
+
+| Observation | Result |
+| --- | ---: |
+| Confirmed measured turns / refused / failed / unknown | 20 / 0 / 0 / 0 |
+| Turn latency p50 / p95 | 440.153 / 607.804 ms |
+| Turn latency minimum / maximum | 351.472 / 834.707 ms |
+| Measured client allocation attempts / successes | 757 / 757 |
+| Measured client remap attempts / successes | 940 / 910 |
+| Measured client requested / acquired backing bytes | 286,565 / 274,280 |
+| Node lifetime peak resident bytes during measurement | 57,102,336 |
+| Node read / write byte deltas over the whole measure phase | 4,096 / 9,777,152 |
+
+The timer includes preparing each accepted input, public permit/view/commit work,
+the handler, and writing private pending/receipt files. Input admission and
+verification are outside individual turn timing. Allocator counters cover the
+public native client/HTTP transport and exclude the private recorder. Whole-phase
+node counters also include provisioning, warmup and verification. p99, server
+allocator counts, CPU cycles, storage IOPS and client RSS remain unmeasured.
+These samples establish a comparison workload, not an absolute Station target
+or a zero-allocation result.
+
+The run used the pinned Zig `0.17.0-dev.2267+48abf1a34` ReleaseSafe toolchain,
+native local disk storage, one resident page and one sequential worker, with
+unchanged 10-second request and 30-second read-view budgets. The shared Linux
+6.17.0-41 x86_64 host exposes 48 logical CPUs; starting load averages were
+33.427 / 29.693 / 22.687. No agent-owned heavy build or other proof overlapped
+this run; unrelated host work and the OS page cache were uncontrolled.
+
+```sh
+just test::station-turn-baseline \
+  --output .cache/performance/station-baseline-1 --warmup 3 --repeat 20
+```
+
+The ignored report at `.cache/performance/station-baseline-1/report.json` has
+SHA-256 `a1b1f0d909675876a959a380987afa7d485122a601403206f461fba21556291a`.
+It retains source/toolchain, machine, raw samples and executable/driver identities.
+Node/caller SHA-256 values are respectively
+`5e2ca111fe780859e9062490f184ecef72dc6ce5de723caa5835cc5eb47fabdf` and
+`dabe217b25fe72e45754b63117ddc29f486b36f20ac0e6a8f5ecc5c40d90335a`.
+The first correctness run at `6720aaa43` completed two handler turns but failed
+serializing its report's caller path; `.cache/performance/station-smoke-1/` and
+its private installation remain retained. The corrected two-turn run at
+`6c4e10116` completed both measurement and restart verification before this
+20-sample run. Neither failed nor small-sample runs contribute to these timings.
+
 ## Executable hashing and installed SDK measurement — 2026-11-01
 
 The [startup owner](../../../apps/transit-cli/docs/server.md#logging-and-readiness)
@@ -220,6 +559,7 @@ prefixes and separate Node pass do **not** establish one complete integrated
 four-language campaign or a new performance scorecard. That gate remains open.
 `integration-evidence-index.json` records the integrated run/log hashes and has
 SHA-256 `6b80f27201e6cbcc31e94d54ad22e8e6cda8e1f24cba622586f8deb01cc1f466`.
+
 
 ## Installed startup publication reduction — 2026-10-31
 

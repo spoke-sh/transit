@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "scope": "Standalone dedicated append preparation; no SQL admission or native execution.",
+  "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+  "cases": [
+    {
+      "sql": "PRODUCE INTO items DEFAULT VALUES"
+    },
+    {
+      "sql": "ENQUEUE INTO items DEFAULT VALUES RETURNING *;"
+    },
+    {
+      "sql": "PRODUCE INTO items VALUES (1, 'one', TRUE)"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 3 RETURNING _partition, _offset"
+    },
+    {
+      "sql": "ENQUEUE INTO items (value, id) VALUES ('one', 1), ('two', 2) RETURNING value AS body, id"
+    },
+    {
+      "sql": "PRODUCE INTO items (id, value, extra) VALUES (1, DEFAULT, DEFAULT), (2, NULL, FALSE), (3, 'three', TRUE) RETURNING items.id AS first_id, items.id AS again_id, _offset"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 2"
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PARTITION 0 PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 2 SEQUENCE 3 WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z') RETURNING *"
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '2000-01-01T00:00:00.123Z') RETURNING id, _offset"
+    },
+    {
+      "sql": "produce into \"items\" (\"id\", \"value\") values (9, 'é東京') returning \"items\".\"value\" as \"Body\";"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 4294967296",
+      "error": "InvalidLogPartitioning"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION NULL",
+      "error": "InvalidLogAppendOperand"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00000000-0000-0000-0000-000000000000' EPOCH 1 SEQUENCE 1",
+      "error": "InvalidLogProducer"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 0 SEQUENCE 1",
+      "error": "InvalidLogProducer"
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 0",
+      "error": "InvalidLogProducer"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z')",
+      "error": "UnsupportedLogAppendOption"
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:00.000001Z')",
+      "error": "InvalidLogVisibilityTime"
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1969-12-31T23:59:59Z')",
+      "error": "InvalidLogVisibilityTime"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING absent",
+      "error": "UnknownColumn"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING id, id",
+      "error": "InvalidOutputNames"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $1",
+      "error": "ParameterTypeConflict"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $3",
+      "error": "ParameterGap"
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1); DROP STREAM items",
+      "syntax_error": true
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING COUNT(*)",
+      "syntax_error": true
+    },
+    {
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (unknown = 1)",
+      "syntax_error": true
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING id LIMIT 1",
+      "syntax_error": true
+    },
+    {
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' SEQUENCE 1",
+      "syntax_error": true
+    },
+    {
+      "sql": "PRODUCE INTO items (_offset) VALUES (1) RETURNING items._offset AS app_offset, _offset AS native_offset",
+      "basis": "CREATE TABLE items (_offset BIGINT)",
+      "error": "DuplicateColumn"
+    }
+  ]
+}

@@ -117,6 +117,19 @@ group can leave a visible subset of complete private objects; it returns no page
 references and installs no new publication confirmations. Exact retries repeat
 the required barriers, and quota reservations remain charged after uncertainty.
 This grouping changes neither stored bytes nor the accepting owner or decision.
+[`AllocationJournal`](../../../packages/zig/transit-backend-local/src/AllocationJournal.zig)
+checks cancellation before the inventory append, then protects that single
+bounded WAL batch through its durability barriers. Protection ends before
+per-object marker and content work. A pending maintenance cancellation is
+delivered at the next safe point, preserving the accepted inventory prefix
+without forcing replacement of the shared foreground owner. Genuine write/sync
+failures retain the WAL's uncertainty and reopen requirement. Joining a timed-out
+step may wait for this durability boundary; device I/O supplies no hard latency
+bound. The [allocation cancellation test](../../../packages/zig/transit-backend-local/src/data_allocations_test.zig)
+delivers a real task cancellation at a gated file sync, then verifies the complete
+inventory prefix, same-owner retry and disk reopen for native/direct single and
+batched records. Existing sync-failure schedules separately exercise storage
+errors.
 Bounded stack buffers hold encoded pages. The native
 [`PageStore`](../../../packages/zig/transit-backend-local/src/PageStore.zig)
 preallocates an additional eight-page private buffer per owner and coalesces

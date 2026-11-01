@@ -8,7 +8,14 @@ bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
 availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
-SQL `PRODUCE`, `CONSUME`, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
+SQL also supports [PRODUCE and positional CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
+Group consumption, WAIT, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
+
+The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
+reopens accepted append and finite consume results from frozen workload intents.
+Saved page positions retain the original payload or authenticated read coverage.
+Opening, paging and local cleanup neither produce another event nor advance a
+group; explicit read release and offset settlement remain separate operations.
 
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
@@ -130,6 +137,41 @@ under that same principal and operation. Reservation alone is not acceptance
 and does not create a read pin or append payloads. The service must check current
 rights before reserving and retain the original storage outcome independently.
 
+### Original-operation cancellation
+
+`DirectStream.Request.cancel` carries the exact original mutation request, not
+a fresh operation identity. Current rights for that mutation still apply. The
+catalog reserves its canonical binding in the shared operation namespace, then
+the partition serializes cancellation with admission. A reservation alone and
+an absent receipt remain nonterminal observations.
+
+If the original mutation already committed, cancellation returns its original
+success receipt without releasing a read, changing progress or undoing an append.
+Otherwise the partition commits `LogWorkload.Closure` in its existing receipt
+directory. The closure binds the canonical request, a `cancelled` reason and the
+closure's WAL position (`recorded`); that position is not mutation acceptance.
+The closure advances neither logical offsets nor the data-change frontier.
+Repeated cancellation, mutation, wait and original-operation lookup return that
+same closure. Changing any bound request field conflicts. Direct storage
+mutation methods also reject the closed identity rather than admitting it.
+
+Closure uses control capacity and remains possible against a compatible altered
+or retired declaration. A prepared transaction still blocks unrelated publication;
+standalone cancellation cannot cancel a transaction participant or overwrite its
+global reservation. Lost cancellation replies require lookup/recovery of the
+same operation. Authorization is checked again before disclosing buffered
+evidence. Failure to publish or observe closure is not proof of cancellation.
+Stopping a local wait does not invoke this operation implicitly.
+
+After a serialized mutation returns `LogProducerFenced` or
+`LogProducerReceiptExpired`, its adapter records a terminal `refused` closure
+before returning that outcome. Queue settlement adds the exact lease-fenced and
+lease-expired refusals. Closure validation restricts each reason to its owning
+operation kind. Producer sequence gaps, capacity, authorization, missing time,
+storage failure and uncertain append results are not terminalized by this rule.
+If recording refusal itself fails, the caller must recover the original
+operation; the earlier local error cannot establish a durable terminal outcome.
+
 The receipt's mandatory nullable `observed_ms` is the upper bound of the trusted
 owner's UTC interval before private staging, rechecked under the publication guard. It is
 separate from event timestamps and the physical WAL header. A configured clock
@@ -195,6 +237,23 @@ source/range attribution; it does not authenticate the cursor. The runtime must
 authenticate continuation and completed coverage independently of current
 authorization, and must not sign caller-invented progress. Filters or delivery
 limits cannot manufacture a complete cursor.
+
+`StreamRead.Progress` carries either an `exhausted` cursor for the entire read,
+or an `interval` with two issued cursors, `first` and `last`. Interval boundaries
+must have the same read handle, cut and original range, with nondecreasing
+scanned frontier and cumulative row count. Its complete coverage is
+`[first.through, last.through)` and its row count is their cumulative difference.
+Neither cursor changes its original completeness. An interval spanning the whole
+exhausted read has the canonical `exhausted` representation. Empty intervals are
+valid. The owner authenticates both supplied interval boundaries and checks the
+original live pin, current group generation and expected checkpoint. Shape
+validation and subtraction alone cannot establish traversal.
+
+Offset requests and stored transaction actions retain this exact progress proof.
+A partial endpoint by itself cannot settle a prefix. Original accepted settlement
+lookup compares the complete saved proof before fresh pin/authentication checks,
+so release or authority-key rotation cannot erase an accepted outcome. Current
+rights still govern lookup and disclosure.
 
 `StreamRead.Release` is a separate original operation by the read's principal,
 with its exact handle and original read target. Release changes retention ownership,

@@ -124,13 +124,16 @@ pub const Root = struct {
     branches: ?pages.Reference,
     branch_names: ?pages.Reference,
     branch_owners: ?pages.Reference,
+    queue_transfer_sources: ?pages.Reference,
+    queue_transfer_pending: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .queue_transfer_sources = null, .queue_transfer_pending = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
         if (self.next_partition <= self.configuration.partition or self.initialized != (self.next_lsn != 0)) return error.InvalidDirectCatalogRoot;
+        if (self.queue_transfer_pending != null and self.queue_transfer_sources == null) return error.InvalidDirectCatalogRoot;
         if ((self.client_operations == null) != (self.client_token_count == 0)) return error.InvalidDirectCatalogRoot;
         if ((self.client_accounts == null) != (self.client_token_count == 0)) return error.InvalidDirectCatalogRoot;
         if ((self.client_tokens == null) != (self.client_token_count == 0) or self.client_token_count >= self.next_lsn and self.client_token_count != 0) return error.InvalidDirectCatalogRoot;

@@ -2403,10 +2403,11 @@
     },
     {
       "id": "TRANSACTION-06",
-      "claim": "Accepted private statements recover their original provisional outcomes and retained Table roots without public data acceptance or autocommit identity reuse",
+      "claim": "Accepted private statements recover their original provisional outcomes, Table roots and log action directories without public data acceptance or autocommit identity reuse",
       "owner": "packages/zig/transit-catalog/docs/direct-catalog.md",
       "implementation": [
         "packages/zig/transit-catalog/src/DirectTransactionWorkspace.zig",
+        "packages/zig/transit-catalog/src/DirectTransactionLogWork.zig",
         "packages/zig/transit-catalog/src/DirectCatalog.zig",
         "packages/zig/transit-catalog/src/DirectClientToken.zig",
         "packages/zig/transit-catalog/src/OperationBinding.zig",
@@ -2430,9 +2431,11 @@
         "Nine private Tables and statement records exceed one page and retain pending intents, data segments and evidence through the catalog graph",
         "Workspace quota refusal preserves the admitted pending request and original private root; current denial precedes repeated result disclosure",
         "Atomic aggregate account reservations survive lost begin replies and disk reopen, sum all six resource dimensions across login roles, and preserve original receipt recovery after admission limits are lowered",
-        "Installed signed callers cannot stage any server-owned cut or workspace format; aggregate reservation refusal returns HTTP 503 StorageQuota without accepting the token"
+        "Installed signed callers cannot stage any server-owned cut or workspace format; aggregate reservation refusal returns HTTP 503 StorageQuota without accepting the token",
+        "Twelve concrete mixed Table/Stream schedules preserve the shared pending slot and sequence, cross-kind operation exclusion, current execution rights and savepoint roots across owner replacement",
+        "Replacement reloads the pending state or log request from durable progress; independent projections keep private Table rows and log actions separate from public rows"
       ],
-      "limits": "The embedding host excludes database publication. Private statement operations have no signed caller or SQL adapter; the installed checks cover only existing record and begin-admission refusals. No commit, abort, preparation barrier, common-decision visibility, savepoint controls, automatic cleanup, process-death or power-loss claim follows. Staging charges exclude unreachable failed staging and separately owned catalog/provider capacity.",
+      "limits": "The embedding host excludes competing database publication. The finite TLC model covers state-only workspace transitions; its eight counterexample replays and twelve separately specified mixed schedules are not exhaustive mixed-model correspondence. Mixed replay reopens memory-backed owners, not physical disks or processes. Commit/abort decisions, preparation barriers, installed caller coverage and automatic cleanup need their separately attributed proofs. No power-loss claim follows. Staging charges exclude unreachable failed staging and separately owned catalog/provider capacity.",
       "model": "tests/verification/models/TransactionWorkspace.tla",
       "qualification": "Focused catalog and clean-source checks must identify their actual source; registration alone is not execution."
     },

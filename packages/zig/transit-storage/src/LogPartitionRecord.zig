@@ -150,7 +150,7 @@ pub const Record = struct {
         return switch (self.action) {
             .operation => |value| switch (value.outcome) {
                 .append, .assignment, .offset, .claim, .settlement, .terminal => true,
-                .read, .release, .queue_release => false,
+                .read, .release, .queue_release, .closed => false,
             },
             .expire, .queue_expire, .compaction_publish, .transaction_commit => true,
             else => false,

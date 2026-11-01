@@ -1854,6 +1854,18 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionParticipant).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTransfer).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidLogIntent).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidWorkloadIntent).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidWorkloadResultBudget).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.WorkloadResultRowTooLarge).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.WorkloadResultUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadResultConflict).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadResultClosed).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidWorkloadProjection).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.WorkloadProjectionUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadProjectionSourceChanged).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.ClientTokenBudget).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.WorkloadServiceUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.ClientOperationPending).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionSettlement).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidKVKey).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.KVBuildBudget).code);
@@ -2308,4 +2320,172 @@ test "typed branch reads survive collection and fence buffered disclosure" {
     typed_dispatch = true;
     defer typed_dispatch = false;
     try dataSchedule(branchDispatch);
+}
+
+test "automatic Queue maintenance requires its database signer and resumes the original paired decision" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 });
+    const pid = try command(&engine, .{ .spawn = .{} });
+    const resource = try command(&engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
+    const role = (try change(&engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
+    _ = try change(&engine, .{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
+    const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
+    const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+    const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
+    const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
+    const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+    const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
+
+    var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1 } };
+    (try dispatch(&service, .initialize)).deinit();
+    const Fixture = struct {
+        const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+        fn schema(object: u64) c.fuze.TableSchema.Schema {
+            return .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+        }
+        fn create(current: *@import("LocalTableService.zig"), owner_role: u64, object: u64, name: []const u8, destination: ?p.DataLifecycle.Definition) !c.DirectLog.Definition {
+            var arena = std.heap.ArenaAllocator.init(t.allocator);
+            defer arena.deinit();
+            const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init(name), .action = .{ .create = .{
+                .owner = owner_role,
+                .schema = schema(object),
+                .configuration = .{ .partitioning = .{ .count = if (destination == null) 3 else 2, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 1, .backoff = .{ .initial_ms = 0, .maximum_ms = 0, .multiplier = 1 }, .dead_letter = destination } } },
+                .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 16 },
+            } } };
+            const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = current.configuration.scope, .principal = 101, .operation = object }, .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+            (try dispatch(current, .{ .log_admit = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = binding, .intent = intent }) })).deinit();
+            const response = try dispatch(current, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+            defer response.deinit();
+            try t.expectEqual(.complete, response.value.result.log_operation.operation.phase);
+            return response.value.result.log_operation.operation.resulting.?;
+        }
+        fn signed(current: *Engine) !g.SignedRequest {
+            return g.sign(.{ .realm = 42, .principal = 0, .sequence = (try current.principal(0)).sequence + 1, .command = .checkpoint }, try key(17));
+        }
+        fn operation(configuration: D.Configuration, id: u64) p.DataLifecycle.Operation {
+            return .{ .scope = configuration.scope, .principal = 101, .operation = id };
+        }
+    };
+    const destination = try Fixture.create(&service, role, 300, "dead_letters", null);
+    const source = try Fixture.create(&service, role, 301, "inbox", destination.stored.declaration.interpretation);
+    const Clock = struct {
+        now: u64 = 1000,
+        fn read(raw: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now, .error_ms = 5 };
+        }
+    };
+    var clock: Clock = .{};
+    engine.clock = .{ .context = &clock, .read = Clock.read };
+    const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = source.stored.declaration.interpretation, .partition = 1 };
+    var buffer: [8192]u8 = undefined;
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 77 } } }};
+    const payload = try c.storage.LogBatch.encode(Fixture.schema(301), Fixture.operation(config, 90000), .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &buffer);
+    const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(binary.base64);
+    (try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = Fixture.operation(config, 90000), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = binary } } })).deinit();
+    const claimed = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = Fixture.operation(config, 90001), .maximum = 1, .lease_ms = 100 } }, .payload = null } } });
+    defer claimed.deinit();
+    const claim = claimed.value.result.queue.operation.?.claim;
+    const input = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer input.deinit();
+    (try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .settle = .{ .operation = Fixture.operation(config, 90002), .lease = input.value.result.queue.page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } }, .payload = null } } })).deinit();
+    clock.now = 1020;
+    var control: backend.DataStore = .{ .backend = &owner, .control = true };
+    var data: backend.DataStore = .{ .backend = &owner };
+    var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), service.options);
+    defer catalog.deinit();
+    try catalog.recover();
+    const Host = @import("LocalTableHost.zig");
+    const Transfers = @import("LocalQueueTransfers.zig");
+    var host: Host = .{ .configuration = config, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState() };
+    defer host.deinit();
+    var memory: c.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = 32 * 1024 * 1024 };
+    var worker: Transfers = .{};
+    defer worker.deinit();
+    // A native checkpoint signer alone never starts application DLQ work.
+    try t.expect(!try worker.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine)));
+    const identity: Transfers.Identity = .{ .principal = 101, .key = try key(29), .role = null, .account = @splat(42), .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 2, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 } };
+    host.queue_transfers = identity;
+    var original: ?c.DirectClientToken.Receipt = null;
+    for (0..64) |_| {
+        _ = try worker.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine));
+        try catalog.recover();
+        if ((try catalog.store.queueTransferPending(null)).entries[0]) |pending| {
+            original = pending.receipt;
+            break;
+        }
+    }
+    const receipt = original orelse return error.FixtureBudget;
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(t.allocator, catalog.data_objects, receipt);
+    try t.expectEqual(@as(u32, 1), plan.transfer.destination.target.partition);
+    try t.expectEqualDeep(destination.stored.declaration.interpretation, plan.transfer.destination.target.interpretation);
+    try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+    // Before acquisition, collection must retain the exact staged payload.
+    try collectDirect(&engine, &catalog);
+    // Collection advances trusted time through its grace interval. Restore a
+    // clock at that new floor, not the pre-collection sample.
+    clock.now = @max(clock.now, engine.head.time_floor_ms);
+    worker.deinit();
+    worker = .{};
+    try t.expectEqual(@as(usize, 0), memory.used);
+    _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(destination.properties.authorization), .owner = 0 } });
+    try t.expectError(error.Forbidden, worker.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine)));
+    try catalog.recover();
+    try t.expect((try catalog.store.queueTransferPending(null)).entries[0] != null);
+    try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+    _ = try change(&engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(destination.properties.authorization), .owner = role } });
+    // Another account may inspect physical metadata, but cannot adopt this
+    // original or create a fresh attempt for the already bound source.
+    host.queue_transfers.?.account = @splat(43);
+    for (0..16) |_| _ = try worker.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine));
+    try catalog.recover();
+    try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+    try t.expect((try catalog.store.queueTransferPending(null)).entries[0] != null);
+    host.queue_transfers = identity;
+    var second: Transfers = .{};
+    defer second.deinit();
+    for (0..256) |i| {
+        const selected = if (i % 2 == 0) &worker else &second;
+        _ = try selected.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine));
+        try catalog.recover();
+        if ((try catalog.store.queueTransferPending(null)).entries[0] == null) break;
+    }
+    try t.expect((try catalog.store.queueTransferPending(null)).entries[0] == null);
+    const terminal = (try catalog.store.queueTransferSource(try plan.sourceKey())).?;
+    try t.expectEqualDeep(receipt, terminal.receipt);
+    try t.expect(!terminal.pending);
+    const completed = try c.DirectTransactionControl.load(t.allocator, catalog.data_objects, terminal);
+    try t.expectEqual(.committed, completed.decision.?.outcome);
+    try t.expect(completed.cleanup_complete);
+    try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+    const after = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer after.deinit();
+    try t.expectEqual(p.QueueRead.State.archived, after.value.result.queue.page.rows[0].lease.state);
+    const delivery = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = plan.transfer.destination.target, .operation = Fixture.operation(config, 90003), .maximum = 2, .lease_ms = 100 } }, .payload = null } } });
+    defer delivery.deinit();
+    try t.expectEqual(@as(u32, 1), delivery.value.result.queue.operation.?.claim.rows);
+    const output = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = delivery.value.result.queue.operation.?.claim, .next = 0 }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } } });
+    defer output.deinit();
+    try t.expect(output.value.result.queue.page.cursor.complete());
+    const output_bytes = try output.value.result.queue.page.rows[0].encoded.decode(t.allocator, c.fuze.TableRow.max_bytes);
+    defer t.allocator.free(output_bytes);
+    var decoded = try c.fuze.TableRow.decode(t.allocator, Fixture.schema(300), output_bytes);
+    defer decoded.deinit();
+    try t.expectEqual(@as(i128, 77), decoded.row().cells[0].value.atom.signed);
+    try t.expect(memory.peak <= memory.limit);
+    worker.deinit();
+    worker = .{};
+    second.deinit();
+    second = .{};
+    try t.expectEqual(@as(usize, 0), memory.used);
 }

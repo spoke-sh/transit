@@ -151,11 +151,15 @@ pub const Binding = struct {
         try self.intent.validate();
         try self.budget.validate();
         if (self.intent == .branch and !std.mem.eql(u8, &self.fingerprint, &try self.intent.branch.digest())) return error.ClientTokenConflict;
+        if (self.intent == .workload and self.budget.bytes < try self.intent.workload.reservationBytes()) return error.ClientTokenBudget;
         if (self.intent == .transaction_call and self.budget.bytes < c.DirectTransactionCall.reservation_bytes) return error.ClientTokenBudget;
+        if (self.intent == .transaction and self.intent.transaction.purpose == .queue_transfer and
+            !std.meta.eql(self.key.scope(), self.intent.transaction.purpose.queue_transfer.scope)) return error.DataIdentityConflict;
         if (!std.meta.eql(self.key.connection, self.intent.connection()) or
             std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
         if (self.intent == .external and !std.mem.eql(u8, &self.key.account, &self.intent.external.record.scope.account)) return error.InvalidClientToken;
         if (self.intent == .log and !std.mem.eql(u8, &self.key.account, &self.intent.log.record.scope.account)) return error.InvalidClientToken;
+        if (self.intent == .workload and !std.mem.eql(u8, &self.key.account, &self.intent.workload.record.scope.account)) return error.InvalidClientToken;
     }
     /// Racing preparations of the same request may propose different operation
     /// IDs or cuts. Only the originally accepted reference may be dispatched.

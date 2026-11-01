@@ -4,6 +4,7 @@ const r = @import("root.zig");
 const d = r.protocol.DataLifecycle;
 const Self = @This();
 pub const Data = union(enum) {
+    workload: r.Workload.Observation,
     source: struct { kind: r.fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
     table: struct { object: d.Object, interpretation: d.Definition, accepted: d.Position, changed_lsn: u64, pin: d.Content, commitment: [32]u8, schema: [32]u8 },
     independent_table_snapshots: []const r.fuze.Relational.Cut,
@@ -22,6 +23,7 @@ pub const Metadata = struct {
 };
 pub const Value = union(enum) { data: Data, metadata: Metadata };
 pub fn validate(value: Value) !void {
+    if (value == .data and value.data == .workload) return value.data.workload.validate();
     if (value != .data or value.data != .transaction) return;
     const view = value.data.transaction;
     try view.handle.validate();

@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -129,6 +129,42 @@ mutationStatement
 assignment: columnReference EQ mutationValue;
 mutationValue: DEFAULT | literal;
 mutationRow: LPAREN mutationValue (COMMA mutationValue)* RPAREN;
+
+// Dedicated typed append compiler, also admitted by ordinary SQL sessions.
+logAppendStatement: logAppendCommand SEMI? EOF;
+logAppendCommand: (PRODUCE | ENQUEUE) INTO identifier logAppendValues
+    (PARTITION logAppendOperand)?
+    (PRODUCER ID logAppendOperand EPOCH logAppendOperand SEQUENCE logAppendOperand)?
+    (WITH LPAREN VISIBLE_AT EQ logAppendOperand RPAREN)?
+    (RETURNING projection)?;
+logAppendValues
+    : DEFAULT VALUES
+    | (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES logAppendRow (COMMA logAppendRow)*
+    ;
+logAppendRow: LPAREN logAppendValue (COMMA logAppendValue)* RPAREN;
+logAppendValue: DEFAULT | logAppendOperand;
+logAppendOperand: literal | PARAMETER;
+
+// Grammar covers group/wait preparation; execution validates its narrower profile.
+logConsumeStatement: logConsumeCommand SEMI? EOF;
+logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
+    (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
+    (WAIT workloadTextOperand)?;
+// Native admission validates the supported partition routing and wait profile.
+logClaimStatement: logClaimCommand SEMI? EOF;
+logClaimCommand: CLAIM projection FROM identifier sourceAlias?
+    workloadWhereClause? templateLimitClause? WITH LEASE workloadTextOperand
+    (WAIT workloadTextOperand)?;
+logSettlementStatement: logSettlementCommand SEMI? EOF;
+logSettlementCommand: ACK ON QUEUE identifier RECEIPT workloadReceiptOperand
+    | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand;
+workloadReceiptOperand: X STRING | PARAMETER | NULL_;
+workloadTextOperand: STRING | PARAMETER | NULL_;
+workloadWhereClause: WHERE workloadDisjunction;
+workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
+workloadConjunction: workloadNegation (AND workloadNegation)*;
+workloadNegation: NOT workloadNegation | LPAREN workloadDisjunction RPAREN | workloadAtom;
+workloadAtom: columnReference (IS NOT? cellState | comparison (literal | PARAMETER));
 
 
 // ---- Parser rules -----------------------------------------------------
@@ -336,6 +372,8 @@ legacyIdentifier
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
+    | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
+    | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT
     ;
 
 DATAFLOW: 'DATAFLOW';
@@ -355,6 +393,21 @@ QUEUES: 'QUEUES';
 PARTITION: 'PARTITION';
 PARTITIONS: 'PARTITIONS';
 HASH: 'HASH';
+PRODUCE: 'PRODUCE';
+ENQUEUE: 'ENQUEUE';
+CONSUME: 'CONSUME';
+CLAIM: 'CLAIM';
+ACK: 'ACK';
+EXTEND: 'EXTEND';
+RECEIPT: 'RECEIPT';
+LEASE: 'LEASE';
+WAIT: 'WAIT';
+PRODUCER: 'PRODUCER';
+ID: 'ID';
+EPOCH: 'EPOCH';
+SEQUENCE: 'SEQUENCE';
+VISIBLE_AT: 'VISIBLE_AT';
+RETURNING: 'RETURNING';
 START: 'START';
 TRANSACTION: 'TRANSACTION';
 WORK: 'WORK';

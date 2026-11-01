@@ -346,8 +346,68 @@ pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self
     return result;
 }
 
+/// The dedicated append compiler shares typed row failures, not Table verbs.
+pub fn logAppend(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    var result = tableDml(text, cause, location) orelse return null;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Stream or Queue append cannot be compiled";
+    result.hint = "Use the declared columns and typed VALUES, optional partition/producer metadata and distinct RETURNING names. Native routing and admission limits apply separately.";
+    return result;
+}
+
+/// Preserve dedicated consumption-parser evidence without routing it through
+/// SELECT's narrower statement parser. Preparation has dispatched no work.
+pub fn logConsume(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Stream consumption cannot be compiled";
+    result.hint = "Use a row projection, declared columns or offset metadata, Boolean predicates, a logical LIMIT and typed group/wait operands. Preparation does not acquire a source or settle offsets.";
+    return result;
+}
+
+/// Dedicated acquisition preparation. This diagnostic cannot establish that a
+/// Queue lease was accepted or that any selected work is complete.
+pub fn logClaim(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Queue claim cannot be compiled";
+    result.hint = "Use a row projection, an acquisition predicate and maximum, a positive WITH LEASE duration and an optional bounded WAIT. Preparation acquires no work.";
+    return result;
+}
+
+test "consumption diagnostics preserve the dedicated compiler cause" {
+    const text = "CONSUME id FROM items WHERE id = 1 GROUP 'late'";
+    const detail = logConsume(text, error.UnsupportedConstruct, .{ .location = .{ .offset = 34 } }).?;
+    const value = try detail.structured();
+    try std.testing.expectEqualStrings("sql.unsupported_construct", value.code.slice());
+    try std.testing.expectEqual(d.Outcome.not_submitted, value.outcome);
+    try std.testing.expectEqual(@as(u64, 34), try value.location.?.offset.value());
+    const routed = bound("/* stream */ " ++ text, error.UnsupportedConstruct, true, .{ .location = .{ .offset = 47 } }).?;
+    try std.testing.expectEqualStrings(detail.summary, routed.summary);
+    try std.testing.expectEqual(@as(u64, 47), try (try routed.structured()).location.?.offset.value());
+    try std.testing.expect(logConsume(text, error.OutOfMemory, .{}) == null);
+    const claim = bound("/* lease */ CLAIM id FROM items WITH LEASE '0s'", error.InvalidLogLeaseDuration, false, .{ .location = .{ .offset = 42 } }).?;
+    try std.testing.expectEqualStrings("sql.invalid_log_lease_duration", (try claim.structured()).code.slice());
+}
+
+pub fn logSettlement(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Queue settlement cannot be compiled";
+    result.hint = "Use ACK ON QUEUE with the original binary RECEIPT, or EXTEND LEASE with a positive BY duration. Preparation grants no settlement authority.";
+    return result;
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
+    var lexer: sql.Lexer = .{ .text = text };
+    const first = lexer.next() catch null;
+    if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
+    if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CLAIM")) return logClaim(text, cause, binding);
+    if (first) |token| if (token.tag == .word and (std.ascii.eqlIgnoreCase(token.text, "ACK") or std.ascii.eqlIgnoreCase(token.text, "EXTEND"))) return logSettlement(text, cause, binding);
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);

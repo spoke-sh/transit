@@ -97,7 +97,8 @@ commit, Queue ACK or Queue terminal transfer. Action directories order by
 `(statement.sequence, ordinal)`; the owner checks ordered ordinals, unique
 operation identities and the frozen statement commitment. Append batches retain
 their original payload and producer binding. Offset commits retain exact issued
-coverage and group generation; ACK retains the exact live lease receipt and
+coverage, its complete `StreamRead.Progress` proof (including both interval
+boundaries when present), and group generation; ACK retains the exact live lease receipt and
 cannot substitute NACK or renewal. Current authority, coverage issuance and
 lease liveness are publication checks, never conclusions of shape validation.
 

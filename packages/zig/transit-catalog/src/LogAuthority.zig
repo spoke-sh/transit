@@ -9,7 +9,7 @@ pub const append: u64 = 4;
 pub const acquire: u64 = 8;
 pub const settle: u64 = 16;
 pub const all_privileges: u64 = inspect | read | append | acquire | settle;
-pub const Access = enum { create, inspect, read, append, acquire, settle, administer };
+pub const Access = p.LogWorkload.Access;
 
 /// CREATE uses schema CREATE; administration uses native object ownership.
 /// Reading or settling never inherits authority from a lease/group identity.
