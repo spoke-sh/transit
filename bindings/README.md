@@ -12,6 +12,13 @@ provides a raw client; the other non-Zig targets also provide Station adapters. 
 programs. All use native v1. The pre-1.0 [versioning policy](../docs/handbook/reference/versioning.md)
 requires matching current definitions and hard cutovers.
 
+Go also exposes a separate [Serving process caller](../sdks/go/serving/README.md)
+using `nix build .#transit-serving-client`. `bindings::go-check` exercises that
+installed executable against a TLS fixture, including private-CA verification,
+original-byte replay, scope refusal and cancellation. This is a distinct Nix
+closure; portable raw-client/Station release archives do not supply it. The
+fixture does not replace a real Serving authority or application qualification.
+
 ## Shared boundary
 
 The [client ABI](../packages/zig/transit-client/docs/bindings.md) provides owned

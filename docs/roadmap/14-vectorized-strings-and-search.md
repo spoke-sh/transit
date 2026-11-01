@@ -34,12 +34,16 @@ Start from [queries](../handbook/reference/queries.md),
 [query mechanisms](../handbook/internals/query-engine.md) and the
 [benchmark tooling](../../tests/performance/query/README.md).
 
-Keep logical types and span projections ($\tau$), collations and deterministic
+Keep logical types and span projections ($\tau$: `UTF8`, `BINARY`, biological
+sequences `BIO_SEQ`, molecular graphs `MOLECULE`), collations and deterministic
 analyzers/segmenters ($\kappa$: `utf8_binary`, `ascii_ci`, `ebcdic_cp037`,
-`icu:<locale>`, versioned token/span boundaries) and physical codecs and index
-profiles ($\epsilon$: `.dictionary`, `.fsst`, `.rle`, `EBCDIC`, posting blocks,
-trigram/substring bitmaps, suffix/automaton structures) orthogonal. Declarative
-match, substring/pattern, proximity (`NEAR` / `WITHIN`) and ranking contracts
+`icu:<locale>`, versioned token/span boundaries, reference genome assembly
+$\kappa_{\text{genome}}$ and canonical chemical tautomer/stereochemistry rules
+$\kappa_{\text{chem}}$) and physical codecs and index
+profiles ($\epsilon$: `.dictionary`, `.fsst`, `.rle`, `EBCDIC`, `.seq_2bit`,
+`.cram_ref_delta`, `.fm_bwt`, `.geno_pbwt`, `.mol_graph`, `.audio_fingerprint`,
+posting blocks, trigram/substring bitmaps, suffix/automaton structures) orthogonal. Declarative
+match, substring/pattern, proximity (`NEAR` / `WITHIN`), sequence-alignment and ranking contracts
 must remain independent of any single physical index or bag-of-words heuristic
 so `Fuze` can swap physical access paths behind an exact scalar reference oracle.
 Every string representation, sort prefix, hash probe and search index evaluation
@@ -129,6 +133,38 @@ current-authority disclosure checks.
      deletion bitmaps, MVCC snapshot visibility masks and relational predicate
      selection vectors (`WHERE tenant_id = ? AND MATCH(body, ?)`), deferring
      document/row payload decoding until final top-$k$ row IDs are selected.
+   - **Biological sequence (`BIO_SEQ`), biobank genotype (`.geno_pbwt`), chemical substructure (`MOLECULE`) and spectral constellation (`.audio_fingerprint`) codecs and index profiles:**
+     Extend the swappable `.tseg` codec and inverted/succinct index architecture to
+     non-word-tokenized scientific and signal domains:
+     - *`BIO_SEQ(alphabet)` (`DNA`, `RNA`, `IUPAC_NUCLEOTIDE`, `AMINO_ACID`) with `.seq_2bit` & `.cram_ref_delta`:*
+       pack 4 nucleotides per byte (32 bases per `u64` SIMD lane) in `.seq_2bit`
+       with a sparse Roaring bitmap for ambiguous IUPAC codes and RLE/quantized
+       Phred quality scores; for aligned reads (`BAM`/`CRAM`), encode
+       `.cram_ref_delta` tuples `(ref_contig_id, start_pos, cigar_ops, mismatch_edits)`
+       against a catalog-pinned reference genome $\kappa_{\text{genome}}$
+       (`GRCh38.p14`, `T2T-CHM13v2.0`) for $10\times\text{–}50\times$ compression
+       and direct delta-stream pileup scans.
+     - *Succinct FM-Index / Run-Length BWT (`.fm_bwt` / `r-index`) & $(w, k)$-Minimizer Roaring Index (`USING FM_INDEX` / `USING MINIMIZER`):*
+       combine [Milestone 7's](07-document-storage-and-station-decoupling.md)
+       succinct wavelet-tree `rank`/`select` bitvectors with Roaring $(w, k)$-minimizer
+       posting lists to execute $O(|q|)$ exact seed matching, $k$-mer containment /
+       Jaccard similarity (`SEQ_KmerJaccard`), and SIMD Myers bit-parallel /
+       Wavefront Alignment (`WFA`, `SEQ_Align(read, ref, scoring)`).
+     - *Positional Burrows–Wheeler Transform (`.geno_pbwt`) for Biobank Cohort Matrices (`VCF`/`BCF`):*
+       compress population genotype columns (`0/0` hom-ref, `0/1` het, `1/1`
+       hom-alt, and `./.` mapped natively to 5-state `IS MISSING`) via Durbin's
+       `PBWT` and rare-variant Roaring bitmaps so minor-allele frequency (`MAF`),
+       Hardy–Weinberg equilibrium and GWAS case-control association scans execute
+       as vectorized bitwise `@popCount` intersections.
+     - *Cheminformatics (`MOLECULE` / `.mol_graph`) & Spectral Constellation Hashing (`.audio_fingerprint`):*
+       canonicalize molecular graphs (`SMILES` / `InChI` / `SDF`) under
+       $\kappa_{\text{chem}}$, pre-filtering substructure queries
+       (`MOL_ContainsSubstructure(mol, smarts)`) and Tanimoto similarity
+       (`MOL_Tanimoto`) with 2048-bit Morgan/ECFP fingerprint SIMD bitwise screens
+       (`(fp_mol & fp_query) == fp_query`), and index 2D time-frequency spectrogram
+       peak pairs `(f1, f2, delta_t)` as 32-bit `.audio_fingerprint` hashes in
+       Roaring posting lists for sub-millisecond acoustic/seismic matching
+       ([Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md)).
 5. **Compose pluggable multi-signal and hybrid search under one snapshot, and hand off multi-model, reactive-context and corpus-synthesis extensions.**
    Combine vectorized lexical/structural search operators (starting with
    Block-Max BM25) and segmented HNSW / IVF-PQ approximate nearest-neighbor
@@ -143,10 +179,10 @@ current-authority disclosure checks.
    multi-model Document/Graph structural search and foreign-format
    projections to [Milestone 18](18-multi-model-and-foreign-relations.md),
    governed reactive context assembly to
-   [Milestone 31](31-reactive-context-and-agent-activation.md), and speculative
+   [Milestone 32](32-reactive-context-and-agent-activation.md), and speculative
    research into declarative span/proximity maps (`NEAR`), context-conditioned
    sequence continuation and branch-verified agency to
-   [Milestone 37](37-declarative-language-context-and-synthesis.md).
+   [Milestone 38](38-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -156,6 +192,7 @@ current-authority disclosure checks.
 | Compressed-domain `.dictionary` and `.fsst` string kernels | Predicate selectivity sweep ($0.01\%$ to $90\%$), dictionary cardinality, FSST symbol compression ratio, late-materialization decode savings and equivalence against decoded scalar oracle |
 | `comptime` and segment-sealed perfect hashing (`ConstexprCore/perfect_hash` style) | Construction bound at `comptime` and `.tseg` flush time, fallback behavior when key sets exceed greedy association budgets, cycles/ns per lookup on 6–1,000 keys, 4 KiB page-boundary safety and zero false positives on non-member probes |
 | Swappable `.tseg` search profiles: vectorized 256-doc Block-Max BM25 (`turbopuffer` style), positional/proximity streams, n-gram/trigram bitmaps and hybrid `RRF`/linear fusion | 256-doc posting block compression ratio, block-skip rate on top-$k$ ($k \in \{10, 100, 1000\}$), filtered lexical/proximity + relational predicate selectivity, `.tdel` tombstone filtering, cold/warm NVMe cache behavior and exact top-$k$ score/order agreement with the unpruned scalar reference oracle |
+| Biological sequence (`BIO_SEQ`: `.seq_2bit`, `.cram_ref_delta`, `.fm_bwt`, `.geno_pbwt`), chemical (`MOLECULE`: `.mol_graph` + Morgan bitvectors) & acoustic (`.audio_fingerprint`) profiles | `.seq_2bit` / `.cram_ref_delta` / `.geno_pbwt` compression ratio vs. `BAM`/`CRAM`/`BCF`, `FM_INDEX` / $(w,k)$-minimizer seed recall and SIMD Wavefront Alignment (`WFA`) equivalence against dynamic-programming reference oracle, 5-state `IS MISSING` preservation on `./.` genotypes, Morgan fingerprint zero-false-negative substructure pruning (`(fp_mol & fp_query) == fp_query`), and `.audio_fingerprint` time-offset recall under additive noise |
 
 [Umbra's string layout](https://db.in.tum.de/~freitag/papers/p29-neumann-cidr20.pdf),
 [FSST](https://www.vldb.org/pvldb/vol13/p2649-boncz.pdf),
@@ -179,7 +216,7 @@ separate from evidence for Transit's Zig implementations.
   strings, `IN (...)`) and standard information-retrieval workloads (lexical
   top-$k$, substring/proximity filtering and hybrid search) meet predeclared
   latency, throughput and allocation budgets in the
-  [qualification scorecard](35-qualification-and-benchmarks.md).
+  [qualification scorecard](36-qualification-and-benchmarks.md).
 
 ## Implementation plan — 2026-10-30
 
@@ -253,7 +290,7 @@ Milestone 14 against completed foundations and active in-progress milestones:
 | [13. Data structures and resource metering](13-data-structures-and-performance.md) (In Progress — Issue #194) | Upstream contract $\rightarrow$ M14 (Phase H) | M13 Phases A–E delivered `transit-memory` (`Workspace`, `Slab`, `Pool`, `Budget`, `AllocationProbe`) and `tests/performance/allocations.json`. M14 implements Issue #194 Phase H: every `GermanString` arena handle, FSST late-materialization buffer, frozen perfect-hash table, and WAND top-$k$ heap runs inside pre-allocated `Workspace` / `Slab` leases with zero steady-state heap allocations after warmup. |
 | [15. Data-centric compilation and specialization](15-data-centric-compilation-and-specialization.md) (Planned) | M14 $\rightarrow$ Downstream consumer | M15 consumes M14's 16-byte `GermanString` ABI (`@Vector(2, u64)`) and `comptime` perfect hash tables to specialize fused filter-project-aggregate morsels and AOT-compiled `transit-app` ingestion routers. |
 | [16. Document profiles and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) (Planned) | M14 $\rightarrow$ Downstream consumer | M16 reuses M14's `comptime` and segment-sealed perfect hash tables for `XML`/`HTML`/OData/XLSX `sharedStrings.xml` and `HTTP` header/MIME vocabularies, 16-byte `GermanString` values for zero-copy token slices, and 256-doc Block-Max BM25 + `NEAR` proximity over shredded `PDF`, `DOCX`, `XML`, and `EDI` corpora. |
-| [17. Geospatial](17-geospatial-and-spatio-temporal-computing.md), [18. Multi-model](18-multi-model-and-foreign-relations.md), [19. Branches, merges and restore](19-branches-merges-and-restore.md), [21. Formal semantics](21-formal-semantics-and-correspondence.md), [26. Control & policy plane](26-control-and-policy-plane.md), [29. Board](29-board-reimplementation.md), [31. Reactive context](31-reactive-context-and-agent-activation.md), [34. SQL grammar](34-sql-grammar-and-dialect-ergonomics.md), and [37. Language context & synthesis](37-declarative-language-context-and-synthesis.md) | M14 $\rightarrow$ Downstream consumers | M17 mirrors M14's 16-byte inline header layout for spatial geometries; M18/M31/M37 consume M14's span/proximity (`NEAR`/`WITHIN`) and hybrid search operators; M19 uses M14's block-max/dictionary summaries in branch `DIFF` skipping; M21 proves `A1`/`A2`/`A5` correspondence in Lean 4; M26 enforces security-barrier RLS bitmasks before WAND score disclosure; M29 exposes search block-skip and dictionary pushdown metrics in Board `EXPLAIN`; M34 audits search/string syntax across dialects. |
+| [17. Geospatial](17-geospatial-and-spatio-temporal-computing.md), [18. Multi-model](18-multi-model-and-foreign-relations.md), [20. Branches, merges and restore](20-branches-merges-and-restore.md), [22. Formal semantics](22-formal-semantics-and-correspondence.md), [27. Control & policy plane](27-control-and-policy-plane.md), [30. Board](30-board-reimplementation.md), [32. Reactive context](32-reactive-context-and-agent-activation.md), [35. SQL grammar](35-sql-grammar-and-dialect-ergonomics.md), and [38. Language context & synthesis](38-declarative-language-context-and-synthesis.md) | M14 $\rightarrow$ Downstream consumers | M17 mirrors M14's 16-byte inline header layout for spatial geometries; M18/M32/M38 consume M14's span/proximity (`NEAR`/`WITHIN`) and hybrid search operators; M20 uses M14's block-max/dictionary summaries in branch `DIFF` skipping; M22 proves `A1`/`A2`/`A5` correspondence in Lean 4; M27 enforces security-barrier RLS bitmasks before WAND score disclosure; M30 exposes search block-skip and dictionary pushdown metrics in Board `EXPLAIN`; M35 audits search/string syntax across dialects. |
 
 ### Accepted architectural decisions
 
@@ -554,13 +591,13 @@ flowchart TD
     - [Milestone 15](15-data-centric-compilation-and-specialization.md) (16B `GermanString` register ABI and `comptime` perfect hash specialization in fused morsels),
     - [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md) (`PerfectHash` vocabulary tables for XML/HTTP/XLSX `sharedStrings.xml` and Block-Max BM25 + `NEAR` over shredded documents),
     - [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) (shared 16-byte inline vector header convention and Roaring candidate intersection), and
-    - [Milestones 18](18-multi-model-and-foreign-relations.md), [31](31-reactive-context-and-agent-activation.md), and [37](37-declarative-language-context-and-synthesis.md) (multi-model structural search, governed reactive context assembly, and span/proximity maps).
+    - [Milestones 18](18-multi-model-and-foreign-relations.md), [31](32-reactive-context-and-agent-activation.md), and [37](38-declarative-language-context-and-synthesis.md) (multi-model structural search, governed reactive context assembly, and span/proximity maps).
 - **Verification:**
   - End-to-end single-snapshot consistency tests proving that concurrent `INSERT` / `UPDATE` / `DELETE` transactions committing after a hybrid query's snapshot cut never cause split-brain mismatches between the lexical BM25 leg, the `VectorMetric` ANN leg, and the late-materialized row projection.
 
 #### `P8` — Formal correspondence (`A1`, `A2`, `A5`), ClickBench & IR benchmarks, and Milestone 14 qualification gate
 
-- **Goals:** Mechanize Milestone 14's collation prefix, codec pushdown, and Block-Max pruning soundness theorems in Lean 4 ([Milestone 21](21-formal-semantics-and-correspondence.md)), execute the ClickBench string and IR benchmark suites ([Milestone 35](35-qualification-and-benchmarks.md)), and promote all Milestone 14 features in `StandardsLedger.zig`.
+- **Goals:** Mechanize Milestone 14's collation prefix, codec pushdown, and Block-Max pruning soundness theorems in Lean 4 ([Milestone 22](22-formal-semantics-and-correspondence.md)), execute the ClickBench string and IR benchmark suites ([Milestone 36](36-qualification-and-benchmarks.md)), and promote all Milestone 14 features in `StandardsLedger.zig`.
 - **Concrete changes:**
   - Add Lean 4 mechanization artifacts and differential conformance vectors for:
     - **`A1` (5-state rewrite soundness):** Pushing `=`, `IN (...)`, `STARTS_WITH`, and `MATCH` into `.dictionary`, `.fsst`, and 256-doc Block-Max indexes preserves 5-state cell outcomes (`missing`, `null`, `type_error`, `conflict`, `value`) identically to plain decoding + scalar evaluation.

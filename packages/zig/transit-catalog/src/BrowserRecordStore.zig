@@ -197,3 +197,9 @@ test "browser record kinds and namespaces do not alias native external operation
     try std.testing.expect(store.operation(.identity, identity) != store.operation(.binding, identity));
     try std.testing.expect(store.operation(.identity, identity) != other.operation(.identity, identity));
 }
+
+test "browser records are not reserved branch or transaction records" {
+    try std.testing.expect(format != c.DirectBranch.format);
+    try std.testing.expect(format != c.DirectTransaction.Acquired.format);
+    try std.testing.expect(!c.DirectTransactionWorkspace.reserved(format));
+}

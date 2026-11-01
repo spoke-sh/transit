@@ -9,6 +9,73 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded admission and direct KV recovery — 2026-11-01
+
+[PR #307](https://github.com/spoke-sh/transit/pull/307) adds named KV to the
+shared context, optional bounded admission waits and a local-store KV mutation
+adapter. The public [context](../../../packages/zig/transit-data-client/docs/context.md)
+and [recovery](../../../packages/zig/transit-data-client/docs/recovery.md) guides
+own the semantics and limits. Tests use Linux x86_64 and pinned Zig
+`0.17.0-dev.2267+48abf1a34`.
+
+At integrated source `98ef070e3056ca783659bc471a5ca311996de116`, standalone
+`zig build test` executes **31 passing tests**, and `zig build check` passes.
+The context checks cover oldest-eligible admission, independent data/control
+capacity, saturation, cancellation/expiry cleanup, queued close races and SQL
+leases waiting behind Catalog work. Queue metadata performs 4,096 admission
+cycles without further backing allocation. Recovery tests cover exact original
+conflicts, stale revisions, invalid/conflicting receipts, retained output
+lifetimes, allocation failure and a receipt-storage failure that preserves the
+known service outcome. This does not establish aggregate host-memory bounds.
+
+The installed `just test::direct-kv` schedule passes at
+`a8387eae448202d1a3c40d03f3e557dc54f03f98` and again after integration at
+`98ef070e3056ca783659bc471a5ca311996de116`, with clean runtime source records.
+The latter has the same runtime/test source as merged `main` at
+`0e697b438`; its only differences are roadmap/recovery prose.
+It first proves that insufficient local record capacity sends no mutation, then
+kills the caller after the service accepts an eight-key mutation with 1 KiB
+values but before delivering its reply. The driver independently verifies the
+stored original/key/checksum and deletes the standalone fixture save. A new
+caller observes the original operation from the store after node replacement,
+saves the receipt, and preserves both across a second node replacement. The
+schedule also covers lost pin replies, retained reads after DROP, current denial
+and control-lane observation/release while closing. The report records 41
+requests and lost replies for operations 641001 and 641002. This is a standalone
+KV mutation/pin profile, not transaction, power-loss or installed language-ABI
+qualification.
+
+The first clean core attempt at `bc1d5d0731eef8ebcce2e498aab753341305be71`
+fails on diagnostic-inventory drift. After regeneration, the clean run at
+`a8387eae448202d1a3c40d03f3e557dc54f03f98` passes the complete `check::core`
+target: 58 fast checks, 19 contract checks, native execution, CLI diagnostics
+and console checks. Transition properties and delivery simulation also pass.
+The remaining broad lane is deliberately stopped during resource simulation
+after integration introduces a newer definition; it is **incomplete**, not a
+full core-lane pass. Clean `storage-query` at `bc1d5d0731eef8ebcce2e498aab753341305be71`
+passes its first 11 tasks, then fails compilation because the existing branch
+policy fixture omits `Intent.kind`. Commit `8e79f4316d4cb0d0e01834bd7f7d231a1ff104c5`
+adds the explicit Table kind. A fresh full catalog attempt compiles and enters
+runtime execution, then is stopped in favor of the two affected branch checks;
+that full attempt is also incomplete. At the same committed revision,
+`zig build test-local-catalog -Dlocal-catalog-filter="branch reads survive" --summary all`
+then passes all three selected tests (including the signed and typed branch
+schedules) in ten minutes. Neither failed lane is retroactively passed.
+
+Raw command reports and bounded logs remain under
+`.cache/ci/m9/client-foundation/` and `.cache/ci/m9/integrated/` in
+`/var/tmp/transit-m9-implementation-plan`; the repeated captured package commands
+were cached, and the earlier capture metadata retains its dirty starting revision
+separately from the installed test's clean runtime record. Clean-run reports,
+source checkouts and preparation logs remain at `/var/tmp/transit-ci-c71cmr3b`,
+`/var/tmp/transit-ci-zhi6jskk` and `/var/tmp/transit-ci-20d6ncbt`.
+The initial [hosted run](https://github.com/spoke-sh/transit/actions/runs/41291417832)
+fails documentation links after concurrent roadmap renumbering; the correction
+preserves the original assessment and updates its destinations. At the integrated
+source, 9,992 local links, site lint/types, 10 site tests and the production build
+pass. These scoped results do not close M9's remaining context, binding, ordinary
+settlement, managed-handle or installed Python/Node requirements.
+
 ## Local SQL recovery and context leases — 2026-10-31
 
 Source `53a02e10c5b07cf663771c4a3269cfe512e031f3` adds a Linux local-file

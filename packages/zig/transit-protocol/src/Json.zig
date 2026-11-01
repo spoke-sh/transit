@@ -162,6 +162,9 @@ pub fn validateShape(comptime T: type, value: std.json.Value) anyerror!void {
     return shape(T, value);
 }
 fn shape(comptime T: type, value: std.json.Value) anyerror!void {
+    // A dynamic JSON value describes JSON itself, not its internal tagged-union
+    // representation. Domain owners validate its content after decoding.
+    if (T == std.json.Value) return;
     switch (@typeInfo(T)) {
         .int => switch (value) {
             .integer => {},
@@ -212,6 +215,12 @@ fn shape(comptime T: type, value: std.json.Value) anyerror!void {
         },
         else => {},
     }
+}
+
+test "owned dynamic JSON preserves ordinary object shape" {
+    const parsed = try parseFromSliceOwned(struct { body: std.json.Value }, std.testing.allocator, "{\"body\":{\"stage\":\"accepted\",\"count\":7}}");
+    defer parsed.deinit();
+    try std.testing.expectEqual(@as(i64, 7), parsed.value.body.object.get("count").?.integer);
 }
 test "reflected array and version shape cannot silently diverge from public schema" {
     const Message = struct {

@@ -95,7 +95,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 31](36-releases.md).
+[milestone 37](37-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -117,7 +117,7 @@ logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
 [milestone 10](12-sql-and-dataflows.md), distributed providers/writers in
-[18](22-storage-providers-and-concurrency.md), and general cache/index/group-commit
+[18](23-storage-providers-and-concurrency.md), and general cache/index/group-commit
 optimization in [11](13-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
@@ -1502,7 +1502,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 18](22-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 18](23-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the

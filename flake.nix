@@ -63,6 +63,7 @@
             releaseBuild = true;
           };
           transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
+          transit-serving-client = pkgs.callPackage ./nix/serving-client.nix { inherit transit; };
           transit-local = pkgs.callPackage ./nix/transit-local.nix { inherit transit; };
           inherit vite-plus;
         }
@@ -79,6 +80,7 @@
             sql-tools
             transit
             transit-sql-gateway
+            transit-serving-client
             ursula
             ;
         }

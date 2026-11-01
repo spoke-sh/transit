@@ -1,4 +1,4 @@
-# 28. Versioned proposals and reviewed publication
+# 29. Versioned proposals and reviewed publication
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,9 +9,9 @@ sharing do not require merging.
 
 ## Prerequisites and scope
 
-Use [branch and merge primitives](19-branches-merges-and-restore.md),
-[actor/delegation policy](26-control-and-policy-plane.md) and
-[published resources/investigation bases](27-published-resources-and-investigations.md).
+Use [branch and merge primitives](20-branches-merges-and-restore.md),
+[actor/delegation policy](27-control-and-policy-plane.md) and
+[published resources/investigation bases](28-published-resources-and-investigations.md).
 Branching is the underlying data primitive. A higher-level project/application
 fork relationship, independent export and cross-realm collaboration require
 separate contracts and are excluded from this milestone.
@@ -50,7 +50,7 @@ separate contracts and are excluded from this milestone.
    external effects disabled; captures are evidence, not permission to resend.
    Selecting historical application state never restores old security authority.
 6. **Provide shared comparison, `DIFF` / `DIFF_SCHEMA` and remote-proposal review operations.**
-   Build bounded two-way and three-way data/schema diff ([`DIFF(...)` and `DIFF_SCHEMA(...)`](19-branches-merges-and-restore.md#delivery-sequence)),
+   Build bounded two-way and three-way data/schema diff ([`DIFF(...)` and `DIFF_SCHEMA(...)`](20-branches-merges-and-restore.md#delivery-sequence)),
    conflict (`IS CONFLICT`), evidence and impact operations usable without a
    browser, including proposals pushed from a local or staging Transit instance
    that mirrored an upstream remote (`FETCH` / `MIRROR`), tested schema
@@ -58,14 +58,14 @@ separate contracts and are excluded from this milestone.
    delta `.tseg`/`.tdel` segments and candidate manifest back to the remote.
    Qualify the proposal, approval and publication journeys through public
    callers here.
-   [Board reimplementation](29-board-reimplementation.md) owns the complete
+   [Board reimplementation](30-board-reimplementation.md) owns the complete
    browser comparison and review experience over these same operations. UI
    reviews belong in the registered Design sequence; Board inspection stays
    read-only and application review actions use separate authorized capabilities.
 
 ## Formal model follow-through
 
-Own the [T6/A4/A6 reviewed-publication extensions](21-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+Own the [T6/A4/A6 reviewed-publication extensions](22-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
 after the proposal and approval contract settles. Model frozen candidate/target,
 withdrawal, target movement, reviewer revocation and uncertain publication.
 Connect selected checks to the real policy and publication owners, including

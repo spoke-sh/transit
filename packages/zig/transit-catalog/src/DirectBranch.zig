@@ -5,7 +5,7 @@ const c = @import("root.zig");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
-pub const format: u32 = 0x42524331;
+pub const format: u32 = 0x54425231; // TBR1, distinct from browser BRC1.
 pub const max_bytes = 8192;
 
 pub const Intent = struct {

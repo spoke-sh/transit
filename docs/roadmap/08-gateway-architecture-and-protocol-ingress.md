@@ -277,6 +277,14 @@ performance result. Keep M8 **In Progress**. Preserve the P0–P6 acceptance
 identifiers, startup S0–S6 gates and earlier failure records. This section
 supersedes the October 31 implementation inventory and next-change order.
 
+Integration with `origin/main` at `f49a3da65` preserves the later M9 bounded
+admission/direct-KV recovery increment and the browser/branch definition cutover.
+M9's [current plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)
+and [increment](09-client-foundation-and-language-apis.md#implemented-context-and-kv-recovery-increment--2026-11-01)
+own that progress and its remaining qualification. The new asset-pipeline M19
+renumbers the later handoffs below; it adds no M8 protocol capability. The
+source inventory and historical results retain their original basis.
+
 **Deliverable:** an installed caller submits a statement against declared data,
 receives its authoritative command outcome or one complete bounded result, and
 can inspect the original accepted work after disconnection or replacement.
@@ -340,12 +348,12 @@ and accepted identities; a fresh passing fixture does not settle them.
 | [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Completed result model and selected local serializable Table transactions: exact cuts, provisional counts, savepoints and original decisions. | Preserve these semantics through every adapter. M6 extends native participants; SQL and Document support must be qualified separately. |
 | [M6](06-streams-queues-and-durable-runtime.md#r6-expose-sql-and-shared-caller-operations) | Existing log DDL/inspection and typed KV/Stream/Queue/mixed operations are current regression cases. Preserve typed pending pagination and owner notifications. | R6 workload SQL/finite Stream reader and R7/R8 Station/effect replacement are incoming gates. R9 and M8 jointly own account-token/publication and #211 latency work; neither milestone may defer it to the other. |
 | [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates) | Consume C0 contracts and C3/C4 accepted-revision, authorization and direct caller boundaries when delivered. | C1/C2 integrate logical/physical storage; C5 supplies the participant, C6 SQL/Query, C7 consumer cutover and C8 qualification. Coordinate seams early without treating component roots as a service. |
-| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-10-31), [M20](20-service-and-sdk-coverage.md) | Reuse client context leases, original-attempt persistence and logical result consumption. Publish remote authority, handles and buffer lifetimes before wiring clients. | M9 may continue context/ABI work while M8 develops remote hosting. M8 does not wait for every SDK, but each incompatible cutover migrates its affected consumers. Broader parity remains M20. |
+| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M21](21-service-and-sdk-coverage.md) | Reuse client context leases, bounded admission, original SQL/KV attempt persistence and logical result consumption. Publish remote authority, handles and buffer lifetimes before wiring clients. | M9 may continue context/ABI work while M8 develops remote hosting. M8 does not wait for every SDK, but each incompatible cutover migrates its affected consumers. Broader parity remains M21. |
 | [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Carry exact definition/collation and metadata observations; preserve invalidation after ALTER, rename and DROP. | Historical catalog, constraint and index helpers do not enable unsupported wire types, `AS OF` or new execution profiles. |
 | [M12](12-sql-and-dataflows.md) | Provide bounded execution/result/cancellation seams for qualified analytical plans and later activation. | M6 owns finite `STREAM_SLICE`; M12 owns maintained computations/CDC and durable dataflow activation. A parked wire connection is not a durable subscription. |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Supply measured ingress allocations, scheduling/queue costs and cancellation/yield boundaries. | General buffer pools, resource metering, optimizer/search and AOT work stay there. M8 still owes its own worker, buffer and latency gates. |
 | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) | Deliver pure byte/event seams and explicit owned/borrowed lifetimes for future Document profile codecs. | Multi-format parsers and gateway/connector exchange capture await their Document/effect contracts. Do not redirect `STATION_EXCHANGE_V1` or add profile parsers in M8. |
-| [M19](19-branches-merges-and-restore.md#local-table-branch-increment), [M21](21-formal-semantics-and-correspondence.md), [M25](25-clustered-execution.md) | Preserve retained branch roots and non-SQL pending discovery; provide scheduler/ownership traces and explicit remote failure semantics. | Branch writes/merges, general formal correspondence, replication and distributed failover retain their own gates. One remote frontend is not a cluster protocol. |
+| [M20](20-branches-merges-and-restore.md#local-table-branch-increment), [M22](22-formal-semantics-and-correspondence.md), [M26](26-clustered-execution.md) | Preserve retained branch roots and non-SQL pending discovery; provide scheduler/ownership traces and explicit remote failure semantics. | Branch writes/merges, general formal correspondence, replication and distributed failover retain their own gates. One remote frontend is not a cluster protocol. |
 
 Browser admission is an immediate regression boundary. Native SQL keeps rejecting
 browser Origin/cookie/forwarded-identity admission; browser endpoints keep their
@@ -916,10 +924,10 @@ from application call counts.
 | #211 W5a | Bounded native/direct page groups share directory barriers; later single-chunk sidecar elision, allocation batching and pipelining also landed. Keep each recorded sync count scoped to its revision/object profile; installed latency closure remains open. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
 | #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
-| M9 / M20 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
+| M9 / M21 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
 | M16 | Pure protocol/Document transformations use shared ingress; durable capture uses separately qualified Document/effect owners. A codec neither accesses storage nor dispatches effects. |
-| M21 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
-| M25 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
+| M22 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
+| M26 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
 
 ### Accepted architectural decisions
 
@@ -1327,12 +1335,12 @@ M8 closure requires evidence for each selected capability:
 ## Later owners and execution gates
 
 [Shared clients](09-client-foundation-and-language-apis.md) and
-[service/SDK coverage](20-service-and-sdk-coverage.md) consume qualified boundaries.
+[service/SDK coverage](21-service-and-sdk-coverage.md) consume qualified boundaries.
 [M13](13-data-structures-and-performance.md),
 [strings/search](14-vectorized-strings-and-search.md) and
 [compilation](15-data-centric-compilation-and-specialization.md) extend workload
 scorecards. [Document profiles/exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md)
 add pure grammars and qualified capture over the Document owner.
-[Clustered execution](25-clustered-execution.md) extends placement/lease handoff
+[Clustered execution](26-clustered-execution.md) extends placement/lease handoff
 with its own failure evidence. Sharing the gateway host confers neither broader
 support nor performance guarantees.

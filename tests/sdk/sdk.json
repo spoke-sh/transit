@@ -623,6 +623,34 @@
         }
       ],
       "limits": "Ten installed language APIs on Linux. A raw authorized sender independently exercises framework ingress; native query capture, computation limits and source release have separate Station unit/disk proofs. Five serial calls per language, disk-backed cold storage, 8 MiB hot memory and 64 authority pages. This is correctness evidence, not a query latency or all-pairs compatibility result."
+    },
+    {
+      "id": "go-serving-original-work",
+      "steps": [
+        "Prepare and export a signed command through the installed shared Zig caller",
+        "Recover and replay exactly those bytes without replacing operation identity",
+        "Verify a private CA and reject foreign scope, noncanonical recovery and untrusted TLS",
+        "Cancel and join an admitted call, reuse the caller, then refuse work after close"
+      ],
+      "expected": {
+        "original_bytes_preserved": true,
+        "scope_substitution_rejected": true,
+        "untrusted_tls_rejected": true,
+        "cancellation_joined": true
+      },
+      "proofs": [
+        {
+          "task": "bindings::go-sdk-test",
+          "source": "sdks/go/serving/native_test.go",
+          "anchor": "TestInstalledNativeCaller"
+        },
+        {
+          "task": "bindings::go-sdk-test",
+          "source": "sdks/go/serving/client_test.go",
+          "anchor": "TestRecoveryMaterialIsRedacted"
+        }
+      ],
+      "limits": "Installed Nix Serving process port against a synthetic TLS peer. Real authority, durable journal and application lifecycle are independently qualified by the platform consumer; portable raw-client release archives are a separate profile."
     }
   ]
 }

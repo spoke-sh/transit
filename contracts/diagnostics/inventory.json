@@ -2034,6 +2034,25 @@
         "transit_flight"
       ]
     },
+    "apps/transit-serving-client/main.zig": {
+      "errors": {
+        "MissingRequest": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "main()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_serving"
+      ]
+    },
     "apps/transit-sql-gateway/build.zig": {
       "errors": {},
       "outcomes": {},
@@ -10054,6 +10073,31 @@
         "std"
       ]
     },
+    "packages/zig/transit-data-client/src/AdmissionQueue.zig": {
+      "errors": {
+        "Busy": 1,
+        "ClientAdmissionExhausted": 1,
+        "ClientCapacityExceeded": 1,
+        "InvalidClientCapacity": 2,
+        "StaleClientAdmission": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "enqueue()": "<inferred>",
+        "init()": "<inferred>",
+        "remove()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 1
+      },
+      "imports": [
+        "Admission.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
         "Busy": 5,
@@ -10118,55 +10162,111 @@
     },
     "packages/zig/transit-data-client/src/Context.zig": {
       "errors": {
-        "Busy": 2,
-        "ClientCapacityExceeded": 2,
-        "ClientContextClosed": 2,
-        "ClientHandleExhausted": 3,
+        "Busy": 3,
+        "ClientCapacityExceeded": 7,
+        "ClientContextClosed": 3,
+        "ClientHandleExhausted": 4,
         "ClientWorkOutstanding": 3,
+        "InvalidClientAdmissionTimeout": 1,
         "InvalidClientCapacity": 2,
         "InvalidSqlCancellation": 1,
         "SqlSessionRequired": 1,
         "StaleClientHandle": 4,
-        "StaleSqlLease": 3
+        "StaleSqlLease": 3,
+        "Timeout": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "AdmissionOptions": [
+          "refuse",
+          "wait"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "SqlLease.connect()": "<inferred>",
         "SqlLease.executor()": "<inferred>",
         "SqlLease.release()": "<inferred>",
+        "WaitingCall.run()": "<inferred>",
         "acquire()": "<inferred>",
+        "acquireWithAdmission()": "<inferred>",
         "borrowSql()": "<inferred>",
+        "borrowSqlWithAdmission()": "<inferred>",
         "call()": "<inferred>",
+        "callKV()": "<inferred>",
+        "callKVWithAdmission()": "<inferred>",
         "callLog()": "<inferred>",
+        "callLogWithAdmission()": "<inferred>",
         "callQueue()": "<inferred>",
+        "callQueueWithAdmission()": "<inferred>",
         "callStream()": "<inferred>",
+        "callStreamWithAdmission()": "<inferred>",
+        "callWithAdmission()": "<inferred>",
         "cancelSql()": "<inferred>",
+        "catalogConnection()": "<inferred>",
         "close()": "<inferred>",
         "closeCatalog()": "<inferred>",
         "closeSql()": "<inferred>",
         "deinit()": "<inferred>",
+        "enterFacet()": "<inferred>",
         "init()": "<inferred>",
         "initFailure()": "<inferred>",
         "openCatalog()": "<inferred>",
         "openSql()": "<inferred>",
         "releaseSql()": "<inferred>",
+        "requireLane()": "<inferred>",
         "sqlSession()": "<inferred>",
         "validate()": "<inferred>",
-        "validateSql()": "<inferred>"
+        "validateSql()": "<inferred>",
+        "waitForPending()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
-        "catch": 7
+        "try": 48,
+        "catch": 9
       },
       "imports": [
         "Admission.zig",
+        "AdmissionQueue.zig",
         "Catalog.zig",
         "SqlSession.zig",
         "std",
         "transit_catalog",
         "transit_sql_client"
+      ]
+    },
+    "packages/zig/transit-data-client/src/KVRecovery.zig": {
+      "errors": {
+        "InvalidRecoveryReceipt": 1,
+        "RecoveryKeyConflict": 3,
+        "RecoveryOutcomeConflict": 1,
+        "RecoveryRecordCapacity": 3,
+        "RecoveryRecordMissing": 1,
+        "RecoveryRevisionConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "encode()": "<inferred>",
+        "execute()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "observe()": "<inferred>",
+        "save()": "<inferred>",
+        "saveReceipt()": "<inferred>",
+        "validateReceipt()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 23,
+        "catch": 2
+      },
+      "imports": [
+        "Catalog.zig",
+        "Context.zig",
+        "LocalRecoveryStore.zig",
+        "std",
+        "transit_catalog"
       ]
     },
     "packages/zig/transit-data-client/src/LocalRecoveryStore.zig": {
@@ -10286,6 +10386,7 @@
         "Admission.zig",
         "Catalog.zig",
         "Context.zig",
+        "KVRecovery.zig",
         "LocalRecoveryStore.zig",
         "SqlRecovery.zig",
         "transit_catalog",
@@ -19747,7 +19848,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc\""
+          "@\"8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865\""
         ],
         "Effect.phase": [
           "pending",
@@ -24911,6 +25012,51 @@
         "std"
       ]
     },
+    "packages/zig/transit-serving/src/Caller.zig": {
+      "errors": {
+        "InvalidServingCaller": 3,
+        "InvalidServingOrigin": 3,
+        "InvalidServingRead": 1,
+        "InvalidServingRecovery": 3,
+        "InvalidServingResponse": 3,
+        "NoncanonicalServingRecovery": 1,
+        "ServingRecoveryScope": 2
+      },
+      "outcomes": {
+        "Action": [
+          "prepare",
+          "inspect",
+          "dispatch",
+          "observe",
+          "application_read"
+        ],
+        "Result.status": [
+          "ok",
+          "invalid",
+          "unavailable",
+          "unknown"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Configuration.validate()": "<inferred>",
+        "JsonRequest.jsonStringify()": "<inferred>",
+        "exchange()": "<inferred>",
+        "inspect()": "<inferred>",
+        "prepare()": "<inferred>",
+        "process()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-serving/src/ClientApi.zig": {
       "errors": {},
       "outcomes": {},
@@ -25941,6 +26087,7 @@
       "imports": [
         "Adapter.zig",
         "Api.zig",
+        "Caller.zig",
         "ClientApi.zig",
         "Codec.zig",
         "FiniteService.zig",

@@ -1,4 +1,4 @@
-# 32. Recorded outbound MCP and application guidance
+# 33. Recorded outbound MCP and application guidance
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,13 +10,13 @@ during replay. An external MCP endpoint is not automatically a trusted data sour
 ## Prerequisites and scope
 
 Reuse the existing [connector intent/capture boundary](../handbook/reference/connectors.md),
-[access/delegation contract](26-control-and-policy-plane.md),
-[published resources](27-published-resources-and-investigations.md) and the
-selected [MCP protocol implementation](30-mcp-service-and-apps.md).
-[Reactive activation](31-reactive-context-and-agent-activation.md) supplies triggers
+[access/delegation contract](27-control-and-policy-plane.md),
+[published resources](28-published-resources-and-investigations.md) and the
+selected [MCP protocol implementation](31-mcp-service-and-apps.md).
+[Reactive activation](32-reactive-context-and-agent-activation.md) supplies triggers
 where needed; finite explicit calls can be qualified independently.
 
-The next [programming-model milestone](33-programming-model.md) makes recorded
+The next [programming-model milestone](34-programming-model.md) makes recorded
 capabilities and their outcomes usable from direct clients, Station behaviors
 and mixed applications where the owning service contracts support them. This
 connector milestone retains intent, capture, reconciliation and replay semantics;
@@ -35,7 +35,7 @@ language convenience cannot replace them with an unrecorded host tool call.
    renewal, status lookup and cancellation are external work under explicit
    policy, never hidden replay actions. Bind outbound credentials through
    catalog `SECRET` declarations (`TYPE oauth2_bearer`, `SCOPE`, `AUDIENCE` and
-   `rotation_epoch` in [Milestone 26](26-control-and-policy-plane.md)), where
+   `rotation_epoch` in [Milestone 27](27-control-and-policy-plane.md)), where
    OAuth 2.1 + PKCE or RFC 8693 challenge-response and lease-refresh dataflows
    seal refreshed tokens into the secret vault and wake `Suspended
    (CredentialPending)` tasks without forwarding raw inbound caller tokens
@@ -59,7 +59,7 @@ language convenience cannot replace them with an unrecorded host tool call.
 
 ## Formal model follow-through
 
-Reassess the [recorded-effect boundary](21-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication)
+Reassess the [recorded-effect boundary](22-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication)
 for the selected outbound contract. Model authorized attempts, possible remote
 execution without durable observation, capture, reconciliation and closure.
 Connect selected checks to production recovery and network-free replay, retaining
@@ -83,7 +83,7 @@ Where a workflow promises consequence tracking, qualify a later external
 observation against the original action and the declared business question.
 Distinguish tool completion from the observed business consequence, and retain
 missing or conflicting observations. Apply the shared
-[observation measures](35-qualification-and-benchmarks.md#observation-and-consequence-evidence);
+[observation measures](36-qualification-and-benchmarks.md#observation-and-consequence-evidence);
 record correlation without treating it as proof of causal impact.
 
 See the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview)
