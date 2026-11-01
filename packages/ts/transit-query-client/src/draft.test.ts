@@ -25,6 +25,12 @@ const source = {
         schema: Array(32).fill(2),
       },
       collations: ["none" as const, "none" as const],
+      semantics: [
+        { rounding: null, metric: null, timezone: null, spatial: null },
+        { rounding: null, metric: null, timezone: null, spatial: null },
+      ],
+      historical: null,
+      projection: null,
       row_type: {
         structure: [
           { name: "id", type: { int64: {} }, nullable: false, optional: false },
@@ -43,6 +49,7 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   plan: {
     version: 1,
     collations: null,
+    scalar_program: "00",
     projection: [1],
     output_names: null,
     limit: "1",

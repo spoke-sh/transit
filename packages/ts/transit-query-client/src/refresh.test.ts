@@ -24,6 +24,9 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
             schema: Array(32).fill(2),
           },
           collations: ["none" as const],
+          semantics: [{ rounding: null, metric: null, timezone: null, spatial: null }],
+          historical: null,
+          projection: null,
           row_type: {
             structure: [{ name: "value", type: { int64: {} }, nullable: false, optional: false }],
           },
@@ -36,6 +39,7 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
     plan: {
       version: 1,
       collations: null,
+      scalar_program: "00",
       projection: [0],
       output_names: null,
       limit: "1",

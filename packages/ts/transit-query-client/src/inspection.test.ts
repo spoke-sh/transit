@@ -28,6 +28,7 @@ test("compiled metadata preserves output names and rejects malformed name vector
     plan: {
       version: 1,
       collations: null,
+      scalar_program: "00",
       projection: [1, 0],
       output_names: ["Result", null],
       limit: null,
@@ -144,6 +145,7 @@ test("compiled Table metadata is complete and scope-bound independently of displ
     plan: {
       version: 1,
       collations: null,
+      scalar_program: "00",
       projection: [0],
       output_names: null,
       limit: null,
