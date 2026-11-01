@@ -5050,6 +5050,131 @@ test "direct Stream composition preserves original work pins and group rights ac
     try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, .{ .cursor = .{ .target = target, .read = pinned.handle() } }, 256));
 }
 
+test "mixed Table KV transaction preserves private reads rights and one decision across disk replacement" {
+    const w = c.DirectTableProtocol;
+    const K = c.DirectKV;
+    const ReadOnly = struct {
+        fn ddl(_: *anyopaque, _: *D, _: p.DataLifecycle.Binding, _: D.Policy, _: u16) !D.Observation {
+            return error.UnexpectedMutation;
+        }
+        fn namespace(_: *anyopaque, _: *D, _: c.DirectNamespace.Binding, _: D.Policy, _: u16) !c.DirectNamespace.Observation {
+            return error.UnexpectedMutation;
+        }
+    };
+    for ([_]bool{ false, true }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        var access: Access = .{};
+        var token: c.DirectClientToken.Key = undefined;
+        var kv_object: p.DataLifecycle.Object = undefined;
+        var original: c.DirectTransactionWorkspace.Request = undefined;
+        const settlement: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9001 };
+        const payload: [1024]u8 = @splat(0x93);
+        for (0..2) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            if (restart == 0) {
+                try catalog.initialize(access.policy());
+                const table = try creation(10, 1, "rows");
+                _ = try catalog.admit(table, access.policy());
+                _ = try catalog.perform(table.binding, access.policy());
+                var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+                const spec: s.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
+                var create = try creation(7, 2, "state");
+                create.intent.kind = .kv;
+                create.intent.action.create.schema = spec.schema(7, &kv_columns);
+                create.binding.intent = try create.intent.digest(t.allocator);
+                _ = try catalog.admit(create, access.policy());
+                _ = try catalog.perform(create.binding, access.policy());
+                kv_object = create.binding.target;
+                const metadata = (try K.apply(arena.allocator(), arena.allocator(), &catalog, .{ .observe = kv_object }, access.policy())).definition;
+                const template = try transactionToken(&catalog, 9000, 1, 0);
+                token = template.key;
+                const selection = [_]p.Transaction.Target{
+                    .{ .object = kv_object, .kind = .kv, .partition = null },
+                    .{ .object = table.binding.target, .kind = .table, .partition = null },
+                };
+                const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+                _ = try catalog.beginTransaction(begin, access.policy());
+                _ = try catalog.acquireTransaction(token, access.policy());
+                // Ordinary SQL selection remains Table-only even when a KV
+                // object is declared in the same authorized namespace.
+                var tables_only = begin;
+                tables_only.key.token = @splat(2);
+                tables_only.operation.operation = 9100;
+                tables_only.selection = .authorized_catalog_tables;
+                try t.expectEqual(@as(u64, 1), (try catalog.beginTransaction(tables_only, access.policy())).binding.intent.transaction.begin.objects.count);
+                _ = try catalog.settleTransaction(tables_only.key, .{ .scope = scope, .principal = 1, .operation = 9101 }, .abort, 8, access.policy());
+                const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 500 }, .target = kv_object, .action = .insert, .expected_definition = metadata.interpretation.interpretation, .expected_data = null, .intent = undefined };
+                var changes: [6]s.KVPartition.Change = undefined;
+                const keys = [_][]const u8{ "one", "two", "three", "four", "five", "six" };
+                for (&changes, keys) |*change, key| change.* = .{ .put = .{ .key = key, .value = .{ .value = .{ .atom = .{ .bytes = &payload } } } } };
+                const mutation = try c.DirectKVClient.prepareMutation(&arena, binding, spec, &changes);
+                const revision = (try catalog.inspectTransaction(token, access.policy())).revision;
+                original = try catalog.stageTransactionKV(token, revision, 1, mutation, access.policy());
+                try t.expectEqual(@as(u64, 6), (try catalog.executeTransactionStatement(token, original, access.policy())).provisional.affected);
+                const row = try workspaceRequest(&catalog, &access, token, 10, 2, 501);
+                _ = try catalog.executeTransactionStatement(token, row, access.policy());
+                const get: K.Request = .{ .get = .{ .object = kv_object, .key = try w.Binary.encode(arena.allocator(), "six"), .source = null } };
+                try t.expect((try K.apply(arena.allocator(), arena.allocator(), &catalog, get, access.policy())).value.encoded == null);
+                const context: c.DirectTransactionRead.Context = .{ .key = token, .revision = (try catalog.inspectTransaction(token, access.policy())).revision };
+                const execution: c.DirectTableDispatch.Execution = .{ .context = &catalog, .ddl = ReadOnly.ddl, .namespace = ReadOnly.namespace };
+                const private = (try c.DirectTransactionRead.apply(arena.allocator(), &catalog, access.policy(), context, .{ .kv = get }, execution)).kv;
+                try c.DirectKVResponse.validate(t.allocator, get, private);
+                try t.expect(private.value.workspace != null);
+                const encoded = try private.value.encoded.?.decode(arena.allocator(), c.fuze.Types.Codec.max_bytes);
+                const decoded = try c.fuze.Types.Codec.decodeBoundInto(arena.allocator(), .{ .name = "value", .type = .binary, .nullable = false }, encoded);
+                try t.expectEqualSlices(u8, &payload, decoded.value.atom.bytes);
+                access.denied_privileges = .{ .id = metadata.authorization, .mask = c.KVAuthority.read };
+                try t.expectError(error.CatalogDenied, c.DirectTransactionRead.apply(arena.allocator(), &catalog, access.policy(), context, .{ .kv = get }, execution));
+                access.denied_privileges = null;
+                var stale = context;
+                stale.revision.next_lsn -= 1;
+                try t.expectError(error.TransactionReadChanged, c.DirectTransactionRead.apply(arena.allocator(), &catalog, access.policy(), stale, .{ .kv = get }, execution));
+                // A consumed private operation cannot escape as autocommit.
+                try t.expectError(error.DataIdentityConflict, K.apply(arena.allocator(), arena.allocator(), &catalog, .{ .mutate = mutation }, access.policy()));
+                if (commit) {
+                    catalog.lose_transaction_reply = true;
+                    try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(token, settlement, .commit, 8, access.policy()));
+                } else {
+                    access.denied_privileges = .{ .id = metadata.authorization, .mask = c.KVAuthority.write };
+                    try t.expectError(error.CatalogDenied, catalog.settleTransaction(token, settlement, .commit, 8, access.policy()));
+                    _ = try catalog.settleTransaction(token, settlement, .abort, 8, access.policy());
+                    access.denied_privileges = null;
+                }
+            } else {
+                const settled = try catalog.settleTransaction(token, settlement, if (commit) .commit else .abort, 8, access.policy());
+                try t.expect(settled.cleanup_complete);
+                try t.expectEqual(commit, settled.observation.decided.outcome == .committed);
+                const got = try K.apply(arena.allocator(), arena.allocator(), &catalog, .{ .get = .{ .object = kv_object, .key = try w.Binary.encode(arena.allocator(), "six"), .source = null } }, access.policy());
+                try t.expectEqual(commit, got.value.encoded != null);
+                var table = (try resolve(&catalog, &access, "rows")).?;
+                defer table.deinit();
+                try t.expectEqual(@as(u64, @intFromBool(commit)), table.table.root.live_rows);
+                try t.expectEqual(@as(u64, 6), (try catalog.transactionStatementOutcome(token, original, access.policy())).?.provisional.affected);
+                var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+                defer graph.deinit();
+                try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+                var at: usize = 0;
+                var steps: usize = 0;
+                while (at < graph.jobs.items.len) : (at += 1) {
+                    var work = graph.jobs.items[at];
+                    while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph)) {
+                        steps += 1;
+                        if (steps > 10000) return error.FixtureBudget;
+                    }
+                }
+            }
+        }
+    }
+}
+
 test "direct KV lifecycle survives disk replacement with large atomic batches and separate rights" {
     const K = c.DirectKV;
     const Binary = c.DirectTableProtocol.Binary;

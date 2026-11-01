@@ -31,9 +31,9 @@ prepared directory, including each original attempt and predecessor. It scans
 both directories and checks their actual cardinalities. It performs no writes.
 It does not verify participant WAL acceptance or successor object availability.
 The directory supports neutral state and log evidence, while the current
-decision journal and catalog execution reject non-Table owners before admission.
-Private Table workspaces, pins and common-decision readers remain the executable
-participant adapters.
+decision journal and catalog execution support Table and direct KV owners.
+Document and log transaction owners remain unavailable. Private state workspaces,
+pins and common-decision readers implement the two supported participant kinds.
 
 Directory objects are at most 16 KiB. Index caches and index staging use the
 existing `TreeStore` bounds. Entry quota is independent of resident page count;
@@ -41,7 +41,7 @@ earlier roots survive later private inserts. Failed insertion leaves the current
 private root unchanged. Staged orphan objects require an owning retained-graph
 and cleanup policy; this component deletes nothing.
 
-## Private Table evaluation
+## Private Table and KV evaluation
 
 `TableWorkspace` opens an existing retained Table pin with current authorization
 and borrows that Table owner's serialized lifetime. It uses `TablePartition`'s
@@ -51,6 +51,12 @@ New row data uses bulk immutable segments; private evaluator positions cannot
 become accepted WAL row locations. Statement results carry explicit provisional
 counts or a rejection reason, with their transaction and statement attribution.
 The public Table root and WAL remain unchanged.
+
+`executeKV` lowers typed put/remove batches through `KVPartition.lower`, preserving
+key/value bounds and exact kind. It uses the same private roots, consumed statement
+identities, savepoints, budget and preparation/decision path. A disk check covers
+six 1 KiB values and a removal, rollback, both terminal outcomes, lost preparation,
+decision and resolution replies, replacement and the original retained cut.
 
 `State` contains the exact begin descriptor, retained source, private root,
 monotonic statement counter, cumulative matched/affected counts and whether data

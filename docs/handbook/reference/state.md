@@ -34,8 +34,11 @@ Creation reserves the shared name and object identity, registers its KV policy
 object, then publishes the initialized partition. Metadata inspection, data reads,
 data writes and ownership are separate current rights. Rename and DROP preserve
 original-operation receipts. Snapshot pins retain a read cut until explicit
-release; they never grant access. KV batches currently commit in one partition;
-KV does not yet participate in the Table transaction service.
+release; they never grant access. Ordinary KV batches commit in one partition.
+Typed transactions can explicitly select Table and KV objects, stage KV batches
+with `DirectTransactionClient.stageKV`, read their private changes and settle
+through one common decision. SQL BEGIN continues to select Tables. Native
+Station state and input acknowledgments remain outside this transaction boundary.
 
 Named Document declarations use `DirectResourceClient` and the shared
 direct catalog. Save the complete declaration before admission. Its observable

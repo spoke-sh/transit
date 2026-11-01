@@ -34,6 +34,7 @@ pub const Read = struct {
     changed_lsn: u64,
     spec: c.storage.KVDeclaration.Spec,
     source: ?c.storage.TablePartition.SnapshotHandle,
+    workspace: ?c.protocol.Transaction.ReadView,
     value: ?types.Values.Cell,
 };
 pub const Result = union(enum) {
@@ -148,7 +149,7 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
         .kv_lookup => |value| .{ .lookup = value },
         .kv_list => |value| .{ .list = value },
         .kv => |result| switch (result) {
-            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = value.spec, .source = value.source, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
+            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = value.spec, .source = value.source, .workspace = value.workspace, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
             inline else => |value, tag| @unionInit(Result, @tagName(tag), value),
         },
         else => error.InvalidKVResponse,

@@ -806,6 +806,12 @@ pub fn main(init: std.process.Init) !void {
             return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "kv-prepare")) {
             try @import("fixture_direct_kv").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "state-transaction-prepare")) {
+            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "state-transaction-recover")) {
+            try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
+            try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-recover")) {
             try @import("fixture_direct_kv").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-verify")) {

@@ -15,6 +15,7 @@ pub const Context = struct {
         try self.validate();
         switch (action) {
             .lookup, .check, .check_set, .read_authority, .pin, .pin_status, .snapshot, .read_key, .scan, .column_scan, .filter_scan, .key_range, .release => {},
+            .kv => |value| if (value != .get or value.get.source != null) return error.UnsupportedTransactionRead,
             else => return error.UnsupportedTransactionRead,
         }
     }

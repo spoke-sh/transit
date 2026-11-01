@@ -82,9 +82,21 @@ pub fn apply(self: *Self, binding: d.Binding, changes: []const Change, guard: Gu
 fn applyBounded(self: *Self, binding: d.Binding, changes: []const Change, guard: Guard, memory: *f.MemoryBudget) !Outcome {
     var scratch: std.heap.ArenaAllocator = .init(memory.allocator());
     defer scratch.deinit();
-    const a = scratch.allocator();
+    const lowered = try lower(scratch.allocator(), self.storage.declaration.schema.schema, binding, changes);
+    const budget = self.storage.options.build_resident_bytes;
+    if (memory.used >= budget) return error.KVBuildBudget;
+    self.storage.options.build_resident_bytes = budget - memory.used;
+    defer self.storage.options.build_resident_bytes = budget;
+    return self.storage.apply(binding, lowered, .point, guard);
+}
+
+/// Shared lowering for autocommit and private transaction evaluation. Returned
+/// rows own descriptors in scratch and borrow the caller's key/value payloads.
+pub fn lower(a: std.mem.Allocator, schema: f.TableSchema.Schema, binding: d.Binding, changes: []const Change) ![]const P.Change {
+    try binding.validate();
+    if (binding.action != .insert or changes.len == 0 or changes.len > max_changes) return error.InvalidKVOperation;
+    _ = try Declaration.validateSchema(schema);
     const lowered = try a.alloc(P.Change, changes.len);
-    const schema = self.storage.declaration.schema.schema;
     const field = schema.columns[1].field();
     for (changes, lowered, 0..) |change, *out, ordinal| switch (change) {
         .put => |value| {
@@ -101,11 +113,7 @@ fn applyBounded(self: *Self, binding: d.Binding, changes: []const Change, guard:
             out.* = .{ .remove = try a.dupe(u8, try encodeKey(key, &encoded)) };
         },
     };
-    const budget = self.storage.options.build_resident_bytes;
-    if (memory.used >= budget) return error.KVBuildBudget;
-    self.storage.options.build_resident_bytes = budget - memory.used;
-    defer self.storage.options.build_resident_bytes = budget;
-    return self.storage.apply(binding, lowered, .point, guard);
+    return lowered;
 }
 
 pub fn observe(self: *Self, binding: d.Binding, guard: Guard) !?P.Evidence {

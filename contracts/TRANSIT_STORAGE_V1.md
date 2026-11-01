@@ -57,7 +57,7 @@ Their [integration contract](../packages/zig/transit-storage/docs/transaction-de
 separates these formats from installed transaction execution.
 
 `TableWorkspace.State` is an internal owned descriptor of private evaluation:
-mandatory `definition`, exact `begin`, retained `source`, private Table `root`,
+mandatory `definition`, exact `begin`, retained `source`, private Table/KV `root`,
 `last_statement`, `changed`, `matched` and `affected`. Its positions describe private evaluator progress,
 not Table WAL acceptance. The evaluator accepts bulk immutable row storage and
 returns transaction-attributed provisional counts or rejection. It cannot export
@@ -69,6 +69,9 @@ collector root or transaction decision. The catalog workspace owner publishes
 these states through its [reserved records](DIRECT_TABLE_V1.md#durable-client-token-bindings)
 and extends the retained graph to private rows, receipts, operations and intents.
 Its private evaluator positions are never used as accepted recovery baselines.
+`executeKV` shares the KV owner's typed lowering and uses bulk immutable row
+storage in the same workspace. KV put/remove requests retain their exact kind,
+conditional writes, key/value limits and original operation identities.
 
 `TransactionDirectory` objects start with `TXDIR1` followed by two zero bytes,
 then the mandatory 32-byte shared definition at offsets `8..40`, then canonical
@@ -125,7 +128,7 @@ these records.
 mandatory 32-byte definition and canonical typed JSON, within 64 KiB total.
 `table-preparations/<sha256>.data` commits the entire object. Mandatory fields are
 `definition`, `coordination`, exact journal `binding`, original logical `guard`,
-actual accepted `predecessor` root and private `workspace` state. The Table's
+actual accepted `predecessor` root and private `workspace` state. The Table/KV owner's
 `transaction_prepare` action accepts its reference in the mandatory nullable
 root `transaction` field. Preparation advances only the physical acceptance and
 maintenance frontier; it preserves public data and logical change frontiers.
@@ -142,6 +145,8 @@ Missing fields or a previous definition reject before replay. The aggregate
 binding uses the original commit operation, UPDATE action and workspace digest;
 this representation does not substitute UPDATE permission for original DML rights.
 Current source/statement permissions are the catalog coordinator's obligation.
+Prepared targets and predecessor guards preserve the actual Table/KV kind;
+neither directory lookup nor journal recovery coerces KV evidence to Table.
 
 ## Table acceptance records and indexes
 
@@ -206,7 +211,8 @@ is supplied by the database adapter and held again through publication.
 
 This storage owner does not itself publish catalog names or a caller route.
 The [named KV lifecycle](DIRECT_TABLE_V1.md#direct-kv) uses this partition.
-Mixed transaction execution remains separate from single-partition batches.
+The shared catalog transaction owner composes Table and KV workspaces under one
+decision. Ordinary KV batches remain single-partition operations.
 
 RENAME preserves row interpretation and indexes. ALTER streams the accepted
 source into bounded segments and private replacement indexes, validating all

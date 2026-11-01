@@ -13,8 +13,9 @@ up to 1,024 bytes and text/binary values up to 1,047,552 bytes, bounded batches,
 original receipts, current-policy publication guards and retained read cuts.
 Its disk checks cover reply loss, large values, cardinality beyond the page
 cache, sealing, archive/trim and restart. Table opens reject KV storage,
-including recovery from checkpoints. Catalog/caller migration and mixed
-transaction participation are not established by this storage component.
+including recovery from checkpoints. Shared workspaces and preparation barriers
+compose Table and KV through one decision; the catalog owns selection and current
+kind-specific rights. Stream/Queue transaction participation remains pending.
 
 `Tack` binds a queue segment's available, acquired, acked and archived state
 sets to its exact interpretation, offset range and accepted WAL frontier. The
@@ -497,7 +498,7 @@ and the catalog's retained dependency graph.
   retained Table pin, using the existing Table evaluator and immutable indexes.
   Read-your-writes and private rollback preserve consumed statement identities;
   results are provisional and never append to the public Table WAL. Its
-  [integration obligations](docs/transaction-decisions.md#private-table-evaluation)
+  [integration obligations](docs/transaction-decisions.md#private-table-and-kv-evaluation)
   include durable state/result ownership, retention, aggregate quotas and commit
   preparation before service use.
 - `OrderedKeyIndex.zig`: Full ordered keys up to 4 KiB, mapped to row hashes

@@ -8,8 +8,9 @@ one fenced authority.
 
 The shared transaction contract also describes partitioned Stream/Queue actions
 and kind-specific guards. These are neutral preparation types, with their
-execution owners still pending. SQL BEGIN continues to select Tables only;
-typed requests for other participant kinds reject before durable admission.
+execution owners still pending. SQL BEGIN continues to select Tables only.
+The typed transaction client also supports explicit direct KV participants and
+private KV reads; Document, Stream and Queue requests reject before admission.
 
 ```sql
 BEGIN ISOLATION LEVEL SERIALIZABLE;

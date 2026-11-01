@@ -107,18 +107,20 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The named direct KV cutover replaces the shared definition with
-`7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
+The Table/KV transaction cutover replaces the shared definition with
+`959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d`.
 Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
 partitions, typed direct requests and KV policy; the native resource declaration
 and initialization marker accept Document only. Earlier named KV artifacts,
 requests and marker kinds are rejected, without adoption or fallback decoding.
-Native private Station state retains its own resource contract.
+Native private Station state retains its own resource contract. Typed transaction
+staging now accepts KV batches and KV reads require a nullable private-workspace
+field. Earlier stored intents and responses reject under this definition.
 
 Transaction selection, kind-specific guards, prepared evidence and paged
 directory keys now bind logical owner partitions. Stream/Queue actions share one
 preparation per partition. This neutral vocabulary does not enable their runtime
-transaction participation; the installed owner still accepts Tables only.
+transaction participation; the executable state owner accepts Tables and direct KV.
 Browser placement, retained configuration and typed request resources remain
 definition-bound. Earlier
 checkpoints, signed requests and histories reject rather than being silently

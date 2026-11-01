@@ -1737,7 +1737,7 @@ pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.
     var selected = try @import("TransactionDirectory.zig").init(self.allocator, self.objects, binding.begin.identity, .participants, binding.begin.limits.participants, 1, self.options.index_work_bytes);
     defer selected.deinit();
     try selected.restore(binding.attempt.participants);
-    const participant = (try selected.getTable(self.root.interpretation.object.object) orelse return error.TransactionObjectNotSelected).participant;
+    const participant = (try selected.get(Transaction.target(self.root)) orelse return error.TransactionObjectNotSelected).participant;
     if (participant != .state or participant.state.access != .write or !std.meta.eql(participant.state.guard, basis)) return error.InvalidTransactionPreparation;
     const preparation: Transaction.Record = .{ .definition = p.Growth.current_definition, .coordination = coordination, .binding = binding, .guard = basis, .predecessor = self.root, .workspace = workspace };
     const reference = try Transaction.stage(self.objects, preparation);

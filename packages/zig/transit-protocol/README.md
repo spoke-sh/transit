@@ -23,7 +23,7 @@ it does not add a native route or implement a storage cutover.
 [`Transaction`](src/Transaction.zig) freezes explicit scoped object/partition
 targets and kind-specific state/log guards. Appends and settlements for one log
 partition share an action directory and one preparation. Its neutral membership
-and terminal-transfer types do not enable non-Table runtime participation; the
+and terminal-transfer types do not enable log runtime participation; the
 [transaction contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
 states the remaining owner and publication obligations.
 
