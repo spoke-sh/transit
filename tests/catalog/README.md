@@ -14,6 +14,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Current authorization through native operations | [Authority schedule](authorization/authorization_native.py) |
 | Native declaration and dependency callers | [Lifecycle](tables/direct_table_lifecycle.zig), [dependencies](tables/direct_dependencies.zig), [named resources](tables/direct_named_resources.zig) |
 | Mixed Table/KV transaction caller | [Private admission and common-decision recovery](tables/direct_state_transaction.zig); `just test::direct-state-transaction` |
+| Table/KV with Stream/Queue appends, offset and lease settlement | [Mixed transaction caller](tables/direct_state_transaction.zig); `just test::direct-mixed-transaction` |
 
 The [test task module](../../tasks/test.just) owns executable commands and matching
 binary inputs. ABI helpers are invoked by their real caller schedules; copied

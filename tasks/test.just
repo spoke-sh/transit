@@ -154,6 +154,10 @@ direct-kv:
 direct-state-transaction:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- state-transaction
 
+# State, append, Queue ACK and Stream offset share one recoverable decision.
+direct-mixed-transaction:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- mixed-transaction
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}

@@ -1389,6 +1389,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_client.root_module.addImport("fixture_direct_queue", test_modules.get(.direct_queue));
     direct_table_client.root_module.addImport("fixture_direct_kv", test_modules.get(.direct_kv));
     direct_table_client.root_module.addImport("fixture_direct_state_transaction", test_modules.get(.direct_state_transaction));
+    b.step("direct-table-proof", "Build the signed direct database proof caller").dependOn(&b.addInstallArtifact(direct_table_client, .{}).step);
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
     direct_table_service.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));

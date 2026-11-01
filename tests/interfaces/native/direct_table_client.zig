@@ -807,11 +807,17 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "kv-prepare")) {
             try @import("fixture_direct_kv").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-prepare")) {
-            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}), false);
         } else if (std.mem.eql(u8, args[2], "state-transaction-recover")) {
             try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
             try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-prepare")) {
+            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}), true);
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-recover")) {
+            try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-verify")) {
+            try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-recover")) {
             try @import("fixture_direct_kv").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-verify")) {
