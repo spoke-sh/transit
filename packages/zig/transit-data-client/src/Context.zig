@@ -5,6 +5,7 @@ const Catalog = @import("Catalog.zig");
 const c = @import("transit_catalog");
 const sql = @import("transit_sql_client");
 const SqlSession = @import("SqlSession.zig");
+const AdmissionQueue = @import("AdmissionQueue.zig");
 pub const Admission = @import("Admission.zig");
 const Self = @This();
 
@@ -13,21 +14,38 @@ io: std.Io,
 slots: []Slot,
 sql_slots: []SqlSlot,
 admission: Admission,
+queue: AdmissionQueue,
 serial: u64 = 1,
 mutex: std.Io.Mutex = .init,
 condition: std.Io.Condition = .init,
+joining: bool = false,
 
 const Slot = struct {
     caller: ?Catalog = null,
     serial: u64 = 0,
     active: bool = false,
+    waiting: bool = false,
 };
-const SqlSlot = struct { session: ?*SqlSession = null, opening: bool = false, serial: u64 = 0, lease: u64 = 0 };
+const SqlSlot = struct { session: ?*SqlSession = null, opening: bool = false, waiting: bool = false, serial: u64 = 0, lease: u64 = 0 };
+/// Waiting is opt-in and always deadline bounded. Borrowed input/output storage
+/// remains caller-owned while queued; no request is sent before admission.
+pub const AdmissionOptions = union(enum) {
+    refuse,
+    wait: std.Io.Timeout,
+
+    fn deadline(self: AdmissionOptions, io: std.Io) AdmissionOptions {
+        return switch (self) {
+            .refuse => .refuse,
+            .wait => |timeout| .{ .wait = timeout.toDeadline(io) },
+        };
+    }
+};
 pub const Config = struct {
     /// Bound on simultaneously open transport/intent owners, not data objects.
     catalogs: usize,
     sqls: usize = 0,
     active: Admission.Limits,
+    pending: AdmissionQueue.Limits = .{},
 };
 pub const Handle = struct { owner: *Self, slot: usize, serial: u64 };
 pub const SqlHandle = struct { owner: *Self, slot: usize, serial: u64 };
@@ -58,8 +76,10 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) !Self {
     errdefer allocator.free(slots);
     @memset(slots, .{});
     const sql_slots = try allocator.alloc(SqlSlot, config.sqls);
+    errdefer allocator.free(sql_slots);
     @memset(sql_slots, .{});
-    return .{ .allocator = allocator, .io = io, .slots = slots, .sql_slots = sql_slots, .admission = admission };
+    const queue = try AdmissionQueue.init(allocator, config.pending);
+    return .{ .allocator = allocator, .io = io, .slots = slots, .sql_slots = sql_slots, .admission = admission, .queue = queue };
 }
 
 /// Owns bounded configuration/credential copies and native transport reserves.
@@ -72,6 +92,7 @@ pub fn openSql(self: *Self, config: sql.Client.Config, password: ?[]const u8) !S
         if (self.serial == std.math.maxInt(u64)) return error.ClientHandleExhausted;
         for (self.sql_slots, 0..) |*slot, index| {
             if (slot.session != null or slot.opening) continue;
+            if (self.queue.first(.data, self, facetAvailable) != null) return error.ClientCapacityExceeded;
             try self.admission.enter(.data);
             slot.opening = true;
             slot.serial = self.serial;
@@ -103,17 +124,26 @@ pub fn closeSql(self: *Self, handle: SqlHandle) !void {
     self.mutex.lockUncancelable(self.io);
     defer self.mutex.unlock(self.io);
     const slot = try self.validateSql(handle);
-    if (slot.lease != 0) return error.ClientWorkOutstanding;
+    if (slot.lease != 0 or slot.waiting) return error.ClientWorkOutstanding;
     slot.session.?.destroy();
     slot.* = .{};
 }
 pub fn borrowSql(self: *Self, handle: SqlHandle) !SqlLease {
+    return self.borrowSqlWithAdmission(handle, .refuse);
+}
+pub fn borrowSqlWithAdmission(self: *Self, handle: SqlHandle, options: AdmissionOptions) !SqlLease {
+    const admission_options = options.deadline(self.io);
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     const slot = try self.validateSql(handle);
-    if (slot.lease != 0) return error.Busy;
     if (self.serial == std.math.maxInt(u64)) return error.ClientHandleExhausted;
-    try self.admission.enter(.data);
+    try self.enterFacet(self.slots.len + handle.slot, .data, admission_options);
+    // Waiting releases the mutex, so another facet may consume the last serial.
+    if (self.serial == std.math.maxInt(u64)) {
+        self.admission.leave(.data) catch unreachable;
+        self.condition.broadcast(self.io);
+        return error.ClientHandleExhausted;
+    }
     slot.lease = self.serial;
     self.serial += 1;
     slot.session.?.cancel.store(@backingInt(sql.Executor.Cancellation.Request.none), .release);
@@ -145,6 +175,7 @@ pub fn cancelSql(self: *Self, lease: SqlLease, request: sql.Executor.Cancellatio
     defer self.mutex.unlock(self.io);
     const slot = try self.validateSql(lease.handle);
     if (lease.serial == 0 or slot.lease != lease.serial) return error.StaleSqlLease;
+    if (self.queue.first(.control, self, facetAvailable) != null) return error.ClientCapacityExceeded;
     try self.admission.enter(.control);
     defer self.admission.leave(.control) catch unreachable;
     const signal = &slot.session.?.cancel;
@@ -182,20 +213,70 @@ pub fn closeCatalog(self: *Self, handle: Handle) !void {
     self.mutex.lockUncancelable(self.io);
     defer self.mutex.unlock(self.io);
     const slot = try self.validate(handle);
-    if (slot.active) return error.ClientWorkOutstanding;
+    if (slot.active or slot.waiting) return error.ClientWorkOutstanding;
     slot.caller.?.deinit();
     slot.* = .{};
 }
 
 const Borrow = struct { slot: *Slot, lane: Admission.Lane };
 fn acquire(self: *Self, handle: Handle, lane: Admission.Lane) !Borrow {
+    return self.acquireWithAdmission(handle, lane, .refuse);
+}
+fn acquireWithAdmission(self: *Self, handle: Handle, lane: Admission.Lane, options: AdmissionOptions) !Borrow {
+    const admission_options = options.deadline(self.io);
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     const slot = try self.validate(handle);
-    if (slot.active) return error.Busy;
-    try self.admission.enter(lane);
+    try self.enterFacet(handle.slot, lane, admission_options);
     slot.active = true;
     return .{ .slot = slot, .lane = lane };
+}
+
+fn facetAvailable(self: *Self, index: usize) bool {
+    return if (index < self.slots.len) !self.slots[index].active else self.sql_slots[index - self.slots.len].lease == 0;
+}
+fn facetWaiting(self: *Self, index: usize) *bool {
+    return if (index < self.slots.len) &self.slots[index].waiting else &self.sql_slots[index - self.slots.len].waiting;
+}
+fn requireLane(self: *Self, lane: Admission.Lane) !void {
+    if (self.admission.state == .joined or (self.admission.state == .closing and lane == .data)) return error.ClientContextClosed;
+}
+
+/// Called with mutex held and a validated facet, which cannot close while
+/// waiting. A cancelled/expired waiter releases its metadata before returning.
+fn enterFacet(self: *Self, index: usize, lane: Admission.Lane, options: AdmissionOptions) !void {
+    if (options == .wait and options.wait == .none) return error.InvalidClientAdmissionTimeout;
+    const deadline = if (options == .wait) options.wait.toDeadline(self.io) else std.Io.Timeout.none;
+    try self.requireLane(lane);
+    if (deadline != .none and deadline.deadline.durationFromNow(self.io).raw.nanoseconds <= 0) return error.Timeout;
+    const waiting = self.facetWaiting(index);
+    if (waiting.*) return error.Busy;
+    if (self.facetAvailable(index) and self.queue.first(lane, self, facetAvailable) == null) {
+        if (self.admission.enter(lane)) |_| return else |err| switch (err) {
+            error.ClientCapacityExceeded => {},
+            else => return err,
+        }
+    }
+    if (options == .refuse) return if (self.facetAvailable(index)) error.ClientCapacityExceeded else error.Busy;
+    const ticket = try self.queue.enqueue(index, lane);
+    waiting.* = true;
+    self.condition.broadcast(self.io);
+    defer {
+        waiting.* = false;
+        self.queue.remove(ticket) catch unreachable;
+        self.condition.broadcast(self.io);
+    }
+    while (true) {
+        try self.requireLane(lane);
+        if (deadline.deadline.durationFromNow(self.io).raw.nanoseconds <= 0) return error.Timeout;
+        if (self.queue.first(lane, self, facetAvailable)) |selected| if (std.meta.eql(selected, ticket)) {
+            if (self.admission.enter(lane)) |_| return else |err| switch (err) {
+                error.ClientCapacityExceeded => {},
+                else => return err,
+            }
+        };
+        try self.condition.waitTimeout(self.io, &self.mutex, deadline);
+    }
 }
 fn release(self: *Self, borrow: Borrow) void {
     self.mutex.lockUncancelable(self.io);
@@ -207,6 +288,9 @@ fn release(self: *Self, borrow: Borrow) void {
 }
 
 pub fn call(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectTableBridge.Action) !Catalog.Outcome {
+    return self.callWithAdmission(handle, output, action, .refuse);
+}
+pub fn callWithAdmission(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectTableBridge.Action, options: AdmissionOptions) !Catalog.Outcome {
     const lane: Admission.Lane = switch (action) {
         .operation => |value| if (value.command == .execute) .data else .control,
         .retention => |value| switch (value) {
@@ -215,23 +299,29 @@ pub fn call(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, actio
         },
         else => .data,
     };
-    const borrow = try self.acquire(handle, lane);
+    const borrow = try self.acquireWithAdmission(handle, lane, options);
     defer self.release(borrow);
     return borrow.slot.caller.?.call(output, action);
 }
 
 pub fn callLog(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectLogClient.Action) !Catalog.LogOutcome {
+    return self.callLogWithAdmission(handle, output, action, .refuse);
+}
+pub fn callLogWithAdmission(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectLogClient.Action, options: AdmissionOptions) !Catalog.LogOutcome {
     const lane: Admission.Lane = switch (action) {
         .operation => |value| if (value.command == .execute) .data else .control,
         .pending => .control,
         else => .data,
     };
-    const borrow = try self.acquire(handle, lane);
+    const borrow = try self.acquireWithAdmission(handle, lane, options);
     defer self.release(borrow);
     return borrow.slot.caller.?.callLog(output, action);
 }
 
 pub fn callStream(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectStreamClient.Action) !Catalog.StreamOutcome {
+    return self.callStreamWithAdmission(handle, output, action, .refuse);
+}
+pub fn callStreamWithAdmission(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectStreamClient.Action, options: AdmissionOptions) !Catalog.StreamOutcome {
     const lane: Admission.Lane = switch (action) {
         .operation => .control,
         .mutate => |value| switch (value.work) {
@@ -240,12 +330,15 @@ pub fn callStream(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator,
         },
         else => .data,
     };
-    const borrow = try self.acquire(handle, lane);
+    const borrow = try self.acquireWithAdmission(handle, lane, options);
     defer self.release(borrow);
     return borrow.slot.caller.?.callStream(output, action);
 }
 
 pub fn callQueue(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectQueueClient.Action) !Catalog.QueueOutcome {
+    return self.callQueueWithAdmission(handle, output, action, .refuse);
+}
+pub fn callQueueWithAdmission(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectQueueClient.Action, options: AdmissionOptions) !Catalog.QueueOutcome {
     const lane: Admission.Lane = switch (action) {
         .operation => .control,
         .mutate => |value| switch (value.work) {
@@ -254,7 +347,7 @@ pub fn callQueue(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, 
         },
         else => .data,
     };
-    const borrow = try self.acquire(handle, lane);
+    const borrow = try self.acquireWithAdmission(handle, lane, options);
     defer self.release(borrow);
     return borrow.slot.caller.?.callQueue(output, action);
 }
@@ -262,12 +355,15 @@ pub fn callQueue(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, 
 /// Named KV uses the direct owner, including its existing control semantics.
 /// Closing a context does not implicitly release retained KV pins.
 pub fn callKV(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectKVClient.Action) !Catalog.KVOutcome {
+    return self.callKVWithAdmission(handle, output, action, .refuse);
+}
+pub fn callKVWithAdmission(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectKVClient.Action, options: AdmissionOptions) !Catalog.KVOutcome {
     const lane: Admission.Lane = switch (action) {
         .declaration => |value| if (value.control()) .control else .data,
         .operation, .pin_status, .release => .control,
         else => .data,
     };
-    const borrow = try self.acquire(handle, lane);
+    const borrow = try self.acquireWithAdmission(handle, lane, options);
     defer self.release(borrow);
     return borrow.slot.caller.?.callKV(output, action);
 }
@@ -287,7 +383,10 @@ pub fn close(self: *Self, timeout: std.Io.Timeout) !void {
     self.beginClose();
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
-    while (!self.admission.idle()) try self.condition.waitTimeout(self.io, &self.mutex, deadline);
+    if (self.joining) return error.Busy;
+    self.joining = true;
+    defer self.joining = false;
+    while (!self.admission.idle() or !self.queue.empty()) try self.condition.waitTimeout(self.io, &self.mutex, deadline);
     try self.admission.join();
 }
 
@@ -296,6 +395,7 @@ pub fn deinit(self: *Self) !void {
     self.mutex.lockUncancelable(self.io);
     defer self.mutex.unlock(self.io);
     if (self.admission.state != .joined) return error.ClientWorkOutstanding;
+    self.queue.deinit();
     for (self.slots) |*slot| if (slot.caller) |*caller| caller.deinit();
     for (self.sql_slots) |slot| if (slot.session) |session| session.destroy();
     self.allocator.free(self.slots);
@@ -312,7 +412,9 @@ const test_catalog: Catalog.Config = .{
 };
 
 fn initFailure(allocator: std.mem.Allocator) !void {
-    var context = try Self.init(allocator, std.testing.io, test_config);
+    var config = test_config;
+    config.pending = .{ .data = 2, .control = 1 };
+    var context = try Self.init(allocator, std.testing.io, config);
     defer {
         context.close(.none) catch unreachable;
         context.deinit() catch unreachable;
@@ -516,4 +618,156 @@ test "context executes the shared catalog caller and preserves owned results aft
     deinitialized = true;
     try t.expectEqualStrings("18446744073709551615", loaded.value.result.loaded.binding.name_assertion.operation);
     try t.expectEqualStrings("original", loaded.value.result.loaded.binding.name_assertion.name);
+}
+
+const test_wait: std.Io.Timeout = .{ .duration = .{ .clock = .awake, .raw = .fromSeconds(5) } };
+const WaitingCall = struct {
+    context: *Self,
+    handle: Handle,
+    lane: Admission.Lane = .data,
+    entered: std.Io.Event = .unset,
+    finish: std.Io.Event = .unset,
+
+    fn run(self: *WaitingCall) !void {
+        const borrow = try self.context.acquireWithAdmission(self.handle, self.lane, .{ .wait = test_wait });
+        defer self.context.release(borrow);
+        self.entered.set(self.context.io);
+        try self.finish.waitTimeout(self.context.io, test_wait);
+    }
+};
+fn waitForPending(context: *Self, data: usize, control: usize) !void {
+    const deadline = test_wait.toDeadline(context.io);
+    try context.mutex.lock(context.io);
+    defer context.mutex.unlock(context.io);
+    while (context.queue.data != data or context.queue.control != control)
+        try context.condition.waitTimeout(context.io, &context.mutex, deadline);
+}
+
+test "queued admission preserves order and control capacity under saturation" {
+    const t = std.testing;
+    var context = try Self.init(t.allocator, t.io, .{
+        .catalogs = 5,
+        .active = .{ .data = 1, .control = 1 },
+        .pending = .{ .data = 2, .control = 1 },
+    });
+    defer context.deinit() catch unreachable;
+    defer context.close(.none) catch unreachable;
+    var handles: [5]Handle = undefined;
+    for (&handles) |*handle| handle.* = try context.openCatalog(test_catalog, @splat(10));
+    const occupied = try context.acquire(handles[0], .data);
+    var released = false;
+    defer if (!released) context.release(occupied);
+    var first: WaitingCall = .{ .context = &context, .handle = handles[1] };
+    var a = try t.io.concurrent(WaitingCall.run, .{&first});
+    defer a.cancel(t.io) catch {};
+    try waitForPending(&context, 1, 0);
+    var second: WaitingCall = .{ .context = &context, .handle = handles[2] };
+    var b = try t.io.concurrent(WaitingCall.run, .{&second});
+    defer b.cancel(t.io) catch {};
+    try waitForPending(&context, 2, 0);
+    try t.expectError(error.ClientCapacityExceeded, context.acquireWithAdmission(handles[3], .data, .{ .wait = test_wait }));
+    try t.expectError(error.Busy, context.acquire(handles[1], .data));
+    try t.expectError(error.ClientWorkOutstanding, context.closeCatalog(handles[1]));
+    const control = try context.acquire(handles[3], .control);
+    context.release(control);
+    context.release(occupied);
+    released = true;
+    try first.entered.waitTimeout(t.io, test_wait);
+    try t.expect(!second.entered.isSet());
+    try t.expectError(error.ClientCapacityExceeded, context.acquire(handles[4], .data));
+    first.finish.set(t.io);
+    try a.await(t.io);
+    try second.entered.waitTimeout(t.io, test_wait);
+    second.finish.set(t.io);
+    try b.await(t.io);
+    try waitForPending(&context, 0, 0);
+    try context.closeCatalog(handles[1]);
+}
+
+test "queued cancellation deadline and close release metadata without dispatch" {
+    const t = std.testing;
+    var context = try Self.init(t.allocator, t.io, .{
+        .catalogs = 3,
+        .active = .{ .data = 1, .control = 1 },
+        .pending = .{ .data = 1, .control = 1 },
+    });
+    defer context.deinit() catch unreachable;
+    defer context.close(.none) catch unreachable;
+    const active = try context.openCatalog(test_catalog, @splat(10));
+    const waiting = try context.openCatalog(test_catalog, @splat(11));
+    const controls = try context.openCatalog(test_catalog, @splat(12));
+    const data = try context.acquire(active, .data);
+    var released = false;
+    defer if (!released) context.release(data);
+    const expired: AdmissionOptions = .{ .wait = .{ .duration = .{ .clock = .awake, .raw = .zero } } };
+    try t.expectError(error.Timeout, context.acquireWithAdmission(waiting, .data, expired));
+    try t.expectError(error.Timeout, context.acquireWithAdmission(waiting, .data, .{ .wait = .{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(1) } } }));
+    try t.expectError(error.InvalidClientAdmissionTimeout, context.acquireWithAdmission(waiting, .data, .{ .wait = .none }));
+    var waiter: WaitingCall = .{ .context = &context, .handle = waiting };
+    var task = try t.io.concurrent(WaitingCall.run, .{&waiter});
+    defer task.cancel(t.io) catch {};
+    try waitForPending(&context, 1, 0);
+    try t.expectError(error.Canceled, task.cancel(t.io));
+    try waitForPending(&context, 0, 0);
+    try t.expect(!waiter.entered.isSet());
+    // The cancelled slot is reusable. Closing drains it without acquiring a
+    // data permit; the control waiter survives until its facet becomes idle.
+    var retry = try t.io.concurrent(WaitingCall.run, .{&waiter});
+    defer retry.cancel(t.io) catch {};
+    try waitForPending(&context, 1, 0);
+    const held_control = try context.acquire(controls, .control);
+    var control_call: WaitingCall = .{ .context = &context, .handle = controls, .lane = .control };
+    var control_task = try t.io.concurrent(WaitingCall.run, .{&control_call});
+    defer control_task.cancel(t.io) catch {};
+    var control_released = false;
+    defer if (!control_released) context.release(held_control);
+    try waitForPending(&context, 1, 1);
+    context.beginClose();
+    try t.expectError(error.ClientContextClosed, retry.await(t.io));
+    try t.expect(!waiter.entered.isSet());
+    context.release(data);
+    released = true;
+    context.release(held_control);
+    control_released = true;
+    try control_call.entered.waitTimeout(t.io, test_wait);
+    control_call.finish.set(t.io);
+    try control_task.await(t.io);
+    try context.close(.none);
+    try t.expect(context.queue.empty());
+}
+
+test "SQL lease admission waits behind Catalog work and cannot lose its facet" {
+    const t = std.testing;
+    var context = try Self.init(t.allocator, t.io, .{
+        .catalogs = 1,
+        .sqls = 1,
+        .active = .{ .data = 1, .control = 1 },
+        .pending = .{ .data = 1 },
+    });
+    defer context.deinit() catch unreachable;
+    defer context.close(.none) catch unreachable;
+    const catalog = try context.openCatalog(test_catalog, @splat(10));
+    const handle = try context.openSql(.{ .endpoint = "http://127.0.0.1:1", .authentication = .trust }, null);
+    const data = try context.acquire(catalog, .data);
+    var released = false;
+    defer if (!released) context.release(data);
+    var task = try t.io.concurrent(struct {
+        fn run(owner: *Self, sql_handle: SqlHandle) !SqlLease {
+            return owner.borrowSqlWithAdmission(sql_handle, .{ .wait = test_wait });
+        }
+    }.run, .{ &context, handle });
+    var joined = false;
+    defer if (!joined) {
+        if (task.cancel(t.io)) |lease| lease.release() catch unreachable else |_| {}
+    };
+    try waitForPending(&context, 1, 0);
+    try t.expectError(error.ClientWorkOutstanding, context.closeSql(handle));
+    try t.expectError(error.Busy, context.borrowSql(handle));
+    context.release(data);
+    released = true;
+    const lease = try task.await(t.io);
+    joined = true;
+    defer lease.release() catch unreachable;
+    try context.cancelSql(lease, .terminate);
+    try t.expectEqual(@as(u8, @backingInt(sql.Executor.Cancellation.Request.terminate)), context.sql_slots[handle.slot].session.?.cancel.load(.acquire));
 }

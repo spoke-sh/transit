@@ -11,7 +11,8 @@ below Catalog. The build rejects transitive Station imports. Consumer Zig
 applications import this module through the [Zig SDK](../../../sdks/zig/README.md).
 
 `Context` composes Catalog and SQL facets over caller-owned I/O, with bounded
-handle/data/control capacity and joined local closure. It exposes the same
+handle/data/control capacity, optional deadline-bounded admission waits and joined
+local closure. It exposes the same
 explicit Table, KV, log, Stream and Queue calls and an exclusive lease over the
 existing SQL executor. See the
 [context guide](docs/context.md) for handle lifetimes, reserved control capacity,
