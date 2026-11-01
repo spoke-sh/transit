@@ -849,7 +849,11 @@ test "native responses require the current contract definition even with a v1 la
         // Before mandatory scoped read delegations and executor authentication.
         "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982",
         // Before durable Table branch directory and retention ownership.
-        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+        "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e",
+        // Main's retained Table branches before mixed database-log integration.
+        "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        // Mixed log transactions before retained branches and worker rotation.
+        "ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655",
         // Before lossless column codecs and mandatory physical page definitions.
         "dbeaf8ee99483d030ed06e8779be25af19f74d7c794591e180c8906a55b456dd",
         // Before mandatory binary storage definitions and keyless row identity.
