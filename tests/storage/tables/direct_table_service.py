@@ -18,7 +18,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "queues", "kv", "state-transaction", "mixed-transaction", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -39,7 +39,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode == "tables":
             settings["request_metrics"] = True
-        if mode in ("resources", "resource-growth", "queues", "mixed-transaction"):
+        if mode in ("resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -190,21 +190,26 @@ def run(node, caller, mode="tables", *artifacts):
                             dependency_faults.add(dependency["binding"]["operation"])
                         kv = envelope["action"].get("kv", {})
                         transaction = envelope["action"].get("transaction", {})
-                        if mode in ("state-transaction", "mixed-transaction") and response.status == 200:
+                        if mode in ("state-transaction", "mixed-transaction", "queue-transfer") and response.status == 200:
                             mixed = mode == "mixed-transaction"
-                            statement = transaction.get("log_statement" if mixed else "statement", {})
+                            transfer = mode == "queue-transfer"
+                            statement = transaction.get("log_statement" if mixed or transfer else "statement", {})
                             settlement = transaction.get("settle", {})
                             request = statement.get("request", {})
-                            statement_identity = (request.get("work", {}).get("append", {}).get("operation")
-                                                  if mixed else request.get("binding", {}).get("identity"))
+                            statement_identity = (request.get("work", {}).get("queue_transfer" if transfer else "append", {}).get("operation")
+                                                  if mixed or transfer else request.get("binding", {}).get("identity"))
                             identity = (statement_identity
                                         if statement.get("execute") else settlement.get("operation"))
-                            selected = 642016 if mixed else 642012
-                            if identity and identity["operation"] in (selected, 642101) and identity["operation"] not in state_transaction_faults:
+                            selected = 643006 if transfer else 642016 if mixed else 642012
+                            decision = 643101 if transfer else 642101
+                            if identity and identity["operation"] in (selected, decision) and identity["operation"] not in state_transaction_faults:
                                 parsed = json.loads(data)
                                 result = parsed["result"]["transaction"]
                                 if identity["operation"] == selected:
-                                    if mixed:
+                                    if transfer:
+                                        proposed = result["log_statement"]["provisional"]["proposed"]["queue_transfer"]
+                                        assert proposed["offset"] == 0 and proposed["destination"]["interpretation"]["object"]["object"] == 643020
+                                    elif mixed:
                                         assert result["log_statement"]["provisional"]["proposed"]["append"]["rows"] == 1
                                     else:
                                         assert result["statement"]["provisional"]["affected"] == 6
@@ -366,9 +371,11 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
-            if mode in ("state-transaction", "mixed-transaction"):
+            if mode in ("state-transaction", "mixed-transaction", "queue-transfer"):
                 mixed = mode == "mixed-transaction"
-                lost_statement = 642016 if mixed else 642012
+                transfer = mode == "queue-transfer"
+                lost_statement = 643006 if transfer else 642016 if mixed else 642012
+                decision = 643101 if transfer else 642101
                 subprocess.run([caller, endpoint, mode + "-prepare", str(profile)], check=True, timeout=180)
                 saved_path = Path(str(profile) + "." + mode)
                 saved = saved_path.read_bytes()
@@ -377,7 +384,7 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([caller, endpoint, mode + "-recover", str(profile)], check=True, timeout=180)
-                assert state_transaction_faults == {lost_statement, 642101}
+                assert state_transaction_faults == {lost_statement, decision}
                 assert saved_path.read_bytes() == saved
                 authority.kill()
                 authority.wait(timeout=15)
@@ -385,10 +392,13 @@ def run(node, caller, mode="tables", *artifacts):
                 subprocess.run([caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
                 assert saved_path.read_bytes() == saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
-                print(json.dumps(dict(profile="direct_table_kv_log_transaction" if mixed else "direct_table_kv_transaction", source=provenance(ROOT),
+                print(json.dumps(dict(profile="direct_queue_terminal_transaction" if transfer else "direct_table_kv_log_transaction" if mixed else "direct_table_kv_transaction", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
                                       lost_replies=sorted(state_transaction_faults), passed=True)))
-                print(("Table/KV/Stream/Queue" if mixed else "Table/KV") + " transaction HTTP: original private statements and common decision recovered after two lost replies and SIGKILL/restarts, private KV read, public visibility and unchanged saved identities passed.")
+                if transfer:
+                    print("Queue transfer HTTP: paired source archive and destination append recovered after two lost replies and SIGKILL/restarts; original identities, payload and FIFO successor passed.")
+                else:
+                    print(("Table/KV/Stream/Queue" if mixed else "Table/KV") + " transaction HTTP: original private statements and common decision recovered after two lost replies and SIGKILL/restarts, private KV read, public visibility and unchanged saved identities passed.")
                 return
             if mode == "kv":
                 subprocess.run([caller, endpoint, "kv-prepare", str(profile)], check=True, timeout=180)
