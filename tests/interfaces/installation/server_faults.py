@@ -320,12 +320,15 @@ def worker_rotation(fixture):
     # Freeze the supervisor's root writer while an explicit administrative
     # revocation commits. Restart must never manufacture a replacement grant.
     os.kill(fixture.process.pid, signal.SIGSTOP)
-    root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
-    basis = post(fixture.config['ports']['node'], '/v1/query',
-                 native(root, fixture.config['realm'], 0, {'capabilities': {}}), retry_unavailable=True)
-    post(fixture.config['ports']['node'], '/v1/command',
-         native(root, fixture.config['realm'], 0, {'revoke': 20}, basis['principal_sequence'] + 1), retry_unavailable=True)
-    fixture.stop(kill=True)
+    try:
+        root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+        basis = post(fixture.config['ports']['node'], '/v1/query',
+                     native(root, fixture.config['realm'], 0, {'capabilities': {}}), retry_unavailable=True)
+        post(fixture.config['ports']['node'], '/v1/command',
+             native(root, fixture.config['realm'], 0, {'revoke': 20}, basis['principal_sequence'] + 1), retry_unavailable=True)
+    finally:
+        # SIGTERM cannot drain a stopped manager, including on a proof failure.
+        fixture.stop(kill=True)
     fixture.start()
     assert fixture.process.wait(timeout=30) != 0
     assert not fixture.process.stdout.read(), 'Revoked worker reached core readiness'
