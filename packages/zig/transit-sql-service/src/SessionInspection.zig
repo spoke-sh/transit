@@ -25,13 +25,20 @@ const describe_fields = [_]f.Types.Field{
     .{ .name = "column_id", .type = .uint64 },
 };
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
+// Log inspection is also a database-wire surface. Its character bound uses
+// the common lossless unsigned type; native Table descriptions retain theirs.
+const log_describe_fields = blk: {
+    var fields = describe_fields;
+    fields[5].type = .uint64;
+    break :blk fields;
+};
 const log_fields = [_]f.Types.Field{
     .{ .name = "object", .type = .uint64 },     .{ .name = "definition_revision", .type = .uint64 },
     .{ .name = "partitions", .type = .uint64 }, .{ .name = "configuration", .type = .utf8 },
     .{ .name = "limits", .type = .utf8 },
 };
 test "log metadata fields use the lossless common database wire matrix" {
-    for (log_fields ++ describe_fields) |field| _ = try g.Type.from(field);
+    for (log_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
 }
 fn text(bytes: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = bytes } } };
@@ -74,7 +81,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             defer owned.deinit();
             break :blk try describeRows(a, owned.schema);
         };
-        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (show_log) &log_fields else &describe_fields };
+        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (show_log) &log_fields else &log_describe_fields };
     }
     if (try parser.takeWord("SHOW")) {
         if (!(try parser.takeWord("STORAGE"))) {
