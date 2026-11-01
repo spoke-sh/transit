@@ -458,6 +458,8 @@ and the catalog's retained dependency graph.
   `document-reads/{sha256}.data`), finite merge-window checkpoints, WAL archival,
   recovery checkpoints (`DCHECK01` in `document-checkpoints/{sha256}.data`),
   physical WAL trim (`trimArchived`), and bounded retained root enumeration.
+  The [partition guide](docs/document-partitions.md) specifies explicit signing
+  keys, bounded activation/replay, cumulative read budgets and integration limits.
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
   binary frame format with a mandatory definition in its 128-byte header,
   CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`

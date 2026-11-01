@@ -428,7 +428,7 @@ test "direct graph retains document partition declarations states payloads evide
         .partition = 141,
     };
     _ = try s.DocumentInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), init_req, guard);
-    var owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, guard, .{});
+    var owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, guard, .{ .read_secret = @splat(7) });
     defer owner.deinit();
 
     const doc = c.protocol.DocumentOperation;

@@ -13,6 +13,11 @@ The direct-storage [`DocumentIndex` component](../../../packages/zig/transit-sto
 stages private candidates over `.tseg` records and paged indexes. It exposes no
 public Document admission, accepted revision lookup or collection lifecycle.
 
+The direct-storage [partition component](../../../packages/zig/transit-storage/docs/document-partitions.md)
+also supplies bounded WAL recovery and authenticated retained revision reads with
+cumulative byte/work budgets. It currently accepts supplied state bytes; logical
+evaluation and the installed service lifecycle remain separate integration work.
+
 Start with the [Document example](../../../examples/station-document/README.md) and
 [service guide](../../../packages/zig/transit-station-document/docs/service.md).
 The [shared-notebook recipe](../guides/workload-examples.md#share-an-incident-notebook-with-zig)

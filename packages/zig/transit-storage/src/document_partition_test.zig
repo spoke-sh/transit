@@ -127,7 +127,7 @@ test "document partition disk recovery preserves mutations checkpoints retained 
         objects.objectStore(),
         init_req,
         policy.guard(),
-        .{},
+        .{ .read_secret = @splat(7) },
     );
     defer owner.deinit();
 
@@ -270,8 +270,18 @@ test "document partition disk recovery preserves mutations checkpoints retained 
         objects.objectStore(),
         init_req,
         policy.guard(),
-        .{},
+        .{ .read_secret = @splat(7), .recovery_records = 1 },
     );
+
+    try t.expect(!owner.ready);
+    try t.expectError(error.DocumentRecoveryRequired, owner.readNextRevision(t.allocator, cursor0, policy.guard()));
+    var recovery_steps: usize = 0;
+    while (!owner.ready) : (recovery_steps += 1) {
+        try t.expect(recovery_steps < 16);
+        const progress = try owner.recoverStep(policy.guard(), 1);
+        try t.expectEqual(@as(u16, 1), progress.examined);
+        try t.expectEqual(owner.ready, progress.complete);
+    }
 
     var step1 = (try owner.readNextRevision(t.allocator, cursor0, policy.guard())).?;
     defer step1.deinit(t.allocator);
@@ -285,6 +295,64 @@ test "document partition disk recovery preserves mutations checkpoints retained 
     try t.expectEqualStrings(state3, step2.state);
     try t.expect(step2.cursor.coverage.complete);
     try t.expectEqual(@as(?s.DocumentPartition.RevisionStep, null), try owner.readNextRevision(t.allocator, step2.cursor, policy.guard()));
+    // A later fetch must not invalidate the earlier caller-owned state.
+    try t.expectEqualStrings(state2, step1.state);
+
+    // A live handle does not allow its receipt to be relabelled or another
+    // Document to release it.
+    var relabelled = read_rec;
+    relabelled.accepted.next_lsn += 1;
+    try t.expectError(error.DocumentReadConflict, owner.readCursor(relabelled, policy.guard()));
+    var wrong_target = target;
+    wrong_target.document = @splat(0x22);
+    try t.expectError(error.DocumentTargetConflict, owner.releaseRead(.{
+        .target = wrong_target,
+        .operation = operation(20),
+        .read = read_rec.handle(),
+    }, policy.guard()));
+
+    // Both budgets are cumulative. Refusal preserves the caller's cursor and
+    // cannot turn the delivered prefix into successful terminal coverage.
+    var bounded_req = read_req;
+    bounded_req.operation = operation(21);
+    bounded_req.max_steps = 1;
+    const bounded_read = try owner.beginRead(bounded_req, policy.guard());
+    const bounded_start = try owner.readCursor(bounded_read, policy.guard());
+    var bounded_step = (try owner.readNextRevision(t.allocator, bounded_start, policy.guard())).?;
+    defer bounded_step.deinit(t.allocator);
+    try t.expect(!bounded_step.cursor.coverage.complete);
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(t.allocator, bounded_step.cursor, policy.guard()));
+    var repeated = (try owner.readNextRevision(t.allocator, bounded_start, policy.guard())).?;
+    defer repeated.deinit(t.allocator);
+    try t.expectEqualDeep(bounded_step.cursor, repeated.cursor);
+    try t.expectEqualStrings(bounded_step.state, repeated.state);
+
+    bounded_req.operation = operation(22);
+    bounded_req.max_steps = 16;
+    bounded_req.max_bytes = state2.len + state3.len - 1;
+    const byte_read = try owner.beginRead(bounded_req, policy.guard());
+    var byte_step = (try owner.readNextRevision(t.allocator, try owner.readCursor(byte_read, policy.guard()), policy.guard())).?;
+    defer byte_step.deinit(t.allocator);
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(t.allocator, byte_step.cursor, policy.guard()));
+
+    // The rejected revision must not allocate its payload even when it alone
+    // exceeds the request budget.
+    bounded_req.operation = operation(23);
+    bounded_req.max_bytes = state2.len - 1;
+    const tiny_read = try owner.beginRead(bounded_req, policy.guard());
+    const tiny_cursor = try owner.readCursor(tiny_read, policy.guard());
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readNextRevision(failing.allocator(), tiny_cursor, policy.guard()));
+    try t.expectEqual(@as(usize, 0), failing.alloc_index);
+
+    // Current authorization gates both a buffered state and an empty terminal
+    // observation. The failed buffered read releases its output allocation.
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readNextRevision(t.allocator, cursor0, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readNextRevision(t.allocator, step2.cursor, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
 
     const release_req: doc.Read.Release = .{
         .target = target,
@@ -347,7 +415,119 @@ test "document partition disk recovery preserves mutations checkpoints retained 
         objects.objectStore(),
         init_req,
         policy.guard(),
-        .{},
+        .{ .read_secret = @splat(7) },
     );
     try t.expectEqualDeep(rec3, try owner.applyMutation(mut3, payload3, state3, 0, policy.guard()));
+}
+
+test "document recovery bounds replay scratch and fences interrupted or invalid history" {
+    // The disk test above owns persistence evidence; this memory fixture isolates
+    // scratch growth across a longer replay without provider I/O allocations.
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var definition = try s.DocumentDeclaration.prepare(t.allocator, sampleDefinition());
+    defer definition.deinit();
+    const declared = try s.DocumentDeclaration.stage(objects.objectStore(), &definition);
+    var policy: Policy = .{};
+    const initial: s.DocumentInitialization.Request = .{
+        .definition = p.Growth.current_definition,
+        .declared = declared,
+        .operation = operation(1),
+        .ordinal = 0,
+        .partition = 112,
+    };
+    _ = try s.DocumentInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard());
+    const options: s.DocumentPartition.Options = .{ .read_secret = @splat(9), .recovery_records = 1 };
+    var owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), options);
+    defer owner.deinit();
+    const payload = "replay-payload";
+    const state = "replay-state";
+    var mutation: doc.Mutation = .{
+        .target = .{ .partition = initial.target(), .document = @splat(0x33) },
+        .operation = operation(2),
+        .lineage = .{
+            .profile = .causal_crdt,
+            .merge_epoch = 1,
+            .base_revision = 0,
+            .parent_revision = null,
+            .replica = .{ .id = @splat(0x44), .epoch = 1, .sequence = 1, .preceding_sequence = 0 },
+            .raw_span = null,
+        },
+        .operations = 1,
+        .payload = .{ .bytes = payload.len, .sha256 = hashBytes(payload) },
+    };
+    var last: doc.MutationReceipt = undefined;
+    for (0..40) |index| {
+        mutation.operation = operation(index + 2);
+        mutation.lineage.base_revision = index;
+        mutation.lineage.replica.?.sequence = index + 1;
+        mutation.lineage.replica.?.preceding_sequence = index;
+        last = try owner.applyMutation(mutation, payload, state, 0, policy.guard());
+    }
+    const appends = wal.appends;
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), options);
+    try t.expectEqual(@as(u64, 2), owner.root.next_lsn);
+    try t.expect(!owner.ready);
+    try t.expectError(error.DocumentRecoveryRequired, owner.applyMutation(mutation, payload, state, 0, policy.guard()));
+    try t.expectError(error.InvalidDocumentRecoveryBudget, owner.recoverStep(policy.guard(), 0));
+    try t.expectError(error.InvalidDocumentRecoveryBudget, owner.recoverStep(policy.guard(), 257));
+
+    // Revoke after decoding a record but before installing it. Neither readiness
+    // nor the published replay position may advance on that refusal.
+    const before = owner.root.position();
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.recoverStep(policy.guard(), 1));
+    try t.expectEqualDeep(before, owner.root.position());
+    try t.expect(!owner.ready);
+    policy.deny_at = std.math.maxInt(usize);
+
+    // Warm the largest frame/JSON workspace using single-record steps, then
+    // replay the remaining 24 records together. Scratch must not scale with the
+    // number of records in a call. Allow allocator growth to its next capacity.
+    var warm_capacity: usize = owner.scratch.queryCapacity();
+    for (0..15) |_| {
+        const progress = try owner.recoverStep(policy.guard(), 1);
+        try t.expectEqual(@as(u16, 1), progress.examined);
+        try t.expect(!progress.complete);
+        warm_capacity = @max(warm_capacity, owner.scratch.queryCapacity());
+    }
+    const complete = try owner.recoverStep(policy.guard(), 32);
+    try t.expectEqual(@as(u16, 24), complete.examined);
+    try t.expect(complete.complete);
+    try t.expectEqual(@as(u64, 41), complete.position.next_lsn);
+    try t.expect(owner.scratch.queryCapacity() <= warm_capacity * 2);
+    try t.expectEqualDeep(last, try owner.applyMutation(mutation, payload, state, 0, policy.guard()));
+    try t.expectEqual(appends, wal.appends);
+
+    // A failed recovery call also fences an owner that had previously been ready.
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.recoverStep(policy.guard(), 1));
+    try t.expect(!owner.ready);
+    policy.deny_at = std.math.maxInt(usize);
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+
+    // Invalid history fails open with exactly one cleanup of its moved TreeStore.
+    // The testing allocator detects leaks and the former double-free error path.
+    var invalid_root = owner.root;
+    invalid_root.next_lsn += 1;
+    var buffer: [s.DocumentPartitionRecord.max_bytes]u8 = undefined;
+    const bytes = try s.DocumentPartitionRecord.encode(.{
+        .definition = p.Growth.current_definition,
+        .previous_commitment = @splat(0x55),
+        .root = invalid_root,
+        .action = .{ .declaration = declared },
+        .evidence = null,
+    }, &buffer);
+    _ = try wal.log().append(initial.partition, owner.root.next_lsn, 1, 1, .manifest_checkpoint, bytes);
+    try t.expectError(error.InvalidDocumentPartitionRecord, s.DocumentPartition.open(
+        t.allocator,
+        wal.log(),
+        objects.objectStore(),
+        initial,
+        policy.guard(),
+        .{ .read_secret = @splat(9) },
+    ));
 }
