@@ -39,9 +39,12 @@ Native pages use the Stream reader's default 4,096-row scan budget and respect
 the declaration's row/byte limits. A SQL batch may span multiple native pages;
 filtered rows still contribute to original consumption coverage.
 `WorkloadOperations` projects native receipts and recorded closures and advances
-the same frozen work through Catalog's terminal settlement gate. Workload SQL
-admission remains unimplemented; native group assignment and read-release tokens
-remain with their native owners rather than SQL recovery.
+the same frozen work through Catalog's terminal settlement gate.
+`DirectLogPreparedAppend` freezes single-partition `PRODUCE INTO` and
+`ENQUEUE INTO` statements, including optional RETURNING. Native SQL admits a
+caller token; wire callers generate one identity and wait on progress signals
+for its original outcome. Consume, claim and settlement SQL remain unimplemented;
+group assignment and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs

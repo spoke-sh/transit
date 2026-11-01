@@ -27,12 +27,12 @@ limits and unsupported options through `just test::table-ddl-sql`. Named
 `SHOW STREAM/QUEUE` and `DESCRIBE STREAM/QUEUE` use the ordinary SQL metadata
 result lifecycle. The [executable profile](../../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
 lists exact options and limits. `SHOW STREAMS` and `SHOW QUEUES` use bounded
-Catalog pages with current disclosure checks; payload verbs remain outside
-that profile. `just test::sql-log-declarations` exercises actual native,
-PostgreSQL and MySQL sessions, original-token recovery and buffered denial.
+Catalog pages with current disclosure checks. `just test::sql-log-declarations`
+exercises native, PostgreSQL, MySQL and console declarations and appends,
+original-token/result recovery and buffered denial.
 
-`LogAppendSql` has a separate `logAppendStatement` root for **standalone
-preparation**, with no SQL service admission yet. It binds `PRODUCE INTO` and
+`LogAppendSql` has a dedicated `logAppendStatement` compiler root; its command
+also belongs to the ordinary SQL statement grammar. It binds `PRODUCE INTO` and
 `ENQUEUE INTO` to an explicit schema, shares typed VALUES/defaults with Table
 binding, and owns its dedicated metadata and RETURNING clauses:
 
@@ -54,8 +54,9 @@ share typed `$n` parameters; the MySQL dialect also binds positional `?` and
 backtick names. Partition operands are unsigned integers fitting 32 bits.
 Producer UUID, epoch and sequence must be nonzero. Queue visibility is a UTC
 timestamp at or after the Unix epoch with whole-millisecond precision. NULL
-metadata is refused. The enclosing adapter must still validate declared routing,
-limits, authority and exact operation identity before native admission.
+metadata is refused. The Catalog adapter validates declared routing and limits,
+then freezes the exact original native operation before token admission.
+Current authority is checked by the native owner at admission and disclosure.
 
 RETURNING expands `*` to application columns only; unqualified `_partition` and
 `_offset` select native metadata. Qualify a colliding application column with
@@ -66,8 +67,12 @@ input field. Aggregates, predicates and LIMIT are outside append RETURNING.
 The projection is encoded only against the final original native binding.
 The [append corpus](corpus/log-appends.json), exercised by
 `just test::table-dml-sql`, compares the dedicated grammar, canonical typed row
-bytes, metadata and projections independently. This does not qualify routing,
-upload, durable publication or workload execution through SQL transports.
+bytes, metadata and projections independently. Installed SQL checks separately
+exercise routing, durable publication and original-result delivery. One append
+targets one partition; cross-partition rows are refused before admission. An
+explicit partition is required for a multi-partition declaration without a hash
+key. These forms are excluded from attached interactive transactions until
+their shared transaction lowering is implemented.
 
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their

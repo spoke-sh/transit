@@ -5,7 +5,11 @@ RENAME, DROP, named metadata and paged listings through native, PostgreSQL and M
 sessions, plus a real console declaration script. It checks original-token recovery after service replacement, a 40-row
 schema and 35-name listing across two result batches, filtered empty listings,
 repeated batches, exact-definition invalidation and permission revocation after
-metadata buffering.
+metadata buffering. The same driver admits PRODUCE/ENQUEUE through all four
+interfaces, checks typed parameters/defaults and independent row/offset values,
+reopens a 65-row original result after gateway replacement, repeats all three
+batches, and verifies revoked disclosure. A subsequent append proves that
+result delivery and recovery did not append again.
 
 The [session contract](../../../contracts/SQL_SESSION_V1.md) defines supported
 operations; [contribution instructions](AGENTS.md) describe their test boundary.

@@ -118,6 +118,15 @@ including buffered rows and empty/terminal results. A resumed mutation reply
 observes the original accepted outcome through the database owner; it cannot
 re-execute SQL or require the original execution attachment to remain open.
 
+A prepared descriptor carries both mutation admission and the typed command for
+row completion. `PRODUCE`/`ENQUEUE ... RETURNING` retain mutation admission
+rules, including PostgreSQL's single valid Sync boundary, then open the retained
+result of that original operation. PostgreSQL emits `PRODUCE n` or `ENQUEUE n`
+after verified exhaustion; MySQL uses its ordinary row-result completion.
+Commands without RETURNING report the native receipt's accepted row count.
+The host owns a separate original-result descriptor until reader close, so
+reusing a prepared SQL template cannot replace the result's frozen projection.
+
 Abort suppresses further execution and output without rolling back accepted
 work. The host joins outstanding borrowers, closes reads and destroys prepared
 objects before releasing codec memory. The installed blocking driver retains

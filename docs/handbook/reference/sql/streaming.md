@@ -1,7 +1,8 @@
 # Streaming and effects
 
 Transit has durable streams, application materialization and recorded connector
-effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations. The transport of a result in
+effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
+and appends. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -9,6 +10,7 @@ several batches does not make that query continuous.
 | Task | Current interface | SQL coverage |
 | --- | --- | --- |
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
+| Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
@@ -87,15 +89,9 @@ bound individual operations and active work, independently of total retained
 history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
-keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS`, schema evolution,
-and workload verbs (`PRODUCE`, `CONSUME`, `COMMIT OFFSET`,
-`ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`) are outside this SQL profile.
-Typed callers provide payload operations.
-
-The standalone Fuze [append compiler](../../../../contracts/sql/README.md)
-prepares `PRODUCE` and `ENQUEUE`, including typed metadata and frozen RETURNING
-projections. Its separate checked grammar root does not enable these statements
-in SQL sessions; native workload admission remains a separate integration gate.
+keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
+are outside this SQL profile. `CONSUME`, `COMMIT OFFSET`, `CLAIM`, `ACK`, `NACK`
+and `EXTEND LEASE` still require typed native callers.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -114,6 +110,48 @@ Listings record independent metadata observations, not one atomic Catalog or
 data snapshot. Each buffered row retains its exact definition for current
 authorization and definition checks on delivery and repetition. Namespace
 authorization also protects empty results and terminal counts.
+
+## Append events and work
+
+Native SQL, the console, PostgreSQL and MySQL admit dedicated `PRODUCE INTO`
+and `ENQUEUE INTO` statements through the same Catalog token and native log
+owners. Values use the declared schema, nullable/default rules and typed
+parameters. Each statement appends to one partition: a hash key routes all
+rows to that partition, or `PARTITION n` selects it explicitly. A multi-partition
+declaration without a hash key requires `PARTITION`. Rows routing to different
+partitions are refused before admission; the service never publishes a prefix.
+
+```sql
+CREATE STREAM audit_events (id BIGINT NOT NULL, message TEXT);
+PRODUCE INTO audit_events VALUES (1, 'accepted') RETURNING id, _offset;
+CREATE QUEUE tasks (id BIGINT NOT NULL, message TEXT);
+ENQUEUE INTO tasks VALUES (1, 'process') RETURNING id, _partition, _offset;
+```
+
+Optional `PRODUCER ID uuid EPOCH n SEQUENCE n` binds the native producer fence
+and sequence. Queue `WITH (visible_at = timestamp)` accepts a nonnegative UTC
+timestamp with whole-millisecond precision. See the
+[exact append grammar](../../../../contracts/sql/README.md) for operand types.
+Declared append row/byte budgets and SQL text, parameter, intent and result
+budgets apply independently. An append cannot execute inside an attached
+interactive transaction in this profile.
+
+`RETURNING` projects application columns and unqualified `_partition`/`_offset`
+metadata from the original native append receipt. `*` expands only application
+columns. Output names must be distinct; expressions, predicates, aggregates and
+LIMIT are excluded. Qualify an application column whose name collides with
+metadata. Selecting both that column and its same-named metadata field is
+currently refused by the frozen projection layout.
+
+Without RETURNING, completion reports the native accepted row count. With
+RETURNING, the shared result reader opens the original operation's retained
+rows, copies bounded batches, and verifies completion independently of delivery.
+Closing, repeating or reopening delivery does not append again. Current rights
+and the exact definition are checked before disclosure, including retained
+terminal batches. Revocation, incompatible definitions and unavailable retained
+history are failures, not empty successful results. Retain the original native
+SQL client token or reported wire operation after a lost reply; submitting new
+SQL creates new work.
 
 ## Connections, sources and sinks
 

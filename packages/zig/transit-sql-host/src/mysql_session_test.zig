@@ -4,17 +4,19 @@ const f = m.wire.fuze;
 const Host = struct {
     allocator: std.mem.Allocator,
     writes: usize = 0,
+    closed: usize = 0,
     outcome: m.wire.results.Outcome = .applied,
     invalid_counts: bool = false,
     value: u64 = 0,
     allocation_failed: bool = false,
     diagnostic_state: [5]u8 = "0A000".*,
     pub const Prepared = struct {
-        pub fn parameters(_: *const Prepared) []const f.Types.Type {
-            return &.{.uint64};
+        returning: bool = false,
+        pub fn parameters(self: *const Prepared) []const f.Types.Type {
+            return if (self.returning) &.{} else &.{.uint64};
         }
-        pub fn fields(_: *const Prepared) []const f.Types.Field {
-            return &.{};
+        pub fn fields(self: *const Prepared) []const f.Types.Field {
+            return if (self.returning) &.{.{ .name = "n", .type = .uint64 }} else &.{};
         }
         pub fn mutation(_: *const Prepared) bool {
             return true;
@@ -22,28 +24,45 @@ const Host = struct {
         pub fn empty(_: *const Prepared) bool {
             return false;
         }
+        pub fn rowCommand(_: *const Prepared) !m.wire.results.Command {
+            return .select;
+        }
     };
     pub const Read = struct {
+        cells: [1]f.Types.Values.Cell = .{.{ .value = .{ .atom = .{ .unsigned = 17 } } }},
         pub fn validateDisclosure(_: *Read) !void {}
-        pub fn nextBatch(_: *Read, _: u8) !m.wire.ReadBatch {
-            return .{ .complete = true };
+        pub fn nextBatch(self: *Read, _: u8) !m.wire.ReadBatch {
+            var result: m.wire.ReadBatch = .{ .len = 1, .complete = true };
+            result.rows[0] = &self.cells;
+            return result;
         }
     };
     pub fn prepare(self: *Host, sql: []const u8) !*Prepared {
-        if (!std.mem.eql(u8, sql, "UPDATE")) return error.UnsupportedGatewayStatement;
-        return self.allocator.create(Prepared);
+        const returning = std.mem.eql(u8, sql, "APPEND");
+        if (!returning and !std.mem.eql(u8, sql, "UPDATE")) return error.UnsupportedGatewayStatement;
+        const value = try self.allocator.create(Prepared);
+        value.* = .{ .returning = returning };
+        return value;
     }
     pub fn destroy(self: *Host, value: *Prepared) void {
         self.allocator.destroy(value);
     }
     pub fn validate(_: *Host, _: *Prepared) !void {}
-    pub fn bind(_: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !void {
+    pub fn bind(_: *Host, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
+        if (prepared.returning) return if (values.len == 0) {} else error.InvalidWireValue;
         if (values.len != 1 or values[0] == null) return error.InvalidWireValue;
     }
-    pub fn openRead(_: *Host, _: *Prepared, _: []const ?f.Types.Values.Atom) !*Read {
-        return error.UnexpectedRead;
+    pub fn openRead(self: *Host, prepared: *Prepared, _: []const ?f.Types.Values.Atom) !*Read {
+        if (!prepared.returning) return error.UnexpectedRead;
+        self.writes += 1;
+        const read = try self.allocator.create(Read);
+        read.* = .{};
+        return read;
     }
-    pub fn closeRead(_: *Host, _: *Read) void {}
+    pub fn closeRead(self: *Host, read: *Read) void {
+        self.closed += 1;
+        self.allocator.destroy(read);
+    }
     pub fn write(self: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !m.wire.results.CommandCompletion {
         self.writes += 1;
         self.value = @intCast(values[0].?.unsigned);
@@ -73,6 +92,27 @@ const Transport = struct {
 const Engine = @import("WireSessionDriver.zig").Driver(m.Session, Host, Transport);
 const execute_new = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x01\x08\x80\xff\xff\xff\xff\xff\xff\xff\xff";
 const execute_again = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
+test "row-returning MySQL mutation delivers one result and closes its reader" {
+    const t = std.testing;
+    var host: Host = .{ .allocator = t.allocator };
+    var transport: Transport = .{ .allocator = t.allocator };
+    defer transport.bytes.deinit(t.allocator);
+    var engine = Engine.init(&host, &transport, try m.Session.init(t.allocator, .{}, m.Handshake.required, 1));
+    defer engine.deinit();
+    _ = try engine.run(.{"\x03APPEND"});
+    var offset: usize = 0;
+    var sequence: u8 = 1;
+    while (offset < transport.bytes.items.len) : (sequence += 1) {
+        const packet = (try m.Frame.decode(transport.bytes.items[offset..], sequence, m.wire.Limits.max_frame_bytes)).?;
+        if (sequence == 1) try t.expectEqualSlices(u8, &.{1}, packet.payload);
+        if (sequence == 4) try t.expectEqualStrings("\x0217", packet.payload);
+        if (sequence == 5) try t.expectEqual(@as(u8, 0xfe), packet.payload[0]);
+        offset += packet.consumed;
+    }
+    try t.expectEqual(@as(u8, 6), sequence);
+    try t.expectEqual(@as(usize, 1), host.writes);
+    try t.expectEqual(@as(usize, 1), host.closed);
+}
 test "OK requires a successful typed completion with valid owner counts" {
     const t = std.testing;
     for ([_]m.wire.results.Outcome{ .rejected, .cancelled, .applied }) |outcome| {

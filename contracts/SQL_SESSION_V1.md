@@ -134,7 +134,13 @@ and opens its frozen projection against the original append/consume/claim.
 Post-buffer disclosure, repeat fetch and empty/terminal responses recheck current
 rights. A new result cursor starts a new consumption of that same selection;
 it cannot renew a lease, ACK, commit an offset or release native retention.
-No workload SQL verbs are admitted by these result/recovery messages.
+Result/recovery messages never admit another workload operation. `execute`
+separately supports single-partition `PRODUCE INTO` and `ENQUEUE INTO`, with a
+required client token. Preparation binds the exact declared schema; admission
+freezes the bound native request and optional RETURNING projection in its
+workload intent. RETURNING exposes the original result through this same
+operation/result lifecycle. Other workload verbs and attached-transaction
+appends remain outside the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation

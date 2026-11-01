@@ -91,6 +91,13 @@ pub const Prepared = union(enum) {
     pub fn empty(self: *const Prepared) bool {
         return self.* == .probe and self.probe.kind == .empty;
     }
+    pub fn rowCommand(self: *const Prepared) !g.results.Command {
+        return switch (self.*) {
+            .native => |value| if (value.plan == .log_append) (if (value.plan.log_append.definition.kind() == .stream) .produce else .enqueue) else .select,
+            .workload => |value| g.database.WorkloadOperations.command(value.intent.parsed.value.work),
+            else => .select,
+        };
+    }
 };
 
 test "read-only admission excludes row-returning configuration effects" {
@@ -107,6 +114,7 @@ pub const Read = struct {
     host: *Self,
     value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read, workload: g.database.WorkloadRead.Read },
     prepared: *Prepared,
+    owns_prepared: bool = false,
     builder: g.results.BatchBuilder,
     input: g.ReadBatch = .{},
     input_index: usize = 0,
@@ -602,7 +610,45 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     // attempt enters cleanup. ReadCache can retry preparation only after proving
     // the original pin is absent and its exact frontier can no longer be acquired;
     // an accepted/uncertain pin or opened iterator never switches its cut.
+    if (prepared.* == .native and prepared.native.plan == .log_append) return self.openAppendResult(prepared, values);
     return self.acquireRead(prepared, values);
+}
+
+fn requireWorkloadOutcome(result: g.session_protocol.Operation) !void {
+    if (result.phase != .terminal) return error.MissingGatewayTerminal;
+    switch (result.outcome orelse return error.MissingGatewayTerminal) {
+        .applied, .unchanged => {},
+        .rejected => return error.SqlWorkloadRejected,
+        .cancelled => return error.SqlWorkloadCancelled,
+        else => return error.InvalidSqlOperationReference,
+    }
+}
+fn executeAppend(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.session_protocol.Operation {
+    try g.SessionTransaction.require(self, prepared);
+    const is_fresh = self.fresh_prepared == prepared;
+    if (is_fresh) self.fresh_prepared = null else try self.validate(prepared);
+    const result = try self.runtime.executeWorkloadPrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
+    try requireWorkloadOutcome(result);
+    try self.current();
+    return result;
+}
+fn openAppendResult(self: *Self, statement: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
+    if (statement.fields().len == 0) return error.ExpectedGatewayRead;
+    const result = try self.executeAppend(statement, values);
+    if (result.result_kind != .rows or result.identity.kind != .workload) return error.InvalidSqlOperationReference;
+    var source = try self.observer.source();
+    const state = try source.operation(result.identity.id);
+    if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+    const reference = state.receipt.binding.intent.workload;
+    if (reference.namespace != self.namespace or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
+    const prepared = try self.allocator.create(Prepared);
+    errdefer self.allocator.destroy(prepared);
+    prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(self.table, reference) };
+    errdefer prepared.workload.deinit();
+    if (!std.mem.eql(u8, &try prepared.workload.output.type.fingerprint(), &try statement.native.output.?.type.fingerprint())) return error.WorkloadResultConflict;
+    const read = try self.acquireRead(prepared, &.{});
+    read.owns_prepared = true;
+    return read;
 }
 
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -688,6 +734,7 @@ pub fn closeRead(self: *Self, read: *Read) void {
         .settings => |*settings| settings.deinit(),
     }
     self.releasePins(read);
+    if (read.owns_prepared) self.destroy(read.prepared);
     self.allocator.destroy(read);
 }
 fn releasePins(self: *Self, read: *Read) void {
@@ -706,6 +753,10 @@ fn releasePins(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
+    if (prepared.* == .native and prepared.native.plan == .log_append) {
+        if (prepared.fields().len != 0) return error.SqlRowsRequired;
+        return (try self.executeAppend(prepared, values)).completion();
+    }
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) {
         self.fresh_prepared = null;
@@ -742,7 +793,7 @@ pub fn validateWireCompletion(self: *Self, prepared: *Prepared, completion: g.re
         if (!std.mem.eql(u8, &operation.account, &self.runtime.execution.configuration.account)) return error.InvalidWireCompletion;
         const observed = try self.fresh(g.DatabaseRuntime.status, .{ self.runtime, self.allocator, &self.observer, &self.table, self.namespace, operation.id });
         const verified = try observed.completion();
-        if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation)) return error.InvalidWireCompletion;
+        if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation) or !std.meta.eql(verified.workload, completion.workload)) return error.InvalidWireCompletion;
     } else switch (prepared.*) {
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe => {},
@@ -834,11 +885,17 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
             };
         },
         error.GatewayMutationCancelled => .{ "57014".*, "Table operation cancelled" },
+        error.SqlWorkloadRejected => .{ "55000".*, "Original Stream or Queue operation was refused; inspect its recorded outcome" },
+        error.SqlWorkloadCancelled => .{ "57014".*, "Original Stream or Queue operation was cancelled" },
         error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
         error.CatalogNameNotFound => .{ "42P01".*, "Catalog object does not exist" },
         error.CatalogKindMismatch => .{ "42809".*, "Catalog object has a different data kind" },
+        error.CrossPartitionLogAppend => .{ "0A000".*, "This append spans partitions and requires transaction composition" },
+        error.LogAppendLimitExceeded => .{ "54000".*, "Append exceeds the declared Stream or Queue budget" },
+        error.LogPartitionRequired, error.LogPartitionKeyMismatch, error.InvalidLogAppendOperand, error.NullWorkloadParameter, error.InvalidLogVisibilityTime, error.InvalidLogProducer => .{ "22023".*, "Invalid Stream or Queue append routing or metadata operand" },
+        error.UnsupportedLogAppendOption => .{ "0A000".*, "Append option is outside this Stream or Queue profile" },
         error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
         error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
         error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },

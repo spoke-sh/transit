@@ -21,18 +21,22 @@ const Host = struct {
     forbid_postwrite_validation: bool = false,
     pub const Prepared = struct {
         write: bool,
+        returning: bool = false,
         parameter: bool = false,
         pub fn parameters(self: *const Prepared) []const f.Types.Type {
             return if (self.parameter) &.{.utf8} else &.{};
         }
         pub fn fields(self: *const Prepared) []const f.Types.Field {
-            return if (self.write) &.{} else &.{.{ .name = "n", .type = .int64, .nullable = false }};
+            return if (self.write and !self.returning) &.{} else &.{.{ .name = "n", .type = .int64, .nullable = false }};
         }
         pub fn mutation(self: *const Prepared) bool {
             return self.write;
         }
         pub fn empty(_: *const Prepared) bool {
             return false;
+        }
+        pub fn rowCommand(self: *const Prepared) !g.results.Command {
+            return if (self.returning) .produce else .select;
         }
     };
     pub const Read = struct {
@@ -68,9 +72,9 @@ const Host = struct {
         }
     };
     pub fn prepare(self: *Host, sql: []const u8) !*Prepared {
-        if (!std.mem.eql(u8, sql, "READ") and !std.mem.eql(u8, sql, "WRITE") and !std.mem.eql(u8, sql, "PARAM")) return error.UnsupportedGatewayStatement;
+        if (!std.mem.eql(u8, sql, "READ") and !std.mem.eql(u8, sql, "WRITE") and !std.mem.eql(u8, sql, "APPEND") and !std.mem.eql(u8, sql, "PARAM")) return error.UnsupportedGatewayStatement;
         const value = try self.allocator.create(Prepared);
-        value.* = .{ .write = std.mem.eql(u8, sql, "WRITE"), .parameter = std.mem.eql(u8, sql, "PARAM") };
+        value.* = .{ .write = std.mem.eql(u8, sql, "WRITE") or std.mem.eql(u8, sql, "APPEND"), .returning = std.mem.eql(u8, sql, "APPEND"), .parameter = std.mem.eql(u8, sql, "PARAM") };
         return value;
     }
     pub fn destroy(self: *Host, value: *Prepared) void {
@@ -89,8 +93,9 @@ const Host = struct {
     pub fn bind(_: *Host, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
         if (values.len != @intFromBool(prepared.parameter)) return error.WireParameterCountMismatch;
     }
-    pub fn openRead(self: *Host, _: *Prepared, _: []const ?f.Types.Values.Atom) !*Read {
+    pub fn openRead(self: *Host, prepared: *Prepared, _: []const ?f.Types.Values.Atom) !*Read {
         self.snapshots += 1;
+        if (prepared.returning) self.writes += 1;
         const result = try self.allocator.create(Read);
         result.* = .{ .host = self, .data = self.data };
         return result;
@@ -200,6 +205,30 @@ test "live command engine dispatches a write only after one valid Sync and recov
     _ = try engine.run(.{ 'S', "" });
     try t.expectEqual(@as(usize, 1), host.writes);
     try t.expect(engine.session.portals[0] == null);
+    _ = try engine.run(.{ 'E', execute_all });
+    _ = try engine.run(.{ 'S', "" });
+    try t.expectEqual(@as(usize, 1), host.writes);
+}
+test "row-returning mutations retain Sync admission and one original result" {
+    const t = std.testing;
+    var host: Host = .{ .allocator = t.allocator };
+    var transport: Transport = .{ .allocator = t.allocator };
+    defer transport.bytes.deinit(t.allocator);
+    var engine = Engine.init(&host, &transport, try pg.Session.init(t.allocator, .{}, 1));
+    defer engine.deinit();
+    _ = try engine.run(.{ 'P', "s\x00APPEND\x00\x00\x00" });
+    _ = try engine.run(.{ 'B', bind_body });
+    _ = try engine.run(.{ 'E', execute_all });
+    try t.expectEqual(@as(usize, 0), host.writes);
+    transport.bytes.clearRetainingCapacity();
+    _ = try engine.run(.{ 'S', "" });
+    const observed = try tags(t.allocator, transport.bytes.items);
+    defer t.allocator.free(observed);
+    try t.expectEqualStrings("DDCZ", observed);
+    try t.expect(std.mem.indexOf(u8, transport.bytes.items, "PRODUCE 2\x00") != null);
+    try t.expectEqual(@as(usize, 1), host.writes);
+    try t.expectEqual(@as(usize, 1), host.snapshots);
+    try t.expectEqual(@as(usize, 1), host.closed);
     _ = try engine.run(.{ 'E', execute_all });
     _ = try engine.run(.{ 'S', "" });
     try t.expectEqual(@as(usize, 1), host.writes);

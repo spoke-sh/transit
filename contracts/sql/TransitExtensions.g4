@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (selectStatement | mutationStatement | logAppendCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -130,7 +130,7 @@ assignment: columnReference EQ mutationValue;
 mutationValue: DEFAULT | literal;
 mutationRow: LPAREN mutationValue (COMMA mutationValue)* RPAREN;
 
-// Standalone typed append compiler; not an executable session statement yet.
+// Dedicated typed append compiler, also admitted by ordinary SQL sessions.
 logAppendStatement: logAppendCommand SEMI? EOF;
 logAppendCommand: (PRODUCE | ENQUEUE) INTO identifier logAppendValues
     (PARTITION logAppendOperand)?

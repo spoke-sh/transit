@@ -23,6 +23,7 @@ work: g.RecoveryWork = .{},
 external_work: ?*g.RecoveryWork = null,
 wake_mutex: std.Io.Mutex = .init,
 progress_cond: std.Io.Condition = .init,
+progress_epoch: std.atomic.Value(u64) = .init(0),
 ready: std.atomic.Value(bool) = .init(false),
 read_pins: ?g.ReadCache = null,
 read_sources: ReadSources = .{},
@@ -57,7 +58,25 @@ fn claim(self: *Self, token: [16]u8) *std.Io.Mutex {
 pub fn notifyProgress(self: *Self) void {
     self.wake_mutex.lockUncancelable(self.io);
     defer self.wake_mutex.unlock(self.io);
+    _ = self.progress_epoch.fetchAdd(1, .release);
     self.progress_cond.broadcast(self.io);
+}
+
+/// Retain notifications arriving between status inspection and sleeping.
+/// Local timer wakes check cancellation/deadlines without polling native state.
+fn waitProgressAfter(self: *Self, observed: u64, deadline: Deadline) !void {
+    try self.wake_mutex.lock(self.io);
+    defer self.wake_mutex.unlock(self.io);
+    while (self.progress_epoch.load(.acquire) == observed) {
+        try deadline.check(self.io);
+        const elapsed = deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
+        const remaining: u32 = @intCast(@max(1, @as(i64, deadline.milliseconds) - elapsed));
+        self.progress_cond.waitTimeout(self.io, &self.wake_mutex, .{ .duration = .{ .raw = .fromMilliseconds(@min(100, remaining)), .clock = .awake } }) catch |err| switch (err) {
+            error.Timeout => {},
+            else => return err,
+        };
+    }
+    try deadline.check(self.io);
 }
 
 pub fn waitIdle(self: *Self, milliseconds: u32) !void {
@@ -81,6 +100,36 @@ pub const Deadline = struct {
         if (self.start.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= self.milliseconds) return error.GatewayDeadline;
     }
 };
+
+test "progress notifications survive the status-to-wait gap and preserve deadlines" {
+    const t = std.testing;
+    // Only the synchronization fields are used: this check cannot issue a
+    // native request or manufacture durable operation progress.
+    var runtime: Self = undefined;
+    runtime.io = t.io;
+    runtime.wake_mutex = .init;
+    runtime.progress_cond = .init;
+    runtime.progress_epoch = .init(0);
+    const observed = runtime.progress_epoch.load(.acquire);
+    runtime.notifyProgress();
+    const deadline: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 60000 };
+    try runtime.waitProgressAfter(observed, deadline);
+    var cancelled: std.atomic.Value(bool) = .init(true);
+    var cancellation = deadline;
+    cancellation.cancellation = &cancelled;
+    try t.expectError(error.GatewayWaitCancelled, runtime.waitProgressAfter(observed, cancellation));
+    var expired = deadline;
+    expired.milliseconds = 0;
+    try t.expectError(error.GatewayDeadline, runtime.waitProgressAfter(observed, expired));
+    const Wait = struct {
+        fn run(value: *Self, epoch: u64, limit: Deadline) !void {
+            try value.waitProgressAfter(epoch, limit);
+            return error.ProgressWaitWokeWithoutNotification;
+        }
+    };
+    var task = try t.io.concurrent(Wait.run, .{ &runtime, runtime.progress_epoch.load(.acquire), deadline });
+    if (task.cancel(t.io)) |_| return error.CancellationMissing else |err| try t.expect(err == error.Canceled or err == error.Cancelled);
+}
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, execution: g.DatabaseAccount, generation: u64, keys: Keys, timeout_ms: u32) !*Self {
     return initEndpoint(allocator, io, url, execution, generation, keys, timeout_ms, null);
@@ -553,6 +602,33 @@ fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, sta
     return terminal;
 }
 pub const Execution = struct { terminal: g.Terminal, completion: g.results.CommandCompletion };
+
+/// Wire callers create one operation, then observe its original workload result.
+/// The protocol-neutral result distinguishes command completion from RETURNING;
+/// neither branch recreates SQL or turns an absent receipt into rejection.
+pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
+    if (statement.plan != .log_append) return error.ExpectedSqlWorkload;
+    var nonce: [16]u8 = undefined;
+    try self.io.randomSecure(&nonce);
+    const selected = self.claim(nonce);
+    try selected.lock(self.io);
+    var claimed = true;
+    defer if (claimed) selected.unlock(self.io);
+    errdefer self.notify();
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false, true, fresh_prepared, fresh_fenced);
+    try requireRoute(state, table, statement.namespace);
+    const pending = try g.WorkloadOperations.advance(table.*, state);
+    claimed = false;
+    selected.unlock(self.io);
+    if (pending) self.notify();
+    while (true) {
+        try deadline.check(self.io);
+        const epoch = self.progress_epoch.load(.acquire);
+        const result = try self.status(allocator, observer, table, statement.namespace, state.id());
+        if (result.phase == .terminal) return result;
+        try self.waitProgressAfter(epoch, deadline);
+    }
+}
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !Execution {
     return self.executePrepared(allocator, observer, table, statement, values, deadline, operation, false, false);
 }

@@ -19370,7 +19370,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
+        "try": 61,
         "catch": 0
       },
       "imports": [
@@ -28150,7 +28150,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 2
       },
       "imports": [
@@ -29674,7 +29674,7 @@
         "Cancelled": 1,
         "CatalogDefinitionChanged": 2,
         "CatalogDenied": 1,
-        "CatalogIdentityConflict": 3,
+        "CatalogIdentityConflict": 4,
         "CatalogKindMismatch": 1,
         "CatalogNameNotFound": 1,
         "CellTooLarge": 1,
@@ -29684,11 +29684,12 @@
         "ConfigurationSnapshotChanged": 1,
         "ConfigurationSortRequiresBoundedLimit": 1,
         "Conflict": 5,
+        "CrossPartitionLogAppend": 1,
         "DuplicateLogOption": 1,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
         "EmptyWireQuery": 1,
-        "ExpectedGatewayRead": 2,
+        "ExpectedGatewayRead": 3,
         "ExpectedGatewayWrite": 1,
         "ExpectedIdentifier": 1,
         "GatewayCredentialChanged": 2,
@@ -29700,11 +29701,14 @@
         "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 3,
+        "InvalidLogAppendOperand": 1,
         "InvalidLogKeyColumn": 1,
         "InvalidLogLimits": 1,
         "InvalidLogOption": 1,
         "InvalidLogPartitioning": 1,
+        "InvalidLogProducer": 1,
         "InvalidLogRetention": 1,
+        "InvalidLogVisibilityTime": 1,
         "InvalidQueueBackoff": 1,
         "InvalidQueueDestination": 1,
         "InvalidQueuePartitionKey": 1,
@@ -29712,6 +29716,7 @@
         "InvalidResultBudget": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
+        "InvalidSqlOperationReference": 3,
         "InvalidSqlSyntax": 1,
         "InvalidStreamPolicy": 1,
         "InvalidStreamTimestampColumn": 1,
@@ -29719,9 +29724,13 @@
         "InvalidTransactionRead": 1,
         "InvalidWireCompletion": 3,
         "InvalidWireValue": 1,
-        "ManagedTableRequiresNativeSession": 1,
+        "LogAppendLimitExceeded": 1,
+        "LogPartitionKeyMismatch": 1,
+        "LogPartitionRequired": 1,
+        "MissingGatewayTerminal": 2,
         "MissingResultObservation": 1,
         "NullNotAllowed": 1,
+        "NullWorkloadParameter": 1,
         "OutOfMemory": 1,
         "ReadOnlyTransaction": 1,
         "Rejected": 3,
@@ -29732,6 +29741,7 @@
         "SqlBatchTooLarge": 1,
         "SqlReadLeaseCapacity": 1,
         "SqlReadRecoveryRequired": 1,
+        "SqlRowsRequired": 1,
         "SqlTokenConflict": 1,
         "SqlTransactionActive": 4,
         "SqlTransactionClosed": 1,
@@ -29740,6 +29750,8 @@
         "SqlTransactionPending": 1,
         "SqlTransactionRejected": 1,
         "SqlTransactionRequired": 1,
+        "SqlWorkloadCancelled": 2,
+        "SqlWorkloadRejected": 2,
         "StaleGatewayCoordinator": 1,
         "StandaloneConfigurationOperationRequired": 1,
         "StatementTimedOut": 1,
@@ -29755,6 +29767,7 @@
         "UnknownWireStatement": 1,
         "UnsupportedExecutionCycle": 1,
         "UnsupportedGatewayStatement": 1,
+        "UnsupportedLogAppendOption": 1,
         "UnsupportedLogKeyChange": 1,
         "UnsupportedLogOption": 1,
         "UnsupportedLogPrimaryKey": 1,
@@ -29765,7 +29778,8 @@
         "UnsupportedWireType": 1,
         "WireParameterCountMismatch": 2,
         "WireParameterTypeMismatch": 1,
-        "WireValueOutOfRange": 1
+        "WireValueOutOfRange": 1,
+        "WorkloadResultConflict": 1
       },
       "outcomes": {
         "ObservationSource": [
@@ -29795,6 +29809,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Prepared.rowCommand()": "<inferred>",
         "Read.completion()": "<inferred>",
         "Read.dataBasis()": "<inferred>",
         "Read.nextBatch()": "<inferred>",
@@ -29807,14 +29822,17 @@
         "bind()": "<inferred>",
         "current()": "<inferred>",
         "currentOnce()": "<inferred>",
+        "executeAppend()": "<inferred>",
         "fresh()": "<inferred>",
         "freshOn()": "<inferred>",
         "init()": "<inferred>",
         "initOptions()": "<inferred>",
         "loadCredential()": "<inferred>",
+        "openAppendResult()": "<inferred>",
         "openRead()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareInner()": "<inferred>",
+        "requireWorkloadOutcome()": "<inferred>",
         "reset()": "<inferred>",
         "selectDatabase()": "<inferred>",
         "selectSource()": "<inferred>",
@@ -29824,7 +29842,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 107,
+        "try": 121,
         "catch": 9
       },
       "imports": [
@@ -30102,6 +30120,7 @@
         "Cancelled": 4,
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
+        "ExpectedSqlWorkload": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayDeadline": 1,
@@ -30115,7 +30134,7 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 4,
-        "Timeout": 1
+        "Timeout": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -30133,6 +30152,7 @@
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
         "executePrepared()": "<inferred>",
+        "executeWorkloadPrepared()": "<inferred>",
         "fence()": "<inferred>",
         "foreground()": "<inferred>",
         "init()": "<inferred>",
@@ -30153,12 +30173,13 @@
         "submitTransaction()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
-        "waitProgress()": "<inferred>"
+        "waitProgress()": "<inferred>",
+        "waitProgressAfter()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 111,
-        "catch": 14
+        "try": 117,
+        "catch": 13
       },
       "imports": [
         "root.zig",
@@ -30436,7 +30457,7 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 5,
+        "CatalogIdentityConflict": 6,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
@@ -30452,7 +30473,9 @@
           "delete",
           "create",
           "alter",
-          "drop"
+          "drop",
+          "produce",
+          "enqueue"
         ],
         "Profile": [
           "native",
@@ -30462,6 +30485,7 @@
         "Write": [
           "table",
           "log",
+          "workload",
           "name_assertion",
           "namespace_change"
         ],
@@ -30470,6 +30494,7 @@
           "dml",
           "ddl",
           "log_ddl",
+          "log_append",
           "relational",
           "namespace_change"
         ]
@@ -30490,7 +30515,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 38,
         "catch": 1
       },
       "imports": [
@@ -39701,8 +39726,7 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( selectStatement | mutationStatement | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
-      "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
+      "statement": "( selectStatement | mutationStatement | logAppendCommand | extensionStatement | transactionStatement ) SEMI ? EOF",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",

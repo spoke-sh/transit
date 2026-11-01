@@ -11,12 +11,13 @@ connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
 inspection: bool = false,
-plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create, alter, drop };
+pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue };
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
+        .log_append => |value| if (value.definition.kind() == .stream) .produce else .enqueue,
         .log_ddl => |value| switch (value.compiled.statement.action) {
             .create => .create,
             .alter, .rename => .alter,
@@ -52,6 +53,7 @@ pub fn parameters(self: *const Self) []const f.Types.Type {
     return switch (self.plan) {
         .select => |*value| value.parameterTypes(),
         .dml => |*value| value.parameterTypes(),
+        .log_append => |*value| value.compiled.parameterTypes(),
         else => &.{},
     };
 }
@@ -63,6 +65,10 @@ pub fn fields(self: *const Self) []const f.Types.Field {
 pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !void {
     if (values.len != self.parameters().len) return error.WireParameterCountMismatch;
     switch (self.plan) {
+        .log_append => |*value| {
+            var bound = try value.compiled.bind(allocator, values, null);
+            defer bound.deinit();
+        },
         .select => |*value| {
             const template = &value.template;
             var bound = try template.bind(allocator, template.name, template.descriptor.type, template.basis, values, null);
@@ -110,6 +116,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         plan = .{ .namespace_change = try c.DirectAuthorizationSql.prepareNamespace(client.*, namespace, text, .{}, location) };
     } else if (declaring and (tokenIs(subject, "STREAM") or tokenIs(subject, "QUEUE"))) {
         plan = .{ .log_ddl = try c.DirectLogPreparedDdl.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "PRODUCE") or tokenIs(first, "ENQUEUE")) {
+        plan = .{ .log_append = try c.DirectLogPreparedAppend.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
         // tokens belong to the shared single-Table compiler; strings/comments
@@ -140,6 +148,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     var output_fields: [g.Limits.max_parameters]f.Types.Field = undefined;
     const output: ?f.Types.Type = switch (plan) {
         .select => |value| value.output.type,
+        .log_append => |value| if (value.compiled.output) |output| output.type else null,
         .relational => |value| try value.plan.outputSchema(&output_fields),
         else => null,
     };
@@ -162,6 +171,7 @@ fn tokenIs(token: f.Sql.Token, word: []const u8) bool {
 /// a replacement object, schema, name or connection cannot inherit this handle.
 pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.plan == .log_append) return self.plan.log_append.validate(client.*);
     const right: c.TableAuthority.Access = switch (self.kind()) {
         .select => if (self.inspection) .inspect else .read,
         .insert => .insert,
@@ -170,6 +180,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .create => .create_table,
         .alter => .alter,
         .drop => .drop,
+        .produce, .enqueue => unreachable,
     };
     switch (self.plan) {
         .select => |value| _ = try value.binding.require(client.*, right),
@@ -178,22 +189,26 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .ddl => |*value| try value.validate(client.*),
         .log_ddl => |*value| try value.validate(client.*),
+        .log_append => unreachable,
     }
 }
 pub const Write = union(enum) {
     table: c.DirectTableIntent,
     log: c.DirectLogIntent,
+    workload: c.DirectWorkloadIntent,
     name_assertion: c.NameAssertion.Binding,
     namespace_change: g.IntentReference.NamespaceChange,
     pub fn deinit(self: *Write) void {
         if (self.* == .table) self.table.deinit();
         if (self.* == .log) self.log.deinit();
+        if (self.* == .workload) self.workload.deinit();
         self.* = undefined;
     }
     pub fn workBytes(self: *const Write) !u64 {
         return switch (self.*) {
             .table => |value| value.bytes.len,
             .log => |value| value.bytes.len,
+            .workload => |value| value.bytes.len,
             .name_assertion => |value| (g.IntentReference.Reference{ .name_assertion = value }).workBytes(),
             .namespace_change => |value| (g.IntentReference.Reference{ .namespace_change = value }).workBytes(),
         };
@@ -206,6 +221,10 @@ pub const Write = union(enum) {
             .log => |*value| blk: {
                 if (value.parsed.value.work.namespace != namespace) return error.CatalogIdentityConflict;
                 break :blk .{ .log = try value.stage(client, account) };
+            },
+            .workload => |*value| blk: {
+                if (value.parsed.value.source.declaration.properties.namespace != namespace) return error.CatalogIdentityConflict;
+                break :blk .{ .workload = try value.stage(client, account) };
             },
             .name_assertion => |value| blk: {
                 try value.validate();
@@ -228,6 +247,7 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     const fresh = fresh_prepared.*;
     fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
+    if (self.plan == .log_append) return .{ .workload = try self.plan.log_append.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;
         return .{ .log = try self.plan.log_ddl.bindPrepared(allocator, client.*, operation, fresh) };

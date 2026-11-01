@@ -46,8 +46,12 @@ projection through `WorkloadRead`, preserving original selection and complete
 native coverage separately from filtered output count. Batch copies own their
 cells; repeated and terminal disclosure rechecks current authority even after
 the iterator is closed. Opening/closing a result never claims again, renews a
-lease or settles consumer progress. These recovery surfaces do not enable the
-workload SQL verbs, which remain unimplemented.
+lease or settles consumer progress. Dedicated `PRODUCE INTO` and `ENQUEUE INTO`
+prepare through the shared Catalog adapter, freeze one partition's intent and
+return a command or original RETURNING rows. Wire adapters wait for the original
+outcome using progress notifications; result delivery never submits another
+append. Consume/claim/settlement SQL and attached-transaction appends remain
+outside this execution profile.
 
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
@@ -94,4 +98,7 @@ recovery, and checks append/consume/claim results through session batches. It
 restarts again and compares original observations. The independent row oracle
 covers an empty claim before enqueue, filtered Stream output versus native
 coverage, batching across smaller native pages, exact repeats and revoked
-terminal disclosure. This exercises native tokens; it does not admit workload SQL.
+terminal disclosure. This exercises native tokens. `just test::sql-log-declarations`
+separately admits append SQL through native, console, PostgreSQL and MySQL
+consumers and verifies original results after gateway replacement, typed
+parameters and revoked batches.

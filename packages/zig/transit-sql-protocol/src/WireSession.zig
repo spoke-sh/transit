@@ -10,6 +10,8 @@ pub const Prepared = struct {
     fields: []const w.fuze.Types.Field,
     mutation: bool,
     empty: bool,
+    /// Typed command tag for a row result; mutation still controls admission.
+    row_command: w.results.Command = .select,
 };
 pub const Diagnostic = struct { state: [5]u8, message: []const u8, detail: ?[]const u8 };
 pub const Bound = struct { prepared: Handle, values: Values };
