@@ -6,7 +6,7 @@ const f = q.fuze;
 const C = q.settings.Contract;
 const R = q.settings.Registry;
 const Parser = f.SqlTyped;
-pub const Catalog = enum { databases, schemas, tables };
+pub const Catalog = enum { databases, schemas, tables, streams, queues };
 pub const Relation = enum { settings, reloads };
 pub const Statement = union(enum) {
     show: ?[]const u8,
@@ -35,6 +35,8 @@ pub const Owned = struct {
                 .databases => &.{.{ .name = "database", .type = .utf8 }},
                 .schemas => &.{.{ .name = "schema", .type = .utf8 }},
                 .tables => &.{.{ .name = "table", .type = .utf8 }},
+                .streams => &.{.{ .name = "stream", .type = .utf8 }},
+                .queues => &.{.{ .name = "queue", .type = .utf8 }},
             },
             .set, .reset => &.{},
             .relation => unreachable,
@@ -90,7 +92,7 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dial
     var parser = try Parser.initDialect(a, text, null, false, dialect);
     if (try parser.takeWord("SHOW")) {
         if (try parser.takeWord("ALL")) owned.statement = .{ .show = null } else {
-            inline for (.{ .{ "DATABASES", Catalog.databases }, .{ "SCHEMAS", Catalog.schemas }, .{ "TABLES", Catalog.tables } }) |pair| if (try parser.takeWord(pair[0])) {
+            inline for (.{ .{ "DATABASES", Catalog.databases }, .{ "SCHEMAS", Catalog.schemas }, .{ "TABLES", Catalog.tables }, .{ "STREAMS", Catalog.streams }, .{ "QUEUES", Catalog.queues } }) |pair| if (try parser.takeWord(pair[0])) {
                 try parser.finish();
                 owned.statement = .{ .catalog = pair[1] };
                 return owned;
@@ -232,4 +234,15 @@ test "settings grammar is standalone and metadata lowers through Fuze" {
     try t.expectError(error.StandaloneConfigurationOperationRequired, parse(t.allocator, "SELECT transit_reload_conf(); SELECT 1", .transit));
     try t.expectError(error.SettingNotSessionMutable, parse(t.allocator, "SET ports.gateway = 99", .transit));
     try t.expectError(error.ConfigurationSortRequiresBoundedLimit, parse(t.allocator, "SELECT * FROM transit_config_reloads() ORDER BY ordinal", .transit));
+}
+test "catalog log listings keep distinct typed metadata schemas" {
+    const t = std.testing;
+    inline for (.{ .{ "SHOW STREAMS", Catalog.streams, "stream" }, .{ "SHOW QUEUES;", Catalog.queues, "queue" } }) |case| {
+        var plan = (try parse(t.allocator, case[0], .transit)).?;
+        defer plan.deinit();
+        try t.expectEqual(case[1], plan.statement.catalog);
+        try t.expectEqualStrings(case[2], plan.fields()[0].name);
+        try t.expectEqual(.utf8, plan.fields()[0].type);
+    }
+    try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "SHOW STREAMS; DROP STREAM events", .transit));
 }

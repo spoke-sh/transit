@@ -73,7 +73,7 @@ relationalSelection
 relationalTarget: identifier relationalAlias?;
 relationalAlias: AS identifier | relationalImplicitAlias;
 // Clause words cannot consume the next join/group token as an implicit alias.
-relationalImplicitAlias: legacyIdentifier | BY;
+relationalImplicitAlias: legacyIdentifier | STREAMS | QUEUES | BY;
 relationalJoin: (INNER | LEFT OUTER?)? JOIN relationalTarget ON columnReference EQ columnReference;
 
 // Boolean predicates and a projection bounded by the declared schema at compile time.
@@ -272,7 +272,7 @@ privilege
 showStatement
     : SHOW (catalogKind | settingKey | STORAGE FOR identifier | logKind identifier)
     ;
-settingKey: identifier (DOT identifier)*;
+settingKey: settingIdentifier (DOT identifier)*;
 sessionSettingStatement
     : SET settingKey (EQ | TO) (STRING | INTEGER | DEFAULT)
     | RESET settingKey
@@ -287,6 +287,8 @@ configurationSelect
 
 catalogKind
     : TABLES
+    | STREAMS
+    | QUEUES
     | DATABASES
     | SCHEMAS
     | SOURCES
@@ -312,7 +314,8 @@ asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
-identifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
+identifier: settingIdentifier | STREAMS | QUEUES;
+settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     | INSERT | UPDATE | DELETE | SET | VALUES
@@ -332,6 +335,8 @@ legacyIdentifier
 BEGIN: 'BEGIN';
 STREAM: 'STREAM';
 QUEUE: 'QUEUE';
+STREAMS: 'STREAMS';
+QUEUES: 'QUEUES';
 PARTITION: 'PARTITION';
 PARTITIONS: 'PARTITIONS';
 HASH: 'HASH';

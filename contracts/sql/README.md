@@ -26,8 +26,9 @@ compilation, sharing the logical column grammar with `TableDdl`. The independent
 limits and unsupported options through `just test::table-ddl-sql`. Named
 `SHOW STREAM/QUEUE` and `DESCRIBE STREAM/QUEUE` use the ordinary SQL metadata
 result lifecycle. The [executable profile](../../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
-lists exact options and limits; payload verbs and plural SQL listings remain
-outside that profile. `just test::sql-log-declarations` exercises actual native,
+lists exact options and limits. `SHOW STREAMS` and `SHOW QUEUES` use bounded
+Catalog pages with current disclosure checks; payload verbs remain outside
+that profile. `just test::sql-log-declarations` exercises actual native,
 PostgreSQL and MySQL sessions, original-token recovery and buffered denial.
 
 Table schemas and projections admit up to 128 columns. Logical types, parameter

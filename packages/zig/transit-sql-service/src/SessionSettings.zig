@@ -25,6 +25,11 @@ pub fn prepare(host: *Host, sql: []const u8) !?Prepared {
     return .{ .plan = plan, .output = if (plan.statement == .set or plan.statement == .reset) null else try plan.output(host.allocator) };
 }
 pub fn authorize(host: *Host, plan: *const q.SettingsSql.Owned) !void {
+    if (plan.statement == .catalog and (plan.statement.catalog == .streams or plan.statement.catalog == .queues)) {
+        // Namespace rights also protect empty results and terminal repeats,
+        // whose batch has no object-specific disclosure subjects.
+        _ = try host.table.require(.{ .namespace = host.namespace, .target = null, .access = .schema });
+    }
     if (plan.statement != .catalog and plan.statement != .set and plan.statement != .reset) {
         const selected = try client(host);
         // Read-only authorization during preparation; reload never dispatches.
@@ -51,6 +56,7 @@ pub const Read = struct {
     started: bool = false,
     index: usize = 0,
     tables: ?@FieldType(q.catalog.DirectTableProtocol.Result, "list") = null,
+    logs: ?q.catalog.DirectLogProtocol.Page = null,
     schemas: ?@FieldType(q.catalog.DirectTableProtocol.Result, "namespaces") = null,
     pages: u64 = 0,
     subject: ?g.BatchDisclosure.Subject = null,
@@ -81,6 +87,27 @@ pub const Read = struct {
             return try q.SettingsSql.cells(a, .{ .operation = id });
         }
         switch (self.plan.statement.catalog) {
+            .streams, .queues => |kind| while (true) {
+                if (self.logs) |page| while (self.index < page.entries.len) {
+                    const slot = page.entries[self.index];
+                    self.index += 1;
+                    const entry = slot orelse continue;
+                    const selected: q.catalog.DirectLog.Kind = if (kind == .streams) .stream else .queue;
+                    if (entry.kind() != selected) continue;
+                    try q.catalog.DirectLogClient.requireCurrent(self.host.table, entry);
+                    self.subject = .{ .log = entry };
+                    return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.properties.name.slice()) });
+                };
+                if (self.started and self.logs.?.next == null) return null;
+                if (self.pages == 10000) return error.ConfigurationReadBudgetExceeded;
+                try self.host.deadline.check(self.host.io);
+                const response = try self.host.table.call(.{ .log_list = .{ .namespace = self.host.namespace, .after = if (self.logs) |page| page.next else null } });
+                defer response.deinit();
+                self.logs = response.value.result.log_list;
+                self.started = true;
+                self.index = 0;
+                self.pages += 1;
+            },
             .databases => {
                 while (self.index < self.host.account.databases.len) {
                     const database = self.host.account.databases[self.index];

@@ -88,9 +88,9 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS`, schema evolution,
-plural SQL listings, and workload verbs (`PRODUCE`, `CONSUME`, `COMMIT OFFSET`,
+and workload verbs (`PRODUCE`, `CONSUME`, `COMMIT OFFSET`,
 `ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`) are outside this SQL profile.
-Typed callers provide payload operations and bounded catalog listings.
+Typed callers provide payload operations.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -99,6 +99,16 @@ the exact definition, without claiming a data snapshot. Current metadata
 rights and the same named definition are rechecked before each disclosure,
 including repeated or terminal batches. A replacement, rename or policy change
 invalidates an earlier prepared description.
+
+`SHOW STREAMS` and `SHOW QUEUES` return visible names in the current namespace,
+with one UTF-8 `stream` or `queue` column. The reader traverses bounded Catalog
+pages and returns ordinary SQL batches; it does not materialize the whole
+Catalog. Traversal is limited to 10,000 native pages and the statement deadline.
+Reaching either limit fails the result instead of reporting complete coverage.
+Listings record independent metadata observations, not one atomic Catalog or
+data snapshot. Each buffered row retains its exact definition for current
+authorization and definition checks on delivery and repetition. Namespace
+authorization also protects empty results and terminal counts.
 
 ## Connections, sources and sinks
 

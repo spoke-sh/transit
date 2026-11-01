@@ -32,6 +32,16 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     assert recovered['identity'] == original['identity']
     assert recovered['command'] == 'create_stream', recovered
 
+    empty = first.execute('SHOW QUEUES')['batch']
+    assert empty['rows'] == [] and empty['complete'] and empty['completion']['rows'] == 0
+    assert empty['observation']['metadata']['consistency'] == 'independent_observations'
+    authorize(False)
+    try:
+        first.call(dict(fetch=dict(cursor=empty['cursor'], batch=0)), error='AccessDenied')
+    finally:
+        authorize(True)
+    first.call(dict(fetch=dict(cursor=empty['cursor'], batch=0)), error='SqlResultIncomplete')
+
     def completed(statement, kind):
         result = first.terminal(first.execute(statement, list(os.urandom(16)))['operation'])
         assert result['command'] == kind, result
@@ -85,6 +95,36 @@ def run(root, port, postgres, mysql_options, restart, authorize):
         finally:
             authorize(True)
         first.call(dict(fetch=dict(cursor=buffered['cursor'], batch=buffered['batch'])), error='SqlResultIncomplete')
+
+    # Native metadata pages contain at most eight objects. Cross those pages
+    # and the 32-row SQL delivery boundary without collecting a catalog first.
+    expected = {'sql_history'}
+    for index in range(34):
+        name = f'listed_stream_{index:02d}'
+        completed(f'CREATE STREAM {name} (value BIGINT)', 'create_stream')
+        expected.add(name)
+    listing = first.execute('SHOW STREAMS')['batch']
+    assert len(listing['rows']) == 32 and not listing['complete']
+    assert listing['observation']['metadata']['consistency'] == 'independent_observations'
+    assert listing['observation']['metadata']['definitions'] == []
+    assert first.call(dict(fetch=dict(cursor=listing['cursor'], batch=0)))['batch'] == listing
+    rest = first.call(dict(fetch=dict(cursor=listing['cursor'], batch=1)))['batch']
+    assert rest['complete'] and len(rest['rows']) == 3 and rest['completion']['rows'] == 35
+    assert {text(row[0]) for row in listing['rows'] + rest['rows']} == expected
+    first.call(dict(close_result=rest['cursor']))
+    stale_listing = first.execute('SHOW STREAMS')['batch']
+    revised = text(stale_listing['rows'][0][0])
+    completed(f"ALTER STREAM {revised} SET (retention='1h')", 'alter_stream')
+    first.call(dict(fetch=dict(cursor=stale_listing['cursor'], batch=0)), error='CatalogDefinitionChanged')
+    first.call(dict(fetch=dict(cursor=stale_listing['cursor'], batch=0)), error='SqlResultIncomplete')
+    for statement in ('SHOW STREAMS', 'SHOW QUEUES'):
+        protected = first.execute(statement)['batch']
+        authorize(False)
+        try:
+            first.call(dict(fetch=dict(cursor=protected['cursor'], batch=0)), error='AccessDenied')
+        finally:
+            authorize(True)
+        first.call(dict(fetch=dict(cursor=protected['cursor'], batch=0)), error='SqlResultIncomplete')
     first.close()
 
     import psycopg
@@ -95,6 +135,8 @@ def run(root, port, postgres, mysql_options, restart, authorize):
             assert cursor.statusmessage == 'CREATE STREAM'
             cursor.execute('SHOW STREAM pg_events')
             assert len(cursor.fetchall()) == 1
+            cursor.execute('SHOW STREAMS')
+            assert {row[0] for row in cursor.fetchall()} == expected | {'pg_events'}
             cursor.execute('DROP STREAM pg_events')
             assert cursor.statusmessage == 'DROP STREAM'
     with mysql.connector.connect(**mysql_options) as wire:
@@ -102,6 +144,8 @@ def run(root, port, postgres, mysql_options, restart, authorize):
             cursor.execute('CREATE QUEUE `mysql_work` (value BIGINT)')
             cursor.execute('DESCRIBE QUEUE `mysql_work`')
             assert len(cursor.fetchall()) == 1
+            cursor.execute('SHOW QUEUES')
+            assert {row[0] for row in cursor.fetchall()} == {'sql_work', 'sql_failed', 'mysql_work'}
             cursor.execute('DROP QUEUE `mysql_work`')
     first = Client(root, port).open()
     completed('DROP STREAM sql_history', 'drop_stream')
@@ -109,4 +153,5 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     first.close()
     print(json.dumps(dict(profile='sql_log_declarations', native=True, postgres=True, mysql=True,
                           original_token_after_replacement=True, metadata_batches=[32, 8],
+                          listing_batches=[32, 3], empty_listing=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)

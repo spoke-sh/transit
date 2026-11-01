@@ -2318,6 +2318,8 @@
     "GRANT SELECT, INSERT ON orders TO analyst;",
     "REVOKE SELECT ON orders FROM analyst;",
     "SHOW TABLES;",
+    "SHOW STREAMS;",
+    "SHOW QUEUES;",
     "SHOW STORAGE;",
     "SHOW STORAGE FOR orders;",
     "SHOW STORAGE FOR storage;",
