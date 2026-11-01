@@ -63,6 +63,13 @@ state and blocked-reason types also serve the storage owner. These descriptors
 are read attribution, not consumption proofs, grants or present settlement
 authority.
 
+[`LogWorkload`](src/LogWorkload.zig) supplies canonical Stream/Queue mutation
+binding shapes and operation-kind tags. Catalog callers compute the complete
+request commitment, including payload identity and authenticated read coverage;
+storage owners can interpret that identity without importing the catalog. The
+binding's validation and equality checks establish neither acceptance nor a
+terminal outcome. Existing catalog exports use these same neutral types.
+
 [`DocumentDeclaration`](src/DocumentDeclaration.zig),
 [`DocumentOperation`](src/DocumentOperation.zig) and
 [`DocumentRead`](src/DocumentRead.zig) supply neutral direct Document

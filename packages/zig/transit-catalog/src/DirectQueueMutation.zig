@@ -6,7 +6,7 @@ const p = c.protocol;
 const d = p.DataLifecycle;
 const q = p.StreamQueue;
 
-pub const Request = union(enum) {
+pub const Request = union(p.LogWorkload.QueueKind) {
     enqueue: q.Append,
     claim: q.Claim,
     settle: q.Settlement,
@@ -60,20 +60,4 @@ pub const Request = union(enum) {
     }
 };
 
-pub const Binding = struct {
-    definition: p.Growth.Definition,
-    operation: d.Operation,
-    target: q.Partition,
-    kind: std.meta.Tag(Request),
-    intent: [32]u8,
-    pub fn validate(self: Binding) !void {
-        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-        try self.target.requireOperation(self.operation);
-        if (std.mem.allEqual(u8, &self.intent, 0)) return error.InvalidQueueOperationBinding;
-    }
-    pub fn requireSame(self: Binding, other: Binding) !void {
-        try self.validate();
-        try other.validate();
-        if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
-    }
-};
+pub const Binding = p.LogWorkload.QueueBinding;
