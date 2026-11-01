@@ -151,7 +151,24 @@ test "PerfectHash ComptimeMap and FrozenDirectory exactness, non-member rejectio
     try std.testing.expectError(error.UnknownColumn, schema_dir.resolve("missing"));
 }
 
-test "16-byte SIMD string comparison 4 KiB hardware page-boundary guard" {
+test "PerfectHash SIMD comparison accepts exact external allocations and every short tail" {
+    for (0..17) |len| {
+        const bytes = try std.testing.allocator.alloc(u8, len);
+        defer std.testing.allocator.free(bytes);
+        @memset(bytes, 'A');
+        var expected: [16]u8 = @splat(0xCC);
+        @memset(expected[0..len], 'a');
+        try std.testing.expect(PerfectHash.simdEql16PageSafe(bytes, expected, expected, @intCast(len), true));
+        if (len != 0) {
+            try std.testing.expect(!PerfectHash.simdEql16PageSafe(bytes, expected, expected, @intCast(len), false));
+            bytes[len - 1] = 'B';
+            try std.testing.expect(!PerfectHash.simdEql16PageSafe(bytes, expected, expected, @intCast(len), true));
+        }
+        try std.testing.expect(!PerfectHash.simdEql16PageSafe(bytes, expected, expected, @intCast((len + 1) % 17), true));
+    }
+}
+
+test "PerfectHash 16-byte SIMD string comparison at a protected page boundary" {
     if (@import("builtin").os.tag != .linux) return;
     const linux = std.os.linux;
     const page_len: usize = 4096;
@@ -163,23 +180,29 @@ test "16-byte SIMD string comparison 4 KiB hardware page-boundary guard" {
         -1,
         0,
     );
-    if (map_addr > std.math.maxInt(usize) - 4096) return;
+    try std.testing.expect(map_addr <= std.math.maxInt(usize) - 4096);
     const base: [*]align(4096) u8 = @ptrFromInt(map_addr);
     defer _ = linux.munmap(base, page_len * 2);
 
     // Protect the second 4 KiB page with PROT_NONE so any 16-byte SIMD overread faults immediately
-    _ = linux.mprotect(@ptrCast(base + page_len), page_len, .{});
+    try std.testing.expectEqual(@as(usize, 0), linux.mprotect(@ptrCast(base + page_len), page_len, .{}));
 
     const word = "select";
     var expected_bytes: [16]u8 = @splat(0);
     @memcpy(expected_bytes[0..word.len], word);
     const expected_vec: @Vector(16, u8) = expected_bytes;
 
-    // Place strings of length 1..15 at the very end of the first 4 KiB page (offsets 4081..4095)
-    for (1..16) |len| {
+    // Every short tail must actually perform a comparison, rather than return
+    // early on a mismatched length. Include the full-width boundary load.
+    for (1..17) |len| {
         const start_offset = page_len - len;
         const slice = base[start_offset..page_len];
         @memset(slice, 'X');
+        var expected: [16]u8 = @splat(0);
+        @memset(expected[0..len], 'x');
+        try std.testing.expect(PerfectHash.simdEql16PageSafe(slice, expected, expected, @intCast(len), true));
+        slice[len - 1] = 'Y';
+        try std.testing.expect(!PerfectHash.simdEql16PageSafe(slice, expected, expected, @intCast(len), true));
         if (len == word.len) {
             @memcpy(slice, "SELECT");
             try std.testing.expect(PerfectHash.simdEql16PageSafe(slice, expected_vec, expected_bytes, @intCast(word.len), true));
