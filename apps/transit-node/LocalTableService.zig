@@ -114,6 +114,18 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
         break :blk catalog;
     };
+    var log_environment: c.DirectTransactionLog.Environment = .{};
+    std.debug.assert(catalog.log_environment == null);
+    if (request.action == .transaction) {
+        log_environment.authority = .{ .secret = undefined };
+        self.streamAuthority(&log_environment.authority.?);
+        log_environment.clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null;
+        catalog.log_environment = &log_environment;
+    }
+    defer {
+        catalog.log_environment = null;
+        if (log_environment.authority) |*authority| std.crypto.secureZero(u8, &authority.secret);
+    }
     // Preserve fully accepted progress even when final disclosure is denied.
     // An uncertain append leaves recovery required and cannot advance this hint.
     defer if (self.recovery_state) |prior| {
@@ -146,6 +158,12 @@ fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {
     return source.read(source.context);
 }
 
+fn streamAuthority(self: *Self, output: *c.storage.LogRead.Authority) void {
+    var seed = self.registrar.key.secret_key.seed();
+    defer std.crypto.secureZero(u8, &seed);
+    std.crypto.auth.hmac.sha2.HmacSha256.create(&output.secret, "transit.catalog.stream.cursor.v1\x00", &seed);
+}
+
 fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
     const self: *Self = @ptrCast(@alignCast(raw));
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
@@ -153,13 +171,11 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
     var temporary: ?c.DirectStream.Cached = null;
     defer if (temporary) |*cached| cached.deinit();
     const slot = if (self.resident) |resident| &resident.stream else &temporary;
-    var seed = self.registrar.key.secret_key.seed();
-    defer std.crypto.secureZero(u8, &seed);
-    var secret: [32]u8 = undefined;
-    defer std.crypto.secureZero(u8, &secret);
-    std.crypto.auth.hmac.sha2.HmacSha256.create(&secret, "transit.catalog.stream.cursor.v1\x00", &seed);
+    var authority: c.storage.LogRead.Authority = undefined;
+    self.streamAuthority(&authority);
+    defer std.crypto.secureZero(u8, &authority.secret);
     return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.stream, .{
-        .authority = .{ .secret = secret },
+        .authority = authority,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
     }, request, policy);

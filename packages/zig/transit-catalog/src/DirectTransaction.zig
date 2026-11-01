@@ -194,3 +194,29 @@ test "transaction KV admission binds independent mutation bytes and private sequ
     changed.action.transaction.stage_kv.key.token[0] ^= 1;
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
 }
+
+test "transaction log admission binds independent source work and reservation commitments" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8, intent_digest: [32]u8, request_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-transaction-log-v1.json"));
+    defer parsed.deinit();
+    const original = parsed.value.request;
+    try original.validate(t.allocator);
+    try original.proof.verify(parsed.value.public_key);
+    const request = original.action.transaction.log_statement.request;
+    try request.validate();
+    try t.expectEqual(parsed.value.intent_digest, try request.work.digest());
+    try t.expectEqual(parsed.value.request_digest, (try request.binding()).request);
+    var changed = original;
+    changed.action.transaction.log_statement.request.basis.next_lsn += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.log_statement.request.guard.source.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.log_statement.execute = true;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.log_statement.request.work.append.rows += 1;
+    try t.expectError(error.TransactionIdentityConflict, changed.action.transaction.log_statement.request.validate());
+}

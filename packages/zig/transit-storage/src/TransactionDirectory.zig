@@ -252,6 +252,27 @@ pub fn put(self: *Self, entry: Entry) !void {
     self.root.writes += @intFromBool(entry.writes());
 }
 
+/// Advance a private log workspace without changing its source or identity.
+/// The caller has evaluated the complete new action directory. Previously
+/// sealed roots remain immutable and usable by savepoints and frozen attempts.
+pub fn advanceLog(self: *Self, guard: x.LogGuard, expected: ?x.Directory, next: x.Directory) !void {
+    const entry: Entry = .{ .participant = .{ .log = .{ .guard = guard, .actions = next } } };
+    try self.requireEntry(entry);
+    const prior = try self.get(entry.target());
+    if (prior == null) {
+        if (expected != null) return error.TransactionIdentityConflict;
+        return self.put(entry);
+    }
+    if (prior.? != .participant or prior.?.participant != .log or
+        !std.meta.eql(prior.?.participant.log.guard, guard) or
+        !std.meta.eql(prior.?.participant.log.actions, expected) or expected == null or
+        next.count <= expected.?.count) return error.TransactionIdentityConflict;
+    const content = try self.stage(entry);
+    try self.index.begin(self.index_work_bytes);
+    defer self.index.end();
+    self.root.entries = try self.tree().put(self.root.entries, try entryKey(entry.cursor()), try reference(content));
+}
+
 pub fn page(self: *Self, after: ?Cursor) !Page {
     const entries = try self.tree().scan(self.root.entries, if (after) |id| try entryKey(id) else null);
     var result: Page = .{};

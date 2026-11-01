@@ -12,6 +12,12 @@ pub const Options = struct {
     stream: s.StreamPartition.Options = .{},
     queue: s.QueuePartition.Options = .{},
 };
+/// Borrowed trusted host capabilities, never part of a signed request or a
+/// retained owner. The embedding dispatch clears its pointer on every exit.
+pub const Environment = struct {
+    clock: ?s.LogTime.Source = null,
+    authority: ?s.LogRead.Authority = null,
+};
 
 pub const Owners = union(enum) { stream: s.StreamPartition, queue: s.QueuePartition };
 definition: c.DirectLog.Definition,
@@ -83,5 +89,46 @@ pub fn inspect(self: *Self, handle: x.Pin, guard_value: s.PublicationGuard) !s.L
 pub fn release(self: *Self, handle: x.Pin, guard_value: s.PublicationGuard) !void {
     return switch (self.owner) {
         inline else => |*owner| owner.releaseTransactionSource(handle, guard_value),
+    };
+}
+
+pub fn clock(self: *Self, source: ?s.LogTime.Source) void {
+    switch (self.owner) {
+        .stream => |*owner| owner.options.clock = source,
+        .queue => |*owner| owner.owner.options.clock = source,
+    }
+}
+pub fn validatePayload(self: *Self, work: c.DirectTransactionLogWork.Work, payload: ?[]const u8) !void {
+    if ((work == .append) != (payload != null)) return error.InvalidStreamPayload;
+    if (payload) |bytes| switch (self.owner) {
+        inline else => |*owner_value| {
+            const owner = if (@TypeOf(owner_value.*) == s.QueuePartition) &owner_value.owner else owner_value;
+            if (bytes.len > owner.options.batch_bytes) return error.LogAppendLimitExceeded;
+            var declaration = try s.LogDeclaration.load(owner.allocator, owner.objects, self.definition.stored);
+            defer declaration.deinit();
+            try s.LogBatch.validate(bytes, &declaration, work.append, &owner.scratch, owner.key_buffer);
+        },
+    };
+}
+pub fn evaluate(self: *Self, handle: x.Pin, actions: x.Directory, limits: s.LogTransaction.EvaluationLimits, authority: ?s.LogRead.Authority, guard_value: s.PublicationGuard) !s.LogTransaction.Evaluation {
+    return switch (self.owner) {
+        .stream => |*owner| owner.evaluateTransaction(handle, actions, limits, authority, guard_value),
+        .queue => |*owner| owner.evaluateTransaction(handle, actions, limits, guard_value),
+    };
+}
+pub fn prepare(self: *Self, binding: s.TransactionDecisionLog.Binding, coordination: u64, expected: x.LogGuard, handle: x.Pin, actions: x.Directory, limits: s.LogTransaction.EvaluationLimits, authority: ?s.LogRead.Authority, guard_value: s.PublicationGuard) !x.Prepared {
+    return switch (self.owner) {
+        .stream => |*owner| owner.prepareTransaction(binding, coordination, expected, handle, actions, limits, authority, guard_value),
+        .queue => |*owner| owner.prepareTransaction(binding, coordination, expected, handle, actions, limits, guard_value),
+    };
+}
+pub fn verifyPrepared(self: *Self, expected: x.Prepared) !s.LogTransaction.DecisionTime {
+    return switch (self.owner) {
+        inline else => |*owner| owner.verifyPrepared(expected),
+    };
+}
+pub fn resolve(self: *Self, guard_value: s.PublicationGuard) !?x.Decision {
+    return switch (self.owner) {
+        inline else => |*owner| owner.resolveTransaction(guard_value),
     };
 }

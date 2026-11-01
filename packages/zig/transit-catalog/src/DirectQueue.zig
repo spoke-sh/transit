@@ -148,7 +148,13 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .wait => |value| try (Mutation.Request{ .claim = value.claim }).binding(scratch),
         else => null,
     };
-    if (binding) |original| if (try c.OperationBinding.lookupQueue(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
+    const private_observation: ?c.DirectTransactionLogWork.Work = if (request == .operation) switch (request.operation) {
+        .enqueue => |value| .{ .append = value },
+        .settle => |value| if (value.action == .ack) .{ .queue_ack = value } else null,
+        else => null,
+    } else null;
+    const reserved = if (private_observation) |work| try c.OperationBinding.transactionLogObservation(scratch, catalog.data_objects, work) else false;
+    if (!reserved) if (binding) |original| if (try c.OperationBinding.lookupQueue(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
     const initial = try current.definition.genesis(request.target().partition);
     if (slot.*) |*cached| if (!std.meta.eql(cached.initialization, initial)) {
         cached.deinit();

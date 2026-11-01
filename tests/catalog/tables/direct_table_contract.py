@@ -496,7 +496,7 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-v1.
         (json.dumps({"request": transaction_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 
 # Partition selection is signed independently of frozen-directory admission.
-# Queue targets exercise the neutral shape; the installed owner refuses them.
+# Queue targets exercise the neutral shape; the owner checks declared ordinals.
 target_object = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
 selected_begin = {
     "key": token_binding["key"], "fingerprint": token_binding["fingerprint"],
@@ -539,6 +539,37 @@ for field in ("key", "basis", "sequence", "work"):
     assert not validator.is_valid(invalid), field
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-kv-v1.json",
         (json.dumps({"request": kv_stage_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+# Independent private log statement commitments bind the entire source guard,
+# workspace revision and original operation, in addition to the signed envelope.
+# This is a shape/signature vector; its payload is not an executable LogBatch.
+log_work = {"append": {
+    "target": stream_work["consume"]["target"],
+    "operation": {**log_binding["identity"], "operation": 2**64 - 2},
+    "kind": "stream", "producer": None, "rows": 1,
+    "payload": {"bytes": 3, "sha256": list(hashlib.sha256(b"abc").digest())},
+}}
+log_work_digest = hashlib.sha256(b"transit.catalog.transaction.log.work.v1\0" + bytes.fromhex(definition) + canonical(log_work)).digest()
+log_statement = {
+    "statement": {"transaction": transaction_begin["identity"], "sequence": 2, "intent": list(log_work_digest)},
+    "basis": {"partition": 9, "next_lsn": 10},
+    "guard": {"kind": "stream", "source": {"target": log_work["append"]["target"], "accepted": {"partition": 91, "next_lsn": 3}, "retained_from": 0, "next": 0}, "changed_lsn": 2},
+    "work": log_work,
+}
+log_statement_digest = hashlib.sha256(b"transit.catalog.transaction.log.statement.v1\0" + bytes.fromhex(definition) + canonical(log_statement)).digest()
+log_statement_input = {**request_input, "action": {"transaction": {"log_statement": {"key": token_key, "request": log_statement, "execute": False}}}}
+log_statement_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_statement_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-log-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    log_statement_request = {**log_statement_input, "proof": {"claim": log_statement_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_statement_claim)).digest())}}
+validator.validate(log_statement_request)
+for field in ("statement", "basis", "guard", "work"):
+    invalid = copy.deepcopy(log_statement_request)
+    del invalid["action"]["transaction"]["log_statement"]["request"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-log-v1.json",
+        (json.dumps({"request": log_statement_request, "public_key": public_key,
+                     "intent_digest": list(log_work_digest), "request_digest": list(log_statement_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"
