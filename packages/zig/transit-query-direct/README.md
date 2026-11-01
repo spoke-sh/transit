@@ -67,5 +67,16 @@ with `DirectClientToken.list(client, ManagedTable.workAccount(), after, true)`
 and resume their exact `step` calls before discovering new work with `start`.
 A prepared control participant can refuse `inspect` or `start`; recovery must
 not depend on reading that participant to discover its pending transaction.
+
+`ManagedRevision.open(manager, declaration, revision, limits)` reads one completed
+revision from its immutable schema and row pages, independently of later output
+Table writes. `next(&output)` copies each row into a caller-owned arena; reset
+that arena only after consuming its rows. Call `validateDisclosure` after buffering
+and before exposing schema, metadata or rows. Reads recheck current source, output
+and control access, including empty and terminal results. Defaults bound consumption
+to 10,000 rows and 16 MiB of encoded manifest/page bytes. Budget stops and failures
+do not establish completion. `deinit` frees local memory without releasing the
+retained revision or retiring the computation.
+
 See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
 for supported SQL, current-policy checks and retention limits.

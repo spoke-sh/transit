@@ -155,6 +155,15 @@ def generated():
 
         transaction_definition(transaction)
         transaction_definition(lifecycle['dataflow'])
+        revision_scope = transaction['cut']['begin']['identity']['begin']['scope']
+        def revision_definition(object_id, digest):
+            return dict(object=dict(scope=copy.deepcopy(revision_scope), branch=1, object=object_id),
+                        revision=1, digest=[digest]*32)
+        lifecycle['dataflow']['revision'] = dict(
+            definition=definition, computation=revision_definition(101, 71), revision=3,
+            source=revision_definition(102, 73), source_position=dict(partition=17, next_lsn=100),
+            output=revision_definition(103, 79), schema=dict(bytes=200, sha256=[83]*32),
+            rows=4, cut=copy.deepcopy(transaction['cut']))
         transfer_destination = copy.deepcopy(transaction['log_action']['action']['append'])
         transfer_source = copy.deepcopy(transfer_destination['target'])
         transfer_destination['target']['interpretation']['object']['object'] += 1

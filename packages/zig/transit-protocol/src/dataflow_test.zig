@@ -2,6 +2,26 @@ const std = @import("std");
 const t = std.testing;
 const p = @import("root.zig");
 const f = p.Dataflow;
+
+test "retained revision binds a common decision and rejects zero revision and aliased objects" {
+    const fixture = try p.Json.parseFromSlice(p.DataLifecycle.SchemaTypes, t.allocator, @embedFile("fixtures/data-lifecycle-v1.json"));
+    defer fixture.deinit();
+    var revision = fixture.value.dataflow.revision;
+    const decision = fixture.value.transaction.observation.decided;
+    try revision.requireDecision(decision);
+    revision.revision = 0;
+    try t.expectError(error.InvalidDataflowRevision, revision.validate());
+    revision = fixture.value.dataflow.revision;
+    revision.output = revision.source;
+    try t.expectError(error.InvalidDataflowRevision, revision.validate());
+    revision = fixture.value.dataflow.revision;
+    var aborted = decision;
+    aborted.outcome = .aborted;
+    try t.expectError(error.IncompleteDataflowCoverage, revision.requireDecision(aborted));
+    var other = decision;
+    other.attempt.transaction.begin.operation -= 1;
+    try t.expectError(error.IncompleteDataflowCoverage, revision.requireDecision(other));
+}
 const d = p.DataLifecycle;
 const scope: d.Scope = .{ .realm = 1, .resource = 7, .catalog = std.math.maxInt(u64) };
 const target: d.Definition = .{ .object = .{ .scope = scope, .branch = 1, .object = std.math.maxInt(u64) }, .revision = 1, .digest = @splat(23) };
