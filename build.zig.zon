@@ -10,6 +10,7 @@
         .transit_serving_http = .{ .path = "packages/zig/transit-serving-http" },
         .transit_serving = .{ .path = "packages/zig/transit-serving" },
         .transit_station_document = .{ .path = "packages/zig/transit-station-document" },
+        .transit_document_profiles = .{ .path = "packages/zig/transit-document-profiles" },
         .transit_document = .{ .path = "packages/zig/transit-document" },
         .transit_station_grpc = .{ .path = "packages/zig/transit-station-grpc" },
         .transit_station_flight = .{ .path = "packages/zig/transit-station-flight" },

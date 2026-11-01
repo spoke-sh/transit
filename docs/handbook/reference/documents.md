@@ -18,6 +18,16 @@ also supplies bounded WAL recovery and authenticated retained revision reads wit
 cumulative byte/work budgets. It currently accepts supplied state bytes; logical
 evaluation and the installed service lifecycle remain separate integration work.
 
+The offline [Document profile library](../../../packages/zig/transit-document-profiles/README.md)
+interprets JSON and a declared UTF-8 XML subset with bounded caller-owned memory,
+ordered events and raw part offsets. Its verified reader checks grammar, byte
+count and content hash before reporting complete. Intermediate events remain
+provisional; complete interpretation does not publish a revision or authorize an
+effect. The [profile contract](../../../contracts/DOCUMENT_PROFILE_V1.md) binds
+exact grammar, limits, coverage and provenance independently of merge rules.
+Other protocol and compound-format names in that contract are vocabulary, not
+implemented parser or gateway capabilities.
+
 Start with the [Document example](../../../examples/station-document/README.md) and
 [service guide](../../../packages/zig/transit-station-document/docs/service.md).
 The [shared-notebook recipe](../guides/workload-examples.md#share-an-incident-notebook-with-zig)
