@@ -9,6 +9,58 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Partition-routed SQL Queue claims — 2026-11-01
+
+`00244c553bbbdedf7d7e85dcd3f9260275b7d801` (clean qualification helper
+`56b36f95fee321325f7b2b5cda3b0ecc25324d17`) binds SQL CLAIM to the existing
+workload token and original-result runtime. A one-partition Queue permits no
+selector; multiple partitions require one exact `_partition` equality. Catalog
+freezes the checked acquisition maximum, duration and complete projection before
+admission. It discharges that exact routing into the native target and stores no
+result predicate or output limit. Native FIFO, capacity, time and authorization
+remain authoritative. The current wire definition is unchanged. See the
+[public profile](../../handbook/reference/sql/streaming.md#acquire-queue-work).
+
+These are **component and compiler checks only**. The installed claim fixture
+has been added but has not run on this source. This record does not qualify native
+selection predicates, waits, receipt handles, SQL settlement, performance or M6
+completion. Those gates remain open.
+
+| Check | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| Catalog claim binding, ReleaseSafe (`catalog2`) | 6/6 tests | `f891f4e513eb628e02afbd859090005f070e6c41b98c8730b0fe4157e8b743bf` |
+| SQL runtime, ReleaseSafe (`sql1`) | 13/13 tests | `2b6bfa62ce0a3da382740f6806ba8ded77d6857655557aba59b3b652e5c3647b` |
+| SQL service, ReleaseSafe (`service2`) | 11/11 tests | `6bccb51fb462fb5764012f6dda9d75c6cad47cd752f157de0d8b989d4cf458dc` |
+| Dedicated diagnostic routing, ReleaseSafe (`diagnostic1`) | 23/23; dependency checks reused their passing cache | `f1dca6696689ca65be4b9fb3b501213f0f01afcc29c076ac896bb327daab12ab` |
+| Diagnostic grammar (`grammar2`) | 571 cases / 839 parser obligations | `632ebc314b694d7aeecf1c3c39aedaa97f99d5c64d198bc708473db32ce4e6ac` |
+| General grammar and public examples (`reference1`) | 174 SELECT comparisons / 32 exclusions / 42 extensions; 33 relational comparisons / 22 exclusions; 138 examples | `b2721b05d5e6f0564d8d39bfb265f900da9ea7d4444f364b0e93e26b984f81ef` |
+| Repository fast checks (`fast1`) | 60 passed | `75b1734b9a8e66bc9ef80819764784f9294d6864b0bf21f130583130d01be8c0` |
+| Documentation links (`docs2`) | 10100 links / 710 files | `82bd6f27961a134bb6ee6912caadadc400c996f7180662541207eb2efb547f1b` |
+
+The package commands used `zig build test -Doptimize=ReleaseSafe --summary all`,
+with Catalog filter `log claim Catalog` and Fuze filter `consumption diagnostics`.
+Catalog tests include ordinary ownership and resize-disabled allocation-failure
+enumeration, persisted intent restoration, complete original projection, declared
+budget/default resolution and refusals before admission. The SQL/service checks
+exercise their existing runtime and disclosure contracts; they do not themselves
+establish an installed Queue acquisition.
+
+`just test::table-dml-sql` passed 44 Table, 28 append, 24 consume and 20 claim
+independent cases in `grammar1`. The following diagnostic grammar task failed
+because the newly admitted session alternative lacked an explicit root-level
+case. Adding that case preserves all earlier cases; `grammar2` passes the full
+571-case inventory. No predicate or admission check was weakened.
+
+Logs use `/var/tmp/transit-m6-claim-activation-<name>.log`. The first inventory
+command used the wrong path and the first documentation command named a missing
+recipe; neither executed a check. Corrected commands were
+`python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_inventory.py --record`
+and `python3 -B tests/runner/docs.py`. Their failures remain distinct from passes:
+
+- `grammar1`: missing session grammar alternative; SHA-256 `c5e2bbf0a79c7f349575a829050060a7fe90bb8d8d7576c08851a52ccc5ba498`.
+- `inventory1`: wrong path; no checks executed; SHA-256 `579cfcb6f17e10827f13c93e556b0b4ff1a29c40e85f4ecb073d83c94327cd3c`.
+- `docs1`: missing recipe; no checks executed; SHA-256 `660711afd1d6e5364ef8782ef6d39843516925322850161b1af14c566fb045fe`.
+
 ## Queue acquisition preparation — 2026-11-01
 
 `0816018a75b9737e689271585bb426bd0cc608bb` adds pure `LogClaimSql.Prepared`

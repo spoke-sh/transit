@@ -1439,9 +1439,11 @@ waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 `0816018a7` adds pure Queue acquisition preparation with
 [20 independent claim cases and allocation/grammar checks](../history/qualification/query.md#queue-acquisition-preparation--2026-11-01).
-It separates the acquisition maximum from result delivery and does not enable
-SQL CLAIM or native selection predicates.
-The batch and milestone remain in progress.
+It separates the acquisition maximum from result delivery without enabling
+native selection predicates. `00244c553` subsequently admits partition-routed
+SQL CLAIM with [passing component checks](../history/qualification/query.md#partition-routed-sql-queue-claims--2026-11-01);
+its installed caller profile is pending. Payload selection, waits, receipt handles
+and SQL settlement remain open. The batch and milestone remain in progress.
 
 | Slice | Implementation | Required proof |
 | --- | --- | --- |
