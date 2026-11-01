@@ -7290,3 +7290,190 @@ test "workload intent freezes complete schema payload and operation without admi
         try t.expectError(error.CatalogDenied, c.DirectWorkloadIntent.create(t.allocator, foreign_connection, source, work));
     }
 }
+
+const WorkloadOwners = struct {
+    access: *Access,
+    stream: ?c.DirectStream.Cached = null,
+    queue: ?c.DirectQueue.Cached = null,
+    clock: QueueClock = .{},
+    steps: u16 = 256,
+    revoke_after: ?u64 = null,
+    fn deinit(self: *@This()) void {
+        if (self.stream) |*value| value.deinit();
+        if (self.queue) |*value| value.deinit();
+    }
+    fn reader(self: *@This()) c.DirectWorkloadIntent.Reader {
+        return .{ .context = self, .inspect = inspect };
+    }
+    fn inspect(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, work: c.DirectWorkloadIntent.Work) !c.DirectWorkloadIntent.Reader.Result {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        const options: s.StreamPartition.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 256, .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 } };
+        const result: c.DirectWorkloadIntent.Reader.Result = switch (work) {
+            .stream => |value| .{ .stream = try c.DirectStream.apply(scratch.allocator(), output, catalog, &self.stream, options, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = self.steps }, .{ .operation = value.work }, policy) },
+            .queue => |value| .{ .queue = try c.DirectQueue.apply(scratch.allocator(), output, catalog, &self.queue, options, .{ .clock = self.clock.source(), .recovery_steps = self.steps }, .{ .operation = value.work }, policy) },
+        };
+        if (self.revoke_after) |id| self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
+        return result;
+    }
+};
+
+test "workload token settlement requires original native evidence across lost disk replies" {
+    inline for (.{ c.DirectLog.Kind.stream, c.DirectLog.Kind.queue }) |kind| {
+        for ([_]bool{ false, true }) |cancel| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            var access: Access = .{ .exclusive = true };
+            var binding: c.DirectClientToken.Binding = undefined;
+            for (0..4) |restart| {
+                var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+                defer wal.deinit();
+                var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+                defer objects.deinit();
+                var fault: TransactionLogFault = .{ .underlying = wal.log() };
+                var catalog = try owner(&wal, &objects);
+                defer catalog.deinit();
+                catalog.data_log = fault.log();
+                // Cancellations use reserved control I/O; inject the same lost
+                // disk acknowledgement through that capability as data work.
+                catalog.store.log = fault.log();
+                var owners: WorkloadOwners = .{ .access = &access };
+                defer owners.deinit();
+                if (restart == 0) {
+                    try catalog.initialize(access.policy());
+                    const declaration_request = try logCreation(kind, 10, 1, "token-work", 1);
+                    _ = try catalog.admitLog(declaration_request, access.policy());
+                    const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
+                    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+                    var schema_bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+                    const schema = try c.DirectTableProtocol.Binary.encode(t.allocator, try declaration_request.intent.action.create.schema.encode(&schema_bytes));
+                    defer t.allocator.free(schema.base64);
+                    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+                    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+                    const work: c.DirectWorkloadIntent.Work = if (kind == .stream)
+                        .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
+                    else
+                        .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100 } }, .payload = null } };
+                    var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, .{ .declaration = definition, .schema = schema }, work);
+                    defer intent.deinit();
+                    const reference = try intent.reference(@splat(7));
+                    binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(7), .token = @splat(1) }, .fingerprint = @splat(17), .intent = .{ .workload = reference }, .budget = .{ .bytes = try reference.reservationBytes() } };
+                    var encoded: [c.DirectIntent.max_bytes]u8 = undefined;
+                    try binding.intent.requireSame(try c.DirectIntent.decode(t.allocator, try c.DirectIntent.encode(binding.intent, &encoded)));
+                    try t.expectEqual(intent.bytes.len, try binding.intent.workBytes());
+                    _ = try binding.intent.digest();
+                    try t.expectError(error.DirectRecordMissing, catalog.clientToken(.{ .bind = binding }, access.policy()));
+                    try reference.record.requireSame(try c.DirectRecord.store(objects.objectStore(), reference.record.scope, c.DirectWorkloadIntent.format, intent.bytes));
+                    var changed = binding;
+                    changed.budget.bytes -= 1;
+                    try t.expectError(error.ClientTokenBudget, catalog.clientToken(.{ .bind = changed }, access.policy()));
+                    changed = binding;
+                    changed.key.account[0] ^= 1;
+                    try t.expectError(error.InvalidClientToken, catalog.clientToken(.{ .bind = changed }, access.policy()));
+                    changed = binding;
+                    changed.intent.workload.namespace += 1;
+                    try t.expectError(error.DataIdentityConflict, catalog.clientToken(.{ .bind = changed }, access.policy()));
+                    catalog.store.lose_reply = true;
+                    try t.expectError(error.LostAcknowledgement, catalog.clientToken(.{ .bind = binding }, access.policy()));
+                    continue;
+                }
+                const receipt = (try catalog.clientToken(.{ .lookup = binding.key }, access.policy())).?;
+                try t.expectEqualDeep(binding, receipt.binding);
+                const reference = receipt.binding.intent.workload;
+                var saved = try c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), reference);
+                defer saved.deinit();
+                const work = saved.parsed.value.work;
+                const authorization = saved.parsed.value.source.declaration.properties.authorization;
+                var state = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+                var change: @FieldType(c.DirectClientToken.ProgressRequest, "update") = .{ .key = binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = null };
+                if (restart == 1) {
+                    try t.expect(state.pending);
+                    var losing = binding;
+                    losing.intent.workload.record.content.sha256[0] ^= 1;
+                    try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = losing }, access.policy())).?);
+                    try t.expectError(error.WorkloadServiceUnavailable, catalog.clientProgress(.{ .update = change }, access.policy()));
+                    try t.expectError(error.ClientOperationPending, catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader()));
+                    change.pending = true;
+                    change.cancel = true;
+                    state = (try catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader())).state.?;
+                    change.expected = state.revision;
+                    change.pending = false;
+                    try t.expectError(error.ClientOperationPending, catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader()));
+                    // Reservation fences changed native work before publication.
+                    if (kind == .stream) {
+                        var changed = work.stream.work;
+                        changed.consume.from += 1;
+                        try t.expectError(error.DataIdentityConflict, streamCall(&catalog, &access, &owners.stream, .{ .cancel = changed }, 256));
+                    } else {
+                        var changed = work.queue.work;
+                        changed.claim.maximum += 1;
+                        try t.expectError(error.DataIdentityConflict, queueCall(&catalog, &access, &owners.queue, &owners.clock, .{ .cancel = changed }, 256));
+                    }
+                    // Accepted token roots retain both frozen bytes and source.
+                    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+                    defer graph.deinit();
+                    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+                    var at: usize = 0;
+                    var steps: usize = 0;
+                    while (at < graph.jobs.items.len) : (at += 1) {
+                        var job = graph.jobs.items[at];
+                        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &job, &graph)) {
+                            steps += 1;
+                            if (steps > 10000) return error.FixtureBudget;
+                        }
+                    }
+                    var name: [96]u8 = undefined;
+                    try t.expect(graph.marks.contains(try c.DirectRecord.key(reference.record, &name)));
+                    try t.expect(graph.marks.contains(try s.LogDeclaration.key(reference.source.content, &name)));
+                    // Leave more than one data frame for the one-step recovery
+                    // negative control. Initialization itself is read by open.
+                    if (kind == .stream) {
+                        var unrelated = work.stream;
+                        unrelated.work.consume.operation.operation += 1;
+                        _ = try streamCall(&catalog, &access, &owners.stream, .{ .mutate = unrelated }, 256);
+                    } else {
+                        var unrelated = work.queue;
+                        unrelated.work.claim.operation.operation += 1;
+                        _ = try queueCall(&catalog, &access, &owners.queue, &owners.clock, .{ .mutate = unrelated }, 256);
+                    }
+                    fault.lose_reply = true;
+                    if (kind == .stream) {
+                        const request: c.DirectStream.Request = if (cancel) .{ .cancel = work.stream.work } else .{ .mutate = work.stream };
+                        try t.expectError(error.LogAppendUncertain, streamCall(&catalog, &access, &owners.stream, request, 256));
+                    } else {
+                        const request: c.DirectQueue.Request = if (cancel) .{ .cancel = work.queue.work } else .{ .mutate = work.queue };
+                        try t.expectError(error.LogAppendUncertain, queueCall(&catalog, &access, &owners.queue, &owners.clock, request, 256));
+                    }
+                    try t.expect(!fault.lose_reply);
+                } else if (restart == 2) {
+                    try t.expect(state.pending and state.cancel);
+                    owners.steps = 1;
+                    try t.expectError(error.ClientOperationPending, catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader()));
+                    owners.steps = 256;
+                    owners.revoke_after = authorization;
+                    try t.expectError(error.CatalogDenied, catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader()));
+                    owners.revoke_after = null;
+                    access.denied_privileges = null;
+                    try t.expect((try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?.pending);
+                    catalog.store.lose_reply = true;
+                    try t.expectError(error.LostAcknowledgement, catalog.clientProgressWithWorkloads(.{ .update = change }, access.policy(), owners.reader()));
+                } else {
+                    try t.expect(!state.pending and state.cancel);
+                    try t.expectEqualDeep(state, (try catalog.clientProgress(.{ .update = change }, access.policy())).state.?);
+                    const original = try WorkloadOwners.inspect(&owners, t.allocator, &catalog, access.policy(), work);
+                    if (kind == .stream) {
+                        try t.expectEqual(cancel, original.stream.operation.? == .closed);
+                        try t.expectEqualDeep(original.stream, try streamCall(&catalog, &access, &owners.stream, .{ .cancel = work.stream.work }, 256));
+                    } else {
+                        try t.expectEqual(cancel, original.queue.operation.? == .closed);
+                        try t.expectEqualDeep(original.queue, try queueCall(&catalog, &access, &owners.queue, &owners.clock, .{ .cancel = work.queue.work }, 256));
+                    }
+                    access.denied_privileges = .{ .id = authorization, .mask = c.LogAuthority.read };
+                    try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
+                    access.denied_privileges = null;
+                }
+            }
+        }
+    }
+}

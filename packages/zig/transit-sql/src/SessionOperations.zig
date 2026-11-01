@@ -107,6 +107,7 @@ pub fn reference(_: g.DatabaseAccount, source: *g.Client.Source, id: u64) !Refer
     return projection(source, try source.operation(id));
 }
 fn projection(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Reference {
+    if (state.receipt.binding.intent == .workload) return error.WorkloadOperationRequired;
     return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .kind = if (state.receipt.binding.intent == .external) (try readInitial(source, state)).begin.kind else if (state.receipt.binding.intent == .transaction_call) .transaction else .table };
 }
 pub fn lookup(_: g.DatabaseAccount, source: *g.Client.Source, nonce: [16]u8, fingerprint: ?[32]u8) !?Reference {
@@ -155,7 +156,7 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
         const page = try c.DirectClientToken.list(source.client.table(binding), execution.configuration.account, after_id, pending);
         if (page.next) |next| through = if (through) |previous| @min(previous, next) else next;
         for (page.entries) |slot| if (slot) |state| {
-            if (state.receipt.binding.intent == .branch) continue;
+            if (state.receipt.binding.intent == .branch or state.receipt.binding.intent == .workload) continue;
             if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
             for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
                 states[count] = state;

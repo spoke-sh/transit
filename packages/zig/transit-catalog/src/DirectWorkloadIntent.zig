@@ -54,6 +54,36 @@ pub const Work = union(enum) {
     }
 };
 
+/// Request-local bridge to the host's existing bounded native owners. It must
+/// inspect the original work under current policy, never dispatch a mutation.
+/// The reader owns no independent receipt cache, recovery loop or authority.
+pub const Reader = struct {
+    pub const Result = union(enum) { stream: c.DirectStream.Result, queue: c.DirectQueue.Result };
+    context: *anyopaque,
+    inspect: *const fn (*anyopaque, std.mem.Allocator, *c.DirectCatalog, c.DirectCatalog.Policy, Work) anyerror!Result,
+
+    pub fn requireTerminal(self: Reader, allocator: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, expected: Reference) !void {
+        var intent = try load(allocator, catalog.data_objects, expected);
+        defer intent.deinit();
+        const work = intent.parsed.value.work;
+        const observed = try self.inspect(self.context, allocator, catalog, policy, work);
+        switch (observed) {
+            .stream => |result| {
+                defer result.deinit(allocator);
+                if (work != .stream) return error.InvalidWorkloadIntent;
+                try c.DirectStreamResponse.validate(allocator, expected.connection, .{ .operation = work.stream.work }, result);
+                if (result == .recovering or result.operation == null) return error.ClientOperationPending;
+            },
+            .queue => |result| {
+                defer result.deinit(allocator);
+                if (work != .queue) return error.InvalidWorkloadIntent;
+                try c.DirectQueueResponse.validate(allocator, expected.connection, .{ .operation = work.queue.work }, result);
+                if (result == .recovering or result.operation == null) return error.ClientOperationPending;
+            },
+        }
+    }
+};
+
 pub const Saved = struct {
     definition: p.Growth.Definition,
     connection: w.Connection,
@@ -104,6 +134,12 @@ pub const Reference = struct {
             self.binding.target().partition >= self.source.declaration.configuration.partitioning.count or
             !std.mem.eql(u8, @tagName(self.binding), @tagName(self.source.declaration.configuration.policy)) or
             self.record.format != format or !std.meta.eql(self.connection, self.record.scope.connection)) return error.InvalidWorkloadIntent;
+    }
+    /// Logical retained-work reservation: complete body, bounded reference and
+    /// token bookkeeping. Native payload/result storage has its own quotas.
+    pub fn reservationBytes(self: Reference) !u64 {
+        try self.validate();
+        return std.math.add(u64, self.record.content.bytes, c.DirectIntent.max_bytes + 512);
     }
     pub fn requireSame(self: Reference, other: Reference) !void {
         try self.validate();
@@ -187,4 +223,32 @@ pub fn load(allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectSt
     errdefer intent.deinit();
     try expected.requireSame(try intent.reference(expected.record.scope.account));
     return intent;
+}
+
+test "workload token verifies independent signed references and exact commitments" {
+    const t = std.testing;
+    const Fixture = struct { request: w.Request, public_key: [32]u8, digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice([2]Fixture, t.allocator, @embedFile("fixtures/direct-workload-token-v1.json"));
+    defer parsed.deinit();
+    for (parsed.value) |fixture| {
+        try fixture.request.validate(t.allocator);
+        try fixture.request.proof.verify(fixture.public_key);
+        const selected = fixture.request.action.client_token.bind.intent;
+        try t.expectEqualSlices(u8, &fixture.digest, &try selected.digest());
+        var changed = fixture.request;
+        changed.action.client_token.bind.intent.workload.namespace += 1;
+        try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+        changed = fixture.request;
+        changed.action.client_token.bind.key.account[0] ^= 1;
+        try t.expectError(error.InvalidClientToken, changed.action.client_token.bind.validate());
+        changed = fixture.request;
+        changed.action.client_token.bind.budget.bytes -= 1;
+        try t.expectError(error.ClientTokenBudget, changed.action.client_token.bind.validate());
+        var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+        defer transport.deinit();
+        const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = .{ .scope = fixture.request.connection.scope, .branch = 2, .audience = fixture.request.connection.audience, .principal = fixture.request.connection.principal, .role = null }, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1)) };
+        try t.expectError(error.CatalogIdentityConflict, selected.admit(caller));
+        try t.expectError(error.CatalogIdentityConflict, selected.operation(caller, .inspect, 1));
+        try t.expectError(error.CatalogIdentityConflict, selected.operation(caller, .cancel, 1));
+    }
 }

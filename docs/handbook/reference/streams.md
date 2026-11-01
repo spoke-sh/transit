@@ -52,6 +52,18 @@ profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
+Database callers can also save complete workload intents with
+`DirectWorkloadIntent` and bind them through `DirectClientToken`. The saved body
+includes the exact definition/schema, native request and payload, within a 4 MiB
+canonical JSON bound including encoding overhead. Token acceptance reserves the
+original operation identity and retains the body; it does not execute it.
+Recovery loads the accepted reference and calls the same native operation owner.
+Pending bookkeeping can settle only after that owner returns a matching success
+or durable closure. Missing receipts, bounded recovery and a cancellation request
+remain distinct from completion. Current operation rights are required for token
+lookup and settlement as well as execution. SQL workload syntax and result
+reopening are not enabled by this typed caller support.
+
 ## Cancelling original workload operations
 
 Native Stream and Queue `cancel` requests use the exact saved mutation and its

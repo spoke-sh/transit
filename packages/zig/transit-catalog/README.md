@@ -55,8 +55,13 @@ validates encoded rows and routing against that frozen definition and uses the
 existing account-scoped `DirectRecord` store. The complete JSON body, including
 base64 schema/payload, must fit its 4 MiB bound. Its typed reference can inspect,
 execute or cancel that saved native operation; staging creates neither an
-operation reservation nor acceptance. Workload references are not yet selectable
-by `DirectClientToken` or SQL result recovery.
+operation reservation nor acceptance. `DirectClientToken` can select the complete
+reference under current original-operation rights and reserves its native global
+identity. Use `Reference.reservationBytes()` for the minimum retained-work byte
+reservation. Clearing pending requires a matching terminal receipt from the host's
+normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
+cancel flag supply no completion. SQL result recovery is not wired to this owner
+yet. Catalog storage traversal verifies the body and retains its source declaration.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

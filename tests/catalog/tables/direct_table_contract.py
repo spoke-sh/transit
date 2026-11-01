@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad"
+definition = "befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -538,6 +538,49 @@ for field in ("connection", "namespace", "kind", "binding", "record"):
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.json",
         (json.dumps({"request": log_token_request, "public_key": public_key, "bytes": {"base64": base64.b64encode(saved_log_bytes).decode()},
                      "digest": list(log_reference_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Independent workload reference/signature vectors. These descriptors exercise
+# commitment and envelope validation, not stored-body existence or admission;
+# disk owner tests stage and reconstruct actual schema-bound workload bytes.
+saved_workload_shape = schema
+for segment in schema["$defs"]["SavedWorkloadIntent"]["$ref"].split("/")[1:]:
+    saved_workload_shape = saved_workload_shape[segment]
+assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work"}
+workload_vectors = []
+for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+    policy = ({"compact_key_column": None, "timestamp_column": None} if workload_kind == "stream" else
+              {"ordering": "unordered", "key_column": None, "lease_ms": 1000, "maximum_lease_ms": 10000,
+               "maximum_attempts": 5, "backoff": {"initial_ms": 1, "maximum_ms": 100, "multiplier": 2}, "dead_letter": None})
+    declared = {"definition": definition, "interpretation": source_definition,
+                "schema": {"bytes": 128, "sha256": [29] * 32},
+                "configuration": {"partitioning": {"count": 2, "key_column": None, "hash": "sha256_64"},
+                                  "retention": {"max_age_ms": None}, "policy": {workload_kind: policy}},
+                "limits": {"append_rows": 128, "append_bytes": 1048576, "claim_rows": 16, "read_rows": 256,
+                           "read_bytes": 1048576, "active_leases": 64, "waiters": 64, "timer_steps": 64}}
+    workload_reference = {"connection": request_input["connection"], "namespace": 1,
+                          "binding": fixture_value["closed"]["binding"],
+                          "source": {"declaration": declared, "content": {"bytes": 1024, "sha256": source_definition["digest"]}, "retired": False},
+                          "record": {"scope": {field: token_key[field] for field in ("definition", "connection", "account")}, "format": 0x574c4931,
+                                     "content": {"bytes": 2048, "sha256": [31] * 32}}}
+    workload_intent = {"workload": workload_reference}
+    workload_reference_digest = hashlib.sha256(b"transit.catalog.workload.binding.v1\0" + b"GIR1" + bytes.fromhex(definition) + canonical(workload_intent)).digest()
+    workload_token_input = {**request_input, "action": {"client_token": {"bind": {**token_binding, "intent": workload_intent, "budget": {**token_binding["budget"], "bytes": 2048 + 4096 + 512}}}}}
+    workload_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(workload_token_input)).digest())}
+    with tempfile.TemporaryDirectory(prefix="transit-workload-token-contract-") as directory:
+        signing_key = Key(Path(directory), "public-test-key", 9)
+        workload_request = {**workload_token_input, "proof": {"claim": workload_claim,
+            "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(workload_claim)).digest())}}
+    validator.validate(workload_request)
+    for field in ("connection", "namespace", "binding", "source", "record"):
+        invalid = copy.deepcopy(workload_request)
+        del invalid["action"]["client_token"]["bind"]["intent"]["workload"][field]
+        assert not validator.is_valid(invalid), field
+    invalid = copy.deepcopy(workload_request)
+    invalid["action"]["client_token"]["bind"]["intent"]["workload"]["binding"][workload_kind]["definition"] = "0" * 64
+    assert not validator.is_valid(invalid)
+    workload_vectors.append({"request": workload_request, "public_key": public_key, "digest": list(workload_reference_digest)})
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-token-v1.json",
+        (json.dumps(workload_vectors, ensure_ascii=False, indent=2) + "\n").encode())
 
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.

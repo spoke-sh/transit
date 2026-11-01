@@ -4546,7 +4546,8 @@
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2,
         "UnsupportedTransactionParticipant": 3,
-        "UnsupportedTransactionRead": 1
+        "UnsupportedTransactionRead": 1,
+        "WorkloadServiceUnavailable": 1
       },
       "outcomes": {
         "CurrentRead.selection": [
@@ -4631,6 +4632,7 @@
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
         "clientProgress()": "<inferred>",
+        "clientProgressWithWorkloads()": "<inferred>",
         "clientToken()": "<inferred>",
         "clientTokenSelected()": "<inferred>",
         "createBranch()": "<inferred>",
@@ -4817,7 +4819,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1691,
+        "try": 1697,
         "catch": 25
       },
       "imports": [
@@ -5357,12 +5359,12 @@
     "packages/zig/transit-catalog/src/DirectClientToken.zig": {
       "errors": {
         "ClientBudgetConflict": 1,
-        "ClientTokenBudget": 1,
+        "ClientTokenBudget": 2,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 2,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 13,
+        "InvalidClientToken": 14,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
       },
@@ -5412,7 +5414,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 45,
         "catch": 0
       },
       "imports": [
@@ -5509,6 +5511,7 @@
           "external",
           "table",
           "log",
+          "workload",
           "name_assertion",
           "namespace_change"
         ]
@@ -5531,7 +5534,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -6507,6 +6510,7 @@
           "branch",
           "transaction",
           "queue_transfer_plan",
+          "workload_intent",
           "transaction_walk",
           "transaction_intent",
           "transaction_log_intent",
@@ -6584,7 +6588,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 502,
+        "try": 507,
         "catch": 1
       },
       "imports": [
@@ -6912,8 +6916,8 @@
         "InvalidCatalogCursor": 6,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
-        "QueueServiceUnavailable": 1,
-        "StreamServiceUnavailable": 1,
+        "QueueServiceUnavailable": 2,
+        "StreamServiceUnavailable": 2,
         "TableDelegationDenied": 1,
         "UnsupportedTableAction": 2
       },
@@ -6931,12 +6935,13 @@
         "branch()": "<inferred>",
         "encodeDefinition()": "<inferred>",
         "historySource()": "<inferred>",
+        "inspectWorkload()": "<inferred>",
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 214,
+        "try": 216,
         "catch": 0
       },
       "imports": [
@@ -7974,12 +7979,17 @@
       "errors": {
         "CatalogIdentityConflict": 2,
         "CatalogRecordTooLarge": 1,
+        "ClientOperationPending": 2,
         "DataIdentityConflict": 1,
         "IncompatibleDefinition": 1,
-        "InvalidWorkloadIntent": 4,
+        "InvalidWorkloadIntent": 6,
         "WriteFailed": 1
       },
       "outcomes": {
+        "Reader.Result": [
+          "stream",
+          "queue"
+        ],
         "Reference.operation().command": [
           "inspect",
           "execute",
@@ -7992,8 +8002,11 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Reader.inspect()": "anyerror",
+        "Reader.requireTerminal()": "<inferred>",
         "Reference.operation()": "<inferred>",
         "Reference.requireSame()": "<inferred>",
+        "Reference.reservationBytes()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "Saved.validate()": "<inferred>",
         "Work.binding()": "<inferred>",
@@ -8004,9 +8017,9 @@
         "restore()": "<inferred>",
         "stage()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 39,
+        "try": 44,
         "catch": 1
       },
       "imports": [
@@ -9135,7 +9148,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -20556,7 +20569,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad\""
+          "befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd"
         ],
         "Effect.phase": [
           "pending",
@@ -29769,7 +29782,8 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 4,
-        "Timeout": 1
+        "Timeout": 1,
+        "WorkloadOperationRequired": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -29825,7 +29839,8 @@
         "BranchOperationRequired": 1,
         "ExternalOperationOwnerRequired": 1,
         "InvalidLogIntent": 1,
-        "TransactionOperationRequired": 1
+        "TransactionOperationRequired": 1,
+        "WorkloadOperationRequired": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -30038,7 +30053,8 @@
       "errors": {
         "GatewayIdentityConflict": 2,
         "GatewayUnresolvedStep": 1,
-        "InvalidSqlOperationReference": 8
+        "InvalidSqlOperationReference": 8,
+        "WorkloadOperationRequired": 1
       },
       "outcomes": {
         "External.phase": [
@@ -30156,7 +30172,8 @@
         "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
         "InvalidGatewayTerminal": 20,
-        "TransactionOperationRequired": 1
+        "TransactionOperationRequired": 1,
+        "WorkloadOperationRequired": 1
       },
       "outcomes": {
         "kind": [

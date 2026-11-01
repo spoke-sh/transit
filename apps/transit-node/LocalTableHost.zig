@@ -258,6 +258,12 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
         if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
+        // A terminal probe can advance a bounded native replay without reaching
+        // its receipt. No publication was attempted: retain that verified owner
+        // so the next probe continues instead of replaying the same prefix.
+        if (err == error.ClientOperationPending and request.action == .client_progress and
+            request.action.client_progress == .update and !request.action.client_progress.update.pending)
+            discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;

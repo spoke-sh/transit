@@ -1348,6 +1348,13 @@ fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectInt
             const request = try intent.parsed.value.work.request(allocator);
             break :blk try self.logGuard(allocator, request, policy, true, true);
         },
+        .workload => |value| blk: {
+            var intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, value);
+            defer intent.deinit();
+            const work = intent.parsed.value.work;
+            const authorized = try self.logAuthorization(allocator, if (work == .stream) .stream else .queue, work.target(), work.access(), policy);
+            break :blk authorized.guard;
+        },
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
         .name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
     };
@@ -1466,6 +1473,15 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             try check(current);
             try c.OperationBinding.claimInTree(self.allocator, &self.store.index, value.binding);
         },
+        .workload => |value| {
+            // The frozen body was verified by intentGuard. Native mutation and
+            // cancellation routes consult this same global identity owner.
+            try check(current);
+            switch (value.binding) {
+                .stream => |original_binding| try c.OperationBinding.claimStream(self.allocator, self.data_objects, original_binding),
+                .queue => |original_binding| try c.OperationBinding.claimQueue(self.allocator, self.data_objects, original_binding),
+            }
+        },
         .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),
     }
     var next = self.store.root;
@@ -1482,6 +1498,12 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
 /// Paged recovery metadata never substitutes for the operation owner's result.
 /// CAS updates and immutable payloads preserve exact retries across lost replies.
 pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy) !c.DirectClientToken.ProgressResult {
+    return self.clientProgressWithWorkloads(request, policy, null);
+}
+/// Workload completion uses the host's normal partition owner and its bounded
+/// recovery gates. Caller records, pending flags and missing receipts cannot
+/// establish a terminal operation outcome.
+pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) !c.DirectClientToken.ProgressResult {
     try self.requireInitialized();
     try request.validate();
     const scope = request.scope();
@@ -1518,7 +1540,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
-    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy);
+    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
     if (value.record) |reference| {
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
@@ -1538,7 +1560,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     try check(current);
     return .{ .state = state };
 }
-fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
+fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) anyerror!void {
     switch (reference) {
         .branch => return error.BranchOperationRequired,
         .transaction => return error.ClientOperationPending,
@@ -1560,6 +1582,10 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
         .log => |value| switch (try self.logOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
             .operation => |operation| if (operation.pending()) return error.ClientOperationPending,
+        },
+        .workload => |value| {
+            const reader = workloads orelse return error.WorkloadServiceUnavailable;
+            try reader.requireTerminal(self.allocator, self, policy, value);
         },
         .namespace_change => |value| switch (try self.namespaceOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,

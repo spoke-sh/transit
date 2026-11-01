@@ -92,6 +92,7 @@ pub const Work = union(enum) {
     branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     queue_transfer_plan: c.DirectClientToken.Progress,
+    workload_intent: c.DirectWorkloadIntent.Reference,
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
     transaction_log_intent: c.DirectTransactionLogWork.Request,
@@ -396,7 +397,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .workload_intent, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -406,6 +407,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
             if (record.action == .log) try workspace.enqueue(.{ .log_operation = .{ .configuration = record.root.configuration, .operation = record.action.log } });
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .workload)
+                try workspace.enqueue(.{ .workload_intent = record.action.client_token.receipt.binding.intent.workload });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .branch and !record.action.client_token.pending and !record.action.client_token.cancel)
                 try workspace.enqueue(.{ .branch = .{ .root = record.root, .progress = record.action.client_token } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
@@ -688,6 +691,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             defer intent.deinit();
             try value.operation.binding.requireSame(intent.value.binding);
             try markContent(workspace, try Intent.key(value.operation.intent, &key_buffer), value.operation.intent);
+        },
+        .workload_intent => |value| {
+            var intent = try c.DirectWorkloadIntent.load(allocator, index.store, value);
+            defer intent.deinit();
+            var name: [96]u8 = undefined;
+            try markContent(workspace, try c.DirectRecord.key(value.record, &name), value.record.content);
+            try workspace.enqueue(.{ .log_declaration = value.source });
         },
         .log_operation => |value| {
             const LogIntent = c.DirectLog.IntentStore;

@@ -1854,6 +1854,10 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionParticipant).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTransfer).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidLogIntent).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidWorkloadIntent).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.ClientTokenBudget).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.WorkloadServiceUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.ClientOperationPending).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionSettlement).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidKVKey).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.KVBuildBudget).code);

@@ -359,7 +359,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     try self.checkFence(source.client);
     if (!state.pending) return false;
     const reference = state.receipt.binding.intent;
-    if (reference == .external or reference == .branch) return false;
+    if (reference == .external or reference == .branch or reference == .workload) return false;
     const caller = source.direct(state);
     if (reference == .transaction_call) {
         return transactionPending(try g.TransactionWork.advance(caller, state, state.cancel));
@@ -398,6 +398,7 @@ pub fn cancel(self: *Self, observer: *g.Client, id: u64) !void {
     try self.fence(observer);
     var source = try observer.source();
     const state = try source.operation(id);
+    if (state.receipt.binding.intent == .workload) return error.WorkloadOperationRequired;
     defer if (state.receipt.binding.intent == .external) self.notifyExternal() else self.notify();
     if (state.receipt.binding.intent == .transaction_call) {
         _ = try g.TransactionWork.advance(source.direct(state), state, true);

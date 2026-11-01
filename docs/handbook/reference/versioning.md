@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad`.
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -124,6 +124,14 @@ Native cancellation, mutation, wait and lookup share that identity. Earlier
 receipt shapes and stored definitions reject before execution; no missing
 closure field or old success-only profile is inferred. Generated consumers and
 independent signing fixtures use the same current definition.
+
+Caller tokens can also select a mandatory complete workload reference: its exact
+source declaration, canonical native binding and account-scoped saved body.
+Settlement verifies the original partition-owned terminal outcome through the
+normal recovery and current-authorization gates. Catalog storage traversal roots
+accepted workload bodies and source declarations. These stored token and graph
+variants require the same current definition; no older artifact gains them by
+default.
 
 Transaction references also require an explicit purpose. Protected exhausted-Queue
 transfers retain their original paired request and use the ordinary workspace,

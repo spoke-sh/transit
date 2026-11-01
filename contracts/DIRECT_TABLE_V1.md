@@ -320,8 +320,8 @@ independent Catalog `revision`, `pending`, sticky `cancel` and optional immutabl
 record reference. `update` compares the expected revision. An exact repeated
 update returns its existing state, including after a lost reply. A stale changed
 update conflicts; settled work cannot become pending and cancellation cannot be
-cleared. Table, name and namespace settlement requires an actual terminal owner
-observation. External bookkeeping is not evidence of external completion.
+cleared. Table, log declaration, workload, name and namespace settlement requires
+an actual terminal owner observation. External bookkeeping is not evidence of external completion.
 
 `Binding.budget` declares account limits for operations, retained recovery bytes
 and pending operations, plus this operation's byte reservation. Defaults are
@@ -349,9 +349,27 @@ noncanonical bytes and missing/foreign definitions; it never resolves a new name
 Its reference binds connection, namespace, canonical workload binding, original
 stored declaration and the account-scoped record. The shared helper loads that
 body before inspect/execute/cancel and checks the complete reference again.
-This preparation format is not yet a `DirectIntent.Reference` variant: client
-token acceptance, pending reconciliation and SQL result reopening do not yet
-select it. Native workload execution continues through the existing owners.
+`DirectIntent.Reference.workload` selects this body under a caller token. Binding
+verifies the account and current original-operation rights, then reserves the
+same global Stream/Queue operation identity used by native mutation and cancel.
+It does not execute the work. Exact token retries return the first accepted
+reference before loading a competing proposal; a changed fingerprint conflicts.
+Catalog history retains the accepted body and original declaration. Its byte
+reservation must cover the body plus 4096 bytes for the bounded reference and
+512 bytes of token bookkeeping; `Reference.reservationBytes()` supplies that
+minimum. Under-reservation rejects before acceptance. Native payload and retained
+result storage remain subject to their separate owner quotas.
+
+Clearing workload `pending` requires the normal host-owned partition reader to
+return a matching success or durable closure for the original request. Bounded
+recovery and absent receipts leave it pending. Unavailable native owners and
+storage/authorization failures cannot supply completion. The service rechecks
+current rights after buffering the outcome and at Catalog publication. A sticky
+cancellation flag records caller intent only; it neither closes a workload nor
+rolls back an accepted mutation. Native cancellation uses the saved request.
+An exact repeated settled update returns the retained bookkeeping state without
+re-executing the operation. SQL workload syntax and result reopening remain
+separate, unfinished consumers of this shared owner.
 
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host
