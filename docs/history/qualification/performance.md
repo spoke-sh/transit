@@ -9,6 +9,62 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed Station handler baseline — 2026-11-01
+
+The [handler workload](../../../tests/performance/load/station_turn.md) passed
+on clean source `6c4e101162238981107b518262ea616f24746c56`, shared definition
+`88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`.
+One real GenServer handles one input, checks and replaces one 128-byte state
+value, and publishes one outbound cast intent. Three warmup turns precede
+20 measured turns. All 23 inputs, state observations and original outbox entries
+pass the independent oracle; the final state and all 23 outputs pass again after
+a SIGTERM node stop and fresh node/caller start. Both stops exit through SIGTERM
+without fallback SIGKILL. No recipient or courier runs.
+
+| Observation | Result |
+| --- | ---: |
+| Confirmed measured turns / refused / failed / unknown | 20 / 0 / 0 / 0 |
+| Turn latency p50 / p95 | 440.153 / 607.804 ms |
+| Turn latency minimum / maximum | 351.472 / 834.707 ms |
+| Measured client allocation attempts / successes | 757 / 757 |
+| Measured client remap attempts / successes | 940 / 910 |
+| Measured client requested / acquired backing bytes | 286,565 / 274,280 |
+| Node lifetime peak resident bytes during measurement | 57,102,336 |
+| Node read / write byte deltas over the whole measure phase | 4,096 / 9,777,152 |
+
+The timer includes preparing each accepted input, public permit/view/commit work,
+the handler, and writing private pending/receipt files. Input admission and
+verification are outside individual turn timing. Allocator counters cover the
+public native client/HTTP transport and exclude the private recorder. Whole-phase
+node counters also include provisioning, warmup and verification. p99, server
+allocator counts, CPU cycles, storage IOPS and client RSS remain unmeasured.
+These samples establish a comparison workload, not an absolute Station target
+or a zero-allocation result.
+
+The run used the pinned Zig `0.17.0-dev.2267+48abf1a34` ReleaseSafe toolchain,
+native local disk storage, one resident page and one sequential worker, with
+unchanged 10-second request and 30-second read-view budgets. The shared Linux
+6.17.0-41 x86_64 host exposes 48 logical CPUs; starting load averages were
+33.427 / 29.693 / 22.687. No agent-owned heavy build or other proof overlapped
+this run; unrelated host work and the OS page cache were uncontrolled.
+
+```sh
+just test::station-turn-baseline \
+  --output .cache/performance/station-baseline-1 --warmup 3 --repeat 20
+```
+
+The ignored report at `.cache/performance/station-baseline-1/report.json` has
+SHA-256 `a1b1f0d909675876a959a380987afa7d485122a601403206f461fba21556291a`.
+It retains source/toolchain, machine, raw samples and executable/driver identities.
+Node/caller SHA-256 values are respectively
+`5e2ca111fe780859e9062490f184ecef72dc6ce5de723caa5835cc5eb47fabdf` and
+`dabe217b25fe72e45754b63117ddc29f486b36f20ac0e6a8f5ecc5c40d90335a`.
+The first correctness run at `6720aaa43` completed two handler turns but failed
+serializing its report's caller path; `.cache/performance/station-smoke-1/` and
+its private installation remain retained. The corrected two-turn run at
+`6c4e10116` completed both measurement and restart verification before this
+20-sample run. Neither failed nor small-sample runs contribute to these timings.
+
 ## Executable hashing and installed SDK measurement — 2026-11-01
 
 The [startup owner](../../../apps/transit-cli/docs/server.md#logging-and-readiness)
@@ -220,6 +276,7 @@ prefixes and separate Node pass do **not** establish one complete integrated
 four-language campaign or a new performance scorecard. That gate remains open.
 `integration-evidence-index.json` records the integrated run/log hashes and has
 SHA-256 `6b80f27201e6cbcc31e94d54ad22e8e6cda8e1f24cba622586f8deb01cc1f466`.
+
 
 ## Installed startup publication reduction — 2026-10-31
 
