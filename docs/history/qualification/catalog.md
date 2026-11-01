@@ -126,6 +126,62 @@ This successor changes documentation only; the runtime source remains
 The formal, launcher, relational/connector interface and individual SDK language
 lanes were not run. These selected attempts do not establish complete CI or
 milestone qualification.
+## Stream/Queue declaration tokens — 2026-10-31
+
+Implementation `f0eed6628` adds immutable declaration bodies to database-owned
+caller tokens, replacing the definition with
+`ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655`.
+The [caller-token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+owns the exact scope. Token acceptance retains original Stream/Queue work;
+partition initialization and terminal settlement remain with the existing
+declaration owner. Commit `39a0e7f5e` also projects the owner's distinct admission
+response as pending SQL work rather than an invalid terminal result.
+
+The ReleaseSafe component run passes **210/210 Catalog**, **10/10 SQL**,
+**24/24 SQL results**, **22/22 SQL protocol**, **13/13 PostgreSQL** and
+**10/10 SQL service tests**, followed by **58 fast checks**, **19 contract
+checks** and the full handbook check. A final **14/14 Catalog** selection covers
+the integrated transaction buffer fix and the last route-mismatch assertions.
+The corrected SQL admission projection separately passes **10/10 tests**.
+These are workspace checks, not clean dependent lanes. Local outputs:
+
+| Output | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-intent-checks1.log` | `3e03aaa290cf58ebe8326dcacebadffaf659669288559b29eeba69a6b55cfe97` |
+| `/var/tmp/transit-m6-log-intent-integrated-catalog.log` | `96e5f3bc2252aa0a404cf2124b8d8375a1d58f10422b0081391acbfc57fec562` |
+| `/var/tmp/transit-m6-log-admission-terminal.log` | `0064aaf15715816241ea8486aa3127e451467e799956acb8c62a85b91cdfbefc` |
+
+At clean caller revision `41b9efa4287e4a1418a18c1b20e99ecf4e50d014`, the
+installed declaration schedule passes **31 signed requests**. It loses the
+Queue token-binding reply, kills and restarts the node, recovers the exact
+token while declaration admission is still absent, then loses the declaration
+admission reply and repeats the process death. Both Stream and Queue preserve
+their saved immutable bindings, complete two-partition publication and settle
+only after their original terminal observations. Native commands after setup
+are limited to authorization. No Station turn admits these declarations.
+
+The node was built from the parent declaration branch with matching native
+production sources and definition; the caller contains the added proof. Node
+SHA-256 is `1fe311f06b18605ef55e142ba0cbbe1d4d511eae2221c2bd3eab23e9487c00d9`,
+caller SHA-256 is `d8167fc2871a7cc3016a881b16faa8a5928c88e761bfcba1d0711e68a5bb7d95`.
+`/var/tmp/transit-m6-log-token-installed.log` has SHA-256
+`c0db08d85de5201ba5bd64a9dc8b844d5f317b2f02c31aab8a8e583879d1aa20`.
+With these same binaries and definition, installed Queue transfer (30 requests),
+mixed Table/KV/Stream/Queue (85) and Table/KV (33) recovery schedules also pass,
+each retaining original identities through two lost replies and two node restarts:
+
+| Output | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-current-log-queue-transfer.log` | `8bae319ce71f12a902024de07a7984f5e48867778eafca0d8c716481e91413cb` |
+| `/var/tmp/transit-m6-current-log-mixed-transaction.log` | `c7f3917db971de38399cf809f8e84009a41f63359dc056792378e459c200e951` |
+| `/var/tmp/transit-m6-current-log-state-transaction.log` | `cd193334e2fe534b029247dcc6d7a06e94746efd9fca350dcb5375ed229f9ae3` |
+
+An earlier fast run failed because the diagnostic inventory retained the
+pre-format spelling of the new definition identifier; the reviewed inventory
+was regenerated and the subsequent checks above pass. These results do not
+establish executable declaration SQL, automatic DLQ scheduling, Station
+composition, clean-lane qualification or a performance baseline.
+
 ## Direct Table/KV transaction composition — 2026-10-31
 
 Implementation `4771f5698a9c960e83b26f6bac996e004548b2bd` extends explicit
