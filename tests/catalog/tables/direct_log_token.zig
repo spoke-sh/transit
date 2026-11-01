@@ -339,7 +339,7 @@ pub fn openResults(init: std.process.Init, client: c.DirectTableClient, path: []
         defer response.deinit();
         const page = response.value.result.workload_result.page;
         try checkResultPage(init, client, page.page, 0, if (index < 4) 2 else 0, index >= 4, false);
-        deliveries.values[index] = .{ .reference = page.reference, .position = page.position, .rows = page.reference.limits.rows };
+        deliveries.values[index] = .{ .reference = page.reference, .position = page.position };
     }
     try saveResultValue(init, try std.fmt.allocPrint(init.arena.allocator(), "{s}.positions", .{path}), deliveries);
 }
