@@ -21,7 +21,7 @@ fn bind(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []con
     defer statement.deinit();
     var work = try statement.bindWrite(allocator, &client, &.{}, operation);
     defer work.deinit();
-    const reference = try work.stage(client, 1);
+    const reference = try work.stage(client, 1, @splat(0x48));
     var bytes: [sql.IntentReference.max_bytes]u8 = undefined;
     return sql.IntentReference.decode(allocator, try sql.IntentReference.encode(reference, &bytes));
 }
