@@ -534,10 +534,15 @@ path is removed; Documents retain that separate owner. Focused storage, signed
 dispatch, bounded-memory and cross-kind dependency checks pass. Installed
 current-definition KV recovery passes; clean qualification remains open. Table/KV
 transaction components now share private workspaces, current rights and one
-decision, with disk replacement and lost-reply tests. Installed qualification of
-that extension is pending. The common state/append/settlement decision, including
-atomic DLQ transfer, is outstanding. R6's dedicated SQL/shared
-caller/finite analytical surfaces, R0 model correspondence and final integrated
+decision, with disk replacement and lost-reply tests. Native transactions now
+compose Table/KV state, Stream append/offset, Queue enqueue/ACK and explicit
+paired Queue terminal transfers. Installed state, mixed and transfer recovery
+schedules pass at one definition, including two lost replies and node restarts
+per schedule; see [declaration/token and current-definition evidence](../history/qualification/catalog.md#streamqueue-declaration-tokens--2026-10-31)
+and [bounded transfer evaluation](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation).
+The complete preparation/decision/finalization fault matrix and automatic DLQ
+scheduling remain open. R6's dedicated SQL/shared caller/finite analytical
+surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
 
@@ -725,8 +730,11 @@ physical maintenance.
 
 The payload, claim, settlement, timer, affinity and retention owners described
 below are implemented. Bounded public claim waits now use those owners through
-the signed Queue caller and shared native wait admission. The next functional
-work is atomic DLQ transfer; the remaining exit work is integrated evidence.
+the signed Queue caller and shared native wait admission. Explicit paired DLQ
+transfers now use the common transaction owner and pass installed recovery.
+The next functional work is automatic blocked-item scheduling with durable
+attempt identities and current source/destination authority; the remaining exit
+work includes the full integrated fault and resource evidence.
 
 Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
 The Queue owns its internal payload log; reusing storage must not expose a Stream
