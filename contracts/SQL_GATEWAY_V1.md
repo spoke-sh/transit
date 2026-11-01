@@ -127,10 +127,14 @@ Positional `CONSUME` also requires mutation admission and opens its original
 accepted read. PostgreSQL emits `CONSUME n` after verified logical completion,
 including an explicit LIMIT that leaves native coverage partial; MySQL uses
 ordinary row-result completion. The count is returned rows, not offsets scanned.
+Partition-routed `CLAIM ... WITH LEASE` uses the same mutation admission and
+original-result lifetime. PostgreSQL emits `CLAIM n` after every originally
+acquired row is delivered. The acquisition maximum never becomes an output
+filter or limit; refetching does not renew or reacquire leases.
 Commands without RETURNING report the native receipt's accepted row count.
 PostgreSQL carries that count in the custom command tag. Upstream libpq's
 `PQcmdTuples` recognizes a fixed set of PostgreSQL tags and returns no count for
-`PRODUCE`, `ENQUEUE` or `CONSUME`; clients must inspect the command tag instead. MySQL
+`PRODUCE`, `ENQUEUE`, `CONSUME` or `CLAIM`; clients must inspect the command tag instead. MySQL
 commands without RETURNING carry the count in the affected-rows field.
 The host owns a separate original-result descriptor until reader close, so
 reusing a prepared SQL template cannot replace the result's frozen projection.

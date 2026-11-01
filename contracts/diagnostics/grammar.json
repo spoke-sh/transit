@@ -7348,6 +7348,18 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "log-claim-session-root",
+      "sql": "CLAIM id FROM items WHERE _partition = $1 LIMIT $2 WITH LEASE $3",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
     }
   ]
 }

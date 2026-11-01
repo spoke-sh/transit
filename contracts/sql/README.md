@@ -131,9 +131,12 @@ milliseconds for waits. Native policy enforcement is still required. NULL operan
 
 The predicate must run before lease acquisition, preserving Queue ordering and
 the exact accepted selection. This compiler is not a native selector or a
-post-filter for original claim results. The shared SQL service does not admit
-CLAIM, and this preparation profile does not bind receipt handles, ACK, NACK or
-lease extension. The [claim corpus](corpus/log-claims.json) independently checks
+post-filter for original claim results. The shared SQL service admits a narrower
+partition-routed profile: no predicate for one partition, or a single exact
+`_partition` equality. Catalog discharges that routing into the native target and
+freezes an unfiltered original-result projection. Other predicates and WAIT
+refuse before admission. Receipt handles, ACK, NACK and lease extension are not
+yet bound by SQL. The [claim corpus](corpus/log-claims.json) independently checks
 five-row predicates, projections, lease metadata and acquisition budgets through
 `just test::table-dml-sql` without asserting acquisition or settlement.
 

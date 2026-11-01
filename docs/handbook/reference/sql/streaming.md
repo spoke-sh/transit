@@ -2,7 +2,7 @@
 
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
-and appends, plus positional Stream consumption. The transport of a result in
+and appends, positional Stream consumption, and partition-routed Queue claims. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -12,6 +12,7 @@ several batches does not make that query continuous.
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
 | Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional `CONSUME`, typed predicates and logical `LIMIT` below |
+| Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, one partition and an acquisition maximum below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
@@ -91,8 +92,9 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`, `CLAIM`,
-`ACK`, `NACK` and `EXTEND LEASE` still require typed native callers.
+are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`,
+`ACK`, `NACK` and `EXTEND LEASE` still require typed native callers. The admitted
+partition-routed CLAIM profile is described below.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -200,6 +202,41 @@ GROUP and WAIT can be parsed by the dedicated compiler but are refused by SQL
 admission. Consumption cannot run inside an attached interactive transaction
 in this profile. Group assignment and offset settlement retain their native
 owners; positional consumption does not advance a group checkpoint.
+
+## Acquire Queue work
+
+```sql
+CLAIM value, _partition, _offset, _lease_epoch, _attempt
+FROM jobs LIMIT 16 WITH LEASE '30s';
+```
+
+CLAIM acquires up to LIMIT eligible messages from one declared Queue partition.
+Omitting LIMIT uses the declaration's `claim_rows` budget. LIMIT must be positive
+and cannot exceed that budget. WITH LEASE is required and accepts positive whole
+`ms`, `s` or `m` units within the Queue's maximum lease policy. Native eligibility,
+FIFO ordering, active-lease capacity and trusted-time checks remain authoritative.
+A genuinely empty accepted claim is a complete empty result; capacity or budget
+refusal is not an empty claim.
+
+A one-partition Queue needs no WHERE clause. For multiple partitions, use exactly
+`WHERE _partition = <unsigned value or parameter>`. Other predicates and WAIT
+are refused before admission in this profile. Payload predicates require native
+selection before acquisition; SQL never leases unrelated rows and hides them
+with a result filter. Star includes application columns only. `_partition`,
+`_offset`, `_lease_epoch` and `_attempt` can be projected explicitly and aliased.
+
+Native SQL requires a client token. Admission freezes the exact target, maximum,
+duration and projection. Delivery returns every originally acquired row, across
+bounded batches, without another output LIMIT. PostgreSQL emits `CLAIM n` after
+verified exhaustion; MySQL uses its ordinary row-result completion. Repeating,
+closing or reopening delivery neither acquires again nor ACKs or renews a lease.
+Original payload delivery may outlive the lease; the returned epoch and attempt
+are original attribution, not proof of current settlement authority. Current
+read and acquire rights are rechecked before disclosure.
+
+CLAIM is outside attached interactive transactions. SQL receipt handles, ACK,
+NACK and EXTEND LEASE are not yet admitted; exact native settlement retains its
+existing owner and current lease checks.
 
 ## Connections, sources and sinks
 

@@ -291,6 +291,7 @@ def check_log_claims(binary):
             else: raise AssertionError(('invalid claim syntax accepted', case))
         else:
             tree(case['sql'], 'logClaimStatement')
+            tree(case['sql'], 'statement')
         expected = dict(err=case['error']) if 'error' in case else case['expected']
         assert response == expected, (case, expected, response)
     print(f'Log claim preparation: {len(cases)} independent grammar, predicate, acquisition budget, lease and projection cases. No admission, acquisition or settlement claim.')

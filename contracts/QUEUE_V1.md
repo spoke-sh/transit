@@ -10,7 +10,10 @@ composes standalone enqueue, claim, original payload reads and settlements.
 SQL declarations and named inspection use the
 [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
 SQL supports [ENQUEUE](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
-SQL `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain unavailable.
+SQL also admits [partition-routed CLAIM](../docs/handbook/reference/sql/streaming.md#acquire-queue-work)
+with a required lease duration, bounded acquisition maximum and complete original
+result delivery. Other acquisition predicates, WAIT, receipt handles, `ACK`,
+`NACK` and `EXTEND LEASE` remain outside the SQL profile.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 

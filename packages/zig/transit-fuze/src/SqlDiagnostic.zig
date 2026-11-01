@@ -388,6 +388,8 @@ test "consumption diagnostics preserve the dedicated compiler cause" {
     try std.testing.expectEqualStrings(detail.summary, routed.summary);
     try std.testing.expectEqual(@as(u64, 47), try (try routed.structured()).location.?.offset.value());
     try std.testing.expect(logConsume(text, error.OutOfMemory, .{}) == null);
+    const claim = bound("/* lease */ CLAIM id FROM items WITH LEASE '0s'", error.InvalidLogLeaseDuration, false, .{ .location = .{ .offset = 42 } }).?;
+    try std.testing.expectEqualStrings("sql.invalid_log_lease_duration", (try claim.structured()).code.slice());
 }
 
 /// Project binding evidence captured at compilation, without later catalog reads.
@@ -395,6 +397,7 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
     var lexer: sql.Lexer = .{ .text = text };
     const first = lexer.next() catch null;
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
+    if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CLAIM")) return logClaim(text, cause, binding);
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);

@@ -90,6 +90,15 @@ metadata selections, named groups and waits are refused by this preparation
 profile until their admission owners are supplied. SQL `CONSUME` admission
 uses this adapter and the same durable workload runtime as append operations.
 
+`DirectLogPreparedClaim` binds an unfiltered acquisition to one Queue partition.
+A missing selector requires a single partition; otherwise only exact `_partition`
+equality is admitted. It freezes the declared claim maximum (or a smaller LIMIT),
+checked lease duration and complete original-row projection. Routing becomes the
+native target, so the result plan has neither a predicate nor an output limit.
+Other selection predicates and WAIT refuse before admission. The native owner
+still checks eligibility, FIFO, capacity, current rights and trusted time.
+SQL sessions reuse the same workload token and original-result runtime.
+
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;
 restoration owns its aliases and literals without a new catalog lookup or SQL

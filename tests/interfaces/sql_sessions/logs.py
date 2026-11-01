@@ -186,6 +186,8 @@ def run(root, port, postgres, mysql_options, restart, authorize, console):
     appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
     from interfaces.sql_sessions import consumes
     consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    from interfaces.sql_sessions import claims
+    claims.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
 
 
 def appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):

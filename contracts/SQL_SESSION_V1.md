@@ -145,8 +145,13 @@ workload intent. The native owner retains the upper cut once at acceptance.
 Returned rows may complete at LIMIT before native exhaustion; the final cursor
 preserves that distinction. Its prepared descriptor has a row schema and the
 mutation-admission flag because accepting the read retains native history.
-GROUP, WAIT, other workload verbs and attached-transaction workloads remain
-outside the SQL execution profile.
+Partition-routed `CLAIM` also requires a client token and retains its exact
+original lease selection. Its positive LIMIT is an acquisition maximum; result
+delivery has no filtering or limit. The frozen duration must satisfy the declared
+lease policy before admission; native time, FIFO and capacity checks remain.
+A multi-partition Queue requires one exact `_partition` equality. GROUP, WAIT,
+Queue payload predicates, settlement verbs and attached-transaction workloads
+remain outside the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation

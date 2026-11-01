@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -150,10 +150,11 @@ logConsumeStatement: logConsumeCommand SEMI? EOF;
 logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
     (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
     (WAIT workloadTextOperand)?;
-// Acquisition preparation only; this root does not admit a SQL claim.
-logClaimStatement: CLAIM projection FROM identifier sourceAlias?
+// Native admission validates the supported partition routing and wait profile.
+logClaimStatement: logClaimCommand SEMI? EOF;
+logClaimCommand: CLAIM projection FROM identifier sourceAlias?
     workloadWhereClause? templateLimitClause? WITH LEASE workloadTextOperand
-    (WAIT workloadTextOperand)? SEMI? EOF;
+    (WAIT workloadTextOperand)?;
 workloadTextOperand: STRING | PARAMETER | NULL_;
 workloadWhereClause: WHERE workloadDisjunction;
 workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
