@@ -10,6 +10,12 @@ availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
 SQL `PRODUCE`, `CONSUME`, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
 
+The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
+reopens accepted append and finite consume results from frozen workload intents.
+Saved page positions retain the original payload or authenticated read coverage.
+Opening, paging and local cleanup neither produce another event nor advance a
+group; explicit read release and offset settlement remain separate operations.
+
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 uses full-width identities and deliberately different logical offsets and WAL

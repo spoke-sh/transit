@@ -20,7 +20,7 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode == "log-baseline" else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -39,9 +39,9 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token"):
+        if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
-        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token"):
+        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -85,6 +85,7 @@ def run(node, caller, mode="tables", *artifacts):
         state_transaction_faults = set()
         log_token_faults = set()
         workload_token_faults = set()
+        workload_result_faults = set()
         log_wait_checks = set()
         resource_faults = set()
         abi_faults = set()
@@ -96,7 +97,7 @@ def run(node, caller, mode="tables", *artifacts):
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
-        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token") else None
+        transaction_attempts = root / "transaction-attempts" if mode in ("state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result") else None
         if transaction_attempts is not None:
             transaction_attempts.mkdir(mode=0o700)
         growth_sequence = 0
@@ -112,7 +113,7 @@ def run(node, caller, mode="tables", *artifacts):
                 envelope = json.loads(body)
                 attempt = None
                 transaction_action = envelope.get("action", {}).get("transaction") if isinstance(envelope.get("action"), dict) else None
-                if mode in ("log-token", "workload-token") and isinstance(envelope.get("action"), dict):
+                if mode in ("log-token", "workload-token", "workload-result") and isinstance(envelope.get("action"), dict):
                     transaction_action = envelope["action"]
                 if (growth_attempts is not None and self.path == "/table/v1"
                         and isinstance(envelope["action"], dict)
@@ -215,6 +216,29 @@ def run(node, caller, mode="tables", *artifacts):
                             parsed["context"][0] ^= 1
                             data = json.dumps(parsed).encode()
                             dependency_faults.add(dependency["binding"]["operation"])
+                        if mode == "workload-result" and response.status == 200:
+                            mutation = envelope["action"].get("queue", {}).get("mutate")
+                            result_request = envelope["action"].get("workload_result", {})
+                            phase = None
+                            if mutation and mutation["work"].get("claim", {}).get("operation", {}).get("operation") == 647004:
+                                if json.loads(data)["result"]["queue"].get("operation") is not None:
+                                    phase = "claim"
+                            if result_request:
+                                result_phase, value = next(iter(result_request.items()))
+                                intent = value["intent"] if result_phase == "open" else value["reference"]["intent"]
+                                if intent["binding"].get("queue", {}).get("operation", {}).get("operation") == 647004:
+                                    phase = result_phase
+                            if phase and phase not in workload_result_faults:
+                                parsed = json.loads(data)
+                                if phase == "claim":
+                                    assert parsed["result"]["queue"]["operation"]["claim"]["rows"] == 3
+                                elif phase == "open":
+                                    assert parsed["result"]["workload_result"]["opened"]["reference"]["selection"]["claim"]["rows"] == 3
+                                else:
+                                    assert len(parsed["result"]["workload_result"]["page"]["page"]["claim"]["rows"]) == 2
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                workload_result_faults.add(phase)
                         if mode == "workload-token" and response.status == 200:
                             proposed = envelope["action"].get("client_token", {}).get("bind", {}).get("intent", {}).get("workload")
                             mutation = envelope["action"].get("queue", {}).get("mutate")
@@ -521,6 +545,36 @@ def run(node, caller, mode="tables", *artifacts):
                                       maintenance=settings["maintenance"] | {"seed_file": "private"},
                                       restart_observation=restart_observation, observations=observations, passed=True)), flush=True)
                 print("Automatic Queue transfer HTTP: explicitly authorized maintenance, one original transaction, source archival and destination payload, SIGKILL/restarts and unchanged original receipts passed.", flush=True)
+                return
+            if mode == "workload-result":
+                saved = None
+                positions = None
+                for phase in ("prepare", "open", "verify"):
+                    subprocess.run([caller, endpoint, "workload-result-" + phase, str(profile)], check=True, timeout=180)
+                    current = Path(str(profile) + ".workload-result").read_bytes()
+                    if saved is None:
+                        saved = current
+                    assert current == saved
+                    assert workload_result_faults == ({"claim"} if phase == "prepare" else {"claim", "open", "page"})
+                    if phase == "open":
+                        positions = Path(str(profile) + ".workload-result.positions").read_bytes()
+                    if phase != "verify":
+                        authority.kill()
+                        authority.wait(timeout=15)
+                        authority = start()
+                    if phase == "open":
+                        # The original 1-s leases and configured 10-s clock error
+                        # have elapsed before verification. The caller checks the
+                        # owner's trusted expired observation, not elapsed wall time.
+                        time.sleep(32)
+                assert Path(str(profile) + ".workload-result.positions").read_bytes() == positions
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print(json.dumps(dict(profile="direct_workload_results", source=provenance(ROOT),
+                                      binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
+                                      lost_replies=sorted(workload_result_faults), replay_prefix_per_partition=257,
+                                      original_bindings_sha256=hashlib.sha256(saved).hexdigest(),
+                                      positions_sha256=hashlib.sha256(positions).hexdigest(), passed=True)))
+                print("Workload results: original payloads, finite consumption and expired claims, saved positions and complete empty results, lost replies and SIGKILL/restarts passed.")
                 return
             if mode == "workload-token":
                 saved = None

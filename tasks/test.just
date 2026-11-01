@@ -186,6 +186,10 @@ direct-log-token:
 direct-workload-token:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- workload-token
 
+# Original payload/consume/claim results resume across lost replies and replacement.
+direct-workload-result:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- workload-result
+
 # Queue source archive and destination append share one recoverable decision.
 direct-queue-transfer:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer

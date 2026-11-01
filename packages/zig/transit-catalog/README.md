@@ -63,8 +63,9 @@ normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
 cancel flag supply no completion. SQL result recovery is not wired to this owner
 yet. Catalog storage traversal verifies the body and retains its source declaration.
 
-`DirectWorkloadResult` prepares the in-process original-result reader for service
-composition. Its reference binds the frozen workload, actual append/consume/claim
+`DirectWorkloadResult` owns original-result reads for service composition.
+`DirectWorkloadResultProtocol` exposes `open` and `page` through the signed
+`workload_result` action. Its reference binds the frozen workload, actual append/consume/claim
 receipt and delivery limits. Append/enqueue rows come from the verified saved
 payload; consume and claim pages use the native retained selection. Opening,
 paging and empty completion recheck current original-operation and READ rights.
@@ -79,9 +80,8 @@ dependency or changing leases/group progress. `offsetWork` prepares a separate
 settlement from the authenticated completed cursor and the original group; save
 it as a workload intent before dispatch. It cannot derive coverage from a caller's
 numeric offset or result row count. The native owner still authenticates the cursor
-and rechecks current rights/assignment. This module is not yet exposed through a
-new native action or the SQL result lifecycle; SQL projection freezing, result
-reopening and finite-consumption handoff still need their service wiring.
+and rechecks current rights/assignment. SQL projection freezing, result reopening
+and finite-consumption handoff still need their SQL service wiring.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

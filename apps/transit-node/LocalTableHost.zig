@@ -116,6 +116,7 @@ fn target(action: w.Action) ?u64 {
     return switch (action) {
         .stream => |value| value.target().interpretation.object.object,
         .queue => |value| value.target().interpretation.object.object,
+        .workload_result => |value| value.target().interpretation.object.object,
         .kv => |value| value.target().object,
         .kv_declaration => |value| value.declaration.binding.target.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
@@ -261,8 +262,8 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         // A terminal probe can advance a bounded native replay without reaching
         // its receipt. No publication was attempted: retain that verified owner
         // so the next probe continues instead of replaying the same prefix.
-        if (err == error.ClientOperationPending and request.action == .client_progress and
-            request.action.client_progress == .update and !request.action.client_progress.update.pending)
+        if (err == error.ClientOperationPending and (request.action == .workload_result or
+            (request.action == .client_progress and request.action.client_progress == .update and !request.action.client_progress.update.pending)))
             discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;

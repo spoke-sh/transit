@@ -27,11 +27,18 @@ pub const Execution = struct {
 };
 
 fn inspectWorkload(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, work: c.DirectWorkloadIntent.Work) !c.DirectWorkloadIntent.Reader.Result {
-    const execution: *const Execution = @ptrCast(@alignCast(context));
     return switch (work) {
-        .stream => |value| .{ .stream = try (execution.stream orelse return error.StreamServiceUnavailable)(execution.context, output, catalog, policy, .{ .operation = value.work }) },
-        .queue => |value| .{ .queue = try (execution.queue orelse return error.QueueServiceUnavailable)(execution.context, output, catalog, policy, .{ .operation = value.work }) },
+        .stream => |value| .{ .stream = try workloadStream(context, output, catalog, policy, .{ .operation = value.work }) },
+        .queue => |value| .{ .queue = try workloadQueue(context, output, catalog, policy, .{ .operation = value.work }) },
     };
+}
+fn workloadStream(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
+    const execution: *const Execution = @ptrCast(@alignCast(context));
+    return (execution.stream orelse return error.StreamServiceUnavailable)(execution.context, output, catalog, policy, request);
+}
+fn workloadQueue(context: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+    const execution: *const Execution = @ptrCast(@alignCast(context));
+    return (execution.queue orelse return error.QueueServiceUnavailable)(execution.context, output, catalog, policy, request);
 }
 
 fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, value: c.fuze.TableSchema.Schema) !w.Binary {
@@ -164,6 +171,10 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         .record => {
             const value = @field(action.*, @tagName(action_tag));
             return .{ .record = try catalog.directRecord(allocator, value, policy) };
+        },
+        .workload_result => {
+            var owners = execution;
+            return .{ .workload_result = try c.DirectWorkloadResultProtocol.apply(allocator, catalog, policy, action.workload_result, .{ .context = &owners, .stream = workloadStream, .queue = workloadQueue }) };
         },
         .client_progress => {
             const value = @field(action.*, @tagName(action_tag));

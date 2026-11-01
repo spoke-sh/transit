@@ -64,6 +64,18 @@ remain distinct from completion. Current operation rights are required for token
 lookup and settlement as well as execution. SQL workload syntax and result
 reopening are not enabled by this typed caller support.
 
+The signed `workload_result` action can reopen original append/enqueue rows,
+finite consumes and claims from a saved workload reference. It returns the
+original receipt and source schema, then reads bounded pages using explicit
+delivery positions. Refetching retains the same selection and does not renew
+leases or repeat work. Current operation and READ rights are checked for each
+disclosure. Closing local delivery buffers does not release a shared durable
+read dependency or settle work; native read release is explicit. Completed
+grouped consumption can prepare a saved authenticated offset handoff for a
+separate settlement. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
+for budgets, empty results and unavailable retained history. This native support
+does not enable workload SQL yet.
+
 ## Cancelling original workload operations
 
 Native Stream and Queue `cancel` requests use the exact saved mutation and its

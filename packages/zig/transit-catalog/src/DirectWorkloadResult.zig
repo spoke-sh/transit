@@ -226,6 +226,12 @@ pub fn offsetWork(self: *const Self, operation: p.DataLifecycle.Operation) !p.Lo
     return request;
 }
 
+/// Recheck disclosure after copying metadata or before exposing a buffered page.
+/// The host holds the same object/catalog locks as for native result calls.
+pub fn checkDisclosure(self: *const Self, scratch: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy) !void {
+    try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
+}
+
 /// Every page (including repeated empty completion) checks original outcome and
 /// current payload rights after buffering. Cursor advancement is transactional
 /// with disclosure: failure leaves the local cursor unchanged. Output is owned
@@ -308,6 +314,7 @@ fn observe(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent: Inte
             break :blk switch (result.operation.?) {
                 .append => |value| .{ .append = value },
                 .consume => |value| .{ .consume = value },
+                .closed => error.WorkloadResultClosed,
                 else => error.WorkloadResultUnavailable,
             };
         },
@@ -320,6 +327,7 @@ fn observe(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent: Inte
             break :blk switch (result.operation.?) {
                 .enqueue => |value| .{ .append = value },
                 .claim => |value| .{ .claim = value },
+                .closed => error.WorkloadResultClosed,
                 else => error.WorkloadResultUnavailable,
             };
         },

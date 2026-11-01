@@ -7625,6 +7625,26 @@ test "workload results reopen original payload and selections without mutation a
                 // A result is still the original claim after its lease expires.
                 owners.clock.now = .exact(1000);
                 for (references) |reference| {
+                    const api = c.DirectWorkloadResultProtocol;
+                    const open_request: api.Request = .{ .open = .{ .intent = reference.intent, .limits = reference.limits } };
+                    const opened = try api.apply(t.allocator, &catalog, access.policy(), open_request, native);
+                    defer opened.deinit(t.allocator);
+                    try api.validate(t.allocator, reference.intent.connection, open_request, opened);
+                    const page_request: api.Request = .{ .page = .{ .reference = opened.opened.reference, .position = opened.opened.position } };
+                    const first = try api.apply(t.allocator, &catalog, access.policy(), page_request, native);
+                    defer first.deinit(t.allocator);
+                    try api.validate(t.allocator, reference.intent.connection, page_request, first);
+                    try expectWorkloadPage(first.page.page, 0, false, .expired);
+                    var malformed = opened;
+                    malformed.opened.reference.intent.record.scope.account[0] ^= 1;
+                    try t.expectError(error.DataIdentityConflict, api.validate(t.allocator, reference.intent.connection, open_request, malformed));
+                    var wrong_position = first;
+                    switch (wrong_position.page.position) {
+                        .append => |*ordinal| ordinal.* += 1,
+                        .consume => |*cursor| cursor.authentication[0] ^= 1,
+                        .claim => |*cursor| cursor.next += 1,
+                    }
+                    try t.expectError(error.InvalidWorkloadResultResponse, api.validate(t.allocator, reference.intent.connection, page_request, wrong_position));
                     var result = try Result.reopen(t.allocator, &catalog, reference, access.policy(), native);
                     defer result.deinit();
                     try reference.requireSame(result.reference);

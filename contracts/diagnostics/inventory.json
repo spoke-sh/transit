@@ -6937,11 +6937,13 @@
         "historySource()": "<inferred>",
         "inspectWorkload()": "<inferred>",
         "requireSource()": "<inferred>",
-        "schema()": "<inferred>"
+        "schema()": "<inferred>",
+        "workloadQueue()": "<inferred>",
+        "workloadStream()": "<inferred>"
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 216,
+        "try": 217,
         "catch": 0
       },
       "imports": [
@@ -7111,6 +7113,7 @@
           "client_token",
           "client_progress",
           "record",
+          "workload_result",
           "initialize",
           "describe",
           "namespace",
@@ -7216,6 +7219,7 @@
           "branch",
           "transaction",
           "record",
+          "workload_result",
           "client_token",
           "client_progress",
           "initialized",
@@ -7312,7 +7316,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 170,
+        "try": 171,
         "catch": 3
       },
       "imports": [
@@ -7404,7 +7408,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 205,
+        "try": 206,
         "catch": 10
       },
       "imports": [
@@ -8032,6 +8036,7 @@
         "CatalogDenied": 1,
         "ClientOperationPending": 5,
         "InvalidWorkloadResultBudget": 3,
+        "WorkloadResultClosed": 2,
         "WorkloadResultConflict": 6,
         "WorkloadResultGroupRequired": 1,
         "WorkloadResultIncomplete": 1,
@@ -8070,6 +8075,7 @@
         "Reference.validate()": "<inferred>",
         "Selection.binding()": "<inferred>",
         "authorize()": "<inferred>",
+        "checkDisclosure()": "<inferred>",
         "next()": "<inferred>",
         "observe()": "<inferred>",
         "offsetWork()": "<inferred>",
@@ -8079,8 +8085,42 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
+        "try": 54,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectWorkloadResultProtocol.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidWorkloadResultBudget": 1,
+        "InvalidWorkloadResultResponse": 14,
+        "WorkloadResultConflict": 2
+      },
+      "outcomes": {
+        "Request": [
+          "open",
+          "page"
+        ],
+        "Result": [
+          "opened",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "requireSource()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -9303,6 +9343,7 @@
         "DirectTransactionWorkspace.zig",
         "DirectWorkloadIntent.zig",
         "DirectWorkloadResult.zig",
+        "DirectWorkloadResultProtocol.zig",
         "DisclosurePolicy.zig",
         "DocumentAuthority.zig",
         "ErasureAndWorkload.zig",
@@ -20630,7 +20671,7 @@
           "deadline"
         ],
         "Definition": [
-          "befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd"
+          "fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3"
         ],
         "Effect.phase": [
           "pending",

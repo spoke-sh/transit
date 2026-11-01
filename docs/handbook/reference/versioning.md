@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
+`fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -132,6 +132,13 @@ normal recovery and current-authorization gates. Catalog storage traversal roots
 accepted workload bodies and source declarations. These stored token and graph
 variants require the same current definition; no older artifact gains them by
 default.
+
+The signed direct service also exposes original workload result opening and
+paging. Mandatory references bind the frozen intent, accepted selection and
+delivery limits; positions retain the same original append, consume or claim.
+These messages never repeat a mutation or implicitly release its retained read
+dependency. Earlier result definitions reject rather than acquiring inferred
+selection or completion fields.
 
 Transaction references also require an explicit purpose. Protected exhausted-Queue
 transfers retain their original paired request and use the ordinary workspace,

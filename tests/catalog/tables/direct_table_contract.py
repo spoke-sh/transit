@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd"
+definition = "fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -547,6 +547,7 @@ for segment in schema["$defs"]["SavedWorkloadIntent"]["$ref"].split("/")[1:]:
     saved_workload_shape = saved_workload_shape[segment]
 assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work"}
 workload_vectors = []
+workload_result_vectors = []
 for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
     policy = ({"compact_key_column": None, "timestamp_column": None} if workload_kind == "stream" else
               {"ordering": "unordered", "key_column": None, "lease_ms": 1000, "maximum_lease_ms": 10000,
@@ -579,8 +580,40 @@ for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fi
     invalid["action"]["client_token"]["bind"]["intent"]["workload"]["binding"][workload_kind]["definition"] = "0" * 64
     assert not validator.is_valid(invalid)
     workload_vectors.append({"request": workload_request, "public_key": public_key, "digest": list(workload_reference_digest)})
+    result_limits = {"rows": 2, "encoded_bytes": 4096, "scanned_rows": 16}
+    if workload_kind == "stream":
+        cut = {"target": workload["consume"]["target"], "accepted": {"partition": 91, "next_lsn": 10},
+               "retained_from": 0, "next": 2}
+        receipt = {"request": workload["consume"], "cut": cut, "until": 2,
+                   "source": {"bytes": 512, "sha256": [47] * 32}, "accepted": {"partition": 91, "next_lsn": 11}}
+        selection = {"consume": receipt}
+        position = {"consume": {"read": {"owner": receipt["request"]["operation"], "source": receipt["source"]},
+                               "coverage": {"cut": cut, "from": 0, "until": 2, "through": 1, "rows": 1, "complete": False},
+                               "authentication": [48] * 32}}
+    else:
+        receipt = queue_release_work["release"]["claim"]
+        selection = {"claim": receipt}
+        position = {"claim": {"receipt": receipt, "next": 1}}
+    result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
+    for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
+                          {"page": {"reference": result_reference, "position": position}}):
+        result_input = {**request_input, "action": {"workload_result": result_action}}
+        result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
+        with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:
+            signing_key = Key(Path(directory), "public-test-key", 9)
+            result_request = {**result_input, "proof": {"claim": result_claim,
+                "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(result_claim)).digest())}}
+        validator.validate(result_request)
+        action_name, action_value = next(iter(result_action.items()))
+        for field in action_value:
+            invalid = copy.deepcopy(result_request)
+            del invalid["action"]["workload_result"][action_name][field]
+            assert not validator.is_valid(invalid), field
+        workload_result_vectors.append({"request": result_request, "public_key": public_key})
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-token-v1.json",
         (json.dumps(workload_vectors, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-result-v1.json",
+        (json.dumps(workload_result_vectors, ensure_ascii=False, indent=2) + "\n").encode())
 
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.

@@ -19,6 +19,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Table/KV with Stream/Queue appends, offset and lease settlement | [Mixed transaction caller](tables/direct_state_transaction.zig); `just test::direct-mixed-transaction` |
 | Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](tables/direct_log_token.zig); `just test::direct-log-token` |
 | Original Stream/Queue workload tokens across lost replies, bounded cold replay and three process replacements | [Signed workload caller](tables/direct_log_token.zig); `just test::direct-workload-token` |
+| Original payload/consume/claim results, empty selections and saved page positions across lost replies and replacement | [Signed result caller](tables/direct_log_token.zig); `just test::direct-workload-result` |
 | Paired Queue dead-letter transfer after lost replies and two process replacements | [Signed transfer caller](tables/direct_queue_transfer.zig); `just test::direct-queue-transfer` |
 | Configured automatic Queue transfer and original receipt recovery after process replacements | [Signed transfer caller](tables/direct_queue_transfer.zig); `just test::direct-automatic-queue-transfer` |
 

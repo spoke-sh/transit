@@ -371,6 +371,47 @@ An exact repeated settled update returns the retained bookkeeping state without
 re-executing the operation. SQL workload syntax and result reopening remain
 separate, unfinished consumers of this shared owner.
 
+### Original workload result delivery
+
+The signed read-only `workload_result` action opens and pages the original
+accepted append/enqueue, consume or claim. `open` takes the complete workload
+intent reference and explicit row/byte/scan budgets. It returns `opened` with
+the original native success receipt, frozen source/schema, delivery limits and
+initial position. A staged body or absent receipt is not an accepted result;
+incomplete native recovery and missing outcomes return pending conflict. Durable
+cancellation/refusal has no row result and remains inspectable through the
+original native operation. The action never executes or cancels a mutation.
+
+`page` carries that entire result reference and its saved delivery position.
+It reopens the same owner receipt and selection before reading. Append/enqueue
+rows come from the verified frozen payload and accepted offset range. Stream
+pages retain the original cut and authenticated coverage; Queue pages traverse
+the original claim and report current lease liveness. Refetch does not renew a
+lease, ACK, advance a group or choose another selection. Output binds the original
+schema and operation, exact row ordinals/offsets and next position. A complete
+empty selection remains empty even after later appends. Source-history or
+explicit read-release failures are visible; neither produces empty completion.
+
+One delivery page has at most 128 rows and 1 MiB of encoded row bytes, also within
+the frozen source's read limits; Stream scan work is bounded to 65,536 examined
+rows. A single row that exceeds the byte budget fails without advancing delivery.
+Encoded row bytes exclude base64 and schema overhead. The workload's existing
+4 MiB complete-body limit remains separate. Each read requires current
+original-operation rights plus READ and rechecks disclosure after buffering,
+including empty and repeated responses. Descriptors and cursor possession grant
+no permission. The service uses its normal bounded native owners and preserves
+verified replay progress when an original-result probe remains pending.
+
+There is no new durable cursor or implicit close mutation. Local page/cursor
+cleanup releases delivery buffers; explicit native read release remains a
+separate saved operation and can make future delivery unavailable. Stream
+`offsetWork` prepares a separate request only from completed authenticated
+coverage and the original group generation. Save that exact handoff before
+dispatch; the native owner still authenticates it and checks current assignment
+and settlement rights. A requested numeric offset or SQL output count cannot
+replace it. Workload SQL and SQL result reopening remain unimplemented consumers
+of this native result boundary.
+
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host
 holds shared Catalog access through execution/disclosure; updates take exclusive

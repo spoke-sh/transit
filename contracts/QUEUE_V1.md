@@ -13,6 +13,12 @@ SQL `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain unavailable.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
+The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
+reopens accepted enqueue and claim results from frozen workload intents. Saved
+page positions address the original selection, with current lease liveness
+reported separately. Refetch and local cleanup cannot claim again, ACK, renew a
+lease or release the claim's shared durable payload dependency.
+
 The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 publishes Queue declarations separately from payload execution. It verifies
 partition initialization, native ownership, compatible DLQ schemas and exact
