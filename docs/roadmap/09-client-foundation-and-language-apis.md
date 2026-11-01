@@ -101,6 +101,15 @@ its delivered work and the [original acceptance matrix](#acceptance-matrix).
 The records cited below qualify their own revisions; they do not establish a
 combined pass at this source. M9 remains **In Progress**.
 
+**Integration update:** the implementation was integrated with `origin/main` at
+`f1c07455b8f3a788e8e91bce9981fae90a0706f6`. Its current-v1 definition cutover
+and shared native/Go Serving caller are part of the integrated baseline; Serving
+coverage does not supply the independent data bindings planned here. Roadmap
+references use the new numbering: asset pipelines are M19, branches M20,
+service/SDK breadth M21 and mixed programming M34. The source assessment below
+retains the original planning revision; the delivered increment is recorded
+[separately](#implemented-context-and-kv-recovery-increment--2026-11-01).
+
 ### Source assessment and changed prerequisites
 
 | Owner | Available at this source | Consequence for M9 |
@@ -114,7 +123,7 @@ combined pass at this source. M9 remains **In Progress**.
 | M6 logs and SQL | Stream/Queue lifecycle, finite reads, claim waits and settlements are implemented. [Installed declaration SQL](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31) covers DDL and metadata through native SQL, console, PostgreSQL and MySQL. Explicit paired DLQ statements are implemented. | Compose typed payload operations and reuse SQL results for declarations. Workload SQL verbs, retained `STREAM_SLICE`, mixed SQL, automatic DLQ scheduling and installed transfer qualification remain M6 work. |
 | M7 Documents | Logical algebra, `DocumentPartition`, tree/shredding and retained-storage foundations exist; the [public caller and consumer cutover](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work) remains unfinished. | Keep direct Document APIs and transaction participation gated. M7 supplies the minimal public caller and migrates affected consumers; it must not wait for M9's complete language redesign. |
 | M8 gateways | Event-driven recovery and local SQL composition are delivered. [Resumable PG/MySQL command engines](08-gateway-architecture-and-protocol-ingress.md#resumable-command-session-implementation--2026-10-31) now emit neutral requests/output; the installed host still has blocking workers and timer races. [Startup reductions](08-gateway-architecture-and-protocol-ingress.md#installed-startup-reduction-plan--2026-10-31) have paired iteration evidence. | Use the existing SQL client/service seam. CPU-scaled scheduling, socket deadlines, coarse remote execution, broader ingress and final performance gates remain M8 obligations. Measure SDK startup separately from server readiness. |
-| M19 branches | A [read-only immutable single-Table branch](19-branches-merges-and-restore.md#local-table-branch-increment) is available through typed callers with retained definition/data attribution. Whole-catalog and writable branches remain open. | Preserve full branch identity and existing branch reads through extraction. Do not globally force branch one, widen transaction branch support or promise writable/merged branches. |
+| M20 branches | A [read-only immutable single-Table branch](20-branches-merges-and-restore.md#local-table-branch-increment) is available through typed callers with retained definition/data attribution. Whole-catalog and writable branches remain open. | Preserve full branch identity and existing branch reads through extraction. Do not globally force branch one, widen transaction branch support or promise writable/merged branches. |
 
 The [client qualification record](../history/qualification/sdk.md#local-sql-recovery-and-context-leases--2026-10-31)
 includes passing package/native checks and actual-file plus scripted SQL tests.
@@ -282,22 +291,22 @@ identifier for incompatible ABI or stored semantics and regenerate schemas,
 binding resources and signing fixtures together. Keep root `VERSION` and exact
 pins aligned and reject old definitions in native libraries, hosts and saved
 records without deleting recovery material. New language/platform breadth stays
-with M20; preserving an existing affected binding is an M9 obligation.
+with M21; preserving an existing affected binding is an M9 obligation.
 
 ### 6. Complete data-kind integration and later handoffs
 
 | Facet or later owner | Required M9 integration or preserved extension point | Gate retained by the owner |
 | --- | --- | --- |
 | Direct KV | Add `Context` access, ordinary declare/resolve/mutate/get/pin/release and exact recovery; qualify values above native-turn limits and missing versus NULL. | Reuse the implemented M6 direct caller and native transaction profile. Native resource associations/grants are not direct KV authorization. |
-| Stream | Compose append, finite retained reads/waits, assignment, offset settlement and explicit read release with the same context/store. | Reading or iterator close never commits an offset. Continuous subscriptions and snapshot-to-tail delivery remain M12/M31/M33 work. |
+| Stream | Compose append, finite retained reads/waits, assignment, offset settlement and explicit read release with the same context/store. | Reading or iterator close never commits an offset. Continuous subscriptions and snapshot-to-tail delivery remain M12/M32/M34 work. |
 | Queue | Compose enqueue, original claim/wait recovery, pages, ACK/NACK/extension and payload-read release. Carry original leases through language values. | Wait timeout is not an accepted empty claim; payload-read release is not NACK. Stale leases cannot settle. Automatic DLQ scheduling stays in M6. |
 | Native mixed work | Expose the existing state/append/settlement participant vocabulary and exact decision recovery; add paired transfer after its installed gate. | M6 owns remaining mixed fault qualification and Station/effect consumer migration. A typed variant alone does not qualify an installed transfer. |
 | Document | Integrate M7's shared direct caller, accepted revisions, five-state cells, exact recovery and qualified participant when delivered. | M7 owns public dispatch, the acceptance/consumer cutover and atomic Document participation. Private candidate bytes are not accepted revisions. |
 | [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30) / [M11](11-indexing-and-access-paths.md) | Preserve exact definitions, comparison/type descriptors, operation progress and metadata observation through generated/native APIs. | Standards/helper tests do not establish executable historical catalogs, constraints or indexes. Their durable runtime/SQL integrations stay with those owners. |
 | [M12](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30)–[M15](15-data-centric-compilation-and-specialization.md) | Bounded batch/lease APIs and measured bridge costs must accept later operators without changing logical completion. Preserve finite, captured and maintained lifetimes. | Component dataflow/string helpers do not establish durable activation, a metered service, integrated search or AOT execution. No SDK-side query scheduler. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md)–[M19](19-branches-merges-and-restore.md) | Keep typed codec and kind/definition/branch attribution extensible; retain the implemented immutable Table branch profile. | Document profiles, spatial/foreign adapters, writable branches, merge and restore require their own current-v1 integration and proof. |
-| [M20](20-service-and-sdk-coverage.md) / [M33](33-programming-model.md) | Supply independent packages, composable facets and shared recovery semantics. | M20 expands operations/platforms/Flight/browser coverage. M33 owns complete mixed programs, standalone recorded effects, durable subscriptions and typed Station calls. A Node filesystem store proves no browser recovery profile. |
-| [M21](21-formal-semantics-and-correspondence.md), [M22](22-storage-providers-and-concurrency.md)–[M25](25-clustered-execution.md), [M26](26-control-and-policy-plane.md)–[M32](32-recorded-mcp-integrations.md) | Preserve replayable transitions, exact authority identity, current authorization and source-bound public observations. | Formal/distributed, governance, Board, publication and agent integrations do not extend M9's local delivery claim. Board inspection stays read-only. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md)–[M20](20-branches-merges-and-restore.md) | Keep typed codec and kind/definition/branch attribution extensible; retain the implemented immutable Table branch profile. | Document profiles, spatial/foreign adapters, asset pipelines, writable branches, merge and restore require their own current-v1 integration and proof. |
+| [M21](21-service-and-sdk-coverage.md) / [M34](34-programming-model.md) | Supply independent packages, composable facets and shared recovery semantics. | M21 expands operations/platforms/Flight/browser coverage. M34 owns complete mixed programs, standalone recorded effects, durable subscriptions and typed Station calls. A Node filesystem store proves no browser recovery profile. |
+| [M22](22-formal-semantics-and-correspondence.md), [M23](23-storage-providers-and-concurrency.md)–[M26](26-clustered-execution.md), [M27](27-control-and-policy-plane.md)–[M33](33-recorded-mcp-integrations.md) | Preserve replayable transitions, exact authority identity, current authorization and source-bound public observations. | Formal/distributed, governance, Board, publication and agent integrations do not extend M9's local delivery claim. Board inspection stays read-only. |
 
 ### Verification and first implementation changes
 
@@ -336,7 +345,7 @@ The next three implementation changes are concrete:
    on those transitions before publishing the independent data ABI.
 
 Keep M9 open until the complete installed representative matrix, all promised
-facets and common-revision resource/recovery gates pass. M35/M36 can combine and
+facets and common-revision resource/recovery gates pass. M36/M37 can combine and
 distribute that evidence later; they cannot substitute for M9's own exit gates.
 
 ### Implemented context and KV recovery increment — 2026-11-01
