@@ -740,6 +740,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.ConfigurationSnapshotChanged => .{ "40001".*, "Configuration changed; discard partial results and repeat the read" },
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
+        error.CheckConstraintViolation => .{ "23514".*, "A CHECK constraint rejected the proposed row" },
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
