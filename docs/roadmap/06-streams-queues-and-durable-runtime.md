@@ -1437,6 +1437,10 @@ its [component and grammar checks](../history/qualification/query.md#positional-
 pass, with installed consumption qualification still pending. SQL group binding,
 waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
+`0816018a7` adds pure Queue acquisition preparation with
+[20 independent claim cases and allocation/grammar checks](../history/qualification/query.md#queue-acquisition-preparation--2026-11-01).
+It separates the acquisition maximum from result delivery and does not enable
+SQL CLAIM or native selection predicates.
 The batch and milestone remain in progress.
 
 | Slice | Implementation | Required proof |

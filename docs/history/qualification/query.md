@@ -9,6 +9,54 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue acquisition preparation — 2026-11-01
+
+`0816018a75b9737e689271585bb426bd0cc608bb` adds pure `LogClaimSql.Prepared`
+and shares text operands and row layout through `LogReadSql`. A bound claim
+owns its projection and acquisition predicate, positive optional claim maximum,
+lease duration and optional wait. LIMIT is removed from the logical output
+limit. Lease epoch and attempt can be projected but cannot select work before
+acquisition. Lease milliseconds retain the native unsigned 64-bit range; waits
+retain their separate unsigned 32-bit range. See the [compiler contract](../../../contracts/sql/README.md).
+
+This is **preparation evidence only**. No SQL claim was admitted, no Queue lease
+was acquired, and no receipt-handle or settlement adapter was qualified. Native
+selection before leasing, FIFO behavior under predicates, original selection
+recovery and installed callers remain required.
+
+| Check | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| Focused consumption/claim compiler tests, ReleaseSafe (`fuze3`) | 28/28; 93 dependency tests reused their passing cache | `940ca1d48c3742870b15ed819a6fd160ce27bf1f8c4f4bce1d29498ef63be9e5` |
+| Independent DML and diagnostic grammar (`grammar2`) | 44 Table, 28 append, 24 consume and 20 claim cases; 570 diagnostic cases / 837 grammar obligations | `f5a0d97791131141fd98181770974bc453c751138ea54a96f08c0a5dd0f6c7e3` |
+| General grammar and public examples (`reference1`) | 174 PostgreSQL SELECT comparisons / 32 exclusions / 42 extensions; 33 relational comparisons / 22 exclusions; 137 examples | `da0b6a4da545d42475037cbffb81fe0a32e06920e8add421c2370f1eaa7a9e97` |
+| Repository fast checks (`fast3`) | 60 passed | `a7125f2e1c61f81bede31065376a2e49ebe1780845983bd2bcb51add356f1722` |
+| Reviewed diagnostic mappings including both new owners (`mappings1`) | Declared boundaries passed; SQL compilation has 166 codes and 223 owner/error pairs | `133f169101910a5db95a1533467c417909350228df0c2703b45ebe58bbe49c2a` |
+
+Logs use `/var/tmp/transit-m6-claim-preparation-<name>.log`. The focused command
+was `zig build test -Doptimize=ReleaseSafe --summary all` with filters
+`log consume SQL` and `log claim SQL`. The registered
+`just test::table-dml-sql test::diagnostic-grammar`, `just test::sql-grammar`,
+`just check::fast` and standalone `diagnostic_mappings.py` supplied the other
+checks. No wire definition or native claim format changed.
+
+The first allocation-failure enumeration reported `NondeterministicMemoryUsage`
+after the ordinary allocator path succeeded. The final test retains that normal
+path and separately disables in-place arena resize while enumerating allocation
+failures. The first corpus run incorrectly expected resolved column names in
+the raw alias array and string tags for void union fields; its corrected oracle
+uses explicit aliases and the existing tagged-field representation. It retains
+independent predicate, projection, maximum and lease expectations. The first two
+fast runs failed on inventory drift and the new diagnostic mappings respectively;
+the mappings now explicitly include `LogClaimSql` and `LogReadSql`.
+
+| Earlier failure | Log SHA-256 |
+| --- | --- |
+| `fuze1`: 120/121 tests; nondeterministic allocation-failure enumeration | `34179f395eee32b2d7ebe106ffaf87c02b6d002e68e2af0032fe5e96d1695539` |
+| `fuze-direct1`: direct test run identified that harness failure | `9525e2cba27f00e2a1c3f3d0d6be0fdcdbcf74c6aa2b8d9c1311df70da7aedf3` |
+| `grammar1`: independent oracle representation mismatch | `2e7b00de1b72aae76af736b2a8afc50527a6fc5a7dbc45d6e4156d47411410e6` |
+| `fast1`: inventory drift | `04bfb497d27b748644b66cde4fa20eb7aeecf5781949692846e36dc146c0c2ea` |
+| `fast2`: unregistered semantic mappings | `18868d8f6c4baeceb792636197d162edf7303e627e5a8cdb8f2a4ad689aabe3d` |
+
 ## Positional SQL consumption admission — 2026-11-01
 
 `a5965727d36833e88898eeabbc7342b5e0b9b3f3` (isolated helper
