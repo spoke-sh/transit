@@ -339,7 +339,9 @@
       "bindings::release-test",
       "bindings::release-zig",
       "bindings::feedback",
-      "test::sdk-performance"
+      "test::sdk-performance",
+      "test::log-runtime-baseline",
+      "test::station-turn-baseline"
     ]
   },
   "nested_tasks": {

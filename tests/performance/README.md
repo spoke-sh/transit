@@ -7,6 +7,8 @@
 | Declarative operations | [Guide](declarative/README.md), [manifest](declarative/manifest.json), [runner](declarative/run.py), [pure SQL probe](declarative/sql.py) |
 | Query operators, files and pipelines | [Guide](query/README.md), [runners](query/), [active budgets](query/budgets/) |
 | Storage and ingestion | [Owner measurement guide](storage/storage_benchmark.md), [paired runner](storage/storage_benchmark.py), [ingestion runner](storage/storage_ingest_benchmark.py) |
+| Installed Stream and Queue budgets | [Workload and limits](storage/log_runtime.md), [signed caller](storage/log_runtime.zig), [restart oracle and reports](storage/log_runtime.py) |
+| Installed Station handler turns | [Workload and limits](load/station_turn.md), [handler driver](load/station_turn.zig), [state/outbox oracle](load/station_turn.py) |
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
 | Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |

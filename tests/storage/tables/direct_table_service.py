@@ -20,9 +20,9 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "log-token", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
+    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode == "log-baseline" else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
@@ -41,7 +41,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "log-token"):
             settings["request_metrics"] = True
-        if mode in ("resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
+        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -67,11 +67,14 @@ def run(node, caller, mode="tables", *artifacts):
 
         def stop(child):
             child.terminate()
+            forced = False
             try:
                 child.wait(timeout=15)
             except subprocess.TimeoutExpired:
+                forced = True
                 child.kill()
                 child.wait(timeout=15)
+            return dict(requested_signal="SIGTERM", forced_kill=forced, exit_code=child.returncode)
 
         fault = {"changed": False, "log_admit": False, "log_publish": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
@@ -409,6 +412,19 @@ def run(node, caller, mode="tables", *artifacts):
             settings["table"] = {"catalog": json.loads(profile.read_text())["catalog"], "registrar": {"principal": 0, "seed_file": str(seed)}}
             config.write_text(json.dumps(settings))
             authority = start()
+            if mode == "log-baseline":
+                from performance.storage.log_runtime import exercise
+                def baseline_restart():
+                    nonlocal authority
+                    stopped = stop(authority)
+                    authority = None
+                    if stopped['forced_kill'] or stopped['exit_code'] not in (0, -15):
+                        raise RuntimeError(f"Baseline owner did not stop under its restart profile: {stopped}")
+                    authority = start()
+                    return stopped
+                exercise(node, caller, root, profile, url, artifacts[0],
+                         baseline_restart, lambda: authority)
+                return
             proxy = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
