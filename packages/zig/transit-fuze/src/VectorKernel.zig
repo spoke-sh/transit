@@ -6,30 +6,36 @@ const q = @import("LogicalQuery.zig");
 const finite = @import("Finite.zig");
 const rows = @import("ColumnRows.zig");
 const Collation = @import("Collation.zig");
+pub const StringValue = @import("StringVector.zig").Value;
 pub const cpu = @import("VectorCpu.zig");
 pub const Outcome = union(enum) { truth: finite.Truth, type_error, conflict };
 pub const Detail = union(enum) { none, type_error: t.Kind, conflict: []const t.Values.Alternative };
-pub const Storage = union(enum) { words: []u64, values: []t.Values.Value, states_only };
+pub const Storage = union(enum) { words: []u64, strings: []StringValue, values: []t.Values.Value, states_only };
 pub const Column = struct {
     type: t.Type,
     data: Storage,
+    collation: Collation.Collation,
     states: []t.State,
     details: []Detail,
     pub fn view(self: Column, len: usize) View {
         return .{ .flat = .{ .type = self.type, .data = switch (self.data) {
             .words => |v| .{ .words = v },
             .values => |v| .{ .values = v },
+            .strings => |v| .{ .strings = v },
             .states_only => .states_only,
         }, .states = self.states[0..len], .details = self.details[0..len] } };
     }
     pub fn rowBytes(kind: t.Type, retain: bool) usize {
-        return @sizeOf(t.State) + @sizeOf(Detail) + if (!retain) @as(usize, 0) else if (hot(kind)) @as(usize, 8) else @sizeOf(t.Values.Value);
+        return @sizeOf(t.State) + @sizeOf(Detail) + if (!retain) @as(usize, 0) else if (hot(kind)) @as(usize, 8) else if (kind == .utf8 or kind == .binary) @as(usize, @sizeOf(StringValue)) else @as(usize, @sizeOf(t.Values.Value));
     }
-    pub fn init(a: std.mem.Allocator, kind: t.Type, capacity: usize, retain: bool) !Column {
-        return .{ .type = kind, .data = if (!retain) .states_only else if (hot(kind)) .{ .words = try a.alloc(u64, capacity) } else .{ .values = try a.alloc(t.Values.Value, capacity) }, .states = try a.alloc(t.State, capacity), .details = try a.alloc(Detail, capacity) };
+    pub fn init(a: std.mem.Allocator, kind: t.Type, collation: Collation.Collation, capacity: usize, retain: bool) !Column {
+        return .{ .type = kind, .collation = collation, .data = if (!retain) .states_only else if (hot(kind)) .{ .words = try a.alignedAlloc(u64, .@"64", capacity) } else if (kind == .utf8 or kind == .binary) .{ .strings = try a.alignedAlloc(StringValue, .@"64", capacity) } else .{ .values = try a.alignedAlloc(t.Values.Value, .@"64", capacity) }, .states = try a.alignedAlloc(t.State, .@"64", capacity), .details = try a.alignedAlloc(Detail, .@"64", capacity) };
     }
     pub fn append(self: Column, a: std.mem.Allocator, i: usize, cell: t.Values.Cell) !void {
-        const owned = if (self.data == .states_only or (self.data == .words and cell != .conflict)) cell else try t.Values.cloneValidated(a, cell);
+        // Inline strings have no payload allocation. Long values and recursive
+        // conflict alternatives are copied into the batch's bounded arena once.
+        const inline_string = self.data == .strings and cell == .value and cell.value.atom.bytes.len <= 12;
+        const owned = if (self.data == .states_only or (self.data == .words and cell != .conflict) or inline_string) cell else try t.Values.cloneValidated(a, cell);
         self.appendBorrowed(i, owned);
     }
     /// The complete cell (including recursive/conflict payloads) stays immutable
@@ -54,6 +60,7 @@ pub const Column = struct {
                 .boolean => @intFromBool(cell.value.atom.boolean),
                 else => unreachable,
             },
+            .strings => |strings| strings[i] = StringValue.initValidated(if (cell == .value) cell.value.atom.bytes else "", self.collation),
             .values => |values| values[i] = if (cell == .value) cell.value else .{ .atom = .{ .signed = 0 } },
             .states_only => unreachable,
         }
@@ -66,7 +73,7 @@ pub fn hot(kind: t.Type) bool {
     };
 }
 pub const View = union(enum) {
-    flat: struct { type: t.Type, data: union(enum) { words: []const u64, values: []const t.Values.Value, states_only }, states: []const t.State, details: []const Detail },
+    flat: struct { type: t.Type, data: union(enum) { words: []const u64, strings: []const StringValue, values: []const t.Values.Value, states_only }, states: []const t.State, details: []const Detail },
     constant: struct { value: t.Values.Cell, len: usize },
     logical: struct { rows: []const rows.Logical, column: u8 },
     unified: struct { rows: []const rows.Native, column: u8 },
@@ -92,6 +99,7 @@ pub const View = union(enum) {
             .flat => |v| switch (v.data) {
                 .states_only => unreachable,
                 .values => |values| values[i].atom,
+                .strings => |strings| .{ .bytes = strings[i].bytes() },
                 .words => |words| switch (v.type) {
                     .int64 => .{ .signed = @as(i64, @bitCast(words[i])) },
                     .uint64 => .{ .unsigned = words[i] },
@@ -117,7 +125,7 @@ pub const View = union(enum) {
                 .conflict => .{ .conflict = v.details[i].conflict },
                 .value => .{ .value = switch (v.data) {
                     .values => |values| values[i],
-                    .words => .{ .atom = self.atom(i) },
+                    .words, .strings => .{ .atom = self.atom(i) },
                     .states_only => unreachable,
                 } },
             },
@@ -140,6 +148,7 @@ pub const Atom = struct {
     collation: Collation.Collation = .utf8_binary,
     state: t.State = .value,
     uses_values: bool = false,
+    string_literal: StringValue = .{ .len = 0, .payload = @splat(0) },
     implementation: cpu.Implementation = .portable,
     run: *const fn (Atom, View, usize, []Outcome) void,
     pub fn bind(atom: q.Plan.Atom, schema: t.Type) Atom {
@@ -156,7 +165,7 @@ pub const Atom = struct {
             .all => .{ .column = 0, .run = all },
             .state => |v| .{ .column = v.column, .state = v.value, .run = states },
             .null_compare => |v| .{ .column = v.column, .run = nullComparison },
-            .compare => |v| .{ .column = v.column, .literal = v.value, .kind = kind, .collation = collation, .uses_values = true, .run = switch (v.op) {
+            .compare => |v| .{ .column = v.column, .literal = v.value, .kind = kind, .collation = collation, .uses_values = true, .string_literal = if (kind == .utf8 or kind == .binary) StringValue.initValidated(v.value.bytes, collation) else .{ .len = 0, .payload = @splat(0) }, .run = switch (v.op) {
                 inline else => |op| switch (kind) {
                     .int64 => &Compare(i64, op).run,
                     .uint64 => &Compare(u64, op).run,
@@ -218,36 +227,16 @@ fn Compare(comptime T: type, comptime op: finite.Comparison) type {
                 return;
             }
             if (T == void and (self.kind == .utf8 or self.kind == .binary)) {
-                const GermanString = @import("GermanString.zig").GermanString;
-                const profile = Collation.Profile.fromCollation(self.collation);
-                const lit_bytes = self.literal.bytes;
-                const lit_prefix = Collation.computeSortPrefix4BProfile(lit_bytes, profile) catch unreachable;
-                const lit_prefix_u32 = std.mem.readInt(u32, &lit_prefix, .big);
-                const lit_len = Collation.canonicalByteLenProfile(lit_bytes, profile) catch unreachable;
-                const lit_inline_gs: ?GermanString = if (lit_len <= 12) (GermanString.init(lit_bytes, profile, null) catch null) else null;
-
                 for (output, start..) |*out, i| {
                     out.* = switch (column.state(i)) {
                         .null, .missing => .{ .truth = .unknown },
                         .type_error => .type_error,
                         .conflict => .conflict,
                         .value => value: {
-                            const row_bytes = column.atom(i).bytes;
-                            const row_len = Collation.canonicalByteLenProfile(row_bytes, profile) catch unreachable;
-                            if (op == .eq and row_len != lit_len) {
-                                break :value .{ .truth = .false_value };
-                            }
-                            if (op == .ne and row_len != lit_len) {
-                                break :value .{ .truth = .true_value };
-                            }
-                            const row_prefix = Collation.computeSortPrefix4BProfile(row_bytes, profile) catch unreachable;
-                            const row_prefix_u32 = std.mem.readInt(u32, &row_prefix, .big);
-                            const order: std.math.Order = if (row_prefix_u32 != lit_prefix_u32)
-                                std.math.order(row_prefix_u32, lit_prefix_u32)
-                            else if (row_len <= 12 and lit_inline_gs != null) blk_inline: {
-                                const row_gs = GermanString.init(row_bytes, profile, null) catch unreachable;
-                                break :blk_inline row_gs.order(lit_inline_gs.?, profile, null) catch unreachable;
-                            } else Collation.compareBytesProfile(row_bytes, lit_bytes, profile) catch unreachable;
+                            const order = if (column == .flat and column.flat.data == .strings)
+                                column.flat.data.strings[i].order(&self.string_literal, self.collation)
+                            else
+                                Collation.compareBytes(column.atom(i).bytes, self.literal.bytes, self.collation) catch unreachable;
 
                             break :value .{ .truth = finite.Truth.fromBool(switch (op) {
                                 .eq => order == .eq,

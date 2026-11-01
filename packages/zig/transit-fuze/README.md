@@ -35,6 +35,18 @@ TABLE and ADD COLUMN accept the corresponding `COLLATE` clauses; types and
 physical codecs remain independent. ICU, expression overrides and text
 relational joins/group/order are unsupported.
 
+`Batch` retains UTF-8 and binary values in 16-byte `StringVector.Value` lanes.
+Up to 12 original bytes fit inline; longer values carry a cached collation sort
+prefix and a pointer into immutable owner storage. Comparisons use the declared
+collation, while projections preserve spelling and trailing spaces. Owned append
+copies long payloads and conflict alternatives into the bounded batch arena;
+borrowed append requires source payloads to survive until reset/deinit. Views of
+inline bytes also expire at reset. Column arrays, state sidecars and selection
+arrays start at 64-byte boundaries. Reset and evaluation reuse the reservation.
+These are transient implementation details; canonical values and saved plans
+retain their existing definitions. `GermanString` is a separate normalized
+comparison-key helper and is not a lossless projection representation.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies

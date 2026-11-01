@@ -33,7 +33,7 @@ pub const Runner = struct {
     cancellation: ?*const std.atomic.Value(bool) = null,
 };
 allocator: std.mem.Allocator,
-backing: []u8,
+backing: []align(64) u8,
 memory: std.heap.FixedBufferAllocator,
 /// Independently owned, validated snapshot. Treat as immutable until deinit.
 plan: logical.Plan,
@@ -62,8 +62,8 @@ pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !S
     // touching every reserved conflict-payload page before the first output.
     // FBA allocations initialize metadata; append initializes every active lane
     // before len advances. No kernel/export may read the unused arena tail.
-    const pointer = allocator.rawAlloc(byte_count, .of(u8), @returnAddress()) orelse return error.OutOfMemory;
-    const backing = pointer[0..byte_count];
+    const pointer = allocator.rawAlloc(byte_count, .@"64", @returnAddress()) orelse return error.OutOfMemory;
+    const backing: []align(64) u8 = @alignCast(pointer[0..byte_count]);
     errdefer allocator.free(backing);
     var memory: std.heap.FixedBufferAllocator = .init(backing);
     const a = memory.allocator();
@@ -91,13 +91,13 @@ pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !S
     // reduces the compute target; it never raises the caller's byte allowance.
     const capacity = @min(limits.rows, (backing.len - memory.end_index) / (2 * row_bytes));
     if (capacity == 0) return error.BatchBudgetExceeded;
-    for (columns, owned.schema.structure, 0..) |*column, field, i| column.* = Column.init(a, field.type, capacity, retained[i]) catch return error.BatchBudgetExceeded;
-    const sites = a.alloc(u8, capacity) catch return error.BatchBudgetExceeded;
-    const scratch = a.alloc(finite.Truth, capacity * kernel.depth) catch return error.BatchBudgetExceeded;
-    const temporary = a.alloc(Outcome, capacity) catch return error.BatchBudgetExceeded;
-    const provenance = a.alloc(Provenance, capacity) catch return error.BatchBudgetExceeded;
-    const outcomes = a.alloc(Outcome, capacity) catch return error.BatchBudgetExceeded;
-    const selection = a.alloc(usize, capacity) catch return error.BatchBudgetExceeded;
+    for (columns, owned.schema.structure, 0..) |*column, field, i| column.* = Column.init(a, field.type, owned.collations.columns[i], capacity, retained[i]) catch return error.BatchBudgetExceeded;
+    const sites = a.alignedAlloc(u8, .@"64", capacity) catch return error.BatchBudgetExceeded;
+    const scratch = a.alignedAlloc(finite.Truth, .@"64", capacity * kernel.depth) catch return error.BatchBudgetExceeded;
+    const temporary = a.alignedAlloc(Outcome, .@"64", capacity) catch return error.BatchBudgetExceeded;
+    const provenance = a.alignedAlloc(Provenance, .@"64", capacity) catch return error.BatchBudgetExceeded;
+    const outcomes = a.alignedAlloc(Outcome, .@"64", capacity) catch return error.BatchBudgetExceeded;
+    const selection = a.alignedAlloc(usize, .@"64", capacity) catch return error.BatchBudgetExceeded;
     return .{ .allocator = allocator, .backing = backing, .memory = memory, .plan = owned, .fingerprint = fingerprint, .kernel = kernel, .views = views, .sites = sites, .scratch = scratch, .temporary = temporary, .columns = columns, .provenance = provenance, .outcomes = outcomes, .selection = selection, .capacity = capacity, .payload_start = memory.end_index };
 }
 pub fn predicateFailure(self: *const Self, row: usize) logical.Plan.PredicateFailure {

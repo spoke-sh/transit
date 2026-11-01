@@ -123,3 +123,63 @@ test "SQL column collations bind declarations defaults and added columns" {
     try t.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (s TEXT COLLATE ICU_ROOT)", null, null));
     try t.expectError(error.UnrepresentableEbcdic037, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (s TEXT COLLATE EBCDIC_CP037 DEFAULT '東京')", null, null));
 }
+
+test "compact string batch owns raw bytes and conflict details across allocation-free resets" {
+    const memory = @import("transit_memory");
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    var plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = @splat(7), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .bytes = "MiXeD" } } } };
+    plan.collations.columns[0] = .ascii_ci;
+    var batch = try f.Batch.init(probe.allocator(), plan, .{ .rows = 8, .bytes = 65536 });
+    defer batch.deinit();
+    try t.expectEqual(@as(usize, 16), @sizeOf(f.Batch.kernels.StringValue));
+    try t.expectEqual(@as(usize, 0), @intFromPtr(batch.columns[0].data.strings.ptr) % 64);
+    try t.expectEqual(@as(usize, 0), @intFromPtr(batch.columns[0].states.ptr) % 64);
+    try t.expectEqual(@as(usize, 0), @intFromPtr(batch.selection.ptr) % 64);
+    probe.begin(true);
+    for (0..300) |_| {
+        batch.reset();
+        var short = "MiXeD".*;
+        var long = "MiXeD Original Long Payload  ".*;
+        var alternatives = [_]f.Types.Values.Alternative{
+            .{ .counter = 1, .replica = 1, .value = .null },
+            .{ .counter = 2, .replica = 1, .value = .{ .value = .{ .atom = .{ .bytes = &long } } } },
+        };
+        const before_short = batch.memory.end_index;
+        try batch.append(&.{text(&short)}, .{ .row = 1, .boundary = 1 });
+        try t.expectEqual(before_short, batch.memory.end_index);
+        try batch.append(&.{text(&long)}, .{ .row = 2, .boundary = 1 });
+        try batch.append(&.{.null}, .{ .row = 3, .boundary = 1 });
+        try batch.append(&.{.missing}, .{ .row = 4, .boundary = 1 });
+        try batch.append(&.{.{ .type_error = .binary }}, .{ .row = 5, .boundary = 1 });
+        try batch.append(&.{.{ .conflict = &alternatives }}, .{ .row = 6, .boundary = 1 });
+        @memset(&short, 'x');
+        @memset(&long, 'x');
+        alternatives[1].value = .null;
+        batch.evaluate();
+        const view = batch.columns[0].view(batch.len);
+        try t.expectEqualStrings("MiXeD", view.cell(0).value.atom.bytes);
+        try t.expectEqualStrings("MiXeD Original Long Payload  ", view.cell(1).value.atom.bytes);
+        try t.expectEqualStrings("MiXeD Original Long Payload  ", view.cell(5).conflict[1].value.value.atom.bytes);
+        try t.expectEqualSlices(f.Batch.Outcome, &.{ .{ .truth = .true_value }, .{ .truth = .false_value }, .{ .truth = .unknown }, .{ .truth = .unknown }, .type_error, .conflict }, batch.outcomes[0..6]);
+    }
+    try probe.verify();
+}
+
+test "compact borrowed strings preserve binary and unicode at the inline boundary" {
+    const texts = [_][]const u8{ "", "a\x00", "ABCDEFGHIJKL", "ABCDEFGHIJKLM", "éÖa", "éÖa long payload", "same-prefix-aa", "same-prefix-ab" };
+    for ([_]f.TableSchema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037 }) |collation| {
+        for (texts) |literal| {
+            var plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = @splat(7), .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .lt, .value = .{ .bytes = literal } } } };
+            plan.collations.columns[0] = collation;
+            var batch = try f.Batch.init(t.allocator, plan, .{ .rows = 8, .bytes = 65536 });
+            defer batch.deinit();
+            for (texts, 0..) |input, i| try batch.appendBorrowedValidated(&.{text(input)}, .{ .row = i + 1, .boundary = 1 });
+            batch.evaluate();
+            for (texts, 0..) |input, i| {
+                try t.expectEqualStrings(input, batch.columns[0].view(batch.len).cell(i).value.atom.bytes);
+                var failure: ?f.LogicalQuery.Plan.PredicateFailure = null;
+                try t.expectEqual(try plan.matches(&.{text(input)}, &failure), batch.outcomes[i].truth.selects());
+            }
+        }
+    }
+}
