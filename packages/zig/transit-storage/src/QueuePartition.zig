@@ -45,6 +45,18 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.StreamQueue.Cut {
     return self.owner.observe(declared, guard);
 }
+pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
+    return self.owner.transactionPinState(owner, guard);
+}
+pub fn pinTransactionSource(self: *Self, declared: Declaration.Stored, identity: p.Transaction.Identity, expected: p.DataLifecycle.Position, guard: Guard) !p.Transaction.Pin {
+    return self.owner.pinTransactionSource(declared, identity, expected, guard);
+}
+pub fn inspectTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !@import("LogTransaction.zig").Source {
+    return self.owner.inspectTransactionSource(handle, guard);
+}
+pub fn releaseTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !void {
+    return self.owner.releaseTransactionSource(handle, guard);
+}
 pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Append, payload: []const u8, guard: Guard) !p.StreamQueue.AppendReceipt {
     return self.owner.append(declared, request, payload, guard);
 }

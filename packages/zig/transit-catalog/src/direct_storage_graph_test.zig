@@ -502,3 +502,87 @@ test "direct graph retains document partition declarations states payloads evide
     const payload_key = try std.fmt.bufPrint(&name, "document-payloads/{x}.data", .{&mut_rec.mutation.payload.sha256});
     try t.expect(workspace.marks.contains(payload_key));
 }
+
+test "direct graph retains transaction log source payloads after archive trim until exact release" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn walk(owner: *s.StreamPartition, wal: s.TransitLog.Log, workspace: *Workspace) !void {
+            // Isolate the pin edge; current data and WAL replay roots cannot
+            // conceal a missing transaction dependency.
+            const root = owner.root;
+            try workspace.enqueue(.{ .log_index = .{
+                .context = .{ .interpretation = root.declared.declaration.interpretation, .partition = root.initialization.partition, .ordinal = root.initialization.ordinal, .next_lsn = root.next_lsn, .next_offset = root.next_offset, .segments = root.segments, .hidden = root.hidden, .queue_read_releases = null, .archive = root.archive },
+                .reference = root.transaction_pins.?,
+                .kind = .transaction_pins,
+            } });
+            var at: usize = 0;
+            var steps: usize = 0;
+            while (at < workspace.jobs.items.len) : (at += 1) {
+                var work = workspace.jobs.items[at];
+                while (true) {
+                    const queued = workspace.jobs.items.len;
+                    const complete = try Graph.step(t.allocator, &owner.store, wal, &work, workspace);
+                    try t.expect(workspace.jobs.items.len - queued <= 3);
+                    steps += 1;
+                    if (steps > 10000) return error.FixtureBudget;
+                    if (complete) break;
+                }
+            }
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const definition: s.LogDeclaration.Definition = .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 8 },
+        .revision = 1,
+        .schema = .{ .object = 8, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "value", .type = .utf8, .nullable = false, .collation = .utf8_binary }} },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "transaction-source-graph",
+    };
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
+    const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 92 };
+    _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
+    const options: s.StreamPartition.Options = .{ .resident_pages = 1, .batch_bytes = 8192, .key_bytes = 1024, .tail = .{ .slots = 1, .borrow_slots = 1, .slot_bytes = 8192, .resident_bytes = 16384 } };
+    var owner = try s.StreamPartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(guard, 1);
+    const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(definition.schema, operation, .stream, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = "retained" } } }} }}, &bytes);
+    _ = try owner.append(declared, .{ .target = initial.target(), .operation = operation, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, guard);
+    const source_root = owner.root;
+    const identity: c.protocol.Transaction.Identity = .{ .begin = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .branch = 1 };
+    const pin = try owner.pinTransactionSource(declared, identity, source_root.position(), guard);
+    const cut = owner.root.position();
+    while (!(try owner.flush(cut, guard)).complete) {}
+    while (!(try owner.archive(cut, .{ .frames = 2 }, guard)).complete) {}
+    _ = try owner.checkpoint(cut, guard);
+    _ = try owner.trimArchived(guard);
+    try t.expect(source_root.segments == null and owner.root.segments != null);
+    var retained: Workspace = .{};
+    defer retained.deinit();
+    try Fixture.walk(&owner, wal.log(), &retained);
+    var name: [96]u8 = undefined;
+    try t.expect(retained.marks.contains(try s.LogTransaction.sourceKey(pin.content, &name)));
+    try t.expect(retained.marks.contains(try s.TreeStore.key(source_root.batches.?.location, &name)));
+    try t.expect(retained.marks.contains(try s.LogDeclaration.key(declared.content, &name)));
+    try owner.releaseTransactionSource(pin, guard);
+    var released: Workspace = .{};
+    defer released.deinit();
+    try Fixture.walk(&owner, wal.log(), &released);
+    try t.expect(!released.marks.contains(try s.LogTransaction.sourceKey(pin.content, &name)));
+    try t.expect(!released.marks.contains(try s.TreeStore.key(source_root.batches.?.location, &name)));
+    // Replay history can still retain its earlier live pin independently.
+    try t.expectError(error.LogTransactionSourceReleased, owner.inspectTransactionSource(pin, guard));
+}

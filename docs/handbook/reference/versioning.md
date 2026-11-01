@@ -122,6 +122,14 @@ The named direct KV cutover replaces the shared definition with
 `7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
 The Table/KV transaction cutover replaces the shared definition with
 `959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d`.
+The retained log-transaction cutover replaces the shared definition with
+`d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e`.
+Log partition records and recovery baselines require explicit logical-change,
+transaction-pin and preparation-reference fields. Immutable transaction sources
+bind the exact old root and original begin identity; earlier log roots cannot
+acquire these fields from current defaults. The retained-cut storage component
+does not yet enable log transaction execution.
+
 Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
 partitions, typed direct requests and KV policy; the native resource declaration
 and initialization marker accept Document only. Earlier named KV artifacts,
