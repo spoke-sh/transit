@@ -30180,7 +30180,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 117,
+        "try": 118,
         "catch": 13
       },
       "imports": [

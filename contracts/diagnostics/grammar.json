@@ -6665,6 +6665,30 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "log-append-statement-0",
+      "sql": "PRODUCE INTO items DEFAULT VALUES",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-statement-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES RETURNING *;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
     }
   ]
 }
