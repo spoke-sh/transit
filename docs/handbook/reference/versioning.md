@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98`.
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -143,7 +143,11 @@ shapes. The binary result header requires an explicit workload-evidence byte
 length; ordinary results encode zero. Workload terminals carry their original
 intent and complete native position separately from output row count. The
 replacement definition rejects earlier frame layouts before interpretation.
-These types alone do not enable workload SQL admission or result reopening.
+SQL operation messages also distinguish workload command completion from retained
+rows and carry original native receipt/closure evidence. The session service can
+inspect/recover these tokens and open their frozen projections; workload SQL
+admission remains unimplemented. Missing native evidence cannot establish a
+terminal workload operation.
 
 The signed direct service also exposes original workload result opening and
 paging. Mandatory references bind the frozen intent, accepted selection and

@@ -202,7 +202,7 @@ pub fn tick(self: *Self) !bool {
         // Consume the entire bounded page before advancing its cursor. Stopping
         // at its first entry and resetting on next=null starves the final page.
         for (page.entries) |slot| if (slot) |reference| {
-            if (reference.kind != .table and reference.kind != .transaction) continue;
+            if (reference.kind != .table and reference.kind != .transaction and reference.kind != .workload) continue;
             const selected = self.claim(reference.nonce);
             if (!selected.tryLock()) {
                 self.retry_pending = true;
@@ -359,8 +359,9 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     try self.checkFence(source.client);
     if (!state.pending) return false;
     const reference = state.receipt.binding.intent;
-    if (reference == .external or reference == .branch or reference == .workload) return false;
+    if (reference == .external or reference == .branch) return false;
     const caller = source.direct(state);
+    if (reference == .workload) return g.WorkloadOperations.advance(caller, state);
     if (reference == .transaction_call) {
         return transactionPending(try g.TransactionWork.advance(caller, state, state.cancel));
     }
@@ -398,7 +399,6 @@ pub fn cancel(self: *Self, observer: *g.Client, id: u64) !void {
     try self.fence(observer);
     var source = try observer.source();
     const state = try source.operation(id);
-    if (state.receipt.binding.intent == .workload) return error.WorkloadOperationRequired;
     defer if (state.receipt.binding.intent == .external) self.notifyExternal() else self.notify();
     if (state.receipt.binding.intent == .transaction_call) {
         _ = try g.TransactionWork.advance(source.direct(state), state, true);
@@ -585,6 +585,7 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     const state = try source.operation(id);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, namespace);
+    if (intent == .workload) return g.WorkloadOperations.status(table.*, state);
     if (intent == .transaction_call) return g.TransactionWork.status(table.*, state);
     const response = try intent.operation(table.*, .inspect, 1);
     defer response.deinit();

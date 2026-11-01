@@ -33,8 +33,12 @@ native original-result API. It owns decoded metadata and retained scratch,
 resumes failed page requests at the same position, and exposes original selection
 and completion evidence. Returned rows are borrowed until the next pull: a batch
 owner must copy them and recheck disclosure after buffering, including repeated
-or empty terminal responses. Closing only releases local memory. This adapter
-does not yet enable workload SQL or session result opening.
+or empty terminal responses. Closing only releases local memory. The session
+service uses this adapter to reopen existing workload tokens.
+`WorkloadOperations` projects native receipts and recorded closures and advances
+the same frozen work through Catalog's terminal settlement gate. Workload SQL
+admission remains unimplemented; native group assignment and read-release tokens
+remain with their native owners rather than SQL recovery.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs

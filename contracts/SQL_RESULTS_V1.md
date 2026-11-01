@@ -116,8 +116,21 @@ does not manufacture coverage; closing after verified completion preserves that
 evidence without claiming all rows were delivered. Neither transition ACKs,
 renews, releases the native read dependency or advances a consumer group.
 
-These are shared model and codec contracts. SQL workload admission, projection
-execution and service reopening are not yet connected to these shapes.
+Workload operation settlement carries `Workload.Evidence`: the saved intent
+content, original native binding and actual append/consume/claim, offset,
+settlement or closure receipt. Offset evidence retains its original authenticated
+request as well as the receipt; ACK/NACK/extension evidence fixes its exact lease
+and action. Receipt validation checks the binding before projecting an outcome.
+Only append/enqueue commands have matched/changed row counts, taken from the
+accepted append; other workload commands omit them. A recorded closure yields
+cancelled or rejected, with its original reason. Missing evidence remains pending.
+
+The SQL service projects these original tokens and opens their frozen result
+plans. An operation's typed `result_kind` distinguishes command completion from
+retained rows. A successful row operation cannot be converted to a command
+completion; rejected/cancelled outcomes have command shape. The shared client
+checks the returned intent and selection against settlement evidence. SQL text
+admission for workload verbs is not yet implemented.
 
 ## Ownership and consumers
 

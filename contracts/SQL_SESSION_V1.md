@@ -120,6 +120,22 @@ for recovery. Status reads do not execute pending work. The client can retain pr
 making it durable. Adapter-specific admission restrictions remain in the wire
 adapters; the native codec preserves Fuze logical types.
 
+Existing native Stream/Queue workload tokens appear as operation kind `workload`.
+Status observes the original native receipt or recorded closure under current
+rights, preserving its saved intent and binding in `workload` evidence. Missing
+receipts and bounded owner recovery remain pending. Database recovery executes
+or cancels only that saved work and discharges pending accounting through the
+Catalog terminal-evidence gate; it never recompiles saved SQL. Native group
+assignment and explicit native read-release tokens are outside this SQL profile.
+
+`result_kind` specifies command or retained rows. `result` accepts a workload
+operation in the same account, selects its original authorized database route,
+and opens its frozen projection against the original append/consume/claim.
+Post-buffer disclosure, repeat fetch and empty/terminal responses recheck current
+rights. A new result cursor starts a new consumption of that same selection;
+it cannot renew a lease, ACK, commit an offset or release native retention.
+No workload SQL verbs are admitted by these result/recovery messages.
+
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation
 flag remain explicit. Row-returning statements have a logical schema even when

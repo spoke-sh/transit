@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.sql-workload-result-evidence.2026-11-01.
+/// SHA-256 of transit.v1.sql-original-workload-recovery.2026-11-01.
 pub const Definition = enum {
-    fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98,
+    @"3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;

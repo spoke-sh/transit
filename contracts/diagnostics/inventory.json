@@ -20702,7 +20702,7 @@
           "deadline"
         ],
         "Definition": [
-          "fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98"
+          "@\"3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76\""
         ],
         "Effect.phase": [
           "pending",
@@ -27485,16 +27485,20 @@
     },
     "packages/zig/transit-sql-client/src/Executor.zig": {
       "errors": {
-        "IncompatibleSqlDefinition": 1,
+        "AuthenticationFailed": 1,
+        "Canceled": 1,
+        "IncompatibleSqlDefinition": 2,
         "InvalidResultBudget": 1,
         "InvalidResultOperation": 1,
-        "InvalidSqlResponse": 5,
+        "InvalidSqlResponse": 6,
         "InvalidSqlSubmission": 1,
+        "MissingResultObservation": 1,
+        "MissingWorkloadEvidence": 2,
         "ParameterCountMismatch": 1,
         "ReadOnlyStatementRequired": 3,
-        "ResultCancelled": 2,
-        "SqlInstanceChanged": 2,
-        "SqlObservationDenied": 3,
+        "ResultCancelled": 3,
+        "SqlInstanceChanged": 3,
+        "SqlObservationDenied": 5,
         "SqlOutcomeUnknown": 1,
         "SqlResponseBusy": 1,
         "SqlResponseCapacity": 1,
@@ -27535,16 +27539,17 @@
         "execute()": "<inferred>",
         "failure()": "<inferred>",
         "openCaptured()": "<inferred>",
+        "openWorkload()": "<inferred>",
         "poll()": "<inferred>",
         "read()": "<inferred>",
         "renew()": "<inferred>",
         "requireRead()": "<inferred>",
         "settle()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 46,
-        "catch": 5
+        "try": 50,
+        "catch": 7
       },
       "imports": [
         "NativeResult.zig",
@@ -28646,11 +28651,12 @@
         "InvalidScramMessage": 2,
         "InvalidSqlExecution": 1,
         "InvalidSqlName": 1,
-        "InvalidSqlOperation": 3,
+        "InvalidSqlOperation": 4,
         "InvalidSqlText": 1,
         "SqlInstanceRequired": 1,
         "SqlMessageTooLarge": 1,
         "SqlOutcomeUnknown": 1,
+        "SqlRowsRequired": 1,
         "SqlSessionRequired": 1,
         "SqlTokenRequiresText": 1,
         "TooManySqlParameters": 1
@@ -28720,6 +28726,10 @@
           "terminal",
           "abandoned"
         ],
+        "Operation.result_kind": [
+          "command",
+          "rows"
+        ],
         "Response.result": [
           "hello",
           "challenge",
@@ -28772,6 +28782,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Operation.commandEvidence()": "<inferred>",
         "Operation.completion()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
@@ -29090,20 +29101,33 @@
     "packages/zig/transit-sql-results/src/Workload.zig": {
       "errors": {
         "IncompleteWorkloadCoverage": 1,
+        "InvalidWorkloadEvidence": 3,
         "InvalidWorkloadObservation": 1,
         "InvalidWorkloadResultCount": 3,
-        "WorkloadResultConflict": 1
+        "WorkloadResultConflict": 3,
+        "WorkloadResultUnavailable": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Evidence.receipt": [
+          "append",
+          "consume",
+          "claim",
+          "offset",
+          "settle",
+          "closed"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Completion.validate()": "<inferred>",
         "Completion.validateShape()": "<inferred>",
+        "Evidence.requireObservation()": "<inferred>",
+        "Evidence.validate()": "<inferred>",
         "Observation.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -29113,11 +29137,13 @@
     },
     "packages/zig/transit-sql-results/src/root.zig": {
       "errors": {
-        "InvalidCommandCompletion": 11,
+        "InvalidCommandCompletion": 13,
         "InvalidCommandCounts": 2,
         "InvalidResultRow": 1,
         "MissingWorkloadCoverage": 1,
-        "UnexpectedWorkloadCoverage": 1
+        "MissingWorkloadEvidence": 1,
+        "UnexpectedWorkloadCoverage": 1,
+        "UnexpectedWorkloadEvidence": 1
       },
       "outcomes": {
         "Command": [
@@ -29150,15 +29176,21 @@
           "savepoint",
           "release_savepoint",
           "rollback_to_savepoint",
-          "create_dataflow",
-          "control_dataflow"
+          "produce",
+          "consume",
+          "commit_offset",
+          "enqueue",
+          "claim",
+          "ack",
+          "nack",
+          "extend_lease"
         ],
         "Operation.kind": [
           "table",
           "configuration",
           "captured",
           "transaction",
-          "dataflow"
+          "workload"
         ],
         "Outcome": [
           "provisional",
@@ -29191,7 +29223,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -29213,7 +29245,8 @@
         "CatalogIdentityConflict": 2,
         "ConfigurationDenied": 1,
         "InvalidReadBatch": 1,
-        "TransactionReadChanged": 1
+        "TransactionReadChanged": 1,
+        "WorkloadResultConflict": 1
       },
       "outcomes": {
         "Subject": [
@@ -29230,7 +29263,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -29470,8 +29503,7 @@
         "InvalidAuthentication": 1,
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
-        "InvalidSqlOperationReference": 1,
-        "ManagedControlCancellationUnsupported": 1,
+        "InvalidSqlOperationReference": 3,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
         "QueryDenied": 3,
@@ -29522,7 +29554,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 127,
+        "try": 129,
         "catch": 9
       },
       "imports": [
@@ -29540,7 +29572,7 @@
         "Cancelled": 1,
         "CatalogDefinitionChanged": 2,
         "CatalogDenied": 1,
-        "CatalogIdentityConflict": 2,
+        "CatalogIdentityConflict": 3,
         "CatalogKindMismatch": 1,
         "CatalogNameNotFound": 1,
         "CellTooLarge": 1,
@@ -29646,7 +29678,7 @@
           "inspection",
           "source",
           "captured",
-          "managed"
+          "workload"
         ],
         "Read.value": [
           "single",
@@ -29655,11 +29687,13 @@
           "settings",
           "inspection",
           "source",
-          "captured"
+          "captured",
+          "workload"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Read.completion()": "<inferred>",
         "Read.dataBasis()": "<inferred>",
         "Read.nextBatch()": "<inferred>",
         "Read.observation()": "<inferred>",
@@ -29979,8 +30013,7 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 4,
-        "Timeout": 1,
-        "WorkloadOperationRequired": 1
+        "Timeout": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -30251,7 +30284,7 @@
         "GatewayIdentityConflict": 2,
         "GatewayUnresolvedStep": 1,
         "InvalidSqlOperationReference": 8,
-        "WorkloadOperationRequired": 1
+        "UnsupportedSqlWorkload": 1
       },
       "outcomes": {
         "External.phase": [
@@ -30270,7 +30303,7 @@
           "configuration",
           "captured",
           "transaction",
-          "dataflow"
+          "workload"
         ]
       },
       "error_sets": {},
@@ -30501,6 +30534,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql/src/WorkloadOperations.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidWorkloadEvidence": 4,
+        "MissingGatewayTerminal": 1,
+        "UnsupportedSqlWorkload": 5,
+        "WorkloadOperationRequired": 1
+      },
+      "outcomes": {
+        "call().action": [
+          "inspect",
+          "execute",
+          "cancel"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "call()": "<inferred>",
+        "command()": "<inferred>",
+        "evidence()": "<inferred>",
+        "load()": "<inferred>",
+        "status()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql/src/WorkloadRead.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
@@ -30557,6 +30624,7 @@
         "Terminal.zig",
         "TransactionSql.zig",
         "TransactionWork.zig",
+        "WorkloadOperations.zig",
         "WorkloadRead.zig",
         "transit_catalog",
         "transit_client",

@@ -39,6 +39,16 @@ revision. The shared result model reports provisional counts and actual decision
 See [Table transactions](../../../docs/handbook/reference/sql/transactions.md) for
 scope, session loss, conflicts and resource limits.
 
+Original Stream/Queue workload tokens share database operation inspection and
+recovery. A `workload` operation reports original native receipt/closure evidence
+and distinguishes a command from retained rows. `result` opens its frozen Fuze
+projection through `WorkloadRead`, preserving original selection and complete
+native coverage separately from filtered output count. Batch copies own their
+cells; repeated and terminal disclosure rechecks current authority even after
+the iterator is closed. Opening/closing a result never claims again, renews a
+lease or settles consumer progress. These recovery surfaces do not enable the
+workload SQL verbs, which remain unimplemented.
+
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
 a complete compiled bundle and publishes each complete signed Query request

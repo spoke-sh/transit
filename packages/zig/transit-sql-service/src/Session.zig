@@ -54,11 +54,12 @@ pub const Prepared = union(enum) {
     source: g.SourceSession.Prepared,
     captured: g.CapturedOperations.Prepared,
     managed: g.ManagedOperations.Prepared,
+    workload: g.database.WorkloadRead.Prepared,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
             .source => |*value| value.template.parameterTypes(),
-            .probe, .settings, .inspection, .captured, .transaction, .managed => &.{},
+            .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
@@ -66,6 +67,7 @@ pub const Prepared = union(enum) {
             .native => |*value| value.fields(),
             .source => |*value| value.output.type.structure,
             .captured => |*value| value.output.type.structure,
+            .workload => |*value| value.output.type.structure,
             .transaction, .managed => &.{},
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
@@ -77,7 +79,7 @@ pub const Prepared = union(enum) {
             .transaction, .managed => true,
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
-            .inspection, .source, .captured => false,
+            .inspection, .source, .captured, .workload => false,
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
@@ -103,7 +105,7 @@ test "read-only admission excludes row-returning configuration effects" {
 }
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
+    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read, workload: g.database.WorkloadRead.Read },
     prepared: *Prepared,
     builder: g.results.BatchBuilder,
     input: g.ReadBatch = .{},
@@ -139,6 +141,7 @@ pub const Read = struct {
             },
             .source => |source| sourceBasis(source.query.basis),
             .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
+            .workload => |*value| .{ .workload = try value.observation() },
             else => null,
         };
     }
@@ -205,6 +208,9 @@ pub const Read = struct {
         }
         try self.disclosure.validate(self.host, self.prepared);
     }
+    pub fn completion(self: *Read, rows: u64) !g.results.Completion {
+        return if (self.value == .workload) self.value.workload.completion(rows) else .{ .rows = rows };
+    }
     /// A parked wire continuation cannot reuse an earlier admission/disclosure
     /// observation. The retained data cut and buffered cells remain unchanged.
     pub fn resumeWire(self: *Read) void {
@@ -221,6 +227,7 @@ pub const Read = struct {
         }
         try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
         self.disclosure = .{ .transaction = self.transaction, .transaction_context = self.transaction_context };
+        if (self.value == .workload) self.disclosure.workload = self.value.workload.reference;
         var complete = false;
         while (self.builder.len < maximum) {
             if (self.input_index == self.input.len) {
@@ -277,6 +284,7 @@ pub const Read = struct {
         }
         const cells: ?[]const f.Types.Values.Cell = switch (self.value) {
             .single, .source, .captured => unreachable,
+            .workload => |*value| try value.pull(self.host.deadline),
             .relational => |query| blk: {
                 self.output = try query.next() orelse break :blk null;
                 break :blk self.output.?.cells[0..self.output.?.len];
@@ -295,6 +303,7 @@ pub const Read = struct {
         result.complete = cells == null or switch (self.value) {
             .inspection => |inspection| inspection.index == inspection.prepared.count(),
             .probe => true,
+            .workload => |*value| try value.complete(),
             else => false,
         };
         return result;
@@ -541,6 +550,7 @@ pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .source) prepared.source.deinit();
     if (prepared.* == .captured) prepared.captured.deinit();
+    if (prepared.* == .workload) prepared.workload.deinit();
     if (prepared.* == .settings) prepared.settings.deinit();
     if (prepared.* == .inspection) prepared.inspection.deinit();
     self.allocator.destroy(prepared);
@@ -567,6 +577,10 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .managed => |*managed| try g.ManagedOperations.validate(self, managed),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
+        .workload => |*value| {
+            if (value.reference.namespace != self.namespace or self.source != null) return error.CatalogIdentityConflict;
+            _ = try value.open(self.table);
+        },
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe, .transaction => {}, // current() already validates the login and database.
@@ -580,7 +594,7 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
             var bound = try self.source.?.bind(statement, values);
             bound.deinit();
         },
-        .probe, .settings, .inspection, .captured, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -607,6 +621,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     switch (prepared.*) {
         .transaction, .managed => return error.ExpectedGatewayRead,
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
+        .workload => |*value| read.value = .{ .workload = try g.database.WorkloadRead.Read.init(value, self.table) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
         .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
@@ -668,6 +683,7 @@ pub fn closeRead(self: *Self, read: *Read) void {
         },
         .source => |*source| source.deinit(),
         .captured => |*captured| captured.deinit(),
+        .workload => |*value| value.deinit(),
         .probe, .inspection => {},
         .settings => |*settings| settings.deinit(),
     }

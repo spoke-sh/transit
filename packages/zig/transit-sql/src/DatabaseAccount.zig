@@ -76,7 +76,7 @@ pub fn operation(self: Self, source: *g.Client.Source, id: u64) !g.OperationReco
 }
 pub fn operationFromState(self: Self, state: c.DirectClientToken.Progress) !g.OperationRecords.Operation {
     const reference = state.receipt.binding.intent;
-    if (reference == .external or reference == .workload) return error.InvalidSqlOperationReference;
+    if (reference == .external) return error.InvalidSqlOperationReference;
     const connection = reference.connection();
     const binding: Binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .namespace = reference.namespace(), .role = connection.role };
     try self.admittedBinding(binding);

@@ -171,6 +171,8 @@ test "workload reader retains projected cells and original coverage through lost
         pages: usize = 0,
         denied: bool = false,
         lose_page: bool = false,
+        operation_visible: bool = true,
+        operation_closed: bool = false,
         fn cursor(self: *@This(), through: u64) p.StreamRead.Cursor {
             return .{ .read = self.receipt.handle(), .coverage = .{ .cut = self.receipt.cut, .from = 0, .until = 3, .through = through, .rows = through, .complete = through == 3 }, .authentication = @splat(17) };
         }
@@ -186,6 +188,14 @@ test "workload reader retains projected cells and original coverage through lost
                     if (record != .read) return error.TestUnexpectedMutation;
                     try self.reference.record.requireSame(record.read);
                     break :blk .{ .record = .{ .reference = record.read, .bytes = try w.Binary.encode(invocation.allocator, self.intent.bytes) } };
+                },
+                .stream => |query| blk: {
+                    if (query != .operation) return error.TestUnexpectedMutation;
+                    try self.reference.binding.requireSame(.{ .stream = try query.operation.binding(invocation.allocator) });
+                    break :blk .{ .stream = .{ .operation = if (!self.operation_visible) null else if (self.operation_closed)
+                        .{ .closed = .{ .binding = self.reference.binding, .recorded = .{ .partition = 13, .next_lsn = 7 }, .reason = .cancelled } }
+                    else
+                        .{ .consume = self.receipt } } };
                 },
                 .workload_result => |query| blk: {
                     const reference: native.Reference = .{ .intent = self.reference, .selection = .{ .consume = self.receipt }, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 65536 } };
@@ -252,6 +262,27 @@ test "workload reader retains projected cells and original coverage through lost
     defer transport.deinit();
     transport.local = .{ .context = &peer, .invoke = Peer.invoke };
     const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = key, .credential_epoch = 1 };
+    const state = c.DirectClientToken.Progress.initial(.{
+        .binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = reference.record.scope.account, .token = @splat(20) }, .fingerprint = @splat(21), .intent = .{ .workload = reference }, .budget = .{ .bytes = try reference.reservationBytes() } },
+        .position = .{ .partition = 22, .next_lsn = 23 },
+        .coordination = null,
+    });
+    try state.validate();
+    peer.operation_visible = false;
+    const pending = try g.WorkloadOperations.status(caller, state);
+    try t.expectEqual(.ready, pending.phase);
+    try t.expectEqual(.rows, pending.result_kind);
+    try t.expectEqual(null, pending.workload);
+    peer.operation_visible = true;
+    const applied = try g.WorkloadOperations.status(caller, state);
+    try t.expectEqual(.applied, applied.outcome.?);
+    try t.expectEqualDeep(peer.receipt, applied.workload.?.receipt.consume);
+    try t.expectError(error.SqlRowsRequired, applied.completion());
+    peer.operation_closed = true;
+    const cancelled = try g.WorkloadOperations.status(caller, state);
+    try t.expectEqual(.cancelled, (try cancelled.completion()).outcome);
+    try t.expectEqual(.command, cancelled.result_kind);
+    peer.operation_closed = false;
     var prepared = try Prepared.init(caller, reference);
     defer prepared.deinit();
     try t.expectEqualStrings("body", prepared.output.type.structure[0].name);
