@@ -3774,3 +3774,78 @@ test "transaction preparation barrier and original decision survive disk reopen 
         }
     }
 }
+
+test "Table copied snapshot retains the original WAL cut across source release and lost reply recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var original: P.SnapshotHandle = undefined;
+    var copied: P.SnapshotHandle = undefined;
+    const new_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 92 };
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const first: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 42 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&first, 1)}, .point, access.guard());
+        original = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 91 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const later: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 43 } } };
+        _ = try table.apply(binding(&table, 2), &.{change(&later, 2)}, .point, access.guard());
+        const before = table.root;
+        var denied: Access = .{ .deny_at = 1 };
+        try t.expectError(error.PermissionDenied, table.copySnapshot(new_owner, original, denied.guard()));
+        try t.expectEqualDeep(before, table.root);
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.copySnapshot(new_owner, original, access.guard()));
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        copied = (try table.pinState(new_owner, access.guard())).handle.?;
+        try table.releaseSnapshot(original, access.guard());
+        const tail = table.root.next_lsn;
+        try t.expectEqualDeep(copied, try table.copySnapshot(new_owner, original, access.guard()));
+        try t.expectEqual(tail, table.root.next_lsn);
+        var forged = original;
+        forged.content.sha256[0] ^= 1;
+        try t.expectError(error.DataIdentityConflict, table.copySnapshot(new_owner, forged, access.guard()));
+        var other_owner = new_owner;
+        other_owner.operation += 1;
+        try t.expectError(error.TableSnapshotReleased, table.copySnapshot(other_owner, original, access.guard()));
+        var frozen = try table.inspectSnapshot(t.allocator, copied, access.guard());
+        defer frozen.deinit();
+        try t.expectEqualDeep(original, frozen.copied_from.?);
+        try t.expectEqual(@as(u64, 1), frozen.root.live_rows);
+        try t.expectError(error.DataIdentityConflict, table.pin(new_owner, frozen.position(), access.guard()));
+        var bytes: [4096]u8 = undefined;
+        var row = (try table.readSnapshot(t.allocator, copied, try key(42, &bytes), access.guard())).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, 42), row.row().cells[0].value.atom.signed);
+        try t.expect((try table.readSnapshot(t.allocator, copied, try key(43, &bytes), access.guard())) == null);
+        _ = try table.changeDefinition(ddlBinding(&table, 3, .drop), .{ .drop = "" }, access.guard());
+        // Retiring the live name cannot rewrite a separately retained cut.
+        const after_drop = try table.copySnapshot(other_owner, copied, access.guard());
+        var retained = try table.inspectSnapshot(t.allocator, after_drop, access.guard());
+        defer retained.deinit();
+        try t.expectEqualDeep(frozen.root, retained.root);
+        try t.expectEqualDeep(copied, retained.copied_from.?);
+        try table.releaseSnapshot(after_drop, access.guard());
+        try table.releaseSnapshot(copied, access.guard());
+        try t.expectError(error.TableSnapshotReleased, table.copySnapshot(new_owner, original, access.guard()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    try t.expect((try table.pinState(new_owner, access.guard())).released);
+    try t.expectError(error.TableSnapshotReleased, table.inspectSnapshot(t.allocator, copied, access.guard()));
+}

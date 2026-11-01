@@ -2,7 +2,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 const d = c.protocol.DataLifecycle;
-pub const encoded_bytes = 193;
+pub const encoded_bytes = 297;
 pub const text_bytes = encoded_bytes * 2;
 fn validate(value: d.Snapshot) !void {
     try value.validate();
@@ -11,6 +11,7 @@ fn validate(value: d.Snapshot) !void {
     switch (value.consistency) {
         .single_partition => |position| if (value.source_count != 1 or position.next_lsn == 0) return error.InvalidHistoricalSelector,
         .independent => {},
+        .common_transaction => {},
     }
 }
 pub fn encode(value: d.Snapshot, output: *[text_bytes]u8) ![]const u8 {
@@ -25,10 +26,20 @@ pub fn encode(value: d.Snapshot, output: *[text_bytes]u8) ![]const u8 {
         try writer.writeAll(&content.sha256);
     }
     try writer.writeInt(u64, value.source_count, .little);
-    try writer.writeByte(if (value.consistency == .single_partition) 1 else 2);
+    try writer.writeByte(switch (value.consistency) {
+        .single_partition => 1,
+        .independent => 2,
+        .common_transaction => 3,
+    });
     const position: d.Position = if (value.consistency == .single_partition) value.consistency.single_partition else .{ .partition = 0, .next_lsn = 0 };
     try writer.writeInt(u64, position.partition, .little);
     try writer.writeInt(u64, position.next_lsn, .little);
+    if (value.consistency == .common_transaction) {
+        const cut = value.consistency.common_transaction;
+        for ([_]u64{ cut.transaction.scope.realm, cut.transaction.scope.resource, cut.transaction.scope.catalog, cut.transaction.principal, cut.transaction.operation, cut.acquired.partition, cut.acquired.next_lsn, cut.sources.bytes }) |field| try writer.writeInt(u64, field, .little);
+        try writer.writeAll(&cut.sources.sha256);
+        try writer.writeInt(u64, cut.source_count, .little);
+    } else try writer.splatByteAll(0, 104);
     std.debug.assert(writer.end == encoded_bytes);
     const hex = "0123456789abcdef";
     for (bytes, 0..) |byte, i| {
@@ -64,6 +75,12 @@ pub fn decode(text: []const u8) !d.Snapshot {
             if (position.partition != 0 or position.next_lsn != 0) return error.InvalidHistoricalSelector;
             break :blk .independent;
         },
+        3 => .{ .common_transaction = .{
+            .transaction = .{ .scope = .{ .realm = fields.u64At(&bytes, 193), .resource = fields.u64At(&bytes, 201), .catalog = fields.u64At(&bytes, 209) }, .principal = fields.u64At(&bytes, 217), .operation = fields.u64At(&bytes, 225) },
+            .acquired = .{ .partition = fields.u64At(&bytes, 233), .next_lsn = fields.u64At(&bytes, 241) },
+            .sources = .{ .bytes = fields.u64At(&bytes, 249), .sha256 = bytes[257..289].* },
+            .source_count = fields.u64At(&bytes, 289),
+        } },
         else => return error.InvalidHistoricalSelector,
     };
     var canonical: [text_bytes]u8 = undefined;

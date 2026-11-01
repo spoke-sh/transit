@@ -296,6 +296,7 @@ const CachedSnapshot = struct {
     handle: SnapshotHandle,
     retention: Retention,
     root: Root,
+    copied_from: ?SnapshotHandle = null,
 };
 
 allocator: std.mem.Allocator,
@@ -412,7 +413,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor and record.action != .maintenance) return error.InvalidTableHistory;
+            if (before.retired and record.action != .pin_copy and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor and record.action != .maintenance) return error.InvalidTableHistory;
         },
     }
 }
@@ -664,7 +665,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .transaction_prepare, .transaction_abort, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .release => {},
+            .operation, .transaction_prepare, .transaction_abort, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .pin_copy, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -2645,6 +2646,19 @@ fn oldestHistoryLease(self: *Self, basis: Root) !?u64 {
 
 fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record) !void {
     switch (record.action) {
+        .pin_copy => |value| {
+            if (try self.tree().get(before.pins, try r.operationKey(value.owner)) != null) return error.InvalidTablePin;
+            const original = try self.tree().get(before.pins, try r.operationKey(value.source.owner)) orelse return error.InvalidTablePin;
+            if (!std.meta.eql(original, try (Snapshot.Pin{ .content = value.source.content }).encode())) return error.InvalidTablePin;
+            const published = try self.tree().get(record.root.pins, try r.operationKey(value.owner)) orelse return error.InvalidTablePin;
+            if (!std.meta.eql(published, try (Snapshot.Pin{ .content = value.basis }).encode())) return error.InvalidTablePin;
+            var source = try Snapshot.load(self.allocator, self.objects, value.source);
+            defer source.deinit();
+            var copied = try Snapshot.load(self.allocator, self.objects, .{ .owner = value.owner, .content = value.basis });
+            defer copied.deinit();
+            if (copied.retention != .snapshot or !std.meta.eql(copied.copied_from, value.source) or
+                !std.meta.eql(source.root, copied.root)) return error.InvalidTablePin;
+        },
         .history_floor => {
             if (try self.oldestHistoryLease(before)) |oldest| if (record.root.history_floor > oldest) return error.InvalidTableHistory;
         },
@@ -2657,6 +2671,7 @@ fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record
             else
                 try self.loadSnapshot(self.allocator, .{ .owner = value.owner, .content = value.basis });
             defer frozen.deinit();
+            if (record.action == .pin and frozen.copied_from != null) return error.InvalidTablePin;
             if (frozen.retention == .snapshot) {
                 if (!std.meta.eql(before.history_pins, record.root.history_pins)) return error.InvalidTablePin;
                 return;
@@ -2691,11 +2706,11 @@ pub fn retainHistory(self: *Self, owner: d.Operation, expected: d.Position, guar
 fn loadSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle) !SnapshotDefinition {
     if (self.snapshot_cache) |cached| {
         if (std.meta.eql(cached.handle, handle) and std.meta.eql(cached.root.declared(), self.root.declared())) {
-            return .{ .owner = handle.owner, .retention = cached.retention, .root = cached.root, .schema = try self.declaration.schema.schema.clone(allocator) };
+            return .{ .owner = handle.owner, .retention = cached.retention, .root = cached.root, .schema = try self.declaration.schema.schema.clone(allocator), .copied_from = cached.copied_from };
         }
     }
     const frozen = try Snapshot.load(allocator, self.objects, handle);
-    self.snapshot_cache = .{ .handle = handle, .retention = frozen.retention, .root = frozen.root };
+    self.snapshot_cache = .{ .handle = handle, .retention = frozen.retention, .root = frozen.root, .copied_from = frozen.copied_from };
     return frozen;
 }
 
@@ -2711,7 +2726,7 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
             const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
             var frozen = try self.loadSnapshot(self.allocator, handle);
             defer frozen.deinit();
-            if (retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
+            if (frozen.copied_from != null or retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
             return handle;
         }
         if (self.root.retired) return error.TableRetired;
@@ -2733,6 +2748,47 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
         self.snapshot_cache = previous_cache;
         return err;
     };
+    try self.reply();
+    return handle;
+}
+
+/// Give a retained cut an independent owner without observing the current head.
+/// The source must still be live on first acceptance. Exact retries retain the
+/// copied handle even after source release; a different source is a conflict.
+pub fn copySnapshot(self: *Self, owner: d.Operation, source: SnapshotHandle, guard: Guard) !SnapshotHandle {
+    try self.ready();
+    try self.scope(owner);
+    try self.scope(source.owner);
+    try source.content.validate();
+    if (std.meta.eql(owner, source.owner)) return error.DataIdentityConflict;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        if (try self.tree().get(self.root.pins, try r.operationKey(owner))) |value| {
+            const existing = try Snapshot.Pin.decode(value);
+            if (existing.released) return error.TableSnapshotReleased;
+            const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
+            var copied = try self.loadSnapshot(self.allocator, handle);
+            defer copied.deinit();
+            if (!std.meta.eql(copied.copied_from, source)) return error.DataIdentityConflict;
+            return handle;
+        }
+        if ((try self.requirePin(source)).released) return error.TableSnapshotReleased;
+    }
+    var frozen = try self.loadSnapshot(self.allocator, source);
+    defer frozen.deinit();
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
+    defer self.index.end();
+    const handle = try Snapshot.stageCopyInTree(self.allocator, &self.index, owner, source, frozen.root, frozen.schema.schema);
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    next.pins = try self.tree().put(next.pins, try r.operationKey(owner), try (Snapshot.Pin{ .content = handle.content }).encode());
+    // Publication validation compares both immutable manifests, including an
+    // older schema that cannot use the current declaration's snapshot cache.
+    // Staging these objects alone grants neither a pin nor read authority.
+    try self.index.flush();
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin_copy = .{ .owner = owner, .basis = handle.content, .source = source } } }, &.{}, guard);
     try self.reply();
     return handle;
 }

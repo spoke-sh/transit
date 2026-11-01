@@ -267,6 +267,18 @@ The reference grammar and 60 fast checks pass. Installed scalar/history scenario
 and final committed-revision qualification remain required; this increment does
 not close P1/P8 or the remaining projection, common-cut, view and inspection work.
 
+The common transaction-cut transfer now preserves catalog namespaces/names with
+its acquired source closure, reserves original pins during bounded transfer and
+publishes independently retained copies. Common-cut selectors and shared host
+values preserve the complete original attribution. Development checks cover disk
+restart, lost copy/control/release replies, committed prepared writes, abandonment,
+namespace rename, forged cuts, current-policy denial and collection after original
+pin release. The shared v1 cutover replaces saved selectors and persisted pin/catalog
+metadata; it supplies no fallback decoder. Development checks pass all 234
+catalog tests, four focused storage tests, 19 contract checks, 60 fast checks and
+569 diagnostic grammar cases. These checks do not replace P8's final
+committed-source qualification or close the remaining projection/view/caller work.
+
 The following table preserves the original source audit. It is not a description
 of the newer increments above.
 

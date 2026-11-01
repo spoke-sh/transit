@@ -50,21 +50,37 @@ pub const Selection = struct {
         return .{ .definition = p.Growth.current_definition, .owner = try h.Operation.foreign(allocator, value.owner), .branch = try v.decimal(allocator, value.branch), .directory = if (value.directory) |directory| try Directory.foreign(allocator, directory) else null };
     }
 };
+pub const CommonCut = struct {
+    transaction: h.Operation,
+    acquired: h.Position,
+    sources: h.Content,
+    source_count: []const u8,
+    fn native(self: CommonCut) !d.CommonCut {
+        const value: d.CommonCut = .{ .transaction = try self.transaction.native(), .acquired = try self.acquired.native(), .sources = try self.sources.native(), .source_count = try v.unsigned(self.source_count) };
+        try value.validate();
+        return value;
+    }
+    fn foreign(allocator: A, value: d.CommonCut) !CommonCut {
+        return .{ .transaction = try h.Operation.foreign(allocator, value.transaction), .acquired = try h.Position.foreign(allocator, value.acquired), .sources = try h.Content.foreign(allocator, value.sources), .source_count = try v.decimal(allocator, value.source_count) };
+    }
+};
+pub const Common = struct { key: Key, cut: CommonCut };
 pub const Intent = struct {
     definition: p.Growth.Definition,
     connection: h.Connection,
     namespace: u64,
     operation: []const u8,
     selection: Directory,
+    common: ?Common,
     pub fn native(self: Intent) !H.Intent {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-        const value: H.Intent = .{ .connection = try self.connection.native(), .namespace = self.namespace, .operation = try v.unsigned(self.operation), .selection = try self.selection.native() };
+        const value: H.Intent = .{ .connection = try self.connection.native(), .namespace = self.namespace, .operation = try v.unsigned(self.operation), .selection = try self.selection.native(), .common = if (self.common) |common| .{ .key = try common.key.native(), .cut = try common.cut.native() } else null };
         try value.validate();
         return value;
     }
     fn foreign(allocator: A, value: H.Intent) !Intent {
         try value.validate();
-        return .{ .definition = p.Growth.current_definition, .connection = try h.Connection.foreign(allocator, value.connection), .namespace = value.namespace, .operation = try v.decimal(allocator, value.operation), .selection = try Directory.foreign(allocator, value.selection) };
+        return .{ .definition = p.Growth.current_definition, .connection = try h.Connection.foreign(allocator, value.connection), .namespace = value.namespace, .operation = try v.decimal(allocator, value.operation), .selection = try Directory.foreign(allocator, value.selection), .common = if (value.common) |common| .{ .key = try Key.foreign(allocator, common.key), .cut = try CommonCut.foreign(allocator, common.cut) } else null };
     }
 };
 pub const Budget = struct {
@@ -88,12 +104,13 @@ pub const Snapshot = struct {
     catalog_root: h.Content,
     sources_root: h.Content,
     source_count: []const u8,
-    consistency: union(enum) { single_partition: h.Position, independent },
+    consistency: union(enum) { single_partition: h.Position, independent, common_transaction: CommonCut },
     pub fn foreign(allocator: A, value: d.Snapshot) !Snapshot {
         var buffer: [H.Selector.text_bytes]u8 = undefined;
         return .{ .selector = try allocator.dupe(u8, try H.Selector.encode(value, &buffer)), .definition = value.definition, .owner = try h.Operation.foreign(allocator, value.owner), .branch = try v.decimal(allocator, value.branch), .catalog_root = try h.Content.foreign(allocator, value.catalog_root), .sources_root = try h.Content.foreign(allocator, value.sources_root), .source_count = try v.decimal(allocator, value.source_count), .consistency = switch (value.consistency) {
             .single_partition => |position| .{ .single_partition = try h.Position.foreign(allocator, position) },
             .independent => .independent,
+            .common_transaction => |cut| .{ .common_transaction = try CommonCut.foreign(allocator, cut) },
         } };
     }
 };
@@ -263,6 +280,27 @@ test "historical caller projections preserve maximum identities and cursor scope
     defer restored.deinit();
     _ = output.reset(.free_all);
     try t.expectEqualDeep(native, try restored.value.native());
+}
+
+test "historical common caller values retain full width cut and original recovery key" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8, intent_digest: [32]u8, snapshot: d.Snapshot, selector: []const u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-history-common-v1.json"));
+    defer parsed.deinit();
+    const intent = parsed.value.request.action.historical_catalog.acquire.intent;
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const foreign = try Intent.foreign(output.allocator(), intent);
+    try t.expectEqualStrings("18446744073709551614", foreign.common.?.cut.transaction.operation);
+    try t.expectEqualDeep(intent, try foreign.native());
+    const snapshot = try Snapshot.foreign(output.allocator(), parsed.value.snapshot);
+    try t.expectEqualStrings(parsed.value.selector, snapshot.selector);
+    try t.expectEqualDeep(intent.common.?.cut, try snapshot.consistency.common_transaction.native());
+    const saved = try p.Json.valueAlloc(output.allocator(), foreign);
+    var restored = try p.Json.parseFromSliceOwned(Intent, t.allocator, saved);
+    defer restored.deinit();
+    _ = output.reset(.free_all);
+    try t.expectEqualDeep(intent, try restored.value.native());
 }
 
 test "historical shared host rejects invalid selectors before transport and preserves read diagnostics" {

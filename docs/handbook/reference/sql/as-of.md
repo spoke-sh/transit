@@ -17,7 +17,7 @@ EXPLAIN SELECT ... AS OF SNAPSHOT 'selector';
 ```
 
 The suffix applies to the entire statement. `selector` must be the exact
-386-character lowercase hexadecimal value produced from a published snapshot.
+594-character lowercase hexadecimal value produced from a published snapshot.
 The grammar checks its placement; the SQL service verifies its canonical shape,
 current Transit definition, actual publication and current access.
 
@@ -40,6 +40,9 @@ SELECT uses the retained Table pins, including accepted rows that had not yet
 been flushed when selected. Its observation reports the snapshot identity and
 each source's exact definition, data position and schema commitment. Independently
 selected Tables are explicitly `independent`; no cross-Table atomicity follows.
+A snapshot transferred from an acquired transaction reports `common_transaction`
+and that original cut's operation, acquisition position and source commitment.
+It owns independent retention, so completing the transaction does not release it.
 Physical maintenance does not change a result's observation or permit restarting
 it against a newer cut.
 

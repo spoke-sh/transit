@@ -3,6 +3,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
+const d = p.DataLifecycle;
 const s = c.storage;
 const r = @import("DirectCatalogRecords.zig");
 const pages = s.TreeStore.pages;
@@ -98,7 +99,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -205,6 +206,7 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (record.action == .client_token) return self.clientTokenTransition(before, record);
+    if (!std.meta.eql(before.history_transactions, record.root.history_transactions)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_names, record.root.branch_names) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count or !std.meta.eql(before.client_operations, record.root.client_operations) or !std.meta.eql(before.client_pending, record.root.client_pending) or !std.meta.eql(before.client_accounts, record.root.client_accounts)) return error.InvalidDirectCatalogTransition;
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
@@ -365,6 +367,20 @@ pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Prog
     const key = state.receipt.binding.key;
     if (state.receipt.binding.intent == .branch) try self.branchIndices(next, state);
     const prior = try self.clientTokenAt(self.root, key);
+    if (state.receipt.binding.intent == .history) {
+        if (state.receipt.binding.intent.history.common) |common| {
+            const owner = try r.operationKey(common.cut.transaction);
+            const previous = try self.tree().get(next.history_transactions, owner);
+            const digest = try pages.Value.init(&try key.digest());
+            if (prior == null) {
+                if (previous != null) return error.HistoricalRetentionPending;
+                next.history_transactions = try self.tree().put(next.history_transactions, owner, digest);
+            } else if (prior.?.pending and !state.pending) {
+                if (!std.meta.eql(previous, @as(?pages.Value, digest))) return error.InvalidHistoricalState;
+                next.history_transactions = try self.tree().remove(next.history_transactions, owner);
+            }
+        }
+    }
     const usage = (try self.clientUsage(self.root, key)) orelse c.DirectClientToken.Usage.initial(state.receipt.binding.budget.limits);
     const updated = try usage.transition(prior, state);
     if (prior == null or !std.meta.eql(updated, usage)) {
@@ -408,6 +424,8 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
         } else if (!std.meta.eql(state, c.DirectHistory.State.initial())) return error.InvalidHistoricalTransition;
     }
     var unchanged = record.root;
+    try self.historyTransition(before, record, prior);
+    unchanged.history_transactions = before.history_transactions;
     try self.branchTransition(before, record);
     if (accepted.receipt.binding.intent == .branch) {
         unchanged.branches = before.branches;
@@ -438,6 +456,40 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (accepted.pending) {
         if (!std.meta.eql(digest_value, pending_value orelse return error.InvalidDirectCatalogTransition)) return error.InvalidDirectCatalogTransition;
     } else if (pending_value != null) return error.InvalidDirectCatalogTransition;
+}
+
+/// A single pending transfer owns a transaction's original retention. The
+/// reservation changes atomically with the original history token's state.
+fn historyTransition(self: *Self, before: r.Root, record: r.Record, prior: ?c.DirectClientToken.Progress) !void {
+    const accepted = record.action.client_token;
+    const common = if (accepted.receipt.binding.intent == .history) accepted.receipt.binding.intent.history.common else null;
+    if (common) |selected| {
+        const key = try r.operationKey(selected.cut.transaction);
+        const previous = try self.tree().get(before.history_transactions, key);
+        const digest = try pages.Value.init(&try accepted.receipt.binding.key.digest());
+        const next = try self.tree().get(record.root.history_transactions, key);
+        if (prior == null) {
+            if (previous != null or !std.meta.eql(next, @as(?pages.Value, digest))) return error.InvalidDirectCatalogTransition;
+            return;
+        }
+        if (prior.?.pending and !accepted.pending) {
+            if (!std.meta.eql(previous, @as(?pages.Value, digest)) or next != null) return error.InvalidDirectCatalogTransition;
+            return;
+        }
+    }
+    if (!std.meta.eql(before.history_transactions, record.root.history_transactions)) return error.InvalidDirectCatalogTransition;
+}
+
+pub fn historyTransferPending(self: *Self, owner: d.Operation) !bool {
+    const value = try self.tree().get(self.root.history_transactions, try r.operationKey(owner)) orelse return false;
+    const progress = try self.tokenFromIndexValue(self.root, value);
+    if (progress.receipt.binding.intent != .history or !progress.pending) return error.InvalidHistoricalState;
+    const common = progress.receipt.binding.intent.history.common orelse return error.InvalidHistoricalState;
+    if (!std.meta.eql(common.cut.transaction, owner)) return error.InvalidHistoricalState;
+    return true;
+}
+pub fn requireNoHistoryTransfer(self: *Self, owner: d.Operation) !void {
+    if (try self.historyTransferPending(owner)) return error.HistoricalRetentionPending;
 }
 
 pub fn resourceRecord(self: *Self, at: u64) !c.DirectResource.Operation {

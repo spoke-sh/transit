@@ -579,6 +579,13 @@ and the catalog's retained dependency graph.
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+- `TableSnapshot.zig`: Exact retained Table roots and independently owned copies.
+  A copy preserves the original schema, row/deletion directories, WAL cut and
+  transaction decisions, recording its source handle as attribution. Its own pin
+  retains the data after the source owner releases. The required `copied_from`
+  metadata field is null for ordinary pins. `pin_copy` replay authenticates both
+  manifests and their original live-pin transition; attribution alone grants no
+  retention or access.
 - `TableEvidence.zig`: Bounded immutable outcome and operation metadata,
   published through the Table's paged indexes. Original receipt and pending-work
   recovery do not read the accepting row payload or retain its old row roots.

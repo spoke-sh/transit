@@ -131,6 +131,7 @@ pub const Record = struct {
         recovery,
         history_floor,
         pin: struct { owner: d.Operation, basis: d.Content },
+        pin_copy: struct { owner: d.Operation, basis: d.Content, source: p.Transaction.Pin },
         release: struct { owner: d.Operation, basis: d.Content },
     },
 
@@ -166,6 +167,14 @@ pub const Record = struct {
                 try value.owner.validate();
                 try value.basis.validate();
                 if (!std.meta.eql(value.owner.scope, self.root.interpretation.object.scope)) return error.InvalidTableHistory;
+            },
+            .pin_copy => |value| {
+                try value.owner.validate();
+                try value.basis.validate();
+                try value.source.owner.validate();
+                try value.source.content.validate();
+                if (!std.meta.eql(value.owner.scope, self.root.interpretation.object.scope) or
+                    !std.meta.eql(value.source.owner.scope, value.owner.scope) or std.meta.eql(value.source.owner, value.owner)) return error.InvalidTableHistory;
             },
             .operation => |value| {
                 try value.validate();

@@ -22,9 +22,11 @@ The published identity reuses `DataLifecycle.Snapshot`: current Transit
 definition, original acquisition `Operation`, branch, catalog-directory content,
 retained-source-directory content, source count and consistency. A single source
 uses `single_partition` with that exact position. Independently selected sources
-use `independent`; they establish no common transaction cut. The common-cut
-profile requires an explicit transaction-owner transfer and its verification
-before admission. Keeping an interactive transaction open is not that transfer.
+use `independent`; they establish no common transaction cut. A transferred
+transaction cut uses `common_transaction`, carrying the original
+transaction operation, acquired catalog position and complete source-directory
+commitment/count. Publication authenticates these fields against the acquired
+transaction; a caller-provided descriptor cannot establish common consistency.
 
 A directory is a selected set, not a claim of complete database or branch
 history. Only its stored names resolve within that set. Later namespace or
@@ -64,6 +66,41 @@ Acquisition progress is service-owned. Generic operation-record APIs cannot
 create, replace or disclose its reserved state format. Recovery validates all
 state transitions and directory references, including roots reached after a
 lost acknowledgement. No default supplies a missing persisted definition.
+
+## Transfer from an acquired transaction
+
+Transaction acquisition freezes a paged catalog directory alongside its complete
+source directory under the same database publication fence. The catalog directory
+records selected Tables' names, namespaces and definitions. KV and log participants
+remain in the complete transaction source commitment; they do not become SQL Tables.
+
+An acquisition intent's required `common` field is null for an independent
+selection. For a common cut it carries the original transaction key and `CommonCut`;
+`selection` must match that transaction's acquired catalog directory. Admission
+requires the actual original transaction to have an acquired cut and no closing
+control. Forged positions, directory commitments and identities reject. There is
+no fallback to current names or a newly acquired transaction.
+
+Admission atomically reserves the transaction's original retention in a paged
+catalog index. Only one transfer per transaction can be pending. Each bounded
+advance copies one exact original Table pin into the history operation's own pin.
+The immutable copy records its original pin and preserves its schema, WAL frontier,
+row/deletion directories and transaction decisions. A lost reply retries the same
+copy identity. Copying a released source first rejects; a previously accepted copy
+remains valid independently of later source release. A retired current Table does
+not change the copied cut.
+
+Commit or abort may become durable while transfer is pending. Transaction cleanup
+reports `cleanup_complete = false` until history is published or abandonment has
+released its acquired prefix. Ordinary private-pin release cannot bypass this
+reservation. A transfer can resolve only its source transaction's already
+recorded decision before copying or releasing a pin; it cannot decide that
+transaction or resolve another transaction's barrier. Publishing or completing
+abandonment removes the reservation in the
+same catalog transition. Transaction cleanup then releases its own pins, while a
+published historical snapshot retains independent copies. Neither historical
+release nor transaction cleanup releases the other's pins. The copied snapshot's
+original-pin attribution is not itself a live retention edge.
 
 ## Release and abandonment
 
@@ -148,12 +185,16 @@ statement retains that exact selector for every execution; closing its result
 closes only local computation. Acquire and release use the explicit historical
 catalog operations rather than implicit SQL side effects.
 
-The selector is lowercase hexadecimal of the fixed 193-byte `THSNAP01` record:
+The selector is lowercase hexadecimal of the fixed 297-byte `THSNAP01` record:
 8-byte magic, 32-byte current shared definition, five little-endian u64 Operation
 fields (realm/resource/catalog/principal/operation), branch u64, catalog content
 and retained-source content (each byte-length u64 then SHA-256), source-count
-u64, consistency byte (1 single-partition, 2 independent), and a 16-byte position
-(partition then exclusive LSN; zero for independent). Decoding verifies exact
+u64, consistency byte (1 single-partition, 2 independent, 3 common-transaction), a
+16-byte position (partition then exclusive LSN; zero except for single-partition),
+and a 104-byte common-cut field. The latter encodes the transaction Operation
+(40 bytes), acquired position (16 bytes), complete source content (40 bytes) and
+source count (8 bytes); all integers are little-endian. It is zero for other
+consistency kinds. Decoding verifies exact
 length, canonical spelling, definition and nonempty source count. Single-source
 consistency requires count one and a nonzero position. The value carries no
 permission or private-pin authority; the owner verifies actual publication.

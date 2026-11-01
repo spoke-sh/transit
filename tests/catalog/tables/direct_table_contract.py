@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "5b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb"
+definition = "40809e4208bd7e629253251bf10906503f9df4f155f7faae012a61d25a53640c"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -280,6 +280,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     history_intent = {
         "connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1,
         "selection": {"content": {"bytes": 512, "sha256": [25] * 32}, "count": 2},
+        "common": None,
     }
     history_input = {**request_input, "action": {"historical_catalog": {"acquire": {
         "key": branch_key, "intent": history_intent,
@@ -298,11 +299,29 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
                         + struct.pack("<6Q", 42, 3, 2**64 - 1, 4, 2**64 - 1, 1)
                         + struct.pack("<Q", 512) + bytes([25] * 32)
                         + struct.pack("<Q", 768) + bytes([26] * 32)
-                        + struct.pack("<QBQQ", 2, 2, 0, 0))
-    assert len(history_selector) == 193
+                        + struct.pack("<QBQQ", 2, 2, 0, 0) + bytes(104))
+    assert len(history_selector) == 297
     history_fixture = {"request": history_request, "public_key": public_key,
                        "intent_digest": list(hashlib.sha256(b"transit.catalog.history.v1\0" + canonical(history_intent)).digest()),
                        "snapshot": history_snapshot, "selector": history_selector.hex()}
+
+
+    common_cut = {"transaction": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 2},
+                  "acquired": {"partition": 1, "next_lsn": 17},
+                  "sources": {"bytes": 1024, "sha256": [27] * 32}, "source_count": 3}
+    common_intent = {**history_intent, "common": {"key": branch_key, "cut": common_cut}}
+    common_input = {**history_input, "action": {"historical_catalog": {"acquire": {
+        **history_input["action"]["historical_catalog"]["acquire"], "intent": common_intent}}}}
+    common_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(common_input)).digest())}
+    common_request = {**common_input, "proof": {"claim": common_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(common_claim)).digest())}}
+    common_selector = (history_selector[:176] + bytes([3]) + bytes(16)
+                       + struct.pack("<8Q", 42, 3, 2**64 - 1, 4, 2**64 - 2, 1, 17, 1024)
+                       + bytes([27] * 32) + struct.pack("<Q", 3))
+    assert len(common_selector) == 297
+    common_history_fixture = {"request": common_request, "public_key": public_key,
+        "intent_digest": list(hashlib.sha256(b"transit.catalog.history.v1\0" + canonical(common_intent)).digest()),
+        "snapshot": {**history_snapshot, "consistency": {"common_transaction": common_cut}},
+        "selector": common_selector.hex()}
 
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
@@ -315,6 +334,14 @@ validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"
 validator.validate(request)
 validator.validate(branch_request)
 validator.validate(history_request)
+validator.validate(common_request)
+missing_common = copy.deepcopy(history_request)
+del missing_common["action"]["historical_catalog"]["acquire"]["intent"]["common"]
+assert not validator.is_valid(missing_common)
+for field in ("key", "cut"):
+    invalid_common = copy.deepcopy(common_request)
+    del invalid_common["action"]["historical_catalog"]["acquire"]["intent"]["common"][field]
+    assert not validator.is_valid(invalid_common), field
 for field in ("connection", "namespace", "operation", "name", "source", "mode"):
     invalid = copy.deepcopy(branch_request)
     del invalid["action"]["branch"]["create"]["intent"][field]
@@ -407,6 +434,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-common-v1.json",
+        (json.dumps(common_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-v1.json",
         (json.dumps(history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-branch-v1.json",

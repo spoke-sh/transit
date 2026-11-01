@@ -10,11 +10,24 @@ pub const Selector = @import("DirectHistorySelector.zig");
 pub const format: u32 = 0x48495331;
 pub const max_bytes = 8192;
 
+pub const Common = struct {
+    key: c.DirectClientToken.Key,
+    cut: d.CommonCut,
+    pub fn validate(self: Common, connection: w.Connection, selection: H.Reference) !void {
+        try self.key.validate();
+        try self.cut.validate();
+        if (!std.meta.eql(self.key.connection, connection) or selection.count > self.cut.source_count or
+            !std.meta.eql(self.cut.transaction.scope, connection.scope) or
+            self.cut.transaction.principal != connection.principal) return error.HistoricalIdentityConflict;
+    }
+};
+
 pub const Intent = struct {
     connection: w.Connection,
     namespace: u64,
     operation: u64,
     selection: H.Reference,
+    common: ?Common,
     pub fn identity(self: Intent) d.Operation {
         return .{ .scope = self.connection.scope, .principal = self.connection.principal, .operation = self.operation };
     }
@@ -25,6 +38,16 @@ pub const Intent = struct {
         var key: [96]u8 = undefined;
         _ = try H.objectKey(self.selection.content, &key);
         if (self.selection.count == 0) return error.EmptyHistoricalSelection;
+        if (self.common) |common| {
+            try common.validate(self.connection, self.selection);
+            if (std.meta.eql(self.identity(), common.cut.transaction)) return error.HistoricalIdentityConflict;
+        }
+    }
+    pub fn selectionOwner(self: Intent) d.Operation {
+        return if (self.common) |common| common.cut.transaction else self.identity();
+    }
+    pub fn selectionKind(self: Intent) H.Kind {
+        return if (self.common != null) .retained else .selection;
     }
     pub fn digest(self: Intent) ![32]u8 {
         try self.validate();
@@ -91,7 +114,10 @@ pub const State = struct {
             try snapshot.validate();
             if (snapshot.definition != p.Growth.current_definition or !std.meta.eql(snapshot.owner, intent.identity()) or snapshot.branch != intent.connection.branch or
                 !std.meta.eql(snapshot.catalog_root, intent.selection.content) or !std.meta.eql(snapshot.sources_root, self.retained.?.content) or snapshot.source_count != count or
-                (snapshot.consistency == .single_partition) != (count == 1) or self.inflight != null or self.verified_after != self.after or self.policy_epoch == null) return error.InvalidHistoricalState;
+                self.inflight != null or self.verified_after != self.after or self.policy_epoch == null) return error.InvalidHistoricalState;
+            if (intent.common) |common| {
+                if (snapshot.consistency != .common_transaction or !std.meta.eql(snapshot.consistency.common_transaction, common.cut)) return error.InvalidHistoricalState;
+            } else if (snapshot.consistency == .common_transaction or (snapshot.consistency == .single_partition) != (count == 1)) return error.InvalidHistoricalState;
         }
         if (self.phase == .cancelled and (self.inflight != null or self.released_after != self.after)) return error.InvalidHistoricalState;
         if (self.phase == .released and self.released_after != self.after) return error.InvalidHistoricalState;
@@ -392,19 +418,6 @@ pub fn resolve(client: c.DirectTableClient, snapshot: d.Snapshot, namespace_id: 
     return call(client, .{ .source = .{ .snapshot = snapshot, .object = object, .rows = rows } });
 }
 
-test "historical acquisition independent signed intent and full width selector" {
-    const t = std.testing;
-    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8, snapshot: d.Snapshot, selector: []const u8 };
-    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-history-v1.json"));
-    defer parsed.deinit();
-    const value = parsed.value;
-    try value.request.validate(t.allocator);
-    try value.request.proof.verify(value.public_key);
-    try t.expectEqual(value.intent_digest, try value.request.action.historical_catalog.acquire.intent.digest());
-    var encoded: [Selector.text_bytes]u8 = undefined;
-    try t.expectEqualStrings(value.selector, try Selector.encode(value.snapshot, &encoded));
-    try t.expectEqualDeep(value.snapshot, try Selector.decode(value.selector));
-    var changed = value.request;
-    changed.action.historical_catalog.acquire.intent.selection.count += 1;
-    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+test {
+    _ = @import("direct_history_test.zig");
 }

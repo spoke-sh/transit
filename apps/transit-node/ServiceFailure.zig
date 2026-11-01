@@ -8,7 +8,7 @@ pub fn table(err: anyerror) Refusal {
         error.InvalidRequest => .InvalidRequest,
         error.BranchOperationRequired, error.InvalidBranchCreation, error.InvalidBranchCursor, error.BranchIdentityConflict, error.BranchNotFound => .InvalidRequest,
         error.HistoricalOperationRequired, error.EmptyHistoricalSelection, error.InvalidHistoricalCursor, error.InvalidHistoricalLimits, error.InvalidHistoricalSelector, error.HistoricalObjectNotSelected, error.UnsupportedHistoricalTransaction => .InvalidRequest,
-        error.HistoricalIdentityConflict, error.HistoricalNameConflict, error.HistoricalNamespaceConflict, error.HistoricalNotPublished, error.HistoricalRetentionOwned, error.HistoricalSourceChanged => .Conflict,
+        error.HistoricalIdentityConflict, error.HistoricalNameConflict, error.HistoricalNamespaceConflict, error.HistoricalNotPublished, error.HistoricalRetentionOwned, error.HistoricalRetentionPending, error.HistoricalSourceChanged => .Conflict,
         error.HistoricalAuthorityChanged => .AccessDenied,
         error.HistoricalSnapshotReleased => .QueryExpired,
         error.HistoricalObjectLimit => .StorageQuota,

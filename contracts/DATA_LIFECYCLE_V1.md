@@ -403,6 +403,11 @@ array size. Its consistency is explicit:
 - `single_partition`: every source has exactly the same partition and accepted
   frontier. The owner must capture definitions and data at that same cut.
 - `independent`: each source is exact, with no promise of a global or causal cut.
+- `common_transaction`: the original transaction Operation, acquired catalog
+  position and complete source-directory content/count identify an authenticated
+  acquired cut. The selected historical Tables may be a subset of its mixed
+  participants. The publishing owner verifies membership and transfers independent
+  pin ownership; the descriptor alone proves neither membership nor retention.
 
 Do not relabel an independent vector as catalog-consistent. Cross-partition
 consistent acquisition needs its own coordination and evidence; ordinary

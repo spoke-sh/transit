@@ -1710,6 +1710,15 @@ and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
 
+The acquired result additionally requires nullable `catalog`: an immutable paged
+directory of the selected Tables' namespace/name/definition bindings, frozen
+under the cut's publication fence. It is null when no selected participant is a
+Table. KV and log participants remain in the complete transaction source
+directory. Historical acquisition can transfer this authenticated cut to its own
+retention through the [historical catalog owner](HISTORICAL_CATALOG_V1.md).
+A pending transfer defers original-pin cleanup; it does not undo a durable
+decision or turn incomplete cleanup into transaction rejection.
+
 ### Transactional Stream and Queue work
 
 Explicit transaction selections can combine Table/KV objects and declared

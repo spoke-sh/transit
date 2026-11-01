@@ -141,6 +141,7 @@ pub const Work = union(enum) {
     evidence: struct { context: Context, edge: @FieldType(Walk.Edge, "evidence") },
     intent: s.TablePartition.Operation,
     snapshot: struct { context: Context, archive: s.TableArchive.Coverage, handle: s.TableSnapshot.Handle, live: bool },
+    snapshot_copy: struct { context: Context, archive: s.TableArchive.Coverage, copy: s.TableSnapshot.Handle, source: s.TableSnapshot.Handle },
     wal: struct { context: Context, archive: s.TableArchive.Coverage, lsn: u64 },
     segment: d.Content,
 };
@@ -415,7 +416,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 1 => state.retained orelse return true,
                 else => return true,
             };
-            try workspace.enqueue(.{ .historical_directory = .{ .catalog = value.root, .owner = intent.identity(), .branch = intent.connection.branch, .kind = if (value.slot == 0) .selection else .retained, .reference = selected } });
+            try workspace.enqueue(.{ .historical_directory = .{ .catalog = value.root, .owner = if (value.slot == 0) intent.selectionOwner() else intent.identity(), .branch = intent.connection.branch, .kind = if (value.slot == 0) intent.selectionKind() else .retained, .reference = selected } });
             value.slot += 1;
             return false;
         },
@@ -506,6 +507,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                         try sources.restore(retained.acquired.cut.sources);
                         try markContent(workspace, try s.TransactionDirectory.objectKey(retained.acquired.cut.sources.content, &key_buffer), retained.acquired.cut.sources.content);
                         if (sources.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
+                        if (retained.acquired.catalog) |catalog| try workspace.enqueue(.{ .historical_directory = .{ .catalog = value.root, .owner = begin.identity.begin, .branch = progress.receipt.binding.key.connection.branch, .kind = .retained, .reference = catalog } });
                     },
                     2, 3 => if (if (value.slot == 2 and (control == null or !control.?.cleanup_complete)) retained.tables else if (value.slot == 3) retained.statements else null) |reference| {
                         try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope(), .tables = value.slot == 2 } });
@@ -677,7 +679,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             if (value.slot == directories.len) return true;
             const slot = value.slot;
@@ -1245,6 +1247,9 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                     try workspace.enqueue(.{ .wal = .{ .context = context, .archive = archive, .lsn = record.root.next_lsn - 1 } });
                     if (frame.role == .recovery) switch (record.action) {
                         inline .pin, .release => |pin| try workspace.enqueue(.{ .snapshot = .{ .context = context, .archive = archive, .handle = .{ .owner = pin.owner, .content = pin.basis }, .live = false } }),
+                        .pin_copy => |pin| {
+                            try workspace.enqueue(.{ .snapshot_copy = .{ .context = context, .archive = archive, .copy = .{ .owner = pin.owner, .content = pin.basis }, .source = pin.source } });
+                        },
                         else => {},
                     };
                 },
@@ -1308,6 +1313,12 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try operation.binding.requireSame(intent.request.binding);
             try markContent(workspace, try s.TableDmlIntent.key(operation.intent, &key_buffer), operation.intent);
             try workspace.enqueue(.{ .declaration = intent.request.interpretation });
+        },
+        .snapshot_copy => |value| {
+            // Recovery validates both immutable manifests. Split the pair out
+            // of the WAL-frame step to preserve the collector's bounded fanout.
+            for ([_]s.TableSnapshot.Handle{ value.copy, value.source }) |handle|
+                try workspace.enqueue(.{ .snapshot = .{ .context = value.context, .archive = value.archive, .handle = handle, .live = false } });
         },
         .snapshot => |value| {
             var frozen = try s.TableSnapshot.load(allocator, index.store, value.handle);

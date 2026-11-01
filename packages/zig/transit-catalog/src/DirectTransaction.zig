@@ -11,17 +11,30 @@ pub const Acquired = struct {
     definition: p.Growth.Definition,
     cut: p.Transaction.Cut,
     coordination: u64,
+    /// Exact Table names, namespaces and definitions observed under the same
+    /// publication fence as this cut. Other participant kinds remain in cut.
+    catalog: ?c.DirectHistoryDirectory.Reference,
 
     pub const format: u32 = 0x54584331;
     pub const max_bytes = 16 * 1024;
 
+    pub fn commonCut(self: Acquired) p.DataLifecycle.CommonCut {
+        return .{ .transaction = self.cut.begin.identity.begin, .acquired = self.cut.acquired, .sources = self.cut.sources.content, .source_count = self.cut.sources.count };
+    }
+
     pub fn validate(self: Acquired, receipt: c.DirectClientToken.Receipt) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try receipt.validate();
         try self.cut.validate();
         if (receipt.binding.intent != .transaction or
             receipt.coordination != self.coordination or self.cut.acquired.partition != receipt.position.partition or
             self.cut.acquired.next_lsn <= receipt.position.next_lsn) return error.InvalidTransactionCut;
         try receipt.binding.intent.transaction.begin.requireSame(self.cut.begin);
+        if (self.catalog) |catalog| {
+            var name: [96]u8 = undefined;
+            _ = try c.DirectHistoryDirectory.objectKey(catalog.content, &name);
+            if (catalog.count == 0 or catalog.count > self.cut.sources.count) return error.InvalidTransactionCut;
+        }
     }
 
     pub fn stage(self: Acquired, objects: c.storage.TransitObjectStore.ObjectStore, receipt: c.DirectClientToken.Receipt) !c.DirectRecord.Reference {

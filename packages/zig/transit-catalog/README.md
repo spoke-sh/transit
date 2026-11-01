@@ -290,8 +290,11 @@ Historical lookup, metadata pages and scans apply current permissions to the
 original objects. Metadata calls read no segments and acquire no pins. Readers
 borrow a published catalog's retention; closing a reader never releases that
 catalog. An explicitly released snapshot refuses even while cleanup is pending.
-Single-Table cuts and independent source vectors retain their distinct
-consistency evidence. See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
+Single-Table cuts, independent vectors and transferred common transaction cuts
+retain their distinct consistency evidence. Common transfers preserve the acquired
+namespaces and definitions, reserve original transaction pins during acquisition,
+and publish independently owned copies. Transaction completion can precede copy
+completion; its cleanup waits for publication or completed abandonment. See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
 for operation ownership, pagination, interruption and disclosure limits.
 
 `DirectCatalogHistory` exposes these bounded actions through

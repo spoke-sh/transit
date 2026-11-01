@@ -1664,6 +1664,9 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     defer sources.deinit();
     const previous = if (state.record != null) try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, state) else null;
     if (previous) |acquired| try sources.restore(acquired.cut.sources);
+    var catalog_basis = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, begin.identity.begin, self.config().branch, .retained, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer catalog_basis.deinit();
+    if (previous) |acquired| if (acquired.catalog) |catalog| try catalog_basis.restore(catalog);
     var count: u64 = 0;
     var after: ?s.TransactionDirectory.Cursor = null;
     while (true) {
@@ -1705,6 +1708,10 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
                 if (access.view.table.root.retired) return error.TransactionConflict;
                 try basis.requireUnchanged(transactionTableGuard(access.view.table.root));
                 try sources.put(.{ .source = .{ .guard = .{ .state = .{ .kind = participant.state.kind, .basis = basis } }, .pin = pin } });
+                if (frozen.root.kind == .table) {
+                    const namespace = try self.schema(access.view.properties.namespace);
+                    try catalog_basis.put(.{ .namespace = namespace, .properties = access.view.properties, .declaration = frozen.root.declared(), .source = .{ .interpretation = basis.source.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = basis.source.accepted }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = pin });
+                }
             } else {
                 const source = (try sources.get(entry_value.target()) orelse return error.IncompleteTransactionCut).source;
                 if (!std.meta.eql((try source.guard.requirePagedState()), basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
@@ -1728,7 +1735,7 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
-    const acquired: c.DirectTransaction.Acquired = .{ .definition = p.Growth.current_definition, .cut = .{ .begin = begin, .sources = try sources.seal(), .acquired = state.revision }, .coordination = state.receipt.coordination.? };
+    const acquired: c.DirectTransaction.Acquired = .{ .definition = p.Growth.current_definition, .cut = .{ .begin = begin, .sources = try sources.seal(), .acquired = state.revision }, .coordination = state.receipt.coordination.?, .catalog = if (catalog_basis.root.count == 0) null else try catalog_basis.seal() };
     state.record = try acquired.stage(self.data_objects, state.receipt);
     try state.validate();
     try self.store.clientIndices(&next, state);
@@ -3015,6 +3022,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         try self.publishTransactionControl(&progress, &control, guard_value);
     }
     while (!control.cleanup_complete and remaining != 0) {
+        if (try self.store.historyTransferPending(begin.identity.begin)) return;
         const page = try participants.page(control.cleanup_after);
         var complete = true;
         for (page.entries) |slot| if (slot) |entry_value| {
@@ -5045,6 +5053,7 @@ fn requireUnreservedBranchPin(self: *Self, object: d.Object, owner: d.Operation)
     try self.requireInitialized();
     try owner.validate();
     if (!std.meta.eql(owner.scope, self.config().scope)) return error.DataIdentityConflict;
+    try self.store.requireNoHistoryTransfer(owner);
     if (try c.OperationBinding.lookupHistory(self.allocator, self.store.objects, owner) != null) return error.HistoricalRetentionOwned;
     const value = try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) orelse return;
     const progress = try self.store.branchByDigest(value);
@@ -5232,8 +5241,42 @@ pub fn selectHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "
 fn prepareHistoryAdmission(self: *Self, intent: c.DirectHistory.Intent, policy: Policy) !void {
     if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal() or self.transaction_read != null) return error.CatalogDenied;
     if (intent.selection.count > self.options.history_selection_limit) return error.HistoricalObjectLimit;
-    var directory = try self.historyDirectory(intent.identity(), .selection, intent.selection);
+    if (intent.common) |common| {
+        const progress = (try self.clientProgress(.{ .inspect = common.key }, policy)).state orelse return error.ClientOperationMissing;
+        if (!progress.pending or progress.cancel or progress.receipt.binding.intent != .transaction) return error.TransactionCutNotAcquired;
+        const acquired = try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, progress);
+        if (!std.meta.eql(acquired.commonCut(), common.cut) or !std.meta.eql(acquired.catalog, @as(?c.DirectHistoryDirectory.Reference, intent.selection))) return error.HistoricalIdentityConflict;
+        try self.store.requireNoHistoryTransfer(common.cut.transaction);
+    }
+    var directory = try self.historySelection(intent);
     defer directory.deinit();
+}
+
+fn historySelection(self: *Self, intent: c.DirectHistory.Intent) !c.DirectHistoryDirectory {
+    return self.historyDirectory(intent.selectionOwner(), intent.selectionKind(), intent.selection);
+}
+
+/// A closing source transaction may already have published its decision while
+/// retaining prepared Table barriers. The transfer may apply only that recorded
+/// decision before copying its original pin; it cannot decide or resolve another
+/// transaction. Otherwise cleanup and transfer would wait on each other.
+fn historyAccess(self: *Self, allocator: std.mem.Allocator, intent: c.DirectHistory.Intent, object: d.Object, policy: Policy, control: bool) !SnapshotAccess {
+    const common = intent.common orelse return self.snapshotAccess(allocator, object, intent.identity(), policy, control);
+    try self.requireInitialized();
+    if (!std.meta.eql(object.scope, intent.connection.scope) or object.branch != intent.connection.branch or intent.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    var view = try self.openTransaction(allocator, target, control, true);
+    errdefer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
+    try check(current);
+    if (view.table.root.transaction) |reference| {
+        const prepared = try s.TableTransaction.load(allocator, self.data_objects, reference);
+        if (!std.meta.eql(prepared.binding.begin.identity.begin, common.cut.transaction)) return error.TransactionPrepared;
+        view.table.lose_reply = self.lose_table_reply;
+        _ = try view.table.resolveTransaction(current) orelse return error.TransactionPrepared;
+    }
+    return .{ .view = view, .current = current };
 }
 
 fn historyProgress(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectClientToken.Progress {
@@ -5315,12 +5358,12 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
         return self.historyStatus(progress);
     }
     if (command == .release and state.phase != .releasing) return error.HistoricalNotPublished;
-    var selection = try self.historyDirectory(intent.identity(), .selection, intent.selection);
+    var selection = try self.historySelection(intent);
     defer selection.deinit();
     if (state.phase == .abandoning or state.phase == .releasing) {
         if (state.inflight) |object| {
             const value = try selection.get(object) orelse return error.InvalidHistoricalState;
-            var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, true);
+            var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, true);
             defer access.view.deinit();
             const pin = try access.view.table.pinState(intent.identity(), access.current);
             access.view.table.lose_reply = self.lose_table_reply;
@@ -5332,7 +5375,7 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
         var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
         defer retained.deinit();
         if (try historyNext(&retained, state.released_after)) |value| {
-            var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, true);
+            var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, true);
             defer access.view.deinit();
             const pin = try access.view.table.pinState(intent.identity(), access.current);
             if (!std.meta.eql(pin.handle, value.pin)) return error.InvalidHistoricalState;
@@ -5355,11 +5398,11 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
             return self.historyStatus(progress);
         };
         const object = value.source.interpretation.object;
-        var access = try self.snapshotAccess(scratch.allocator(), object, intent.identity(), policy, false);
+        var access = try self.historyAccess(scratch.allocator(), intent, object, policy, false);
         defer access.view.deinit();
         const pin_state = try access.view.table.pinState(intent.identity(), access.current);
         if (state.inflight == null) {
-            try self.historySourceUnchanged(&access.view, value);
+            if (intent.common == null) try self.historySourceUnchanged(&access.view, value);
             if (pin_state.handle != null) return error.DataIdentityConflict;
             state.inflight = object.object;
             try self.publishHistoryState(&progress, state, access.current);
@@ -5367,7 +5410,10 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
         }
         if (state.inflight.? != object.object) return error.InvalidHistoricalState;
         access.view.table.lose_reply = self.lose_table_reply;
-        if (pin_state.handle) |handle| {
+        const original_pin = value.pin;
+        if (intent.common != null) {
+            value.pin = try access.view.table.copySnapshot(intent.identity(), original_pin.?, access.current);
+        } else if (pin_state.handle) |handle| {
             if (pin_state.released) return error.TableSnapshotReleased;
             value.pin = handle;
         } else {
@@ -5377,6 +5423,7 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
         try value.verify(scratch.allocator(), self.data_objects);
         var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
         defer frozen.deinit();
+        if (!std.meta.eql(frozen.copied_from, original_pin)) return error.InvalidHistoricalState;
         var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
         defer retained.deinit();
         retained.object_limit = intent.selection.count;
@@ -5393,12 +5440,13 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
     if (try historyNext(&retained, state.verified_after)) |value| {
         const selected_entry = try selection.get(value.source.interpretation.object.object) orelse return error.InvalidHistoricalState;
         var without_pin = value;
-        without_pin.pin = null;
+        without_pin.pin = selected_entry.pin;
         if (!std.meta.eql(selected_entry, without_pin)) return error.InvalidHistoricalState;
-        var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, false);
+        var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, false);
         defer access.view.deinit();
         var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
         defer frozen.deinit();
+        if (!std.meta.eql(frozen.copied_from, selected_entry.pin)) return error.InvalidHistoricalState;
         try value.verify(scratch.allocator(), self.data_objects);
         const epoch = try access.current.acquire(access.current.context);
         access.current.release(access.current.context);
@@ -5421,7 +5469,7 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
             state.policy_epoch = null;
             try self.publishHistoryState(&progress, state, current);
         } else {
-            state.snapshot = .{ .definition = p.Growth.current_definition, .owner = intent.identity(), .branch = intent.connection.branch, .catalog_root = intent.selection.content, .sources_root = state.retained.?.content, .source_count = intent.selection.count, .consistency = if (intent.selection.count == 1) .{ .single_partition = (try historyNext(&retained, null)).?.source.accepted } else .independent };
+            state.snapshot = .{ .definition = p.Growth.current_definition, .owner = intent.identity(), .branch = intent.connection.branch, .catalog_root = intent.selection.content, .sources_root = state.retained.?.content, .source_count = intent.selection.count, .consistency = if (intent.common) |common| .{ .common_transaction = common.cut } else if (intent.selection.count == 1) .{ .single_partition = (try historyNext(&retained, null)).?.source.accepted } else .independent };
             state.phase = .published;
             var fenced: HistoryEpoch = .{ .underlying = current, .expected = epoch.policy_epoch };
             try self.publishHistoryState(&progress, state, fenced.guard());
@@ -5464,7 +5512,7 @@ pub fn lookupHistory(self: *Self, snapshot: d.Snapshot, namespace_id: u64, name:
     try check(namespace);
     // Accepted selection metadata survives release. Resolve it before reporting
     // availability so a released selector never bypasses current object rights.
-    var directory = try self.historyDirectory(publication.intent.identity(), .selection, publication.intent.selection);
+    var directory = try self.historySelection(publication.intent);
     defer directory.deinit();
     const value = try directory.lookup(namespace_id, name) orelse {
         try publication.requirePublished();
@@ -5508,7 +5556,7 @@ pub fn openHistory(self: *Self, scratch: std.mem.Allocator, snapshot: d.Snapshot
 /// Namespace lookup uses the retained spelling and current namespace rights.
 pub fn namespaceHistory(self: *Self, snapshot: d.Snapshot, name: a.Name, policy: Policy) !?a.Schema {
     const publication = try self.historyPublication(snapshot, policy);
-    var directory = try self.historyDirectory(publication.intent.identity(), .selection, publication.intent.selection);
+    var directory = try self.historySelection(publication.intent);
     defer directory.deinit();
     const value = try directory.namespaceByName(name) orelse {
         try publication.requirePublished();

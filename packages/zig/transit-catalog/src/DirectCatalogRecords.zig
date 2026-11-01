@@ -124,9 +124,11 @@ pub const Root = struct {
     branches: ?pages.Reference,
     branch_names: ?pages.Reference,
     branch_owners: ?pages.Reference,
+    /// Original transaction owner -> pending historical acquisition token.
+    history_transactions: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();

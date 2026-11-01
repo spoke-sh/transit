@@ -4370,10 +4370,10 @@
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 69,
+        "CatalogDenied": 71,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
-        "CatalogKindMismatch": 14,
+        "CatalogKindMismatch": 15,
         "CatalogNameHashCollision": 2,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
@@ -4384,7 +4384,7 @@
         "CatalogRegistrationRequired": 11,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 19,
+        "ClientOperationMissing": 20,
         "ClientOperationPending": 8,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
@@ -4401,7 +4401,7 @@
         "ForeignKeyTargetMismatch": 1,
         "ForeignKeyTargetNotUniqueKey": 1,
         "HistoricalAuthorityChanged": 1,
-        "HistoricalIdentityConflict": 1,
+        "HistoricalIdentityConflict": 2,
         "HistoricalNotPublished": 5,
         "HistoricalObjectLimit": 1,
         "HistoricalObjectNotSelected": 1,
@@ -4426,7 +4426,7 @@
         "InvalidDirectCatalogOperation": 28,
         "InvalidDirectCatalogTransition": 1,
         "InvalidHistoricalBinding": 1,
-        "InvalidHistoricalState": 7,
+        "InvalidHistoricalState": 9,
         "InvalidKVOperation": 1,
         "InvalidLogCatalogDefinition": 2,
         "InvalidLogCatalogOperation": 5,
@@ -4487,13 +4487,13 @@
         "TransactionConflict": 11,
         "TransactionControlConflict": 1,
         "TransactionControlPending": 6,
-        "TransactionCutNotAcquired": 2,
+        "TransactionCutNotAcquired": 3,
         "TransactionIdentityConflict": 12,
         "TransactionMemoryLimit": 10,
         "TransactionObjectNotSelected": 5,
         "TransactionOperationRequired": 18,
         "TransactionPreparationMissing": 3,
-        "TransactionPrepared": 3,
+        "TransactionPrepared": 5,
         "TransactionReadChanged": 5,
         "TransactionStatementConflict": 10,
         "TransactionStatementLimit": 3,
@@ -4623,12 +4623,14 @@
         "hasColumnDependents()": "<inferred>",
         "hasDependents()": "<inferred>",
         "history()": "<inferred>",
+        "historyAccess()": "<inferred>",
         "historyDefinition()": "<inferred>",
         "historyDirectory()": "<inferred>",
         "historyNext()": "<inferred>",
         "historyProgress()": "<inferred>",
         "historyPublication()": "<inferred>",
         "historyRead()": "<inferred>",
+        "historySelection()": "<inferred>",
         "historySourceUnchanged()": "<inferred>",
         "historyStatus()": "<inferred>",
         "init()": "<inferred>",
@@ -4800,7 +4802,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1806,
+        "try": 1825,
         "catch": 25
       },
       "imports": [
@@ -4949,7 +4951,8 @@
         ],
         "Snapshot.consistency": [
           "single_partition",
-          "independent"
+          "independent",
+          "common_transaction"
         ]
       },
       "error_sets": {},
@@ -4957,6 +4960,8 @@
         "Action.identity()": "<inferred>",
         "Action.native()": "<inferred>",
         "Budget.native()": "<inferred>",
+        "CommonCut.foreign()": "<inferred>",
+        "CommonCut.native()": "<inferred>",
         "Directory.foreign()": "<inferred>",
         "Directory.native()": "<inferred>",
         "Entry.foreign()": "<inferred>",
@@ -4975,7 +4980,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 108,
         "catch": 1
       },
       "imports": [
@@ -5328,12 +5333,14 @@
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
         "DataIdentityConflict": 15,
+        "HistoricalRetentionPending": 2,
         "IncompatibleDefinition": 1,
         "InvalidBranchState": 2,
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 16,
-        "InvalidDirectCatalogTransition": 131,
+        "InvalidDirectCatalogTransition": 135,
+        "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
         "InvalidPartitionLease": 1,
@@ -5362,6 +5369,8 @@
         "dependencyAt()": "<inferred>",
         "dependencyTransition()": "<inferred>",
         "encode()": "<inferred>",
+        "historyTransferPending()": "<inferred>",
+        "historyTransition()": "<inferred>",
         "init()": "<inferred>",
         "logAt()": "<inferred>",
         "logOperation()": "<inferred>",
@@ -5383,6 +5392,7 @@
         "recoverSinceOptions()": "<inferred>",
         "recoveryState()": "<inferred>",
         "refresh()": "<inferred>",
+        "requireNoHistoryTransfer()": "<inferred>",
         "resourceAt()": "<inferred>",
         "resourceOperation()": "<inferred>",
         "resourceRecord()": "<inferred>",
@@ -5395,7 +5405,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 268,
+        "try": 284,
         "catch": 1
       },
       "imports": [
@@ -5581,14 +5591,14 @@
       "errors": {
         "Conflict": 1,
         "EmptyHistoricalSelection": 1,
-        "HistoricalIdentityConflict": 4,
+        "HistoricalIdentityConflict": 6,
         "HistoricalObjectNotSelected": 1,
         "HistoricalSnapshotReleased": 1,
         "IncompatibleDefinition": 2,
         "InvalidHistoricalBinding": 1,
         "InvalidHistoricalCursor": 1,
         "InvalidHistoricalResponse": 28,
-        "InvalidHistoricalState": 15,
+        "InvalidHistoricalState": 17,
         "InvalidHistoricalTransition": 15,
         "InvalidTableReadBudget": 1
       },
@@ -5627,6 +5637,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Common.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
@@ -5640,7 +5651,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 56,
         "catch": 1
       },
       "imports": [
@@ -5720,7 +5731,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 16,
         "catch": 1
       },
       "imports": [
@@ -6772,6 +6783,7 @@
           "evidence",
           "intent",
           "snapshot",
+          "snapshot_copy",
           "wal",
           "segment"
         ],
@@ -6802,7 +6814,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 511,
+        "try": 514,
         "catch": 1
       },
       "imports": [
@@ -7789,8 +7801,9 @@
     },
     "packages/zig/transit-catalog/src/DirectTransaction.zig": {
       "errors": {
+        "IncompatibleDefinition": 1,
         "InvalidTransactionBegin": 3,
-        "InvalidTransactionCut": 4,
+        "InvalidTransactionCut": 5,
         "InvalidTransactionDirectory": 2,
         "TransactionCapacity": 1,
         "TransactionCutNotAcquired": 1,
@@ -7808,7 +7821,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -20048,7 +20061,7 @@
       "errors": {
         "DataIdentityConflict": 6,
         "IncompatibleDefinition": 2,
-        "InconsistentSnapshot": 1,
+        "InconsistentSnapshot": 3,
         "InvalidCatalogIdentity": 1,
         "InvalidDataContent": 1,
         "InvalidDataDefinition": 5,
@@ -20075,7 +20088,8 @@
         ],
         "Consistency": [
           "single_partition",
-          "independent"
+          "independent",
+          "common_transaction"
         ],
         "Observation": [
           "unavailable",
@@ -20096,6 +20110,7 @@
         "Binding.validate()": "<inferred>",
         "Commit.requireBinding()": "<inferred>",
         "Commit.validate()": "<inferred>",
+        "CommonCut.validate()": "<inferred>",
         "Content.validate()": "<inferred>",
         "Definition.validate()": "<inferred>",
         "Object.validate()": "<inferred>",
@@ -20114,7 +20129,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 53,
         "catch": 1
       },
       "imports": [
@@ -20618,7 +20633,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"5b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb\""
+          "@\"40809e4208bd7e629253251bf10906503f9df4f155f7faae012a61d25a53640c\""
         ],
         "Effect.phase": [
           "pending",
@@ -37474,7 +37489,7 @@
       "errors": {
         "BufferTooSmall": 1,
         "CheckConstraintViolation": 1,
-        "DataIdentityConflict": 13,
+        "DataIdentityConflict": 15,
         "DataKindMismatch": 6,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 6,
@@ -37492,7 +37507,7 @@
         "InvalidTableKey": 3,
         "InvalidTableMaintenance": 6,
         "InvalidTableOperation": 14,
-        "InvalidTablePin": 9,
+        "InvalidTablePin": 16,
         "InvalidTableReadBudget": 3,
         "InvalidTableReceipt": 4,
         "InvalidTableRowReference": 38,
@@ -37536,7 +37551,7 @@
         "TableSchemaChanged": 3,
         "TableSegmentMissing": 1,
         "TableSnapshotNotPinned": 1,
-        "TableSnapshotReleased": 3,
+        "TableSnapshotReleased": 5,
         "TableStatementScanLimit": 3,
         "TransactionNotFrozen": 2,
         "TransactionObjectNotSelected": 1,
@@ -37621,6 +37636,7 @@
         "compactionCandidate()": "<inferred>",
         "compactionMaintenanceUnit()": "<inferred>",
         "compactionSparse()": "<inferred>",
+        "copySnapshot()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "expectedIntentContent()": "<inferred>",
@@ -37721,7 +37737,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 695,
+        "try": 725,
         "catch": 17
       },
       "imports": [
@@ -37753,7 +37769,7 @@
     "packages/zig/transit-storage/src/TablePartitionRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableHistory": 9,
+        "InvalidTableHistory": 10,
         "InvalidTableKey": 1,
         "InvalidTableOperation": 2,
         "InvalidTableReceipt": 1,
@@ -37795,6 +37811,7 @@
           "recovery",
           "history_floor",
           "pin",
+          "pin_copy",
           "release"
         ],
         "Record.action.mutation.ingestion": [
@@ -37820,7 +37837,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -37864,9 +37881,9 @@
     "packages/zig/transit-storage/src/TableSnapshot.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableBasis": 1,
+        "InvalidTableBasis": 2,
         "InvalidTablePin": 4,
-        "InvalidTableSnapshot": 8,
+        "InvalidTableSnapshot": 9,
         "TableSnapshotMissing": 1
       },
       "outcomes": {
@@ -37884,12 +37901,13 @@
         "key()": "<inferred>",
         "load()": "<inferred>",
         "stage()": "<inferred>",
+        "stageCopyInTree()": "<inferred>",
         "stageInTree()": "<inferred>",
         "stageWith()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 28,
         "catch": 0
       },
       "imports": [

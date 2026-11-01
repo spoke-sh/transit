@@ -1851,6 +1851,7 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.InvalidHistoricalArtifact).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.HistoricalSourceChanged).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.HistoricalRetentionOwned).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.HistoricalRetentionPending).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidHistoricalCursor).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.HistoricalObjectLimit).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.BranchSourceChanged).code);

@@ -391,7 +391,11 @@ reuse. It includes accepted WAL-only rows and the physical schema directory.
 Use the published [SQL snapshot selector](sql/as-of.md) for historical SELECT,
 SHOW TABLES, DESCRIBE and EXPLAIN. Current metadata and SELECT privileges remain
 separate and are checked on the original objects before disclosure. Independent
-selections make no common transaction-cut promise. Explicit release changes
+selections make no common transaction-cut promise. A transfer from an acquired
+transaction instead preserves its common cut, frozen Table names and namespaces
+and complete source commitment. History acquires independent pins while a paged
+reservation protects the original transaction pins. Completing the transaction
+does not release those historical copies. Explicit release changes
 availability without erasing the original acquisition outcome; reader close
 does not release that separately retained basis. See the
 [exact contract](../../../contracts/HISTORICAL_CATALOG_V1.md) for bounded progress,

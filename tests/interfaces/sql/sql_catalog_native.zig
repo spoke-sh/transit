@@ -44,7 +44,7 @@ fn history(init: std.process.Init, client: c.DirectTableClient, directory: []con
         std.mem.writeInt(u64, token[0..8], operation, .little);
         const value: SavedHistory = .{
             .key = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = @splat(91), .token = token },
-            .intent = .{ .connection = client.connection, .namespace = 1, .operation = operation, .selection = selection.directory.? },
+            .intent = .{ .connection = client.connection, .namespace = 1, .operation = operation, .selection = selection.directory.?, .common = null },
         };
         // The complete original selection is durable before any acquisition.
         // Retries load it, even after current names or data have changed.
