@@ -2,7 +2,7 @@
 //! expectations and canonical payload bytes; this is not native admission.
 const std = @import("std");
 const f = @import("transit_fuze");
-const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false };
+const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false, consume: bool = false };
 fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     const result = try allocator.alloc(u8, bytes.len * 2);
     const alphabet = "0123456789abcdef";
@@ -17,6 +17,42 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
     defer declaration.deinit();
     const table = declaration.statement.create;
     const schema = try table.bind(7);
+    if (case.consume) {
+        var prepared = try f.LogConsumeSql.Prepared.init(init.gpa, case.sql, schema, .transit, null);
+        defer prepared.deinit();
+        var bound = try prepared.bind(init.gpa, &.{}, null);
+        defer bound.deinit();
+        var matched: [5]bool = undefined;
+        const bodies = [_]?[]const u8{ "A", "b", "A", null, "a" };
+        for (&matched, 0..) |*match, row| {
+            var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+            for (bound.fields, 0..) |field, i| cells[i] = switch (field) {
+                .column => |id| switch (id) {
+                    1 => .{ .value = .{ .atom = .{ .signed = @as(i128, @intCast(row)) - 1 } } },
+                    2 => if (bodies[row]) |body| .{ .value = .{ .atom = .{ .bytes = body } } } else .{ .null = {} },
+                    else => return error.UnexpectedFixtureColumn,
+                },
+                .offset => .{ .value = .{ .atom = .{ .unsigned = 100 + row } } },
+                .partition => .{ .value = .{ .atom = .{ .unsigned = row % 2 } } },
+                else => return error.UnexpectedFixtureMetadata,
+            };
+            var failure: ?f.LogicalQuery.Plan.PredicateFailure = null;
+            match.* = try bound.plan.plan.matches(cells[0..bound.fields.len], &failure);
+        }
+        var indices: [f.TableSchema.max_columns]u16 = undefined;
+        for (bound.plan.plan.projection, 0..) |value, i| indices[i] = value;
+        try std.json.Stringify.value(.{
+            .index = index,
+            .fields = bound.fields,
+            .indices = indices[0..bound.plan.plan.projection.len],
+            .names = bound.plan.plan.output_names,
+            .limit = bound.plan.plan.limit,
+            .group = bound.group,
+            .wait_ms = bound.wait_ms,
+            .matched = matched,
+        }, .{}, out);
+        return;
+    }
     if (case.workload) {
         var prepared = try f.LogAppendSql.Prepared.init(init.gpa, case.sql, schema, .transit, null);
         defer prepared.deinit();

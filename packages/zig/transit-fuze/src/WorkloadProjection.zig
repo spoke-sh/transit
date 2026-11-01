@@ -40,19 +40,26 @@ pub const Layout = struct {
 /// A star expansion can select application columns without inventing metadata.
 pub fn layout(source: Source, fields: []const Field) !Layout {
     try source.validate();
+    return schemaLayout(source.schema, fields, if (source.binding == .queue and source.binding.queue.kind == .claim) .claim else .rows);
+}
+
+/// Metadata-only layout for a parser before any original operation exists.
+/// Native source validation and binding remain mandatory when encoding a plan.
+pub fn schemaLayout(schema: f.TableSchema.Schema, fields: []const Field, profile: enum { rows, claim }) !Layout {
+    try schema.validate();
     if (fields.len == 0 or fields.len > f.TableSchema.max_columns) return error.InvalidWorkloadProjection;
     var result: Layout = .{ .count = fields.len, .collations = .{} };
     for (fields, 0..) |field, index| {
         const descriptor: f.Types.Field = switch (field) {
             .column => |id| blk: {
-                const column = source.schema.columns[try source.schema.index(id)];
+                const column = schema.columns[try schema.index(id)];
                 result.collations.columns[index] = column.collation;
                 break :blk .{ .name = column.name, .type = column.type, .nullable = column.nullable };
             },
             .partition => .{ .name = "_partition", .type = .uint64 },
             .offset => .{ .name = "_offset", .type = .uint64 },
             .lease_epoch, .attempt => blk: {
-                if (source.binding != .queue or source.binding.queue.kind != .claim) return error.WorkloadProjectionUnavailable;
+                if (profile != .claim) return error.WorkloadProjectionUnavailable;
                 break :blk .{ .name = if (field == .lease_epoch) "_lease_epoch" else "_attempt", .type = .uint64 };
             },
         };

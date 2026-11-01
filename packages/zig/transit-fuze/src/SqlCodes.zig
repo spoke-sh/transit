@@ -7,6 +7,9 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidLogConsumeOperand, .code = "sql.invalid_log_consume_operand", .category = .binding, .summary = "Consumption metadata requires a non-NULL text operand", .hint = "Supply a group name or a positive wait duration as text." },
+    .{ .cause = error.InvalidLogGroupName, .code = "sql.invalid_log_group_name", .category = .binding, .summary = "The consumer-group name is empty", .hint = "Supply a nonempty group name; resolving its native identity requires the Catalog owner." },
+    .{ .cause = error.InvalidLogWait, .code = "sql.invalid_log_wait", .category = .binding, .summary = "The wait duration is invalid", .hint = "Use positive whole ms, s or m units within unsigned 32-bit milliseconds; native wait limits apply separately." },
     .{ .cause = error.InvalidLogAppendOperand, .code = "sql.invalid_log_append_operand", .category = .binding, .summary = "The append metadata operand has an invalid value", .hint = "Use non-NULL typed partition, producer and visibility operands." },
     .{ .cause = error.UnsupportedLogAppendOption, .code = "sql.unsupported_log_append_option", .category = .unsupported, .summary = "The append option is not supported for this target", .hint = "VISIBLE_AT applies only to Queue enqueue operations." },
     .{ .cause = error.NullWorkloadParameter, .code = "sql.null_workload_parameter", .category = .binding, .summary = "Workload metadata requires a non-NULL parameter", .hint = "Bind a value of the declared metadata type." },

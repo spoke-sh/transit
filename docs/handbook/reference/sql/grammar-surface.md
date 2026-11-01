@@ -70,6 +70,7 @@ different [recovery behavior](../queries.md).
 | `UPDATE ... SET ... [WHERE ...]` | **Implemented — execution** | Multiple constant/default assignments and typed Boolean/state predicates; frozen selection and one atomic publication |
 | `DELETE FROM ... [WHERE ...]` | **Implemented — execution** | Point or selected finite predicates; committed matched/changed counts |
 | `PRODUCE INTO`, `ENQUEUE INTO` | **Implemented — single-partition execution** | [Typed VALUES, metadata and original-operation RETURNING](streaming.md#append-events-and-work) through native SQL, console, PostgreSQL and MySQL; cross-partition and attached-transaction appends are excluded |
+| `CONSUME ... FROM` | **Compiler only** | Typed projection, predicate, logical LIMIT and group/wait preparation; no SQL-service admission, group assignment, waiting or offset settlement |
 | `CREATE TABLE` | **Implemented — execution** | 1–128 columns, all logical families, explicit single/composite/no primary key, nullable defaults and deterministic typed defaults; authorized catalog routing |
 | `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and selected exact type changes; retained schema identity and atomic rewrite publication |
 | `DROP TABLE` | **Implemented — execution** | IF EXISTS and RESTRICT, explicit dependency checks, live-name retirement and safe name reuse; retained evidence remains separate from cleanup |

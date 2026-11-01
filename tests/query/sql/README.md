@@ -16,3 +16,9 @@ Use `just test::sql`, `just test::sql-grammar`, `just test::sql-rewrites` and th
 owning DDL/DML recipes. Tasks supply pinned tools and actual native drivers.
 Grammar agreement does not establish execution support; SQL protocol/session
 qualification lives under [interfaces](../../interfaces/README.md).
+
+The DML driver also exercises the dedicated append and consumption compiler
+corpora. Consumption uses independent expected layouts and predicate outcomes
+over five fixed rows, including metadata filtering, collation, NULL, aliases,
+group/wait operands and limits. It does not acquire a native source, wait,
+resolve a group or establish completed offset coverage.

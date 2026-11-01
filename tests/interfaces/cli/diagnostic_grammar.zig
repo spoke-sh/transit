@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, log_append, mutation, application, relational, authorization, settings, transaction, managed } = .query,
+    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, mutation, application, relational, authorization, settings, transaction, managed } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,16 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .log_consume => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var value = try f.LogConsumeSql.Prepared.init(allocator, case.sql, try basis.statement.create.bind(7), .transit, location);
+            defer value.deinit();
+            if (value.parameterTypes().len == 0) {
+                var bound = try value.bind(allocator, &.{}, binding);
+                defer bound.deinit();
+            }
+        },
         .managed => {
             var parser = try f.SqlTyped.init(allocator, case.sql, location);
             const explain = try parser.takeWord("EXPLAIN");
@@ -131,6 +141,10 @@ pub fn main(init: std.process.Init) !void {
                     .authorization => f.SqlDiagnostic.authorization(case.sql, err, location),
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
                     .log_append => f.SqlDiagnostic.logAppend(case.sql, err, location),
+                    .log_consume => blk: {
+                        if (binding.location == null) binding.location = location;
+                        break :blk f.SqlDiagnostic.logConsume(case.sql, err, binding);
+                    },
                     .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
                     .relational => f.SqlDiagnostic.tableSelect(case.sql, err, location),
                     .declaration => f.SqlDiagnostic.writeCompiler(case.sql, err, .declaration, binding),

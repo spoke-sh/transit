@@ -60,7 +60,8 @@ and aggregates belong to other owners and are refused by this projection.
 and output arrays without per-row allocation. It preserves the original claim's
 epoch and attempt and leaves native coverage independent of filtered output.
 The caller supplies verified frozen metadata and separately owns admission,
-selection, authority and completion. SQL workload admission is not yet wired.
+selection, authority and completion. The SQL service owns workload admission
+and original-result delivery separately.
 
 Dedicated workload parsers can reuse `TableDml.insertValues` for column/VALUES
 syntax and `TableDmlPrepared.adoptSyntax` for typed binding. Successful adoption
@@ -77,7 +78,18 @@ RETURNING against the adapter's exact original native binding, with borrowed
 fields and caller-owned encoded bytes. The [checked compiler
 profile](../../../contracts/sql/README.md) states types, collision refusals and
 limits. Preparation performs no Catalog reads, routing, uploads or admission;
-SQL services do not yet expose these verbs.
+the SQL service's Catalog adapter owns those steps.
+
+`LogConsumeSql.Prepared` shares row headers and `LogicalPrepared.adoptSyntax`
+for typed projections, predicates, LIMIT and group/wait operands. The bound
+plan, input field layout and group name own their memory independently of the
+template. Star expands before predicate-only metadata is added to the input.
+`WorkloadProjection.schemaLayout` supplies that pure metadata layout without
+inventing an accepted operation. This preparation helper has no source capture,
+group identity, native wait or offset-settlement authority and is not exposed
+by the SQL service. Its LIMIT remains a logical output bound; existing original
+workload projection encoding still refuses limits. See the [compiler
+profile](../../../contracts/sql/README.md) for exact boundaries.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;

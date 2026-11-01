@@ -145,6 +145,17 @@ logAppendRow: LPAREN logAppendValue (COMMA logAppendValue)* RPAREN;
 logAppendValue: DEFAULT | logAppendOperand;
 logAppendOperand: literal | PARAMETER;
 
+// Pure dedicated preparation only; not admitted by the session statement root.
+logConsumeStatement: CONSUME projection FROM identifier sourceAlias?
+    (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
+    (WAIT workloadTextOperand)? SEMI? EOF;
+workloadTextOperand: STRING | PARAMETER | NULL_;
+workloadWhereClause: WHERE workloadDisjunction;
+workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
+workloadConjunction: workloadNegation (AND workloadNegation)*;
+workloadNegation: NOT workloadNegation | LPAREN workloadDisjunction RPAREN | workloadAtom;
+workloadAtom: columnReference (IS NOT? cellState | comparison (literal | PARAMETER));
+
 
 // ---- Parser rules -----------------------------------------------------
 
@@ -352,6 +363,7 @@ legacyIdentifier
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
+    | CONSUME | WAIT
     ;
 
 DATAFLOW: 'DATAFLOW';
@@ -373,6 +385,8 @@ PARTITIONS: 'PARTITIONS';
 HASH: 'HASH';
 PRODUCE: 'PRODUCE';
 ENQUEUE: 'ENQUEUE';
+CONSUME: 'CONSUME';
+WAIT: 'WAIT';
 PRODUCER: 'PRODUCER';
 ID: 'ID';
 EPOCH: 'EPOCH';

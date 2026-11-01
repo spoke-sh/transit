@@ -355,6 +355,27 @@ pub fn logAppend(text: []const u8, cause: anyerror, location: sql.Location) ?Sel
     return result;
 }
 
+/// Preserve dedicated consumption-parser evidence without routing it through
+/// SELECT's narrower statement parser. Preparation has dispatched no work.
+pub fn logConsume(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Stream consumption cannot be compiled";
+    result.hint = "Use a row projection, declared columns or offset metadata, Boolean predicates, a logical LIMIT and typed group/wait operands. Preparation does not acquire a source or settle offsets.";
+    return result;
+}
+
+test "consumption diagnostics preserve the dedicated compiler cause" {
+    const text = "CONSUME id FROM items WHERE id = 1 GROUP 'late'";
+    const detail = logConsume(text, error.UnsupportedConstruct, .{ .location = .{ .offset = 34 } }).?;
+    const value = try detail.structured();
+    try std.testing.expectEqualStrings("sql.unsupported_construct", value.code.slice());
+    try std.testing.expectEqual(d.Outcome.not_submitted, value.outcome);
+    try std.testing.expectEqual(@as(u64, 34), try value.location.?.offset.value());
+    try std.testing.expect(logConsume(text, error.OutOfMemory, .{}) == null);
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;

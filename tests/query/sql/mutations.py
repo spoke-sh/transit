@@ -167,6 +167,7 @@ def check(binary):
             assert response==dict(bytes=expected),(case,response,expected);agreed+=1
     print(f'General DML: {pg_cases} PostgreSQL/ANTLR AST comparisons; {agreed} exact independent ANTLR/typed FDM1 plans; {len(cases)} cases, defaults, reordered fields, general predicates and compound literals. Codec round trips preserve intent. No admission/publication claim.')
     check_log_appends(binary)
+    check_log_consumes(binary)
 
 
 def log_append_expected(case):
@@ -245,6 +246,29 @@ def check_log_appends(binary):
             expected = log_append_expected(case)
             assert response == expected, (case, expected, response)
     print(f'Log append preparation: {len(cases)} independent grammar, typed payload, metadata, projection and refusal cases. No admission/publication claim.')
+
+
+def check_log_consumes(binary):
+    corpus = json.loads((ROOT / 'contracts/sql/corpus/log-consumes.json').read_text())
+    assert corpus['version'] == 1
+    cases = corpus['cases']
+    path = CACHE / 'log-consume-cases.json'
+    path.write_text(json.dumps([dict(sql=c['sql'], basis=corpus['basis'], consume=True) for c in cases]))
+    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    (CACHE / 'log-consume-results.jsonl').write_text(result.stdout)
+    actual = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(actual) == len(cases)
+    for index, (case, response) in enumerate(zip(cases, actual, strict=True)):
+        assert response.pop('index') == index
+        if case.get('syntax_error'):
+            try: tree(case['sql'], 'logConsumeStatement')
+            except ValueError: pass
+            else: raise AssertionError(('invalid consumption syntax accepted', case))
+        else:
+            tree(case['sql'], 'logConsumeStatement')
+        expected = dict(err=case['error']) if 'error' in case else case['expected']
+        assert response == expected, (case, expected, response)
+    print(f'Log consume preparation: {len(cases)} independent grammar, projection, predicate, limit and metadata cases. No admission or coverage claim.')
 
 
 if __name__=='__main__':

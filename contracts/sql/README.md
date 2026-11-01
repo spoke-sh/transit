@@ -74,6 +74,35 @@ explicit partition is required for a multi-partition declaration without a hash
 key. These forms are excluded from attached interactive transactions until
 their shared transaction lowering is implemented.
 
+`LogConsumeSql.Prepared` is a pure compiler with a separate checked
+`logConsumeStatement` root. It is not admitted by the SQL service:
+
+```text
+CONSUME * | column [AS name] [, column [AS name]]
+  FROM name [AS alias] [GROUP text-or-parameter]
+  [WHERE predicate] [LIMIT integer-or-parameter] [WAIT text-or-parameter]
+```
+
+Preparation owns the supplied schema, projection, Boolean/state predicate and
+one typed parameter namespace. It returns an independent logical plan, input
+field layout, unresolved group name and wait duration. Unqualified `_partition`
+and `_offset` are unsigned metadata fields; star includes application columns
+only, even when a predicate needs metadata. The same physical-name collision
+refusal as append projections applies. Predicates preserve declared collations.
+Group names must be nonempty text. Waits accept positive whole `ms`, `s` or `m`
+durations fitting unsigned 32-bit milliseconds; the native owner must still
+enforce its wait policy. NULL metadata, aggregate/derived sources, joins,
+sorting and extra statements are refused. The MySQL compiler dialect supports
+positional parameters and backtick names.
+
+LIMIT is a logical output bound, not an offset interval or proof of completed
+native coverage. The schema fingerprint used during pure preparation is not a
+native operation/result binding. This helper performs no capture, group lookup,
+assignment, admission, waiting or offset settlement, and cannot freeze its plan
+as an original workload result. The [consumption corpus](corpus/log-consumes.json)
+uses independent expected layouts and five-row predicate outcomes through
+`just test::table-dml-sql`; those checks establish preparation only.
+
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
 owning compiler and runtime. Reference grammar acceptance alone does not enable

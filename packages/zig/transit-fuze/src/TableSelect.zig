@@ -36,7 +36,13 @@ const Selection = struct {
             try parser.require(.right);
             result.items[0].alias = if (try parser.takeWord("AS")) try parser.name() else null;
             result.count = 1;
-        } else if (try parser.take(.star)) {
+        } else return rows(parser);
+        try parser.requireWord("FROM");
+        return result;
+    }
+    fn rows(parser: *Parser) !Selection {
+        var result: Selection = .{};
+        if (try parser.take(.star)) {
             result.star = true;
         } else while (true) {
             if (result.count == max_columns) return error.InvalidProjection;
@@ -212,6 +218,17 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
         if (parser.token.tag != .eof and parser.word("LIMIT")) return error.UnsupportedAggregateLimit;
     }
     return result;
+}
+
+/// Shared row projection/source header after a dedicated workload keyword.
+/// It admits no aggregate or derived source and consumes no WHERE/LIMIT or
+/// workload clauses. The enclosing parser owns their order and semantics.
+pub fn rowHeader(parser: *Parser) !Syntax {
+    if (parser.word("COUNT") or parser.word("SUM")) return error.UnsupportedAggregate;
+    const selection = try Selection.rows(parser);
+    const subject = try Reference.unqualified(parser, .source);
+    const qualifier = if (try parser.takeWord("AS")) try parser.name() else subject.name;
+    return .{ .selection = selection, .subject = subject, .qualifier = qualifier };
 }
 /// Compile a non-parameterized statement into the caller's bounded arena.
 /// Schema slices retain their owner; parser and output-name slices use allocator.

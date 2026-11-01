@@ -13648,6 +13648,48 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/LogConsumeSql.zig": {
+      "errors": {
+        "InvalidLogConsumeOperand": 1,
+        "InvalidLogGroupName": 1,
+        "InvalidLogWait": 5,
+        "InvalidProjection": 1,
+        "InvalidSqlSyntax": 1,
+        "LiteralOutOfRange": 1,
+        "NullWorkloadParameter": 1,
+        "UnsupportedConstruct": 1
+      },
+      "outcomes": {
+        "Operand": [
+          "literal",
+          "parameter"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Operand.bind()": "<inferred>",
+        "Operand.parse()": "<inferred>",
+        "Prepared.bind()": "<inferred>",
+        "Prepared.init()": "<inferred>",
+        "add()": "<inferred>",
+        "consumeOwned()": "<inferred>",
+        "field()": "<inferred>",
+        "header()": "<inferred>",
+        "target()": "<inferred>",
+        "waitDuration()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 50,
+        "catch": 5
+      },
+      "imports": [
+        "SqlLogicalPredicate.zig",
+        "SqlReference.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogDdl.zig": {
       "errors": {
         "CatalogKindMismatch": 1,
@@ -15736,9 +15778,12 @@
         "InvalidKeyWidth": 1,
         "InvalidLiteral": 1,
         "InvalidLogAppendOperand": 1,
+        "InvalidLogConsumeOperand": 1,
+        "InvalidLogGroupName": 1,
         "InvalidLogPartitioning": 1,
         "InvalidLogProducer": 1,
         "InvalidLogVisibilityTime": 1,
+        "InvalidLogWait": 1,
         "InvalidMapKey": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 1,
@@ -15960,7 +16005,7 @@
         "structured()": "<inferred>",
         "validateTableSyntax()": "<inferred>"
       },
-      "open_error_set_uses": 10,
+      "open_error_set_uses": 11,
       "propagation": {
         "try": 60,
         "catch": 32
@@ -17224,7 +17269,7 @@
         "LiteralOutOfRange": 1,
         "NullLimitParameter": 1,
         "UnknownSource": 2,
-        "UnsupportedAggregate": 2,
+        "UnsupportedAggregate": 3,
         "UnsupportedAggregateLimit": 2,
         "UnsupportedConstruct": 6,
         "UnsupportedStatement": 1
@@ -17234,6 +17279,7 @@
       "error_returns": {
         "Selection.lower()": "<inferred>",
         "Selection.parse()": "<inferred>",
+        "Selection.rows()": "<inferred>",
         "Syntax.bind()": "<inferred>",
         "Syntax.bindParameters()": "<inferred>",
         "Syntax.bindParametersDiagnostic()": "<inferred>",
@@ -17241,6 +17287,7 @@
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
         "planDiagnostic()": "<inferred>",
+        "rowHeader()": "<inferred>",
         "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
@@ -17252,7 +17299,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
+        "try": 64,
         "catch": 2
       },
       "imports": [
@@ -18289,6 +18336,10 @@
           "offset",
           "lease_epoch",
           "attempt"
+        ],
+        "schemaLayout().profile": [
+          "rows",
+          "claim"
         ]
       },
       "error_sets": {},
@@ -18301,11 +18352,12 @@
         "encode()": "<inferred>",
         "layout()": "<inferred>",
         "requireProjection()": "<inferred>",
-        "restore()": "<inferred>"
+        "restore()": "<inferred>",
+        "schemaLayout()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 32,
         "catch": 0
       },
       "imports": [
@@ -18420,6 +18472,7 @@
         "GermanString.zig",
         "HybridSearch.zig",
         "LogAppendSql.zig",
+        "LogConsumeSql.zig",
         "LogDdl.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
@@ -39786,6 +39839,13 @@
       "logAppendRow": "LPAREN logAppendValue ( COMMA logAppendValue ) * RPAREN",
       "logAppendValue": "DEFAULT | logAppendOperand",
       "logAppendOperand": "literal | PARAMETER",
+      "logConsumeStatement": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadTextOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ? SEMI ? EOF",
+      "workloadTextOperand": "STRING | PARAMETER | NULL_",
+      "workloadWhereClause": "WHERE workloadDisjunction",
+      "workloadDisjunction": "workloadConjunction ( OR workloadConjunction ) *",
+      "workloadConjunction": "workloadNegation ( AND workloadNegation ) *",
+      "workloadNegation": "NOT workloadNegation | LPAREN workloadDisjunction RPAREN | workloadAtom",
+      "workloadAtom": "columnReference ( IS NOT ? cellState | comparison ( literal | PARAMETER ) )",
       "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createLog | alterLog | dropLog | createDocument | createKv | grantStatement | revokeStatement | showStatement | sessionSettingStatement | configurationSelect | describeStatement | explainStatement",
       "createLog": "CREATE logKind identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN logPartitioning ? ( WITH logOptions ) ?",
       "alterLog": "ALTER logKind identifier ( SET logOptions | RENAME TO identifier )",
@@ -39828,7 +39888,7 @@
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | WAIT",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",
@@ -39839,6 +39899,8 @@
       "HASH": "'HASH'",
       "PRODUCE": "'PRODUCE'",
       "ENQUEUE": "'ENQUEUE'",
+      "CONSUME": "'CONSUME'",
+      "WAIT": "'WAIT'",
       "PRODUCER": "'PRODUCER'",
       "ID": "'ID'",
       "EPOCH": "'EPOCH'",

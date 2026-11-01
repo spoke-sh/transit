@@ -3,7 +3,7 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation, standalone Stream consumption preparation",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
@@ -16,7 +16,8 @@
         "packages/zig/transit-fuze/src/LogicalPrepared.zig",
         "packages/zig/transit-fuze/src/RelationalSql.zig",
         "packages/zig/transit-fuze/src/AuthorizationSql.zig",
-        "packages/zig/transit-fuze/src/LogAppendSql.zig"
+        "packages/zig/transit-fuze/src/LogAppendSql.zig",
+        "packages/zig/transit-fuze/src/LogConsumeSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -51,6 +52,10 @@
         {
           "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
           "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+          "name": "log consume SQL owns typed projection predicate group and wait operands"
         }
       ],
       "exceptions": [
@@ -780,6 +785,18 @@
         },
         "InvalidLogProducer": {
           "code": "sql.invalid_log_producer",
+          "category": "binding"
+        },
+        "InvalidLogConsumeOperand": {
+          "code": "sql.invalid_log_consume_operand",
+          "category": "binding"
+        },
+        "InvalidLogGroupName": {
+          "code": "sql.invalid_log_group_name",
+          "category": "binding"
+        },
+        "InvalidLogWait": {
+          "code": "sql.invalid_log_wait",
           "category": "binding"
         }
       }
