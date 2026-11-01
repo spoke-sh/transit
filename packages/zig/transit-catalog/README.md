@@ -62,6 +62,19 @@ reservation. Clearing pending requires a matching terminal receipt from the host
 normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
 cancel flag supply no completion. SQL result recovery uses this original owner.
 Catalog storage traversal verifies the body and retains its source declaration.
+
+`DirectLogPreparedAppend` binds the standalone `LogAppendSql` compiler to an
+exact named Catalog definition. Preparation owns the schema and template after
+metadata buffers are released. Binding creates a complete workload body with
+native row identities, producer metadata, Queue visibility and the frozen
+RETURNING projection; it performs no upload or admission. Manual multi-partition
+definitions require an explicit partition. Hash routing uses canonical collation
+keys and requires every row to reach the same partition; cross-partition work
+requires the transaction owner and is refused before publication here. Declared
+row/byte budgets and the existing encoded record bound apply. Native token
+acceptance and dispatch retain current write authorization, and result opening
+retains current read authorization. SQL session admission is still unwired.
+
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;
 restoration owns its aliases and literals without a new catalog lookup or SQL
