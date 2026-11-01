@@ -77,8 +77,8 @@ physical acceptance and logical-change frontier. Append, group progress, claims
 and settlements are logical changes. A changed range, interpretation, ordinal,
 logical frontier or regressed physical frontier conflicts. An acquired `Pin`
 retains its owner's exact basis; the common `{owner, content}` descriptor does
-not establish a live pin without owner verification. Log transaction pins and
-logical-frontier publication remain unimplemented.
+not establish a live pin without owner verification. Native log participants
+retain and release these pins through their owning partition.
 
 `Participant` groups state guards/mutations and log work by physical owner. A
 log participant's optional `actions` is an immutable paged directory: null means
@@ -86,14 +86,15 @@ a read dependency; a present directory is nonempty. One Queue partition's ACK
 and enqueue share this directory, one successor and one preparation. The write
 count counts owners, not actions. `requireLocalTable` restricts SQL selection to
 Table entries. `requireLocalState` accepts Table and direct KV state entries;
-both reject writes in read-only mode. Native KV/Document, Stream/Queue and native
-consumer participants remain unsupported. Typed outbox and checkpoint rows use
-ordinary Table mutations; an outbox record does not establish external delivery.
+both reject writes in read-only mode. The native catalog composes Table/direct KV
+state with Stream/Queue append and settlement participants. Document and the
+legacy Station turn remain outside this transaction profile. An outbox record
+does not establish external delivery.
 No variant supplies authorization or a new storage owner.
 
 `LogAction` binds a statement and positive ordinal to an append, Stream offset
 commit, Queue ACK or Queue terminal transfer. Action directories order by
-`(statement.sequence, ordinal)`; the owner checks contiguous ordinals, unique
+`(statement.sequence, ordinal)`; the owner checks ordered ordinals, unique
 operation identities and the frozen statement commitment. Append batches retain
 their original payload and producer binding. Offset commits retain exact issued
 coverage and group generation; ACK retains the exact live lease receipt and
@@ -109,15 +110,18 @@ destination append, definition and payload commitment. The transaction owner
 must find that append in the same decision and verify the source payload and
 destination schema. Self-transfer, mismatched principals, shared source/destination
 operation IDs and non-single-item destination batches reject. A denied or full
-destination leaves the source nonterminal. These transfer shapes remain
-unavailable through the installed execution owner.
+destination leaves the source nonterminal. The native catalog exposes the paired
+transfer through [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
+The destination mirror contains the same transfer and statement, with source
+ordinal one and destination ordinal two. An ordinary append cannot substitute
+for that mirror. The source's `TerminalReceipt` is original committed evidence;
+private evaluation summaries are separate provisional results.
 
-Action staging reserves no logical offsets. Future log preparation must reserve
-one ordered append range, block later public traversal across an unresolved
-reservation and expose records only through the common decision. Abort must
-resolve its reservation without letting readers miss a later committed prefix.
-Offset allocation, reservation recovery and terminal transfer execution require
-their storage owner; this neutral contract does not implement them.
+Action staging reserves no logical offsets. Log preparation freezes a private
+successor behind the owner's barrier; public traversal cannot cross an unresolved
+preparation. The owning partition resolves only the actual common decision,
+preserving its predecessor on abort and publishing its successor on commit.
+These pure types describe that evidence; their validators do not execute it.
 
 `Statement` has a transaction identity, nonzero sequence and frozen intent
 digest. Savepoint rollback may restore workspace state but cannot reuse a

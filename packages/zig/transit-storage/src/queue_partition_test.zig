@@ -1510,10 +1510,77 @@ test "log transaction private Queue evaluation composes enqueue and fenced ACK w
     try t.expectError(error.TransactionConflict, owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
 }
 
+test "log transaction terminal candidates reject standalone replay before reconstructing source state" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var destination_definition = support.definition(.queue);
+    destination_definition.object.object = 5;
+    destination_definition.schema.object = 5;
+    destination_definition.configuration.partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 };
+    var destination = try s.LogDeclaration.prepare(t.allocator, destination_definition);
+    defer destination.deinit();
+    const destination_stored = try s.LogDeclaration.stage(objects.objectStore(), &destination);
+    var source_definition = support.definition(.queue);
+    source_definition.configuration.partitioning = destination_definition.configuration.partitioning;
+    source_definition.configuration.policy.queue.dead_letter = destination_stored.declaration.interpretation;
+    var source = try s.LogDeclaration.prepare(t.allocator, source_definition);
+    defer source.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &source);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const input = try request(&source, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, input.append, input.payload, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    try t.expectEqual(@as(u64, 1), lease.offset);
+    _ = try owner.flush(owner.owner.root.position(), policy.guard());
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 8)).complete) {}
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const basis = owner.owner.root;
+    const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    const before = owner.owner.root;
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "Beta" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
+    const payload = try s.LogBatch.encode(destination.definition.schema, operation(22), .queue, &.{.{ .cells = &cells }}, &bytes);
+    const transfer: p.Transaction.TerminalTransfer = .{ .operation = operation(21), .source = .{ .nack = lease }, .destination = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = destination_stored.declaration.interpretation, .partition = 0 }, .operation = operation(22), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } };
+    // A cold segment read borrows a tail slab before the same publication
+    // buffer is reused for the destination's encoding.
+    try owner.owner.validateTransferPayload(transfer, policy.guard());
+    var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
+    defer actions.deinit();
+    try actions.put(.{ .statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(9) }, .ordinal = 1, .action = .{ .queue_terminal = transfer } }, null);
+    const directory = try actions.seal();
+    const candidate = try owner.owner.evaluateTransaction(pin, directory, .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 }, null, policy.guard());
+    try t.expectEqualDeep(before, owner.owner.root);
+    const record: s.LogPartitionRecord.Record = .{ .definition = p.Growth.current_definition, .previous = owner.owner.commitment, .root = candidate.root, .action = .{ .operation = .{ .declared = initial.declared, .outcome = .{ .terminal = .{ .receipt = .{ .transfer = transfer, .accepted = candidate.root.position() }, .observed = clock.value.? } } } } };
+    try record.validate(before.next_lsn);
+    var encoded: [65536]u8 = undefined;
+    _ = try wal.log().append(91, before.next_lsn, 1, 1, record.frameKind(), try s.LogPartitionRecord.encode(record, &.{}, &encoded));
+    const puts = objects.puts;
+    try t.expectError(error.InvalidLogPreparation, owner.recoverStep(policy.guard(), 1));
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(before, owner.owner.root);
+}
+
 const TransactionVerification = struct {
     owner: *Queue,
     policy: *Policy,
     time_check: ?s.LogTransaction.DecisionTime = null,
+    fn heldFence(raw: *anyopaque) !s.PublicationGuard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        return .{ .writer_epoch = self.policy.epoch, .policy_epoch = self.policy.epoch };
+    }
+    fn releaseHeld(_: *anyopaque) void {}
     fn participant(raw: *anyopaque, selected: p.Transaction.Participant) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         try t.expect(self.policy.held);
@@ -1523,7 +1590,7 @@ const TransactionVerification = struct {
     fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         try t.expect(self.policy.held);
-        self.time_check = try self.owner.verifyPrepared(value);
+        self.time_check = try self.owner.verifyPrepared(value, .{ .context = self, .acquire = heldFence, .release = releaseHeld });
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));

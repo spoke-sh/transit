@@ -220,3 +220,35 @@ test "transaction log admission binds independent source work and reservation co
     changed.action.transaction.log_statement.request.work.append.rows += 1;
     try t.expectError(error.TransactionIdentityConflict, changed.action.transaction.log_statement.request.validate());
 }
+
+test "transaction transfer reservations bind one statement and distinct public observations" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8, intent_digest: [32]u8, request_digest: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-transaction-log-v1.json"));
+    defer parsed.deinit();
+    var request = parsed.value.request.action.transaction.log_statement.request;
+    const original = request.work.append;
+    var destination = original;
+    destination.kind = .queue;
+    destination.target.interpretation.object.object -= 1;
+    destination.operation.operation -= 1;
+    request.guard.kind = .queue;
+    request.guard.source.next = 2;
+    request.work = .{ .queue_transfer = .{ .operation = original.operation, .source = .{ .exhausted = .{ .target = original.target, .offset = 0, .lease_epoch = 2, .attempt = 1, .not_before_ms = 0 } }, .destination = destination } };
+    request.statement.intent = try request.work.digest();
+    const source = try request.binding();
+    const target = (try request.destinationBinding()).?;
+    try t.expectEqualDeep(source.statement, target.statement);
+    try t.expectEqualDeep(source.request, target.request);
+    try t.expectEqualDeep(original.operation, source.operation);
+    try t.expectEqualDeep(destination.operation, target.operation);
+    try t.expectEqualDeep(try request.work.digest(), source.operation_intent);
+    try t.expectEqualDeep(try (c.DirectTransactionLogWork.Work{ .append = destination }).digest(), target.operation_intent);
+    try t.expect(!std.mem.eql(u8, &source.operation_intent, &target.operation_intent));
+    request.work.queue_transfer.source.exhausted.offset = 1;
+    request.statement.intent = try request.work.digest();
+    const changed = (try request.destinationBinding()).?;
+    // An unchanged destination append cannot be reused for another source.
+    try t.expectEqualDeep(target.operation_intent, changed.operation_intent);
+    try t.expect(!std.mem.eql(u8, &target.request, &changed.request));
+}

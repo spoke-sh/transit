@@ -547,8 +547,8 @@ not complete these gates.
 | R1 | Implemented foundations; integrated qualification open | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
-| R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: native Table/KV/Stream/Queue mixed recovery passes; DLQ, complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R4 | Partial: claims, bounded waits, retries, delays, maintenance, retention and explicit atomic DLQ delivered; automatic DLQ scheduling open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
+| R5 | Partial: native Table/KV/Stream/Queue mixed recovery passes; explicit DLQ implemented, installed DLQ proof, complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
@@ -830,8 +830,18 @@ keeps these component results separate from clean integrated qualification.
 The [installed mixed proof](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31)
 also passes: 85 signed requests, two lost replies and two node replacements
 recover the original state mutations, appends, Queue ACK and Stream offset.
-The remaining preparation/finalization fault matrix, clean integrated
-qualification and DLQ transfer remain open.
+The remaining preparation/finalization fault matrix and clean integrated
+qualification remain open. The subsequent Queue transfer cutover adds explicit
+native transfer statements for live NACK and exhausted-item maintenance. A
+statement reserves both operation identities and publishes two private action
+directories together. The decision validates exact mirrored actions, original
+source payload, both Queues' current rights and final time bounds. Sequential
+temporary owners preserve the existing resident budget; source archival cannot
+replay as a standalone operation. Exhausted items retain their exact destination
+and accepted exhaustion time across policy edits. Automatic DLQ scheduling and
+installed transfer qualification remain open. The
+[direct contract](../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+owns the executable native profile; this does not enable Queue SQL or Station turns.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 

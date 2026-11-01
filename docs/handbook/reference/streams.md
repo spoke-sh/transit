@@ -100,13 +100,22 @@ this logical expiry until explicitly released; older replay cuts can retain them
 longer. Current Queue observations report the advanced retained boundary, while
 an open original claim can still return its older offsets. Physical collection
 waits for all dependencies to close. See [retention](retention.md).
-DLQ transfer remains unfinished.
+
+Explicit native transactions can move a live leased item or an exhausted blocked
+item to its exact dead-letter destination. Source archival, FIFO advancement and
+the destination append share one decision. The transfer preserves the original
+logical row and visibility time, checks current rights on both Queues, and leaves
+the source nonterminal if the destination cannot accept it. Exhausted items expose
+their recorded destination and `blocked_after_ms`; later source policy changes
+cannot redirect them. Automatic scheduling of these transfers remains unfinished.
+
 Typed transaction selection can retain Stream/Queue partition cuts as read
 dependencies alongside Table/KV state. Serializable completion checks those
 partitions' logical frontiers; read-only completion preserves the acquired cut
 after later writes. Each observation requires current read access. Native
 transaction work can append to Streams or Queues, commit an authenticated Stream
-offset, or ACK an original Queue lease together with Table/KV state. The shared
+offset, ACK an original Queue lease, or transfer a dead-letter item together with
+Table/KV state. The shared
 statement sequence, savepoints and common decision preserve original identities
 through uncertainty; provisional summaries do not establish public acceptance.
 Lease and retention deadlines are checked immediately before the decision;

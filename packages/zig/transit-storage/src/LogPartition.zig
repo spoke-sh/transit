@@ -341,6 +341,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                             const payload = try actions.readPayload(work, buffer);
                             _ = try self.append(source.root.declared, request, payload, guard);
                         },
+                        .queue_transfer_append => |transfer| {
+                            const payload = try actions.readPayload(work, buffer);
+                            _ = try self.append(source.root.declared, transfer.destination, payload, guard);
+                        },
                         .stream_offset => |request| {
                             _ = try self.commitOffset(source.root.declared, request, value.offset_cursor orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
                         },
@@ -348,7 +352,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                             if (kind != .queue) return error.InvalidTransactionActions;
                             _ = try self.settle(source.root.declared, request, guard);
                         },
-                        .queue_terminal => return error.UnsupportedTransactionTransfer,
+                        .queue_terminal => |request| {
+                            if (kind != .queue) return error.InvalidTransactionActions;
+                            _ = try self.transferPrivate(source.root.declared, request, buffer, guard);
+                        },
                     }
                 };
                 after = page.next orelse break;
@@ -371,6 +378,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return next;
         }
         fn requireTransactionTransition(self: *Self, record: r.Record) !void {
+            // A terminal transfer exists only inside a private successor whose
+            // paired destination append shares the transaction's decision.
+            if (record.action == .operation and record.action.operation.outcome == .terminal) return error.InvalidLogPreparation;
             const before = self.root;
             const after = record.root;
             const reference = if (record.action == .transaction_prepare) after.transaction else before.transaction;
@@ -453,11 +463,12 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return preparation.prepared(reference);
         }
 
-        /// Called under the host's already-held common publication guard. It
-        /// cannot reacquire that guard. Current names/rights remain the host's
+        /// Called with a borrowed view of the host's already-held common guard.
+        /// It cannot reacquire the underlying lock. Current names/rights remain the host's
         /// responsibility; live ACK leases are checked here immediately before
         /// the decision. Recovery never calls this time-sensitive check.
-        pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared) !Transaction.DecisionTime {
+        pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared, held_guard: Guard) !Transaction.DecisionTime {
+            try authorize(held_guard);
             if (!self.ready or self.private_position != null or try self.log.tail(self.root.initialization.partition) != self.root.next_lsn) return error.LogRecoveryRequired;
             const reference = self.root.transaction orelse return error.InvalidLogPreparation;
             const preparation = try Transaction.loadPreparation(self.objects, reference);
@@ -475,9 +486,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.scratch = saved_scratch;
                 self.store.clearCache();
             }
-            return self.verifyPreparedBounded(expected, preparation, reference) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
+            return self.verifyPreparedBounded(expected, preparation, reference, held_guard) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
         }
-        fn verifyPreparedBounded(self: *Self, expected: p.Transaction.Prepared, preparation: Transaction.Preparation, reference: Transaction.Reference) !Transaction.DecisionTime {
+        fn verifyPreparedBounded(self: *Self, expected: p.Transaction.Prepared, preparation: Transaction.Preparation, reference: Transaction.Reference, held_guard: Guard) !Transaction.DecisionTime {
             if (!std.meta.eql(expected, try preparation.prepared(reference))) return error.InvalidLogPreparation;
             if (!std.meta.eql(try transactionBarrier(preparation, reference), self.root)) return error.InvalidLogPreparation;
             const pinned = try Transaction.Pin.decode(try self.tree().get(self.root.transaction_pins, try Evidence.operationKey(preparation.source.owner)) orelse return error.LogTransactionSourceNotPinned);
@@ -502,7 +513,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                         _ = try item.settle(try index.state(self.root.queue.?, item), request, self.root.declared.declaration.configuration.policy.queue, now.?);
                         check.lease_expires_ms = @min(check.lease_expires_ms orelse std.math.maxInt(u64), request.lease.expires_ms);
                     },
-                    .append => {
+                    .append, .queue_transfer_append => {
                         if (preparation.observed) |observed| if (self.root.declared.declaration.configuration.retention.max_age_ms) |age| {
                             if (now.?.latest_ms - observed.latest_ms >= age) return error.LogRetentionWindowElapsed;
                             // An overflowing expiry lies beyond representable
@@ -513,7 +524,19 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                         };
                     },
                     .stream_offset => {},
-                    .queue_terminal => return error.UnsupportedTransactionTransfer,
+                    .queue_terminal => |request| {
+                        if (kind != .queue) return error.InvalidTransactionActions;
+                        var bitmap: Bitmap = undefined;
+                        const index = self.queueIndex(&bitmap);
+                        const offset = transferOffset(request);
+                        const item = try index.item(self.root.queue.?, offset);
+                        _ = try item.transfer(try index.state(self.root.queue.?, item), request, self.root.declared.declaration.configuration.policy.queue, now.?);
+                        try self.verifyTransferPayload(request, self.encoded[0..self.options.batch_bytes], held_guard);
+                        switch (request.source) {
+                            .nack => |lease| check.lease_expires_ms = @min(check.lease_expires_ms orelse std.math.maxInt(u64), lease.expires_ms),
+                            .exhausted => |item_value| check.transfer_not_before_ms = @max(check.transfer_not_before_ms orelse 0, item_value.not_before_ms),
+                        }
+                    },
                 };
                 after = page.next orelse break;
             }
@@ -524,13 +547,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         /// collected owner immediately before the common decision append.
         pub fn verifyDecisionTime(self: *Self, check: Transaction.DecisionTime) !void {
             if (!self.ready or !std.meta.eql(self.root.transaction, @as(?Transaction.Reference, check.reference))) return error.InvalidLogPreparation;
-            if (check.lease_expires_ms == null and check.append_expires_ms == null) return;
+            if (check.lease_expires_ms == null and check.append_expires_ms == null and check.transfer_not_before_ms == null) return;
             const now = (try Time.bounds(self.options.clock, check.floor_ms, true)).?;
             if (check.lease_expires_ms) |expires| {
                 if (now.earliest_ms >= expires) return error.QueueLeaseExpired;
                 if (now.latest_ms >= expires) return error.QueueTimeUnavailable;
             }
             if (check.append_expires_ms) |expires| if (now.latest_ms >= expires) return error.LogRetentionWindowElapsed;
+            if (check.transfer_not_before_ms) |after| if (now.earliest_ms < after) return error.QueueTimeUnavailable;
         }
 
         /// Only an actual decision in the frozen coordination log can remove
@@ -779,7 +803,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 else
                     .unavailable;
             };
-            const result: queue_read.LeaseObservation = .{ .original = original_lease, .state = state, .epoch = item.epoch, .attempt = item.attempts, .expires_ms = if (item.lease) |lease| lease.expires_ms else null, .blocked = item.blocked, .liveness = liveness };
+            const result: queue_read.LeaseObservation = .{ .original = original_lease, .state = state, .epoch = item.epoch, .attempt = item.attempts, .expires_ms = if (item.lease) |lease| lease.expires_ms else null, .blocked = item.blocked, .blocked_after_ms = item.blocked_after_ms, .liveness = liveness };
             try result.requireBasis(basis, receipt);
             return result;
         }
@@ -868,6 +892,69 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const receipt: q.SettlementReceipt = .{ .settlement = request, .accepted = try self.nextPosition() };
             try self.publish(.{ .declared = declared, .outcome = .{ .settlement = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
             return receipt;
+        }
+        fn transferOffset(request: p.Transaction.TerminalTransfer) u64 {
+            return switch (request.source) {
+                .nack => |lease| lease.offset,
+                .exhausted => |item| item.offset,
+            };
+        }
+        fn transferPrivate(self: *Self, declared: Declaration.Stored, request: p.Transaction.TerminalTransfer, buffer: []u8, guard: Guard) !p.Transaction.TerminalReceipt {
+            if (self.private_position == null) return error.PrivateLogWorkspace;
+            try request.validate();
+            try self.requireTarget(request.target());
+            try authorize(guard);
+            try self.requireReady();
+            try self.root.requireControlDeclaration(declared);
+            const now = try self.queueTime(self.root.clock_ms);
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const item = try index.item(self.root.queue.?, transferOffset(request));
+            _ = try item.transfer(try index.state(self.root.queue.?, item), request, declared.declaration.configuration.policy.queue, now);
+            try self.verifyTransferPayload(request, buffer, guard);
+            const receipt: p.Transaction.TerminalReceipt = .{ .transfer = request, .accepted = try self.nextPosition() };
+            try self.publish(.{ .declared = declared, .outcome = .{ .terminal = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
+            return receipt;
+        }
+        /// Re-encode the source's verified logical values under the exact
+        /// destination definition and operation. Caller-chosen replacement
+        /// payloads cannot terminalize the original source.
+        pub fn validateTransferPayload(self: *Self, request: p.Transaction.TerminalTransfer, guard: Guard) !void {
+            if (kind != .queue) return error.InvalidTransactionTransfer;
+            try request.validate();
+            try self.requireTarget(request.target());
+            try authorize(guard);
+            try self.requireReady();
+            // borrowAt pins its own tail slab before returning. Encoding the
+            // destination can reuse this owner's publication buffer safely.
+            try self.verifyTransferPayload(request, self.encoded[0..self.options.batch_bytes], guard);
+            try authorize(guard);
+        }
+        fn verifyTransferPayload(self: *Self, request: p.Transaction.TerminalTransfer, buffer: []u8, guard: Guard) !void {
+            var source = try Declaration.load(self.allocator, self.objects, self.root.declared);
+            defer source.deinit();
+            var destination = try Declaration.resolve(self.allocator, self.objects, request.destination.target.interpretation);
+            defer destination.deinit();
+            if (destination.definition.retired or destination.definition.configuration.policy != .queue or
+                request.destination.target.partition >= destination.definition.configuration.partitioning.count) return error.InvalidQueueDestination;
+            var normalized = destination.definition.schema;
+            normalized.object = source.definition.schema.object;
+            normalized.revision = source.definition.schema.revision;
+            if (!std.mem.eql(u8, &try normalized.fingerprint(), &try source.definition.schema.fingerprint())) return error.QueueDestinationSchemaMismatch;
+            const offset = transferOffset(request);
+            const cut = try self.root.retainedCut(self.root.declared);
+            var borrowed = try self.borrowAt(cut, self.root.batches, self.root.segments, .empty, offset, guard) orelse return error.QueueItemMissing;
+            defer borrowed.deinit();
+            var rows = try borrowed.iterator(source.definition.schema);
+            while (try rows.next()) |row| {
+                if (row.ordinal != offset - borrowed.receipt.first) continue;
+                defer _ = self.scratch.reset(.retain_capacity);
+                const decoded = try row.decode(self.scratch.allocator(), source.definition.schema, borrowed.receipt.append.operation);
+                const bytes = try Batch.encode(destination.definition.schema, request.destination.operation, .queue, &.{decoded}, buffer);
+                if (!std.meta.eql(Batch.content(bytes), request.destination.payload)) return error.LogPayloadConflict;
+                return;
+            }
+            return error.QueueItemMissing;
         }
         fn queueCanonicalKey(self: *Self, offset: u64, guard: Guard) ![]const u8 {
             const policy = self.root.initialization.declared.declaration.configuration.policy.queue;
@@ -1194,7 +1281,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn candidate(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !Root {
             try evidence.validate();
-            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .queue_release)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .terminal or evidence.outcome == .queue_release)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -1222,6 +1309,18 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 .settlement => |value| if (kind == .queue) {
                     result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);
                     result.queue = try self.candidateSettlement(evidence, guard);
+                } else return error.InvalidLogHistory,
+                .terminal => |value| if (kind == .queue) {
+                    result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);
+                    const request = value.receipt.transfer;
+                    const offset = switch (request.source) {
+                        .nack => |lease| lease.offset,
+                        .exhausted => |item| item.offset,
+                    };
+                    const policy = evidence.declared.declaration.configuration.policy.queue;
+                    const key = if (policy.ordering == .key_fifo) try self.queueCanonicalKey(offset, guard) else null;
+                    var bitmap: Bitmap = undefined;
+                    result.queue = try self.queueIndex(&bitmap).transfer(self.root.queue.?, request, policy, value.observed, value.receipt.accepted, key);
                 } else return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
@@ -1263,7 +1362,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
             const reserve = switch (evidence.outcome) {
-                .release, .offset, .settlement, .queue_release => true,
+                .release, .offset, .settlement, .terminal, .queue_release => true,
                 .assignment => |value| value.assignment.expected != null,
                 .append, .read, .claim => false,
             };
@@ -1991,6 +2090,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
         }
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
+            if (record.action == .operation and record.action.operation.outcome == .terminal) return error.InvalidLogPreparation;
             const next = record.root;
             if (next.changed_lsn != (if (record.changesData()) next.next_lsn else self.root.changed_lsn)) return error.InvalidLogHistory;
             try self.root.initialization.requireSame(next.initialization);
@@ -2133,7 +2233,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.changed_lsn = next.changed_lsn;
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
-                .claim, .settlement, .queue_release => return error.InvalidLogHistory,
+                .claim, .settlement, .terminal, .queue_release => return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
                     expected.clock_ms = try Time.advance(self.root.clock_ms, receipt.observed_ms);

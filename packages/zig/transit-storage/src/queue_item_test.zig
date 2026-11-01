@@ -100,3 +100,66 @@ test "queue item fences malformed state and checked counter deadline overflow" {
     leased.lease.?.offset = 1;
     try t.expectError(error.InvalidQueueItem, leased.validate());
 }
+
+fn transfer(lease: q.Lease) p.Transaction.TerminalTransfer {
+    var destination = target;
+    destination.interpretation.object.object = 5;
+    return .{ .operation = claim(10).operation, .source = .{ .nack = lease }, .destination = .{
+        .target = destination,
+        .operation = claim(11).operation,
+        .kind = .queue,
+        .producer = null,
+        .rows = 1,
+        .payload = .{ .bytes = 128, .sha256 = @splat(12) },
+    } };
+}
+
+test "queue item transfer candidates fence live leases and recorded exhausted destinations" {
+    var configured = policy;
+    configured.dead_letter = target.interpretation;
+    configured.dead_letter.?.object.object = 5;
+    configured.maximum_attempts = 1;
+    const leased = try (try Item.initial(0, 2, 0)).acquire(.available, claim(1), configured, .exact(100));
+    var request = transfer(leased.lease.?);
+    const live = try leased.transfer(.acquired, request, configured, .exact(199));
+    try t.expect(live.state == .archived and live.item.lease == null and live.item.blocked == .none);
+    try t.expect(live.item.blocked_after_ms == null);
+    try t.expectError(error.QueueLeaseExpired, leased.transfer(.acquired, request, configured, .exact(200)));
+    try t.expectError(error.QueueTimeUnavailable, leased.transfer(.acquired, request, configured, .{ .earliest_ms = 199, .latest_ms = 200 }));
+    var stale = request;
+    stale.source.nack.epoch += 1;
+    try t.expectError(error.QueueLeaseFenced, leased.transfer(.acquired, stale, configured, .exact(150)));
+    var changed = configured;
+    changed.dead_letter.?.object.object = 6;
+    try t.expectError(error.InvalidTransactionTransfer, leased.transfer(.acquired, request, changed, .exact(150)));
+
+    const exhausted = try leased.expire(.acquired, configured, .exact(1000));
+    try t.expectEqual(@as(?u64, 200), exhausted.blocked_after_ms);
+    request.source = .{ .exhausted = .{ .target = target, .offset = 0, .lease_epoch = 1, .attempt = 1, .not_before_ms = 200 } };
+    // Maintenance uses the recorded bound and destination, even when later
+    // policy permits more attempts or chooses a different destination.
+    changed.maximum_attempts = 10;
+    const terminal = try exhausted.transfer(.available, request, changed, .exact(200));
+    try t.expect(terminal.state == .archived and terminal.item.blocked_after_ms == null);
+    try t.expectError(error.QueueTimeUnavailable, exhausted.transfer(.available, request, changed, .{ .earliest_ms = 199, .latest_ms = 200 }));
+    stale = request;
+    stale.source.exhausted.not_before_ms = 199;
+    try t.expectError(error.QueueStateConflict, exhausted.transfer(.available, stale, changed, .exact(200)));
+    stale = request;
+    stale.destination.target.interpretation.object.object = 6;
+    try t.expectError(error.InvalidTransactionTransfer, exhausted.transfer(.available, stale, changed, .exact(200)));
+    try t.expectError(error.QueueStateConflict, terminal.item.transfer(.archived, request, changed, .exact(200)));
+    var malformed = exhausted;
+    malformed.blocked_after_ms = null;
+    try t.expectError(error.InvalidQueueItem, malformed.validate());
+    const missing_bound =
+        \\{"offset":0,"batch_next":2,"next_key":null,"visible_ms":0,"epoch":0,"attempts":0,"lease":null,"blocked":{"none":{}}}
+    ;
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(Item, t.allocator, missing_bound));
+
+    const at_zero = try (try Item.initial(0, 2, 0)).acquire(.available, claim(1), configured, .exact(0));
+    const nacked = try at_zero.settle(.acquired, settlement(at_zero.lease.?, 2, .{ .nack = .{ .visible_ms = 0 } }), configured, .exact(0));
+    request.source.exhausted.not_before_ms = 0;
+    try t.expectEqual(@as(?u64, 0), nacked.item.blocked_after_ms);
+    try t.expectEqual(.archived, (try nacked.item.transfer(.available, request, configured, .exact(0))).state);
+}

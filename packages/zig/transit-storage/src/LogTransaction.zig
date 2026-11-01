@@ -73,6 +73,7 @@ pub const DecisionTime = struct {
     floor_ms: ?u64,
     lease_expires_ms: ?u64 = null,
     append_expires_ms: ?u64 = null,
+    transfer_not_before_ms: ?u64 = null,
 };
 pub const FixedTime = struct {
     value: @import("LogTime.zig").Sample,

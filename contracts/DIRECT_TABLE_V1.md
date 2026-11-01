@@ -147,8 +147,9 @@ requested participant limit. Each target includes the scoped object, kind and
 an explicit nullable logical partition ordinal. Duplicate or unordered targets,
 mixed kinds for one object and foreign scopes reject. Table and direct KV targets
 support private mutations. Stream/Queue targets participate as retained read
-dependencies with explicit partition ordinals; log actions cannot be staged by
-these transaction controls. Document targets reject before token admission. Server-owned
+dependencies and private log work with explicit partition ordinals, as specified
+under [transactional log work](#transactional-stream-and-queue-work).
+Document targets reject before token admission. Server-owned
 `authorized_catalog_tables` discovery remains restricted to accessible Tables.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
@@ -1631,8 +1632,9 @@ Explicit transaction selections can combine Table/KV objects and declared
 Stream/Queue partition ordinals. `transaction.stage_log` carries `key`, `basis`,
 `sequence`, typed `work` and nullable binary `payload`. Work is `append` (Stream
 or Queue), `stream_offset` (commit plus the exact owner-issued cursor), or
-`queue_ack` (an ACK settlement with its original fenced lease). Only append has
-payload bytes. Staging validates schema-bound batches and cursor authentication,
+`queue_ack` (an ACK settlement with its original fenced lease), or `queue_transfer`
+(one source disposition and its exact dead-letter destination append). Append
+and transfer carry payload bytes. Staging validates schema-bound batches and cursor authentication,
 retains immutable payload bytes and returns `staged_log`; it accepts no statement
 and reserves no public offsets.
 
@@ -1670,9 +1672,37 @@ lookup accepts the exact transactional work and returns only an actual public
 owner receipt; pending, rolled-back and aborted appends or settlements have no
 such receipt. This lookup never permits standalone mutation of a reserved ID.
 
-The native profile excludes claim acquisition, NACK, lease extension and DLQ
-transfer from private transaction work. SQL Stream/Queue statements and Station
-turn composition remain separate implementation gates.
+`queue_transfer` selects both Queue partitions in the common cut. Its source is
+either a live NACK lease or an exhausted item's exact offset, epoch, attempt and
+recorded `not_before_ms`. A live NACK requires current source READ and SETTLE;
+exhausted-item transfer requires READ and administrative ownership. Both require
+current destination READ and APPEND, including during repeated outcome disclosure
+and immediately before the common decision. The destination definition is the
+source policy's exact configured DLQ for a live NACK, or the exhausted item's
+already recorded destination. A later source policy edit cannot redirect that item.
+
+The source and destination schemas must match after normalizing object/revision
+identity. The source owner re-encodes the original logical row, preserving its
+visibility timestamp, under the destination definition and operation; replacement
+data or a changed timestamp rejects. Destination routing and append bounds still
+apply. Temporary owners are opened sequentially within the existing resident
+budget. Each operation receives a permanent reservation binding the whole request
+and its own public observation digest; an interrupted pair reservation is repaired
+only by retrying the exact request.
+
+One statement publishes both private action directories and its provisional
+summary together. The source `queue_terminal` action has ordinal one and its
+destination `queue_transfer_append` mirror has ordinal two. They contain the same
+complete transfer and statement. The decision owner checks both directions by
+operation identity, rejecting a missing mirror, ordinary substitute append or
+two sources sharing one destination append. Only that common decision can publish
+the source's archived state, FIFO advancement and destination payload. Standalone
+terminal WAL records reject during publication and replay. Savepoint rollback
+removes both actions while preserving consumed identities and original outcomes.
+
+Claim acquisition, retry NACK and lease extension remain standalone operations.
+Automatic scheduling of blocked DLQ transfers, SQL Stream/Queue statements and
+Station turn composition remain separate implementation gates.
 
 
 ### Transaction-scoped private reads

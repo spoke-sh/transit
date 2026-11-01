@@ -4619,6 +4619,174 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
     }
 }
 
+test "transaction log terminal transfers preserve both owners through denial rollback expiry and disk replacement" {
+    return terminalTransferCases() catch |err| {
+        std.debug.print("terminal transfer error: {s}\n", .{@errorName(err)});
+        return err;
+    };
+}
+fn terminalTransferCases() !void {
+    const Case = enum { commit, exhausted, expire, rollback };
+    for ([_]Case{ .commit, .exhausted, .expire, .rollback }) |case| {
+        var phase: []const u8 = "initialization";
+        errdefer std.debug.print("terminal transfer {s} during {s}\n", .{ @tagName(case), phase });
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{ .exclusive = true };
+        var receipt: c.DirectClientToken.Receipt = undefined;
+        var claim: p.StreamQueue.ClaimReceipt = undefined;
+        var request: c.DirectTransactionLogWork.Request = undefined;
+        var source_target: p.StreamQueue.Partition = undefined;
+        var destination_target: p.StreamQueue.Partition = undefined;
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9001 };
+        for (0..2) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            var clock: QueueClock = .{};
+            var cached: ?c.DirectQueue.Cached = null;
+            defer if (cached) |*value| value.deinit();
+            if (restart == 0) {
+                try catalog.initialize(access.policy());
+                const destination = try logCreation(.queue, 12, 2, "dead_letters", 1);
+                _ = try catalog.admitLog(destination, access.policy());
+                _ = try catalog.logOperation(destination.binding, .execute, access.policy());
+                const destination_definition = (try catalog.resolveLog(1, try .init("dead_letters"), access.policy())).?;
+                destination_target = .{ .definition = p.Growth.current_definition, .interpretation = destination_definition.stored.declaration.interpretation, .partition = 0 };
+                var source = try logCreation(.queue, 11, 1, "inbox", 1);
+                source.intent.action.create.configuration.policy.queue.dead_letter = destination_target.interpretation;
+                if (case == .exhausted) source.intent.action.create.configuration.policy.queue.maximum_attempts = 1;
+                source.binding.intent = try source.intent.digest(t.allocator);
+                _ = try catalog.admitLog(source, access.policy());
+                _ = try catalog.logOperation(source.binding, .execute, access.policy());
+                const source_definition = (try catalog.resolveLog(1, try .init("inbox"), access.policy())).?;
+                source_target = .{ .definition = p.Growth.current_definition, .interpretation = source_definition.stored.declaration.interpretation, .partition = 0 };
+                const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 600 };
+                const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+                var bytes: [8192]u8 = undefined;
+                const original_payload = try s.LogBatch.encode(source.intent.action.create.schema, operation, .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &bytes);
+                const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, original_payload);
+                defer t.allocator.free(encoded.base64);
+                _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(original_payload) } }, .payload = encoded } }, 256);
+                claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+                const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+                defer page.deinit(t.allocator);
+                var transfer_source: @FieldType(p.Transaction.TerminalTransfer, "source") = .{ .nack = page.page.rows[0].lease.original };
+                if (case == .exhausted) {
+                    _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 604 }, .lease = page.page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } }, .payload = null } }, 256);
+                    var changed_configuration = source.intent.action.create.configuration;
+                    changed_configuration.policy.queue.dead_letter = null;
+                    const policy_edit = try logEdit(source_definition, 605, .{ .alter = .{ .configuration = changed_configuration, .limits = source.intent.action.create.limits } });
+                    _ = try catalog.admitLog(policy_edit, access.policy());
+                    _ = try catalog.logOperation(policy_edit.binding, .execute, access.policy());
+                    source_target.interpretation = (try catalog.resolveLog(1, try .init("inbox"), access.policy())).?.stored.declaration.interpretation;
+                    const blocked = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+                    defer blocked.deinit(t.allocator);
+                    const observed = blocked.page.rows[0].lease;
+                    try t.expectEqualDeep(destination_target.interpretation, observed.blocked.dead_letter);
+                    transfer_source = .{ .exhausted = .{ .target = source_target, .offset = observed.original.offset, .lease_epoch = observed.epoch, .attempt = observed.attempt, .not_before_ms = observed.blocked_after_ms.? } };
+                }
+                const template = try transactionToken(&catalog, 9000, 1, 0);
+                const targets = [_]p.Transaction.Target{
+                    .{ .object = source_target.interpretation.object, .kind = .queue, .partition = 0 },
+                    .{ .object = destination_target.interpretation.object, .kind = .queue, .partition = 0 },
+                };
+                receipt = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+                const key = receipt.binding.key;
+                phase = "common cut";
+                _ = try catalog.acquireTransaction(key, access.policy());
+                const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+                catalog.log_environment = &environment;
+                defer catalog.log_environment = null;
+                if (case == .rollback) _ = try catalog.transactionSavepoint(key, try savepointRequest(&catalog, &access, key, 800, .{ .create = try a.Name.init("before_transfer") }), 8, access.policy());
+                const enqueued: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 603 };
+                const payload = try s.LogBatch.encode(destination.intent.action.create.schema, enqueued, .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &bytes);
+                const work: c.DirectTransactionLogWork.Work = .{ .queue_transfer = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 602 }, .source = transfer_source, .destination = .{ .target = destination_target, .operation = enqueued, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } } };
+                const status = try catalog.inspectTransaction(key, access.policy());
+                access.denied_privileges = .{ .id = destination_definition.properties.authorization, .mask = c.LogAuthority.append };
+                try t.expectError(error.CatalogDenied, catalog.stageTransactionLog(key, status.revision, 1, work, payload, access.policy()));
+                access.denied_privileges = null;
+                // A valid encoding of another value cannot substitute for the
+                // source's data, including its original visibility timestamp.
+                var wrong_bytes: [8192]u8 = undefined;
+                const wrong_payload = try s.LogBatch.encode(destination.intent.action.create.schema, enqueued, .queue, &.{.{ .cells = &cells, .visible_ms = 76 }}, &wrong_bytes);
+                var wrong = work;
+                wrong.queue_transfer.destination.payload = s.LogBatch.content(wrong_payload);
+                try t.expectError(error.LogPayloadConflict, catalog.stageTransactionLog(key, status.revision, 1, wrong, wrong_payload, access.policy()));
+                request = try catalog.stageTransactionLog(key, status.revision, 1, work, payload, access.policy());
+                phase = "statement evaluation";
+                if (case == .commit) {
+                    const checks_before = access.calls;
+                    try t.expect(try catalog.transactionLogOutcome(key, request, access.policy()) == null);
+                    const disclosure_checks = access.calls - checks_before;
+                    try t.expect(disclosure_checks != 0);
+                    access.deny_at = access.calls + disclosure_checks;
+                    try t.expectError(error.CatalogDenied, catalog.transactionLogOutcome(key, request, access.policy()));
+                    access.deny_at = std.math.maxInt(usize);
+                }
+                try t.expect(try catalog.admitTransactionLog(key, request, access.policy()) == null);
+                if (case == .commit) {
+                    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+                    defer graph.deinit();
+                    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+                    var at: usize = 0;
+                    while (at < graph.jobs.items.len) : (at += 1) {
+                        var graph_work = graph.jobs.items[at];
+                        while (true) {
+                            const before = graph.jobs.items.len;
+                            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &graph_work, &graph);
+                            try t.expect(graph.jobs.items.len - before <= 3);
+                            if (done) break;
+                        }
+                    }
+                    var payload_key: [96]u8 = undefined;
+                    try t.expect(graph.marks.contains(try s.LogTransactionActions.payloadKey(work.queue_transfer.destination.payload, &payload_key)));
+                }
+                try t.expect((try catalog.executeTransactionLog(key, request, access.policy())) == .provisional);
+                try t.expectError(error.DataIdentityConflict, c.OperationBinding.lookupQueue(t.allocator, catalog.data_objects, work.operation()));
+                try t.expectError(error.DataIdentityConflict, c.OperationBinding.lookupQueue(t.allocator, catalog.data_objects, enqueued));
+                try t.expect((try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .enqueue = work.queue_transfer.destination } }, 256)).operation == null);
+                if (case == .rollback) {
+                    const rollback = try savepointRequest(&catalog, &access, key, 801, .{ .rollback = try a.Name.init("before_transfer") });
+                    _ = try catalog.transactionSavepoint(key, rollback, 8, access.policy());
+                    try t.expect((try catalog.transactionSavepoint(key, rollback, 8, access.policy())).completed != null);
+                }
+                access.denied_privileges = .{ .id = destination_definition.properties.authorization, .mask = c.LogAuthority.append };
+                phase = "commit decision";
+                try t.expectError(error.CatalogDenied, catalog.settleTransaction(key, commit, .commit, 16, access.policy()));
+                access.denied_privileges = null;
+                if (case == .expire) {
+                    clock.now = .exact(200);
+                    try t.expectError(error.QueueLeaseExpired, catalog.settleTransaction(key, commit, .commit, 16, access.policy()));
+                } else {
+                    catalog.lose_transaction_reply = true;
+                    try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(key, commit, .commit, 16, access.policy()));
+                }
+            } else {
+                phase = "disk resolution";
+                // Reopening resolves only the accepted decision, without a
+                // trusted clock. An abort cannot replace an accepted commit.
+                const terminal = try catalog.settleTransaction(receipt.binding.key, commit, .abort, 16, access.policy());
+                try t.expect(terminal.cleanup_complete);
+                try t.expectEqual(@as(@FieldType(p.Transaction.Decision, "outcome"), if (case == .expire) .aborted else .committed), terminal.observation.decided.outcome);
+                clock.now = .exact(1000);
+                const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+                defer page.deinit(t.allocator);
+                const transferred = case == .commit or case == .exhausted;
+                try t.expectEqual(@as(p.QueueRead.State, if (transferred) .archived else .acquired), page.page.rows[0].lease.state);
+                try t.expectEqual(@as(u64, if (transferred) 1 else 0), (try queueCall(&catalog, &access, &cached, &clock, .{ .observe = destination_target }, 256)).cut.next);
+                const original = (try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .enqueue = request.work.queue_transfer.destination } }, 256)).operation;
+                try t.expectEqual(transferred, original != null);
+                if (original) |value| try t.expectEqualDeep(request.work.queue_transfer.destination, value.enqueue.append);
+                try t.expect((try catalog.transactionLogOutcome(receipt.binding.key, request, access.policy())).? == .provisional);
+            }
+        }
+    }
+}
+
 test "transaction log statements retain exact offset cursors through lost admission and key rotation after preparation" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

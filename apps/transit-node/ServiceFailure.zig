@@ -9,6 +9,7 @@ pub fn table(err: anyerror) Refusal {
         error.BranchOperationRequired, error.InvalidBranchCreation, error.InvalidBranchCursor, error.BranchIdentityConflict, error.BranchNotFound => .InvalidRequest,
         error.InvalidKVOperation, error.InvalidKVKey, error.KVValueTooLarge, error.KVBatchTooLarge, error.UnsupportedKVAlter => .InvalidRequest,
         error.KVBuildBudget => .StorageQuota,
+        error.InvalidTransactionTransfer, error.InvalidTransactionSettlement => .InvalidRequest,
         error.InvalidQueueWait, error.InvalidStreamWait, error.InvalidWaitHint => .InvalidRequest,
         error.QueueWaitCapacity, error.StreamWaitCapacity, error.NotificationCapacityExceeded => .ControlCapacity,
         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => .AccessDenied,

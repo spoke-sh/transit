@@ -6,6 +6,7 @@ This generator never decodes or converts a user's saved operations or state.
 """
 from runner.paths import ROOT
 import argparse
+import copy
 import hashlib
 import hmac
 import json
@@ -153,6 +154,16 @@ def generated():
                     transaction_definition(child)
 
         transaction_definition(transaction)
+        transfer_destination = copy.deepcopy(transaction['log_action']['action']['append'])
+        transfer_source = copy.deepcopy(transfer_destination['target'])
+        transfer_destination['target']['interpretation']['object']['object'] += 1
+        transfer_operation = copy.deepcopy(transfer_destination['operation'])
+        transfer_operation['operation'] += 2
+        transaction['terminal_receipt'] = dict(
+            transfer=dict(operation=transfer_operation, source=dict(exhausted=dict(
+                target=transfer_source, offset=3, lease_epoch=4, attempt=2,
+                not_before_ms=100)), destination=transfer_destination),
+            accepted=dict(partition=91, next_lsn=15))
         results[transaction_path] = transaction
         lifecycle['transaction'] = transaction
         # Branch clocks are independent. A fork's version one can descend from
@@ -265,7 +276,7 @@ def generated():
             time=dict(earliest_ms=600, latest_ms=700))
         stream_queue['queue_lease_observation'] = dict(
             original=lease, state='acquired', epoch=9, attempt=2,
-            expires_ms=1000, blocked=dict(none={}), liveness='live')
+            expires_ms=1000, blocked=dict(none={}), blocked_after_ms=None, liveness='live')
         results[FIXTURES / 'stream-queue-v1.json'] = stream_queue
         lifecycle['stream_queue'] = stream_queue
         doc_partition = dict(

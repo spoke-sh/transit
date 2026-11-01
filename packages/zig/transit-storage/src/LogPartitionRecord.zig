@@ -149,7 +149,7 @@ pub const Record = struct {
     pub fn changesData(self: Record) bool {
         return switch (self.action) {
             .operation => |value| switch (value.outcome) {
-                .append, .assignment, .offset, .claim, .settlement => true,
+                .append, .assignment, .offset, .claim, .settlement, .terminal => true,
                 .read, .release, .queue_release => false,
             },
             .expire, .queue_expire, .compaction_publish, .transaction_commit => true,
@@ -171,6 +171,7 @@ pub const Record = struct {
                 if (evidence.outcome == .append and (evidence.outcome.append.next != self.root.next_offset or evidence.outcome.append.observed_ms != self.root.clock_ms)) return error.InvalidLogHistory;
                 if (evidence.outcome == .claim and evidence.outcome.claim.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
                 if (evidence.outcome == .settlement and evidence.outcome.settlement.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
+                if (evidence.outcome == .terminal and evidence.outcome.terminal.observed.latest_ms != self.root.clock_ms) return error.InvalidLogHistory;
             },
             .archive => |value| {
                 try value.cut.validate();

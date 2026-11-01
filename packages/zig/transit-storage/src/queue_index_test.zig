@@ -29,6 +29,76 @@ fn enqueue(index: Index, before: Index.Root, declaration: *const s.LogDeclaratio
     return .{ .root = try index.enqueue(before, declaration, receipt, bytes), .target = target };
 }
 
+test "queue index terminal transfer candidates retain blocked evidence and advance exact FIFO heads" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer store.deinit();
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    var bitmap: s.BitmapDirectory = .{ .store = &store, .objects = objects.objectStore() };
+    var container: s.BitmapDirectory.Container = .{};
+    var key_buffer: [8192]u8 = undefined;
+    var definition = support.definition(.queue);
+    definition.configuration.partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 };
+    const destination: p.DataLifecycle.Definition = .{ .object = .{ .scope = definition.object.scope, .branch = definition.object.branch, .object = 5 }, .revision = 1, .digest = @splat(17) };
+    definition.configuration.policy.queue.dead_letter = destination;
+    definition.configuration.policy.queue.maximum_attempts = 1;
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    const timer_workspace = try t.allocator.create(s.QueueSchedule.Workspace);
+    defer t.allocator.destroy(timer_workspace);
+    var index: Index = .{ .store = &store, .scratch = &scratch, .bitmap = &bitmap, .container = &container, .key_buffer = &key_buffer, .timer_workspace = timer_workspace, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = (try declaration.stored()).declaration.interpretation, .partition = 0 } };
+    const policy = definition.configuration.policy.queue;
+    try store.begin(8 * 1024 * 1024);
+    const appended = try enqueue(index, .empty, &declaration, 1, 2, &.{ "Alpha", "aLPHa" }, &.{ 0, 0 });
+    const acquired = try index.acquire(appended.root, 0, .{ .target = appended.target, .operation = operation(2), .maximum = 1, .lease_ms = 100 }, policy, .exact(10), .{ .partition = 91, .next_lsn = 3 });
+    store.end();
+    const lease = (try index.item(acquired, 0)).lease.?;
+    var request: p.Transaction.TerminalTransfer = .{ .operation = operation(3), .source = .{ .nack = lease }, .destination = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = destination, .partition = 0 },
+        .operation = operation(4),
+        .kind = .queue,
+        .producer = null,
+        .rows = 1,
+        .payload = .{ .bytes = 128, .sha256 = @splat(18) },
+    } };
+    var canonical: [8192]u8 = undefined;
+    const canonical_key = try key(&declaration, "ALPHA", &canonical);
+    try store.begin(8 * 1024 * 1024);
+    const live = try index.transfer(acquired, request, policy, .exact(20), .{ .partition = 91, .next_lsn = 4 }, canonical_key);
+    const blocked = try index.expire(acquired, 0, policy, .exact(1000), .{ .partition = 91, .next_lsn = 4 });
+    store.end();
+    try t.expectEqual(@as(?u64, 110), (try index.item(blocked, 0)).blocked_after_ms);
+    try t.expect(try index.firstEligible(blocked, 1000) == null);
+    // Only immutable private roots survive this reopen. A destination append,
+    // transaction WAL and public visibility are separate owner obligations.
+    store.deinit();
+    objects.deinit();
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    store = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    bitmap = .{ .store = &store, .objects = objects.objectStore() };
+    request.source = .{ .exhausted = .{ .target = appended.target, .offset = 0, .lease_epoch = 1, .attempt = 1, .not_before_ms = 110 } };
+    try store.begin(8 * 1024 * 1024);
+    const exhausted = try index.transfer(blocked, request, policy, .exact(1000), .{ .partition = 91, .next_lsn = 5 }, canonical_key);
+    store.end();
+    for ([_]Index.Root{ live, exhausted }) |root| {
+        try t.expect(root.active == 0 and root.blocked == 0 and root.terminal == 1 and root.scheduled == 1);
+        try t.expectEqual(.archived, try index.state(root, try index.item(root, 0)));
+        try t.expectEqual(@as(u64, 1), (try index.firstEligible(root, 1000)).?.offset);
+        try t.expectEqualDeep(Index.Head{ .first = 1, .last = 1 }, (try index.head(root, canonical_key)).?);
+        const sidecar = try index.sidecar(root, try index.item(root, 0));
+        try t.expectEqual(@as(u64, 1), sidecar.states[@backingInt(s.Tack.State.archived)].cardinality);
+        var audit = try s.Tack.Audit.init(sidecar);
+        while (!try audit.page(&bitmap, &container)) {}
+    }
+    try t.expectEqual(.acquired, try index.state(acquired, try index.item(acquired, 0)));
+    try t.expectEqual(.available, try index.state(blocked, try index.item(blocked, 0)));
+    try t.expectEqualDeep(destination, (try index.item(blocked, 0)).blocked.dead_letter);
+}
+
 test "queue index paged FIFO heads survive reopen delays and unrelated key claims" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

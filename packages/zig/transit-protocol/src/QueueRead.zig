@@ -107,6 +107,8 @@ pub const LeaseObservation = struct {
     attempt: u64,
     expires_ms: ?u64,
     blocked: Blocked,
+    /// Accepted exhaustion time retained even if the retry policy changes.
+    blocked_after_ms: ?u64,
     liveness: Liveness,
 
     pub fn validate(self: LeaseObservation) !void {
@@ -114,7 +116,8 @@ pub const LeaseObservation = struct {
         try self.blocked.validate();
         if (self.epoch < self.original.epoch or self.attempt < self.original.attempt or
             (self.state == .acquired) != (self.expires_ms != null) or
-            (self.blocked != .none and self.state != .available)) return error.InvalidQueueObservation;
+            (self.blocked != .none and self.state != .available) or
+            (self.blocked != .none) != (self.blocked_after_ms != null)) return error.InvalidQueueObservation;
         if (self.expires_ms) |expires| if (expires == 0) return error.InvalidQueueObservation;
         if (self.liveness != .fenced and (self.state != .acquired or self.epoch != self.original.epoch or
             self.attempt != self.original.attempt or self.expires_ms != self.original.expires_ms)) return error.InvalidQueueObservation;

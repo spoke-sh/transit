@@ -388,9 +388,26 @@ pub const TerminalTransfer = struct {
                 if (lease.claim.principal != self.operation.principal or lease.claim.operation == self.operation.operation)
                     return error.InvalidTransactionTransfer;
             },
-            .exhausted => |item| if (item.offset == std.math.maxInt(u64) or item.lease_epoch == 0 or item.attempt == 0 or item.not_before_ms == 0)
+            .exhausted => |item| if (item.offset == std.math.maxInt(u64) or item.lease_epoch == 0 or item.attempt == 0)
                 return error.InvalidTransactionTransfer,
         }
+    }
+};
+
+/// The source owner's archived outcome. The common transaction establishes the
+/// paired destination append; a provisional candidate is not this receipt.
+pub const TerminalReceipt = struct {
+    transfer: TerminalTransfer,
+    accepted: d.Position,
+    pub fn validate(self: TerminalReceipt) !void {
+        try self.transfer.validate();
+        try self.accepted.validate();
+        if (self.accepted.next_lsn == 0) return error.InvalidTransactionTransfer;
+    }
+    pub fn requireTransfer(self: TerminalReceipt, request: TerminalTransfer) !void {
+        try self.validate();
+        try request.validate();
+        if (!std.meta.eql(self.transfer, request)) return error.TransactionIdentityConflict;
     }
 };
 
@@ -407,6 +424,9 @@ pub const LogAction = struct {
         stream_offset: q.OffsetCommit,
         queue_ack: q.Settlement,
         queue_terminal: TerminalTransfer,
+        /// The exact mirror binds this destination append to one source item.
+        /// It shares the source statement and uses ordinal two.
+        queue_transfer_append: TerminalTransfer,
     },
 
     pub fn validate(self: LogAction, guard_value: LogGuard) !void {
@@ -437,6 +457,7 @@ pub const LogAction = struct {
             .queue_terminal => |transfer| blk: {
                 try transfer.validate();
                 if (guard_value.kind != .queue) return error.InvalidTransactionTransfer;
+                if (self.ordinal != 1) return error.InvalidTransactionStatement;
                 const offset = switch (transfer.source) {
                     .nack => |lease| lease.offset,
                     .exhausted => |item| item.offset,
@@ -444,6 +465,12 @@ pub const LogAction = struct {
                 try guard_value.source.requireOffset(offset);
                 if (offset == guard_value.source.next) return error.InvalidTransactionTransfer;
                 break :blk .{ transfer.operation, transfer.target() };
+            },
+            .queue_transfer_append => |transfer| blk: {
+                try transfer.validate();
+                if (guard_value.kind != .queue) return error.InvalidTransactionTransfer;
+                if (self.ordinal != 2) return error.InvalidTransactionStatement;
+                break :blk .{ transfer.destination.operation, transfer.destination.target };
             },
         };
         try target.requireSame(guard_value.source.target);
@@ -556,6 +583,7 @@ pub const SchemaTypes = struct {
     prepared: Prepared,
     observation: Observation,
     log_action: LogAction,
+    terminal_receipt: TerminalReceipt,
 };
 
 test {

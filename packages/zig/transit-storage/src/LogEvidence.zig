@@ -20,6 +20,7 @@ pub const Record = struct {
         release: p.StreamRead.ReleaseReceipt,
         claim: struct { receipt: q.ClaimReceipt, observed: @import("LogTime.zig").Sample },
         settlement: struct { receipt: q.SettlementReceipt, observed: @import("LogTime.zig").Sample },
+        terminal: struct { receipt: p.Transaction.TerminalReceipt, observed: @import("LogTime.zig").Sample },
         queue_release: p.QueueRead.ReleaseReceipt,
     },
 
@@ -32,6 +33,7 @@ pub const Record = struct {
             .release => |value| value.release.operation,
             .claim => |value| value.receipt.claim.operation,
             .settlement => |value| value.receipt.settlement.operation,
+            .terminal => |value| value.receipt.transfer.operation,
             .queue_release => |value| value.release.operation,
         };
     }
@@ -44,12 +46,13 @@ pub const Record = struct {
             .release => |value| value.release.target,
             .claim => |value| value.receipt.claim.target,
             .settlement => |value| value.receipt.settlement.lease.target,
+            .terminal => |value| value.receipt.transfer.target(),
             .queue_release => |value| value.release.claim.claim.target,
         };
     }
     pub fn accepted(self: Record) d.Position {
         return switch (self.outcome) {
-            inline .offset, .claim, .settlement => |value| value.receipt.accepted,
+            inline .offset, .claim, .settlement, .terminal => |value| value.receipt.accepted,
             inline else => |value| value.accepted,
         };
     }
@@ -71,10 +74,18 @@ pub const Record = struct {
                 try value.observed.validate();
                 if (value.observed.latest_ms >= value.receipt.settlement.lease.expires_ms) return error.InvalidLogEvidence;
             },
+            .terminal => |value| {
+                try value.receipt.validate();
+                try value.observed.validate();
+                switch (value.receipt.transfer.source) {
+                    .nack => |lease| if (value.observed.latest_ms >= lease.expires_ms) return error.InvalidLogEvidence,
+                    .exhausted => |item| if (value.observed.earliest_ms < item.not_before_ms) return error.InvalidLogEvidence,
+                }
+            },
             inline else => |value| try value.validate(),
         }
         const selected = self.target();
-        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement or self.outcome == .queue_release;
+        const control = self.outcome == .offset or self.outcome == .release or self.outcome == .settlement or self.outcome == .terminal or self.outcome == .queue_release;
         if (selected.partition >= self.declared.declaration.configuration.partitioning.count) return error.InvalidLogEvidence;
         if (control) {
             if (!std.meta.eql(selected.interpretation.object, self.declared.declaration.interpretation.object) or
@@ -92,7 +103,7 @@ pub const Record = struct {
                     value.receipt.rows > self.declared.declaration.limits.active_leases or
                     value.receipt.expires_ms != try self.declared.declaration.configuration.policy.queue.deadline(value.observed.latest_ms, value.receipt.claim.lease_ms)) return error.InvalidLogEvidence;
             },
-            .settlement, .queue_release => if (kind != .queue) return error.InvalidLogEvidence,
+            .settlement, .terminal, .queue_release => if (kind != .queue) return error.InvalidLogEvidence,
         }
     }
 };
