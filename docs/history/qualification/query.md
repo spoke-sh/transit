@@ -9,6 +9,83 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## M6 progress integration — 2026-11-01
+
+Production code, contracts and generated consumers at
+`923c0dfdc0e1160c49ca46884d35f4760aeed6c1` integrate the M6 feature branch with
+`origin/main` at `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`.
+The combined definition is
+`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
+Managed computations and database workloads retain distinct SQL operation tags;
+logical Document and compact-string changes from main remain present. Schemas,
+ABI/binding resources, signing fixtures, independent binary fixtures and browser
+resources were regenerated from the combined owners. All 160 package versions
+and dependency pins agree.
+
+The first conflict resolution omitted ten managed-computation grammar cases.
+`afd4b772c06b93e9ebea4170df0a2416c9507453` restores those unchanged from main
+before the grammar checks below. Compared with the production source above, this
+changes only that corpus and roadmap prose. A documentation-only line-wrap change
+was also present during later checks; its exact patch is retained with the local
+manifest. These checks are not a clean installed-runtime qualification.
+
+| Executed scope | Result |
+| --- | --- |
+| Native protocol, ReleaseSafe | 120/120 tests |
+| SQL results / protocol / database / service / client, ReleaseSafe | 26/26, 28/28, 14/14, 12/12, 25/25 tests |
+| PostgreSQL / MySQL adapters, ReleaseSafe | 22/22, 20/20 tests |
+| Selected Fuze workload/compact-string tests and pinned Arrow compute tests, ReleaseSafe | 48/48 plus 93/93 tests |
+| Selected Catalog workload tests, ReleaseSafe | 8/8 tests |
+| Selected Queue candidate, partition and log-transaction tests, ReleaseSafe | 43/43 tests |
+| Compiled generated contracts | 15/15 build steps |
+| Gateway and CLI ReleaseSafe executable build | 13/13 build steps |
+| Independent workload preparation oracles | 28 append, 24 consume, 21 claim, 11 settlement cases |
+| Diagnostic grammar | 591 compiler cases; 872 rule/alternative/boundary obligations |
+| Public SQL grammar | 148 documentation examples, 174 SELECT AST comparisons, 51 extensions; zero ANTLR diagnostics |
+| Board and browser clients | Contract drift, lint, strict types and four unit suites (7, 65, 12 and 108 tests) passed |
+| Fast repository checks | 61/61; 10,507 local links across 722 files |
+
+Package checks use `zig build test -Doptimize=ReleaseSafe --summary all -j2`.
+Fuze filters are `log `, `workload`, `compact` and `string vector`; Catalog filters
+are `workload`, `log prepared` and `lease receipt`; storage filters are
+`candidate objects`, `queue candidate persistence`, `queue partition` and
+`log transaction`. The latter includes Queue transaction evaluation and decision
+recovery, not just the lowercase Queue test names. Other commands are
+`zig build check-contracts -j2 --summary all`,
+`just test::table-dml-sql test::diagnostic-grammar test::sql-grammar`,
+`just transit-board::check` and `just check fast`, within the pinned Nix shell.
+The runtime build uses `zig build transit-sql-gateway transit
+-Doptimize=ReleaseSafe --summary all -j2` at the restored-corpus source with the
+same documentation-only delta; it compiles actual executable entry points.
+It does not run an installed service profile.
+
+The storage checks exercise the bounded reachable-candidate traversal, original
+claim reads after ACK, earlier roots after disk replacement, long collated FIFO
+key child directories, frozen timer-merge roots, lost replies and refusal of
+missing accepted pages. The optimization skips superseded private index/bitmap
+derivations; it does not delete accepted objects, change root formats, extend
+leases, weaken time checks or raise resident quotas. This is recovery and staging
+coverage, not a measured installed claim latency result.
+
+Logs and the command/exit/time manifest are retained privately under
+`/home/alex/workspace/spoke-sh/transit-m6-completion/.cache/qualification/`.
+`integrated-artifacts.json` records each log hash and source attribution; its
+SHA-256 is `fd9296e3ea6dcf41f37b85ae85e61f20c33589c5ac87f883a2ed0d8e68a29968`. Selected raw log hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `integrated-queue-candidates1.log` | `b65700b91893d65db16490a717a176902d56fb350240e86a950e71e0c62433cb` |
+| `integrated-grammar1.log` | `e589252a545c6496de29c0c418ecbc3dd5842ee0288643524d214d3c554bff5e` |
+| `integrated-board-check1.log` | `3f35cd5960475cea1f43db9b6a5767e1b5bd4b3d7e904ef5bbbb950fdc078e36` |
+| `integrated-runtime-build1.log` | `9ec13646c0be46909741b6eed39ccbe44408b3d404301dfc0ef338ba9167dc9f` |
+| `integrated-fast1.log` | `e526ffcf1e52a23b9dac4d61ba6fcd32c16bbbc3632163034a03e08c67623737` |
+
+The earlier installed claim deadline failure below remains unresolved evidence
+for its own source. Its saved operation was not resubmitted with a fresh identity.
+No installed claim/receipt/ACK, complete Stream/Queue performance profile,
+transactional Station runtime or Table performance gate is newly qualified by
+these checks. M6 remains in progress.
+
 ## Installed SQL Queue claim deadline failure — 2026-11-01
 
 The `sessions-log` installed profile **failed** on clean source

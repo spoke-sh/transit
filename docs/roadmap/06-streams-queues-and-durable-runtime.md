@@ -45,6 +45,8 @@ and NACK, acquisition predicates, consumer groups/WAIT/offset settlement,
 Table commit-path/performance gates, and final resource/fault/provider qualification.
 Table retains the numeric performance gate; Stream, Queue and Station turns need
 measured baseline budgets before later target refinement.
+The [integration evidence](../history/qualification/query.md#m6-progress-integration--2026-11-01)
+records the executed checks and their source-specific limits.
 
 ## Prerequisites and architectural rationale
 

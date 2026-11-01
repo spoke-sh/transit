@@ -158,8 +158,9 @@ intent and exact native position separately from output row count. The
 replacement definition rejects earlier frame layouts before interpretation.
 SQL operation messages also distinguish workload command completion from retained
 rows and carry original native receipt/closure evidence. The session service can
-inspect/recover these tokens and open their frozen projections. SQL append, positional consumption, routed claim and ACK admission use these
-shared workload operations. Missing native evidence cannot establish a terminal
+inspect/recover these tokens and open their frozen projections. SQL append,
+positional consumption, routed claim and ACK admission use these shared workload
+operations. Missing native evidence cannot establish a terminal
 workload operation.
 
 The signed direct service also exposes original workload result opening and
