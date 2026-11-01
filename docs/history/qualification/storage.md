@@ -9,6 +9,49 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original workload result owner and consumption handoff — 2026-11-01
+
+`5f939724449af97f2d21e76724233f79c9bf6e1e` adds the in-process
+`DirectWorkloadResult` owner; `1fdf4c76e` adds authenticated offset-work preparation.
+These compose existing native operations without adding a wire action, persisted
+record format or SQL result variant. The current definition remains
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
+The [catalog package guide](../../../packages/zig/transit-catalog/README.md)
+describes the implemented boundary and its unexposed service wiring.
+
+The ReleaseSafe catalog selection `zig build test -Dtest-filter='workload results'
+-Dtest-filter='workload token settlement' -Doptimize=ReleaseSafe --summary all`
+passes **5/5** after each change. The final disk schedule verifies append/enqueue
+payloads and original consume/claim selections across replacement. It closes
+incomplete local deliveries, reopens from the beginning, reads multiple batches,
+and verifies that a previous page survives another fetch and scratch reset.
+Expired claim leases remain expired; reading never renews or repeats the claim.
+Revocation after buffering withholds rows and terminal metadata without advancing
+the cursor. A too-small byte budget refuses its row without advancement. All read
+paths leave the accepted WAL frontier unchanged.
+
+Original empty consume/claim selections remain empty after later appends and
+replacement. A completed grouped consume prepares the exact original generation
+and authenticated cursor into a saved workload body; after another replacement,
+the native owner commits that handoff and recovers its original receipt. A forged
+authentication value fails without advancing the WAL. An incomplete consume or
+a completed positional consume cannot fabricate grouped settlement work.
+
+The result-owner commit also passes **19/19 contract checks** and **60/60 fast
+checks**. The handoff follow-up passes **60/60 fast checks**. Early compile runs
+rejected shadowed fixture names and an incorrectly mutable payload slice; these
+were corrected before executed tests passed. No installed SQL result recovery,
+projection freezing or protocol-adapter completion is claimed by this component
+evidence, and it does not close the common-revision milestone gate.
+
+| Raw local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-result4.log` | `8947300753ab3817f06b63ab6be55aa121ec06975ec940bbd765177f919a9814` |
+| `/var/tmp/transit-m6-workload-result-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-result-fast1.log` | `08f61b2ff5991f24aa332730f02e9f7d27c3b13579bdb9ed57c1dc5c2d4f647b` |
+| `/var/tmp/transit-m6-workload-handoff2.log` | `82d637ee4539c0ac87704393c6d024b5411c89e868466aa04311ba1b9e2cf090` |
+| `/var/tmp/transit-m6-workload-handoff-fast1.log` | `1ea4abc6eed537041106985ee004ca98eddf1231eb4240477e77bc47c96cfcc0` |
+
 ## Frozen workload tokens and native terminal settlement — 2026-11-01
 
 Implementation `30643158f` adds complete Stream/Queue workload references to the
