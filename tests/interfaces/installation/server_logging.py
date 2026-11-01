@@ -20,6 +20,27 @@ from interfaces.installation.server_sql import wait_status
 TEXT = re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (DEBUG|INFO|WARN|ERROR) \[[a-z-]+\] ')
 
 
+def log_records(text):
+    records = [json.loads(line) for line in text.splitlines()]
+    events, losses = [], {}
+    for record in records:
+        assert record['schema_version'] == 1, record
+        if 'event' in record:
+            events.append(record)
+            continue
+        # Loss summaries use the documented flat envelope. They are evidence
+        # about logging itself, not malformed service events or startup spans.
+        assert record['name'] == 'telemetry.loss' and record['level'] == 'warn', record
+        measurement = record['measurement']
+        assert {'dropped', 'suppressed'} <= measurement.keys() <= {'dropped', 'suppressed', 'sink_errors'}, record
+        assert all(type(value) is int and value >= 0 for value in measurement.values()), record
+        instance = record['service_instance_id']
+        previous = losses.get(instance, {})
+        assert all(value >= previous.get(name, 0) for name, value in measurement.items()), record
+        losses[instance] = measurement
+    return records, events, losses
+
+
 def service_failures(binaries):
     for binary in binaries:
         for format in ('text', 'json'):
@@ -95,7 +116,8 @@ def busy_observation(fixture, log):
     wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
     assert children(fixture.process.pid) == before, 'Admission pressure restarted a role'
     time.sleep(.1)
-    events = [json.loads(line)['event'] for line in log.read_text().splitlines()]
+    _, records, _ = log_records(log.read_text())
+    events = [record['event'] for record in records]
     busy = [e for e in events if e.get('operation') == 'busy']
     assert busy and all(e['level'] == 'warn' and e['error_type'] in capacity for e in busy), busy
     attempts = [e for e in events if e['name'] == 'transit.client.request'
@@ -167,6 +189,7 @@ def run(cli, node, host, board, gateway):
                                 env=os.environ | {'PGSSLMODE': 'disable'}, capture_output=True, text=True, timeout=60)
         assert result.returncode == 0 and result.stdout.splitlines() == ['json', 'info'], result
         busy_observation(fixture, json_path)
+        _, _, losses_before_stop = log_records(json_path.read_text())
         from harness.sql_placement import call as placement
         before_stop = children(fixture.process.pid)
         # A joined stop (including physical-owner reopening) is distinct from
@@ -185,8 +208,11 @@ def run(cli, node, host, board, gateway):
             wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
             assert children(fixture.process.pid) == before_stop, 'SQL replacement restarted a database or application owner'
         fixture.stop()
-        records = [json.loads(line) for line in json_path.read_text().splitlines()]
-        assert records and all(r['schema_version'] == 1 and r['service_name'] == 'transit' for r in records)
+        raw, records, losses_after_stop = log_records(json_path.read_text())
+        assert raw and all(r['service_name'] == 'transit' for r in raw)
+        # Initial loss is reported, but cannot establish complete timing. The
+        # negative failure assertion below requires no loss during replacements.
+        assert losses_after_stop == losses_before_stop, ('Incomplete SQL replacement logs', losses_before_stop, losses_after_stop)
         assert {r['event']['name'] for r in records} >= {'server.startup', 'server.ready', 'server.stopped', 'sql.status', 'sql.connect.postgres'}
         startup = [r for r in records if r['event']['name'] == 'server.startup.complete']
         assert len(startup) == 1 and startup[0]['event']['outcome'] == 'ok', startup
@@ -212,7 +238,8 @@ def run(cli, node, host, board, gateway):
         result = subprocess.run([fixture.cli, 'server', '--no-ui', '--config', str(refused_path)],
                                 capture_output=True, text=True, timeout=30, env={'PATH': '/unavailable'})
         assert result.returncode == 1 and not result.stdout, result
-        events = [json.loads(line)['event'] for line in result.stderr.splitlines() if line.startswith('{')]
+        _, refused_records, _ = log_records('\n'.join(line for line in result.stderr.splitlines() if line.startswith('{')))
+        events = [record['event'] for record in refused_records]
         failed = [e for e in events if e['name'] == 'server.startup.phase' and e['outcome'] == 'failed']
         assert len(failed) == 1 and failed[0]['operation'] == 'installation' and failed[0]['error_type'], events
         assert not any(e['name'] == 'server.ready' for e in events), events
