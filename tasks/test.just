@@ -147,6 +147,25 @@ direct-named-resources:
     zig build test-direct-named-resources -Doptimize=ReleaseSafe
     just test::direct-table-service resource-growth
 
+direct-kv:
+    zig build test-direct-kv -Doptimize=ReleaseSafe
+
+# Table/KV private writes and one decision across lost replies and replacement.
+direct-state-transaction:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- state-transaction
+
+# State, append, Queue ACK and Stream offset share one recoverable decision.
+direct-mixed-transaction:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- mixed-transaction
+
+# Stream/Queue declaration tokens retain exact bodies through lost replies.
+direct-log-token:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- log-token
+
+# Queue source archive and destination append share one recoverable decision.
+direct-queue-transfer:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}
@@ -198,6 +217,10 @@ sql-gateway:
 # Independent HTTPS/SCRAM sessions, logical values and token recovery.
 sql-sessions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
+
+# Native, PostgreSQL and MySQL declarations, metadata and original token recovery.
+sql-log-declarations:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-log
 
 # Installed common cuts, private statements, decisions and Table outbox histories.
 sql-transactions:

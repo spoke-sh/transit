@@ -25,6 +25,22 @@ pub fn inspect(self: Self, key: c.DirectClientToken.Key) !c.DirectTransactionCon
 pub fn stage(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, work: c.DirectTableIntent.Work) !c.DirectTransactionWorkspace.Request {
     return (try self.call(.{ .stage = .{ .key = key, .basis = basis, .sequence = sequence, .work = work } })).staged;
 }
+
+pub fn stageKV(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, work: c.DirectKV.Mutation) !c.DirectTransactionWorkspace.Request {
+    return (try self.call(.{ .stage_kv = .{ .key = key, .basis = basis, .sequence = sequence, .work = work } })).staged;
+}
+pub fn stageLog(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, work: c.DirectTransactionLogWork.Work, payload: ?c.DirectTableProtocol.Binary) !c.DirectTransactionLogWork.Request {
+    return (try self.call(.{ .stage_log = .{ .key = key, .basis = basis, .sequence = sequence, .work = work, .payload = payload } })).staged_log;
+}
+pub fn admitLog(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request) !?c.DirectTransactionLogWork.Outcome {
+    return (try self.call(.{ .log_statement = .{ .key = key, .request = request, .execute = false } })).log_statement;
+}
+pub fn executeLog(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request) !c.DirectTransactionLogWork.Outcome {
+    return (try self.call(.{ .log_statement = .{ .key = key, .request = request, .execute = true } })).log_statement.?;
+}
+pub fn logOutcome(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request) !?c.DirectTransactionLogWork.Outcome {
+    return (try self.call(.{ .log_outcome = .{ .key = key, .request = request } })).log_statement;
+}
 pub fn admit(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request) !?c.storage.TableWorkspace.Outcome {
     return (try self.call(.{ .statement = .{ .key = key, .request = request, .execute = false } })).statement;
 }

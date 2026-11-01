@@ -57,7 +57,7 @@ Their [integration contract](../packages/zig/transit-storage/docs/transaction-de
 separates these formats from installed transaction execution.
 
 `TableWorkspace.State` is an internal owned descriptor of private evaluation:
-mandatory `definition`, exact `begin`, retained `source`, private Table `root`,
+mandatory `definition`, exact `begin`, retained `source`, private Table/KV `root`,
 `last_statement`, `changed`, `matched` and `affected`. Its positions describe private evaluator progress,
 not Table WAL acceptance. The evaluator accepts bulk immutable row storage and
 returns transaction-attributed provisional counts or rejection. It cannot export
@@ -69,6 +69,9 @@ collector root or transaction decision. The catalog workspace owner publishes
 these states through its [reserved records](DIRECT_TABLE_V1.md#durable-client-token-bindings)
 and extends the retained graph to private rows, receipts, operations and intents.
 Its private evaluator positions are never used as accepted recovery baselines.
+`executeKV` shares the KV owner's typed lowering and uses bulk immutable row
+storage in the same workspace. KV put/remove requests retain their exact kind,
+conditional writes, key/value limits and original operation identities.
 
 `TransactionDirectory` objects start with `TXDIR1` followed by two zero bytes,
 then the mandatory 32-byte shared definition at offsets `8..40`, then canonical
@@ -81,13 +84,113 @@ entire encoded object. The object descriptor's size and digest must match.
 A root stores `definition`, transaction identity, directory kind (`participants`,
 `preparations` or `sources`), optional immutable B-tree root, entry count and write count.
 An entry is a tagged neutral participant, preparation, or acquired source
-(`guard` and Table snapshot `pin`). A source pin's owner must equal the original
+(`guard` and owner-issued `pin`). A source pin's owner must equal the original
 begin operation; source directories have zero writes. Tree keys encode the
-nonzero object ID as eight big-endian bytes; values encode the object byte length
+nonzero object ID as eight big-endian bytes, a one-byte ordinal-presence flag
+(zero or one), then a four-byte big-endian logical partition ordinal. A null
+ordinal requires four zero bytes; it is distinct from ordinal zero. All keys
+have 13 bytes. State targets require null; log targets require an ordinal.
+Kinds are verified against entries and cannot differ across one object's
+ordinals. Values encode the object byte length
 as eight little-endian bytes followed by its 32-byte digest. Tree pages retain
 their ordinary definition/digest checks. Entry kind and identity must match the
-root, and its object ID must match the key. Count is durable cardinality, not
+root, and its object ID and ordinal must match the key. Count is durable cardinality, not
 resident capacity. Sealing a root grants no acceptance or retention authority.
+
+Read-only log dependencies have no action directory. A nonempty log action
+directory groups appends and settlements under one physical owner's guard;
+it contributes one write and requires one exact preparation. Acquired guards
+and prepared predecessors are kind-specific. Complete membership validation
+checks these neutral shapes. The decision journal supports Table/KV and log
+owners; public catalog execution still selects Table and direct KV only. Neutral
+shapes do not enable public log admission or terminal transfer.
+
+`LogTransactionActions` metadata uses `TXLACT1` followed by one zero byte,
+the mandatory definition at `8..40`, and canonical typed JSON within 16 KiB.
+`transaction-log-actions/<sha256>.data` binds the complete encoded object.
+An action object contains mandatory `work` (`Transaction.LogAction`) and
+`offset_cursor` fields. The cursor is non-null exactly for Stream offset work;
+its coverage and principal must match that work. Its original read handle and
+authentication bytes are preserved for the partition owner's verification.
+A root stores
+`definition`, `identity`, exact `guard`, optional `entries` and `operations`
+tree roots, `count`, cumulative `payload_bytes`, and optional `last` containing
+the final cursor and statement intent. Empty roots have no trees or final cursor.
+Entry keys are a nonzero eight-byte big-endian statement sequence followed by
+a nonzero four-byte big-endian ordinal; values use the directory content
+descriptor encoding above. Operation-index keys are eight-byte big-endian
+original operation IDs, with the exact twelve-byte entry key as their value.
+All operations share the root's transaction principal and scope. Duplicate
+operations or conflicting bytes at an existing cursor reject.
+
+Payload objects are exact append bytes at
+`transaction-log-payload/<sha256>.data`. Their digest and byte count are the
+append's content identity, and their size is bounded by the ordinary log batch
+format. Directory metadata does not inline payloads. Explicit action and payload
+quotas bound admitted private work independently of index-cache residency.
+The statement owner must retain this graph, verify payload schemas and complete
+statement membership, and preserve consumed identities across savepoint rollback.
+No object in this directory establishes an append reservation, lease settlement,
+partition preparation or transaction decision.
+
+`LogTransaction.Source` uses `TXLSRC1` followed by one zero byte, the mandatory
+definition at `8..40`, and canonical typed JSON within 64 KiB total. The address
+is `log-tx-sources/<sha256>.data`. Required fields are `definition`, transaction
+`identity` and the complete `LogPartitionRecord.Root`. The source must be live,
+have no preparation reference and have a null transaction-pin directory. Its
+identity must match the declared object's scope and branch. Loading checks the
+entire content identity, mandatory definition, canonical encoding and exact pin
+owner before returning owned fixed-size fields.
+
+Partition roots carry mandatory `changed_lsn`, `transaction_pins` and nullable
+`transaction` fields. A transaction-pin directory uses the ordinary sixteen-byte
+big-endian principal/operation keys. Each value has exactly 41 bytes: released
+flag (zero or one), eight-byte big-endian source length, and source SHA-256.
+The `transaction_pin` and `transaction_release` actions bind the original
+`Transaction.Pin`; each acceptance changes only its directory, physical frontier,
+maintenance bookkeeping and, on acquisition, the supplied current declaration.
+Recovery verifies the predecessor cut and source on acquisition, and the exact
+original live content on release. Neither action changes `changed_lsn`.
+
+Logical append, assignment, offset, claim, settlement, lease expiry, payload
+expiry and compaction publication set `changed_lsn` to their accepted frontier.
+Other physical/control actions preserve it. Recovery rejects a different logical
+frontier. A live transaction pin retains its entire source graph under current
+archive coverage; a released entry alone does not retain that source. Older
+accepted replay roots retain their own live entries independently. These storage
+operations do not admit public log transactions or confer settlement authority.
+
+`LogTransaction.Preparation` uses `TLPREP1` followed by one zero byte, the
+mandatory definition at `8..40`, and canonical typed JSON within 64 KiB total.
+Its address is `log-preparations/<sha256>.data`. All fields are mandatory:
+`definition`, coordination partition, frozen journal `binding`, original log
+`guard`, retained `source` pin, `actions` commitment, full `predecessor` and
+`successor` roots, and nullable trusted-time `observed` bounds. Both roots have
+no preparation reference; their control directories agree. The successor has one
+prospective position for every private action, sealed append placements and the
+resulting producer/group/Queue indexes. Its changed frontier and maintenance
+source identify that prospective position. Extra batches can have immutable
+segment placements beyond the contiguous sealed prefix.
+
+A `transaction_prepare` partition record installs the reference and advances only
+the physical/control frontier. It requires the exact predecessor and actual
+frozen journal. While the reference exists, only `transaction_commit` or
+`transaction_abort` can advance the owner. Each resolution carries `prepared`
+and `decision`; recovery resolves the actual journal and compares the exact
+outcome, including committed directory membership. Commit publishes the stored
+data successor and advances `changed_lsn` to the resolution frontier; abort keeps
+the predecessor data and logical frontier. Both clear the preparation reference.
+Neither caller-supplied decisions nor expired clocks can resolve an unknown outcome.
+
+Prepared log operation receipts bind their distinct original operations and
+ranges to the shared preparation position. They are not public until commit
+resolution. Payloads are immutable segments, never fictitious WAL append frames.
+Recovery does not re-evaluate their authorization, trusted clock or cursor key.
+Before accepting the common decision, the host checks current authority, actual
+barriers, complete immutable availability and current lease liveness. Log writes
+also require a final `before_decision` check of all collected lease and retention
+deadlines after potentially slow participant verification. The callback runs
+under the same held publication guard and before the conditional decision append.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
 the same mandatory definition and canonical JSON within 16 KiB total. JSON stores
@@ -112,7 +215,7 @@ these records.
 mandatory 32-byte definition and canonical typed JSON, within 64 KiB total.
 `table-preparations/<sha256>.data` commits the entire object. Mandatory fields are
 `definition`, `coordination`, exact journal `binding`, original logical `guard`,
-actual accepted `predecessor` root and private `workspace` state. The Table's
+actual accepted `predecessor` root and private `workspace` state. The Table/KV owner's
 `transaction_prepare` action accepts its reference in the mandatory nullable
 root `transaction` field. Preparation advances only the physical acceptance and
 maintenance frontier; it preserves public data and logical change frontiers.
@@ -129,6 +232,8 @@ Missing fields or a previous definition reject before replay. The aggregate
 binding uses the original commit operation, UPDATE action and workspace digest;
 this representation does not substitute UPDATE permission for original DML rights.
 Current source/statement permissions are the catalog coordinator's obligation.
+Prepared targets and predecessor guards preserve the actual Table/KV kind;
+neither directory lookup nor journal recovery coerces KV evidence to Table.
 
 ## Table acceptance records and indexes
 
@@ -192,7 +297,9 @@ Decoded values own their output across later reads or mutations. Authorization
 is supplied by the database adapter and held again through publication.
 
 This storage owner does not itself publish catalog names or a caller route.
-The named KV lifecycle and mixed transaction integration remain separate gates.
+The [named KV lifecycle](DIRECT_TABLE_V1.md#direct-kv) uses this partition.
+The shared catalog transaction owner composes Table and KV workspaces under one
+decision. Ordinary KV batches remain single-partition operations.
 
 RENAME preserves row interpretation and indexes. ALTER streams the accepted
 source into bounded segments and private replacement indexes, validating all

@@ -11,7 +11,7 @@ pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Observation = @import("Observation.zig");
-pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint };
+pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, create_stream, alter_stream, drop_stream, create_queue, alter_queue, drop_queue, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint };
 pub const Outcome = enum { provisional, applied, unchanged, rejected, cancelled, partial };
 pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction } = .table };
 pub const Counts = struct {
@@ -40,7 +40,7 @@ pub const CommandCompletion = struct {
             }
         }
         const counted = switch (self.kind) {
-            .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema => true,
+            .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
             .select, .show => return error.InvalidCommandCompletion,
             else => false,
         };

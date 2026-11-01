@@ -59,6 +59,13 @@ pub const QueueOutcome = struct {
         return self.attempt.mutation != null;
     }
 };
+pub const KVOutcome = struct {
+    value: union(enum) { result: c.DirectKVClient.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: KVOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
 
 pub fn validEndpoint(url: []const u8) bool {
     if (url.len == 0 or url.len > 2048) return false;
@@ -181,6 +188,21 @@ pub fn callQueue(self: *Self, output: *std.heap.ArenaAllocator, action: c.Direct
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = c.DirectQueueClient.apply(output, caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+/// KV batches and retained reads preserve the same per-attempt uncertainty.
+pub fn callKV(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectKVClient.Action) error{Busy}!KVOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = c.DirectKVClient.apply(output, caller, action) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };

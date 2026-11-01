@@ -5,6 +5,7 @@ const g = @import("root.zig");
 const Self = @This();
 pub const Subject = union(enum) {
     table: g.catalog.protocol.DataLifecycle.Definition,
+    log: g.catalog.DirectLog.Definition,
     namespace: g.catalog.TableAuthority.Schema,
     database: g.DatabaseAccount.Binding,
 };
@@ -29,6 +30,10 @@ pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !vo
     for (self.subjects[0..self.len]) |slot| switch (slot.?) {
         .table => |definition| {
             _ = try host.table.require(.{ .namespace = host.namespace, .target = definition, .access = .inspect });
+        },
+        .log => |definition| {
+            if (definition.properties.namespace != host.namespace) return error.CatalogIdentityConflict;
+            try g.catalog.DirectLogClient.requireCurrent(host.table, definition);
         },
         .namespace => |namespace| {
             const response = try host.table.call(.{ .namespace = namespace.id });

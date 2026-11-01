@@ -14,18 +14,22 @@ const header_bytes = 40;
 pub const Entry = union(enum) {
     participant: x.Participant,
     prepared: x.Prepared,
-    source: struct { guard: x.TableGuard, pin: @import("TableSnapshot.zig").Handle },
+    source: struct { guard: x.Guard, pin: x.Pin },
+
+    pub fn target(self: Entry) x.Target {
+        return switch (self) {
+            .participant => |participant| participant.guard().target(),
+            .prepared => |prepared| prepared.target,
+            .source => |source| source.guard.target(),
+        };
+    }
 
     pub fn object(self: Entry) d.Object {
-        return switch (self) {
-            .participant => |participant| switch (participant) {
-                .state => |state| state.guard.source.interpretation.object,
-                .append => |append| append.object,
-                .settlement => |settlement| settlement.object,
-            },
-            .prepared => |prepared| prepared.object,
-            .source => |source| source.guard.source.interpretation.object,
-        };
+        return self.target().object;
+    }
+
+    pub fn cursor(self: Entry) Cursor {
+        return cursorOf(self.target());
     }
 
     fn validate(self: Entry, identity: x.Identity) !void {
@@ -46,7 +50,7 @@ pub const Entry = union(enum) {
 
     fn writes(self: Entry) bool {
         return switch (self) {
-            .participant => |participant| participant != .state or participant.state.access == .write,
+            .participant => |participant| participant.writes(),
             .prepared => true,
             .source => false,
         };
@@ -72,8 +76,12 @@ pub const Root = struct {
 
 pub const Page = struct {
     entries: [pages.page_entries]?Entry = @splat(null),
-    next: ?u64 = null,
+    next: ?Cursor = null,
 };
+
+/// Kind is checked against the entry, not included in the key: one stable
+/// object cannot acquire two different owner kinds under the same ordinal.
+pub const Cursor = struct { object: u64, partition: ?u32 };
 
 objects: Objects.ObjectStore,
 index: TreeStore,
@@ -102,18 +110,26 @@ fn tree(self: *Self) pages.Tree(TreeStore) {
     return .{ .store = &self.index };
 }
 
-fn entryKey(object: u64) !pages.Key {
-    if (object == 0) return error.InvalidTransactionDirectory;
-    var bytes: [8]u8 = undefined;
-    std.mem.writeInt(u64, &bytes, object, .big);
+fn entryKey(cursor: Cursor) !pages.Key {
+    if (cursor.object == 0) return error.InvalidTransactionDirectory;
+    var bytes: [13]u8 = @splat(0);
+    std.mem.writeInt(u64, bytes[0..8], cursor.object, .big);
+    bytes[8] = @intFromBool(cursor.partition != null);
+    if (cursor.partition) |partition| std.mem.writeInt(u32, bytes[9..13], partition, .big);
     return pages.Key.init(&bytes);
 }
 
-fn keyObject(key: pages.Key) !u64 {
-    if (key.len != 8) return error.InvalidTransactionDirectory;
+fn keyCursor(key: pages.Key) !Cursor {
+    if (key.len != 13 or key.data[8] > 1) return error.InvalidTransactionDirectory;
     const object = std.mem.readInt(u64, key.data[0..8], .big);
     if (object == 0) return error.InvalidTransactionDirectory;
-    return object;
+    const partition = std.mem.readInt(u32, key.data[9..13], .big);
+    if (key.data[8] == 0 and partition != 0) return error.InvalidTransactionDirectory;
+    return .{ .object = object, .partition = if (key.data[8] == 1) partition else null };
+}
+
+fn cursorOf(target: x.Target) Cursor {
+    return .{ .object = target.object.object, .partition = target.partition };
 }
 
 pub fn objectKey(content: d.Content, output: *[96]u8) ![]const u8 {
@@ -180,7 +196,7 @@ pub fn contentOf(value: pages.Value) !d.Content {
 fn loadEntry(self: *Self, key: pages.Key, value: pages.Value) !Entry {
     const entry = try self.load(Entry, try contentOf(value));
     try self.requireEntry(entry);
-    if (entry.object().object != try keyObject(key)) return error.InvalidTransactionDirectory;
+    if (!std.meta.eql(cursorOf(entry.target()), try keyCursor(key))) return error.InvalidTransactionDirectory;
     return entry;
 }
 
@@ -194,37 +210,76 @@ fn requireEntry(self: *Self, entry: Entry) !void {
     if (self.root.kind != kind) return error.InvalidTransactionDirectory;
 }
 
-pub fn get(self: *Self, object: u64) !?Entry {
-    const key = try entryKey(object);
+pub fn get(self: *Self, target: x.Target) !?Entry {
+    try target.validate();
+    try self.root.identity.requireObject(target.object);
+    const key = try entryKey(cursorOf(target));
     const value = try self.tree().get(self.root.entries, key) orelse return null;
-    return try self.loadEntry(key, value);
+    const entry = try self.loadEntry(key, value);
+    if (!std.meta.eql(entry.target(), target)) return error.TransactionIdentityConflict;
+    return entry;
+}
+
+pub fn getTable(self: *Self, object: u64) !?Entry {
+    return self.get(.{ .object = .{ .scope = self.root.identity.begin.scope, .branch = self.root.identity.branch, .object = object }, .kind = .table, .partition = null });
 }
 
 /// Exact repeats are idempotent; replacement is forbidden. A failed stage or
 /// quota check leaves this private root unchanged and cannot publish anything.
 pub fn put(self: *Self, entry: Entry) !void {
     try self.requireEntry(entry);
-    if (try self.get(entry.object().object)) |prior| {
+    if (try self.get(entry.target())) |prior| {
         if (!std.meta.eql(prior, entry)) return error.TransactionIdentityConflict;
         return;
+    }
+    // The short prefix sorts before every ordinal of this object. Inspect one
+    // bounded page to reject mixed kinds across different partition ordinals.
+    var prefix: [8]u8 = undefined;
+    std.mem.writeInt(u64, &prefix, entry.object().object, .big);
+    const siblings = try self.tree().scan(self.root.entries, try pages.Key.init(&prefix));
+    if (siblings.entries[0]) |first| {
+        const sibling = try self.loadEntry(first.key, first.value);
+        if (sibling.object().object == entry.object().object and sibling.target().kind != entry.target().kind)
+            return error.TransactionIdentityConflict;
     }
     if (self.root.count >= self.entry_limit) return error.TransactionParticipantLimit;
     const content = try self.stage(entry);
     try self.index.begin(self.index_work_bytes);
     defer self.index.end();
-    const next = try self.tree().put(self.root.entries, try entryKey(entry.object().object), try reference(content));
+    const next = try self.tree().put(self.root.entries, try entryKey(cursorOf(entry.target())), try reference(content));
     self.root.entries = next;
     self.root.count += 1;
     self.root.writes += @intFromBool(entry.writes());
 }
 
-pub fn page(self: *Self, after: ?u64) !Page {
+/// Advance a private log workspace without changing its source or identity.
+/// The caller has evaluated the complete new action directory. Previously
+/// sealed roots remain immutable and usable by savepoints and frozen attempts.
+pub fn advanceLog(self: *Self, guard: x.LogGuard, expected: ?x.Directory, next: x.Directory) !void {
+    const entry: Entry = .{ .participant = .{ .log = .{ .guard = guard, .actions = next } } };
+    try self.requireEntry(entry);
+    const prior = try self.get(entry.target());
+    if (prior == null) {
+        if (expected != null) return error.TransactionIdentityConflict;
+        return self.put(entry);
+    }
+    if (prior.? != .participant or prior.?.participant != .log or
+        !std.meta.eql(prior.?.participant.log.guard, guard) or
+        !std.meta.eql(prior.?.participant.log.actions, expected) or expected == null or
+        next.count <= expected.?.count) return error.TransactionIdentityConflict;
+    const content = try self.stage(entry);
+    try self.index.begin(self.index_work_bytes);
+    defer self.index.end();
+    self.root.entries = try self.tree().put(self.root.entries, try entryKey(entry.cursor()), try reference(content));
+}
+
+pub fn page(self: *Self, after: ?Cursor) !Page {
     const entries = try self.tree().scan(self.root.entries, if (after) |id| try entryKey(id) else null);
     var result: Page = .{};
     for (entries.entries, &result.entries) |slot, *output| if (slot) |entry| {
         output.* = try self.loadEntry(entry.key, entry.value);
     };
-    if (entries.next) |key| result.next = try keyObject(key);
+    if (entries.next) |key| result.next = try keyCursor(key);
     return result;
 }
 
@@ -263,7 +318,7 @@ pub fn requireComplete(self: *Self, prepared: *Self, begin: x.Begin, attempt: x.
         !std.meta.eql(prepared.root.identity, begin.identity) or !std.meta.eql(try self.commitment(), attempt.participants) or
         self.root.writes != attempt.writes or prepared.root.count != self.root.writes)
         return error.IncompleteTransactionPreparation;
-    var after: ?u64 = null;
+    var after: ?Cursor = null;
     var count: u64 = 0;
     var writes: u64 = 0;
     while (true) {
@@ -272,11 +327,12 @@ pub fn requireComplete(self: *Self, prepared: *Self, begin: x.Begin, attempt: x.
             count = try std.math.add(u64, count, 1);
             if (count > self.root.count) return error.InvalidTransactionDirectory;
             const participant = value.participant;
-            try participant.requireLocalTable(begin);
-            if (participant.state.access == .read) continue;
-            const preparation = (try prepared.get(value.object().object) orelse return error.IncompleteTransactionPreparation).prepared;
+            try participant.validate(begin.identity);
+            if (begin.mode == .read_only and participant.writes()) return error.ReadOnlyTransaction;
+            if (!participant.writes()) continue;
+            const preparation = (try prepared.get(value.target()) orelse return error.IncompleteTransactionPreparation).prepared;
             try attempt.requireSame(preparation.attempt);
-            if (!std.meta.eql(participant.state.guard, preparation.predecessor)) return error.TransactionIdentityConflict;
+            if (!std.meta.eql(participant.guard(), preparation.predecessor)) return error.TransactionIdentityConflict;
             writes = try std.math.add(u64, writes, 1);
         };
         after = batch.next orelse break;

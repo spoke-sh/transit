@@ -528,9 +528,21 @@ The native profile and all affected callers now require a distinct KV authority
 domain; bootstrap, generated contracts and strict SDK decoding share that
 profile. The [authority qualification](../history/qualification/catalog.md#direct-kv-authority-and-complete-caller-profiles--2026-10-30)
 records the installed Table regression matrix and its pre-rebase source.
-Named KV catalog/caller migration and the common state/append/settlement decision
-remain outstanding, including atomic DLQ transfer. R6's dedicated SQL/shared
-caller/finite analytical surfaces, R0 model correspondence and final integrated
+Named direct KV now has catalog declaration, signed mutation/read/pin operations,
+rename/DROP and shared data-client support. The native writer-backed named KV
+path is removed; Documents retain that separate owner. Focused storage, signed
+dispatch, bounded-memory and cross-kind dependency checks pass. Installed
+current-definition KV recovery passes; clean qualification remains open. Table/KV
+transaction components now share private workspaces, current rights and one
+decision, with disk replacement and lost-reply tests. Native transactions now
+compose Table/KV state, Stream append/offset, Queue enqueue/ACK and explicit
+paired Queue terminal transfers. Installed state, mixed and transfer recovery
+schedules pass at one definition, including two lost replies and node restarts
+per schedule; see [declaration/token and current-definition evidence](../history/qualification/catalog.md#streamqueue-declaration-tokens--2026-10-31)
+and [bounded transfer evaluation](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation).
+The complete preparation/decision/finalization fault matrix and automatic DLQ
+scheduling remain open. R6's workload SQL/shared caller/finite analytical
+surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
 
@@ -540,9 +552,9 @@ not complete these gates.
 | R1 | Implemented foundations; integrated qualification open | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
-| R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: KV storage/authority delivered; named KV and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
-| R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
+| R4 | Partial: claims, bounded waits, retries, delays, maintenance, retention and explicit atomic DLQ delivered; automatic DLQ scheduling open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
+| R5 | Partial: native Table/KV/Stream/Queue mixed recovery and installed explicit DLQ recovery pass; complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R6 | Partial: declaration SQL, named inspection and paged listings delivered; workload verbs, finite analytical bridge and mixed SQL open | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
 | R9 | Database write lifecycle and latency closure | Start after R0; coordinate M3, M8 and #211 | Original-token common envelope, bounded publication and matched installed latency evidence |
@@ -718,8 +730,11 @@ physical maintenance.
 
 The payload, claim, settlement, timer, affinity and retention owners described
 below are implemented. Bounded public claim waits now use those owners through
-the signed Queue caller and shared native wait admission. The next functional
-work is atomic DLQ transfer; the remaining exit work is integrated evidence.
+the signed Queue caller and shared native wait admission. Explicit paired DLQ
+transfers now use the common transaction owner and pass installed recovery.
+The next functional work is automatic blocked-item scheduling with durable
+attempt identities and current source/destination authority; the remaining exit
+work includes the full integrated fault and resource evidence.
 
 Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
 The Queue owns its internal payload log; reusing storage must not expose a Stream
@@ -790,6 +805,54 @@ Split the remaining implementation into reviewable changes with these gates:
 | R5c: durable preparations and decisions | `DirectTransaction`, `TransactionDirectory`, `TransactionDecisionLog`, workspaces/savepoints and participant adapters in `transit-storage` | Table/KV state, Stream/Queue append and Stream offset/Queue ACK consult one decision. Prepared roots, reservations and receipts survive faults, trim and collection; rollback publishes no partial effect |
 | R5d: installed composition and DLQ | Public typed transaction calls, Queue maintenance/settlement and retained graph | One accepted decision settles input, changes state and publishes output; DLQ transfer atomically makes the recorded destination reachable and the source terminal |
 
+The R5a implementation replaces object-only directory keys with scoped
+object/kind/logical-partition targets, kind-specific guards and owner-grouped
+preparations. Its ordered action vocabulary covers append, offset commit, ACK
+and terminal transfer, separating expired maintenance from live worker NACK.
+The current-v1 definition cutover migrates existing Table consumers. R5b implements named direct KV
+under a separate v1 cutover; its installed KV recovery gate passes and clean
+qualification is pending.
+R5c adds executable Table/KV composition through the existing workspace and
+decision owner. Its component checks include private KV reads, current rights,
+savepoint identity preservation, commit/abort replacement and retained graph
+traversal. Its installed Table/KV proof passes at `4771f5698`: 33 signed requests,
+two withheld replies and two node replacements recover the same private statement
+and committed decision. Storage components now retain log source pins, stage
+paged action directories, privately evaluate Stream/Queue appends and offset/ACK
+settlements, accept preparation barriers and resolve their actual common decision.
+Decision checks include final lease/retention deadlines; storage traversal follows
+prepared payloads and indexes. Catalog transaction selection also accepts explicit
+Stream/Queue partition read dependencies, with common-cut retention, current READ
+checks, serializable frontier validation and original pin cleanup. Native log
+statements now share the Table/KV workspace sequence and savepoints, with compact
+permanent operation reservations and exact outcome recovery. The catalog prepares
+surviving log actions, verifies the successor graph within the resident budget,
+rechecks aggregate deadlines immediately before the decision and resolves the
+original decision during cleanup. Initial components cover Table/Stream commit,
+Queue ACK plus enqueue, final lease expiry and lost decision recovery on disk.
+The current-definition regeneration and workspace checks pass: 206 catalog tests,
+28 selected storage tests, 58 fast checks, 19 contract checks and the handbook
+build, with a successful native node build. The
+[qualification record](../history/qualification/transactions.md#native-mixed-state-and-log-statements--2026-10-31)
+keeps these component results separate from clean integrated qualification.
+The [installed mixed proof](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31)
+also passes: 85 signed requests, two lost replies and two node replacements
+recover the original state mutations, appends, Queue ACK and Stream offset.
+The remaining preparation/finalization fault matrix and clean integrated
+qualification remain open. The subsequent Queue transfer cutover adds explicit
+native transfer statements for live NACK and exhausted-item maintenance. A
+statement reserves both operation identities and publishes two private action
+directories together. The decision validates exact mirrored actions, original
+source payload, both Queues' current rights and final time bounds. Sequential
+temporary owners preserve the existing resident budget; source archival cannot
+replay as a standalone operation. Exhausted items retain their exact destination
+and accepted exhaustion time across policy edits. Automatic DLQ scheduling and
+installed transfer qualification remain open. The
+[direct contract](../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+owns the executable native profile; this does not enable Queue SQL or Station turns.
+Shape validation and neutral directory membership are not evidence
+of a completed mixed transaction or DLQ transfer.
+
 R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,
 specify both explicit NACK transfer and maintenance transfer of an already
 exhausted/expired item. The latter needs a guarded source-state/terminal
@@ -852,6 +915,15 @@ the original decision without re-running a handler. Document remains rejected
 until M7 supplies the same obligations.
 
 ### R6 Expose SQL and shared caller operations
+
+**Delivered declaration/inspection slice:** dedicated CREATE/ALTER/RENAME/DROP
+Stream/Queue syntax lowers through the shared Catalog and frozen caller-token
+owner. Named SHOW/DESCRIBE and paged SHOW STREAMS/QUEUES use the existing result
+lifecycle with current disclosure rights. The [installed SQL evidence](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31)
+covers native, console, PostgreSQL and MySQL callers, original-token recovery
+after service replacement, two-batch metadata, empty listings, exact-definition
+invalidation and buffered revocation. Workload verbs, retained analytical reads,
+mixed transaction SQL and clean dependent lanes remain open.
 
 Deliver four independently testable slices: declaration/inspection SQL over R2;
 standalone producer/consumer/lease SQL over R3/R4; finite retained `STREAM_SLICE`
@@ -1133,8 +1205,8 @@ identities and use this order for the next implementation changes:
    a starting point. Reconcile stale baseline claims in contracts/references with
    their owning code and evidence as part of each affected change.
 2. **Finish named direct KV and executable participant adapters (R5b/R5c).**
-   Connect the delivered KV storage and authority to catalog/native/public callers.
-   Generalize the existing coordinator, read cuts, private workspaces, savepoints,
+   Complete the named KV clean qualification, preserving its new
+   catalog/storage/caller ownership and explicit Document boundary. Generalize the existing coordinator, read cuts, private workspaces, savepoints,
    graph roots and decision log. The first complete vertical test is: claim an
    inbox item, commit Table/KV state plus Stream/Queue output plus its ACK, kill
    after decision but before finalization, then recover the same decision without

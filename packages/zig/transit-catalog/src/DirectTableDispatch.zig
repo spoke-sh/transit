@@ -84,6 +84,42 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
         .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
+        .kv => {
+            var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+            defer scratch.deinit();
+            return .{ .kv = try c.DirectKV.apply(scratch.allocator(), allocator, catalog, action.kv, policy) };
+        },
+        .kv_declaration => {
+            var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+            defer scratch.deinit();
+            const value = action.kv_declaration;
+            const request = try value.declaration.request(scratch.allocator());
+            return .{ .kv_declaration = switch (value.command) {
+                .preview => .{ .preview = try catalog.preview(request, policy) },
+                .admit => blk: {
+                    _ = try catalog.admit(request, policy);
+                    break :blk .{ .operation = try catalog.status(request.binding, policy) };
+                },
+                .inspect => .{ .operation = try catalog.status(request.binding, policy) },
+                .execute => .{ .operation = try execution.ddl(execution.context, catalog, request.binding, policy, value.steps) },
+                .cancel => .{ .operation = try catalog.cancel(request.binding, policy) },
+            } };
+        },
+        .kv_lookup => {
+            const value = action.kv_lookup;
+            var view = try catalog.resolveKV(catalog.allocator, value.namespace, try c.TableAuthority.Name.init(value.name), policy) orelse return .{ .kv_lookup = null };
+            defer view.deinit();
+            return .{ .kv_lookup = try c.DirectKV.definition(&view.table, view.properties) };
+        },
+        .kv_list => {
+            const value = action.kv_list;
+            const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
+            const page = try catalog.listKV(value.namespace, after, policy);
+            return .{ .kv_list = .{ .entries = page.entries, .next = if (page.next) |cursor| next: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :next std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null, .directory_position = page.directory_position, .consistency = .independent } };
+        },
         .queue => {
             const run = execution.queue orelse return error.QueueServiceUnavailable;
             return .{ .queue = try run(execution.context, allocator, catalog, policy, action.queue) };
@@ -101,6 +137,14 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
                 .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
                 .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
+                .stage_kv => |value| .{ .staged = try catalog.stageTransactionKV(value.key, value.basis, value.sequence, value.work, policy) },
+                .stage_log => |value| staged: {
+                    const payload = if (value.payload) |encoded| try encoded.decode(catalog.allocator, c.storage.LogTransactionActions.max_payload_bytes) else null;
+                    defer if (payload) |bytes| catalog.allocator.free(bytes);
+                    break :staged .{ .staged_log = try catalog.stageTransactionLog(value.key, value.basis, value.sequence, value.work, payload, policy) };
+                },
+                .log_statement => |value| .{ .log_statement = if (value.execute) try catalog.executeTransactionLog(value.key, value.request, policy) else try catalog.admitTransactionLog(value.key, value.request, policy) },
+                .log_outcome => |value| .{ .log_statement = try catalog.transactionLogOutcome(value.key, value.request, policy) },
                 .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
                 .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
                 .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },

@@ -61,6 +61,11 @@
       "test::local-payload-service",
       "test::local-catalog",
       "test::direct-table-service",
+      "test::direct-kv",
+      "test::direct-state-transaction",
+      "test::direct-mixed-transaction",
+      "test::direct-queue-transfer",
+      "test::direct-log-token",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",
@@ -134,6 +139,7 @@
       "test::sql-result-allocations",
       "test::sql-wire-gateway",
       "test::sql-sessions",
+      "test::sql-log-declarations",
       "test::sql-transactions"
     ],
     "interfaces-relational": [

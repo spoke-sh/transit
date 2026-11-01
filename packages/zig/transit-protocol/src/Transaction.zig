@@ -3,6 +3,36 @@
 const std = @import("std");
 const p = @import("root.zig");
 const d = p.DataLifecycle;
+const q = p.StreamQueue;
+
+pub const StateKind = enum { table, kv, document };
+pub const LogKind = enum { stream, queue };
+
+/// Stable physical-owner selection. A logical log partition ordinal is never a
+/// WAL partition ID. State objects have one selected owner and no ordinal.
+pub const Target = struct {
+    object: d.Object,
+    kind: enum { table, kv, document, stream, queue },
+    partition: ?u32,
+
+    pub fn validate(self: Target) !void {
+        try self.object.validate();
+        if ((self.kind == .stream or self.kind == .queue) != (self.partition != null))
+            return error.InvalidTransactionTarget;
+    }
+
+    pub fn order(self: Target, other: Target) std.math.Order {
+        const object = std.math.order(self.object.object, other.object.object);
+        if (object != .eq) return object;
+        if (self.partition == null) return if (other.partition == null) .eq else .lt;
+        if (other.partition == null) return .gt;
+        return std.math.order(self.partition.?, other.partition.?);
+    }
+};
+
+/// Owner-issued retention evidence. The descriptor alone does not establish a
+/// live pin; its owner verifies the referenced record and exact guarded basis.
+pub const Pin = struct { owner: d.Operation, content: d.Content };
 
 pub const Identity = struct {
     begin: d.Operation,
@@ -36,7 +66,7 @@ pub const Directory = struct {
 pub const CallRefusal = enum { stale_workspace, statement_conflict, control_conflict, transaction_closed, unsupported_scope, identity_conflict };
 
 pub const Mode = enum { serializable, read_only };
-pub const Selection = enum { explicit_tables, authorized_catalog_tables };
+pub const Selection = enum { explicit_objects, authorized_catalog_tables };
 
 /// Per-transaction admission limits, distinct from result/disclosure reserves.
 /// Expiry is a request to settle/close, never evidence of an abort decision.
@@ -60,17 +90,17 @@ pub const Begin = struct {
     mode: Mode,
     selection: Selection,
     /// Exact selected identities and interpretations, frozen before pinning.
-    tables: Directory,
+    objects: Directory,
     /// Name/definition directory observation; never a data commit position.
     catalog: d.Position,
     limits: Limits,
 
     pub fn validate(self: Begin) !void {
         try self.identity.validate();
-        try self.tables.validate();
+        try self.objects.validate();
         try self.catalog.validate();
         try self.limits.validate();
-        if (self.catalog.next_lsn == 0 or self.tables.count > self.limits.participants)
+        if (self.catalog.next_lsn == 0 or self.objects.count > self.limits.participants)
             return error.InvalidTransactionBegin;
     }
 
@@ -92,7 +122,7 @@ pub const Cut = struct {
         try self.begin.validate();
         try self.sources.validate();
         try self.acquired.validate();
-        if (self.sources.count != self.begin.tables.count or self.acquired.next_lsn == 0)
+        if (self.sources.count != self.begin.objects.count or self.acquired.next_lsn == 0)
             return error.IncompleteTransactionCut;
     }
 };
@@ -121,7 +151,7 @@ pub const ReadView = struct {
     cut: Cut,
     revision: d.Position,
     last_statement: u64,
-    source: TableGuard,
+    source: StateGuard,
     /// Virtual evaluator position used by private DML guards. This is not an
     /// accepted public WAL position; only the common decision publishes data.
     private_position: d.Position,
@@ -145,7 +175,7 @@ pub const ReadView = struct {
 
 /// One selected Table's immutable basis and logical conflict frontier. The pin
 /// receipt and physical accepted frontier may advance without a logical change.
-pub const TableGuard = struct {
+pub const StateGuard = struct {
     /// A logical comparison basis, not a claim of contiguous WAL/history
     /// coverage. The source directory separately carries its exact live pin.
     source: struct {
@@ -159,13 +189,13 @@ pub const TableGuard = struct {
     },
     changed_lsn: u64,
 
-    pub fn validate(self: TableGuard) !void {
+    pub fn validate(self: StateGuard) !void {
         try self.source.validate();
         if (self.changed_lsn > self.source.accepted.next_lsn)
             return error.InvalidTransactionGuard;
     }
 
-    pub fn requireUnchanged(self: TableGuard, current: TableGuard) !void {
+    pub fn requireUnchanged(self: StateGuard, current: StateGuard) !void {
         try self.validate();
         try current.validate();
         if (!std.meta.eql(self.source.interpretation, current.source.interpretation) or
@@ -175,22 +205,95 @@ pub const TableGuard = struct {
     }
 };
 
-/// All three categories are reserved in the common envelope. Only Table state
-/// guards/mutations execute in the selected local profile. A variant is not a
-/// capability announcement for native resources, streams or queues.
+/// The logical frontier includes append, group progress, claim and settlement
+/// changes. Flush/checkpoint bookkeeping may advance acceptance independently.
+pub const LogGuard = struct {
+    kind: LogKind,
+    source: q.Cut,
+    changed_lsn: u64,
+
+    pub fn validate(self: LogGuard) !void {
+        try self.source.validate();
+        if (self.changed_lsn > self.source.accepted.next_lsn) return error.InvalidTransactionGuard;
+    }
+
+    pub fn requireUnchanged(self: LogGuard, current: LogGuard) !void {
+        try self.validate();
+        try current.validate();
+        if (self.kind != current.kind or !std.meta.eql(self.source.target, current.source.target) or
+            self.source.retained_from != current.source.retained_from or self.source.next != current.source.next or
+            !self.source.accepted.unchangedAt(current.source.accepted, current.changed_lsn) or
+            self.changed_lsn != current.changed_lsn) return error.TransactionConflict;
+    }
+};
+
+pub const Guard = union(enum) {
+    state: struct { kind: StateKind, basis: StateGuard },
+    log: LogGuard,
+
+    pub fn validate(self: Guard) !void {
+        switch (self) {
+            .state => |state| try state.basis.validate(),
+            .log => |log| try log.validate(),
+        }
+    }
+
+    pub fn target(self: Guard) Target {
+        return switch (self) {
+            .state => |state| .{ .object = state.basis.source.interpretation.object, .kind = switch (state.kind) {
+                .table => .table,
+                .kv => .kv,
+                .document => .document,
+            }, .partition = null },
+            .log => |log| .{ .object = log.source.target.interpretation.object, .kind = if (log.kind == .stream) .stream else .queue, .partition = log.source.target.partition },
+        };
+    }
+
+    pub fn accepted(self: Guard) d.Position {
+        return switch (self) {
+            .state => |state| state.basis.source.accepted,
+            .log => |log| log.source.accepted,
+        };
+    }
+
+    pub fn requireTable(self: Guard) !StateGuard {
+        try self.validate();
+        if (self != .state or self.state.kind != .table) return error.UnsupportedTransactionParticipant;
+        return self.state.basis;
+    }
+
+    pub fn requirePagedState(self: Guard) !StateGuard {
+        try self.validate();
+        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        return self.state.basis;
+    }
+};
+
+/// One preparation per owner. Appends and settlements on the same log partition
+/// share an ordered action directory and one successor. They cannot overwrite
+/// each other's prepared roots. Null actions are a read-only dependency.
+/// Shapes reserve no offsets and do not enable an unimplemented owner.
 pub const Participant = union(enum) {
     state: struct {
-        kind: enum { table, kv, document },
-        guard: TableGuard,
+        kind: StateKind,
+        guard: StateGuard,
         access: enum { read, write },
     },
-    append: struct { object: d.Object, kind: enum { stream, queue }, intent: d.Content },
-    settlement: struct {
-        object: d.Object,
-        kind: enum { stream_offset, queue_ack },
-        lease_epoch: u64,
-        intent: d.Content,
-    },
+    log: struct { guard: LogGuard, actions: ?Directory },
+
+    pub fn guard(self: Participant) Guard {
+        return switch (self) {
+            .state => |state| .{ .state = .{ .kind = state.kind, .basis = state.guard } },
+            .log => |log| .{ .log = log.guard },
+        };
+    }
+
+    pub fn writes(self: Participant) bool {
+        return switch (self) {
+            .state => |state| state.access == .write,
+            .log => |log| log.actions != null,
+        };
+    }
 
     pub fn validate(self: Participant, identity: Identity) !void {
         switch (self) {
@@ -198,14 +301,13 @@ pub const Participant = union(enum) {
                 try state.guard.validate();
                 try identity.requireObject(state.guard.source.interpretation.object);
             },
-            .append => |append| {
-                try identity.requireObject(append.object);
-                try append.intent.validate();
-            },
-            .settlement => |settlement| {
-                try identity.requireObject(settlement.object);
-                try settlement.intent.validate();
-                if (settlement.lease_epoch == 0) return error.InvalidTransactionGuard;
+            .log => |log| {
+                try log.guard.validate();
+                try identity.requireObject(log.guard.source.target.interpretation.object);
+                if (log.actions) |actions| {
+                    try actions.validate();
+                    if (actions.count == 0) return error.InvalidTransactionParticipant;
+                }
             },
         }
     }
@@ -221,6 +323,15 @@ pub const Participant = union(enum) {
             else => return error.UnsupportedTransactionParticipant,
         }
     }
+
+    /// The shared paged state owner implements Table and KV preparations.
+    /// Document and log owners must supply their own qualified preparation.
+    pub fn requireLocalState(self: Participant, begin: Begin) !void {
+        try begin.validate();
+        try self.validate(begin.identity);
+        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        if (begin.mode == .read_only and self.writes()) return error.ReadOnlyTransaction;
+    }
 };
 
 /// Statement identity remains unique after savepoint rollback. Returning rows
@@ -233,6 +344,139 @@ pub const Statement = struct {
     pub fn validate(self: Statement) !void {
         try self.transaction.validate();
         if (self.sequence == 0) return error.InvalidTransactionStatement;
+    }
+};
+
+/// Source terminal disposition is conditional on the exact destination append
+/// appearing in the same decision. Its payload must be the source item's
+/// verified encoding under the recorded destination definition. A full/denied
+/// destination leaves the source nonterminal. This type grants no authority.
+pub const TerminalTransfer = struct {
+    operation: d.Operation,
+    source: union(enum) {
+        nack: q.Lease,
+        exhausted: struct {
+            target: q.Partition,
+            offset: u64,
+            lease_epoch: u64,
+            attempt: u64,
+            /// Accepted visibility/expiry deadline. Maintenance must prove
+            /// exhaustion and trusted time at/after this bound under its guard.
+            not_before_ms: u64,
+        },
+    },
+    destination: q.Append,
+
+    pub fn target(self: TerminalTransfer) q.Partition {
+        return switch (self.source) {
+            .nack => |lease| lease.target,
+            .exhausted => |item| item.target,
+        };
+    }
+
+    pub fn validate(self: TerminalTransfer) !void {
+        try self.target().requireOperation(self.operation);
+        try self.destination.validate();
+        if (self.destination.kind != .queue or self.destination.rows != 1 or
+            !std.meta.eql(self.operation.scope, self.destination.operation.scope) or
+            self.operation.principal != self.destination.operation.principal or
+            self.operation.operation == self.destination.operation.operation or
+            std.meta.eql(self.target().interpretation.object, self.destination.target.interpretation.object)) return error.InvalidTransactionTransfer;
+        switch (self.source) {
+            .nack => |lease| {
+                try lease.validate();
+                if (lease.claim.principal != self.operation.principal or lease.claim.operation == self.operation.operation)
+                    return error.InvalidTransactionTransfer;
+            },
+            .exhausted => |item| if (item.offset == std.math.maxInt(u64) or item.lease_epoch == 0 or item.attempt == 0)
+                return error.InvalidTransactionTransfer,
+        }
+    }
+};
+
+/// The source owner's archived outcome. The common transaction establishes the
+/// paired destination append; a provisional candidate is not this receipt.
+pub const TerminalReceipt = struct {
+    transfer: TerminalTransfer,
+    accepted: d.Position,
+    pub fn validate(self: TerminalReceipt) !void {
+        try self.transfer.validate();
+        try self.accepted.validate();
+        if (self.accepted.next_lsn == 0) return error.InvalidTransactionTransfer;
+    }
+    pub fn requireTransfer(self: TerminalReceipt, request: TerminalTransfer) !void {
+        try self.validate();
+        try request.validate();
+        if (!std.meta.eql(self.transfer, request)) return error.TransactionIdentityConflict;
+    }
+};
+
+/// Entries of one owner's immutable action directory, ordered by
+/// (statement.sequence, ordinal). Ordinals start at one within each statement;
+/// the owner verifies uniqueness, completeness and the statement commitment.
+/// Reusing a statement after savepoint rollback is forbidden. No offset is
+/// reserved by constructing or staging this value.
+pub const LogAction = struct {
+    statement: Statement,
+    ordinal: u32,
+    action: union(enum) {
+        append: q.Append,
+        stream_offset: q.OffsetCommit,
+        queue_ack: q.Settlement,
+        queue_terminal: TerminalTransfer,
+        /// The exact mirror binds this destination append to one source item.
+        /// It shares the source statement and uses ordinal two.
+        queue_transfer_append: TerminalTransfer,
+    },
+
+    pub fn validate(self: LogAction, guard_value: LogGuard) !void {
+        try self.statement.validate();
+        try guard_value.validate();
+        if (self.ordinal == 0) return error.InvalidTransactionStatement;
+        const operation: d.Operation, const target: q.Partition = switch (self.action) {
+            .append => |append| blk: {
+                try append.validate();
+                if ((append.kind == .stream) != (guard_value.kind == .stream)) return error.TransactionIdentityConflict;
+                break :blk .{ append.operation, append.target };
+            },
+            .stream_offset => |commit| blk: {
+                try commit.validate();
+                if (guard_value.kind != .stream) return error.TransactionIdentityConflict;
+                if (commit.coverage.cut.accepted.partition != guard_value.source.accepted.partition or
+                    commit.coverage.cut.accepted.next_lsn > guard_value.source.accepted.next_lsn or
+                    commit.coverage.until > guard_value.source.next) return error.InvalidTransactionGuard;
+                break :blk .{ commit.operation, commit.coverage.cut.target };
+            },
+            .queue_ack => |ack| blk: {
+                try ack.validate();
+                if (guard_value.kind != .queue or ack.action != .ack) return error.InvalidTransactionSettlement;
+                try guard_value.source.requireOffset(ack.lease.offset);
+                if (ack.lease.offset == guard_value.source.next) return error.InvalidTransactionSettlement;
+                break :blk .{ ack.operation, ack.lease.target };
+            },
+            .queue_terminal => |transfer| blk: {
+                try transfer.validate();
+                if (guard_value.kind != .queue) return error.InvalidTransactionTransfer;
+                if (self.ordinal != 1) return error.InvalidTransactionStatement;
+                const offset = switch (transfer.source) {
+                    .nack => |lease| lease.offset,
+                    .exhausted => |item| item.offset,
+                };
+                try guard_value.source.requireOffset(offset);
+                if (offset == guard_value.source.next) return error.InvalidTransactionTransfer;
+                break :blk .{ transfer.operation, transfer.target() };
+            },
+            .queue_transfer_append => |transfer| blk: {
+                try transfer.validate();
+                if (guard_value.kind != .queue) return error.InvalidTransactionTransfer;
+                if (self.ordinal != 2) return error.InvalidTransactionStatement;
+                break :blk .{ transfer.destination.operation, transfer.destination.target };
+            },
+        };
+        try target.requireSame(guard_value.source.target);
+        try self.statement.transaction.requireObject(target.interpretation.object);
+        if (operation.principal != self.statement.transaction.begin.principal or
+            operation.operation == self.statement.transaction.begin.operation) return error.TransactionIdentityConflict;
     }
 };
 
@@ -268,21 +512,22 @@ pub const Attempt = struct {
 
 pub const Prepared = struct {
     attempt: Attempt,
-    object: d.Object,
-    predecessor: TableGuard,
+    target: Target,
+    predecessor: Guard,
     /// Participant WAL acceptance, distinct from catalog admission/decision.
     position: d.Position,
     successor: d.Content,
 
     pub fn validate(self: Prepared) !void {
         try self.attempt.validate();
-        try self.attempt.transaction.requireObject(self.object);
+        try self.target.validate();
+        try self.attempt.transaction.requireObject(self.target.object);
         try self.predecessor.validate();
         try self.position.validate();
         try self.successor.validate();
-        if (!std.meta.eql(self.object, self.predecessor.source.interpretation.object) or
-            self.position.partition != self.predecessor.source.accepted.partition or
-            self.position.next_lsn <= self.predecessor.source.accepted.next_lsn or
+        if (!std.meta.eql(self.target, self.predecessor.target()) or
+            self.position.partition != self.predecessor.accepted().partition or
+            self.position.next_lsn <= self.predecessor.accepted().next_lsn or
             self.attempt.writes == 0) return error.InvalidTransactionPreparation;
     }
 };
@@ -337,6 +582,8 @@ pub const SchemaTypes = struct {
     statement: Statement,
     prepared: Prepared,
     observation: Observation,
+    log_action: LogAction,
+    terminal_receipt: TerminalReceipt,
 };
 
 test {

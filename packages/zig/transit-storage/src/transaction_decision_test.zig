@@ -46,6 +46,10 @@ const Access = struct {
     fn verification(self: *@This()) J.Verification {
         return .{ .context = self, .participant = participant, .prepared = prepared };
     }
+    fn beforeDecision(raw: *anyopaque) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.locked);
+    }
 };
 
 fn binding(objects: s.TransitObjectStore.ObjectStore) !J.Binding {
@@ -61,6 +65,80 @@ fn preparations(objects: s.TransitObjectStore.ObjectStore, frozen: J.Binding, co
     defer directory.deinit();
     for (1..count + 1) |object| try directory.put(f.preparation(object, frozen.attempt));
     return directory.seal();
+}
+
+fn queueGuard(object: u64) x.LogGuard {
+    return .{ .kind = .queue, .source = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = f.scope, .branch = 1, .object = object }, .revision = 1, .digest = @splat(1) }, .partition = 0 },
+        .accepted = .{ .partition = object + 10, .next_lsn = 5 },
+        .retained_from = 0,
+        .next = 1,
+    }, .changed_lsn = 3 };
+}
+
+test "transaction decision requires one exact source destination transfer pair" {
+    const Case = enum { valid, ordinary_append, wrong_statement, wrong_source, missing_destination, shared_destination };
+    for (std.enums.values(Case)) |case| {
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var selected = try D.init(t.allocator, objects.objectStore(), f.identity, .participants, 4, 1, 1024 * 1024);
+        defer selected.deinit();
+        const payload = "paired transfer payload";
+        const transfer: x.TerminalTransfer = .{
+            .operation = .{ .scope = f.scope, .principal = 0, .operation = 201 },
+            .source = .{ .exhausted = .{ .target = queueGuard(2).source.target, .offset = 0, .lease_epoch = 1, .attempt = 1, .not_before_ms = 100 } },
+            .destination = .{ .target = queueGuard(3).source.target, .operation = .{ .scope = f.scope, .principal = 0, .operation = 202 }, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) },
+        };
+        const statement: x.Statement = .{ .transaction = f.identity, .sequence = 1, .intent = @splat(7) };
+        var participants: [3]x.Participant = undefined;
+        const count: usize = if (case == .shared_destination) 3 else if (case == .missing_destination) 1 else 2;
+        for (participants[0..count], 0..) |*participant, i| {
+            const basis = queueGuard(2 + i);
+            var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), f.identity, basis, 2, 1024, 1, 1024 * 1024);
+            defer actions.deinit();
+            var action: x.LogAction = .{ .statement = statement, .ordinal = if (i == 1) 2 else 1, .action = if (i == 1) .{ .queue_transfer_append = transfer } else .{ .queue_terminal = transfer } };
+            if (i == 2) {
+                action.action.queue_terminal.source.exhausted.target = basis.source.target;
+                action.action.queue_terminal.operation.operation = 203;
+            }
+            if (i == 1) switch (case) {
+                .ordinary_append => action.action = .{ .append = transfer.destination },
+                .wrong_statement => action.statement.sequence = 2,
+                .wrong_source => action.action.queue_transfer_append.source.exhausted.lease_epoch = 2,
+                else => {},
+            };
+            try actions.put(action, if (i == 1) payload else null);
+            participant.* = .{ .log = .{ .guard = basis, .actions = try actions.seal() } };
+            try selected.put(.{ .participant = participant.* });
+        }
+        const directory = try selected.seal();
+        var frozen: J.Binding = .{ .begin = f.begin(directory), .attempt = f.attempt(directory) };
+        frozen.begin.limits.resident_bytes = 8 * 1024 * 1024;
+        if (case == .wrong_statement) frozen.attempt.last_statement = 2;
+        var prepared = try D.init(t.allocator, objects.objectStore(), f.identity, .preparations, 4, 1, 1024 * 1024);
+        defer prepared.deinit();
+        for (participants[0..count]) |participant| {
+            const guard = participant.guard();
+            try prepared.put(.{ .prepared = .{ .attempt = frozen.attempt, .target = guard.target(), .predecessor = guard, .position = .{ .partition = guard.accepted().partition, .next_lsn = 6 }, .successor = f.content } });
+        }
+        var journal = try J.init(t.allocator, wal.log(), objects.objectStore(), 9, frozen);
+        try journal.recover();
+        var access: Access = .{};
+        try journal.freeze(access.guard());
+        var verification = access.verification();
+        verification.before_decision = Access.beforeDecision;
+        // Stub owner verification isolates neutral directory pairing. It does
+        // not establish payload encoding, real preparation or source authority.
+        if (case == .valid) {
+            try t.expectEqual(.committed, (try journal.commit(try prepared.seal(), verification, access.guard())).outcome);
+        } else {
+            try t.expectError(error.InvalidTransactionTransfer, journal.commit(try prepared.seal(), verification, access.guard()));
+            try t.expect(journal.decision == null);
+            try t.expectEqual(@as(u64, 1), try wal.log().tail(9));
+        }
+    }
 }
 
 test "transaction decision log recovers lost freeze and commit replies from disk" {

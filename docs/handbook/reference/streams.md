@@ -22,6 +22,15 @@ that evidence is complete. Save the original request before admission and inspec
 that identity after a lost reply. A pending or cancelled declaration is not a
 published data source.
 
+Database caller tokens can retain the complete declaration before its admission.
+`DirectLogIntent` stages the original schema, policy and operation as an immutable
+account-scoped record; Catalog accepts that reference under the caller's token
+and current declaration rights. After a lost reply, recover the same token and
+resume its recorded declaration. Token acceptance does not publish the object,
+and a pending entry cannot be marked complete before the declaration owner has
+recorded its terminal outcome. See the
+[caller-token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+
 ALTER currently changes retention, operation limits and compatible scheduling
 policy. Schema changes, repartitioning and changes to routing, keys or ordering
 are refused before admission. RENAME preserves identity; DROP hides the name but
@@ -32,8 +41,9 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
-Payload operations use the separate typed calls below. SQL Stream/Queue verbs
-and Station composition remain unavailable. The existing mailbox delivery
+Payload operations use the separate typed calls below. SQL supports
+[declaration and named inspection](sql/streaming.md#stream-and-queue-declarations);
+workload verbs and Station composition remain unavailable. The existing mailbox delivery
 profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
@@ -100,7 +110,30 @@ this logical expiry until explicitly released; older replay cuts can retain them
 longer. Current Queue observations report the advanced retained boundary, while
 an open original claim can still return its older offsets. Physical collection
 waits for all dependencies to close. See [retention](retention.md).
-DLQ transfer and mixed state/message transactions remain unfinished.
+
+Explicit native transactions can move a live leased item or an exhausted blocked
+item to its exact dead-letter destination. Source archival, FIFO advancement and
+the destination append share one decision. The transfer preserves the original
+logical row and visibility time, checks current rights on both Queues, and leaves
+the source nonterminal if the destination cannot accept it. Exhausted items expose
+their recorded destination and `blocked_after_ms`; later source policy changes
+cannot redirect them. Automatic scheduling of these transfers remains unfinished.
+
+Typed transaction selection can retain Stream/Queue partition cuts as read
+dependencies alongside Table/KV state. Serializable completion checks those
+partitions' logical frontiers; read-only completion preserves the acquired cut
+after later writes. Each observation requires current read access. Native
+transaction work can append to Streams or Queues, commit an authenticated Stream
+offset, ACK an original Queue lease, or transfer a dead-letter item together with
+Table/KV state. The shared
+statement sequence, savepoints and common decision preserve original identities
+through uncertainty; provisional summaries do not establish public acceptance.
+Lease and retention deadlines are checked immediately before the decision;
+recovery preserves an already accepted decision after those deadlines. See
+[transactional log work](../../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
+SQL workload verbs, mixed log transaction SQL and Station turn composition remain
+unavailable. [Declaration and named inspection SQL](sql/streaming.md#stream-and-queue-declarations)
+uses the shared Catalog lifecycle.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
 for required composition guarantees.

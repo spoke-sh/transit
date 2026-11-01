@@ -33,7 +33,36 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL, DLQ transfer and mixed transactions remain unavailable.
+SQL workload verbs and automatic DLQ transfer scheduling remain unavailable.
+
+`DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
+account-scoped record before caller-token acceptance. The Catalog verifies the
+body, current declaration rights and original operation reservation. Exact token
+recovery resumes the existing declaration owner without resolving a new name or
+recompiling a proposal. Accepted work remains pending through incomplete partition
+initialization; only the owner's actual terminal observation permits settlement.
+
+`DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
+metadata and resolves named DLQ references to exact definitions. Native preview
+checks current declaration and destination rights before staging.
+`DirectLogClient.requireCurrent` revalidates a cached named definition for SQL
+metadata and prepared declaration disclosure.
+
+Typed transactions can select Stream/Queue partitions as read dependencies
+alongside Table/KV state. The common cut retains original log pins, checks
+current READ rights and validates logical frontiers for serializable completion.
+Read-only completion preserves its old cut after later writes. Typed log
+statements share state statements' sequence, pending slot and savepoints. Their
+paged action directories compose append, authenticated offset commit and fenced
+ACK and paired dead-letter transfer with Table/KV changes in the common decision.
+Transfers reserve both operation identities, open one temporary Queue owner at a
+time, verify the original source row against the destination encoding, and check
+current source and destination rights. `DirectTransactionClient`
+exposes staging, admission, evaluation and original outcome inspection. Prepared
+data verification traverses the owning graph with a metered depth-first stack;
+the final lease/retention check uses trusted host time immediately before the
+decision. Ordinary mutation cannot reuse a private operation reservation, while
+read-only operation lookup can disclose its actual receipt after commit.
 
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
@@ -105,8 +134,9 @@ cannot substitute for the recorded identity. Missing or invalid destinations
 refuse closure. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, bounded work and permanently retained namespaces.
 
-`DirectResourceClient` uses the same directory for named native KV and Document
-objects. Its saved bindings separate admission, caller-authorized allocation,
+`DirectKVClient` declares and accesses [named direct KV](docs/direct-kv.md) over
+`KVPartition`, without a writer PID. `DirectResourceClient` uses the same directory
+for named native Document objects. Its saved bindings separate admission, caller-authorized allocation,
 writer initialization and completed publication. The
 [named resource guide](../transit-station-app/docs/named-resources.md) explains
 permissions, interpretation, partial outcomes and explicit cleanup.
@@ -123,8 +153,8 @@ DLQ references bind an exact compatible Queue definition and add dependency edge
 in the publication record. Edges remain retained until the Queue closure owner
 can establish safe removal. The storage graph follows original intents,
 declarations and every initialized partition, including cancelled work.
-These lifecycle operations do not yet append or claim payloads or implement SQL
-Stream/Queue verbs. See the [wire contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+SQL declarations lower to these lifecycle operations. Append and claim use their
+separate payload owners. See the [wire contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
 `DirectDependency` records exact-definition dependencies with bounded inspection
 and DROP RESTRICT. Registering an edge neither activates its dependent nor pins

@@ -85,7 +85,7 @@ including parameters and database selection. The database does not interpret or
 certify that fingerprint's SQL meaning. It verifies the saved intent's immutable
 bytes, checks current original-operation rights and claims that operation
 identity before accepting the token in the catalog WAL. Token payloads support
-Table DDL/DML, namespace changes, conditional name assertions, transaction begin
+Table DDL/DML, Stream/Queue declarations, namespace changes, conditional name assertions, transaction begin
 descriptors and external-owner records.
 
 The first accepted binding wins. A concurrent or repeated bind with the same key
@@ -96,7 +96,7 @@ the original binding, catalog `position` and mandatory nullable `coordination`;
 successful `bind` always returns a
 receipt. `lookup` returns null for absence and never admits or executes data.
 Lookup requires current CONNECT; existing-reference disclosure also requires
-current rights for the original Table operation, including on exact retries and
+current rights for the original operation, including on exact retries and
 after response buffering.
 
 Token acceptance is separate from data admission, execution and completion. Its
@@ -120,14 +120,30 @@ and quota refusal to `StorageQuota`. Storage failure can leave acceptance unknow
 Catalog roots require the token directory and count fields. Earlier definitions
 reject under the shared-v1 cutover without a default, converter or data reset.
 SQL database sessions use these same public operations. The intent is a tagged
-`DirectIntent.Reference`: Table, conditional name, namespace change, transaction or external
+`DirectIntent.Reference`: Table, log declaration, conditional name, namespace change, transaction or external
 owner. External records fix their connection, namespace, operation and immutable
 `DirectRecord` content; the external owner establishes its domain outcome.
 
+`DirectIntent.Reference.log` fixes the connection, namespace, Stream/Queue kind,
+original `DataLifecycle.Binding` and account-scoped immutable `DirectRecord`.
+Its `DirectLogIntent.Saved` body requires the current definition and complete
+`DirectLogProtocol.Ddl`, including schema, policy, limits and proposed owner.
+The format is `0x4c444c31`; canonical bytes, content digest and every reference
+field must agree. The record account must equal the token account. Binding checks
+current declaration rights and reserves the original operation in the control
+store without admitting the declaration. Recovery loads that same body and uses
+`admit_log` and `log_operation`; partial partition initialization resumes through
+the declaration owner. Pending removal requires a complete, rejected or cancelled
+owner observation. Retrying a token cannot substitute a changed declaration,
+account, operation or name. Immutable staging records retain the existing saved
+record lifetime and remain outside physical collection authority. The SQL
+compiler does not yet accept Stream/Queue declaration syntax.
+
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
-observation, the complete paged selection of read-only Table descriptors and
-configured limits. Admission accepts `explicit_tables`; it rejects the neutral
+observation, the complete paged selection of read-only Table/KV and partitioned
+Stream/Queue descriptors and
+configured limits. Admission accepts `explicit_objects`; it rejects the neutral
 `authorized_catalog_tables` variant until server-owned catalog discovery supplies
 that selection. Caller-supplied membership cannot certify complete authorized
 catalog coverage. It atomically reserves the next unused partition with the
@@ -139,6 +155,17 @@ CONNECT authorizes saving and recovering this caller-supplied descriptor. The
 descriptor grants no Table access and establishes no acquired cut, retained pin,
 workspace or decision. Selection descriptors do not make nonexistent Tables
 readable. Execution must independently acquire and authorize its complete cut.
+
+The typed `transaction.begin` control accepts an ordered array of exact
+`Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the
+requested participant limit. Each target includes the scoped object, kind and
+an explicit nullable logical partition ordinal. Duplicate or unordered targets,
+mixed kinds for one object and foreign scopes reject. Table and direct KV targets
+support private mutations. Stream/Queue targets participate as retained read
+dependencies and private log work with explicit partition ordinals, as specified
+under [transactional log work](#transactional-stream-and-queue-work).
+Document targets reject before token admission. Server-owned
+`authorized_catalog_tables` discovery remains restricted to accessible Tables.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements
@@ -171,8 +198,18 @@ the cut position must equal the acquisition progress revision and follow begin
 admission in that same catalog partition. Later workspace records preserve this
 original acquisition position separately from their current progress revision.
 No signed acquisition operation is exposed by this record format. The embedding
-host must hold the catalog/Table publication fence,
-and the owner checks current Table rights under the publication policy epoch.
+host must hold the catalog and all selected data owners' publication fence,
+and the owner checks each selected kind's current READ rights under the publication policy epoch.
+Each Stream/Queue source retains its original log root through a live
+transaction pin. Incomplete acquisition reuses original pins only while their
+definitions and logical frontiers remain unchanged; it cannot cross another
+transaction's preparation barrier. A published cut retains its original basis
+after later writes. Serializable completion revalidates every selected log
+frontier; read-only completion can use the old cut. Cleanup releases those pins
+through control capacity and preserves the original decision after lost replies.
+`DirectCatalog.Options.logs` supplies the same bounded Stream/Queue owner
+profiles used for standalone data operations. One temporary owner at a time,
+including recovery and its caches, is charged to the transaction's resident limit.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
@@ -181,7 +218,7 @@ HTTP maps `TransactionOperationRequired` to `400 InvalidRequest` and
 settle a previously uncertain token binding; inspect the original token.
 
 Catalog-owned private workspaces use canonical JSON `DirectRecord` formats
-`0x54585731` (head), `0x54585431` (private Table state) and `0x54584f31`
+`0x54585731` (head), `0x54585431` (private Table/KV state) and `0x54584f31`
 (completed statement), each at most 32 KiB. All are reserved from generic record
 stage/read. A head requires `definition`, original `acquired` evidence, catalog
 `revision`, nullable `tables` and `statements` B-tree roots, `last_statement`,
@@ -190,7 +227,14 @@ token progress; acquired evidence still binds the original receipt and cut.
 No missing persisted field receives a current-state default.
 
 A request binds `statement`, required workspace `basis` revision, exact Table `binding` and immutable DML `intent`
-content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
+content. Table bulk INSERT/UPDATE/DELETE and direct KV put/remove batches without
+prerequisite authority participate. `transaction.stage_kv` takes the original
+typed KV mutation, basis and sequence; it validates the KV definition, value
+codec and batch bounds before lowering to the shared immutable private intent.
+Table staging cannot target a KV object. Both kinds share statement sequencing,
+savepoints, retained pins, preparation barriers and the common decision. Current
+KV READ and WRITE are checked separately from Table SELECT/DML privileges,
+including before the decision and when returning original statement outcomes.
 New admission requires the exact active workspace revision; stale work returns
 `TransactionReadChanged` without consuming a sequence. Original pending/completed
 requests retain their accepted basis and remain retryable. Statement sequences start at one, increase by one across Tables and are consumed
@@ -274,20 +318,79 @@ Catalog roots require all token, operation, pending and account directories and
 counters. The shared definition rejects superseded layouts before execution;
 there is no default compatibility field or fallback decoder.
 
+### Direct KV
+
+`kv_declaration`, `kv_lookup`, `kv_list` and `kv` share the database connection,
+current native policy graph and operation identity space. `DirectKVClient` and
+`transit-data-client.Catalog.callKV` expose the same typed operations. These do
+not execute SQL `CREATE KV`, nor accept a writer PID or Station state resource.
+
+A mandatory `kind` in the persisted catalog intent distinguishes `table` and
+`kv`. KV CREATE lowers its value specification to the exact two-column
+`KVDeclaration` physical schema. Its DDL intent digest includes kind, namespace,
+name and action in native field order, with fixed name-byte arrays encoded as
+strings including zero padding, under `transit.catalog.ddl.intent.v1` and a zero
+byte. The signed wire envelope encodes those arrays as JSON numbers. The ordinary catalog admission,
+registration, partition publication and reconciliation stages apply. KV ALTER
+is refused. Table row/read operations reject a KV interpretation;
+similar column names never establish object kind.
+
+`DirectKV.Mutation` contains a data-lifecycle binding and 1–1024 changes. A put
+has a base64 byte key, a bound FVL1 value and an `absent`, `present` or `any`
+expectation; remove has a byte key. The mutation uses binding action `insert`
+and requires the exact expected definition. Its intent digest is SHA-256 of
+`transit.kv.mutation.v1`, a zero byte, and canonical public JSON of the change
+list. That list must fit 4 MiB. The shared operation binding is claimed only
+after key and value decoding; current policy is checked before claim and again
+at publication. Key, value and builder limits are defined by `KVPartition`.
+
+One partition commit accepts the complete batch and outcome. `operation` returns
+its original evidence, including after rename or retirement. Current inspection
+rights still apply. A missing response does not establish rejection; callers
+preserve and inspect the identical binding. Saved mutations require a mandatory
+current definition, exact connection and digest, with no fallback decoding.
+
+`get` returns interpretation, public source position, last logical-change position,
+value specification, optional retained source, mandatory nullable `workspace`
+and an optional encoded value.
+Absence carries the same basis as presence. NULL remains a logical value.
+`pin`, `pin_status` and `release` use the shared retained-snapshot owner identity.
+A retained read verifies the exact handle and current rights before disclosure,
+even after DROP; it never silently substitutes a new cut. Response validation
+checks KV kind, exact schema fingerprint, object/source attribution and receipt
+binding before the shared client decodes values into caller-owned output.
+
+Catalog CONNECT/namespace USAGE remain mandatory. `KVAuthority` separates
+INSPECT (metadata and receipts), READ (values and retained reads), WRITE (batch
+mutations), and ownership (rename/DROP). CREATE requires namespace CREATE and
+owner eligibility. Dependency registration uses KV source privileges and
+separate dependent metadata authority. Transaction begin accepts explicit Table
+and direct KV participants, plus Stream/Queue partitions with retained source
+cuts and native private append/offset/ACK work described below.
+
+A KV `get` may carry the envelope's original transaction context with an exact
+active revision and no retained `source`. It reads the private workspace and
+returns the same `Transaction.ReadView` evidence as Table private reads. Its
+public source frontier remains separate from the virtual `private_position`.
+The response must match the requested revision and carry a nonnull workspace;
+ordinary KV reads require null. Stale revisions, pending work, current READ
+denial and attempts to mutate or create/release pins through a read context
+reject. Private state never enters the ordinary resident owner cache.
+
 ### Named native resources
 
 `resource_preview`, `resource_operation`, `resource_lookup` and `resource_list`
 share the direct catalog's object IDs, names, namespace ownership and operation
 identity space. `DirectResourceClient` exposes these typed operations. They do
-not add executable `CREATE KV` or `CREATE DOCUMENT` SQL syntax.
+not add executable `CREATE DOCUMENT` SQL syntax; these operations declare
+Documents. KV uses dedicated direct partition operations.
 
 `DirectResource.Binding` contains the mandatory shared definition, complete
 connection, operation, target object, nullable expected interpretation and
 CREATE, RENAME or DROP action. CREATE has no expectation. RENAME/DROP bind an
 exact definition revision and digest. CREATE freezes namespace/name, owner role,
 an existing writer PID, explicit lifetime ownership, nullable deadline/history
-policies and a kind-specific specification. KV specifies a scalar logical type,
-nullability, native byte keys and FVL1 values. Document specifies its identity,
+policies and a Document specification containing its identity,
 type revision and publication limits. Null retention settings remain unlimited.
 The service does not choose application behavior, grant data access or create a
 writer process.
@@ -318,12 +421,11 @@ then records `allocated` and releases the sequence reservation. A submitted ID
 is never allocation evidence.
 
 Initialization belongs to `transit-station-app.NamedResource`, using the existing
-native resource writer and private Station turns. KV initialization reserves and
-completes its marker atomically. Document initialization reserves the exact initial
+native resource writer and private Station turns. Document initialization reserves the exact initial
 interpretation, runs `Document.Service.create`, verifies the empty accepted head,
 then completes its marker in a later turn. Application associations, worker
 ownership and current native data grants must already authorize those turns.
-Neither a populated KV nor an existing anonymous Document is adopted implicitly.
+Neither a populated resource nor an existing anonymous Document is adopted implicitly.
 
 Catalog completion verifies the actual current native resource lifetime and the
 exact [initialization marker](DATA_LIFECYCLE_V1.md#native-resource-initialization)
@@ -442,7 +544,10 @@ mutation attempt still requires original-operation recovery.
 actions. Saved work includes mandatory shared definition, exact connection and
 complete DDL; lookup schemas belong to the caller's output arena. No call retries
 or chooses a replacement identity implicitly. Payload operations use the
-separate signed actions below; SQL Stream/Queue verbs remain unavailable.
+separate signed actions below. SQL declarations and named inspection lower to
+this lifecycle through `DirectLogPreparedDdl` and `DirectLogIntent`; the
+[SQL reference](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
+defines supported syntax and policy defaults. Workload SQL verbs remain unavailable.
 
 ### Stream payload and consumer progress
 
@@ -696,7 +801,8 @@ binding, including authority. Transport credential replacement does not change i
 An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
 kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
 nonzero mask of required logical actions. Table sources accept Table action masks;
-named KV/Document sources accept SELECT only, mapped to native INSPECT and READ.
+direct KV sources use `KVAuthority` privileges; named Document sources accept
+SELECT only, mapped to native INSPECT and READ.
 Stream/Queue sources accept their own five-bit action masks; their dependents
 use native metadata inspection or ownership. Queue DLQ publication registers its
 edge atomically as described above and retains it against generic removal.
@@ -708,8 +814,10 @@ or published definition. It does not certify initialization, activation or curre
 data availability. A computation registration remains an explicit owner assertion;
 the query publication adapter must establish its definition separately.
 Registration protects a source from DROP. It does not retain a data
-snapshot or change history. The dependent owner must register before publication
-and remove after retirement or recovery of an abandoned publication. These steps
+snapshot or change history. Document and computation owners register before
+their separate publication; direct KV and log dependents bind an already
+published definition. Owners remove edges after retirement or recovery of an
+abandoned publication. These steps
 across owners are not atomic. Automatic registration by named resource and query
 publication is not part of this operation.
 
@@ -1150,7 +1258,7 @@ All storage identities and positions use canonical decimal strings. The adapter
 makes one public request per action and never publishes or retires a dependent,
 acquires a data pin, replaces loaded work or retries an uncertain mutation.
 
-The host `resources` action uses `DirectCatalogResources` for named KV/Document
+The host `resources` action uses `DirectCatalogResources` for named Document
 preview, explicit operation control, lookup and eight-entry directory pages.
 Save its complete definition-bound `Binding` before admission. Names use text;
 storage IDs, revisions, Document identities and full-width staging byte budgets
@@ -1535,6 +1643,84 @@ separately establishes publication/barrier and original-pin release. Inspection
 and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
+
+### Transactional Stream and Queue work
+
+Explicit transaction selections can combine Table/KV objects and declared
+Stream/Queue partition ordinals. `transaction.stage_log` carries `key`, `basis`,
+`sequence`, typed `work` and nullable binary `payload`. Work is `append` (Stream
+or Queue), `stream_offset` (commit plus the exact owner-issued cursor), or
+`queue_ack` (an ACK settlement with its original fenced lease), or `queue_transfer`
+(one source disposition and its exact dead-letter destination append). Append
+and transfer carry payload bytes. Staging validates schema-bound batches and cursor authentication,
+retains immutable payload bytes and returns `staged_log`; it accepts no statement
+and reserves no public offsets.
+
+The returned request fixes `statement`, `basis`, original log `guard` and `work`.
+Its statement digest binds the exact work, including offset cursor authentication;
+the permanent operation reservation additionally binds the complete request.
+`transaction.log_statement` carries `key`, that exact `request` and `execute`.
+False accepts it into the shared pending slot; true evaluates or recovers the
+original result. State and log statements share one consecutive sequence, pending
+slot and savepoint stack. Different content at a consumed sequence conflicts.
+The same operation cannot be accepted as a standalone mutation, including after
+rollback or abort.
+
+The `log_statement` result is nullable pending knowledge, a provisional action
+summary (row count, next offset, or ACK offset and lease epoch), or a typed
+evaluation rejection. A summary is not a public receipt. Workspace limits meter
+payloads, immutable indexes and private segment staging; resident limits cover
+the temporary owner and evaluation. Memory, storage and authorization refusal
+leave already accepted work available for recovery or explicit abort.
+
+One common transaction decision publishes surviving Table/KV mutations, appends
+and settlements. Preparation retains exact action directories, original pins,
+predecessors and successors behind each owner's barrier. Commit rechecks current
+read and operation rights, verifies the prepared data graph and samples trusted
+time after all potentially slow verification, immediately before the decision.
+Expired or uncertain ACK leases and elapsed append retention windows refuse
+commit. Recovery of an actual decision does not require the old clock sample or
+cursor signing key and cannot change that decision because time has advanced.
+
+Savepoint completion restores its saved log action directory together with state
+roots. Consumed sequences, operation reservations and original provisional
+outcomes remain retained. `transaction.log_outcome` observes those outcomes under
+current rights after rollback or closure. Read-only Stream/Queue `operation`
+lookup accepts the exact transactional work and returns only an actual public
+owner receipt; pending, rolled-back and aborted appends or settlements have no
+such receipt. This lookup never permits standalone mutation of a reserved ID.
+
+`queue_transfer` selects both Queue partitions in the common cut. Its source is
+either a live NACK lease or an exhausted item's exact offset, epoch, attempt and
+recorded `not_before_ms`. A live NACK requires current source READ and SETTLE;
+exhausted-item transfer requires READ and administrative ownership. Both require
+current destination READ and APPEND, including during repeated outcome disclosure
+and immediately before the common decision. The destination definition is the
+source policy's exact configured DLQ for a live NACK, or the exhausted item's
+already recorded destination. A later source policy edit cannot redirect that item.
+
+The source and destination schemas must match after normalizing object/revision
+identity. The source owner re-encodes the original logical row, preserving its
+visibility timestamp, under the destination definition and operation; replacement
+data or a changed timestamp rejects. Destination routing and append bounds still
+apply. Temporary owners are opened sequentially within the existing resident
+budget. Each operation receives a permanent reservation binding the whole request
+and its own public observation digest; an interrupted pair reservation is repaired
+only by retrying the exact request.
+
+One statement publishes both private action directories and its provisional
+summary together. The source `queue_terminal` action has ordinal one and its
+destination `queue_transfer_append` mirror has ordinal two. They contain the same
+complete transfer and statement. The decision owner checks both directions by
+operation identity, rejecting a missing mirror, ordinary substitute append or
+two sources sharing one destination append. Only that common decision can publish
+the source's archived state, FIFO advancement and destination payload. Standalone
+terminal WAL records reject during publication and replay. Savepoint rollback
+removes both actions while preserving consumed identities and original outcomes.
+
+Claim acquisition, retry NACK and lease extension remain standalone operations.
+Automatic scheduling of blocked DLQ transfers, SQL Stream/Queue statements and
+Station turn composition remain separate implementation gates.
 
 
 ### Transaction-scoped private reads

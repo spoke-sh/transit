@@ -17,9 +17,12 @@ epoch: u64,
 attempts: u64,
 lease: ?q.Lease,
 blocked: p.QueueRead.Blocked,
+/// Accepted NACK upper bound or expired lease deadline that established the
+/// blocked disposition. Mandatory in stored items; absence is not a default.
+blocked_after_ms: ?u64,
 
 pub fn initial(offset: u64, batch_next: u64, visible_ms: u64) !Self {
-    const result: Self = .{ .offset = offset, .batch_next = batch_next, .next_key = null, .visible_ms = visible_ms, .epoch = 0, .attempts = 0, .lease = null, .blocked = .none };
+    const result: Self = .{ .offset = offset, .batch_next = batch_next, .next_key = null, .visible_ms = visible_ms, .epoch = 0, .attempts = 0, .lease = null, .blocked = .none, .blocked_after_ms = null };
     try result.validate();
     return result;
 }
@@ -31,6 +34,7 @@ pub fn validate(self: Self) !void {
         if (lease.offset != self.offset or lease.epoch != self.epoch or lease.attempt != self.attempts or self.blocked != .none) return error.InvalidQueueItem;
     }
     if (self.blocked != .none and self.attempts == 0) return error.InvalidQueueItem;
+    if ((self.blocked != .none) != (self.blocked_after_ms != null)) return error.InvalidQueueItem;
     if (self.blocked == .dead_letter) try self.blocked.dead_letter.validate();
 }
 pub fn requireState(self: Self, state: State) !void {
@@ -73,6 +77,7 @@ fn retry(self: Self, policy: Policy, anchor_ms: u64, requested_ms: u64) !Self {
     next.lease = null;
     if (next.attempts >= policy.maximum_attempts) {
         next.blocked = if (policy.dead_letter) |destination| .{ .dead_letter = destination } else .exhausted;
+        next.blocked_after_ms = anchor_ms;
     } else {
         const delay = try policy.backoff.delay(@intCast(next.attempts));
         const backoff_until = std.math.add(u64, anchor_ms, delay) catch return error.QueueRetryDeadlineOverflow;
@@ -116,4 +121,36 @@ pub fn expire(self: Self, state: State, policy: Policy, now: Time.Sample) !Self 
     if (state != .acquired) return error.QueueLeaseFenced;
     if (now.earliest_ms < self.lease.?.expires_ms) return error.QueueTimeUnavailable;
     return self.retry(policy, self.lease.?.expires_ms, 0);
+}
+
+/// A private source candidate only. The enclosing transaction must verify the
+/// exact destination payload and append before its one durable decision.
+pub fn transfer(self: Self, state: State, request: p.Transaction.TerminalTransfer, policy: Policy, now: Time.Sample) !Transition {
+    try self.requireState(state);
+    try request.validate();
+    try policy.validate();
+    try now.validate();
+    const destination = request.destination.target.interpretation;
+    switch (request.source) {
+        .nack => |lease| {
+            if (state != .acquired or lease.offset != self.offset) return error.QueueLeaseFenced;
+            try requireLive(lease, self.lease.?, now);
+            if (policy.dead_letter == null or !std.meta.eql(policy.dead_letter.?, destination)) return error.InvalidTransactionTransfer;
+        },
+        .exhausted => |expected| {
+            if (state != .available or self.blocked != .dead_letter or
+                expected.offset != self.offset or expected.lease_epoch != self.epoch or
+                expected.attempt != self.attempts or expected.not_before_ms != self.blocked_after_ms)
+                return error.QueueStateConflict;
+            // The already recorded destination survives later policy edits.
+            if (!std.meta.eql(self.blocked.dead_letter, destination)) return error.InvalidTransactionTransfer;
+            if (now.earliest_ms < expected.not_before_ms) return error.QueueTimeUnavailable;
+        },
+    }
+    var next = self;
+    next.lease = null;
+    next.blocked = .none;
+    next.blocked_after_ms = null;
+    try next.requireState(.archived);
+    return .{ .item = next, .state = .archived };
 }

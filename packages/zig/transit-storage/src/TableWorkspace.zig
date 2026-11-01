@@ -132,6 +132,21 @@ pub fn execute(self: *Self, statement: x.Statement, request: Dml.Request, guard:
     return self.executeBounded(statement, request, guard) catch |err| return self.memoryFailure(err);
 }
 
+/// A KV statement uses the same private workspace, operation receipts and
+/// savepoint frontier. It cannot publish a KV WAL record before the decision.
+pub fn executeKV(self: *Self, statement: x.Statement, binding: d.Binding, changes: []const @import("KVPartition.zig").Change, guard: P.Guard) !Outcome {
+    if (self.table.root.kind != .kv) return error.DataKindMismatch;
+    self.memory.exhausted = false;
+    return self.executeKVBounded(statement, binding, changes, guard) catch |err| return self.memoryFailure(err);
+}
+
+fn executeKVBounded(self: *Self, statement: x.Statement, binding: d.Binding, changes: []const @import("KVPartition.zig").Change, guard: P.Guard) !Outcome {
+    var scratch: std.heap.ArenaAllocator = .init(self.memory.allocator());
+    defer scratch.deinit();
+    const lowered = try @import("KVPartition.zig").lower(scratch.allocator(), self.table.declaration.schema.schema, binding, changes);
+    return self.executeBounded(statement, .{ .binding = binding, .interpretation = self.table.root.declared(), .changes = lowered, .ingestion = .bulk }, guard);
+}
+
 fn memoryFailure(self: *const Self, err: anyerror) anyerror {
     return if (err == error.OutOfMemory and self.memory.exhausted) error.TransactionMemoryLimit else err;
 }

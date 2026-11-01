@@ -37,7 +37,7 @@ const LogContext = struct {
         return identity;
     }
 };
-const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_read_releases };
+const LogIndexKind = enum { pages_only, batches, receipts, producer_receipts, producers, groups, group_offsets, pins, transaction_pins, bitmap, ordered_keys, queue_items, queue_sidecars, queue_keys, queue_read_releases };
 const TimerContext = struct {
     log: LogContext,
     seed: c.protocol.StreamQueue.Partition,
@@ -93,11 +93,13 @@ pub const Work = union(enum) {
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
+    transaction_log_intent: c.DirectTransactionLogWork.Request,
+    private_index: struct { reference: s.TreeStore.pages.Reference, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     transaction_controls: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope },
     transaction_savepoints: struct { root: r.Root, head: W.Head, scope: c.DirectRecord.Scope, next: ?c.DirectRecord.Reference, depth: u64 },
     table_preparation: struct { reference: s.TableTransaction.Reference, archive: ?s.TableArchive.Coverage = null },
     transaction_journal: u64,
-    transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?u64 = null, started: bool = false },
+    transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?s.TransactionDirectory.Cursor = null, started: bool = false },
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
@@ -115,6 +117,9 @@ pub const Work = union(enum) {
     queue_timer_index: struct { context: TimerContext, reference: s.TreeStore.pages.Reference, kind: enum { pending, levels }, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     queue_timer_run: struct { context: TimerContext, audit: s.QueueTimeDirectory.Audit, started: bool = false },
     queue_selection: struct { context: LogContext, receipt: c.protocol.StreamQueue.ClaimReceipt, slot: u8 = 0 },
+    log_preparation: struct { reference: s.LogTransaction.Reference, archive: ?s.LogHistory.Coverage = null, slot: u8 = 0 },
+    log_actions: struct { identity: c.protocol.Transaction.Identity, guard: c.protocol.Transaction.LogGuard, directory: c.protocol.Transaction.Directory, after: ?s.LogTransactionActions.Cursor = null, started: bool = false, count: u64 = 0, payload_bytes: u64 = 0 },
+    log_transaction_source: struct { context: LogContext, handle: c.protocol.Transaction.Pin },
     log_read: struct { context: LogContext, handle: c.protocol.StreamRead.Handle, slot: u8 = 0 },
     log_segment: struct { context: LogContext, descriptor: s.LogSegment.Descriptor, evidence: s.LogEvidence.Record },
     log_wal: struct { context: LogContext, lsn: u64, receipt: ?c.protocol.StreamQueue.AppendReceipt = null },
@@ -141,7 +146,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -286,6 +291,11 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
             const key = if (kind == .groups) try s.LogPartitionRecord.integerKey(progress.group.id) else try s.LogPartitionRecord.groupOffsetKey(progress);
             if (progress.next > context.next_offset or !std.meta.eql(entry.key, key)) return error.InvalidLogStorageGraph;
         },
+        .transaction_pins => {
+            const owner = try context.owner(entry.key);
+            const pin = try s.LogTransaction.Pin.decode(entry.value);
+            if (!pin.released) try workspace.enqueue(.{ .log_transaction_source = .{ .context = context, .handle = .{ .owner = owner, .content = pin.source } } });
+        },
         .pins => {
             const owner = try context.owner(entry.key);
             const pin = try s.LogRead.Pin.decode(entry.value);
@@ -416,13 +426,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.slot == 0) {
                 var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
                 defer selected.deinit();
-                try selected.restore(begin.tables);
-                try markContent(workspace, try s.TransactionDirectory.objectKey(begin.tables.content, &key_buffer), begin.tables.content);
+                try selected.restore(begin.objects);
+                try markContent(workspace, try s.TransactionDirectory.objectKey(begin.objects.content, &key_buffer), begin.objects.content);
                 if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
             } else {
                 if (progress.record == null) return true;
                 const control = if (progress.record.?.format == c.DirectTransactionControl.format) try c.DirectTransactionControl.load(allocator, index.store, progress) else null;
-                if (value.slot == 8) {
+                if (value.slot == 9) {
                     if (control) |state| {
                         try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = state.binding.attempt.participants, .kind = .participants } });
                         if (state.preparations) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .preparations } });
@@ -449,7 +459,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                         try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope(), .tables = value.slot == 2 } });
                     },
                     4 => if (retained.pending) |request| {
-                        try workspace.enqueue(.{ .transaction_intent = request });
+                        switch (request) {
+                            .state => |state| try workspace.enqueue(.{ .transaction_intent = state }),
+                            .log => |pending_log| try workspace.enqueue(.{ .transaction_log_intent = pending_log }),
+                        }
                     },
                     5 => if (retained.controls) |reference| {
                         try workspace.enqueue(.{ .transaction_controls = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope() } });
@@ -461,6 +474,9 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                         if (retained.pending_control) |pending| if (pending.tables) |reference| {
                             try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope(), .tables = true } });
                         };
+                    },
+                    8 => if (control == null or !control.?.cleanup_complete) {
+                        if (retained.logs) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .participants } });
                     },
                     else => return error.InvalidTableStorageGraph,
                 }
@@ -492,11 +508,15 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                         if (!std.meta.eql(accepted.interpretation.object, state.root.interpretation.object)) return error.InvalidTableStorageGraph;
                         try workspace.enqueue(.{ .table_root = .{ .root = state.root, .archive = accepted.archive, .role = .workspace } });
                     } else {
-                        const completed = try W.load(W.Completed, allocator, index.store, reference, value.scope, format);
-                        try completed.validate();
-                        if (!std.meta.eql(completed.request.statement.transaction, value.head.acquired.cut.begin.identity) or
-                            completed.request.statement.sequence > value.head.last_statement or !std.meta.eql(entry.key, try W.idKey(completed.request.statement.sequence))) return error.InvalidTableStorageGraph;
-                        try workspace.enqueue(.{ .transaction_intent = completed.request });
+                        const stored = try W.load(W.StatementCompletion, allocator, index.store, reference, value.scope, format);
+                        try stored.validate();
+                        const request = stored.request();
+                        if (!std.meta.eql(request.statement().transaction, value.head.acquired.cut.begin.identity) or
+                            request.statement().sequence > value.head.last_statement or !std.meta.eql(entry.key, try W.idKey(request.statement().sequence))) return error.InvalidTableStorageGraph;
+                        switch (request) {
+                            .state => |pending_state| try workspace.enqueue(.{ .transaction_intent = pending_state }),
+                            .log => |pending_log| try workspace.enqueue(.{ .transaction_log_intent = pending_log }),
+                        }
                     }
                 },
             }
@@ -507,6 +527,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const saved = try c.DirectTransactionSavepoint.load(allocator, index.store, value.scope, reference, value.head);
             if (saved.depth != value.depth) return error.InvalidTableStorageGraph;
             if (saved.tables) |tables| try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = tables, .kind = .values }), .head = value.head, .scope = value.scope, .tables = true } });
+            if (saved.logs) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = saved.transaction, .directory = directory, .kind = .participants } });
             value.next = saved.previous;
             value.depth -= 1;
             return value.next == null;
@@ -534,6 +555,30 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try markContent(workspace, try s.TableDmlIntent.key(request.intent, &key_buffer), request.intent);
             try workspace.enqueue(.{ .declaration = intent.request.interpretation });
         },
+        .transaction_log_intent => |request| {
+            try request.validate();
+            if (try c.DirectTransactionLogWork.loadPayload(allocator, index.store, request.work)) |bytes| {
+                defer allocator.free(bytes);
+                const content = request.work.appendPayload().?.payload;
+                try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
+            }
+        },
+        .private_index => |*value| {
+            const page = try index.load(value.reference);
+            if (value.height) |height| if (page.height != height) return error.InvalidTableStorageGraph;
+            if (value.slot > page.count) return error.InvalidTableStorageGraph;
+            if (!value.marked) {
+                if (value.slot != 0) return error.InvalidTableStorageGraph;
+                try markPage(index, workspace, value.reference);
+                if (try workspace.visited(try scope(.{ .private_index = value.reference }))) return true;
+                value.marked = true;
+                return false;
+            }
+            if (value.slot == page.count) return true;
+            if (page.body == .branch) try workspace.enqueue(.{ .private_index = .{ .reference = page.body.branch[value.slot].?.reference, .height = page.height - 1 } });
+            value.slot += 1;
+            return false;
+        },
         .transaction_journal => |partition| {
             const binding = try s.TransactionDecisionLog.frozenBinding(allocator, log, partition);
             var journal = try s.TransactionDecisionLog.init(allocator, log, index.store, partition, binding);
@@ -555,11 +600,22 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 value.started = true;
                 return false;
             }
-            if (value.kind != .preparations) return true;
             const page = try directory.page(value.after);
             const entry = page.entries[0] orelse return true;
-            try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
-            value.after = entry.object().object;
+            switch (entry) {
+                .prepared => |prepared| switch (prepared.predecessor) {
+                    .state => {
+                        _ = try prepared.predecessor.requirePagedState();
+                        try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = prepared.successor } } });
+                    },
+                    .log => try workspace.enqueue(.{ .log_preparation = .{ .reference = .{ .content = prepared.successor } } }),
+                },
+                .participant => |participant| if (participant == .log) {
+                    if (participant.log.actions) |actions| try workspace.enqueue(.{ .log_actions = .{ .identity = value.identity, .guard = participant.log.guard, .directory = actions } });
+                },
+                .source => {},
+            }
+            value.after = entry.cursor();
             return false;
         },
         .table_preparation => |value| {
@@ -666,10 +722,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .log_root => |*value| {
             const root = value.root;
             const queue = root.queue orelse s.QueueIndex.Root.empty;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
-            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
-            if (value.slot > directories.len + 3) return error.InvalidLogStorageGraph;
-            if (value.slot == directories.len + 3) return true;
+            const directories = [_]?s.TreeStore.pages.Reference{ root.batches, root.receipts, root.producers, root.producer_receipts, root.groups, root.group_offsets, root.pins, root.transaction_pins, root.archive.directory, root.segments, root.hidden.containers, queue.items, queue.sidecars, queue.keys, queue.read_releases };
+            const kinds = [_]LogIndexKind{ .batches, .receipts, .producers, .producer_receipts, .groups, .group_offsets, .pins, .transaction_pins, .pages_only, .pages_only, .bitmap, .queue_items, .queue_sidecars, .queue_keys, .queue_read_releases };
+            if (value.slot > directories.len + 4) return error.InvalidLogStorageGraph;
+            if (value.slot == directories.len + 4) return true;
             const context = try LogContext.fromRoot(root, value.archive);
             if (value.slot == 0) {
                 try workspace.enqueue(.{ .log_declaration = root.declared });
@@ -677,6 +733,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 if (root.compaction) |state| try workspace.enqueue(.{ .log_compaction = .{ .context = context, .state = state } });
             } else if (value.slot <= directories.len) {
                 if (directories[value.slot - 1]) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = kinds[value.slot - 1] } });
+            } else if (value.slot == directories.len + 3) {
+                if (root.transaction) |reference| try workspace.enqueue(.{ .log_preparation = .{ .reference = reference, .archive = value.archive } });
             } else if (root.queue != null) {
                 const visible = value.slot == directories.len + 1;
                 const scheduled = if (visible) queue.eligible else queue.deadlines;
@@ -868,6 +926,76 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             }
             value.slot += 1;
             return false;
+        },
+        .log_preparation => |*value| {
+            const preparation = try s.LogTransaction.loadPreparation(index.store, value.reference);
+            const context = try LogContext.fromRoot(preparation.successor, value.archive orelse preparation.predecessor.archive);
+            switch (value.slot) {
+                0 => try markContent(workspace, try s.LogTransaction.preparationKey(value.reference, &key_buffer), value.reference.content),
+                1, 2 => if (value.archive) |archive| {
+                    const root = if (value.slot == 1) preparation.predecessor else preparation.successor;
+                    try workspace.enqueue(.{ .log_root = .{ .root = root, .archive = archive } });
+                },
+                3 => try workspace.enqueue(.{ .log_actions = .{ .identity = preparation.binding.begin.identity, .guard = preparation.guard, .directory = preparation.actions } }),
+                4, 5 => {
+                    var journal = try s.TransactionDecisionLog.init(allocator, log, index.store, preparation.coordination, preparation.binding);
+                    try journal.recover();
+                    if (journal.next_lsn == 0) return error.TransactionNotFrozen;
+                    const directory = if (value.slot == 4) preparation.binding.attempt.participants else if (journal.decision) |decision| decision.prepared else {
+                        value.slot += 1;
+                        return false;
+                    };
+                    var selected = try s.TransactionDirectory.init(allocator, index.store, preparation.binding.begin.identity, if (value.slot == 4) .participants else .preparations, @max(1, directory.count), 0, 1);
+                    defer selected.deinit();
+                    try selected.restore(directory);
+                    try markContent(workspace, try s.TransactionDirectory.objectKey(directory.content, &key_buffer), directory.content);
+                    if (selected.root.entries) |reference| try workspace.enqueue(.{ .log_index = .{ .context = context, .reference = reference, .kind = .pages_only } });
+                },
+                6 => return true,
+                else => return error.InvalidLogStorageGraph,
+            }
+            value.slot += 1;
+            return false;
+        },
+        .log_actions => |*value| {
+            var actions = try s.LogTransactionActions.init(allocator, index.store, value.identity, value.guard, @max(1, value.directory.count), std.math.maxInt(u64), 0, 1);
+            defer actions.deinit();
+            try actions.restore(value.directory);
+            if (!value.started) {
+                try markContent(workspace, try s.LogTransactionActions.objectKey(value.directory.content, &key_buffer), value.directory.content);
+                for ([_]?s.TreeStore.pages.Reference{ actions.root.entries, actions.root.operations }) |root| if (root) |reference| {
+                    try workspace.enqueue(.{ .private_index = .{ .reference = reference } });
+                };
+                value.started = true;
+                return false;
+            }
+            const page = try actions.page(value.after);
+            const entry = page.entries[0] orelse {
+                if (value.count != actions.root.count or value.payload_bytes != actions.root.payload_bytes) return error.InvalidTransactionActions;
+                return true;
+            };
+            value.count = try std.math.add(u64, value.count, 1);
+            if (value.count > actions.root.count) return error.InvalidTransactionActions;
+            const at = s.LogTransactionActions.cursor(entry.work);
+            const content = try actions.entryContent(at);
+            try markContent(workspace, try s.LogTransactionActions.objectKey(content, &key_buffer), content);
+            if (s.LogTransactionActions.append(entry.work)) |appended| {
+                const payload = appended.payload;
+                const bytes = try allocator.alloc(u8, @intCast(payload.bytes));
+                defer allocator.free(bytes);
+                _ = try actions.readPayload(entry.work, bytes);
+                try markContent(workspace, try s.LogTransactionActions.payloadKey(payload, &key_buffer), payload);
+                value.payload_bytes = try std.math.add(u64, value.payload_bytes, payload.bytes);
+            }
+            value.after = at;
+            return false;
+        },
+        .log_transaction_source => |value| {
+            const source = try s.LogTransaction.loadSource(index.store, value.handle);
+            try value.context.requireTarget((try source.guard()).source.target);
+            if (source.root.initialization.partition != value.context.partition or source.root.next_lsn >= value.context.next_lsn or source.root.next_offset > value.context.next_offset) return error.InvalidLogStorageGraph;
+            try markContent(workspace, try s.LogTransaction.sourceKey(value.handle.content, &key_buffer), value.handle.content);
+            try workspace.enqueue(.{ .log_root = .{ .root = source.root, .archive = value.context.archive } });
         },
         .log_read => |*value| {
             const basis = try s.LogRead.load(allocator, index.store, value.handle);

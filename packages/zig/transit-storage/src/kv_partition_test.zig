@@ -39,6 +39,135 @@ fn bytes(value: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = value } } };
 }
 
+const KVTransactionVerification = struct {
+    owner: *K,
+    expected: p.Transaction.Prepared,
+    fn participant(raw: *anyopaque, selected: p.Transaction.Participant) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (selected != .state or selected.state.kind != .kv) return error.InvalidTransactionPreparation;
+        const reference = self.owner.storage.root.transaction orelse return error.TransactionPreparationMissing;
+        const preparation = try s.TableTransaction.load(t.allocator, self.owner.storage.objects, reference);
+        try selected.state.guard.requireUnchanged(s.TableTransaction.tableGuard(preparation.predecessor));
+        try t.expectEqualDeep(self.expected, try preparation.prepared(reference));
+    }
+    fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expectEqualDeep(self.expected, value);
+        const reference = self.owner.storage.root.transaction orelse return error.TransactionPreparationMissing;
+        const preparation = try s.TableTransaction.load(t.allocator, self.owner.storage.objects, reference);
+        try s.TableTransaction.verifyWorkspace(t.allocator, &self.owner.storage.index, self.owner.storage.log, preparation.workspace.root, self.owner.storage.root.archive);
+    }
+    fn callbacks(self: *@This()) s.TransactionDecisionLog.Verification {
+        return .{ .context = self, .participant = participant, .prepared = prepared };
+    }
+};
+
+test "KV transaction private batches and common commit or abort survive replacement and reply loss" {
+    for ([_]bool{ false, true }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{};
+        var frozen: s.TransactionDecisionLog.Binding = undefined;
+        var state: s.TableWorkspace.State = undefined;
+        var basis: p.Transaction.StateGuard = undefined;
+        var expected: p.Transaction.Prepared = undefined;
+        var accepted: p.Transaction.Decision = undefined;
+        var payload: [1024]u8 = @splat(42);
+        for (0..4) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            if (restart == 1 or restart == 2) try t.expectError(error.TransactionPrepared, open(&wal, &objects));
+            var kv = try K.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1, .transaction_control = true });
+            defer kv.deinit();
+            try kv.recover();
+            if (restart == 0) {
+                _ = try kv.create(binding(&kv, 1), access.guard());
+                _ = try kv.apply(binding(&kv, 2), &.{.{ .put = .{ .key = "old", .value = bytes("retained") } }}, access.guard());
+                basis = s.TableTransaction.tableGuard(kv.storage.root);
+                var begin = @import("transaction_test_support.zig").begin(undefined);
+                begin.identity.begin.principal = 4;
+                begin.limits.resident_bytes = 16 * 1024 * 1024;
+                var selection = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 1000, 1, 1024 * 1024);
+                defer selection.deinit();
+                try selection.put(.{ .participant = .{ .state = .{ .kind = .kv, .guard = basis, .access = .read } } });
+                begin.objects = try selection.seal();
+                const pin = try kv.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = kv.storage.root.next_lsn }, access.guard());
+                var workspace = try s.TableWorkspace.init(t.allocator, &kv.storage, begin, pin, null, access.guard());
+                defer workspace.deinit();
+                const saved = workspace.state();
+                const mutation = binding(&kv, 3);
+                const statement: p.Transaction.Statement = .{ .transaction = begin.identity, .sequence = 1, .intent = mutation.intent };
+                const changes = [_]K.Change{
+                    .{ .put = .{ .key = "one", .value = bytes(&payload) } },
+                    .{ .put = .{ .key = "two", .value = bytes(&payload), .expect = .absent } },
+                    .{ .put = .{ .key = "three", .value = bytes(&payload) } },
+                    .{ .put = .{ .key = "four", .value = bytes(&payload) } },
+                    .{ .put = .{ .key = "five", .value = bytes(&payload) } },
+                    .{ .put = .{ .key = "six", .value = bytes(&payload) } },
+                    .{ .remove = "old" },
+                };
+                const public = kv.storage.root;
+                const result = try workspace.executeKV(statement, mutation, &changes, access.guard());
+                try t.expectEqual(@as(u64, 7), result.provisional.affected);
+                try t.expectEqualDeep(public, kv.storage.root);
+                try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+                try workspace.rollback(saved);
+                try t.expectEqual(@as(u64, 1), workspace.table.root.live_rows);
+                try t.expectError(error.TransactionStatementConflict, workspace.executeKV(statement, mutation, &changes, access.guard()));
+                var replacement = mutation;
+                replacement.identity.operation = 4;
+                _ = try workspace.executeKV(.{ .transaction = begin.identity, .sequence = 2, .intent = replacement.intent }, replacement, &changes, access.guard());
+                state = workspace.state();
+                var writes = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 1000, 1, 1024 * 1024);
+                defer writes.deinit();
+                try writes.put(.{ .participant = .{ .state = .{ .kind = .kv, .guard = basis, .access = .write } } });
+                frozen = .{ .begin = begin, .attempt = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .operation = .{ .scope = object.scope, .principal = 4, .operation = 101 }, .cut = begin.objects.content, .workspace = begin.objects.content, .participants = try writes.seal(), .writes = 1, .last_statement = 2 } };
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                try journal.freeze(access.guard());
+                kv.storage.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, kv.storage.prepareTransaction(frozen, 18, basis, state, access.guard()));
+                const reference = kv.storage.root.transaction.?;
+                expected = try (try s.TableTransaction.load(t.allocator, objects.objectStore(), reference)).prepared(reference);
+                try t.expectEqual(.kv, expected.target.kind);
+            } else if (restart == 1) {
+                try t.expectEqualDeep(expected, try kv.storage.prepareTransaction(frozen, 18, basis, state, access.guard()));
+                try t.expectError(error.TransactionPrepared, kv.get(t.allocator, "one", access.guard()));
+                try t.expectError(error.TransactionPrepared, kv.storage.resolveTransaction(access.guard()));
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                var preparations = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), frozen.begin.identity, .preparations, 1000, 1, 1024 * 1024);
+                defer preparations.deinit();
+                try preparations.put(.{ .prepared = expected });
+                var verification: KVTransactionVerification = .{ .owner = &kv, .expected = expected };
+                journal.lose_reply = true;
+                if (commit) {
+                    try t.expectError(error.LostAcknowledgement, journal.commit(try preparations.seal(), verification.callbacks(), access.guard()));
+                } else try t.expectError(error.LostAcknowledgement, journal.abort(access.guard()));
+                accepted = (try journal.observe(access.guard())).decided;
+            } else if (restart == 2) {
+                kv.storage.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, kv.storage.resolveTransaction(access.guard()));
+            } else {
+                try t.expect(kv.storage.root.transaction == null);
+                try t.expectEqual(@as(u64, if (commit) 6 else 1), kv.storage.root.live_rows);
+                var value = try kv.get(t.allocator, "six", access.guard());
+                defer if (value) |*v| v.deinit();
+                try t.expectEqual(commit, value != null);
+                if (value) |*v| try t.expectEqualSlices(u8, &payload, v.cell().value.atom.bytes);
+                var retained = (try kv.readSnapshot(t.allocator, state.source, "old", access.guard())).?;
+                defer retained.deinit();
+                try t.expectEqualStrings("retained", retained.cell().value.atom.bytes);
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                try t.expectEqualDeep(accepted, (try journal.observe(access.guard())).decided);
+            }
+        }
+    }
+}
+
 test "direct KV disk batches retain large values original receipts and pinned cuts through trim" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

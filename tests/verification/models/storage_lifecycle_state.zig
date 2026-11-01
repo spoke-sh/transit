@@ -215,7 +215,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                 defer catalog.deinit();
                 try catalog.recover();
                 try catalog.initialize(cat_access.policy());
-                const create_intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init("selected_0"), .action = .{ .create = .{ .schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} }, .owner = 0 } } };
+                const create_intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init("selected_0"), .action = .{ .create = .{ .schema = .{ .object = 10, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} }, .owner = 0 } } };
                 const create_req: D.Request = .{
                     .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 10 }, .target = .{ .scope = scope, .branch = 1, .object = 10 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try create_intent.digest(allocator) },
                     .intent = create_intent,
@@ -238,7 +238,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                     .intent = .{ .transaction = .{
                         .connection = connection,
                         .namespace = 1,
-                        .begin = .{ .definition = p.Growth.current_definition, .identity = tx_id, .mode = .serializable, .selection = .explicit_tables, .tables = try selected.seal(), .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024, .participants = 100, .statements = 100, .savepoints = 16 } },
+                        .begin = .{ .definition = p.Growth.current_definition, .identity = tx_id, .mode = .serializable, .selection = .explicit_objects, .objects = try selected.seal(), .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024, .participants = 100, .statements = 100, .savepoints = 16 } },
                     } },
                 };
                 _ = try catalog.clientToken(.{ .bind = tx_binding }, cat_access.policy());

@@ -43,12 +43,17 @@ pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const DirectLog = @import("DirectLog.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
+pub const DirectLogIntent = @import("DirectLogIntent.zig");
+pub const DirectLogPreparedDdl = @import("DirectLogPreparedDdl.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
 pub const DirectStreamMutation = @import("DirectStreamMutation.zig");
 pub const DirectStream = @import("DirectStream.zig");
 pub const DirectStreamResponse = @import("DirectStreamResponse.zig");
 pub const DirectStreamClient = @import("DirectStreamClient.zig");
 pub const DirectQueueMutation = @import("DirectQueueMutation.zig");
+pub const DirectKV = @import("DirectKV.zig");
+pub const DirectKVClient = @import("DirectKVClient.zig");
+pub const DirectKVResponse = @import("DirectKVResponse.zig");
 pub const DirectQueue = @import("DirectQueue.zig");
 pub const DirectQueueResponse = @import("DirectQueueResponse.zig");
 pub const DirectQueueClient = @import("DirectQueueClient.zig");
@@ -148,6 +153,9 @@ pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig")
 pub const DirectTransactionControl = @import("DirectTransactionControl.zig");
 pub const DirectTransactionRequest = @import("DirectTransactionRequest.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");
+pub const DirectTransactionLog = @import("DirectTransactionLog.zig");
+pub const DirectTransactionLogWork = @import("DirectTransactionLogWork.zig");
+pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
 

@@ -14,6 +14,9 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
 | Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
+| Table/KV/Stream/Queue common decision after lost statement and commit replies and two process replacements | [Signed transaction caller](../catalog/tables/direct_state_transaction.zig), [HTTP schedule](tables/direct_table_service.py); `just test::direct-mixed-transaction` |
+| Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](../catalog/tables/direct_log_token.zig); `just test::direct-log-token` |
+| Paired Queue dead-letter transfer after lost replies and two process replacements | [Signed transfer caller](../catalog/tables/direct_queue_transfer.zig); `just test::direct-queue-transfer` |
 | Automatic Table/Stream maintenance, retained reads, admission pressure and restart | [Method and resource observations](tables/maintenance.md), [schedule](tables/direct_table_maintenance.py), [Table caller](tables/direct_table_maintenance.zig), [Stream caller](../interfaces/native/direct_table_client.zig); `just test direct-table-maintenance` |
 | Queue FIFO claims, uncertain replies, automatic retired-lease expiry and original payloads after restart | [Signed caller](tables/direct_queue.zig), [HTTP schedule](tables/direct_table_service.py); `just test direct-table-service queues` (also included in the default direct-service gate) |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |

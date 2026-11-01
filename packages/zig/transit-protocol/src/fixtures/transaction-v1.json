@@ -1,6 +1,6 @@
 {
   "begin": {
-    "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+    "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
     "identity": {
       "begin": {
         "scope": {
@@ -14,8 +14,19 @@
       "branch": 1
     },
     "mode": "serializable",
-    "selection": "explicit_tables",
-    "tables": {
+    "selection": "explicit_objects",
+    "catalog": {
+      "partition": 3,
+      "next_lsn": 5
+    },
+    "limits": {
+      "resident_bytes": 65536,
+      "workspace_bytes": 1048576,
+      "participants": 10000,
+      "statements": 1000,
+      "savepoints": 32
+    },
+    "objects": {
       "content": {
         "bytes": 128,
         "sha256": [
@@ -54,22 +65,11 @@
         ]
       },
       "count": 2
-    },
-    "catalog": {
-      "partition": 3,
-      "next_lsn": 5
-    },
-    "limits": {
-      "resident_bytes": 65536,
-      "workspace_bytes": 1048576,
-      "participants": 10000,
-      "statements": 1000,
-      "savepoints": 32
     }
   },
   "cut": {
     "begin": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "identity": {
         "begin": {
           "scope": {
@@ -83,8 +83,19 @@
         "branch": 1
       },
       "mode": "serializable",
-      "selection": "explicit_tables",
-      "tables": {
+      "selection": "explicit_objects",
+      "catalog": {
+        "partition": 3,
+        "next_lsn": 5
+      },
+      "limits": {
+        "resident_bytes": 65536,
+        "workspace_bytes": 1048576,
+        "participants": 10000,
+        "statements": 1000,
+        "savepoints": 32
+      },
+      "objects": {
         "content": {
           "bytes": 128,
           "sha256": [
@@ -123,17 +134,6 @@
           ]
         },
         "count": 2
-      },
-      "catalog": {
-        "partition": 3,
-        "next_lsn": 5
-      },
-      "limits": {
-        "resident_bytes": 65536,
-        "workspace_bytes": 1048576,
-        "participants": 10000,
-        "statements": 1000,
-        "savepoints": 32
       }
     },
     "sources": {
@@ -293,7 +293,7 @@
   },
   "prepared": {
     "attempt": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "transaction": {
         "begin": {
           "scope": {
@@ -432,69 +432,65 @@
       "writes": 2,
       "last_statement": 3
     },
-    "object": {
-      "scope": {
-        "realm": 1,
-        "resource": 2,
-        "catalog": 3
-      },
-      "branch": 1,
-      "object": 42
-    },
     "predecessor": {
-      "source": {
-        "interpretation": {
-          "object": {
-            "scope": {
-              "realm": 1,
-              "resource": 2,
-              "catalog": 3
+      "state": {
+        "kind": "table",
+        "basis": {
+          "source": {
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 42
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
             },
-            "branch": 1,
-            "object": 42
+            "accepted": {
+              "partition": 9,
+              "next_lsn": 10
+            }
           },
-          "revision": 1,
-          "digest": [
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5
-          ]
-        },
-        "accepted": {
-          "partition": 9,
-          "next_lsn": 10
+          "changed_lsn": 8
         }
-      },
-      "changed_lsn": 8
+      }
     },
     "position": {
       "partition": 9,
@@ -536,12 +532,25 @@
         11,
         11
       ]
+    },
+    "target": {
+      "object": {
+        "scope": {
+          "realm": 1,
+          "resource": 2,
+          "catalog": 3
+        },
+        "branch": 1,
+        "object": 42
+      },
+      "kind": "table",
+      "partition": null
     }
   },
   "observation": {
     "decided": {
       "attempt": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "transaction": {
           "begin": {
             "scope": {
@@ -727,6 +736,337 @@
       },
       "coordinator_epoch": 3,
       "policy_epoch": 7
+    }
+  },
+  "log_action": {
+    "statement": {
+      "transaction": {
+        "begin": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "principal": 0,
+          "operation": 18446744073709551615
+        },
+        "branch": 1
+      },
+      "sequence": 3,
+      "intent": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6
+      ]
+    },
+    "ordinal": 1,
+    "action": {
+      "append": {
+        "target": {
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 2,
+                "catalog": 3
+              },
+              "branch": 1,
+              "object": 42
+            },
+            "revision": 1,
+            "digest": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "principal": 0,
+          "operation": 101
+        },
+        "kind": "queue",
+        "producer": null,
+        "rows": 1,
+        "payload": {
+          "bytes": 128,
+          "sha256": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        }
+      }
+    }
+  },
+  "terminal_receipt": {
+    "transfer": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 2,
+          "catalog": 3
+        },
+        "principal": 0,
+        "operation": 103
+      },
+      "source": {
+        "exhausted": {
+          "target": {
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 42
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
+            },
+            "partition": 0
+          },
+          "offset": 3,
+          "lease_epoch": 4,
+          "attempt": 2,
+          "not_before_ms": 100
+        }
+      },
+      "destination": {
+        "target": {
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 2,
+                "catalog": 3
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 1,
+            "digest": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "principal": 0,
+          "operation": 101
+        },
+        "kind": "queue",
+        "producer": null,
+        "rows": 1,
+        "payload": {
+          "bytes": 128,
+          "sha256": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        }
+      }
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 15
     }
   }
 }

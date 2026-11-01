@@ -434,6 +434,11 @@ ALTER/DROP retain the captured object/schema identity. The
 [compiler contract](../../../contracts/TABLE_DDL_V1.md) separates these pure
 definitions from catalog/native/console admission.
 
+`LogDdl` compiles Stream/Queue declarations and the named `SHOW`/`DESCRIBE`
+syntax shared with the SQL service. Policy binding uses an explicit schema and
+captured configuration. Catalog lookup, destination resolution, authorization
+and publication remain outside this pure parser.
+
 `SqlTyped.literal` captures unbound constructor syntax and source spans before
 `SqlLiteral.bind` admits it against a logical descriptor. Bound cells allocate in the caller's
 arena and byte values share the parsed syntax lifetime. Nested binding failures identify the

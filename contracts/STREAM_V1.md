@@ -6,16 +6,18 @@
 defines neutral partition, append, receipt, read-coverage and consumer-offset
 bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
-availability or durable acceptance. There is no installed SQL `CREATE STREAM`,
-`PRODUCE`, `CONSUME`, `COMMIT OFFSET` or `STREAM_SLICE` execution API.
+availability or durable acceptance. SQL declarations and named inspection use
+the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
+SQL `PRODUCE`, `CONSUME`, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
 
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 uses full-width identities and deliberately different logical offsets and WAL
 positions. The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 now publishes Stream/Queue declarations with native authority and verified
-partition initialization. SQL verbs and the Table-only transaction profile
-remain unchanged. Storage
+partition initialization. Native
+[transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+composes append and authenticated offset settlement with Table/KV state. Storage
 provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
 bounded pinned `LogTail` cache and shared paged bitmap/sidecar codecs. Their stored
 formats use the current shared definition under the coordinated cutover policy.
@@ -283,11 +285,11 @@ and count hidden offsets as verified scanned coverage. Original append outcomes
 remain unchanged. This logical compaction does not rewrite sparse payload
 segments; physical cleanup still requires the retained dependency graph.
 
-Stream append and offset settlement remain reserved, unsupported transaction
-participants. Enabling them requires retained preparation, conflict/policy
-guards, one original decision, common-decision visibility and bounded cleanup
-under [the transaction contract](DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence).
-A structure that validates is not an executable participant.
+Native Stream append and offset settlement use retained preparation,
+conflict/policy guards, one original decision, common-decision visibility and
+bounded cleanup under [the transaction contract](DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence).
+Offset work retains and authenticates the original owner-issued cursor. A
+caller-supplied coverage descriptor alone cannot settle a consumer group.
 
 The [current-v1 policy](../docs/handbook/reference/versioning.md) applies to every
 future persistent or executable binding. Decoding a missing or foreign definition

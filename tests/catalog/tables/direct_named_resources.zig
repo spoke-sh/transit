@@ -1,4 +1,5 @@
-//! Named native data through public catalog and Station callers only.
+//! Named Document data through public catalog and Station callers only.
+//! Direct KV has its own partition and installed caller proof.
 const std = @import("std");
 const c = @import("transit_catalog");
 const app = @import("transit_station_app");
@@ -62,17 +63,17 @@ pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: a
         _ = try admin.submit(.{ .associate = .{ .pid = writer, .name = try .init("state"), .resource = definition.resource } });
         const process = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = writer } }, try key(17))).body.process.process;
         _ = try admin.submit(.{ .own = .{ .pid = writer, .expected_generation = process.generation, .worker = 102 } });
-        for (0..@as(usize, if (i % 2 == 0) 1 else 3)) |_| _ = try runTurn(init.io, current, admin, definition, 0);
+        for (0..3) |_| _ = try runTurn(init.io, current, admin, definition, 0);
         try t.expectEqual(Owner.Step.complete, (try inspect(current, definition)).?);
         const complete = (try resources.operation(binding, .execute, 64)).operation;
         try t.expectEqual(.complete, complete.phase);
         if (i == 0) result = .{ .first = binding, .original = complete };
         _ = try runTurn(init.io, current, admin, definition, 1);
-        if (i % 2 != 0) for ([_]i64{ 2, 3 }) |code| {
+        for ([_]i64{ 2, 3 }) |code| {
             for (0..128) |_| {
                 if (try runTurn(init.io, current, admin, definition, code)) break;
             } else return error.DocumentDidNotComplete;
-        };
+        }
         try growthValue(current, definition);
         if (i % 16 == 0) std.debug.print("Named resource growth: {d}/{d} initialized and read.\n", .{ i + 1, growth_count });
     }
@@ -81,13 +82,7 @@ pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: a
 }
 
 fn growthValue(client: c.DirectTableClient, definition: R.Definition) !void {
-    if (definition.creation.spec == .kv) {
-        var raw = try reader(client).open(definition.resource);
-        const owner: Owner = .{ .initial = definition };
-        var value = (try owner.get(client.allocator, &raw, 101, "message")).?;
-        defer value.deinit();
-        try t.expectEqualStrings("durable named value", value.cell.value.atom.bytes);
-    } else {
+    {
         const document: doc.Client = .{ .source = reader(client) };
         const found = try document.describe(.{ .resource = definition.resource, .document = 91 });
         try t.expectEqual(@as(u64, 1), found.reference.revision);
@@ -202,13 +197,13 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
         _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = worker_role, .privileges = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) } });
         binding.* = .{ .definition = g.current_definition, .connection = client.connection, .operation = 80000 + i, .object = .{ .scope = client.connection.scope, .branch = 1, .object = 800 + i }, .expected = null, .action = .{ .create = .{
             .namespace = 1,
-            .name = try .init(if (i == 0) "named_kv" else "named_document"),
+            .name = try .init(if (i == 0) "named_document_a" else "named_document_b"),
             .owner = role,
             .writer = writer,
             .owned = false,
             .deadline_ms = null,
             .history_ms = null,
-            .spec = if (i == 0) .{ .kv = .{ .value_type = .utf8, .nullable = true, .key_encoding = .native_bytes, .value_encoding = .fvl1 } } else .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
+            .spec = .{ .document = .{ .document = 91, .type_revision = 1, .limits = .{ .record_bytes = 4096, .staging_bytes = 16384, .staging_records = 4 } } },
         } } };
         result.saved[i] = try h.Binding.foreign(client.allocator, binding.*);
         const resources: HostClient = .{ .catalog = client };
@@ -268,9 +263,7 @@ const Handler = struct {
             _ = try self.owner.initialize(self.allocator, turn, 101);
             return;
         }
-        if (self.owner.initial.creation.spec == .kv) {
-            if (code == 1) try self.owner.put(self.allocator, turn, 101, "message", .{ .value = .{ .atom = .{ .bytes = "durable named value" } } }) else if (code == 2) try self.owner.remove(self.allocator, turn, 101, "message") else return error.UnexpectedCommand;
-        } else {
+        {
             const service = try self.owner.document();
             const change: doc.Change = .{ .document = 91, .epoch = 1, .replica = 1, .previous = 0, .first = 1, .len = 1, .operations = blk: {
                 var operations: @FieldType(doc.Change, "operations") = undefined;
@@ -319,7 +312,7 @@ fn inspect(client: c.DirectTableClient, definition: R.Definition) !?Owner.Step {
 }
 pub fn initialize(io: std.Io, client: c.DirectTableClient, admin: anytype, state: State, phase: u8) !void {
     const resources: HostClient = .{ .catalog = client, .state = &state };
-    for (state.bindings, 0..) |binding, i| {
+    for (state.bindings) |binding| {
         const allocated = (try resources.operation(binding, .inspect, 1)).operation;
         try t.expectEqual(.allocated, allocated.phase);
         const definition = allocated.resulting.?;
@@ -329,9 +322,9 @@ pub fn initialize(io: std.Io, client: c.DirectTableClient, admin: anytype, state
             _ = try admin.submit(.{ .associate = .{ .pid = definition.creation.writer, .name = try .init("state"), .resource = definition.resource } });
             const process = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = definition.creation.writer } }, try key(17))).body.process.process;
             _ = try admin.submit(.{ .own = .{ .pid = definition.creation.writer, .expected_generation = process.generation, .worker = 102 } });
-        } else try t.expectEqual(if (i == 0) Owner.Step.complete else if (phase == 1) Owner.Step.reserved else Owner.Step.initialized, (try inspect(client, definition)).?);
+        } else try t.expectEqual(if (phase == 1) Owner.Step.reserved else Owner.Step.initialized, (try inspect(client, definition)).?);
         _ = try runTurn(io, client, admin, definition, 0);
-        try t.expectEqual(if (i == 0 or phase == 2) Owner.Step.complete else if (phase == 0) Owner.Step.reserved else Owner.Step.initialized, (try inspect(client, definition)).?);
+        try t.expectEqual(if (phase == 2) Owner.Step.complete else if (phase == 0) Owner.Step.reserved else Owner.Step.initialized, (try inspect(client, definition)).?);
     }
 }
 pub fn publish(client: c.DirectTableClient, state: State) !void {
@@ -417,16 +410,7 @@ pub fn verify(io: std.Io, client: c.DirectTableClient, admin: anytype, state: St
         const selected = (try resources.lookup(1, binding.action.create.name.slice())).?;
         try t.expectEqualDeep(original.resulting.?, selected.definition);
         _ = try runTurn(io, client, admin, selected.definition, 1);
-        if (i == 0) {
-            var raw = try reader(client).open(selected.definition.resource);
-            const owner: Owner = .{ .initial = selected.definition };
-            var value = (try owner.get(client.allocator, &raw, 101, "message")).?;
-            defer value.deinit();
-            try t.expectEqualStrings("durable named value", value.cell.value.atom.bytes);
-            _ = try runTurn(io, client, admin, selected.definition, 2);
-            raw = try reader(client).open(selected.definition.resource);
-            try t.expectEqual(null, try owner.get(client.allocator, &raw, 101, "message"));
-        } else {
+        {
             for ([_]i64{ 2, 3 }) |code| {
                 for (0..128) |_| {
                     if (try runTurn(io, client, admin, selected.definition, code)) break;
@@ -448,7 +432,7 @@ pub fn verify(io: std.Io, client: c.DirectTableClient, admin: anytype, state: St
         var rename = binding;
         rename.operation = 81000 + i;
         rename.expected = selected.interpretation;
-        rename.action = .{ .rename = try .init(if (i == 0) "renamed_kv" else "renamed_document") };
+        rename.action = .{ .rename = try .init(if (i == 0) "renamed_document_a" else "renamed_document_b") };
         _ = try resources.operation(rename, .admit, 1);
         const renamed = (try resources.operation(rename, .execute, 1)).operation;
         try t.expectEqual(.complete, renamed.phase);

@@ -126,6 +126,151 @@ This successor changes documentation only; the runtime source remains
 The formal, launcher, relational/connector interface and individual SDK language
 lanes were not run. These selected attempts do not establish complete CI or
 milestone qualification.
+## Stream/Queue declaration tokens — 2026-10-31
+
+Implementation `f0eed6628` adds immutable declaration bodies to database-owned
+caller tokens, replacing the definition with
+`ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655`.
+The [caller-token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+owns the exact scope. Token acceptance retains original Stream/Queue work;
+partition initialization and terminal settlement remain with the existing
+declaration owner. Commit `39a0e7f5e` also projects the owner's distinct admission
+response as pending SQL work rather than an invalid terminal result.
+
+The ReleaseSafe component run passes **210/210 Catalog**, **10/10 SQL**,
+**24/24 SQL results**, **22/22 SQL protocol**, **13/13 PostgreSQL** and
+**10/10 SQL service tests**, followed by **58 fast checks**, **19 contract
+checks** and the full handbook check. A final **14/14 Catalog** selection covers
+the integrated transaction buffer fix and the last route-mismatch assertions.
+The corrected SQL admission projection separately passes **10/10 tests**.
+These are workspace checks, not clean dependent lanes. Local outputs:
+
+| Output | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-intent-checks1.log` | `3e03aaa290cf58ebe8326dcacebadffaf659669288559b29eeba69a6b55cfe97` |
+| `/var/tmp/transit-m6-log-intent-integrated-catalog.log` | `96e5f3bc2252aa0a404cf2124b8d8375a1d58f10422b0081391acbfc57fec562` |
+| `/var/tmp/transit-m6-log-admission-terminal.log` | `0064aaf15715816241ea8486aa3127e451467e799956acb8c62a85b91cdfbefc` |
+
+At clean caller revision `41b9efa4287e4a1418a18c1b20e99ecf4e50d014`, the
+installed declaration schedule passes **31 signed requests**. It loses the
+Queue token-binding reply, kills and restarts the node, recovers the exact
+token while declaration admission is still absent, then loses the declaration
+admission reply and repeats the process death. Both Stream and Queue preserve
+their saved immutable bindings, complete two-partition publication and settle
+only after their original terminal observations. Native commands after setup
+are limited to authorization. No Station turn admits these declarations.
+
+The node was built from the parent declaration branch with matching native
+production sources and definition; the caller contains the added proof. Node
+SHA-256 is `1fe311f06b18605ef55e142ba0cbbe1d4d511eae2221c2bd3eab23e9487c00d9`,
+caller SHA-256 is `d8167fc2871a7cc3016a881b16faa8a5928c88e761bfcba1d0711e68a5bb7d95`.
+`/var/tmp/transit-m6-log-token-installed.log` has SHA-256
+`c0db08d85de5201ba5bd64a9dc8b844d5f317b2f02c31aab8a8e583879d1aa20`.
+With these same binaries and definition, installed Queue transfer (30 requests),
+mixed Table/KV/Stream/Queue (85) and Table/KV (33) recovery schedules also pass,
+each retaining original identities through two lost replies and two node restarts:
+
+| Output | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-current-log-queue-transfer.log` | `8bae319ce71f12a902024de07a7984f5e48867778eafca0d8c716481e91413cb` |
+| `/var/tmp/transit-m6-current-log-mixed-transaction.log` | `c7f3917db971de38399cf809f8e84009a41f63359dc056792378e459c200e951` |
+| `/var/tmp/transit-m6-current-log-state-transaction.log` | `cd193334e2fe534b029247dcc6d7a06e94746efd9fca350dcb5375ed229f9ae3` |
+
+An earlier fast run failed because the diagnostic inventory retained the
+pre-format spelling of the new definition identifier; the reviewed inventory
+was regenerated and the subsequent checks above pass. These results do not
+establish executable declaration SQL, automatic DLQ scheduling, Station
+composition, clean-lane qualification or a performance baseline.
+
+## Direct Table/KV transaction composition — 2026-10-31
+
+Implementation `4771f5698a9c960e83b26f6bac996e004548b2bd` extends explicit
+transactions to named direct KV using the existing Table workspace, retained
+cut and common-decision owners. Its shared definition is
+`959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d`.
+The [transaction reference](../../handbook/reference/sql/transactions.md) and
+[KV interface](../../../packages/zig/transit-catalog/docs/direct-kv.md) own the
+current scope. Stream/Queue transaction participation, DLQ, Station migration
+and performance remain open.
+
+`just test::direct-state-transaction` passed with clean source provenance at
+that revision. Its [installed caller](../../../tests/catalog/tables/direct_state_transaction.zig)
+and [fault driver](../../../tests/storage/tables/direct_table_service.py) made
+33 signed requests. Withheld replies for private statement 642012 and committed
+decision 642101 were followed by two node SIGKILL/restarts. The unchanged saved
+request recovered six 1 KiB KV values and one Table row, verified private KV
+read provenance, observed neither public change before commit and both after
+the original decision, and completed cleanup without allocating new identities.
+The emitted proof record reports node SHA-256
+`698b547193cd45078e03cb35325a85893a9a9a1d4e89f8ac4837bea556c91d11`
+and caller SHA-256
+`51c74be340431887d1e9c2f9b2113a1deba15322e9d5132df386cb328558b424`.
+
+Current-definition focused storage checks passed 15 tests in
+`/var/tmp/transit-m6-r5c-storage-current.log`. They include physical-disk KV
+preparation, common commit/abort decisions, lost replies, private savepoints,
+original statement identities and retained predecessor reads. The independent
+KV transaction signing fixture passed its three-test filtered run in
+`/var/tmp/transit-m6-r5c-signature-docs.log`, followed by a passing documentation
+site build. Fast checks (58) and contract checks (19) passed. Before the definition
+cutover, 37 filtered catalog transaction tests passed; the additional mixed
+Table/KV disk test passed separately with current-rights denial, private reads,
+commit/abort replacement and retained graph traversal. Those earlier component
+runs do not qualify the final definition's complete catalog suite. The subsequent
+current-definition full catalog run passed 197 tests in
+`/var/tmp/transit-m6-r5c-catalog-current.log`; it started before the separate
+signing fixture was added. The merged revision still requires clean qualification.
+
+The superseded clean core/storage runs for the neutral participant and named-KV
+branches were interrupted to consolidate qualification on the integrated
+revision. They are incomplete, not passed. `ab55b013b` integrates the current
+main branch and regenerates the combined lifecycle schema and native fixtures;
+clean integration qualification remains pending. No interrupted run or registered
+task establishes a completion claim.
+
+The earlier named Document growth phase was subsequently interrupted while
+consolidating disk-heavy checks. Its separate restart phase passed, but the
+139-object growth phase remains incomplete. The integrated storage lane must
+rerun it; neither the partial growth output nor the earlier restart pass
+qualifies that growth schedule.
+
+## Named direct KV cutover — 2026-10-31
+
+Implementation `cebc19fe7d1df0fb0ba1a376af74d1da79660d4a` moves named KV
+declarations and typed operations onto the database partition owner. The shared
+definition is `7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
+The [KV package reference](../../../packages/zig/transit-catalog/docs/direct-kv.md)
+owns its current behavior and limits; this record does not qualify mixed
+transactions, Station migration or performance.
+
+`zig build test-direct-kv -Doptimize=ReleaseSafe` passed at the clean source above.
+The installed proof made 39 requests and withheld replies for original operations
+641001 and 641002. Two SIGKILL/restarts preserved an eight-key mutation with
+1 KiB values and the original retained pin. Checks covered exact retry, owned
+read values across calls, replacement, current READ revocation, rename, DROP,
+retained reads after DROP and explicit pin release. The node SHA-256 was
+`15e31b5408a88d0d9300f91e93a003950133bbb7d45117180caf7d163d41a91c` and
+the caller SHA-256 was
+`ae86cfecd6c3de8ed3230d2f8e11d9909671d2f995a79db272ff718d192e87c7`.
+Raw output is `/var/tmp/transit-m6-r5b-native-kv-current.log`.
+
+The affected installed named Document proof passed with 107 typed catalog calls,
+eight withheld initialization-stage replies, four withheld dependency replies
+and eleven abrupt node replacements. It preserved saved declarations, original
+allocation, three-phase Document initialization, current data revocation,
+dependency recovery, DROP RESTRICT and original-edge closure. Its following
+139-object growth check is still running; the combined task is not yet a pass.
+Raw output is `/var/tmp/transit-m6-r5b-native-documents.log`.
+
+Local fast checks (58), contract checks (19), all independent fixture checks and
+the documentation site build passed. The full catalog suite initially passed
+194 of 196 tests. The two failures consumed a saved DDL fixture whose independent
+writer omitted the newly mandatory object kind from its hash.
+`2d2cd5c93` corrects that writer and regenerates the saved intent, host reference
+and client token. All 13 affected tests then passed in
+`/var/tmp/transit-m6-r5b-intent-final.log`; the original failure is retained in
+`/var/tmp/transit-m6-r5b-catalog.log`. Clean dependent-lane qualification remains
+pending. No failed or incomplete run is counted as passed.
 
 ## Bounded public Queue claim waits — 2026-10-31
 

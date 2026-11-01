@@ -128,6 +128,11 @@ fn create(parser: *Parser) !Create {
         try parser.requireWord("EXISTS");
     }
     const name = try parser.named(.proposed);
+    return columnDefinitions(parser, name, if_not_exists);
+}
+/// Shared logical column grammar. The caller owns its declaration keyword,
+/// name and policy clauses; no SQL text is rewritten into another object kind.
+pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool) !Create {
     try parser.require(.left);
     var columns: std.ArrayList(s.Column) = .empty;
     var explicit_null: [s.max_columns]bool = @splat(false);

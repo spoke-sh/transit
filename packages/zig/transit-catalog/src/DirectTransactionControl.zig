@@ -12,10 +12,10 @@ pub const State = struct {
     abort_requested: bool,
     workspace: ?W.Head,
     preparations: ?x.Directory,
-    prepared_after: ?u64,
+    prepared_after: ?c.storage.TransactionDirectory.Cursor,
     preparation_complete: bool,
     decision: ?x.Decision,
-    cleanup_after: ?u64,
+    cleanup_after: ?c.storage.TransactionDirectory.Cursor,
     cleanup_complete: bool,
 
     pub fn validate(self: State, progress: c.DirectClientToken.Progress) !void {

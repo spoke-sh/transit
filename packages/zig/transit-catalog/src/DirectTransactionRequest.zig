@@ -10,8 +10,8 @@ pub const Begin = struct {
     namespace: u64,
     mode: x.Mode,
     selection: union(enum) {
-        pub const json_schema_sequence_bounds = .{ .explicit_tables = 100_000 };
-        explicit_tables: []const u64,
+        pub const json_schema_sequence_bounds = .{ .explicit_objects = 100_000 };
+        explicit_objects: []const x.Target,
         authorized_catalog_tables,
     },
     limits: x.Limits,
@@ -23,14 +23,18 @@ pub const Begin = struct {
         try self.limits.validate();
         try self.budget.validate();
         if (std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
-        if (self.selection == .explicit_tables) {
-            const ids = self.selection.explicit_tables;
+        if (self.selection == .explicit_objects) {
+            const ids = self.selection.explicit_objects;
             if (ids.len > 100_000 or ids.len > self.limits.participants) return error.TransactionCapacity;
-            var previous: u64 = 0;
-            for (ids) |id| {
-                try c.Model.nativeId(id);
-                if (id <= previous) return error.InvalidTransactionBegin;
-                previous = id;
+            var previous: ?x.Target = null;
+            const identity: x.Identity = .{ .begin = self.operation, .branch = self.key.connection.branch };
+            for (ids) |target| {
+                try target.validate();
+                try identity.requireObject(target.object);
+                if (previous) |prior| {
+                    if (prior.order(target) != .lt or (prior.object.object == target.object.object and prior.kind != target.kind)) return error.InvalidTransactionBegin;
+                }
+                previous = target;
             }
         }
     }
@@ -42,6 +46,10 @@ pub const Request = union(enum) {
     acquire: c.DirectClientToken.Key,
     inspect: c.DirectClientToken.Key,
     stage: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTableIntent.Work },
+    stage_kv: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectKV.Mutation },
+    stage_log: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTransactionLogWork.Work, payload: ?c.DirectTableProtocol.Binary },
+    log_statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request, execute: bool },
+    log_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request },
     statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request, execute: bool },
     statement_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request },
     savepoint_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request },
@@ -52,7 +60,7 @@ pub const Request = union(enum) {
         return switch (self) {
             .begin => |value| value.key,
             inline .acquire, .inspect, .call_outcome => |value| value,
-            inline .stage, .statement, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
+            inline .stage, .stage_kv, .stage_log, .log_statement, .log_outcome, .statement, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
         };
     }
     pub fn validate(self: Request) !void {
@@ -67,7 +75,18 @@ pub const Request = union(enum) {
                 if (value.sequence == 0 or value.work == .ddl) return error.InvalidTransactionWork;
                 try value.key.connection.binding(value.work.binding());
             },
-            inline .statement, .statement_outcome => |value| {
+            .stage_kv => |value| {
+                try value.basis.validate();
+                if (value.basis.next_lsn == 0 or value.sequence == 0) return error.InvalidTransactionWork;
+                try value.key.connection.binding(value.work.binding);
+            },
+            .stage_log => |value| {
+                try value.basis.validate();
+                try value.work.validate();
+                if (value.basis.next_lsn == 0 or value.sequence == 0 or (value.work.appendPayload() != null) != (value.payload != null)) return error.InvalidTransactionWork;
+                try value.key.connection.owner(value.work.operation());
+            },
+            inline .statement, .statement_outcome, .log_statement, .log_outcome => |value| {
                 try value.request.validate();
                 try value.key.connection.owner(value.request.statement.transaction.begin);
             },
@@ -88,10 +107,10 @@ pub const Request = union(enum) {
         }
     }
     pub fn mutation(self: Request) bool {
-        return self != .inspect and self != .statement_outcome and self != .savepoint_outcome and self != .call_outcome;
+        return self != .inspect and self != .statement_outcome and self != .log_outcome and self != .savepoint_outcome and self != .call_outcome;
     }
     pub fn control(self: Request) bool {
-        return self == .call_outcome or (self == .call and self.call.control) or self == .inspect or self == .settle or self == .statement_outcome or self == .savepoint_outcome;
+        return self == .call_outcome or (self == .call and self.call.control) or self == .inspect or self == .settle or self == .statement_outcome or self == .log_outcome or self == .savepoint_outcome;
     }
 };
 pub const Result = union(enum) {
@@ -99,6 +118,8 @@ pub const Result = union(enum) {
     begun: c.DirectClientToken.Receipt,
     acquired: c.DirectTransaction.Acquired,
     staged: c.DirectTransactionWorkspace.Request,
+    staged_log: c.DirectTransactionLogWork.Request,
+    log_statement: ?c.DirectTransactionLogWork.Outcome,
     statement: ?c.storage.TableWorkspace.Outcome,
     status: c.DirectTransactionControl.Status,
     savepoint: c.DirectTransactionSavepoint.Result,
@@ -111,7 +132,9 @@ pub fn validateResult(request: Request, result: Result) !void {
         .begin => .begun,
         .acquire => .acquired,
         .inspect, .settle, .advance => .status,
-        .stage => .staged,
+        .stage, .stage_kv => .staged,
+        .stage_log => .staged_log,
+        .log_statement, .log_outcome => .log_statement,
         .statement, .statement_outcome => .statement,
         .savepoint_outcome => .savepoint_outcome,
         .savepoint => .savepoint,
@@ -131,10 +154,25 @@ pub fn validateResult(request: Request, result: Result) !void {
         },
         .staged => |value| {
             try value.validate();
-            try request.stage.work.binding().requireSame(value.binding);
-            if (!std.meta.eql(value.basis, request.stage.basis)) return error.InvalidTableResponse;
-            if (value.statement.sequence != request.stage.sequence) return error.InvalidTableResponse;
+            const binding = if (request == .stage) request.stage.work.binding() else request.stage_kv.work.binding;
+            const basis = if (request == .stage) request.stage.basis else request.stage_kv.basis;
+            const sequence = if (request == .stage) request.stage.sequence else request.stage_kv.sequence;
+            try binding.requireSame(value.binding);
+            if (!std.meta.eql(value.basis, basis)) return error.InvalidTableResponse;
+            if (value.statement.sequence != sequence) return error.InvalidTableResponse;
             try request.key().connection.owner(value.statement.transaction.begin);
+        },
+        .staged_log => |value| {
+            try value.validate();
+            if (!std.meta.eql(value.basis, request.stage_log.basis) or value.statement.sequence != request.stage_log.sequence or
+                !std.meta.eql(value.work, request.stage_log.work)) return error.InvalidTableResponse;
+            try request.key().connection.owner(value.statement.transaction.begin);
+        },
+        .log_statement => |outcome| {
+            const original = if (request == .log_statement) request.log_statement.request else request.log_outcome.request;
+            if (outcome) |value| {
+                try (c.DirectTransactionLogWork.Completed{ .request = original, .outcome = value }).validate();
+            } else if (request == .log_statement and request.log_statement.execute) return error.InvalidTableResponse;
         },
         .statement => |outcome| {
             const original = if (request == .statement) request.statement.request else request.statement_outcome.request;

@@ -1414,3 +1414,284 @@ test "queue partition terminal retention replay refuses removal of another live 
     try t.expectEqual(puts, objects.puts);
     try t.expect(!recovered.owner.ready);
 }
+
+test "log transaction queue cuts retain prior claims and distinguish physical from logical progress" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var configured = options;
+    configured.clock = clock.source();
+    var queue = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer queue.deinit() catch unreachable;
+    _ = try queue.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const batch = try request(&declared, 2, &bytes);
+    _ = try queue.enqueue(initial.declared, batch.append, batch.payload, policy.guard());
+    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const basis = queue.owner.root;
+    try t.expectEqual(basis.next_lsn, basis.changed_lsn);
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const pin = try queue.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    const original = try queue.inspectTransactionSource(pin, policy.guard());
+    try t.expectEqualDeep(basis, original.root);
+    while (!(try queue.flush(queue.owner.root.position(), policy.guard())).complete) {}
+    while (try queue.scheduleMaintenanceUnit(initial.declared, 16, policy.guard())) {}
+    try (try original.guard()).requireUnchanged(try s.LogTransaction.logGuard(queue.owner.root));
+    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    _ = try queue.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .ack }, policy.guard());
+    try t.expectEqual(queue.owner.root.next_lsn, queue.owner.root.changed_lsn);
+    try t.expectError(error.TransactionConflict, (try original.guard()).requireUnchanged(try s.LogTransaction.logGuard(queue.owner.root)));
+    try t.expectEqualDeep(basis, (try queue.inspectTransactionSource(pin, policy.guard())).root);
+    try queue.deinit();
+    queue = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try queue.recoverStep(policy.guard(), 2)).complete) {}
+    try t.expectEqualDeep(basis, (try queue.inspectTransactionSource(pin, policy.guard())).root);
+    try queue.releaseTransactionSource(pin, policy.guard());
+    try t.expectError(error.LogTransactionSourceReleased, queue.inspectTransactionSource(pin, policy.guard()));
+}
+
+test "log transaction private Queue evaluation composes enqueue and fenced ACK without settling input" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const first = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const basis = owner.owner.root;
+    const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    const before = owner.owner.root;
+    var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
+    defer actions.deinit();
+    const statement: p.Transaction.Statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(9) };
+    const added = try request(&declared, 3, &bytes);
+    try actions.put(.{ .statement = statement, .ordinal = 1, .action = .{ .append = added.append } }, added.payload);
+    try actions.put(.{ .statement = statement, .ordinal = 2, .action = .{ .queue_ack = .{ .operation = operation(21), .lease = lease, .action = .ack } } }, null);
+    const directory = try actions.seal();
+    const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
+    const evaluated = try owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard());
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    try t.expectEqual(@as(u64, 6), evaluated.root.next_offset);
+    try t.expectEqualDeep(clock.value, evaluated.observed);
+    try t.expect(evaluated.resident_peak != 0 and evaluated.resident_peak <= limits.resident_bytes);
+    var bitmap: s.BitmapDirectory = undefined;
+    const items = index(&owner, &bitmap);
+    const original = try items.item(before.queue.?, lease.offset);
+    try t.expectEqual(.acquired, try items.state(before.queue.?, original));
+    const settled = try items.item(evaluated.root.queue.?, lease.offset);
+    try t.expectEqual(.acked, try items.state(evaluated.root.queue.?, settled));
+    try t.expect(try owner.operation(operation(21), policy.guard()) == null);
+    clock.value = .exact(201);
+    try t.expectError(error.QueueLeaseExpired, owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(91));
+    clock.value = .exact(100);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(22), .lease = lease, .action = .ack }, policy.guard());
+    try t.expectError(error.TransactionConflict, owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+}
+
+test "log transaction terminal candidates reject standalone replay before reconstructing source state" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var destination_definition = support.definition(.queue);
+    destination_definition.object.object = 5;
+    destination_definition.schema.object = 5;
+    destination_definition.configuration.partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 };
+    var destination = try s.LogDeclaration.prepare(t.allocator, destination_definition);
+    defer destination.deinit();
+    const destination_stored = try s.LogDeclaration.stage(objects.objectStore(), &destination);
+    var source_definition = support.definition(.queue);
+    source_definition.configuration.partitioning = destination_definition.configuration.partitioning;
+    source_definition.configuration.policy.queue.dead_letter = destination_stored.declaration.interpretation;
+    var source = try s.LogDeclaration.prepare(t.allocator, source_definition);
+    defer source.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &source);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const input = try request(&source, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, input.append, input.payload, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    try t.expectEqual(@as(u64, 1), lease.offset);
+    _ = try owner.flush(owner.owner.root.position(), policy.guard());
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 8)).complete) {}
+    const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+    const basis = owner.owner.root;
+    const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    const before = owner.owner.root;
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "Beta" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
+    const payload = try s.LogBatch.encode(destination.definition.schema, operation(22), .queue, &.{.{ .cells = &cells }}, &bytes);
+    const transfer: p.Transaction.TerminalTransfer = .{ .operation = operation(21), .source = .{ .nack = lease }, .destination = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = destination_stored.declaration.interpretation, .partition = 0 }, .operation = operation(22), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } };
+    // A cold segment read borrows a tail slab before the same publication
+    // buffer is reused for the destination's encoding.
+    try owner.owner.validateTransferPayload(transfer, policy.guard());
+    var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
+    defer actions.deinit();
+    try actions.put(.{ .statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(9) }, .ordinal = 1, .action = .{ .queue_terminal = transfer } }, null);
+    const directory = try actions.seal();
+    const candidate = try owner.owner.evaluateTransaction(pin, directory, .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 }, null, policy.guard());
+    try t.expectEqualDeep(before, owner.owner.root);
+    const record: s.LogPartitionRecord.Record = .{ .definition = p.Growth.current_definition, .previous = owner.owner.commitment, .root = candidate.root, .action = .{ .operation = .{ .declared = initial.declared, .outcome = .{ .terminal = .{ .receipt = .{ .transfer = transfer, .accepted = candidate.root.position() }, .observed = clock.value.? } } } } };
+    try record.validate(before.next_lsn);
+    var encoded: [65536]u8 = undefined;
+    _ = try wal.log().append(91, before.next_lsn, 1, 1, record.frameKind(), try s.LogPartitionRecord.encode(record, &.{}, &encoded));
+    const puts = objects.puts;
+    try t.expectError(error.InvalidLogPreparation, owner.recoverStep(policy.guard(), 1));
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(before, owner.owner.root);
+}
+
+const TransactionVerification = struct {
+    owner: *Queue,
+    policy: *Policy,
+    time_check: ?s.LogTransaction.DecisionTime = null,
+    fn heldFence(raw: *anyopaque) !s.PublicationGuard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        return .{ .writer_epoch = self.policy.epoch, .policy_epoch = self.policy.epoch };
+    }
+    fn releaseHeld(_: *anyopaque) void {}
+    fn participant(raw: *anyopaque, selected: p.Transaction.Participant) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        try t.expect(selected == .log);
+        try selected.log.guard.requireUnchanged(try s.LogTransaction.logGuard(self.owner.owner.root));
+    }
+    fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        self.time_check = try self.owner.verifyPrepared(value, .{ .context = self, .acquire = heldFence, .release = releaseHeld });
+    }
+    fn beforeDecision(raw: *anyopaque) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        try self.owner.verifyDecisionTime(self.time_check orelse return error.MissingTransactionVerification);
+    }
+    fn callbacks(self: *@This()) s.TransactionDecisionLog.Verification {
+        return .{ .context = self, .participant = participant, .prepared = prepared, .before_decision = beforeDecision };
+    }
+};
+
+test "log transaction Queue decision rechecks live leases and recovers accepted ACK without a clock" {
+    for ([_]bool{ false, true }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var declared = try declaration();
+        defer declared.deinit();
+        var policy: Policy = .{};
+        var clock: Clock = .{};
+        var configured = options;
+        configured.clock = clock.source();
+        const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+        var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+        defer owner.deinit() catch unreachable;
+        _ = try owner.recoverStep(policy.guard(), 1);
+        var bytes: [8192]u8 = undefined;
+        const first = try request(&declared, 2, &bytes);
+        _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
+        const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+        const lease = try selectedLease(objects.objectStore(), claim, 0);
+        const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
+        const basis = owner.owner.root;
+        const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+        var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
+        defer actions.deinit();
+        const statement: p.Transaction.Statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(9) };
+        const added = try request(&declared, 3, &bytes);
+        try actions.put(.{ .statement = statement, .ordinal = 1, .action = .{ .append = added.append } }, added.payload);
+        try actions.put(.{ .statement = statement, .ordinal = 2, .action = .{ .queue_ack = .{ .operation = operation(21), .lease = lease, .action = .ack } } }, null);
+        const directory = try actions.seal();
+        const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
+
+        const fixtures = @import("transaction_test_support.zig");
+        var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), identity, .participants, 10, 1, 1024 * 1024);
+        defer selected.deinit();
+        try selected.put(.{ .participant = .{ .log = .{ .guard = try s.LogTransaction.logGuard(basis), .actions = directory } } });
+        const participants = try selected.seal();
+        var binding: s.TransactionDecisionLog.Binding = .{ .begin = fixtures.begin(participants), .attempt = fixtures.attempt(participants) };
+        binding.begin.identity = identity;
+        binding.begin.limits.resident_bytes = limits.resident_bytes;
+        binding.attempt.transaction = identity;
+        binding.attempt.operation.principal = identity.begin.principal;
+        var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);
+        try journal.recover();
+        try journal.freeze(policy.guard());
+        const prepared = try owner.prepareTransaction(binding, 99, try s.LogTransaction.logGuard(basis), pin, directory, limits, policy.guard());
+        var preparations = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), identity, .preparations, 10, 1, 1024 * 1024);
+        defer preparations.deinit();
+        try preparations.put(.{ .prepared = prepared });
+        const sealed = try preparations.seal();
+        var verify: TransactionVerification = .{ .owner = &owner, .policy = &policy };
+        var incomplete_checks = verify.callbacks();
+        incomplete_checks.before_decision = null;
+        try t.expectError(error.MissingTransactionVerification, journal.commit(sealed, incomplete_checks, policy.guard()));
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(99));
+        if (commit) {
+            _ = try journal.commit(sealed, verify.callbacks(), policy.guard());
+        } else {
+            // Time advances after the expensive prepare validation. The final
+            // callback must catch expiry before the decision can be appended.
+            clock.change = true;
+            clock.after = .exact(201);
+            try t.expectError(error.QueueLeaseExpired, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            clock.value = .{ .earliest_ms = 199, .latest_ms = 201 };
+            try t.expectError(error.QueueTimeUnavailable, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            clock.value = .exact(201);
+            try t.expectError(error.QueueLeaseExpired, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            try t.expectEqual(@as(u64, 1), try wal.log().tail(99));
+            _ = try journal.abort(policy.guard());
+        }
+        try t.expectError(error.TransactionPrepared, owner.observe(initial.declared, policy.guard()));
+        // Publication of an already accepted decision and its replay require no
+        // current clock. The decision's guarded lease check is durable authority.
+        clock.value = null;
+        const decision = (try owner.resolveTransaction(policy.guard())).?;
+        try t.expect((decision.outcome == .committed) == commit);
+        try t.expectEqual(@as(u64, if (commit) 6 else 3), (try owner.observe(initial.declared, policy.guard())).next);
+        var bitmap: s.BitmapDirectory = undefined;
+        const items = index(&owner, &bitmap);
+        const item = try items.item(owner.owner.root.queue.?, lease.offset);
+        try t.expectEqual(if (commit) s.Tack.State.acked else .acquired, try items.state(owner.owner.root.queue.?, item));
+        const final = owner.owner.root;
+        try owner.deinit();
+        owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+        while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+        try t.expectEqualDeep(final, owner.owner.root);
+        try t.expect((try owner.operation(operation(21), policy.guard()) != null) == commit);
+        try t.expect((try owner.operation(operation(3), policy.guard()) != null) == commit);
+    }
+}

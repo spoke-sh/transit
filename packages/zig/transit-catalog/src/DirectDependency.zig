@@ -21,8 +21,8 @@ pub const Dependent = struct {
 pub const Edge = struct {
     source: d.Definition,
     dependent: Dependent,
-    /// Required logical actions, checked at registration. Named KV/Document
-    /// sources accept SELECT only, mapped to native INSPECT/READ. This never
+    /// Required logical actions, checked at registration. KV sources use
+    /// KVAuthority privileges; Document SELECT maps to native INSPECT/READ. This never
     /// grants access; execution checks current policy independently.
     privileges: u64,
 

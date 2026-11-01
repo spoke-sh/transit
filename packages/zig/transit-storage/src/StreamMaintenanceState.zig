@@ -114,9 +114,9 @@ pub fn transition(before: anytype, after: anytype, action: anytype) !Self {
                     .append, .assignment, .offset => if (after.declared.declaration.configuration.policy == .stream) {
                         next.compaction_source_lsn = after.next_lsn;
                     },
-                    .read, .release, .claim, .settlement, .queue_release => {},
+                    .read, .release, .claim, .settlement, .terminal, .queue_release => {},
                 },
-                .flush, .expire => if (after.declared.declaration.configuration.policy == .stream) {
+                .flush, .expire, .transaction_commit => if (after.declared.declaration.configuration.policy == .stream) {
                     next.compaction_source_lsn = after.next_lsn;
                 },
                 .compaction_publish => |cut| {

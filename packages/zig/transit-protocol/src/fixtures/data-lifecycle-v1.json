@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+    "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+    "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
     "owner": {
       "scope": {
         "realm": 1,
@@ -489,7 +489,7 @@
     "not_observed": {}
   },
   "resource_initialization": {
-    "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+    "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
     "interpretation": {
       "object": {
         "scope": {
@@ -541,7 +541,7 @@
   },
   "transaction": {
     "begin": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "identity": {
         "begin": {
           "scope": {
@@ -555,8 +555,19 @@
         "branch": 1
       },
       "mode": "serializable",
-      "selection": "explicit_tables",
-      "tables": {
+      "selection": "explicit_objects",
+      "catalog": {
+        "partition": 3,
+        "next_lsn": 5
+      },
+      "limits": {
+        "resident_bytes": 65536,
+        "workspace_bytes": 1048576,
+        "participants": 10000,
+        "statements": 1000,
+        "savepoints": 32
+      },
+      "objects": {
         "content": {
           "bytes": 128,
           "sha256": [
@@ -595,22 +606,11 @@
           ]
         },
         "count": 2
-      },
-      "catalog": {
-        "partition": 3,
-        "next_lsn": 5
-      },
-      "limits": {
-        "resident_bytes": 65536,
-        "workspace_bytes": 1048576,
-        "participants": 10000,
-        "statements": 1000,
-        "savepoints": 32
       }
     },
     "cut": {
       "begin": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "identity": {
           "begin": {
             "scope": {
@@ -624,8 +624,19 @@
           "branch": 1
         },
         "mode": "serializable",
-        "selection": "explicit_tables",
-        "tables": {
+        "selection": "explicit_objects",
+        "catalog": {
+          "partition": 3,
+          "next_lsn": 5
+        },
+        "limits": {
+          "resident_bytes": 65536,
+          "workspace_bytes": 1048576,
+          "participants": 10000,
+          "statements": 1000,
+          "savepoints": 32
+        },
+        "objects": {
           "content": {
             "bytes": 128,
             "sha256": [
@@ -664,17 +675,6 @@
             ]
           },
           "count": 2
-        },
-        "catalog": {
-          "partition": 3,
-          "next_lsn": 5
-        },
-        "limits": {
-          "resident_bytes": 65536,
-          "workspace_bytes": 1048576,
-          "participants": 10000,
-          "statements": 1000,
-          "savepoints": 32
         }
       },
       "sources": {
@@ -834,7 +834,7 @@
     },
     "prepared": {
       "attempt": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "transaction": {
           "begin": {
             "scope": {
@@ -973,69 +973,65 @@
         "writes": 2,
         "last_statement": 3
       },
-      "object": {
-        "scope": {
-          "realm": 1,
-          "resource": 2,
-          "catalog": 3
-        },
-        "branch": 1,
-        "object": 42
-      },
       "predecessor": {
-        "source": {
-          "interpretation": {
-            "object": {
-              "scope": {
-                "realm": 1,
-                "resource": 2,
-                "catalog": 3
+        "state": {
+          "kind": "table",
+          "basis": {
+            "source": {
+              "interpretation": {
+                "object": {
+                  "scope": {
+                    "realm": 1,
+                    "resource": 2,
+                    "catalog": 3
+                  },
+                  "branch": 1,
+                  "object": 42
+                },
+                "revision": 1,
+                "digest": [
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5
+                ]
               },
-              "branch": 1,
-              "object": 42
+              "accepted": {
+                "partition": 9,
+                "next_lsn": 10
+              }
             },
-            "revision": 1,
-            "digest": [
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5,
-              5
-            ]
-          },
-          "accepted": {
-            "partition": 9,
-            "next_lsn": 10
+            "changed_lsn": 8
           }
-        },
-        "changed_lsn": 8
+        }
       },
       "position": {
         "partition": 9,
@@ -1077,12 +1073,25 @@
           11,
           11
         ]
+      },
+      "target": {
+        "object": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "branch": 1,
+          "object": 42
+        },
+        "kind": "table",
+        "partition": null
       }
     },
     "observation": {
       "decided": {
         "attempt": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "transaction": {
             "begin": {
               "scope": {
@@ -1269,11 +1278,342 @@
         "coordinator_epoch": 3,
         "policy_epoch": 7
       }
+    },
+    "log_action": {
+      "statement": {
+        "transaction": {
+          "begin": {
+            "scope": {
+              "realm": 1,
+              "resource": 2,
+              "catalog": 3
+            },
+            "principal": 0,
+            "operation": 18446744073709551615
+          },
+          "branch": 1
+        },
+        "sequence": 3,
+        "intent": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ]
+      },
+      "ordinal": 1,
+      "action": {
+        "append": {
+          "target": {
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 42
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
+            },
+            "partition": 0
+          },
+          "operation": {
+            "scope": {
+              "realm": 1,
+              "resource": 2,
+              "catalog": 3
+            },
+            "principal": 0,
+            "operation": 101
+          },
+          "kind": "queue",
+          "producer": null,
+          "rows": 1,
+          "payload": {
+            "bytes": 128,
+            "sha256": [
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4
+            ]
+          }
+        }
+      }
+    },
+    "terminal_receipt": {
+      "transfer": {
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "principal": 0,
+          "operation": 103
+        },
+        "source": {
+          "exhausted": {
+            "target": {
+              "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+              "interpretation": {
+                "object": {
+                  "scope": {
+                    "realm": 1,
+                    "resource": 2,
+                    "catalog": 3
+                  },
+                  "branch": 1,
+                  "object": 42
+                },
+                "revision": 1,
+                "digest": [
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5,
+                  5
+                ]
+              },
+              "partition": 0
+            },
+            "offset": 3,
+            "lease_epoch": 4,
+            "attempt": 2,
+            "not_before_ms": 100
+          }
+        },
+        "destination": {
+          "target": {
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 43
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
+            },
+            "partition": 0
+          },
+          "operation": {
+            "scope": {
+              "realm": 1,
+              "resource": 2,
+              "catalog": 3
+            },
+            "principal": 0,
+            "operation": 101
+          },
+          "kind": "queue",
+          "producer": null,
+          "rows": 1,
+          "payload": {
+            "bytes": 128,
+            "sha256": [
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4
+            ]
+          }
+        }
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 15
+      }
     }
   },
   "stream_queue": {
     "declaration": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "interpretation": {
         "object": {
           "scope": {
@@ -1387,7 +1727,7 @@
     "append": {
       "append": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -1517,7 +1857,7 @@
     },
     "producer": {
       "target": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "interpretation": {
           "object": {
             "scope": {
@@ -1594,7 +1934,7 @@
     "claim": {
       "claim": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -1721,7 +2061,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1799,7 +2139,7 @@
         },
         "lease": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1873,7 +2213,7 @@
     },
     "group_progress": {
       "target": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "interpretation": {
           "object": {
             "scope": {
@@ -1942,7 +2282,7 @@
         },
         "cut": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2000,7 +2340,7 @@
         },
         "expected": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2087,7 +2427,7 @@
         "coverage": {
           "cut": {
             "target": {
-              "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+              "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -2160,7 +2500,7 @@
     "read": {
       "request": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -2229,7 +2569,7 @@
       },
       "cut": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -2380,7 +2720,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2443,44 +2783,44 @@
         "complete": true
       },
       "authentication": [
-        0,
-        30,
-        117,
-        232,
-        3,
-        234,
-        82,
-        18,
-        51,
-        175,
-        102,
-        104,
-        252,
-        173,
-        16,
-        255,
-        222,
-        220,
-        8,
-        128,
-        84,
-        120,
-        134,
-        94,
-        244,
-        74,
-        167,
-        25,
-        174,
-        109,
+        149,
+        166,
+        81,
+        24,
+        106,
+        38,
         193,
-        22
+        48,
+        63,
+        37,
+        252,
+        51,
+        187,
+        227,
+        24,
+        224,
+        24,
+        130,
+        219,
+        183,
+        180,
+        209,
+        74,
+        10,
+        39,
+        70,
+        116,
+        41,
+        81,
+        56,
+        54,
+        40
       ]
     },
     "read_release": {
       "release": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -2596,7 +2936,7 @@
       "receipt": {
         "claim": {
           "target": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2718,7 +3058,7 @@
         "claim": {
           "claim": {
             "target": {
-              "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+              "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -2833,7 +3173,7 @@
     "queue_observation_basis": {
       "cut": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -2897,7 +3237,7 @@
     "queue_lease_observation": {
       "original": {
         "target": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -2967,12 +3307,13 @@
       "blocked": {
         "none": {}
       },
+      "blocked_after_ms": null,
       "liveness": "live"
     }
   },
   "document": {
     "declaration": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "interpretation": {
         "object": {
           "scope": {
@@ -3086,7 +3427,7 @@
       "mutation": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3283,7 +3624,7 @@
     "replica": {
       "target": {
         "partition": {
-          "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+          "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
           "interpretation": {
             "object": {
               "scope": {
@@ -3381,7 +3722,7 @@
       "checkpoint": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3503,7 +3844,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3621,7 +3962,7 @@
       "request": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3706,7 +4047,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3915,7 +4256,7 @@
         "cut": {
           "target": {
             "partition": {
-              "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+              "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -4036,45 +4377,45 @@
         "complete": true
       },
       "authentication": [
-        55,
-        65,
-        5,
+        224,
         218,
-        24,
-        190,
-        149,
-        145,
+        217,
+        1,
+        95,
+        88,
+        237,
+        19,
+        54,
+        153,
+        161,
+        245,
+        67,
+        204,
+        152,
+        223,
+        203,
+        128,
+        59,
+        130,
+        211,
+        204,
+        80,
+        115,
+        73,
+        231,
+        177,
+        76,
         185,
-        68,
-        107,
-        17,
         7,
-        68,
-        16,
-        41,
-        129,
-        46,
-        91,
-        111,
-        244,
-        157,
-        26,
-        71,
-        147,
-        70,
-        23,
-        9,
-        29,
-        53,
-        230,
-        81
+        51,
+        190
       ]
     },
     "read_release": {
       "release": {
         "target": {
           "partition": {
-            "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4208,7 +4549,7 @@
   },
   "branch": {
     "manifest": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "identity": {
         "scope": {
           "realm": 1,
@@ -4376,7 +4717,7 @@
       "generation": 103
     },
     "attempt": {
-      "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+      "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
       "operation": {
         "scope": {
           "realm": 1,
@@ -4580,7 +4921,7 @@
     },
     "validation": {
       "attempt": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "operation": {
           "scope": {
             "realm": 1,
@@ -4825,7 +5166,7 @@
     },
     "decision": {
       "attempt": {
-        "definition": "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6",
+        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
         "operation": {
           "scope": {
             "realm": 1,

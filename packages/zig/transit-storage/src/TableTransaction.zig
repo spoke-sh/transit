@@ -21,7 +21,7 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     coordination: u64,
     binding: Journal.Binding,
-    guard: x.TableGuard,
+    guard: x.StateGuard,
     predecessor: r.Root,
     workspace: @import("TableWorkspace.zig").State,
 
@@ -42,7 +42,7 @@ pub const Record = struct {
     pub fn prepared(self: Record, reference: Reference) !x.Prepared {
         try self.validate();
         try reference.validate();
-        return .{ .attempt = self.binding.attempt, .object = self.predecessor.interpretation.object, .predecessor = self.guard, .position = .{ .partition = self.predecessor.partition, .next_lsn = try std.math.add(u64, self.predecessor.next_lsn, 1) }, .successor = reference.content };
+        return .{ .attempt = self.binding.attempt, .target = target(self.predecessor), .predecessor = .{ .state = .{ .kind = if (self.predecessor.kind == .kv) .kv else .table, .basis = self.guard } }, .position = .{ .partition = self.predecessor.partition, .next_lsn = try std.math.add(u64, self.predecessor.next_lsn, 1) }, .successor = reference.content };
     }
 
     /// One aggregate Table acceptance belongs to the original commit operation.
@@ -52,8 +52,12 @@ pub const Record = struct {
     }
 };
 
-pub fn tableGuard(root: r.Root) x.TableGuard {
+pub fn tableGuard(root: r.Root) x.StateGuard {
     return .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn };
+}
+
+pub fn target(root: r.Root) x.Target {
+    return .{ .object = root.interpretation.object, .kind = if (root.kind == .kv) .kv else .table, .partition = null };
 }
 
 pub fn key(reference: Reference, output: *[96]u8) ![]const u8 {
@@ -107,7 +111,7 @@ pub fn decision(allocator: std.mem.Allocator, log: @import("TransitLog.zig").Log
         var directory = try @import("TransactionDirectory.zig").init(allocator, objects, record.binding.begin.identity, .preparations, record.binding.begin.limits.participants, 1, 1024 * 1024);
         defer directory.deinit();
         try directory.restore(result.prepared);
-        const entry = try directory.get(record.predecessor.interpretation.object.object) orelse return error.InvalidTransactionPreparation;
+        const entry = try directory.get(target(record.predecessor)) orelse return error.InvalidTransactionPreparation;
         if (!std.meta.eql(entry.prepared, try record.prepared(reference))) return error.InvalidTransactionPreparation;
     }
     return result;

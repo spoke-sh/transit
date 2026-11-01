@@ -35,6 +35,24 @@ pub const Request = struct {
             .insert, .update, .delete => {},
             else => return error.UnsupportedTableAction,
         }
+        if (self.interpretation.kind == .kv) {
+            if (self.binding.action != .insert or self.statement != null or self.changes.len == 0) return error.InvalidKVOperation;
+            for (self.changes, 0..) |change, ordinal| switch (change) {
+                .put => |value| {
+                    if (!std.meta.eql(value.row.identity, try insertIdentity(self.binding.identity, @intCast(ordinal)))) return error.InvalidInsertRowIdentity;
+                    if (value.row.cells.len != 2) return error.InvalidKVOperation;
+                    const key_cell = value.row.cells[0];
+                    if (key_cell != .value or key_cell.value != .atom or key_cell.value.atom != .bytes) return error.InvalidKVKey;
+                    const key_bytes = key_cell.value.atom.bytes;
+                    if (key_bytes.len == 0 or key_bytes.len > @import("KVPartition.zig").max_key_bytes) return error.InvalidKVKey;
+                    const cell = value.row.cells[1];
+                    if (cell == .value and cell.value == .atom and cell.value.atom == .bytes and cell.value.atom.bytes.len > @import("KVPartition.zig").max_value_bytes) return error.KVValueTooLarge;
+                },
+                .remove => {},
+                else => return error.InvalidKVOperation,
+            };
+            return;
+        }
         if (self.statement) |plan| {
             if (self.changes.len != 0 or self.ingestion != .bulk or self.binding.expected_data == null or
                 plan.action == .insert or !std.mem.eql(u8, @tagName(plan.action), @tagName(self.binding.action))) return error.InvalidTableStatementIntent;

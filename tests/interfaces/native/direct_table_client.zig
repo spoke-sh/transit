@@ -140,8 +140,8 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
             .definition = g.current_definition,
             .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
             .mode = .serializable,
-            .selection = .explicit_tables,
-            .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
+            .selection = .explicit_objects,
+            .objects = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
             .catalog = .{ .partition = profile.catalog.partition, .next_lsn = 1 },
             .limits = limits,
         } } },
@@ -150,7 +150,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
     const unaccepted = try client.call(.{ .client_token = .{ .lookup = quota.key } });
     defer unaccepted.deinit();
     try t.expect(unaccepted.value.result.client_token == null);
-    const intent: c.DirectCatalog.Intent = .{ .namespace = 1, .name = try .init("events"), .action = .{ .create = .{ .schema = schema, .owner = profile.role } } };
+    const intent: c.DirectCatalog.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("events"), .action = .{ .create = .{ .schema = schema, .owner = profile.role } } };
     const binding: d.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = profile.catalog.scope, .principal = 101, .operation = 1 }, .target = .{ .scope = profile.catalog.scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
     const admitted = try client.call(.{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = profile.role, .schema = try binarySchema(alloc) } } } });
     defer admitted.deinit();
@@ -804,6 +804,36 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
             try Growth.maintenance(client, profile.growth.?, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "kv-prepare")) {
+            try @import("fixture_direct_kv").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "state-transaction-prepare")) {
+            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}), false);
+        } else if (std.mem.eql(u8, args[2], "state-transaction-recover")) {
+            try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
+            try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "log-token-prepare")) {
+            try @import("fixture_direct_log_token").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "log-token-recover")) {
+            try @import("fixture_direct_log_token").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "log-token-verify")) {
+            try @import("fixture_direct_log_token").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-prepare")) {
+            try @import("fixture_direct_queue_transfer").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-recover")) {
+            try @import("fixture_direct_queue_transfer").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-verify")) {
+            try @import("fixture_direct_queue_transfer").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-prepare")) {
+            try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}), true);
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-recover")) {
+            try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "mixed-transaction-verify")) {
+            try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "kv-recover")) {
+            try @import("fixture_direct_kv").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "kv-verify")) {
+            try @import("fixture_direct_kv").verify(init, client, &admin, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-prepare")) {
             try @import("fixture_direct_queue").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-recover")) {

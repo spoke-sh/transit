@@ -15,12 +15,13 @@ pub const Context = struct {
         try self.validate();
         switch (action) {
             .lookup, .check, .check_set, .read_authority, .pin, .pin_status, .snapshot, .read_key, .scan, .column_scan, .filter_scan, .key_range, .release => {},
+            .kv => |value| if (value != .get or value.get.source != null) return error.UnsupportedTransactionRead,
             else => return error.UnsupportedTransactionRead,
         }
     }
 };
 
-pub fn view(context: Context, head: c.DirectTransactionWorkspace.Head, source: c.protocol.Transaction.TableGuard, state: c.storage.TableWorkspace.State) !c.protocol.Transaction.ReadView {
+pub fn view(context: Context, head: c.DirectTransactionWorkspace.Head, source: c.protocol.Transaction.StateGuard, state: c.storage.TableWorkspace.State) !c.protocol.Transaction.ReadView {
     try context.validate();
     try state.validate();
     if (!std.meta.eql(context.revision, head.revision) or !std.meta.eql(state.begin, head.acquired.cut.begin)) return error.TransactionReadChanged;

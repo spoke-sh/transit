@@ -8,7 +8,7 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const Self = @This();
 pub const magic = "GST1";
-kind: enum(u8) { ddl = 1, dml = 2, catalog_assertion = 3, namespace_change = 4 },
+kind: enum(u8) { ddl = 1, dml = 2, catalog_assertion = 3, namespace_change = 4, log_declaration = 5 },
 identity: [32]u8,
 resource: u64,
 principal: u64,
@@ -25,7 +25,7 @@ resulting_revision: u64 = 0,
 pub fn validate(self: Self) !void {
     if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or (self.object == 0 and self.kind != .catalog_assertion) or self.changed > self.matched or std.mem.allEqual(u8, &self.identity, 0)) return error.InvalidGatewayTerminal;
     if ((self.state == .rejected) != (self.reason != 0) or self.reason > 6) return error.InvalidGatewayTerminal;
-    if (self.kind == .namespace_change) {
+    if (self.kind == .namespace_change or self.kind == .log_declaration) {
         if (self.state == .unchanged or self.reason > 4 or self.partition == 0 or self.next_lsn == 0 or (self.state == .applied) != (self.resulting_revision != 0) or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
         return;
     }
@@ -45,6 +45,41 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
     if (reference == .external) return error.ExternalOperationOwnerRequired;
     if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
+    if (reference == .log) {
+        const evidence = switch (result) {
+            .log_admitted => |value| value,
+            .log_operation => |observed| switch (observed) {
+                .not_observed => return null,
+                .operation => |value| value,
+            },
+            else => return error.InvalidGatewayTerminal,
+        };
+        try evidence.validate();
+        const binding = reference.log.binding;
+        try binding.requireSame(evidence.binding);
+        if (evidence.kind != reference.log.kind or evidence.namespace != reference.log.namespace) return error.InvalidGatewayTerminal;
+        if (evidence.pending()) return null;
+        const value: Self = .{
+            .kind = .log_declaration,
+            .identity = try reference.digest(),
+            .resource = binding.identity.scope.resource,
+            .principal = binding.identity.principal,
+            .operation = binding.identity.operation,
+            .object = binding.target.object,
+            .state = switch (evidence.phase) {
+                .complete => .applied,
+                .rejected => .rejected,
+                .cancelled => .cancelled,
+                .admitted, .initializing => unreachable,
+            },
+            .reason = @backingInt(evidence.reason),
+            .partition = evidence.position.partition,
+            .next_lsn = evidence.position.next_lsn,
+            .resulting_revision = if (evidence.phase == .complete) evidence.resulting.?.stored.declaration.interpretation.revision else 0,
+        };
+        try value.validate();
+        return value;
+    }
     if (reference == .namespace_change) {
         if (result != .namespace_operation) return error.InvalidGatewayTerminal;
         const evidence = switch (result.namespace_operation) {
@@ -169,6 +204,7 @@ pub fn completion(self: Self, command: g.results.Command, operation: g.results.O
         .create_table, .drop_table => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
         .alter_table => .ddl,
         .create_schema, .alter_schema, .drop_schema => .namespace_change,
+        .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .log_declaration,
         else => return error.InvalidGatewayTerminal,
     };
     if (self.kind != expected) return error.InvalidGatewayTerminal;
@@ -187,6 +223,33 @@ pub fn completion(self: Self, command: g.results.Command, operation: g.results.O
     };
     try result.validate();
     return result;
+}
+
+test "log declaration projection preserves pending and rejected original evidence" {
+    const t = std.testing;
+    const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const binding: d.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 55 }, .target = .{ .scope = scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(9) };
+    const reference: g.IntentReference.Reference = .{ .log = .{ .connection = connection, .namespace = 1, .kind = .queue, .binding = binding, .record = .{ .scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(8) }, .format = c.DirectLogIntent.format, .content = .{ .bytes = 100, .sha256 = @splat(4) } } } };
+    var evidence: c.DirectLog.Operation = .{ .binding = binding, .intent = .{ .bytes = 100, .sha256 = @splat(5) }, .kind = .queue, .namespace = 1, .name = try .init("work"), .owner = 0, .position = .{ .partition = 1, .next_lsn = 8 }, .phase = .admitted, .reason = .none, .first_partition = 11, .partition_count = 2, .initialized = 0, .resulting = null };
+    try t.expect(try fromReference(reference, .{ .log_operation = .not_observed }) == null);
+    try t.expect(try fromReference(reference, .{ .log_operation = .{ .operation = evidence } }) == null);
+    try t.expect(try fromReference(reference, .{ .log_admitted = evidence }) == null);
+    evidence.phase = .rejected;
+    evidence.reason = .name_conflict;
+    const terminal = (try fromReference(reference, .{ .log_operation = .{ .operation = evidence } })).?;
+    try t.expectEqualDeep(terminal, (try fromReference(reference, .{ .log_admitted = evidence })).?);
+    try t.expectEqual(.rejected, terminal.state);
+    const completion_value = try terminal.completion(try g.IntentReference.commandKind(reference), .{ .account = @splat(8), .id = 99 });
+    try t.expectEqual(.create_queue, completion_value.kind);
+    try t.expectEqual(.rejected, completion_value.outcome);
+    try t.expectEqual(@as(u64, 0), terminal.resulting_revision);
+    try t.expectError(error.InvalidGatewayTerminal, terminal.completion(.create_table, completion_value.operation.?));
+    evidence.kind = .stream;
+    try t.expectError(error.InvalidGatewayTerminal, fromReference(reference, .{ .log_operation = .{ .operation = evidence } }));
+    evidence.kind = .queue;
+    evidence.binding.identity.operation += 1;
+    try t.expectError(error.DataIdentityConflict, fromReference(reference, .{ .log_operation = .{ .operation = evidence } }));
 }
 
 test "command projection preserves matched and changed counts and the SQL identity" {

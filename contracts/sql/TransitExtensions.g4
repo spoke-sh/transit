@@ -73,7 +73,7 @@ relationalSelection
 relationalTarget: identifier relationalAlias?;
 relationalAlias: AS identifier | relationalImplicitAlias;
 // Clause words cannot consume the next join/group token as an implicit alias.
-relationalImplicitAlias: legacyIdentifier | BY;
+relationalImplicitAlias: legacyIdentifier | STREAMS | QUEUES | BY;
 relationalJoin: (INNER | LEFT OUTER?)? JOIN relationalTarget ON columnReference EQ columnReference;
 
 // Boolean predicates and a projection bounded by the declared schema at compile time.
@@ -133,6 +133,9 @@ extensionStatement
     | createTable
     | alterTable
     | dropTable
+    | createLog
+    | alterLog
+    | dropLog
     | createDocument
     | createKv
     | grantStatement
@@ -143,6 +146,16 @@ extensionStatement
     | describeStatement
     | explainStatement
     ;
+
+// Dedicated log declarations share logical columns, never Table DML semantics.
+createLog: CREATE logKind identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+    logPartitioning? (WITH logOptions)?;
+alterLog: ALTER logKind identifier (SET logOptions | RENAME TO identifier);
+dropLog: DROP logKind identifier;
+logKind: STREAM | QUEUE;
+logPartitioning: (PARTITION BY HASH LPAREN identifier RPAREN)? PARTITIONS INTEGER;
+logOptions: LPAREN logOption (COMMA logOption)* RPAREN;
+logOption: identifier EQ literal;
 
 // CREATE CONNECTION kafka_conn TO HTTP (endpoint = 'https://...', token = SECRET('...'));
 createConnection
@@ -257,9 +270,9 @@ privilege
 // ALL and bare STORAGE are contextual identifiers parsed by settingKey;
 // execution reserves them for settings listing and node storage inspection.
 showStatement
-    : SHOW (catalogKind | settingKey | STORAGE FOR identifier)
+    : SHOW (catalogKind | settingKey | STORAGE FOR identifier | logKind identifier)
     ;
-settingKey: identifier (DOT identifier)*;
+settingKey: settingIdentifier (DOT identifier)*;
 sessionSettingStatement
     : SET settingKey (EQ | TO) (STRING | INTEGER | DEFAULT)
     | RESET settingKey
@@ -274,6 +287,8 @@ configurationSelect
 
 catalogKind
     : TABLES
+    | STREAMS
+    | QUEUES
     | DATABASES
     | SCHEMAS
     | SOURCES
@@ -282,7 +297,7 @@ catalogKind
     ;
 
 describeStatement
-    : DESCRIBE identifier
+    : DESCRIBE logKind? identifier
     ;
 
 explainStatement
@@ -299,7 +314,8 @@ asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
-identifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
+identifier: settingIdentifier | STREAMS | QUEUES;
+settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     | INSERT | UPDATE | DELETE | SET | VALUES
@@ -312,10 +328,18 @@ legacyIdentifier
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
+    | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     ;
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';
+STREAM: 'STREAM';
+QUEUE: 'QUEUE';
+STREAMS: 'STREAMS';
+QUEUES: 'QUEUES';
+PARTITION: 'PARTITION';
+PARTITIONS: 'PARTITIONS';
+HASH: 'HASH';
 START: 'START';
 TRANSACTION: 'TRANSACTION';
 WORK: 'WORK';

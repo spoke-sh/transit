@@ -95,7 +95,7 @@ pub fn growthRecover(client: c.DirectTableClient, admin: anytype, state: GrowthS
 
 fn create(client: c.DirectTableClient, role: u64, object: u64, operation_id: u64) !d.Definition {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: c.DirectCatalog.Intent = .{ .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = role } } };
+    const intent: c.DirectCatalog.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = role } } };
     const binding: d.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation_id }, .target = .{ .scope = client.connection.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(client.allocator) };
     var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
     const encoded = try w.Binary.encode(client.allocator, try schema.encode(&bytes));
@@ -131,7 +131,7 @@ pub fn prepare(client: c.DirectTableClient, admin: anytype, role: u64) !State {
     var removal = registration;
     removal.operation = 70002;
     removal.action = .remove;
-    const intent: c.DirectCatalog.Intent = .{ .namespace = 1, .name = try .init(name), .action = .drop };
+    const intent: c.DirectCatalog.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(name), .action = .drop };
     const blocked_drop: d.Binding = .{
         .definition = p.Growth.current_definition,
         .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 70003 },

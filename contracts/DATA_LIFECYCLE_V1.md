@@ -34,8 +34,8 @@ do not enable interactive SQL or change existing Table acceptance records.
 The neutral local profile names one catalog and branch one. `Identity.begin`
 is the original caller operation, independent of a SQL session, worker, name or
 storage epoch. `Begin` freezes the mode (`serializable` or `read_only`), selected
-Table directory, catalog name/definition observation and admitted limits.
-`explicit_tables` and `authorized_catalog_tables` distinguish the scope: a
+object/partition directory (`objects`), catalog name/definition observation and
+admitted limits. `explicit_objects` and `authorized_catalog_tables` distinguish the scope: a
 filtered authorized directory makes no claim about inaccessible Tables. The
 directory is immutable and paged, with an explicit count and content commitment;
 that count is not a resident array capacity. A later statement cannot extend it.
@@ -49,7 +49,15 @@ entry, durably retain WAL-inclusive cuts under ordered participant guards and
 publish the complete descriptor before releasing them. Interrupted acquisition
 cannot be returned as a complete cut.
 
-`TableGuard` binds the exact interpretation, accepted partition frontier and
+`Target` binds the stable scoped object, data kind and logical partition ordinal.
+Tables, KV and Documents require a null ordinal; Streams and Queues require an
+explicit ordinal, including zero. An ordinal is not a physical WAL partition ID.
+Directories order by object then ordinal, with state's null ordinal first. A
+single object cannot occur with different kinds. Exact retries preserve the
+whole target; a name change cannot retarget it. The installed Table-only SQL
+selection remains Table-only.
+
+`StateGuard` binds the exact interpretation, accepted partition frontier and
 last logical-change frontier. Its `source` is a logical comparison basis, not a
 `SourceCut` or a promise to retain contiguous WAL/history. The acquired source
 directory separately binds the exact snapshot pin that retains the Table state
@@ -64,12 +72,56 @@ provide isolation. Name/definition directory validation remains a separate
 coordinator obligation. Read-only transactions retain their original cut and
 do not require that it remain the latest data version.
 
-`Participant` reserves three categories: state guards/mutations, log appends and
-consumer/lease settlements. `requireLocalTable` accepts only Table state entries
-and rejects writes in read-only mode. Native KV/Document, Stream/Queue and native
-consumer participants remain unsupported. Typed outbox and checkpoint rows use
-ordinary Table mutations; an outbox record does not establish external delivery.
+`LogGuard` binds the kind, exact partition definition, retained offset range,
+physical acceptance and logical-change frontier. Append, group progress, claims
+and settlements are logical changes. A changed range, interpretation, ordinal,
+logical frontier or regressed physical frontier conflicts. An acquired `Pin`
+retains its owner's exact basis; the common `{owner, content}` descriptor does
+not establish a live pin without owner verification. Native log participants
+retain and release these pins through their owning partition.
+
+`Participant` groups state guards/mutations and log work by physical owner. A
+log participant's optional `actions` is an immutable paged directory: null means
+a read dependency; a present directory is nonempty. One Queue partition's ACK
+and enqueue share this directory, one successor and one preparation. The write
+count counts owners, not actions. `requireLocalTable` restricts SQL selection to
+Table entries. `requireLocalState` accepts Table and direct KV state entries;
+both reject writes in read-only mode. The native catalog composes Table/direct KV
+state with Stream/Queue append and settlement participants. Document and the
+legacy Station turn remain outside this transaction profile. An outbox record
+does not establish external delivery.
 No variant supplies authorization or a new storage owner.
+
+`LogAction` binds a statement and positive ordinal to an append, Stream offset
+commit, Queue ACK or Queue terminal transfer. Action directories order by
+`(statement.sequence, ordinal)`; the owner checks ordered ordinals, unique
+operation identities and the frozen statement commitment. Append batches retain
+their original payload and producer binding. Offset commits retain exact issued
+coverage and group generation; ACK retains the exact live lease receipt and
+cannot substitute NACK or renewal. Current authority, coverage issuance and
+lease liveness are publication checks, never conclusions of shape validation.
+
+`TerminalTransfer` distinguishes worker NACK with a live receipt from maintenance
+of an exhausted item with its recorded offset, epoch, attempt and visibility or
+expiry deadline. Maintenance verifies exhaustion against the recorded Queue
+policy and trusted time under the decision guard; it cannot manufacture a live
+ACK from an expired receipt. The source terminal action names the exact Queue
+destination append, definition and payload commitment. The transaction owner
+must find that append in the same decision and verify the source payload and
+destination schema. Self-transfer, mismatched principals, shared source/destination
+operation IDs and non-single-item destination batches reject. A denied or full
+destination leaves the source nonterminal. The native catalog exposes the paired
+transfer through [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
+The destination mirror contains the same transfer and statement, with source
+ordinal one and destination ordinal two. An ordinary append cannot substitute
+for that mirror. The source's `TerminalReceipt` is original committed evidence;
+private evaluation summaries are separate provisional results.
+
+Action staging reserves no logical offsets. Log preparation freezes a private
+successor behind the owner's barrier; public traversal cannot cross an unresolved
+preparation. The owning partition resolves only the actual common decision,
+preserving its predecessor on abort and publishing its successor on commit.
+These pure types describe that evidence; their validators do not execute it.
 
 `Statement` has a transaction identity, nonzero sequence and frozen intent
 digest. Savepoint rollback may restore workspace state but cannot reuse a
@@ -82,8 +134,9 @@ outside this profile; their exclusion must never cause an implicit commit.
 complete participant directory, write count and final statement sequence. It
 has the same scope/principal as begin and a different operation ID. `requireSame`
 compares every field; lost replies cannot authorize a replacement operation or
-freshly compiled work. `Prepared` binds one exact Table predecessor, successor
-content and participant WAL position to that attempt. Its position belongs to
+freshly compiled work. `Prepared` binds one exact `target`, kind-specific `Guard`
+predecessor, successor content and participant WAL position to that attempt.
+Target kind/object/ordinal must agree with the predecessor. Its position belongs to
 the predecessor partition and advances its accepted frontier.
 
 `Decision` records committed or aborted, the exact attempt, prepared-directory
@@ -309,7 +362,7 @@ operation. Staging failure must preserve admitted work and its recovery identity
 ## Native resource initialization
 
 `ResourceInitialization` binds an initial named-resource interpretation to its
-actual native resource and kind (`kv = 1`, `document = 2`). It requires the current
+actual native resource and kind (`document = 2`). The removed KV kind is rejected. It requires the current
 shared definition, branch one, interpretation revision one and a valid native
 resource ID. Its native key is the three bytes `00 4e 4c`. The fixed 125-byte value
 is `NSI1`, the 32 definition bytes, six big-endian unsigned 64-bit fields (realm,
@@ -318,7 +371,7 @@ interpretation digest, one kind byte and the big-endian native resource ID.
 Truncation, trailing bytes, unknown kind and foreign definitions are rejected.
 
 The Station owner uses a separate exact reservation under `00 4e 50` with the
-same encoding. A KV reservation and completion share one native commit. Document
+same encoding. Only Document uses this native initialization marker. Document
 creation has separate reservation, actual service initialization and completion
 turns. The marker asserts initialization by the authorized writer; parsing it
 does not establish current access, lifetime or honest computation. The catalog

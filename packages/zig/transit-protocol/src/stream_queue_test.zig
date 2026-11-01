@@ -81,6 +81,8 @@ test "queue claim cursors separate original selection from current lease observa
     observed.blocked = .exhausted;
     try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
     observed.state = .available;
+    try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));
+    observed.blocked_after_ms = 1000;
     try observed.requireBasis(basis, original);
     basis.cut.accepted.next_lsn = original.accepted.next_lsn - 1;
     try t.expectError(error.InvalidQueueObservation, observed.requireBasis(basis, original));

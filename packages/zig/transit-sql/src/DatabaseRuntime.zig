@@ -305,7 +305,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
         return false;
     }
     const absent = switch (observed.value.result) {
-        inline .ddl, .rows, .name_assertion, .namespace_operation => |value| value == .not_observed,
+        inline .ddl, .rows, .name_assertion, .namespace_operation, .log_operation => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
     const response = try if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
@@ -398,7 +398,7 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     };
     defer intent.deinit();
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
-    const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace });
+    const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace, self.execution.configuration.account });
     const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = expected_fingerprint orelse try reference.digest(), .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
     // A lost bind response can leave work accepted even without an observed ID.
     errdefer self.notify();

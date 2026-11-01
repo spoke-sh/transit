@@ -107,15 +107,61 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The installed worker rotation and durable Table branch cutovers use the shared
-definition `04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6`.
-Catalog roots require branch identity, name and retention-owner directories;
-typed branch operations share the original client-token decision owner.
-Installation records require per-worker enrollment receipts and the last accepted
-public key. Restart conditionally rotates that key and ownership without
-re-granting permissions. Earlier installations cannot synthesize these fields;
-they reject before starting authority. Earlier checkpoints, signed requests and
-histories reject rather than being silently
+The current shared definition is
+`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`.
+It binds direct KV, mixed state/log transactions and frozen Stream/Queue
+declaration intents together with retained Table branches and installed worker
+rotation. Catalog roots require branch identity, name and retention-owner
+directories; typed branch operations share the original client-token decision
+owner. Installation records require per-worker enrollment receipts and the last
+accepted public key. Restart conditionally rotates that key and ownership
+without re-granting permissions. Earlier installations cannot synthesize these
+fields and reject before starting authority.
+
+Caller-token records now carry an explicit log-declaration reference and its
+account-scoped immutable body. The saved body requires the current definition;
+schema, policy, limits and original operation cannot be reconstructed from a
+current name. Shared statement commands distinguish Stream/Queue declarations,
+and terminal projections verify their original kind and namespace. Older token
+records and result definitions are rejected rather than reinterpreted.
+Log partition records and recovery baselines require explicit logical-change,
+transaction-pin and preparation-reference fields. Immutable transaction sources
+bind the exact old root and original begin identity; earlier log roots cannot
+acquire these fields from current defaults. Log preparations now bind exact
+predecessor/successor roots and action directories; commit/abort records resolve
+only an actual shared decision. Earlier root and preparation formats reject.
+The public catalog accepts explicit Stream/Queue partition read dependencies
+and private append/offset/ACK statements under the common-cut and original-decision
+lifecycle. Workspace and savepoint records require their log action directory;
+pending and completed statements distinguish state and log work. Permanent log
+operation reservations bind the complete frozen request. Earlier builds that
+cannot interpret that accepted work reject under the replaced definition.
+
+Queue items and lease observations require explicit nullable `blocked_after_ms`;
+blocked items retain the accepted exhaustion time without a current-clock default.
+Transaction log work adds paired terminal-transfer actions and source receipts.
+The source and destination share one statement and common decision; source
+terminalization cannot be replayed as a standalone operation. Permanent log
+reservations require an operation-specific observation digest, including the
+destination append's identity. Earlier workspaces, operation reservations and
+Queue formats reject under this definition rather than acquiring these semantics.
+
+Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
+partitions, typed direct requests and KV policy; the native resource declaration
+and initialization marker accept Document only. Earlier named KV artifacts,
+requests and marker kinds are rejected, without adoption or fallback decoding.
+Native private Station state retains its own resource contract. Typed transaction
+staging now accepts KV batches and KV reads require a nullable private-workspace
+field. Earlier stored intents and responses reject under this definition.
+
+Transaction selection, kind-specific guards, prepared evidence and paged
+directory keys now bind logical owner partitions. Stream/Queue actions share one
+preparation per partition. Storage components implement their preparation and
+resolution; public transaction execution accepts Table/KV mutations and
+Stream/Queue append, offset and ACK work with their retained read dependencies.
+Browser placement, retained configuration and typed request resources remain
+definition-bound. Earlier
+checkpoints, signed requests and histories reject rather than being silently
 extended or interpreted with new defaults. Preserve old storage and resolve
 accepted work with its matching build. This change provides no in-place import
 of an earlier definition. Replacements of the same current definition retain

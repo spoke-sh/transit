@@ -26,6 +26,14 @@ forward publication decisions. Its [contract](../../../contracts/BRANCH_V1.md)
 separates neutral validation from retained cuts, current authority and atomic
 catalog publication. These types do not enable multi-branch service execution.
 
+[`Transaction`](src/Transaction.zig) freezes explicit scoped object/partition
+targets and kind-specific state/log guards. Appends and settlements for one log
+partition share an action directory and one preparation. Its neutral membership
+and terminal-transfer types describe evidence without executing it. The native
+catalog owns log participation and paired DLQ publication; the
+[transaction contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
+states its owner and publication obligations.
+
 [`IndexLifecycle`](src/IndexLifecycle.zig) supplies offline index declarations,
 build identities, exact source coverage and conditional publication bindings.
 Its [contract](../../../contracts/INDEX_LIFECYCLE_V1.md) pins column comparison

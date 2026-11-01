@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6"
+definition = "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -170,7 +170,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     dependency_fixture = {"request": dependency_request, "public_key": public_key, "edge_digest": list(edge_digest)}
     resource_create = {"namespace": 1, "name": {"len": 6, "bytes": [*b"values", *([0] * 57)]}, "owner": 19, "writer": 17,
                        "owned": False, "deadline_ms": None, "history_ms": None,
-                       "spec": {"kv": {"value_type": "int64", "nullable": False, "key_encoding": "native_bytes", "value_encoding": "fvl1"}}}
+                       "spec": {"document": {"document": 91, "type_revision": 1, "limits": {"record_bytes": 4096, "staging_bytes": 16384, "staging_records": 4}}}}
     resource_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1,
                         "object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2},
                         "expected": None, "action": {"create": resource_create}}
@@ -198,6 +198,28 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     log_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_input)).digest())}
     log_request = {**log_input, "proof": {"claim": log_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_claim)).digest())}}
     log_fixture = {"request": log_request, "public_key": public_key, "intent_digest": list(log_digest)}
+
+    kv_intent = {"kind": "kv", "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    # DDL intent hashing uses the native canonical representation: fixed u8
+    # arrays are strings, including all zero padding. The signed wire request
+    # independently uses public JSON arrays for those same names.
+    kv_digest_intent = copy.deepcopy(kv_intent)
+    kv_digest_intent["name"]["bytes"] = bytes(kv_intent["name"]["bytes"]).decode()
+    kv_digest_intent["action"]["rename"]["bytes"] = bytes(kv_intent["action"]["rename"]["bytes"]).decode()
+    kv_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(kv_digest_intent)).digest()
+    kv_binding = {**log_binding, "intent": list(kv_digest)}
+    kv_declaration = {"binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    def signed_kv(action):
+        envelope = {**request_input, "action": action}
+        selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(envelope)).digest())}
+        return {**envelope, "proof": {"claim": selected_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
+    kv_declaration_request = signed_kv({"kv_declaration": {"declaration": kv_declaration, "command": "admit", "steps": 1}})
+    kv_changes = [{"remove": {"base64": base64.b64encode(b"\0key").decode()}}]
+    kv_mutation_digest = hashlib.sha256(b"transit.kv.mutation.v1\0" + canonical(kv_changes)).digest()
+    kv_mutation = {"binding": {**kv_binding, "action": "insert", "intent": list(kv_mutation_digest)}, "changes": kv_changes}
+    kv_mutation_request = signed_kv({"kv": {"mutate": kv_mutation}})
+    kv_fixture = {"declaration": kv_declaration_request, "mutation": kv_mutation_request, "public_key": public_key,
+                  "intent_digest": list(kv_digest), "mutation_digest": list(kv_mutation_digest)}
 
     stream_work = {"consume": {
         "target": {"definition": definition, "interpretation": source_definition, "partition": 1},
@@ -283,6 +305,16 @@ for columns in ("abc", [0] * 129):
 validator.validate(dependency_request)
 validator.validate(resource_request)
 validator.validate(log_request)
+validator.validate(kv_declaration_request)
+validator.validate(kv_mutation_request)
+for field in ("binding", "namespace", "name", "action"):
+    invalid = copy.deepcopy(kv_declaration_request)
+    del invalid["action"]["kv_declaration"]["declaration"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("binding", "changes"):
+    invalid = copy.deepcopy(kv_mutation_request)
+    del invalid["action"]["kv"]["mutate"][field]
+    assert not validator.is_valid(invalid), field
 validator.validate(stream_request)
 validator.validate(queue_request)
 validator.validate(queue_wait_request)
@@ -349,6 +381,8 @@ def persist(path, content):
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-branch-v1.json",
         (json.dumps(branch_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-kv-v1.json",
+        (json.dumps(kv_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",
@@ -381,7 +415,7 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-resource-v1.jso
 
 # The native catalog intent uses its fixed 63-byte UTF-8 Name representation;
 # the saved envelope uses the public JSON writer's exact array representation.
-native_intent = {"namespace": 1, "name": {"len": 6, "bytes": "events" + "\0" * 57}, "action": {"drop": {}}}
+native_intent = {"kind": "table", "namespace": 1, "name": {"len": 6, "bytes": "events" + "\0" * 57}, "action": {"drop": {}}}
 intent_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(native_intent)).digest()
 target = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
 binding = {
@@ -434,13 +468,45 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 
+# A log declaration token commits to its complete canonical saved body before
+# declaration admission. Content, account and the original binding are explicit.
+saved_log = {"definition": definition, "connection": request_input["connection"], "work": log_input["action"]["log_admit"]}
+saved_log_bytes = canonical(saved_log)
+saved_log_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SavedLogIntent"})
+saved_log_validator.validate(saved_log)
+for field in ("definition", "connection", "work"):
+    invalid = copy.deepcopy(saved_log)
+    del invalid[field]
+    assert not saved_log_validator.is_valid(invalid), field
+invalid = {**saved_log, "definition": "0" * 64}
+assert not saved_log_validator.is_valid(invalid)
+log_reference = {"connection": request_input["connection"], "namespace": 1, "kind": "queue", "binding": log_binding,
+                 "record": {"scope": {"definition": definition, "connection": request_input["connection"], "account": token_key["account"]},
+                            "format": 0x4c444c31, "content": {"bytes": len(saved_log_bytes), "sha256": list(hashlib.sha256(saved_log_bytes).digest())}}}
+log_reference_digest = hashlib.sha256(b"transit.catalog.log.binding.v1\0" + b"GIR1" + bytes.fromhex(definition) + canonical({"log": log_reference})).digest()
+log_token_binding = {**token_binding, "intent": {"log": log_reference}}
+log_token_input = {**request_input, "action": {"client_token": {"bind": log_token_binding}}}
+log_token_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_token_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-log-token-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    log_token_request = {**log_token_input, "proof": {"claim": log_token_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_token_claim)).digest())}}
+validator.validate(log_token_request)
+for field in ("connection", "namespace", "kind", "binding", "record"):
+    invalid = copy.deepcopy(log_token_request)
+    del invalid["action"]["client_token"]["bind"]["intent"]["log"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.json",
+        (json.dumps({"request": log_token_request, "public_key": public_key, "bytes": {"base64": base64.b64encode(saved_log_bytes).decode()},
+                     "digest": list(log_reference_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.
 transaction_begin = {
     "definition": definition,
     "identity": {"begin": binding["identity"], "branch": 1},
-    "mode": "serializable", "selection": "explicit_tables",
-    "tables": {"content": {"bytes": 512, "sha256": [31] * 32}, "count": 17},
+    "mode": "serializable", "selection": "explicit_objects",
+    "objects": {"content": {"bytes": 512, "sha256": [31] * 32}, "count": 17},
     "catalog": {"partition": 1, "next_lsn": 19},
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
@@ -460,6 +526,82 @@ for field in transaction_begin:
     assert not validator.is_valid(invalid), field
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-v1.json",
         (json.dumps({"request": transaction_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Partition selection is signed independently of frozen-directory admission.
+# Queue targets exercise the neutral shape; the owner checks declared ordinals.
+target_object = {"scope": request_input["connection"]["scope"], "branch": 1, "object": 7}
+selected_begin = {
+    "key": token_binding["key"], "fingerprint": token_binding["fingerprint"],
+    "operation": binding["identity"], "namespace": 1, "mode": "serializable",
+    "selection": {"explicit_objects": [
+        {"object": target_object, "kind": "queue", "partition": 0},
+        {"object": target_object, "kind": "queue", "partition": 2**32 - 1},
+    ]},
+    "limits": transaction_begin["limits"], "budget": token_binding["budget"],
+}
+selected_input = {**request_input, "action": {"transaction": {"begin": selected_begin}}}
+selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(selected_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-selection-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    selected_request = {**selected_input, "proof": {"claim": selected_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
+validator.validate(selected_request)
+for field in ("object", "kind", "partition"):
+    invalid = copy.deepcopy(selected_request)
+    del invalid["action"]["transaction"]["begin"]["selection"]["explicit_objects"][0][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-begin-v1.json",
+        (json.dumps({"request": selected_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# KV workspace admission binds the original mutation and its exact private
+# sequence to the same transaction token. The mutation digest is independently
+# computed above; signing cannot substitute a new operation after uncertainty.
+kv_stage = {"key": token_binding["key"], "basis": {"partition": 9, "next_lsn": 10},
+            "sequence": 2, "work": kv_mutation}
+kv_stage_input = {**request_input, "action": {"transaction": {"stage_kv": kv_stage}}}
+kv_stage_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(kv_stage_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-kv-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    kv_stage_request = {**kv_stage_input, "proof": {"claim": kv_stage_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(kv_stage_claim)).digest())}}
+validator.validate(kv_stage_request)
+for field in ("key", "basis", "sequence", "work"):
+    invalid = copy.deepcopy(kv_stage_request)
+    del invalid["action"]["transaction"]["stage_kv"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-kv-v1.json",
+        (json.dumps({"request": kv_stage_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+# Independent private log statement commitments bind the entire source guard,
+# workspace revision and original operation, in addition to the signed envelope.
+# This is a shape/signature vector; its payload is not an executable LogBatch.
+log_work = {"append": {
+    "target": stream_work["consume"]["target"],
+    "operation": {**log_binding["identity"], "operation": 2**64 - 2},
+    "kind": "stream", "producer": None, "rows": 1,
+    "payload": {"bytes": 3, "sha256": list(hashlib.sha256(b"abc").digest())},
+}}
+log_work_digest = hashlib.sha256(b"transit.catalog.transaction.log.work.v1\0" + bytes.fromhex(definition) + canonical(log_work)).digest()
+log_statement = {
+    "statement": {"transaction": transaction_begin["identity"], "sequence": 2, "intent": list(log_work_digest)},
+    "basis": {"partition": 9, "next_lsn": 10},
+    "guard": {"kind": "stream", "source": {"target": log_work["append"]["target"], "accepted": {"partition": 91, "next_lsn": 3}, "retained_from": 0, "next": 0}, "changed_lsn": 2},
+    "work": log_work,
+}
+log_statement_digest = hashlib.sha256(b"transit.catalog.transaction.log.statement.v1\0" + bytes.fromhex(definition) + canonical(log_statement)).digest()
+log_statement_input = {**request_input, "action": {"transaction": {"log_statement": {"key": token_key, "request": log_statement, "execute": False}}}}
+log_statement_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(log_statement_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-log-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    log_statement_request = {**log_statement_input, "proof": {"claim": log_statement_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(log_statement_claim)).digest())}}
+validator.validate(log_statement_request)
+for field in ("statement", "basis", "guard", "work"):
+    invalid = copy.deepcopy(log_statement_request)
+    del invalid["action"]["transaction"]["log_statement"]["request"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-log-v1.json",
+        (json.dumps({"request": log_statement_request, "public_key": public_key,
+                     "intent_digest": list(log_work_digest), "request_digest": list(log_statement_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"

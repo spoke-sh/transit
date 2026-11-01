@@ -6,6 +6,15 @@ PostgreSQL and MySQL share these controls through the database runtime. The
 supported domain is one local catalog and branch, with multiple Tables under
 one fenced authority.
 
+SQL BEGIN selects Tables only. The typed transaction client also supports
+explicit direct KV participants and private KV reads, plus Stream/Queue
+partitions as retained read dependencies. These partitions share the original
+common cut, current read authorization, serializable conflict checks and pin
+cleanup. Native typed controls can also stage Stream/Queue appends, authenticated
+offset commits and fenced ACKs under the same decision and savepoint lifecycle;
+SQL does not yet expose those log statements. Document targets reject before
+admission. See [Streams](../streams.md) for the native composition profile.
+
 ```sql
 BEGIN ISOLATION LEVEL SERIALIZABLE;
 UPDATE accounts SET balance = 80 WHERE id = 1;

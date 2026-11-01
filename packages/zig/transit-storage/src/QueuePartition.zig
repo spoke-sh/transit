@@ -45,6 +45,33 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.StreamQueue.Cut {
     return self.owner.observe(declared, guard);
 }
+pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
+    return self.owner.transactionPinState(owner, guard);
+}
+pub fn pinTransactionSource(self: *Self, declared: Declaration.Stored, identity: p.Transaction.Identity, expected: p.DataLifecycle.Position, guard: Guard) !p.Transaction.Pin {
+    return self.owner.pinTransactionSource(declared, identity, expected, guard);
+}
+pub fn inspectTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !@import("LogTransaction.zig").Source {
+    return self.owner.inspectTransactionSource(handle, guard);
+}
+pub fn releaseTransactionSource(self: *Self, handle: p.Transaction.Pin, guard: Guard) !void {
+    return self.owner.releaseTransactionSource(handle, guard);
+}
+pub fn evaluateTransaction(self: *Self, pin: p.Transaction.Pin, directory: p.Transaction.Directory, limits: @import("LogTransaction.zig").EvaluationLimits, guard: Guard) !@import("LogTransaction.zig").Evaluation {
+    return self.owner.evaluateTransaction(pin, directory, limits, null, guard);
+}
+pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.zig").Binding, coordination: u64, basis: p.Transaction.LogGuard, pin: p.Transaction.Pin, directory: p.Transaction.Directory, limits: @import("LogTransaction.zig").EvaluationLimits, guard: Guard) !p.Transaction.Prepared {
+    return self.owner.prepareTransaction(binding, coordination, basis, pin, directory, limits, null, guard);
+}
+pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared, held_guard: Guard) !@import("LogTransaction.zig").DecisionTime {
+    return self.owner.verifyPrepared(expected, held_guard);
+}
+pub fn verifyDecisionTime(self: *Self, check: @import("LogTransaction.zig").DecisionTime) !void {
+    return self.owner.verifyDecisionTime(check);
+}
+pub fn resolveTransaction(self: *Self, guard: Guard) !?p.Transaction.Decision {
+    return self.owner.resolveTransaction(guard);
+}
 pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Append, payload: []const u8, guard: Guard) !p.StreamQueue.AppendReceipt {
     return self.owner.append(declared, request, payload, guard);
 }

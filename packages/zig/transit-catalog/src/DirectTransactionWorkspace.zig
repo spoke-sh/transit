@@ -55,14 +55,47 @@ pub const Completed = struct {
     }
 };
 
+/// One shared sequence and pending slot cover both data-state and log actions.
+/// The public state request/outcome types keep their own typed payloads.
+pub const StatementWork = union(enum) {
+    state: Request,
+    log: c.DirectTransactionLogWork.Request,
+    pub fn validate(self: StatementWork) !void {
+        switch (self) {
+            inline else => |value| try value.validate(),
+        }
+    }
+    pub fn statement(self: StatementWork) x.Statement {
+        return switch (self) {
+            inline else => |value| value.statement,
+        };
+    }
+};
+pub const StatementCompletion = union(enum) {
+    state: Completed,
+    log: c.DirectTransactionLogWork.Completed,
+    pub fn validate(self: StatementCompletion) !void {
+        switch (self) {
+            inline else => |value| try value.validate(),
+        }
+    }
+    pub fn request(self: StatementCompletion) StatementWork {
+        return switch (self) {
+            .state => |value| .{ .state = value.request },
+            .log => |value| .{ .log = value.request },
+        };
+    }
+};
+
 pub const Head = struct {
     definition: p.Growth.Definition,
     acquired: c.DirectTransaction.Acquired,
     revision: d.Position,
     tables: ?pages.Reference,
+    logs: ?x.Directory,
     statements: ?pages.Reference,
     last_statement: u64,
-    pending: ?Request,
+    pending: ?StatementWork,
     /// Conservative cumulative staged bytes in accepted workspace publications.
     /// Failed, unreachable staging is reclaimed separately by storage policy.
     charged_bytes: u64,
@@ -73,12 +106,16 @@ pub const Head = struct {
     pending_control: ?c.DirectTransactionSavepoint.Pending,
 
     pub fn initial(acquired: c.DirectTransaction.Acquired) Head {
-        return .{ .definition = p.Growth.current_definition, .acquired = acquired, .revision = acquired.cut.acquired, .tables = null, .statements = null, .last_statement = 0, .pending = null, .charged_bytes = 0, .savepoints = null, .savepoint_count = 0, .controls = null, .last_control = 0, .pending_control = null };
+        return .{ .definition = p.Growth.current_definition, .acquired = acquired, .revision = acquired.cut.acquired, .tables = null, .logs = null, .statements = null, .last_statement = 0, .pending = null, .charged_bytes = 0, .savepoints = null, .savepoint_count = 0, .controls = null, .last_control = 0, .pending_control = null };
     }
     pub fn validate(self: Head, progress: c.DirectClientToken.Progress) !void {
         try self.acquired.validate(progress.receipt);
         try self.revision.validate();
         const begin = self.acquired.cut.begin;
+        if (self.logs) |logs| {
+            try logs.validate();
+            if (logs.count > begin.limits.participants) return error.InvalidTransactionWorkspace;
+        }
         if (!std.meta.eql(self.revision, progress.revision) or self.revision.next_lsn < self.acquired.cut.acquired.next_lsn or
             self.last_statement > begin.limits.statements or self.charged_bytes > begin.limits.workspace_bytes or
             !progress.pending or progress.cancel) return error.InvalidTransactionWorkspace;
@@ -93,7 +130,7 @@ pub const Head = struct {
         }
         if (self.pending) |request| {
             try request.validate();
-            if (!std.meta.eql(request.statement.transaction, begin.identity) or request.statement.sequence != self.last_statement)
+            if (!std.meta.eql(request.statement().transaction, begin.identity) or request.statement().sequence != self.last_statement)
                 return error.InvalidTransactionWorkspace;
         }
     }

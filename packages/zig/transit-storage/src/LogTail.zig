@@ -7,6 +7,7 @@ const Self = @This();
 
 pub const Binding = struct {
     position: d.Position,
+    first: u64,
     content: d.Content,
     view: ?d.Content = null,
     fn payload(self: Binding) d.Content {
@@ -65,7 +66,7 @@ fn validate(self: *const Self, binding: Binding) !void {
 fn find(self: *const Self, binding: Binding) !?usize {
     try self.validate(binding);
     for (self.slots, 0..) |slot, index| if (slot.binding) |present| {
-        if (std.meta.eql(present.position, binding.position)) {
+        if (std.meta.eql(present.position, binding.position) and present.first == binding.first) {
             if (!std.meta.eql(present.content, binding.content)) return error.TailContentConflict;
             if (std.meta.eql(present.view, binding.view)) return index;
         }

@@ -1,5 +1,12 @@
 # SQL session checks
 
+`just test::sql-log-declarations` runs Stream/Queue CREATE, policy ALTER,
+RENAME, DROP, named metadata and paged listings through native, PostgreSQL and MySQL
+sessions, plus a real console declaration script. It checks original-token recovery after service replacement, a 40-row
+schema and 35-name listing across two result batches, filtered empty listings,
+repeated batches, exact-definition invalidation and permission revocation after
+metadata buffering.
+
 The [session contract](../../../contracts/SQL_SESSION_V1.md) defines supported
 operations; [contribution instructions](AGENTS.md) describe their test boundary.
 

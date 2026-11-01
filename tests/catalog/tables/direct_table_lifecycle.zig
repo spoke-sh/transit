@@ -290,7 +290,7 @@ fn namespaceStatement(allocator: std.mem.Allocator, original: c.DirectTableClien
     defer statement.deinit();
     var work = try statement.bindWrite(allocator, &client, &.{}, operation);
     defer work.deinit();
-    const reference = try work.stage(client, 1);
+    const reference = try work.stage(client, 1, @splat(0x48));
     try t.expectEqual(@as(u64, 1), reference.namespace());
     const unseen = try reference.operation(client, .inspect, 1);
     defer unseen.deinit();

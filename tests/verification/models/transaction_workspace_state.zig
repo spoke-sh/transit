@@ -107,7 +107,7 @@ fn initOwner(allocator: std.mem.Allocator, wal: *s.LocalWal.LocalWal, objects: *
 
 fn createTable(allocator: std.mem.Allocator, catalog: *D, access: *Access, object_id: u64, operation: u64, name: []const u8) !void {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object_id, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
     const req: D.Request = .{
         .binding = .{
             .definition = p.Growth.current_definition,
@@ -147,8 +147,8 @@ fn makeTxBinding(allocator: std.mem.Allocator, catalog: *D, access: *Access, ope
             .definition = p.Growth.current_definition,
             .identity = identity,
             .mode = .serializable,
-            .selection = .explicit_tables,
-            .tables = try selected.seal(),
+            .selection = .explicit_objects,
+            .objects = try selected.seal(),
             .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn },
             .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 128 * 1024, .participants = 100, .statements = 100, .savepoints = 16 },
         },

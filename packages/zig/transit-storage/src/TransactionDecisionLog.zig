@@ -8,6 +8,7 @@ const d = p.DataLifecycle;
 const Log = @import("TransitLog.zig");
 const Objects = @import("TransitObjectStore.zig");
 const Directory = @import("TransactionDirectory.zig");
+const Actions = @import("LogTransactionActions.zig");
 const MemoryBudget = @import("transit_fuze").MemoryBudget;
 const Self = @This();
 pub const Guard = @import("TablePartition.zig").Guard;
@@ -21,7 +22,7 @@ pub const Binding = struct {
         try self.begin.validate();
         try self.attempt.validate();
         if (!std.meta.eql(self.begin.identity, self.attempt.transaction) or
-            self.attempt.participants.count > self.begin.tables.count or
+            self.attempt.participants.count > self.begin.objects.count or
             self.attempt.last_statement > self.begin.limits.statements or
             (self.begin.mode == .read_only and self.attempt.writes != 0)) return error.InvalidTransactionAttempt;
     }
@@ -40,6 +41,10 @@ pub const Verification = struct {
     context: *anyopaque,
     participant: *const fn (*anyopaque, x.Participant) anyerror!void,
     prepared: *const fn (*anyopaque, x.Prepared) anyerror!void,
+    /// Log writes require a final, allocation-free check after all potentially
+    /// slow successor verification. It rechecks collected lease/retention
+    /// deadlines under this same guard immediately before decision append.
+    before_decision: ?*const fn (*anyopaque) anyerror!void = null,
 };
 
 pub const Record = struct {
@@ -75,7 +80,7 @@ fn participants(self: *Self) !Directory {
     var result = try self.directory(.participants);
     errdefer result.deinit();
     try result.restore(self.binding.attempt.participants);
-    var after: ?u64 = null;
+    var after: ?Directory.Cursor = null;
     var count: u64 = 0;
     var writes: u64 = 0;
     while (true) {
@@ -83,10 +88,12 @@ fn participants(self: *Self) !Directory {
         for (page.entries) |entry| if (entry) |value| {
             count = try std.math.add(u64, count, 1);
             if (count > result.root.count) return error.InvalidTransactionDirectory;
-            try value.participant.requireLocalTable(self.binding.begin);
-            if (value.participant.state.guard.source.accepted.partition == self.partition)
+            try value.participant.validate(self.binding.begin.identity);
+            if (value.participant == .state and value.participant.state.kind == .document) return error.UnsupportedTransactionParticipant;
+            if (self.binding.begin.mode == .read_only and value.participant.writes()) return error.ReadOnlyTransaction;
+            if (value.participant.guard().accepted().partition == self.partition)
                 return error.InvalidTransactionPartition;
-            writes += @intFromBool(value.participant.state.access == .write);
+            writes += @intFromBool(value.participant.writes());
         };
         after = page.next orelse break;
     }
@@ -246,21 +253,73 @@ fn commitBounded(self: *Self, prepared_directory: x.Directory, verification: Ver
     defer prepared.deinit();
     var selected = try self.participants();
     defer selected.deinit();
-    var after: ?u64 = null;
+    var has_log_writes = false;
+    var after: ?Directory.Cursor = null;
     while (true) {
         const page = try selected.page(after);
         for (page.entries) |entry| if (entry) |value| {
             try verification.participant(verification.context, value.participant);
-            if (value.participant.state.access == .write) {
-                const original = (try prepared.get(value.object().object)).?.prepared;
+            if (value.participant.writes()) {
+                if (value.participant == .log) has_log_writes = true;
+                const original = (try prepared.get(value.target())).?.prepared;
                 try verification.prepared(verification.context, original);
+                if (value.participant == .log and value.participant.log.guard.kind == .queue)
+                    try self.verifyTransfers(&selected, value.participant.log);
             }
         };
         after = page.next orelse break;
     }
+    if (has_log_writes and verification.before_decision == null) return error.MissingTransactionVerification;
+    if (verification.before_decision) |check| try check(verification.context);
     try self.append(.{ .decision = decision }, fence);
     if (self.lose_reply) return error.LostAcknowledgement;
     return decision;
+}
+
+fn actionDirectory(self: *Self, participant: @FieldType(x.Participant, "log")) !Actions {
+    const reference = participant.actions orelse return error.InvalidTransactionTransfer;
+    var actions = try Actions.init(self.allocator, self.objects, self.binding.begin.identity, participant.guard, reference.count, self.binding.begin.limits.workspace_bytes, 1, @intCast(self.binding.begin.limits.resident_bytes));
+    errdefer actions.deinit();
+    try actions.restore(reference);
+    return actions;
+}
+
+/// Each transfer has exactly one source and one destination action in the same
+/// statement. The mirrored full binding prevents two source items from sharing
+/// one append without allocating a resident set of all transferred items.
+fn verifyTransfers(self: *Self, selected: *Directory, participant: @FieldType(x.Participant, "log")) !void {
+    var actions = try self.actionDirectory(participant);
+    defer actions.deinit();
+    try actions.verify();
+    var after: ?Actions.Cursor = null;
+    while (true) {
+        const page = try actions.page(after);
+        for (page.entries) |entry| if (entry) |value| {
+            const transfer: x.TerminalTransfer = switch (value.work.action) {
+                .queue_terminal, .queue_transfer_append => |request| request,
+                else => continue,
+            };
+            const source = value.work.action == .queue_terminal;
+            const peer_target = if (source) transfer.destination.target else transfer.target();
+            const peer_operation = if (source) transfer.destination.operation else transfer.operation;
+            const peer = try selected.get(.{ .object = peer_target.interpretation.object, .kind = .queue, .partition = peer_target.partition }) orelse return error.InvalidTransactionTransfer;
+            if (peer.participant != .log or peer.participant.log.guard.kind != .queue) return error.InvalidTransactionTransfer;
+            try peer_target.requireSame(peer.participant.log.guard.source.target);
+            var other_actions = try self.actionDirectory(peer.participant.log);
+            defer other_actions.deinit();
+            const other = (try other_actions.byOperation(peer_operation) orelse return error.InvalidTransactionTransfer).work;
+            if (!std.meta.eql(value.work.statement, other.statement)) return error.InvalidTransactionTransfer;
+            const mirrored = if (source) blk: {
+                if (other.action != .queue_transfer_append) return error.InvalidTransactionTransfer;
+                break :blk other.action.queue_transfer_append;
+            } else blk: {
+                if (other.action != .queue_terminal) return error.InvalidTransactionTransfer;
+                break :blk other.action.queue_terminal;
+            };
+            if (!std.meta.eql(transfer, mirrored)) return error.InvalidTransactionTransfer;
+        };
+        after = page.next orelse break;
+    }
 }
 
 /// This races commit through the same expected log position. Once either

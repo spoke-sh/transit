@@ -88,6 +88,7 @@ pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .branch, .transaction => true,
+        .kv_declaration => |value| value.mutation(),
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
         .initialize, .admit_ddl, .log_admit, .check_set, .name_assertion, .name_preview => true,
@@ -110,6 +111,8 @@ fn target(action: w.Action) ?u64 {
     return switch (action) {
         .stream => |value| value.target().interpretation.object.object,
         .queue => |value| value.target().interpretation.object.object,
+        .kv => |value| value.target().object,
+        .kv_declaration => |value| value.declaration.binding.target.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
         inline .observe, .read_current => |value| value.interpretation.object.object,
         inline .storage, .flush => |value| value.object.object,
@@ -134,7 +137,7 @@ fn stripe(action: w.Action) ?usize {
         // already tolerates concurrent row acceptance; this lock serializes
         // only its disposable hint. Catalog changes still require directory's
         // exclusive side, and DirectCatalog verifies identity and current rights.
-        .lookup => |value| @intCast(std.hash.Wyhash.hash(value.namespace, value.name) % stripe_count),
+        inline .lookup, .kv_lookup => |value| @intCast(std.hash.Wyhash.hash(value.namespace, value.name) % stripe_count),
         else => null,
     };
 }
