@@ -64,6 +64,8 @@ column/literal and compatible column/column comparisons plus `IS [NOT] NULL`.
 It enforces every new write. `NOT VALID` defers existing-row validation when
 added later. Names bind stable column identities after the complete declaration.
 There are at most 64 constraints and 32 predicates per CHECK.
+A violation reports `23514` through native SQL and PostgreSQL, or MySQL error
+`3819` with SQLSTATE `HY000`. A rejected mutation leaves prior rows intact.
 
 Table-level `[CONSTRAINT name] FOREIGN KEY (columns) REFERENCES parent (columns)
 NOT ENFORCED` freezes the exact parent definition and primary-key columns.

@@ -298,6 +298,12 @@ Replies retain autocommit status and report the shared attachment through IN_TRA
 Affected rows use lossless length-encoded uint64; last-insert ID and warnings are
 zero because no such observations are supplied by the native Table result.
 
+The shared CHECK diagnostic `23514` maps to MySQL
+`ER_CHECK_CONSTRAINT_VIOLATED` (`3819`, SQLSTATE `HY000`), following the
+[upstream error reference](https://dev.mysql.com/doc/mysql-errors/8.4/en/server-error-reference.html).
+It is a rejected statement, never an OK frame or a successful prefix. Native
+SQL and PostgreSQL retain `23514`.
+
 Classic packets carry payload length:u24 little-endian and sequence:u8. The
 caller supplies the expected sequence for the current authentication/command
 exchange. A mismatch rejects before allocation. Complete messages borrow payloads
