@@ -91,31 +91,36 @@ retrieval, streaming CDC ingestion and import/export costs.
      and Graph queries with temporal `AS OF` cuts,
      security-barrier RLS and lexical/structural scores in a single hybrid
      query plan, handing off reactive context subscriptions to
-     [Milestone 31](31-reactive-context-and-agent-activation.md) and
+     [Milestone 32](32-reactive-context-and-agent-activation.md) and
      declarative sequence/context synthesis research to
-     [Milestone 37](37-declarative-language-context-and-synthesis.md).
+     [Milestone 38](38-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - Bind external object-store and HTTP credentials through catalog `SECRET`
      declarations (`CREATE SECRET ... TYPE s3 | gcs | r2 | http ... SCOPE ...` in
-     [Milestone 26](26-control-and-policy-plane.md)), requiring both an exact
+     [Milestone 27](27-control-and-policy-plane.md)), requiring both an exact
      destination `SCOPE`/`TLS_POLICY` match and `USAGE ON SECRET` under the
      caller's `AccessContext` at `policy_epoch` so URI prefix matching never
      grants ambient authority or stores cleartext keys in table definitions.
-   - **Analytical and 2D spatial columnar formats (`PARQUET`, `GEOPARQUET`, `ARROW_IPC`, `GEOARROW`, `FLATGEOBUF`, `PMTILES` / `MVT`):** use qualified
+   - **Analytical and 2D spatial columnar/raster formats (`PARQUET`, `GEOPARQUET`, `ARROW_IPC`, `GEOARROW`, `FLATGEOBUF`, `COG` (Cloud-Optimized GeoTIFF), `PMTILES` / `MVT`):** use qualified
      borrowed layouts or bounded decoding for column chunks/dictionaries and
      [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `.geoarrow`
-     coordinate vectors, with row-group statistics (`min`/`max`/null count and
-     `GeoParquet` v1.1 `bbox` covering metadata or `FlatGeobuf` packed Hilbert
-     R-tree headers) driving sound 1D and 2D pruning. Capture immutable
+     coordinate vectors and `.raster_morton` overview tiles, with row-group
+     statistics (`min`/`max`/null count and `GeoParquet` v1.1 `bbox` covering
+     metadata, `COG` IFD tile pyramids or `FlatGeobuf` packed Hilbert R-tree
+     headers) driving sound 1D and 2D pruning. Capture immutable
      file manifests (`ETag`/`SHA-256`, byte length, row count) for repeatable
-     snapshot reads, and support `PMTiles` / `MVT` vector tile and `Shapefile` /
+     snapshot reads, and support `PMTiles` / `MVT` vector tile, `COG` raster and `Shapefile` /
      `GeoPackage` import/export.
-   - **3D model, CAD/BIM, scene-graph and point-cloud formats (`GLTF` / `GLB`, `OPENUSD` (`USDA`/`USDC`/`USDZ`), `IFC` (`ISO 16739`), `STEP` (`ISO 10303-21`), `CITYJSON` / `CITYGML`, `3DTILES` (`OGC 1.1`), `LAS` / `LAZ` / `COPC`):**
+   - **3D model, CAD/BIM, scene-graph, volumetric and point-cloud formats (`GLTF` / `GLB`, `OPENUSD` (`USDA`/`USDC`/`USDZ`), `KTX2`, `OPENVDB` / `NANOVDB`, `IFC` (`ISO 16739`), `STEP` (`ISO 10303-21`), `CITYJSON` / `CITYGML`, `3DTILES` (`OGC 1.1`), `LAS` / `LAZ` / `COPC`):**
      project 3D assets, engineering assemblies, urban digital twins and LiDAR
      scans into [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
      `MESH3D`, `SOLID3D`, `SCENE3D` (`.scene_dag` prototype dictionaries +
      48-byte `TRANSFORM3D` $SE(3)$ instance rows), `.topo_face` coboundary
-     tables, `.octree_roaring` coverings and `.pcloud_hilbert` blocks:
+     tables, `.octree_roaring` coverings and `.pcloud_hilbert` blocks, handing
+     off virtualized meshlet cluster DAGs, block-compressed texture mip
+     pyramids, skeletal animations, WAL-activated DDC cooking, incremental
+     `NavMesh` maintenance and ECS AoI streaming to
+     [Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md):
      - *`glTF 2.0` / `GLB` and `OGC 3D Tiles 1.1`:* zero-copy or bounded-decoded
        binary buffer views, node-hierarchy DAGs, PBR material properties and
        hierarchical tile bounding volumes (`BBOX3D` / bounding sphere) with

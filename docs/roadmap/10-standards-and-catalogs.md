@@ -116,7 +116,7 @@ universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
-[SQL grammar, standards comparison and dialect ergonomics milestone](34-sql-grammar-and-dialect-ergonomics.md)
+[SQL grammar, standards comparison and dialect ergonomics milestone](35-sql-grammar-and-dialect-ergonomics.md)
 audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
 DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
 compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
@@ -218,8 +218,8 @@ What earlier milestones have already established in the codebase:
 | [M12: Managed computations & dataflows](12-sql-and-dataflows.md) | Single-table relational plans and `TableChangeReader` | Canonical `RANGE<T>`/`MULTIRANGE<T>` backing `PERIOD FOR valid_time`, historical `CatalogCut` semantics for bitemporal `AS OF JOIN`, and operator effect/trait descriptors (`read`, `mutate`, `capture`, `dispatch`) |
 | [M13: Data structures & performance](13-data-structures-and-performance.md) & [M14: Strings & search](14-vectorized-strings-and-search.md) | Bounded scratch arenas (`#194`) and dictionary/FSST codecs | Exact collation descriptors ($\kappa$) required by 16B collation-prefixed Umbra/German strings, compressed-domain predicates and order-preserving sort keys |
 | [M17: Geospatial & 3D computing](17-geospatial-and-spatio-temporal-computing.md) & [M18: Multi-model & foreign relations](18-multi-model-and-foreign-relations.md) | Architectural review commitments (`2026-10-29`) | Reserved $\kappa_{\text{spatial}}$ catalog descriptors (`SRID`, vertical datum/orientation, `PLANAR`/`GEODESIC`, $\delta_{\text{grid}}$, Shewchuk predicates, curve order), unboxed `VECTOR(dim, T)` with $\kappa_{\text{metric}}$, and catalog bindings for views, SQL/PGQ property graphs and SQL/MED foreign/mainframe tables |
-| [M19: Branches, merges & restore](19-branches-merges-and-restore.md) | Single-branch (`main`) catalog and partition roots | Immutable `manifest/v{N}` catalog cuts, typed branch/snapshot selectors, conditional head publication, independent transition/canonical fixtures and constraint descriptors re-verified during 3-way merge |
-| [M21: Formal semantics](21-formal-semantics-and-correspondence.md) & [M34: SQL grammar & dialect ergonomics](34-sql-grammar-and-dialect-ergonomics.md) | `A1` (`FuzeRewrite.lean`), `A2` (`CollationOrder.lean`), `A5` (`CodecProofs.lean`) and `T8` (`DdlAndDataflowLifecycle.tla`) proof obligations | Machine-readable standards & collation ledger (`contracts/sql/standards-ledger.json`), normalized key/collation fixtures for `A2`/`A5`, and lazy-evolution/5-state `T8` transition rules |
+| [M20: Branches, merges & restore](20-branches-merges-and-restore.md) | Single-branch (`main`) catalog and partition roots | Immutable `manifest/v{N}` catalog cuts, typed branch/snapshot selectors, conditional head publication, independent transition/canonical fixtures and constraint descriptors re-verified during 3-way merge |
+| [M22: Formal semantics](22-formal-semantics-and-correspondence.md) & [M35: SQL grammar & dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | `A1` (`FuzeRewrite.lean`), `A2` (`CollationOrder.lean`), `A5` (`CodecProofs.lean`) and `T8` (`DdlAndDataflowLifecycle.tla`) proof obligations | Machine-readable standards & collation ledger (`contracts/sql/standards-ledger.json`), normalized key/collation fixtures for `A2`/`A5`, and lazy-evolution/5-state `T8` transition rules |
 
 ### Accepted architectural decisions
 
@@ -379,8 +379,8 @@ flowchart TD
 | [`P4`](#p4-manifest-backed-historical-catalogs-and-snapshot-catalog-cuts) | Manifest-backed historical catalog roots (`CatalogCut`), snapshot-to-catalog binding, conditional head publication and retention pins | `P1`, `P3` | `transit-catalog` (`DirectCatalog`, `DirectCatalogRoots`, `DirectCatalogStore`), `transit-storage` (`TableSnapshot`), `transit-protocol` | Historical `CatalogCut` resolves exact object names, `DefinitionId`, column origins, constraints and `tzdb` digest at any retained snapshot/manifest cut; expired cuts fail with typed retention errors |
 | [`P5`](#p5-historical-sql-binding-as-of-selectors-and-explicit-schema-projection) | End-to-end `AS OF` SQL/query binding before name resolution, explicit `PROJECTING TO` schema projection and historical `SHOW`/`DESCRIBE`/`EXPLAIN` under current `policy_epoch` | `P0`, `P3`, `P4` | `contracts/sql/`, `transit-fuze`, `transit-query-direct`, `transit-sql` (`DatabaseRuntime`, `DirectRelationalCompilation`, `ReadCache`) | Queries bind `CatalogCut` before resolving renamed/dropped tables, columns, views and collations (`EBCDIC` vs. `UCS_BASIC`); current `policy_epoch` revocation blocks historical reads including mid-stream batches |
 | [`P6`](#p6-multi-model-catalog-bindings-views-property-graphs-and-foreign-decoders) | Catalog descriptor bindings and historical revalidation for SQL views, SQL/PGQ property-graph mappings and SQL/MED foreign/mainframe table definitions | `P4`, `P5` | `transit-fuze`, `transit-catalog`, `transit-query-direct`, `transit-sql` | Views, property-graph declarations and foreign/mainframe (`COMP-3`, `ZONED`, `EBCDIC`, `IBM_HFP`) descriptors bind by `(Object, DefinitionId, ColumnId)` in `DirectCatalog` and revalidate on `ALTER`/`RENAME`/`DROP` |
-| [`P7`](#p7-shared-client-sdk-and-board-historical-and-constraint-inspection) | Shared client, C ABI/SDK and read-only Board inspection for historical provenance, constraints, capability ledger and explicit projections | `P5`, `P6` (coordinated with M9/M29) | `transit-sql-results`, `transit-sql-client`, `transit-data-client`, `transit-board` | Shared clients and Board expose `CatalogCut`, `DefinitionId`, `tzdb` digest, constraint dependencies and per-segment projection coverage without raw storage access or UI-only heuristics |
-| [`P8`](#p8-formal-correspondence-and-milestone-10-qualification-gate) | Formal correspondence (`A1`, `A2`, `A5`, `T8` slices), transition/canonical branch fixtures and common-revision qualification in the proof ledger | `P0`–`P7` | `tests/qualification/`, `proofs/` (M21), `docs/history/qualification/` | All Milestone 10 positive, negative, fault and authorization checks pass at one revision and are recorded in the qualification ledger |
+| [`P7`](#p7-shared-client-sdk-and-board-historical-and-constraint-inspection) | Shared client, C ABI/SDK and read-only Board inspection for historical provenance, constraints, capability ledger and explicit projections | `P5`, `P6` (coordinated with M9/M30) | `transit-sql-results`, `transit-sql-client`, `transit-data-client`, `transit-board` | Shared clients and Board expose `CatalogCut`, `DefinitionId`, `tzdb` digest, constraint dependencies and per-segment projection coverage without raw storage access or UI-only heuristics |
+| [`P8`](#p8-formal-correspondence-and-milestone-10-qualification-gate) | Formal correspondence (`A1`, `A2`, `A5`, `T8` slices), transition/canonical branch fixtures and common-revision qualification in the proof ledger | `P0`–`P7` | `tests/qualification/`, `proofs/` (M22), `docs/history/qualification/` | All Milestone 10 positive, negative, fault and authorization checks pass at one revision and are recorded in the qualification ledger |
 
 ---
 
@@ -431,7 +431,7 @@ flowchart TD
 - **Goal:** Extend [`FUZE_TYPES_V1.md`](../../contracts/FUZE_TYPES_V1.md) (`FTY1`/`FVL1`)
   and [`TABLE_SCHEMA_V1.md`](../../contracts/TABLE_SCHEMA_V1.md) (`FTS1`/`FTP1`)
   in a single current-v1 hard cutover covering all Milestone 10 $\tau \perp \kappa \perp \epsilon$
-  descriptors so downstream milestones (M11–M19) build on one settled wire and
+  descriptors so downstream milestones (M11–M20) build on one settled wire and
   stored schema layout.
 - **Concrete changes:**
   1. **Logical types ($\tau$) and values in
@@ -613,7 +613,7 @@ flowchart TD
      - Extend `DirectCatalog.Root` with `manifest_version: u64`, `commit_lsn: u64`,
        `tzdb_version_digest: [32]u8` (e.g. canonical SHA-256 of `tzdb_2026a`),
        `parent_manifest_version: ?u64`, and branch head table (`main` in M10,
-       extensible to multi-branch heads in M19) supporting conditional head
+       extensible to multi-branch heads in M20) supporting conditional head
        publication (`expected_manifest_version` CAS).
      - Bind every `TablePartition` `SnapshotHandle` (`TPINOBJ1` in
        [`TableSnapshot.zig`](../../packages/zig/transit-storage/src/TableSnapshot.zig))
@@ -756,7 +756,7 @@ flowchart TD
      - Surface historical `manifest/v{N}` provenance, active/staged `CHECK` and
        `FOREIGN KEY` constraints, column `ColumnId` lineage (`column_origins`),
        and per-segment schema projection coverage in `transit-board` using only
-       public read-only client surfaces (preserving [Milestone 29](29-board-reimplementation.md)
+       public read-only client surfaces (preserving [Milestone 30](30-board-reimplementation.md)
        and `AGENTS.md` read-only Board rules).
 - **Verification:** `transit-sql-client`, `transit-data-client` and Board API
   tests verifying that historical query results and catalog descriptions carry
@@ -766,12 +766,12 @@ flowchart TD
 #### `P8`: Formal correspondence and Milestone 10 qualification gate
 
 - **Goal:** Connect Milestone 10's collation, codec, rewrite and DDL evolution
-  implementations to [Milestone 21's](21-formal-semantics-and-correspondence.md)
+  implementations to [Milestone 22's](22-formal-semantics-and-correspondence.md)
   formal obligations, publish independent transition/canonical fixtures for
-  [Milestone 19](19-branches-merges-and-restore.md), and record common-revision
+  [Milestone 20](20-branches-merges-and-restore.md), and record common-revision
   qualification evidence.
 - **Concrete changes:**
-  1. **Formal proof and fixture correspondence (with Milestone 21):**
+  1. **Formal proof and fixture correspondence (with Milestone 22):**
      - Publish machine-checkable test vectors for `A1` (`FuzeRewrite.lean`:
        5-state propagation across `CHECK` and filter pushdown), `A2`
        (`CollationOrder.lean`: order isomorphism between `Collation.compare` and
@@ -781,12 +781,12 @@ flowchart TD
        `COMP-3`, `ZONED`, `IBM_HFP`, `EBCDIC`, `RANGE<T>`), and `T8`
        (`DdlAndDataflowLifecycle.tla`: lazy `.tseg` schema projection invariance
        across `ADD`/`DROP`/`RENAME`).
-  2. **Branch transition and canonical fixtures (prerequisite for Milestone 19):**
+  2. **Branch transition and canonical fixtures (prerequisite for Milestone 20):**
      - Publish independent JSON/binary transition fixtures in
        `contracts/catalog/historical-manifest-fixtures.json` covering linear
        `manifest/v{N}` evolution, conditional head publication, schema projection
        across `DefinitionId` ancestry, and constraint dependency validation
-       before Milestone 19 implements multi-commit branch storage.
+       before Milestone 20 implements multi-commit branch storage.
   3. **Qualification suite and proof ledger:**
      - Add `tests/qualification/standards_and_historical_catalogs.zig` (and wire
        into `just test` / qualification runners) executing the complete

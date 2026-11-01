@@ -143,10 +143,10 @@ current-authority disclosure checks.
    multi-model Document/Graph structural search and foreign-format
    projections to [Milestone 18](18-multi-model-and-foreign-relations.md),
    governed reactive context assembly to
-   [Milestone 31](31-reactive-context-and-agent-activation.md), and speculative
+   [Milestone 32](32-reactive-context-and-agent-activation.md), and speculative
    research into declarative span/proximity maps (`NEAR`), context-conditioned
    sequence continuation and branch-verified agency to
-   [Milestone 37](37-declarative-language-context-and-synthesis.md).
+   [Milestone 38](38-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -179,7 +179,7 @@ separate from evidence for Transit's Zig implementations.
   strings, `IN (...)`) and standard information-retrieval workloads (lexical
   top-$k$, substring/proximity filtering and hybrid search) meet predeclared
   latency, throughput and allocation budgets in the
-  [qualification scorecard](35-qualification-and-benchmarks.md).
+  [qualification scorecard](36-qualification-and-benchmarks.md).
 
 ## Implementation plan — 2026-10-30
 
@@ -253,7 +253,7 @@ Milestone 14 against completed foundations and active in-progress milestones:
 | [13. Data structures and resource metering](13-data-structures-and-performance.md) (In Progress — Issue #194) | Upstream contract $\rightarrow$ M14 (Phase H) | M13 Phases A–E delivered `transit-memory` (`Workspace`, `Slab`, `Pool`, `Budget`, `AllocationProbe`) and `tests/performance/allocations.json`. M14 implements Issue #194 Phase H: every `GermanString` arena handle, FSST late-materialization buffer, frozen perfect-hash table, and WAND top-$k$ heap runs inside pre-allocated `Workspace` / `Slab` leases with zero steady-state heap allocations after warmup. |
 | [15. Data-centric compilation and specialization](15-data-centric-compilation-and-specialization.md) (Planned) | M14 $\rightarrow$ Downstream consumer | M15 consumes M14's 16-byte `GermanString` ABI (`@Vector(2, u64)`) and `comptime` perfect hash tables to specialize fused filter-project-aggregate morsels and AOT-compiled `transit-app` ingestion routers. |
 | [16. Document profiles and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) (Planned) | M14 $\rightarrow$ Downstream consumer | M16 reuses M14's `comptime` and segment-sealed perfect hash tables for `XML`/`HTML`/OData/XLSX `sharedStrings.xml` and `HTTP` header/MIME vocabularies, 16-byte `GermanString` values for zero-copy token slices, and 256-doc Block-Max BM25 + `NEAR` proximity over shredded `PDF`, `DOCX`, `XML`, and `EDI` corpora. |
-| [17. Geospatial](17-geospatial-and-spatio-temporal-computing.md), [18. Multi-model](18-multi-model-and-foreign-relations.md), [19. Branches, merges and restore](19-branches-merges-and-restore.md), [21. Formal semantics](21-formal-semantics-and-correspondence.md), [26. Control & policy plane](26-control-and-policy-plane.md), [29. Board](29-board-reimplementation.md), [31. Reactive context](31-reactive-context-and-agent-activation.md), [34. SQL grammar](34-sql-grammar-and-dialect-ergonomics.md), and [37. Language context & synthesis](37-declarative-language-context-and-synthesis.md) | M14 $\rightarrow$ Downstream consumers | M17 mirrors M14's 16-byte inline header layout for spatial geometries; M18/M31/M37 consume M14's span/proximity (`NEAR`/`WITHIN`) and hybrid search operators; M19 uses M14's block-max/dictionary summaries in branch `DIFF` skipping; M21 proves `A1`/`A2`/`A5` correspondence in Lean 4; M26 enforces security-barrier RLS bitmasks before WAND score disclosure; M29 exposes search block-skip and dictionary pushdown metrics in Board `EXPLAIN`; M34 audits search/string syntax across dialects. |
+| [17. Geospatial](17-geospatial-and-spatio-temporal-computing.md), [18. Multi-model](18-multi-model-and-foreign-relations.md), [20. Branches, merges and restore](20-branches-merges-and-restore.md), [22. Formal semantics](22-formal-semantics-and-correspondence.md), [27. Control & policy plane](27-control-and-policy-plane.md), [30. Board](30-board-reimplementation.md), [32. Reactive context](32-reactive-context-and-agent-activation.md), [35. SQL grammar](35-sql-grammar-and-dialect-ergonomics.md), and [38. Language context & synthesis](38-declarative-language-context-and-synthesis.md) | M14 $\rightarrow$ Downstream consumers | M17 mirrors M14's 16-byte inline header layout for spatial geometries; M18/M32/M38 consume M14's span/proximity (`NEAR`/`WITHIN`) and hybrid search operators; M20 uses M14's block-max/dictionary summaries in branch `DIFF` skipping; M22 proves `A1`/`A2`/`A5` correspondence in Lean 4; M27 enforces security-barrier RLS bitmasks before WAND score disclosure; M30 exposes search block-skip and dictionary pushdown metrics in Board `EXPLAIN`; M35 audits search/string syntax across dialects. |
 
 ### Accepted architectural decisions
 
@@ -554,13 +554,13 @@ flowchart TD
     - [Milestone 15](15-data-centric-compilation-and-specialization.md) (16B `GermanString` register ABI and `comptime` perfect hash specialization in fused morsels),
     - [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md) (`PerfectHash` vocabulary tables for XML/HTTP/XLSX `sharedStrings.xml` and Block-Max BM25 + `NEAR` over shredded documents),
     - [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) (shared 16-byte inline vector header convention and Roaring candidate intersection), and
-    - [Milestones 18](18-multi-model-and-foreign-relations.md), [31](31-reactive-context-and-agent-activation.md), and [37](37-declarative-language-context-and-synthesis.md) (multi-model structural search, governed reactive context assembly, and span/proximity maps).
+    - [Milestones 18](18-multi-model-and-foreign-relations.md), [31](32-reactive-context-and-agent-activation.md), and [37](38-declarative-language-context-and-synthesis.md) (multi-model structural search, governed reactive context assembly, and span/proximity maps).
 - **Verification:**
   - End-to-end single-snapshot consistency tests proving that concurrent `INSERT` / `UPDATE` / `DELETE` transactions committing after a hybrid query's snapshot cut never cause split-brain mismatches between the lexical BM25 leg, the `VectorMetric` ANN leg, and the late-materialized row projection.
 
 #### `P8` — Formal correspondence (`A1`, `A2`, `A5`), ClickBench & IR benchmarks, and Milestone 14 qualification gate
 
-- **Goals:** Mechanize Milestone 14's collation prefix, codec pushdown, and Block-Max pruning soundness theorems in Lean 4 ([Milestone 21](21-formal-semantics-and-correspondence.md)), execute the ClickBench string and IR benchmark suites ([Milestone 35](35-qualification-and-benchmarks.md)), and promote all Milestone 14 features in `StandardsLedger.zig`.
+- **Goals:** Mechanize Milestone 14's collation prefix, codec pushdown, and Block-Max pruning soundness theorems in Lean 4 ([Milestone 22](22-formal-semantics-and-correspondence.md)), execute the ClickBench string and IR benchmark suites ([Milestone 36](36-qualification-and-benchmarks.md)), and promote all Milestone 14 features in `StandardsLedger.zig`.
 - **Concrete changes:**
   - Add Lean 4 mechanization artifacts and differential conformance vectors for:
     - **`A1` (5-state rewrite soundness):** Pushing `=`, `IN (...)`, `STARTS_WITH`, and `MATCH` into `.dictionary`, `.fsst`, and 256-doc Block-Max indexes preserves 5-state cell outcomes (`missing`, `null`, `type_error`, `conflict`, `value`) identically to plain decoding + scalar evaluation.

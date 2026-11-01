@@ -286,7 +286,7 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      letter queues, active leases, replay journals and actor state are catalog-
      declared Queues, Streams and Tables, operators and agents inspect queue
      depth, stuck leases, retry history and state through standard SQL and
-     [Board](29-board-reimplementation.md) under current `policy_epoch` grants.
+     [Board](30-board-reimplementation.md) under current `policy_epoch` grants.
 
 ## Implementation plan for remaining work
 
@@ -370,10 +370,10 @@ that span those partitions. Distributed assignment, replication, remote atomic
 commit and provider throughput require the later provider/cluster milestones.
 
 Use typed Zig callers and the shared SQL service as the first executable
-surfaces. New cross-language API breadth belongs to M9/M20, but all existing
+surfaces. New cross-language API breadth belongs to M9/M21, but all existing
 affected ABI/SDK consumers must migrate in this milestone's hard cutover.
 Board receives inspection under current authorization through public reads; its broader
-workbench redesign stays in M29. Continuous Fuze dataflows stay in M12; bounded
+workbench redesign stays in M30. Continuous Fuze dataflows stay in M12; bounded
 `CONSUME ... WAIT` and finite `STREAM_SLICE` do not imply continuous SQL.
 
 Direct KV and Table state must support the Station completion workload, including
@@ -1452,7 +1452,7 @@ runtime is implemented.
   `DOCUMENT` joins `TABLE`, `STREAM` and `QUEUE` in `transit-storage`
   (`DocumentPartition`) before client foundation extraction.
 - [Shared client foundation](09-client-foundation-and-language-apis.md) and
-  [SDK coverage](20-service-and-sdk-coverage.md) expose idiomatic `PRODUCE`,
+  [SDK coverage](21-service-and-sdk-coverage.md) expose idiomatic `PRODUCE`,
   `CONSUME`, `ENQUEUE`, `CLAIM`/`ACK`/`NACK`, `Document` and re-architected
   `Station` worker APIs across target languages without re-introducing a
   `Station` dependency into ordinary data clients.
@@ -1464,9 +1464,9 @@ runtime is implemented.
   enforces zero steady-state heap allocations after warmup, LeanStore/Umbra
   buffer residency and per-morsel resource metering across Stream/Queue tail
   readers, Roaring-bitmap ack vectors and `Station` turn commits.
-- [Storage providers](22-storage-providers-and-concurrency.md),
-  [replication](23-replication-and-failover.md) and
-  [clustered execution](25-clustered-execution.md) extend partitioned Stream/Queue
+- [Storage providers](23-storage-providers-and-concurrency.md),
+  [replication](24-replication-and-failover.md) and
+  [clustered execution](26-clustered-execution.md) extend partitioned Stream/Queue
   leases, timer wheels and fenced `Station` worker placement across distributed
   nodes.
 
