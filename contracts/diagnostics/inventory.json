@@ -4284,7 +4284,7 @@
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "AccessDenied": 2,
-        "CatalogDenied": 63,
+        "CatalogDenied": 64,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
         "CatalogKindMismatch": 13,
@@ -4306,7 +4306,7 @@
         "Forbidden": 7,
         "IbmHfpOverflow": 1,
         "IbmHfpUnderflow": 1,
-        "IncompleteTransactionCut": 2,
+        "IncompleteTransactionCut": 3,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 2,
         "InvalidCatalogDependency": 8,
@@ -4325,16 +4325,18 @@
         "InvalidTableAccessRequest": 1,
         "InvalidTableBasis": 2,
         "InvalidTableKey": 1,
-        "InvalidTransactionBegin": 1,
+        "InvalidTransactionBegin": 2,
         "InvalidTransactionControl": 6,
-        "InvalidTransactionCut": 4,
-        "InvalidTransactionDirectory": 1,
+        "InvalidTransactionCut": 5,
+        "InvalidTransactionDirectory": 2,
         "InvalidTransactionPreparation": 1,
         "InvalidTransactionRead": 4,
         "InvalidTransactionWork": 6,
         "InvalidTransactionWorkspace": 5,
         "LogCatalogRequestRequired": 1,
-        "LogDeclarationConflict": 3,
+        "LogDeclarationConflict": 8,
+        "LogTransactionSourceNotPinned": 1,
+        "LogTransactionSourceReleased": 1,
         "MissingRequiredField": 1,
         "NamedResourceAllocationUnreconciled": 1,
         "NamedResourceNativeUnavailable": 4,
@@ -4355,9 +4357,9 @@
         "TableSchemaChanged": 1,
         "TableSnapshotNotPinned": 1,
         "TableSnapshotReleased": 3,
-        "TransactionAuthorityChanged": 1,
+        "TransactionAuthorityChanged": 2,
         "TransactionCatalogChanged": 1,
-        "TransactionConflict": 7,
+        "TransactionConflict": 9,
         "TransactionControlConflict": 1,
         "TransactionControlPending": 4,
         "TransactionCutNotAcquired": 2,
@@ -4374,7 +4376,7 @@
         "TransactionWorkspaceLimit": 2,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2,
-        "UnsupportedTransactionParticipant": 3,
+        "UnsupportedTransactionParticipant": 6,
         "UnsupportedTransactionRead": 1
       },
       "outcomes": {
@@ -4418,10 +4420,12 @@
         "Policy.registered()": "anyerror",
         "TransactionPolicy.make()": "<inferred>",
         "TransactionPolicy.registered()": "<inferred>",
+        "TransactionVerification.held()": "<inferred>",
         "TransactionVerification.participant()": "<inferred>",
         "TransactionVerification.prepared()": "<inferred>",
         "acquireTransaction()": "<inferred>",
         "acquireTransactionBounded()": "<inferred>",
+        "acquireTransactionLog()": "<inferred>",
         "admissionReason()": "<inferred>",
         "admit()": "<inferred>",
         "admitLog()": "<inferred>",
@@ -4591,6 +4595,7 @@
         "terminal()": "<inferred>",
         "transactionCall()": "anyerror",
         "transactionCallOutcome()": "anyerror",
+        "transactionLogView()": "<inferred>",
         "transactionObservationHead()": "<inferred>",
         "transactionReadHead()": "anyerror",
         "transactionSavepoint()": "anyerror",
@@ -4610,7 +4615,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1357,
+        "try": 1392,
         "catch": 20
       },
       "imports": [
@@ -7227,7 +7232,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTransaction.zig": {
       "errors": {
-        "InvalidTransactionBegin": 2,
+        "InvalidTransactionBegin": 3,
         "InvalidTransactionCut": 4,
         "InvalidTransactionDirectory": 2,
         "TransactionCapacity": 1,
@@ -7246,7 +7251,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -7361,6 +7366,35 @@
       "propagation": {
         "try": 15,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectTransactionLog.zig": {
+      "errors": {
+        "TransactionPrepared": 2
+      },
+      "outcomes": {
+        "Owners": [
+          "stream",
+          "queue"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "basis()": "<inferred>",
+        "inspect()": "<inferred>",
+        "open()": "<inferred>",
+        "pin()": "<inferred>",
+        "pinState()": "<inferred>",
+        "release()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -8734,6 +8768,7 @@
         "DirectTransactionCall.zig",
         "DirectTransactionClient.zig",
         "DirectTransactionControl.zig",
+        "DirectTransactionLog.zig",
         "DirectTransactionRead.zig",
         "DirectTransactionRequest.zig",
         "DirectTransactionSavepoint.zig",
@@ -18853,7 +18888,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7\""
+          "e43dc2b9d4e7bb5c5412694a505e50588680570ab346dde42c9745832769ebd4"
         ],
         "Effect.phase": [
           "pending",

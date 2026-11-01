@@ -31,6 +31,8 @@ pub const Options = struct {
     client_token_quota: u64 = 1_000_000,
     transaction_limits: p.Transaction.Limits = c.DirectTransaction.default_limits,
     transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
+    /// Same bounded log owner profiles used by the embedding data service.
+    logs: c.DirectTransactionLog.Options = .{},
     table: P.Options = .{},
     /// Optional same-storage-owner hint, serialized by the embedding host.
     /// No request allocations, permission or retained read are cached here.
@@ -1631,6 +1633,12 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
         for (page.entries) |slot| if (slot) |entry_value| {
             _ = scratch.reset(.retain_capacity);
             const participant = entry_value.participant;
+            if (participant == .log) {
+                try self.acquireTransactionLog(&sources, begin, participant, previous != null, policy, &epoch, scratch.allocator());
+                count = try std.math.add(u64, count, 1);
+                if (count > begin.objects.count) return error.InvalidTransactionDirectory;
+                continue;
+            }
             try participant.requireLocalState(begin);
             if (participant.state.access != .read) return error.InvalidTransactionBegin;
             const expected = participant.state.guard.source;
@@ -1691,6 +1699,42 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     return acquired;
 }
 
+fn acquireTransactionLog(self: *Self, sources: *s.TransactionDirectory, begin: p.Transaction.Begin, participant: p.Transaction.Participant, acquired: bool, policy: Policy, epoch: *?P.Guard.Fence, scratch: std.mem.Allocator) !void {
+    try participant.validate(begin.identity);
+    if (participant.log.actions != null) return error.InvalidTransactionBegin;
+    const expected = participant.log.guard;
+    const authorized = try self.logAuthorization(scratch, switch (expected.kind) {
+        .stream => .stream,
+        .queue => .queue,
+    }, expected.source.target, .read, policy);
+    var checked: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
+    const guard_value = checked.guard();
+    var view = try self.transactionLogView(authorized.definition, expected.source.target.partition, guard_value);
+    defer view.deinit();
+    const current = view.root();
+    const pin_state = try view.pinState(begin.identity.begin, guard_value);
+    const pin = if (pin_state.handle) |retained| blk: {
+        if (pin_state.released) return error.LogTransactionSourceReleased;
+        break :blk retained;
+    } else blk: {
+        if (acquired) return error.LogTransactionSourceNotPinned;
+        if (!std.meta.eql(expected.source.target, (try view.basis()).source.target) or expected.source.accepted.partition != current.initialization.partition) return error.TransactionConflict;
+        break :blk try view.pin(begin.identity, pin_state.position, guard_value);
+    };
+    const frozen = try view.inspect(pin, guard_value);
+    const basis = try frozen.guard();
+    if (!std.meta.eql(frozen.identity, begin.identity) or expected.kind != basis.kind or !std.meta.eql(expected.source.target, basis.source.target) or expected.source.accepted.partition != basis.source.accepted.partition) return error.TransactionConflict;
+    if (!acquired) {
+        // A partial acquisition retries its original pins only while all logical
+        // frontiers still agree. A published cut may outlive later changes.
+        try basis.requireUnchanged(try view.basis());
+        try sources.put(.{ .source = .{ .guard = .{ .log = basis }, .pin = pin } });
+    } else {
+        const source = (try sources.get(participant.guard().target()) orelse return error.IncompleteTransactionCut).source;
+        if (source.guard != .log or !std.meta.eql(source.guard.log, basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
+    }
+}
+
 const TransactionPolicy = struct {
     original: Policy,
     epoch: ?P.Guard.Fence = null,
@@ -1744,11 +1788,24 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
     switch (request.selection) {
         .explicit_objects => |objects| for (objects) |object| {
             _ = scratch.reset(.retain_capacity);
-            if (object.kind != .table and object.kind != .kv) return error.UnsupportedTransactionParticipant;
-            const target = try self.entry(object.object.object) orelse return error.CatalogDenied;
-            if (target.resource != null or target.log != null) return error.UnsupportedTransactionParticipant;
-            if (target.seed) |seed| if ((seed.kind == .kv) != (object.kind == .kv)) return error.CatalogKindMismatch;
-            if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
+            switch (object.kind) {
+                .table, .kv => {
+                    const target = try self.entry(object.object.object) orelse return error.CatalogDenied;
+                    if (target.resource != null or target.log != null) return error.UnsupportedTransactionParticipant;
+                    if (target.seed) |seed| if ((seed.kind == .kv) != (object.kind == .kv)) return error.CatalogKindMismatch;
+                    if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
+                },
+                .stream, .queue => {
+                    const known = try self.logRecord(object.object.object) orelse return error.CatalogDenied;
+                    if (known.phase != .complete) return error.LogDeclarationConflict;
+                    const definition = known.resulting.?;
+                    const authorization = try self.logAuthorization(scratch.allocator(), if (object.kind == .stream) .stream else .queue, .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = object.partition.? }, .read, policy);
+                    var view = try self.transactionLogView(authorization.definition, object.partition.?, authorization.guard);
+                    defer view.deinit();
+                    try selected.put(.{ .participant = .{ .log = .{ .guard = try view.basis(), .actions = null } } });
+                },
+                .document => return error.UnsupportedTransactionParticipant,
+            }
         },
         .authorized_catalog_tables => {
             var cursor: ?pages.Key = null;
@@ -2391,6 +2448,10 @@ fn transactionView(self: *Self, object: d.Object) !View {
     return self.openTransaction(self.allocator, target, false, true);
 }
 
+fn transactionLogView(self: *Self, definition: L.Definition, ordinal: u32, guard_value: P.Guard) !c.DirectTransactionLog {
+    return c.DirectTransactionLog.open(self.allocator, self, definition, ordinal, guard_value, self.options.logs);
+}
+
 fn publishTransactionControl(self: *Self, progress: *c.DirectClientToken.Progress, control: *TransactionControl.State, guard_value: P.Guard) !void {
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -2432,6 +2493,10 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
         const page = try selected.page(after);
         for (page.entries) |slot| if (slot) |entry_value| {
             const selected_guard = if (head != null) entry_value.source.guard else entry_value.participant.guard();
+            if (selected_guard == .log) {
+                try participants.put(.{ .participant = .{ .log = .{ .guard = selected_guard.log, .actions = null } } });
+                continue;
+            }
             const guard_basis = try selected_guard.requirePagedState();
             const private = if (head) |value| try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, value.tables, entry_value.object().object, progress.receipt.binding.key.scope(), TransactionWorkspace.table_format) else null;
             try participants.put(.{ .participant = .{ .state = .{ .kind = selected_guard.state.kind, .guard = guard_basis, .access = if (private != null) .write else .read } } });
@@ -2503,6 +2568,21 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                     break;
                 }
                 _ = scratch.reset(.retain_capacity);
+                if (entry_value.participant == .log) {
+                    const participant = entry_value.participant.log;
+                    if (participant.actions != null) return error.UnsupportedTransactionParticipant;
+                    const authorized = try self.logAuthorization(scratch.allocator(), switch (participant.guard.kind) {
+                        .stream => .stream,
+                        .queue => .queue,
+                    }, participant.guard.source.target, .read, policy);
+                    var read: CutFence = .{ .underlying = authorized.guard, .epoch = &epoch };
+                    var view = try self.transactionLogView(authorized.definition, participant.guard.source.target.partition, read.guard());
+                    defer view.deinit();
+                    if (begin.mode != .read_only) try participant.guard.requireUnchanged(try view.basis());
+                    control.prepared_after = entry_value.cursor();
+                    remaining -= 1;
+                    continue;
+                }
                 const participant = entry_value.participant.state;
                 var view = try self.transactionView(entry_value.object());
                 defer view.deinit();
@@ -2529,7 +2609,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         // Recheck every original statement's current operation privilege. The
         // aggregate receipt must not introduce an unrelated UPDATE requirement.
         try self.authorizeTransactionStatements(control, progress.receipt.binding.key.scope(), policy, &epoch, &scratch, &index);
-        var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding };
+        var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding, .epoch = &epoch };
         control.decision = try journal.commit(control.preparations.?, .{ .context = &verification, .participant = TransactionVerification.participant, .prepared = TransactionVerification.prepared }, guard_value);
         try self.publishTransactionControl(&progress, &control, guard_value);
     }
@@ -2544,6 +2624,20 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
             if (remaining == 0) {
                 complete = false;
                 break;
+            }
+            if (entry_value.participant == .log) {
+                const selected = entry_value.participant.log.guard;
+                const known = try self.logRecord(entry_value.object().object) orelse return error.LogDeclarationConflict;
+                if (known.phase != .complete) return error.LogDeclarationConflict;
+                var view = try self.transactionLogView(known.resulting.?, selected.source.target.partition, guard_value);
+                defer view.deinit();
+                // Cleanup uses the common control authority; it neither reads
+                // payloads nor resolves a different transaction's barrier.
+                const pinned = try view.pinState(begin.identity.begin, guard_value);
+                if (pinned.handle) |handle| if (!pinned.released) try view.release(handle, guard_value);
+                control.cleanup_after = entry_value.cursor();
+                remaining -= 1;
+                continue;
             }
             var view = try self.transactionView(entry_value.object());
             defer view.deinit();
@@ -2576,6 +2670,17 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
         const page = try selected.page(after);
         for (page.entries) |slot| if (slot) |entry_value| {
             _ = scratch.reset(.retain_capacity);
+            if (entry_value.participant == .log) {
+                const dependency = entry_value.participant.log;
+                if (dependency.actions != null) return error.UnsupportedTransactionParticipant;
+                const authorized = try self.logAuthorization(scratch.allocator(), switch (dependency.guard.kind) {
+                    .stream => .stream,
+                    .queue => .queue,
+                }, dependency.guard.source.target, .read, policy);
+                var read: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
+                try check(read.guard());
+                continue;
+            }
             var view = try self.transactionView(entry_value.object());
             defer view.deinit();
             if (!std.meta.eql(entry_value.target(), s.TableTransaction.target(view.table.root))) return error.TransactionIdentityConflict;
@@ -2611,8 +2716,28 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
 const TransactionVerification = struct {
     catalog: *Self,
     binding: s.TransactionDecisionLog.Binding,
+    epoch: *?P.Guard.Fence,
+    // Journal callbacks execute only while the common publication guard is held.
+    // Reusing that fence avoids recursively entering the service policy lock.
+    fn held(raw: *anyopaque) !P.Guard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        return self.epoch.* orelse error.TransactionAuthorityChanged;
+    }
+    fn releaseHeld(_: *anyopaque) void {}
     fn participant(raw: *anyopaque, value: p.Transaction.Participant) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
+        if (value == .log) {
+            try value.validate(self.binding.begin.identity);
+            if (value.log.actions != null) return error.UnsupportedTransactionParticipant;
+            const expected = value.log.guard;
+            const known = try self.catalog.logRecord(expected.source.target.interpretation.object.object) orelse return error.LogDeclarationConflict;
+            if (known.phase != .complete) return error.LogDeclarationConflict;
+            const guard_value: P.Guard = .{ .context = self, .acquire = held, .release = releaseHeld };
+            var view = try self.catalog.transactionLogView(known.resulting.?, expected.source.target.partition, guard_value);
+            defer view.deinit();
+            if (self.binding.begin.mode != .read_only) try expected.requireUnchanged(try view.basis());
+            return;
+        }
         try value.requireLocalState(self.binding.begin);
         var view = try self.catalog.transactionView(value.state.guard.source.interpretation.object);
         defer view.deinit();

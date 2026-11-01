@@ -113,8 +113,12 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
         for (page.entries) |slot| if (slot) |entry| {
             count = try std.math.add(u64, count, 1);
             if (count > directory.root.count) return error.InvalidTransactionDirectory;
-            try entry.participant.requireLocalState(reference.begin);
-            if (entry.participant.state.access != .read) return error.InvalidTransactionBegin;
+            try entry.participant.validate(reference.begin.identity);
+            switch (entry.participant) {
+                .state => try entry.participant.requireLocalState(reference.begin),
+                .log => if (reference.begin.selection != .explicit_objects) return error.InvalidTransactionBegin,
+            }
+            if (entry.participant.writes()) return error.InvalidTransactionBegin;
         };
         after = page.next orelse break;
     }

@@ -101,6 +101,11 @@ longer. Current Queue observations report the advanced retained boundary, while
 an open original claim can still return its older offsets. Physical collection
 waits for all dependencies to close. See [retention](retention.md).
 DLQ transfer and mixed state/message transactions remain unfinished.
+Typed transaction selection can retain Stream/Queue partition cuts as read
+dependencies alongside Table/KV state. Serializable completion checks those
+partitions' logical frontiers; read-only completion preserves the acquired cut
+after later writes. Each observation requires current read access. Transactional
+log mutation controls and SQL Stream/Queue statements remain unavailable.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
 for required composition guarantees.

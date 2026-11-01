@@ -813,8 +813,11 @@ and committed decision. Storage components now retain log source pins, stage
 paged action directories, privately evaluate Stream/Queue appends and offset/ACK
 settlements, accept preparation barriers and resolve their actual common decision.
 Decision checks include final lease/retention deadlines; storage traversal follows
-prepared payloads and indexes. Clean integrated qualification, public log participant
-admission, complete mixed state/input/output proof and DLQ transfer remain open.
+prepared payloads and indexes. Catalog transaction selection also accepts explicit
+Stream/Queue partition read dependencies, with common-cut retention, current READ
+checks, serializable frontier validation and original pin cleanup. Clean integrated
+qualification, public transactional log mutations, complete mixed state/input/output
+proof and DLQ transfer remain open.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
