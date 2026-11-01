@@ -137,6 +137,13 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
                 .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
                 .stage_kv => |value| .{ .staged = try catalog.stageTransactionKV(value.key, value.basis, value.sequence, value.work, policy) },
+                .stage_log => |value| staged: {
+                    const payload = if (value.payload) |encoded| try encoded.decode(catalog.allocator, c.storage.LogTransactionActions.max_payload_bytes) else null;
+                    defer if (payload) |bytes| catalog.allocator.free(bytes);
+                    break :staged .{ .staged_log = try catalog.stageTransactionLog(value.key, value.basis, value.sequence, value.work, payload, policy) };
+                },
+                .log_statement => |value| .{ .log_statement = if (value.execute) try catalog.executeTransactionLog(value.key, value.request, policy) else try catalog.admitTransactionLog(value.key, value.request, policy) },
+                .log_outcome => |value| .{ .log_statement = try catalog.transactionLogOutcome(value.key, value.request, policy) },
                 .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
                 .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
                 .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },

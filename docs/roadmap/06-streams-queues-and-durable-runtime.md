@@ -815,9 +815,15 @@ settlements, accept preparation barriers and resolve their actual common decisio
 Decision checks include final lease/retention deadlines; storage traversal follows
 prepared payloads and indexes. Catalog transaction selection also accepts explicit
 Stream/Queue partition read dependencies, with common-cut retention, current READ
-checks, serializable frontier validation and original pin cleanup. Clean integrated
-qualification, public transactional log mutations, complete mixed state/input/output
-proof and DLQ transfer remain open.
+checks, serializable frontier validation and original pin cleanup. Native log
+statements now share the Table/KV workspace sequence and savepoints, with compact
+permanent operation reservations and exact outcome recovery. The catalog prepares
+surviving log actions, verifies the successor graph within the resident budget,
+rechecks aggregate deadlines immediately before the decision and resolves the
+original decision during cleanup. Initial components cover Table/Stream commit,
+Queue ACK plus enqueue, final lease expiry and lost decision recovery on disk.
+Current-definition regeneration, clean integrated qualification, installed mixed
+state/input/output proof and DLQ transfer remain open.
 Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 

@@ -40,10 +40,15 @@ pub const Saved = struct {
     name: c.TableAuthority.Name,
     depth: u64,
     tables: ?pages.Reference,
+    logs: ?p.Transaction.Directory,
     last_statement: u64,
     previous: ?R.Reference,
     pub fn validate(self: Saved, head: W.Head) !void {
         try self.name.validate();
+        if (self.logs) |logs| {
+            try logs.validate();
+            if (logs.count > head.acquired.cut.begin.limits.participants) return error.InvalidTransactionSavepoint;
+        }
         if (!std.meta.eql(self.transaction, head.acquired.cut.begin.identity) or self.sequence == 0 or self.sequence > head.last_control or
             self.depth == 0 or self.depth > head.acquired.cut.begin.limits.savepoints or self.last_statement > head.last_statement or
             (self.previous == null) != (self.depth == 1)) return error.InvalidTransactionSavepoint;
@@ -137,6 +142,7 @@ pub fn apply(catalog: *c.DirectCatalog, progress: c.DirectClientToken.Progress, 
         var result = pending.result;
         if (complete) {
             head.tables = pending.tables;
+            head.logs = target.logs;
             head.savepoints = pending.target;
             head.savepoint_count = target.depth;
             head.pending_control = null;
@@ -156,7 +162,7 @@ pub fn apply(catalog: *c.DirectCatalog, progress: c.DirectClientToken.Progress, 
     head.last_control = request.sequence;
     switch (request.action) {
         .create => |name| {
-            const saved: Saved = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .sequence = request.sequence, .name = name, .depth = head.savepoint_count + 1, .tables = head.tables, .last_statement = head.last_statement, .previous = head.savepoints };
+            const saved: Saved = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .sequence = request.sequence, .name = name, .depth = head.savepoint_count + 1, .tables = head.tables, .logs = head.logs, .last_statement = head.last_statement, .previous = head.savepoints };
             try saved.validate(head);
             head.savepoints = try W.stage(staging.objects(), scope, saved_format, saved);
             head.savepoint_count = saved.depth;

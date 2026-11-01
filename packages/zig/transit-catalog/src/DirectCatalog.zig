@@ -158,6 +158,8 @@ data_objects: s.TransitObjectStore.ObjectStore,
 options: Options,
 /// Borrowed only during one signed read dispatch; never retained between calls.
 transaction_read: ?c.DirectTransactionRead.Context = null,
+/// Borrowed only during the enclosing trusted host dispatch.
+log_environment: ?*const c.DirectTransactionLog.Environment = null,
 /// Failure injection after the Table acceptance and before its caller reply.
 lose_table_reply: bool = false,
 /// Failure injection after the original coordination acceptance.
@@ -1978,8 +1980,10 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     var index = try s.TreeStore.init(self.allocator, staging.objects(), self.options.resident_pages);
     defer index.deinit();
     const record_scope = progress.receipt.binding.key.scope();
-    if (try TransactionWorkspace.get(TransactionWorkspace.Completed, self.allocator, &index, head.statements, request.statement.sequence, record_scope, TransactionWorkspace.statement_format)) |completed| {
-        try completed.validate();
+    if (try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, record_scope, TransactionWorkspace.statement_format)) |stored| {
+        try stored.validate();
+        if (stored != .state) return error.TransactionStatementConflict;
+        const completed = stored.state;
         if (!std.meta.eql(request, completed.request)) return error.TransactionStatementConflict;
         try check(read_fence.guard());
         try check(write_fence.guard());
@@ -1989,7 +1993,7 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     if (request.statement.sequence > begin.limits.statements) return error.TransactionStatementLimit;
     if (head.pending_control != null) return error.TransactionControlPending;
     if (head.pending) |pending_statement| {
-        if (!std.meta.eql(pending_statement, request)) return error.TransactionStatementPending;
+        if (pending_statement != .state or !std.meta.eql(pending_statement.state, request)) return error.TransactionStatementPending;
         if (!evaluate) return null;
     } else {
         if (evaluate or request.statement.sequence != head.last_statement + 1) return error.TransactionStatementConflict;
@@ -2005,7 +2009,7 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
         staging.used = try std.math.add(u64, staging.used, request.intent.bytes);
         if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
         try c.OperationBinding.claimTransactionStatement(self.allocator, self.data_objects, request);
-        head.pending = request;
+        head.pending = .{ .state = request };
         head.last_statement = request.statement.sequence;
         try self.publishTransactionWorkspace(progress, &head, &staging, write_fence.guard());
         try check(read_fence.guard());
@@ -2020,9 +2024,205 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     try next_table.validate();
     const table_record = try TransactionWorkspace.stage(staging.objects(), record_scope, TransactionWorkspace.table_format, next_table);
     head.tables = try TransactionWorkspace.put(&index, head.tables, request.binding.target.object, table_record, self.options.index_work_bytes);
-    const completed: TransactionWorkspace.Completed = .{ .request = request, .outcome = outcome };
+    const completed: TransactionWorkspace.StatementCompletion = .{ .state = .{ .request = request, .outcome = outcome } };
     try completed.validate();
     const result_record = try TransactionWorkspace.stage(staging.objects(), record_scope, TransactionWorkspace.statement_format, completed);
+    head.statements = try TransactionWorkspace.put(&index, head.statements, request.statement.sequence, result_record, self.options.index_work_bytes);
+    head.pending = null;
+    try check(read_fence.guard());
+    try self.publishTransactionWorkspace(progress, &head, &staging, write_fence.guard());
+    try check(read_fence.guard());
+    return outcome;
+}
+
+const TransactionLogWork = c.DirectTransactionLogWork;
+
+fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void {
+    if (work == .stream_offset) {
+        const environment = self.log_environment orelse return error.InvalidStreamReadAuthority;
+        const authority = environment.authority orelse return error.InvalidStreamReadAuthority;
+        try authority.verify(work.stream_offset.cursor);
+    }
+}
+
+/// Stage an exact payload and source basis without accepting a statement or
+/// reserving a public offset. The caller keeps this request for uncertain retry.
+pub fn stageTransactionLog(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: TransactionLogWork.Work, payload: ?[]const u8, policy: Policy) !TransactionLogWork.Request {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.stageTransactionLogBounded(progress, basis, sequence, work, payload, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progress, basis: d.Position, sequence: u64, work: TransactionLogWork.Work, payload: ?[]const u8, policy: Policy) !TransactionLogWork.Request {
+    try work.validate();
+    try self.authenticateTransactionLog(work);
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    const begin = head.acquired.cut.begin;
+    if (begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (sequence == 0 or sequence > begin.limits.statements) return error.TransactionStatementLimit;
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending != null) return error.TransactionStatementPending;
+    if (sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    if (!std.meta.eql(basis, head.revision)) return error.TransactionReadChanged;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const read = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), .read, policy);
+    const write = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), work.access(), policy);
+    var epoch: ?P.Guard.Fence = null;
+    var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
+    var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
+    try check(read_fence.guard());
+    try check(write_fence.guard());
+    var view = try self.transactionLogView(read.definition, work.target().partition, read_fence.guard());
+    defer view.deinit();
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    try sources.restore(head.acquired.cut.sources);
+    const target: p.Transaction.Target = .{ .object = work.target().interpretation.object, .kind = if (work.kind() == .stream) .stream else .queue, .partition = work.target().partition };
+    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+    if (source.guard != .log) return error.InvalidTransactionCut;
+    const frozen = try view.inspect(source.pin, read_fence.guard());
+    if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
+    try source.guard.log.requireUnchanged(try view.basis());
+    const request: TransactionLogWork.Request = .{ .statement = .{ .transaction = begin.identity, .sequence = sequence, .intent = try work.digest() }, .basis = basis, .guard = source.guard.log, .work = work };
+    try request.validate();
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
+    try view.validatePayload(work, payload);
+    try TransactionLogWork.stagePayload(staging.objects(), work, payload);
+    try check(read_fence.guard());
+    try check(write_fence.guard());
+    return request;
+}
+
+pub fn admitTransactionLog(self: *Self, key: c.DirectClientToken.Key, request: TransactionLogWork.Request, policy: Policy) !?TransactionLogWork.Outcome {
+    return self.transactionLogStatement(key, request, policy, false);
+}
+
+pub fn executeTransactionLog(self: *Self, key: c.DirectClientToken.Key, request: TransactionLogWork.Request, policy: Policy) !TransactionLogWork.Outcome {
+    if (try self.transactionLogStatement(key, request, policy, false)) |outcome| return outcome;
+    return (try self.transactionLogStatement(key, request, policy, true)).?;
+}
+
+fn transactionLogStatement(self: *Self, key: c.DirectClientToken.Key, request: TransactionLogWork.Request, policy: Policy, evaluate: bool) !?TransactionLogWork.Outcome {
+    try request.validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.transactionLogStatementBounded(progress, request, policy, evaluate) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Progress, request: TransactionLogWork.Request, policy: Policy, evaluate: bool) !?TransactionLogWork.Outcome {
+    var head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    const begin = head.acquired.cut.begin;
+    if (!std.meta.eql(request.statement.transaction, begin.identity)) return error.TransactionIdentityConflict;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const read = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), .read, policy);
+    const write = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), request.work.access(), policy);
+    var epoch: ?P.Guard.Fence = null;
+    var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
+    var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
+    try check(read_fence.guard());
+    try check(write_fence.guard());
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
+    var index = try s.TreeStore.init(self.allocator, staging.objects(), self.options.resident_pages);
+    defer index.deinit();
+    const scope_value = progress.receipt.binding.key.scope();
+    // A completed private result is original evidence even if the current
+    // public frontier has since advanced. Disclosure still needs current rights.
+    if (try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, scope_value, TransactionWorkspace.statement_format)) |stored| {
+        try stored.validate();
+        if (stored != .log or !std.meta.eql(request, stored.log.request)) return error.TransactionStatementConflict;
+        try check(read_fence.guard());
+        try check(write_fence.guard());
+        return stored.log.outcome;
+    }
+    if (begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (request.statement.sequence > begin.limits.statements) return error.TransactionStatementLimit;
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending) |pending_statement| {
+        if (pending_statement != .log or !std.meta.eql(pending_statement.log, request)) return error.TransactionStatementPending;
+        if (!evaluate) return null;
+    } else {
+        if (evaluate or request.statement.sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+        if (!std.meta.eql(request.basis, head.revision)) return error.TransactionReadChanged;
+    }
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    try sources.restore(head.acquired.cut.sources);
+    const target = (p.Transaction.Guard{ .log = request.guard }).target();
+    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+    if (source.guard != .log or !std.meta.eql(source.guard.log, request.guard)) return error.InvalidTransactionCut;
+    // Every private owner write, including regenerated indexes and segments,
+    // belongs to the same conservative workspace byte account.
+    const objects = self.data_objects;
+    self.data_objects = staging.objects();
+    defer self.data_objects = objects;
+    var view = try self.transactionLogView(read.definition, target.partition.?, read_fence.guard());
+    defer view.deinit();
+    const frozen = try view.inspect(source.pin, read_fence.guard());
+    if (!std.meta.eql(try frozen.guard(), request.guard)) return error.InvalidTransactionCut;
+    const payload = try TransactionLogWork.loadPayload(self.allocator, self.data_objects, request.work);
+    defer if (payload) |bytes| self.allocator.free(bytes);
+    try view.validatePayload(request.work, payload);
+    if (!evaluate) {
+        try self.authenticateTransactionLog(request.work);
+        try request.guard.requireUnchanged(try view.basis());
+        staging.used = try std.math.add(u64, staging.used, if (payload) |bytes| bytes.len else 0);
+        if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
+        try c.OperationBinding.claimTransactionLogStatement(self.allocator, self.data_objects, request);
+        head.pending = .{ .log = request };
+        head.last_statement = request.statement.sequence;
+        try self.publishTransactionWorkspace(progress, &head, &staging, write_fence.guard());
+        try check(read_fence.guard());
+        return null;
+    }
+    var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer logs.deinit();
+    if (head.logs) |directory| try logs.restore(directory);
+    const previous = if (try logs.get(target)) |item| item.participant.log.actions else null;
+    var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, request.guard, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
+    defer actions.deinit();
+    if (previous) |directory| try actions.restore(directory);
+    const action_entry = request.work.entry(request.statement);
+    if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, payload);
+    const directory = try actions.seal();
+    const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
+    view.clock(environment.clock);
+    const outcome: TransactionLogWork.Outcome = evaluated: {
+        _ = view.evaluate(source.pin, directory, TransactionLogWork.evaluationLimits(begin, head.last_statement), environment.authority, write_fence.guard()) catch |err| {
+            const reason: TransactionLogWork.Outcome.Reason = switch (err) {
+                error.TransactionConflict => .conflict,
+                error.QueueLeaseExpired => .lease_expired,
+                error.QueueLeaseFenced => .lease_fenced,
+                error.LogProducerConflict => .producer_conflict,
+                error.LogOffsetConflict, error.LogGroupFenced => .offset_conflict,
+                else => return err,
+            };
+            break :evaluated .{ .rejected = .{ .statement = request.statement, .reason = reason } };
+        };
+        break :evaluated .{ .provisional = .{ .statement = request.statement, .proposed = TransactionLogWork.Summary.proposed(request.work) } };
+    };
+    if (outcome == .provisional) {
+        try logs.advanceLog(request.guard, previous, directory);
+        head.logs = try logs.seal();
+    }
+    const completed: TransactionWorkspace.StatementCompletion = .{ .log = .{ .request = request, .outcome = outcome } };
+    try completed.validate();
+    const result_record = try TransactionWorkspace.stage(staging.objects(), scope_value, TransactionWorkspace.statement_format, completed);
     head.statements = try TransactionWorkspace.put(&index, head.statements, request.statement.sequence, result_record, self.options.index_work_bytes);
     head.pending = null;
     try check(read_fence.guard());
@@ -2185,12 +2385,50 @@ pub fn transactionStatementOutcome(self: *Self, key: c.DirectClientToken.Key, re
     try check(write);
     var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
     defer index.deinit();
-    const completed = try TransactionWorkspace.get(TransactionWorkspace.Completed, self.allocator, &index, head.statements, request.statement.sequence, key.scope(), TransactionWorkspace.statement_format) orelse return null;
-    try completed.validate();
+    const stored = try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, key.scope(), TransactionWorkspace.statement_format) orelse return null;
+    try stored.validate();
+    if (stored != .state) return error.TransactionStatementConflict;
+    const completed = stored.state;
     if (!std.meta.eql(completed.request, request)) return error.TransactionStatementConflict;
     try check(read);
     try check(write);
     return completed.outcome;
+}
+
+pub fn transactionLogOutcome(self: *Self, key: c.DirectClientToken.Key, request: TransactionLogWork.Request, policy: Policy) !?TransactionLogWork.Outcome {
+    try request.validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (!std.meta.eql(request.statement.transaction, progress.receipt.binding.intent.transaction.begin.identity)) return error.TransactionIdentityConflict;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.transactionLogOutcomeBounded(progress, request, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn transactionLogOutcomeBounded(self: *Self, progress: c.DirectClientToken.Progress, request: TransactionLogWork.Request, policy: Policy) !?TransactionLogWork.Outcome {
+    const head = try self.transactionObservationHead(progress) orelse return null;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const read = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), .read, policy);
+    const write = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), request.work.access(), policy);
+    var epoch: ?P.Guard.Fence = null;
+    var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
+    var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
+    try check(read_fence.guard());
+    try check(write_fence.guard());
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const stored = try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, progress.receipt.binding.key.scope(), TransactionWorkspace.statement_format) orelse return null;
+    try stored.validate();
+    if (stored != .log or !std.meta.eql(stored.log.request, request)) return error.TransactionStatementConflict;
+    try check(read_fence.guard());
+    try check(write_fence.guard());
+    return stored.log.outcome;
 }
 
 pub fn transactionSavepointOutcome(self: *Self, key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, policy: Policy) anyerror!?c.DirectTransactionSavepoint.Result {
@@ -2378,7 +2616,10 @@ pub fn resumeTransaction(self: *Self, key: c.DirectClientToken.Key, steps: u16, 
     const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
     if (head.pending_control) |control_pending| {
         _ = try self.transactionSavepoint(key, control_pending.result.request, steps, policy);
-    } else _ = try self.executeTransactionStatement(key, head.pending orelse return error.InvalidTransactionWorkspace, policy);
+    } else switch (head.pending orelse return error.InvalidTransactionWorkspace) {
+        .state => |request| _ = try self.executeTransactionStatement(key, request, policy),
+        .log => |request| _ = try self.executeTransactionLog(key, request, policy),
+    }
     return self.inspectTransaction(key, policy);
 }
 
@@ -2486,6 +2727,9 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
     try selected.restore(if (head) |value| value.acquired.cut.sources else begin.objects);
     var participants = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer participants.deinit();
+    var private_logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer private_logs.deinit();
+    if (head) |value| if (value.logs) |directory| try private_logs.restore(directory);
     var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
     defer index.deinit();
     var after: ?s.TransactionDirectory.Cursor = null;
@@ -2494,7 +2738,9 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
         for (page.entries) |slot| if (slot) |entry_value| {
             const selected_guard = if (head != null) entry_value.source.guard else entry_value.participant.guard();
             if (selected_guard == .log) {
-                try participants.put(.{ .participant = .{ .log = .{ .guard = selected_guard.log, .actions = null } } });
+                const private = try private_logs.get(entry_value.target());
+                if (private) |value| if (value.participant != .log or !std.meta.eql(value.participant.log.guard, selected_guard.log)) return error.InvalidTransactionWorkspace;
+                try participants.put(.{ .participant = .{ .log = .{ .guard = selected_guard.log, .actions = if (private) |value| value.participant.log.actions else null } } });
                 continue;
             }
             const guard_basis = try selected_guard.requirePagedState();
@@ -2559,6 +2805,9 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         if (control.preparations) |directory| try preparations.restore(directory);
         var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
         defer index.deinit();
+        var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+        defer sources.deinit();
+        try sources.restore(control.workspace.?.acquired.cut.sources);
         while (!control.preparation_complete and remaining != 0) {
             const page = try participants.page(control.prepared_after);
             var complete = true;
@@ -2570,7 +2819,6 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                 _ = scratch.reset(.retain_capacity);
                 if (entry_value.participant == .log) {
                     const participant = entry_value.participant.log;
-                    if (participant.actions != null) return error.UnsupportedTransactionParticipant;
                     const authorized = try self.logAuthorization(scratch.allocator(), switch (participant.guard.kind) {
                         .stream => .stream,
                         .queue => .queue,
@@ -2578,7 +2826,14 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                     var read: CutFence = .{ .underlying = authorized.guard, .epoch = &epoch };
                     var view = try self.transactionLogView(authorized.definition, participant.guard.source.target.partition, read.guard());
                     defer view.deinit();
-                    if (begin.mode != .read_only) try participant.guard.requireUnchanged(try view.basis());
+                    if (participant.actions) |actions| {
+                        const source = (try sources.get(entry_value.target()) orelse return error.InvalidTransactionCut).source;
+                        if (source.guard != .log or !std.meta.eql(source.guard.log, participant.guard)) return error.InvalidTransactionCut;
+                        const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
+                        view.clock(environment.clock);
+                        const prepared = try view.prepare(control.binding, progress.receipt.coordination.?, participant.guard, source.pin, actions, TransactionLogWork.evaluationLimits(begin, control.binding.attempt.last_statement), environment.authority, read.guard());
+                        try preparations.put(.{ .prepared = prepared });
+                    } else if (begin.mode != .read_only) try participant.guard.requireUnchanged(try view.basis());
                     control.prepared_after = entry_value.cursor();
                     remaining -= 1;
                     continue;
@@ -2610,7 +2865,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         // aggregate receipt must not introduce an unrelated UPDATE requirement.
         try self.authorizeTransactionStatements(control, progress.receipt.binding.key.scope(), policy, &epoch, &scratch, &index);
         var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding, .epoch = &epoch };
-        control.decision = try journal.commit(control.preparations.?, .{ .context = &verification, .participant = TransactionVerification.participant, .prepared = TransactionVerification.prepared }, guard_value);
+        control.decision = try journal.commit(control.preparations.?, .{ .context = &verification, .participant = TransactionVerification.participant, .prepared = TransactionVerification.prepared, .before_decision = TransactionVerification.beforeDecision }, guard_value);
         try self.publishTransactionControl(&progress, &control, guard_value);
     }
     if (control.decision == null) {
@@ -2631,6 +2886,12 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                 if (known.phase != .complete) return error.LogDeclarationConflict;
                 var view = try self.transactionLogView(known.resulting.?, selected.source.target.partition, guard_value);
                 defer view.deinit();
+                if (view.root().transaction) |reference| {
+                    const prepared = try s.LogTransaction.loadPreparation(self.data_objects, reference);
+                    if (!std.meta.eql(prepared.binding, control.binding)) return error.TransactionPrepared;
+                    const resolved = (try view.resolve(guard_value)) orelse return error.InvalidTransactionControl;
+                    if (!std.meta.eql(resolved, control.decision.?)) return error.InvalidTransactionControl;
+                }
                 // Cleanup uses the common control authority; it neither reads
                 // payloads nor resolves a different transaction's barrier.
                 const pinned = try view.pinState(begin.identity.begin, guard_value);
@@ -2672,7 +2933,6 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
             _ = scratch.reset(.retain_capacity);
             if (entry_value.participant == .log) {
                 const dependency = entry_value.participant.log;
-                if (dependency.actions != null) return error.UnsupportedTransactionParticipant;
                 const authorized = try self.logAuthorization(scratch.allocator(), switch (dependency.guard.kind) {
                     .stream => .stream,
                     .queue => .queue,
@@ -2695,8 +2955,16 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
         const page = try tree.scan(head.statements, cursor);
         for (page.entries) |slot| if (slot) |entry_value| {
             _ = scratch.reset(.retain_capacity);
-            const completed = try TransactionWorkspace.load(TransactionWorkspace.Completed, self.allocator, self.data_objects, try TransactionWorkspace.referenceOf(entry_value.value, scope_value, TransactionWorkspace.statement_format), scope_value, TransactionWorkspace.statement_format);
-            try completed.validate();
+            const stored = try TransactionWorkspace.load(TransactionWorkspace.StatementCompletion, self.allocator, self.data_objects, try TransactionWorkspace.referenceOf(entry_value.value, scope_value, TransactionWorkspace.statement_format), scope_value, TransactionWorkspace.statement_format);
+            try stored.validate();
+            if (stored == .log) {
+                const work = stored.log.request.work;
+                const authorized = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), work.access(), policy);
+                var write: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
+                try check(write.guard());
+                continue;
+            }
+            const completed = stored.state;
             var view = try self.transactionView(completed.request.binding.target);
             defer view.deinit();
             try self.original(policy, completed.request.binding);
@@ -2717,6 +2985,10 @@ const TransactionVerification = struct {
     catalog: *Self,
     binding: s.TransactionDecisionLog.Binding,
     epoch: *?P.Guard.Fence,
+    floor_ms: ?u64 = null,
+    lease_expires_ms: ?u64 = null,
+    append_expires_ms: ?u64 = null,
+    clock_required: bool = false,
     // Journal callbacks execute only while the common publication guard is held.
     // Reusing that fence avoids recursively entering the service policy lock.
     fn held(raw: *anyopaque) !P.Guard.Fence {
@@ -2728,14 +3000,19 @@ const TransactionVerification = struct {
         const self: *@This() = @ptrCast(@alignCast(raw));
         if (value == .log) {
             try value.validate(self.binding.begin.identity);
-            if (value.log.actions != null) return error.UnsupportedTransactionParticipant;
             const expected = value.log.guard;
             const known = try self.catalog.logRecord(expected.source.target.interpretation.object.object) orelse return error.LogDeclarationConflict;
             if (known.phase != .complete) return error.LogDeclarationConflict;
             const guard_value: P.Guard = .{ .context = self, .acquire = held, .release = releaseHeld };
             var view = try self.catalog.transactionLogView(known.resulting.?, expected.source.target.partition, guard_value);
             defer view.deinit();
-            if (self.binding.begin.mode != .read_only) try expected.requireUnchanged(try view.basis());
+            if (value.log.actions) |actions| {
+                const reference = view.root().transaction orelse return error.TransactionPreparationMissing;
+                const preparation = try s.LogTransaction.loadPreparation(self.catalog.data_objects, reference);
+                try self.binding.requireSame(preparation.binding);
+                if (!std.meta.eql(preparation.guard, expected) or !std.meta.eql(preparation.actions, actions) or
+                    !std.meta.eql(known.resulting.?.stored, preparation.predecessor.declared)) return error.TransactionConflict;
+            } else if (self.binding.begin.mode != .read_only) try expected.requireUnchanged(try view.basis());
             return;
         }
         try value.requireLocalState(self.binding.begin);
@@ -2750,6 +3027,24 @@ const TransactionVerification = struct {
     }
     fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
+        if (value.predecessor == .log) {
+            const known = try self.catalog.logRecord(value.target.object.object) orelse return error.LogDeclarationConflict;
+            if (known.phase != .complete) return error.LogDeclarationConflict;
+            const guard_value: P.Guard = .{ .context = self, .acquire = held, .release = releaseHeld };
+            var view = try self.catalog.transactionLogView(known.resulting.?, value.target.partition.?, guard_value);
+            defer view.deinit();
+            const environment = if (self.catalog.log_environment) |capabilities| capabilities.* else c.DirectTransactionLog.Environment{};
+            view.clock(environment.clock);
+            const checked = try view.verifyPrepared(value);
+            const preparation = try s.LogTransaction.loadPreparation(self.catalog.data_objects, checked.reference);
+            try self.binding.requireSame(preparation.binding);
+            try c.DirectTransactionGraph.verifyLog(self.catalog.allocator, self.catalog.data_objects, self.catalog.data_log, preparation);
+            if (checked.floor_ms) |floor| self.floor_ms = @max(self.floor_ms orelse 0, floor);
+            if (checked.lease_expires_ms) |expires| self.lease_expires_ms = @min(self.lease_expires_ms orelse std.math.maxInt(u64), expires);
+            if (checked.append_expires_ms) |expires| self.append_expires_ms = @min(self.append_expires_ms orelse std.math.maxInt(u64), expires);
+            self.clock_required = self.clock_required or value.predecessor.log.kind == .queue;
+            return;
+        }
         _ = try value.predecessor.requirePagedState();
         var view = try self.catalog.transactionView(value.target.object);
         defer view.deinit();
@@ -2758,6 +3053,17 @@ const TransactionVerification = struct {
         try self.binding.requireSame(preparation.binding);
         if (!std.meta.eql(value, try preparation.prepared(reference)) or value.position.next_lsn != view.table.root.next_lsn) return error.InvalidTransactionPreparation;
         try s.TableTransaction.verifyWorkspace(self.catalog.allocator, &view.table.index, view.table.log, preparation.workspace.root, view.table.root.archive);
+    }
+    fn beforeDecision(raw: *anyopaque) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (!self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null) return;
+        const environment = self.catalog.log_environment orelse return error.LogTimeUnavailable;
+        const now = (try s.LogTime.bounds(environment.clock, self.floor_ms, true)).?;
+        if (self.lease_expires_ms) |expires| {
+            if (now.earliest_ms >= expires) return error.QueueLeaseExpired;
+            if (now.latest_ms >= expires) return error.QueueTimeUnavailable;
+        }
+        if (self.append_expires_ms) |expires| if (now.latest_ms >= expires) return error.LogRetentionWindowElapsed;
     }
 };
 

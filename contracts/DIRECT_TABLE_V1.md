@@ -341,8 +341,8 @@ INSPECT (metadata and receipts), READ (values and retained reads), WRITE (batch
 mutations), and ownership (rename/DROP). CREATE requires namespace CREATE and
 owner eligibility. Dependency registration uses KV source privileges and
 separate dependent metadata authority. Transaction begin accepts explicit Table
-and direct KV participants, plus Stream/Queue partitions as read dependencies.
-Transactional log mutations remain unavailable through this interface.
+and direct KV participants, plus Stream/Queue partitions with retained source
+cuts and native private append/offset/ACK work described below.
 
 A KV `get` may carry the envelope's original transaction context with an exact
 active revision and no retained `source`. It reads the private workspace and
@@ -1616,6 +1616,55 @@ separately establishes publication/barrier and original-pin release. Inspection
 and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
+
+### Transactional Stream and Queue work
+
+Explicit transaction selections can combine Table/KV objects and declared
+Stream/Queue partition ordinals. `transaction.stage_log` carries `key`, `basis`,
+`sequence`, typed `work` and nullable binary `payload`. Work is `append` (Stream
+or Queue), `stream_offset` (commit plus the exact owner-issued cursor), or
+`queue_ack` (an ACK settlement with its original fenced lease). Only append has
+payload bytes. Staging validates schema-bound batches and cursor authentication,
+retains immutable payload bytes and returns `staged_log`; it accepts no statement
+and reserves no public offsets.
+
+The returned request fixes `statement`, `basis`, original log `guard` and `work`.
+Its statement digest binds the exact work, including offset cursor authentication;
+the permanent operation reservation additionally binds the complete request.
+`transaction.log_statement` carries `key`, that exact `request` and `execute`.
+False accepts it into the shared pending slot; true evaluates or recovers the
+original result. State and log statements share one consecutive sequence, pending
+slot and savepoint stack. Different content at a consumed sequence conflicts.
+The same operation cannot be accepted as a standalone mutation, including after
+rollback or abort.
+
+The `log_statement` result is nullable pending knowledge, a provisional action
+summary (row count, next offset, or ACK offset and lease epoch), or a typed
+evaluation rejection. A summary is not a public receipt. Workspace limits meter
+payloads, immutable indexes and private segment staging; resident limits cover
+the temporary owner and evaluation. Memory, storage and authorization refusal
+leave already accepted work available for recovery or explicit abort.
+
+One common transaction decision publishes surviving Table/KV mutations, appends
+and settlements. Preparation retains exact action directories, original pins,
+predecessors and successors behind each owner's barrier. Commit rechecks current
+read and operation rights, verifies the prepared data graph and samples trusted
+time after all potentially slow verification, immediately before the decision.
+Expired or uncertain ACK leases and elapsed append retention windows refuse
+commit. Recovery of an actual decision does not require the old clock sample or
+cursor signing key and cannot change that decision because time has advanced.
+
+Savepoint completion restores its saved log action directory together with state
+roots. Consumed sequences, operation reservations and original provisional
+outcomes remain retained. `transaction.log_outcome` observes those outcomes under
+current rights after rollback or closure. Read-only Stream/Queue `operation`
+lookup accepts the exact transactional work and returns only an actual public
+owner receipt; pending, rolled-back and aborted appends or settlements have no
+such receipt. This lookup never permits standalone mutation of a reserved ID.
+
+The native profile excludes claim acquisition, NACK, lease extension and DLQ
+transfer from private transaction work. SQL Stream/Queue statements and Station
+turn composition remain separate implementation gates.
 
 
 ### Transaction-scoped private reads

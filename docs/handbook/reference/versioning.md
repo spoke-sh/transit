@@ -107,8 +107,8 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The catalog log transaction cutover replaces the shared definition with
-`e43dc2b9d4e7bb5c5412694a505e50588680570ab346dde42c9745832769ebd4`.
+The catalog log statement cutover replaces the shared definition with
+`edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9`.
 Log partition records and recovery baselines require explicit logical-change,
 transaction-pin and preparation-reference fields. Immutable transaction sources
 bind the exact old root and original begin identity; earlier log roots cannot
@@ -116,8 +116,11 @@ acquire these fields from current defaults. Log preparations now bind exact
 predecessor/successor roots and action directories; commit/abort records resolve
 only an actual shared decision. Earlier root and preparation formats reject.
 The public catalog accepts explicit Stream/Queue partition read dependencies
-under the common-cut and original-decision lifecycle. Earlier builds that cannot
-interpret that accepted work reject under the replaced definition.
+and private append/offset/ACK statements under the common-cut and original-decision
+lifecycle. Workspace and savepoint records require their log action directory;
+pending and completed statements distinguish state and log work. Permanent log
+operation reservations bind the complete frozen request. Earlier builds that
+cannot interpret that accepted work reject under the replaced definition.
 
 Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
 partitions, typed direct requests and KV policy; the native resource declaration
@@ -131,7 +134,7 @@ Transaction selection, kind-specific guards, prepared evidence and paged
 directory keys now bind logical owner partitions. Stream/Queue actions share one
 preparation per partition. Storage components implement their preparation and
 resolution; public transaction execution accepts Table/KV mutations and
-Stream/Queue read dependencies. Public log mutations remain unavailable.
+Stream/Queue append, offset and ACK work with their retained read dependencies.
 Browser placement, retained configuration and typed request resources remain
 definition-bound. Earlier
 checkpoints, signed requests and histories reject rather than being silently
