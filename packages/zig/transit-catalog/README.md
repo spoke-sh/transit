@@ -33,7 +33,7 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL Stream/Queue statements and automatic DLQ transfer scheduling remain unavailable.
+SQL workload verbs and automatic DLQ transfer scheduling remain unavailable.
 
 `DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
 account-scoped record before caller-token acceptance. The Catalog verifies the
@@ -144,8 +144,8 @@ DLQ references bind an exact compatible Queue definition and add dependency edge
 in the publication record. Edges remain retained until the Queue closure owner
 can establish safe removal. The storage graph follows original intents,
 declarations and every initialized partition, including cancelled work.
-These lifecycle operations do not yet append or claim payloads or implement SQL
-Stream/Queue verbs. See the [wire contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+SQL declarations lower to these lifecycle operations. Append and claim use their
+separate payload owners. See the [wire contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
 `DirectDependency` records exact-definition dependencies with bounded inspection
 and DROP RESTRICT. Registering an edge neither activates its dependent nor pins

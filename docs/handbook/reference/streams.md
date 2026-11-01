@@ -131,7 +131,9 @@ through uncertainty; provisional summaries do not establish public acceptance.
 Lease and retention deadlines are checked immediately before the decision;
 recovery preserves an already accepted decision after those deadlines. See
 [transactional log work](../../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
-SQL Stream/Queue statements and Station turn composition remain unavailable.
+SQL workload verbs, mixed log transaction SQL and Station turn composition remain
+unavailable. [Declaration and named inspection SQL](sql/streaming.md#stream-and-queue-declarations)
+uses the shared Catalog lifecycle.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)
 for required composition guarantees.

@@ -6,15 +6,16 @@
 defines neutral partition, append, receipt, read-coverage and consumer-offset
 bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
-availability or durable acceptance. There is no installed SQL `CREATE STREAM`,
-`PRODUCE`, `CONSUME`, `COMMIT OFFSET` or `STREAM_SLICE` execution API.
+availability or durable acceptance. SQL declarations and named inspection use
+the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
+SQL `PRODUCE`, `CONSUME`, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
 
 The reflected [data lifecycle schema](data-lifecycle-v1.schema.json) owns field
 shapes; the [shared fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 uses full-width identities and deliberately different logical offsets and WAL
 positions. The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 now publishes Stream/Queue declarations with native authority and verified
-partition initialization. SQL verbs remain unavailable; native
+partition initialization. Native
 [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes append and authenticated offset settlement with Table/KV state. Storage
 provides immutable `LogDeclaration` records, fenced `LogInitialization`, a
