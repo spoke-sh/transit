@@ -812,6 +812,12 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
             try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-prepare")) {
+            try @import("fixture_direct_queue_transfer").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-recover")) {
+            try @import("fixture_direct_queue_transfer").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "queue-transfer-verify")) {
+            try @import("fixture_direct_queue_transfer").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "mixed-transaction-prepare")) {
             try @import("fixture_direct_state_transaction").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.mixed-transaction", .{args[3]}), true);
         } else if (std.mem.eql(u8, args[2], "mixed-transaction-recover")) {

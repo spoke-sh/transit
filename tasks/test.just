@@ -158,6 +158,10 @@ direct-state-transaction:
 direct-mixed-transaction:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- mixed-transaction
 
+# Queue source archive and destination append share one recoverable decision.
+direct-queue-transfer:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- queue-transfer
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}
