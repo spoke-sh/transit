@@ -118,6 +118,18 @@ fn Runner(comptime kind: Kind) type {
                         try emit(self.init, self.out, .{ .event = "failure", .profile = self.config.id, .serial = self.serial, .cause = "OwnerStillRecovering", .mutation_attempted = outcome.mutationAttempted() });
                         return error.OwnerStillRecovering;
                     }
+                    // Keep known acceptance even when its response missed the
+                    // measurement deadline. Receipt I/O is outside timing and
+                    // allocation snapshots, as canonical request I/O is above.
+                    const known_outcome = value == .operation and value.operation != null;
+                    if (action == .mutate and known_outcome) {
+                        var buffer: [1024]u8 = undefined;
+                        try write(self.init, try self.path(action.mutate.work.identity().operation, "receipt", &buffer), value.operation.?);
+                    }
+                    if (ns >= 30 * std.time.ns_per_s) {
+                        try emit(self.init, self.out, .{ .event = "failure", .profile = self.config.id, .serial = self.serial, .cause = "CallBudget", .mutation_attempted = outcome.mutationAttempted(), .known_outcome = known_outcome, .http_calls = http_calls, .ns = ns });
+                        return error.CallBudget;
+                    }
                     try emit(self.init, self.out, .{ .event = "sample", .profile = self.config.id, .serial = self.serial, .stage = self.stage, .action = work, .http_calls = http_calls, .ns = ns, .backing = counts, .client_peak_live_bytes = peak });
                     return value;
                 },
@@ -130,7 +142,6 @@ fn Runner(comptime kind: Kind) type {
             // This durable caller fixture is outside the operation timing.
             try std.Io.Dir.cwd().writeFile(self.init.io, .{ .sub_path = try self.path(work.identity().operation, "request", &buffer), .data = saved });
             const receipt = (try self.call(.{ .mutate = .{ .work = work, .payload = bytes } })).operation orelse return error.MissingOriginalReceipt;
-            try write(self.init, try self.path(work.identity().operation, "receipt", &buffer), receipt);
             return receipt;
         }
         fn row(self: *Self, offset: u64, value: c.fuze.TableRow.Row, digest: *std.crypto.hash.sha2.Sha256) !void {

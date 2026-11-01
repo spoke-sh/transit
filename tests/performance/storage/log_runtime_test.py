@@ -99,6 +99,29 @@ class Reports(unittest.TestCase):
         self.assertIsNone(driver.distribution(list(range(1, 100)))['p99_ns'])
         self.assertEqual(99, driver.distribution(list(range(1, 101)))['p99_ns'])
 
+    def test_final_response_must_meet_deadline_even_after_recovery(self):
+        records, profile = sample()
+        records[0]['action'] = records[1]['action'] = 'operation'
+        records[-1]['recovery'] = True
+        records[2]['stage'] = 'recovery'
+        records.insert(1, dict(event='recovery_step', profile=1, serial=1, http_call=1))
+        records[2]['http_calls'] = 2
+        records[2]['ns'] = 29_999_999_999
+        self.assertTrue(driver.validate(records, profile, True)['passed'])
+        for ns in (30_000_000_000, 30_000_000_001):
+            records[2]['ns'] = ns
+            with self.assertRaises(ValueError):
+                driver.validate(records, profile, True)
+            self.assertEqual(dict(passed=False, attempts=1, successful=0, refused=0, failed=1, unknown=0), driver.incomplete(records))
+
+    def test_late_known_mutation_is_failed_measurement_not_unknown_work(self):
+        records = [dict(event='attempt', serial=1),
+                   dict(event='failure', serial=1, cause='CallBudget', mutation_attempted=True,
+                        known_outcome=True, ns=30_000_000_001)]
+        self.assertEqual(dict(passed=False, attempts=1, successful=0, refused=0, failed=1, unknown=0), driver.incomplete(records))
+        records[1]['known_outcome'] = False
+        self.assertEqual(1, driver.incomplete(records)['unknown'])
+
     def test_owner_budgets_cannot_be_missing_duplicated_or_attributed_to_another_owner(self):
         records, profile = sample()
         for variant in (records[:3] + records[4:], records[:4] + records[3:]):
@@ -114,7 +137,7 @@ class Reports(unittest.TestCase):
 
     def test_unknown_is_not_rejection_or_omitted(self):
         records = [dict(event='attempt', serial=i) for i in range(5)]
-        records += [dict(event='sample', serial=0),
+        records += [dict(event='sample', serial=0, ns=17),
                     dict(event='failure', serial=1, diagnostic=dict(outcome='rejected')),
                     dict(event='failure', serial=2, diagnostic=dict(outcome='unknown')),
                     dict(event='failure', serial=3, mutation_attempted=False)]

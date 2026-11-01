@@ -79,7 +79,7 @@ def validate(records, profile, recovery):
             require(serial in attempts and serial not in completed, 'Unmatched sample')
             original = attempts[serial]
             require(all(original[key] == record[key] for key in ('stage', 'action')), 'Changed attempt')
-            require(type(record['ns']) is int and record['ns'] > 0, 'Invalid elapsed time')
+            require(type(record['ns']) is int and 0 < record['ns'] < 30_000_000_000, 'Invalid or over-budget elapsed time')
             require(record['http_calls'] == recovery_steps[serial] + 1, 'Missing HTTP attempt')
             completed[serial] = record
             backing = record['backing']
@@ -144,7 +144,9 @@ def validate(records, profile, recovery):
 def incomplete(records):
     """Retain failure/uncertainty denominators even when validation cannot finish."""
     attempts = {record['serial'] for record in records if record.get('event') == 'attempt'}
-    successes = {record['serial'] for record in records if record.get('event') == 'sample'}
+    samples = {record['serial']: record for record in records if record.get('event') == 'sample'}
+    successes = {serial for serial, record in samples.items()
+                 if type(record.get('ns')) is int and 0 < record['ns'] < 30_000_000_000}
     failures = {record['serial']: record for record in records if record.get('event') == 'failure'}
     refused = failed = unknown = 0
     for serial in attempts - successes:
@@ -152,7 +154,8 @@ def incomplete(records):
         outcome = (record.get('diagnostic') or {}).get('outcome')
         if outcome in ('input_rejected', 'rejected'):
             refused += 1
-        elif outcome in ('failed', 'not_submitted', 'not_dispatched') or record.get('mutation_attempted') is False:
+        elif (outcome in ('failed', 'not_submitted', 'not_dispatched') or
+              record.get('mutation_attempted') is False or record.get('known_outcome') is True or serial in samples):
             failed += 1
         else:
             unknown += 1

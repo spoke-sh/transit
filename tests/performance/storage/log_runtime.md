@@ -50,8 +50,12 @@ restart profile. SIGTERM completion alone does not claim application-level drain
 
 A cold owner's bounded replay may require several read-only requests. The driver
 retains the original operation or cursor, records each recovery-progress response
-and includes its time in that logical call. The recovery wait has a 30-second
-budget. Mutations and waits are never automatically repeated by the driver.
+and includes its time in that logical call. Every logical call, including its
+final response, must finish before the existing 30-second budget. A late known
+mutation receipt is saved before failing the measurement; this failure does not
+turn accepted work into an unknown outcome or authorize resubmission. Independent
+report validation also rejects late samples. Mutations and waits are never
+automatically repeated by the driver.
 
 For a failed partial run, the matching proof caller also accepts
 `URL log-baseline-inspect-OPERATION_ID PROFILE_PATH`. Reopen the retained private
