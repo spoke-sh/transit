@@ -257,6 +257,23 @@ a dropped/recreated object. Exact operation receipts remain reconcilable after
 rename, ALTER or DROP. An exact historical definition contains its accepted
 metadata and schema, without claiming a current live head.
 
+Retained projection inspection explains how those rows are interpreted without
+scanning their payloads. `projection_definitions` reports one physical schema
+generation per page: its exact definition, schema revision, live locator count,
+and each logical column's stable physical ID or frozen ADD-time definition and
+initial cell state. Current metadata visibility is required. The separate
+`projection_locations` read requires SELECT and reports up to eight original row
+identities with their physical definition and WAL or immutable segment reference.
+Both require an existing snapshot owned by the caller and recheck current rights.
+
+These pages report retained directory coverage. They do not verify that every
+payload is available or decoded, and their completion is separate from query
+completion. Traverse every continuation to account for the original total; an
+early stop reports partial coverage. Cursors bind the exact pin, so later ALTER,
+DROP or name reuse cannot change the inspection basis. The shared catalog caller
+exposes both reads through its `projection` action. Inspection never acquires,
+renews or releases retention.
+
 DROP does not physically erase retained data. The installed direct service
 exposes no Table garbage collector; accepted history, staged intents and operation
 receipts remain separate from logical retirement.

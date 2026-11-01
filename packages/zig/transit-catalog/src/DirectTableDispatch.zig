@@ -525,6 +525,14 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .authority = read.authority,
             } };
         },
+        .projection_definitions => {
+            const value = action.projection_definitions;
+            return .{ .projection_definitions = try catalog.projectionDefinitions(value.snapshot.object, value.snapshot.handle, value.after, policy) };
+        },
+        .projection_locations => {
+            const value = action.projection_locations;
+            return .{ .projection_locations = try catalog.projectionLocations(value.snapshot.object, value.snapshot.handle, value.after, policy) };
+        },
         .read_key => {
             const value = @field(action.*, @tagName(action_tag));
 

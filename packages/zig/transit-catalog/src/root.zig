@@ -30,6 +30,7 @@ pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
 pub const DirectCatalogResources = @import("DirectCatalogResources.zig");
 pub const DirectCatalogRetention = @import("DirectCatalogRetention.zig");
+pub const DirectCatalogProjection = @import("DirectCatalogProjection.zig");
 pub const DirectTableDiagnostic = @import("DirectTableDiagnostic.zig");
 pub const DirectTableTyped = @import("DirectTableTyped.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");

@@ -205,6 +205,14 @@ diagnostic grammar and representative Python/TypeScript value checks also pass.
 These working-tree checks do not qualify installed SQL/caller composition or
 close P2/P3/P8; final committed-revision qualification remains required.
 
+The projection increment adds real retained-directory inspection to the Table
+owner and signed dispatcher: one physical schema generation or eight row
+locations per call, exact ADD-time origins, distinct definition/schema revisions,
+full-width host projections and snapshot-bound continuations. Disk mixed-layout
+tests and in-memory signed dispatch/permission tests execute these operations.
+They establish directory interpretation and bounded pagination, not payload
+verification, historical SQL, installed language/UI composition or complete P3.
+
 The following table preserves the original source audit. It is not a description
 of the newer increments above.
 

@@ -124,7 +124,7 @@ fn target(action: w.Action) ?u64 {
         .operation => |value| value.binding.target.object,
         inline .log_preview, .log_admit, .log_operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
-        inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
+        inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history, .projection_definitions, .projection_locations => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
         .history_scan => |value| value.source.object.object,
         else => null,

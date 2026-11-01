@@ -20,6 +20,7 @@ const Access = struct {
     denied_resource: ?u64 = null,
     denied_metadata: ?u64 = null,
     denied_privileges: ?struct { id: u64, mask: u64 } = null,
+    visible_despite_denied_privileges: bool = false,
     deny_create: bool = false,
     epoch_change_at: usize = std.math.maxInt(usize),
     exclusive: bool = false,
@@ -50,7 +51,7 @@ const Access = struct {
             if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
-            if (value.access.denied_privileges) |denied| if (std.meta.eql(requirement.object, a.reference(denied.id)) and requirement.privileges & denied.mask != 0) return error.CatalogDenied;
+            if (value.access.denied_privileges) |denied| if (std.meta.eql(requirement.object, a.reference(denied.id)) and requirement.privileges & denied.mask != 0 and !(value.access.visible_despite_denied_privileges and requirement.access == .visible)) return error.CatalogDenied;
         };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
         if (value.access.exclusive) value.access.held = true;
@@ -6185,27 +6186,7 @@ test "direct KV signed dispatch validates typed metadata saved mutations and abs
     const K = c.DirectKV;
     const Client = c.DirectKVClient;
     const w = c.DirectTableProtocol;
-    const Fixture = struct {
-        fn ddl(_: *anyopaque, catalog: *D, binding: p.DataLifecycle.Binding, policy: D.Policy, _: u16) !D.Observation {
-            return catalog.perform(binding, policy);
-        }
-        fn namespace(_: *anyopaque, _: *D, _: c.DirectNamespace.Binding, _: D.Policy, _: u16) !c.DirectNamespace.Observation {
-            return error.UnexpectedDispatchExecution;
-        }
-        fn call(arena: *std.heap.ArenaAllocator, catalog: *D, access: *Access, action: w.Action) !w.Result {
-            const alloc = arena.allocator();
-            const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
-            const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null };
-            const context = try w.Request.context(input, alloc);
-            const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .role = null, .audience = 3, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)));
-            const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof };
-            try request.validate(alloc);
-            const result = try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, .{ .context = access, .ddl = ddl, .namespace = namespace });
-            const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 1, .login_role = 1, .role = 1, .credential_epoch = 1, .audience = 3, .context = context }, .result = result };
-            try c.DirectTableClient.validateResponse(alloc, request, response);
-            return result;
-        }
-    };
+    const Fixture = SignedDispatch;
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
     var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
@@ -6581,4 +6562,87 @@ test "CHECK constraints fence transaction candidates and preserve savepoint reco
     defer published.deinit();
     try t.expectEqual(@as(u64, 2), published.table.root.live_rows);
     try t.expect(!published.table.declaration.schema.schema.integrity.checks[0].validated);
+}
+
+const SignedDispatch = struct {
+    fn ddl(_: *anyopaque, catalog: *D, binding: p.DataLifecycle.Binding, policy: D.Policy, _: u16) !D.Observation {
+        return catalog.perform(binding, policy);
+    }
+    fn namespace(_: *anyopaque, _: *D, _: c.DirectNamespace.Binding, _: D.Policy, _: u16) !c.DirectNamespace.Observation {
+        return error.UnexpectedDispatchExecution;
+    }
+    fn call(arena: *std.heap.ArenaAllocator, catalog: *D, access: *Access, action: c.DirectTableProtocol.Action) !c.DirectTableProtocol.Result {
+        const w = c.DirectTableProtocol;
+        const alloc = arena.allocator();
+        const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+        const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null };
+        const context = try w.Request.context(input, alloc);
+        const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .role = null, .audience = 3, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)));
+        const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof };
+        try request.validate(alloc);
+        const result = try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, .{ .context = access, .ddl = ddl, .namespace = namespace });
+        const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 1, .login_role = 1, .role = 1, .credential_epoch = 1, .audience = 3, .context = context }, .result = result };
+        try c.DirectTableClient.validateResponse(alloc, request, response);
+        return result;
+    }
+};
+
+test "retained projection inspection separates metadata rights from row placement and rejects spliced coverage" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var last: P.Evidence = undefined;
+    for (10..20) |operation| last = try insertSelectedTable(&catalog, &access, "events", operation);
+    const pin = try catalog.pinRows(create.binding.target, .{ .scope = scope, .principal = 1, .operation = 100 }, last.outcome.position, access.policy());
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = create.binding.target, .handle = pin };
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const before = catalog.store.root;
+    const puts = objects.puts;
+    const first = (try SignedDispatch.call(&output, &catalog, &access, .{ .projection_locations = .{ .snapshot = snapshot, .after = null } })).projection_locations;
+    try t.expectEqual(@as(u8, 8), first.count);
+    try t.expect(first.next != null);
+    const definitions = (try SignedDispatch.call(&output, &catalog, &access, .{ .projection_definitions = .{ .snapshot = snapshot, .after = null } })).projection_definitions;
+    try t.expectEqual(@as(u64, 10), definitions.entry.?.rows);
+    try t.expectEqual(@as(u64, 1), definitions.entry.?.columns[0].?.source.physical);
+    try t.expectEqual(null, definitions.next);
+    const final = (try SignedDispatch.call(&output, &catalog, &access, .{ .projection_locations = .{ .snapshot = snapshot, .after = first.next } })).projection_locations;
+    try t.expectEqual(@as(u8, 2), final.count);
+    try t.expectEqual(null, final.next);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(before, catalog.store.root);
+    access.visible_despite_denied_privileges = true;
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .projection_definitions = .{ .snapshot = snapshot, .after = null } });
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .projection_locations = .{ .snapshot = snapshot, .after = first.next } }));
+    access.denied_privileges = null;
+    access.deny_at = access.calls + 4;
+    try t.expectError(error.CatalogDenied, catalog.projectionDefinitions(snapshot.object, pin, null, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    var changed = first.next.?;
+    changed.source.sha256[0] ^= 1;
+    try t.expectError(error.InvalidTableCursor, SignedDispatch.call(&output, &catalog, &access, .{ .projection_locations = .{ .snapshot = snapshot, .after = changed } }));
+    var view = (try resolve(&catalog, &access, "events")).?;
+    const drop = try edit(&view, 101, .drop);
+    view.deinit();
+    _ = try catalog.admit(drop, access.policy());
+    _ = try catalog.perform(drop.binding, access.policy());
+    _ = try catalog.settle(drop.binding, access.policy());
+    const replacement = try creation(8, 102, "events");
+    _ = try catalog.admit(replacement, access.policy());
+    _ = try catalog.perform(replacement.binding, access.policy());
+    const retained = try catalog.projectionDefinitions(snapshot.object, pin, null, access.policy());
+    try t.expectEqualDeep(definitions.logical, retained.logical);
+    try t.expectEqual(definitions.total_rows, retained.total_rows);
+    try catalog.releaseRows(snapshot.object, pin, access.policy());
+    try t.expectError(error.TableSnapshotReleased, catalog.projectionDefinitions(snapshot.object, pin, null, access.policy()));
 }

@@ -16,6 +16,12 @@ fn frontier(position: d.Position, changed_lsn: u64) !void {
     try position.validate();
     if (position.next_lsn == 0 or changed_lsn > position.next_lsn) return error.InvalidTableResponse;
 }
+fn projectionEnvelope(connection: w.Connection, expected: w.Snapshot, handle: P.SnapshotHandle, logical: c.storage.TableDeclaration.Stored, accepted: d.Position) !void {
+    if (!std.meta.eql(expected.handle, handle) or !std.meta.eql(expected.object, logical.interpretation.object)) return error.InvalidTableResponse;
+    try definition(connection, logical);
+    try accepted.validate();
+    if (accepted.next_lsn == 0 or logical.retired) return error.InvalidTableResponse;
+}
 fn schema(allocator: std.mem.Allocator, binary: w.Binary, stored: c.storage.TableDeclaration.Stored) !void {
     const bytes = try binary.decode(allocator, c.fuze.TableSchema.max_bytes);
     defer allocator.free(bytes);
@@ -207,6 +213,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .history_scan => .history_page,
         .pin_status => .pin_state,
         .snapshot => .snapshot,
+        .projection_definitions => .projection_definitions,
+        .projection_locations => .projection_locations,
         .read_key => .point,
         .scan, .column_scan => .page,
         .filter_scan => .filtered_page,
@@ -725,6 +733,63 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (!std.meta.eql(value.interpretation.interpretation.object, value.snapshot.object)) return error.InvalidTableResponse;
             try frontier(value.accepted, value.changed_lsn);
             try schema(allocator, value.schema, value.interpretation);
+        },
+        .projection_definitions => |value| {
+            const input = request.action.projection_definitions;
+            try projectionEnvelope(request.connection, input.snapshot, value.snapshot, value.logical, value.accepted);
+            if (value.entry) |entry| {
+                try definition(request.connection, entry.physical);
+                if (entry.schema_revision == 0) return error.InvalidTableResponse;
+                if (!std.meta.eql(entry.physical.interpretation.object, value.logical.interpretation.object) or entry.physical.interpretation.revision > value.logical.interpretation.revision or entry.rows == 0 or entry.rows > value.total_rows or entry.column_count == 0 or entry.column_count > entry.columns.len) return error.InvalidTableResponse;
+                for (entry.columns, 0..) |slot, i| {
+                    if (i >= entry.column_count) {
+                        if (slot != null) return error.InvalidTableResponse;
+                        continue;
+                    }
+                    const column = slot orelse return error.InvalidTableResponse;
+                    if (column.column == 0) return error.InvalidTableResponse;
+                    for (entry.columns[0..i]) |previous| if (previous.?.column == column.column) return error.InvalidTableResponse;
+                    switch (column.source) {
+                        .physical => |id| if (id != column.column) return error.InvalidTableResponse,
+                        .initial => |initial| {
+                            try initial.definition.validate();
+                            if (!std.meta.eql(initial.definition.object, value.logical.interpretation.object) or initial.definition.revision <= entry.physical.interpretation.revision or initial.definition.revision > value.logical.interpretation.revision) return error.InvalidTableResponse;
+                        },
+                    }
+                }
+                if (input.after) |before| if (entry.schema_revision <= before.after) return error.InvalidTableResponse;
+                if (value.next) |next| if (next.after != entry.schema_revision) return error.InvalidTableResponse;
+            } else if (value.next != null or (input.after == null and value.total_rows != 0)) return error.InvalidTableResponse;
+            if (value.next) |next| if (!std.meta.eql(next.source, value.snapshot.content) or next.after == 0) return error.InvalidTableResponse;
+        },
+        .projection_locations => |value| {
+            const input = request.action.projection_locations;
+            try projectionEnvelope(request.connection, input.snapshot, value.snapshot, value.logical, value.accepted);
+            if (value.count > value.entries.len or value.count > value.total_rows) return error.InvalidTableResponse;
+            var previous: ?[c.fuze.TableRow.Identity.encoded_bytes]u8 = if (input.after) |cursor| cursor.after else null;
+            for (value.entries, 0..) |slot, i| {
+                if (i >= value.count) {
+                    if (slot != null) return error.InvalidTableResponse;
+                    continue;
+                }
+                const entry = slot orelse return error.InvalidTableResponse;
+                try definition(request.connection, entry.physical);
+                if (entry.schema_revision == 0) return error.InvalidTableResponse;
+                if (!std.meta.eql(entry.physical.interpretation.object, value.logical.interpretation.object) or entry.physical.interpretation.revision > value.logical.interpretation.revision) return error.InvalidTableResponse;
+                const identity = try entry.identity.encode();
+                if (previous) |before| if (std.mem.order(u8, &before, &identity) != .lt) return error.InvalidTableResponse;
+                previous = identity;
+                switch (entry.location) {
+                    .wal => |wal| if (wal.lsn >= value.accepted.next_lsn or wal.bytes == 0 or wal.bytes > c.fuze.TableRow.max_bytes) return error.InvalidTableResponse,
+                    .segment => |segment| {
+                        try segment.content.validate();
+                        if (segment.id == 0 or segment.content.bytes == 0 or segment.content.bytes > c.fuze.TSeg.max_segment_bytes) return error.InvalidTableResponse;
+                    },
+                }
+            }
+            if (value.next) |next| {
+                if (value.count == 0 or !std.meta.eql(next.source, value.snapshot.content) or !std.meta.eql(next.after, previous.?)) return error.InvalidTableResponse;
+            } else if (input.after == null and value.count != value.total_rows) return error.InvalidTableResponse;
         },
         .point => |value| {
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;

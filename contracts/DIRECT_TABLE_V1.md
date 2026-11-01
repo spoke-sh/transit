@@ -1453,6 +1453,45 @@ that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
 
+### Retained projection coverage
+
+`projection_definitions` accepts `snapshot` and nullable `after` with the pin's
+`source` content and last physical `after` schema revision. It returns the exact
+pin, logical `TableDeclaration.Stored`, accepted position, total live rows, one
+nullable `entry` and nullable `next`. Each entry carries the physical stored
+definition, a separate `schema_revision`, its positive live locator count, and
+up to 128 logical column mappings. A mapping identifies the same stable physical
+ColumnId or the exact ADD-time definition and initial five-state tag. Default
+payloads are not returned. The definition revision and schema revision are
+distinct; a Table rename need not change the physical schema revision.
+
+`projection_locations` accepts `snapshot` and a nullable original identity
+cursor. It returns at most eight entries in strict row-identity order, with the
+same envelope and a continuation bound to the last returned identity. An entry
+carries the physical definition and schema revision plus either a WAL LSN,
+offset, byte length and row digest, or a segment ID, row ordinal and immutable
+content descriptor. These are retained locator references, not a successful
+payload-availability or checksum verification. Missing/corrupt payloads retain
+their ordinary errors when a read attempts to load them.
+
+The first operation requires current metadata visibility on the original Table;
+the second requires current SELECT. Both require the pin's original principal,
+recheck current rights before disclosure, and reject released pins. No latest
+lookup, pin acquisition, renewal, row decoding or mutation occurs. Reopening an
+owner may read its recovery WAL; inspection does not open segment payloads. Delegated
+read and active transaction overlays do not admit these operations. An empty
+first page is complete only for a zero-row source. A continuation cannot change
+its source; a caller must visit every page and account for the original total
+before claiming complete inspection. Inspection completion does not complete a
+query result or modify its initial observation evidence.
+
+The shared host catalog's `projection` action supplies `definitions` and
+`locations` inputs with an owned retention `snapshot` and nullable saved cursor.
+It returns an owned page and cursor. Counts, schema/definition/column IDs,
+positions and row identities retain full-width decimal strings; location cursor
+identities and digests use canonical lower-case hex. Each call performs one
+public read and leaves the retention lifecycle with its caller.
+
 `column_scan` accepts `snapshot`, `columns`, nullable `after` and `limits` and
 returns the same `page` envelope as `scan`. `columns` is a JSON array of 1–128
 unsigned integer ordinals, each in 0–127, strictly increasing without duplicates.

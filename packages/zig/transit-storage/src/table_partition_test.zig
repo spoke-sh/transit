@@ -3181,6 +3181,43 @@ test "Table lazy schema projection keeps ADD values and exact physical mappings 
     defer intermediate.deinit();
     try t.expectEqualDeep(&[_]Cell{ Case.integer(3), Case.integer(8), .null }, intermediate.row().cells);
     {
+        var scratch = std.heap.ArenaAllocator.init(t.allocator);
+        defer scratch.deinit();
+        const segment_reads = table.segment_reads;
+        const before_inspection = table.root;
+        const first = try table.inspectProjection(scratch.allocator(), intermediate_pin, null, access.guard());
+        try t.expectEqual(@as(u64, 3), first.total_rows);
+        try t.expectEqual(@as(u64, 2), first.entry.?.rows);
+        try t.expectEqual(@as(u64, 1), first.entry.?.physical.interpretation.revision);
+        try t.expectEqual(@as(u64, 2), first.entry.?.columns[1].?.source.initial.definition.revision);
+        try t.expectEqual(f.Types.State.value, first.entry.?.columns[1].?.source.initial.state);
+        try t.expectEqual(f.Types.State.null, first.entry.?.columns[2].?.source.initial.state);
+        _ = scratch.reset(.retain_capacity);
+        const second = try table.inspectProjection(scratch.allocator(), intermediate_pin, first.next, access.guard());
+        try t.expectEqual(@as(u64, 1), second.entry.?.rows);
+        try t.expectEqual(@as(u64, 2), second.entry.?.columns[1].?.source.physical);
+        try t.expectEqual(first.total_rows, first.entry.?.rows + second.entry.?.rows);
+        try t.expectEqual(null, second.next);
+        _ = scratch.reset(.retain_capacity);
+        const locations = try table.inspectProjectionLocations(scratch.allocator(), intermediate_pin, null, access.guard());
+        try t.expectEqual(@as(u8, 3), locations.count);
+        try t.expectEqual(null, locations.next);
+        try t.expectEqualDeep(first.entry.?.physical, locations.entries[0].?.physical);
+        try t.expectEqualDeep(first.entry.?.physical, locations.entries[1].?.physical);
+        try t.expectEqualDeep(second.entry.?.physical, locations.entries[2].?.physical);
+        try t.expect(locations.entries[0].?.location == .segment);
+        try t.expect(locations.entries[1].?.location == .wal);
+        try t.expect(locations.entries[2].?.location == .wal);
+        try t.expectEqual(segment_reads, table.segment_reads);
+        try t.expectEqualDeep(before_inspection, table.root);
+        _ = scratch.reset(.retain_capacity);
+        try t.expectError(error.InvalidTableSnapshotCursor, table.inspectProjection(scratch.allocator(), old_pin, first.next, access.guard()));
+        _ = scratch.reset(.retain_capacity);
+        access.deny_at = access.calls + 3;
+        try t.expectError(error.PermissionDenied, table.inspectProjection(scratch.allocator(), intermediate_pin, null, access.guard()));
+        access.deny_at = std.math.maxInt(usize);
+    }
+    {
         var frozen = try table.inspectSnapshot(t.allocator, intermediate_pin, access.guard());
         defer frozen.deinit();
         var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;

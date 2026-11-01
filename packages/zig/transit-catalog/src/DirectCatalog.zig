@@ -4837,6 +4837,27 @@ pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.O
     return access.view.table.inspectSnapshot(allocator, handle, access.current);
 }
 
+/// Metadata-only coverage of an existing private pin. Current inspection
+/// rights suffice; this never creates a pin or reads the pinned row payloads.
+pub fn projectionDefinitions(self: *Self, object: d.Object, handle: P.SnapshotHandle, after: ?P.ProjectionEvidence.Cursor, policy: Policy) !P.ProjectionEvidence {
+    try handle.owner.validate();
+    if (!std.meta.eql(handle.owner.scope, object.scope) or handle.owner.principal != policy.subject.principal()) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.storageAccess(scratch.allocator(), object, policy, false);
+    defer access.view.deinit();
+    return access.view.table.inspectProjection(scratch.allocator(), handle, after, access.current);
+}
+
+/// Per-row placement discloses original row identities and requires SELECT.
+pub fn projectionLocations(self: *Self, object: d.Object, handle: P.SnapshotHandle, after: ?P.SnapshotCursor, policy: Policy) !P.ProjectionLocations {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.inspectProjectionLocations(scratch.allocator(), handle, after, access.current);
+}
+
 pub fn snapshotRead(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !SnapshotRead {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();

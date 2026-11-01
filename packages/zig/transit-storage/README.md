@@ -612,6 +612,15 @@ predicate decisions over live identities, with explicit skipped-row coverage
 and deferred failures. Signed filtered reads bind those decisions to the retained
 source and plan; finite SQL preserves coverage, LIMIT and original error positions.
 
+`inspectProjection` reports one retained physical definition and its stable
+column mappings per call. Frozen ADD-time definitions supply absent columns;
+later insertion defaults cannot reinterpret old data. `inspectProjectionLocations`
+reports at most eight row-identity locators with exact WAL/segment references.
+Both use a caller-owned scratch arena and return owned bounded evidence, without
+loading row payloads, acquiring pins or modifying the Table. Directory coverage
+does not imply payload verification or completed query execution. The catalog
+adapts these operations to separate metadata and SELECT permissions.
+
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an
 independent startup directory handle; caller reads are not the startup gate.

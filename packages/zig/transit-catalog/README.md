@@ -253,6 +253,13 @@ scan coverage unchanged; callers explicitly release their pins. See the
 [retained read contract](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
 for bounds, current authorization and historical-lease limits.
 
+`DirectCatalogProjection` exposes bounded retained definition and locator
+coverage through the shared catalog `projection` action. Definition pages use
+current metadata visibility; per-row placement pages require SELECT. Both bind
+the original private snapshot, return owned full-width host values and perform
+no row decoding, segment scan or retention mutation. Directory coverage and payload
+verification remain distinct. See [projection coverage](../../../contracts/DIRECT_TABLE_V1.md#retained-projection-coverage).
+
 `HistoricalCatalog` supplies pure, borrowed historical-cut validation and query
 fixtures. Its digest includes the complete supplied cut: schemas, interpretation
 profiles, constraint and dependency descriptors, column origins, segments and

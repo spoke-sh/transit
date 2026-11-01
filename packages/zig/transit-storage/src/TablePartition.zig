@@ -2834,6 +2834,158 @@ pub fn inspectSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapsh
     return frozen;
 }
 
+/// One physical definition per step, including rows still backed by the WAL.
+/// Counts describe the immutable locator directory, not execution completion.
+/// No segment or row payload is read, and no pin is acquired or renewed.
+pub const ProjectionEvidence = struct {
+    pub const Column = struct {
+        column: f.TableSchema.ColumnId,
+        source: union(enum) {
+            physical: f.TableSchema.ColumnId,
+            initial: struct { definition: d.Definition, state: f.Types.State },
+        },
+    };
+    pub const Entry = struct {
+        physical: Declaration.Stored,
+        schema_revision: u64,
+        rows: u64,
+        columns: [f.TableSchema.max_columns]?Column = @splat(null),
+        column_count: u8,
+    };
+    pub const Cursor = struct { source: d.Content, after: u64 };
+    snapshot: SnapshotHandle,
+    logical: Declaration.Stored,
+    accepted: d.Position,
+    total_rows: u64,
+    entry: ?Entry,
+    next: ?Cursor,
+};
+
+/// scratch belongs to the caller and can be reset after return. Every returned
+/// identity, count and mapping is owned. The bound is one physical definition
+/// plus at most one ADD-time declaration per logical column, independent of
+/// the number of physical definitions or retained segments in the Table.
+pub fn inspectProjection(self: *Self, scratch: std.mem.Allocator, handle: SnapshotHandle, after: ?ProjectionEvidence.Cursor, guard: Guard) !ProjectionEvidence {
+    var frozen = try self.inspectSnapshot(scratch, handle, guard);
+    defer frozen.deinit();
+    const basis = frozen.root;
+    const logical = frozen.schema.schema;
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        const key_value = try Interpretations.key(value.after);
+        if (try self.tree().get(basis.physical_schemas, key_value) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key_value;
+    } else null;
+    const page = try self.tree().scan(basis.physical_schemas, cursor);
+    var result: ProjectionEvidence = .{ .snapshot = handle, .logical = basis.declared(), .accepted = frozen.position(), .total_rows = basis.live_rows, .entry = null, .next = null };
+    if (page.entries[0]) |item| {
+        const revision = try Interpretations.identity(item.key);
+        const mapping = try Interpretations.Physical.decode(item.value);
+        var physical_owner: ?Declaration.Owned = null;
+        defer if (physical_owner) |*owned| owned.deinit();
+        const physical = try self.physicalSchema(scratch, basis, logical, revision, &physical_owner);
+        var evidence: ProjectionEvidence.Entry = .{ .physical = mapping.declaration, .schema_revision = revision, .rows = mapping.rows, .column_count = @intCast(logical.columns.len) };
+        var initials: [f.TableSchema.max_columns]f.TableSchemaProjection.Initial = undefined;
+        var initial_count: usize = 0;
+        for (logical.columns, 0..) |column, i| {
+            if (physical.index(column.id)) |_| {
+                evidence.columns[i] = .{ .column = column.id, .source = .{ .physical = column.id } };
+            } else |err| {
+                if (err != error.UnknownColumn) return err;
+                const value = try self.tree().get(basis.column_origins, try Interpretations.key(column.id)) orelse return error.MissingTableInterpretation;
+                const stored = try Interpretations.decode(value);
+                if (!std.meta.eql(stored.interpretation.object, basis.interpretation.object) or stored.interpretation.revision > basis.interpretation.revision) return error.InvalidTableInterpretation;
+                var origin = try Declaration.load(scratch, self.objects, stored);
+                defer origin.deinit();
+                const schema = origin.schema.schema;
+                if (schema.revision <= physical.revision or schema.revision > logical.revision or column.id != schema.next_column - 1) return error.InvalidTableInterpretation;
+                const initial = schema.columns[try schema.index(column.id)].initial();
+                initials[initial_count] = .{ .column = column.id, .value = try f.Types.Values.cloneValidated(scratch, initial) };
+                initial_count += 1;
+                evidence.columns[i] = .{ .column = column.id, .source = .{ .initial = .{ .definition = stored.interpretation, .state = std.meta.activeTag(initial) } } };
+            }
+        }
+        _ = try f.TableSchemaProjection.init(physical, logical, initials[0..initial_count]);
+        result.entry = evidence;
+        if (page.entries[1] != null or page.next != null) result.next = .{ .source = handle.content, .after = revision };
+    } else if (after == null and basis.live_rows != 0) return error.MissingTableInterpretation;
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
+pub const ProjectionLocations = struct {
+    pub const Entry = struct {
+        identity: f.TableRow.Identity,
+        physical: Declaration.Stored,
+        schema_revision: u64,
+        location: union(enum) {
+            wal: struct { lsn: u64, offset: u32, bytes: u32, row_digest: [32]u8 },
+            segment: struct { id: u64, row: u32, content: d.Content },
+        },
+    };
+    snapshot: SnapshotHandle,
+    logical: Declaration.Stored,
+    accepted: d.Position,
+    total_rows: u64,
+    entries: [pages.page_entries]?Entry = @splat(null),
+    count: u8 = 0,
+    next: ?SnapshotCursor = null,
+};
+
+/// Bounded locator coverage complements definition-level projection evidence.
+/// This reports durable references; it does not claim that payload checksums,
+/// decoding or query execution have completed. Reading those payloads retains
+/// their normal corruption/unavailability checks. Original row identities bind
+/// continuations even when several entries share one immutable segment.
+pub fn inspectProjectionLocations(self: *Self, scratch: std.mem.Allocator, handle: SnapshotHandle, after: ?SnapshotCursor, guard: Guard) !ProjectionLocations {
+    var frozen = try self.inspectSnapshot(scratch, handle, guard);
+    defer frozen.deinit();
+    const basis = frozen.root;
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        const key_value = try pages.Key.init(&value.after);
+        if (try self.tree().get(basis.identities, key_value) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key_value;
+    } else null;
+    const page = try self.tree().scan(basis.identities, cursor);
+    var result: ProjectionLocations = .{ .snapshot = handle, .logical = basis.declared(), .accepted = frozen.position(), .total_rows = basis.live_rows };
+    for (page.entries) |maybe| {
+        const item = maybe orelse break;
+        if (item.key.len != f.TableRow.Identity.encoded_bytes or item.value.len != 32) return error.InvalidTableRowReference;
+        const key_value = try pages.Key.init(item.value.data[0..32]);
+        const stored = try self.tree().get(basis.rows, key_value) orelse return error.InvalidTableRowReference;
+        const locator = try r.Locator.decode(stored);
+        const mapping = try Interpretations.physical(&self.index, basis.physical_schemas, locator.schema_revision) orelse return error.MissingTableInterpretation;
+        var physical_owner: ?Declaration.Owned = null;
+        defer if (physical_owner) |*owned| owned.deinit();
+        _ = try self.physicalSchema(scratch, basis, frozen.schema.schema, locator.schema_revision, &physical_owner);
+        const identity = try f.TableRow.Identity.decode(item.key.data[0..f.TableRow.Identity.encoded_bytes]);
+        const location: @FieldType(ProjectionLocations.Entry, "location") = switch (locator.kind) {
+            .wal => blk: {
+                if (locator.lsn >= basis.next_lsn or locator.length == 0 or locator.length > f.TableRow.max_bytes) return error.InvalidTableRowReference;
+                break :blk .{ .wal = .{ .lsn = locator.lsn, .offset = locator.offset, .bytes = locator.length, .row_digest = locator.digest } };
+            },
+            .segment => blk: {
+                if (locator.lsn == 0 or locator.lsn >= basis.next_segment or locator.length == 0 or locator.length > f.TSeg.max_segment_bytes) return error.InvalidTableRowReference;
+                const content: d.Content = .{ .bytes = locator.length, .sha256 = locator.digest };
+                try content.validate();
+                break :blk .{ .segment = .{ .id = locator.lsn, .row = locator.offset, .content = content } };
+            },
+        };
+        result.entries[result.count] = .{ .identity = identity, .physical = mapping.declaration, .schema_revision = locator.schema_revision, .location = location };
+        result.count += 1;
+    }
+    if (page.next) |next| {
+        if (next.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
+        result.next = .{ .source = handle.content, .after = next.data[0..f.TableRow.Identity.encoded_bytes].* };
+    }
+    if (after == null and page.next == null and result.count != basis.live_rows) return error.InvalidTableInterpretation;
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
 /// Physical pages are independent of query result batches. Values in the
 /// returned page own their storage and remain valid across subsequent reads.
 /// Cursor completion means this pinned Table traversal is exhausted, not that

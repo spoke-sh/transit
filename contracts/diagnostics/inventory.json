@@ -4358,7 +4358,7 @@
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 65,
+        "CatalogDenied": 66,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
         "CatalogKindMismatch": 14,
@@ -4653,6 +4653,8 @@
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
         "previewRows()": "<inferred>",
+        "projectionDefinitions()": "<inferred>",
+        "projectionLocations()": "<inferred>",
         "protectForeignColumn()": "<inferred>",
         "publishBranchState()": "<inferred>",
         "publishTransactionCall()": "<inferred>",
@@ -4748,7 +4750,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1680,
+        "try": 1683,
         "catch": 25
       },
       "imports": [
@@ -4927,6 +4929,44 @@
       "imports": [
         "CatalogIntentCodec.zig",
         "DirectCatalogRecords.zig"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogProjection.zig": {
+      "errors": {
+        "InvalidCatalogCursor": 4,
+        "InvalidTableResponse": 1
+      },
+      "outcomes": {
+        "Action": [
+          "definitions",
+          "locations"
+        ],
+        "Column.source": [
+          "physical",
+          "initial"
+        ],
+        "Location.location": [
+          "wal",
+          "segment"
+        ],
+        "Result.coverage": [
+          "definitions",
+          "locations"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "locationKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-catalog/src/DirectCatalogRead.zig": {
@@ -6708,6 +6748,7 @@
           "dependencies",
           "resources",
           "retention",
+          "projection",
           "lookup",
           "compile",
           "load",
@@ -6733,6 +6774,7 @@
           "dependencies",
           "resources",
           "retention",
+          "projection",
           "metadata",
           "compiled",
           "loaded",
@@ -6769,7 +6811,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 1
       },
       "imports": [
@@ -6858,7 +6900,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 214,
+        "try": 216,
         "catch": 0
       },
       "imports": [
@@ -7010,7 +7052,7 @@
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
-        "InvalidTableCursor": 6,
+        "InvalidTableCursor": 7,
         "InvalidTableDelegation": 6,
         "InvalidTableKey": 2,
         "InvalidTableReadBudget": 9,
@@ -7074,6 +7116,8 @@
           "pin_status",
           "snapshot",
           "history_start",
+          "projection_definitions",
+          "projection_locations",
           "history_source",
           "history",
           "history_scan",
@@ -7174,6 +7218,8 @@
           "pin",
           "pin_state",
           "snapshot",
+          "projection_definitions",
+          "projection_locations",
           "history_source",
           "history",
           "history_page",
@@ -7231,7 +7277,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 172,
+        "try": 173,
         "catch": 3
       },
       "imports": [
@@ -7300,7 +7346,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 138
+        "InvalidTableResponse": 162
       },
       "outcomes": {},
       "error_sets": {},
@@ -7310,6 +7356,7 @@
         "evidence()": "<inferred>",
         "frontier()": "<inferred>",
         "metadata()": "<inferred>",
+        "projectionEnvelope()": "<inferred>",
         "resourceMetadata()": "<inferred>",
         "rows()": "<inferred>",
         "schema()": "<inferred>",
@@ -7323,7 +7370,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 209,
+        "try": 218,
         "catch": 10
       },
       "imports": [
@@ -9056,6 +9103,7 @@
         "DirectCatalogAdministration.zig",
         "DirectCatalogDependencies.zig",
         "DirectCatalogInspection.zig",
+        "DirectCatalogProjection.zig",
         "DirectCatalogRead.zig",
         "DirectCatalogResources.zig",
         "DirectCatalogRetention.zig",
@@ -28177,6 +28225,7 @@
         "CatalogKindMismatch": 1,
         "CatalogNameNotFound": 1,
         "CellTooLarge": 1,
+        "CheckConstraintViolation": 1,
         "ConfigurationDenied": 1,
         "ConfigurationReloadRejected": 1,
         "ConfigurationServiceRequired": 1,
@@ -36635,23 +36684,23 @@
         "InvalidTableFlushBudget": 1,
         "InvalidTableHistory": 49,
         "InvalidTableIdentity": 1,
-        "InvalidTableInterpretation": 6,
+        "InvalidTableInterpretation": 9,
         "InvalidTableKey": 3,
         "InvalidTableMaintenance": 6,
         "InvalidTableOperation": 14,
         "InvalidTablePin": 9,
         "InvalidTableReadBudget": 3,
         "InvalidTableReceipt": 4,
-        "InvalidTableRowReference": 33,
+        "InvalidTableRowReference": 38,
         "InvalidTableSegment": 2,
-        "InvalidTableSnapshotCursor": 8,
+        "InvalidTableSnapshotCursor": 12,
         "InvalidTableStatementIntent": 1,
         "InvalidTransactionDecision": 2,
         "InvalidTransactionPreparation": 7,
         "InvalidTransactionRead": 1,
         "InvalidTransactionWorkspace": 1,
         "LostAcknowledgement": 1,
-        "MissingTableInterpretation": 2,
+        "MissingTableInterpretation": 5,
         "OnlinePhasedRewriteRequired": 1,
         "OutOfMemory": 3,
         "PrivateTableWorkspace": 5,
@@ -36688,7 +36737,7 @@
         "TransactionNotFrozen": 2,
         "TransactionObjectNotSelected": 1,
         "TransactionPrepared": 8,
-        "UnknownColumn": 3,
+        "UnknownColumn": 4,
         "UnsupportedTableAction": 2,
         "UnsupportedTransactionStatement": 1,
         "WriteFailed": 3
@@ -36719,6 +36768,14 @@
           "wal",
           "segment",
           "page"
+        ],
+        "ProjectionEvidence.Column.source": [
+          "physical",
+          "initial"
+        ],
+        "ProjectionLocations.Entry.location": [
+          "wal",
+          "segment"
         ],
         "ReadMode": [
           "point",
@@ -36777,6 +36834,8 @@
         "historyStart()": "<inferred>",
         "init()": "<inferred>",
         "inspectHistoryLease()": "<inferred>",
+        "inspectProjection()": "<inferred>",
+        "inspectProjectionLocations()": "<inferred>",
         "inspectSnapshot()": "<inferred>",
         "loadSegment()": "<inferred>",
         "loadSnapshot()": "<inferred>",
@@ -36858,7 +36917,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 668,
+        "try": 695,
         "catch": 17
       },
       "imports": [

@@ -365,6 +365,8 @@ pub const Action = union(enum) {
     pin_status: struct { object: d.Object, owner: d.Operation },
     snapshot: Snapshot,
     history_start: Snapshot,
+    projection_definitions: struct { snapshot: Snapshot, after: ?P.ProjectionEvidence.Cursor },
+    projection_locations: struct { snapshot: Snapshot, after: ?P.SnapshotCursor },
     history_source: Historical,
     history: HistoryRequest,
     history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
@@ -633,6 +635,10 @@ pub const Request = struct {
                 try connection.owner(value.owner);
             },
             inline .snapshot, .history_start, .release => |value| try validateSnapshot(connection, value),
+            inline .projection_definitions, .projection_locations => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, value.snapshot.handle.content)) return error.InvalidTableCursor;
+            },
             .history_source => |value| try validateHistorical(connection, value),
             .history => |value| {
                 try validateSnapshot(connection, value.snapshot);
@@ -857,6 +863,8 @@ pub const Result = union(enum) {
     pin: P.SnapshotHandle,
     pin_state: PinState,
     snapshot: Source,
+    projection_definitions: P.ProjectionEvidence,
+    projection_locations: P.ProjectionLocations,
     history_source: HistorySource,
     history: HistoryPage,
     history_page: struct { point: P.HistoryPoint, page: Page },
