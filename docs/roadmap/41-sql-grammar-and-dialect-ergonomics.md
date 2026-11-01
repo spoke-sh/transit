@@ -1,4 +1,4 @@
-# 35. SQL grammar, standards comparison and dialect ergonomics
+# 41. SQL grammar, standards comparison and dialect ergonomics
 
 [Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -7,8 +7,8 @@ standards (**SQL:2023** `Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED` and
 **GQL**) and industry-standard analytical, transactional and streaming dialects
 (**PostgreSQL**, **DuckDB**, **Snowflake**, **ClickHouse**, **GoogleSQL** and
 **Materialize / RisingWave / Flink SQL**) before the
-[1.0 qualification scorecard](36-qualification-and-benchmarks.md) and
-[release distribution](37-releases.md). Adopt high-leverage ergonomic syntax—such
+[1.0 qualification scorecard](42-qualification-and-benchmarks.md) and
+[release distribution](43-releases.md). Adopt high-leverage ergonomic syntax—such
 as DuckDB's `FROM`-first query composition (`FROM people SELECT id, name;`),
 `GROUP BY ALL`, `ORDER BY ALL`, `SELECT * EXCLUDE (...) REPLACE (...)`, trailing
 commas and readable numeric literals—as deterministic compile-time desugarings to
@@ -42,10 +42,16 @@ the [SQL statement reference](../handbook/reference/sql.md),
 [checked grammar and rewrite proofs](../../contracts/sql/README.md) and
 [query engine architecture](../handbook/internals/query-engine.md).
 
-Placing this milestone immediately after [Milestone 34](34-programming-model.md)
-and before [Milestone 36](36-qualification-and-benchmarks.md) resolves three
+Placing this milestone after the scientific, media and evidence workloads
+([M35](35-scientific-arrays-and-measurements.md)–[M40](40-constrained-planning-and-optimization.md))
+and before [Milestone 42](42-qualification-and-benchmarks.md) resolves three
 pre-release requirements once every data, stream, queue, document, branch and
 computation primitive is defined:
+
+Include each newly qualified domain operation in the same capability inventory
+and shared typed lowering. Names in a roadmap are design proposals, not accepted
+SQL. Domain milestones define their contract before exposing syntax; this final
+audit checks composition without making unqualified parsers executable.
 
 1. **Unified grammar coherence across all data and computation primitives:**
    Earlier milestones introduce syntax for Tables, KV, Documents, Streams

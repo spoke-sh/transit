@@ -1,4 +1,4 @@
-# 38. Declarative language, structural context and corpus-native synthesis research
+# 44. Declarative language, structural context and corpus-native synthesis research
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -9,14 +9,14 @@ underlying physical data structures, index layouts, ranking heuristics and
 predictors completely swappable.
 
 This is a **speculative research milestone**. Nothing here is required for the
-[1.0 qualification and release gates](37-releases.md), and no candidate physical
+[1.0 qualification and release gates](43-releases.md), and no candidate physical
 algorithm named below (whether Block-Max BM25, trigram bitmaps, succinct
 FM-indexes/Wavelet Trees, grammar compression, distributional sketches or branch
 tree search) is assumed to be the winning implementation ahead of empirical
 measurement. The architectural goal is to define **declarative contracts**
 ($\tau \perp \kappa \perp \epsilon$) so candidate mechanisms can be plugged in,
 verified against deterministic scalar reference oracles, and evaluated on the
-[qualification scorecard](36-qualification-and-benchmarks.md).
+[qualification scorecard](42-qualification-and-benchmarks.md).
 
 ## Prerequisites and scope
 
@@ -36,7 +36,7 @@ Build on the delivered and planned foundations across
 [branches and merges](20-branches-merges-and-restore.md),
 [reviewed collaboration](29-reviewed-data-collaboration.md),
 [reactive context and agent activation](32-reactive-context-and-agent-activation.md) and
-[SQL grammar and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md).
+[SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md).
 
 Start from the [data model](../handbook/reference/data-model.md) and the
 [observation and feedback loop](../handbook/reference/collaborative-decisions.md#the-observation-and-feedback-loop).
@@ -45,6 +45,12 @@ formula, nor as exclusively the domain of external neural weights, but as
 **recursive, structured sequences** whose segmentation, proximity map,
 context-conditioned continuation and goal verification can be declared and
 inspected inside Transit.
+
+The concrete [ML/AI experiment lifecycle](37-ml-ai-and-experiment-provenance.md)
+owns model/transform/input identity, bounded runs and evaluation evidence without
+depending on this speculative synthesis research. Reuse that attribution when
+evaluating predictors here. Reasoning loops and application objectives retain
+their existing boundary; research does not expand execution authority.
 
 ## Declarative research pillars and swappable implementations
 
@@ -227,4 +233,4 @@ stream primitives:
 | Declarative Spans & Segmenters | Deterministic scalar segmenter oracle, byte-offset and five-state fidelity across UTF-8/EBCDIC/binary inputs, and measured compression vs. random-access cost of flat `.fsst`/`.dictionary` vs. hierarchical/grammar encodings |
 | Multi-Scale Proximity (`NEAR`) | Exact agreement with the finite linear/interval/graph reference oracle; measured latency, index size, build/compaction amplification and selective pruning across Block-Max BM25, trigram/automaton, succinct tree (`BP`) and WCOJ graph profiles |
 | Context-Conditioned Continuation | Provenance completeness (zero leakage from unauthorized or `.tdel`-deleted rows), grammar/catalog constraint soundness, and comparative quality/latency/memory scorecards (exact scan vs. bounded $n$-gram vs. succinct `r-index`/Wavelet Tree vs. hybrid predictors) on SQL/code completion and enterprise synthesis workloads |
-| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](36-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |
+| Branch-Verified Agency | Strict branch isolation, budget enforcement and deterministic replay; measured observation-to-consequence uplift ([qualification plan](42-qualification-and-benchmarks.md#observation-and-consequence-evidence)) when prior verified branch outcomes are indexed back into the `CONTEXT` corpus |

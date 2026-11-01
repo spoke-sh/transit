@@ -113,7 +113,7 @@ is in progress.
 application-data restore as a new forward successor under current realm policy.
 This milestone owns backup media, installation disaster recovery, operational
 activation and runtime upgrades. Both preserve the ban on revived grants,
-retired processes and historical effects. [Release distribution](37-releases.md)
+retired processes and historical effects. [Release distribution](43-releases.md)
 packages the qualified artifacts and procedures; it does not invent their
 upgrade semantics. Broader distributed placement is qualified by its own owner.
 

@@ -2687,7 +2687,7 @@ operator installation was changed.
 
 Live browser/keyboard coverage, controlled revert/republication and a superseded
 workflow rerun have not been exercised. These remain explicit
-[publication qualification work](../../roadmap/36-qualification-and-benchmarks.md#documentation-publication).
+[publication qualification work](../../roadmap/42-qualification-and-benchmarks.md#documentation-publication).
 No runtime behavior or new runtime guarantee is established by this documentation
 framing change.
 

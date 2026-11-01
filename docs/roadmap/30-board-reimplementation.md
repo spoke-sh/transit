@@ -606,8 +606,23 @@ Record executed component/service/browser evidence in [the proof ledger](../hist
 with independently reproducible fixtures and actual source revisions. Updated
 screenshots must come from the installed implementation and match its qualified
 states. Focused Board proofs close here; later
-[combined qualification](36-qualification-and-benchmarks.md) repeats the cross-caller
+[combined qualification](42-qualification-and-benchmarks.md) repeats the cross-caller
 journeys at one release revision and does not postpone these acceptance gates.
+
+## Later workload inspection
+
+The dedicated [Video](36-video-and-multimodal-timelines.md),
+[ML/AI](37-ml-ai-and-experiment-provenance.md),
+[Robotics](38-robotics-and-sensor-replay.md),
+[software evidence](39-software-build-and-deployment-evidence.md) and
+[planning](40-constrained-planning-and-optimization.md) milestones qualify their
+own application journeys after the shared operations exist. Reuse Board's
+bounded result, source-basis and lineage views for supported inspection. Keep
+captured observations, inferred annotations, candidate plans, incomplete evidence
+and accepted publications visibly distinct. Custom application value decoding,
+annotation edits, device control and build/deploy policy remain with application
+surfaces and separately authorized operations. These extensions neither add
+hidden mutations to operator inspection nor expand this milestone's closeout.
 
 ## Ownership boundaries
 
