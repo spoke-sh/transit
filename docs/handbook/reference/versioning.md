@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`.
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -227,6 +227,15 @@ not an automatically computed source hash or a substitute for verification.
 Authorization operation records retain the original admission public key and
 canonical request digest. Recovery requires both fields; records from earlier
 definitions cannot acquire admission identity from the current credential.
+
+The current definition separates browser control records (`BRC1`) from retained
+Table branch records (`TBR1`). The earlier shared tag made the branch record
+protection reject browser declaration/session writes. Generic branch record
+access remains refused; the correction does not weaken that policy. Definitions
+`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`
+and `04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6`
+are rejected. Preserve their installations and matching binaries for recovery;
+no offline conversion or reinterpretation of old branch records is supplied.
 
 The current definition includes direct Table acceptance, immutable schema and
 metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,
