@@ -27,6 +27,8 @@ Use `call`, `callLog`, `callStream` and `callQueue` with those handles. Each
 delegates to the existing Catalog caller and returns the same arena-owned result
 and mutation-attempt evidence. The output arena must outlive every associated
 borrow. Outputs survive another call, facet close and context destruction.
+Concurrent calls need separate output arenas or an externally synchronized
+allocator; the context does not serialize output allocation across facets.
 
 Only one call may borrow each facet. Overlap returns `Busy`; exhausted lanes or
 handle capacity return `ClientCapacityExceeded` before dispatch. There is no
@@ -35,7 +37,8 @@ may run concurrently using the supplied I/O implementation. The host must give
 that implementation sufficient bounded worker/task capacity; a context creates
 neither threads nor an inline fallback when concurrency is unavailable.
 
-The control lane carries Table/log operation inspection and cancellation, log
+The control lane carries Table/log operation inspection and cancellation, Table
+snapshot status and release, log
 pending discovery, Stream/Queue original-operation observation, explicit retained
 read release, Stream offset settlement and Queue lease settlement/renewal.
 Other calls, including waits, use data capacity. Control cannot borrow data

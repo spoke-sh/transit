@@ -90,6 +90,10 @@ fn release(self: *Self, borrow: Borrow) void {
 pub fn call(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectTableBridge.Action) !Catalog.Outcome {
     const lane: Admission.Lane = switch (action) {
         .operation => |value| if (value.command == .execute) .data else .control,
+        .retention => |value| switch (value) {
+            .status, .release => .control,
+            else => .data,
+        },
         else => .data,
     };
     const borrow = try self.acquire(handle, lane);
@@ -268,6 +272,41 @@ test "context close timeout and cancellation retain active native ownership" {
     try context.close(.none);
     try context.close(.none);
     try t.expectError(error.ClientContextClosed, context.acquire(second, .control));
+}
+
+test "Table retention cleanup retains control admission while data is occupied and closing" {
+    const t = std.testing;
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const a = output.allocator();
+    var context = try Self.init(t.allocator, t.io, test_config);
+    defer context.deinit() catch unreachable;
+    defer context.close(.none) catch unreachable;
+    const first = try context.openCatalog(test_catalog, @splat(10));
+    const second = try context.openCatalog(test_catalog, @splat(11));
+    const borrowed = try context.acquire(first, .data);
+    defer context.release(borrowed);
+    context.beginClose();
+    // The original owner must still be validated by Catalog. A mismatched
+    // principal gives a deterministic local refusal after control admission,
+    // with no network dependency or substituted cleanup authority.
+    var foreign = test_catalog.connection;
+    foreign.principal += 1;
+    const snapshot: c.DirectCatalogRetention.Snapshot = .{
+        .owner = .{
+            .definition = c.protocol.Growth.current_definition,
+            .connection = try c.DirectTableValues.Connection.foreign(a, foreign),
+            .object = try c.DirectTableValues.Object.foreign(a, .{ .scope = foreign.scope, .branch = 1, .object = 7 }),
+            .operation = "1",
+        },
+        .content = try c.DirectTableValues.Content.foreign(a, .{ .bytes = 1, .sha256 = @splat(3) }),
+    };
+    for ([_]c.DirectCatalogRetention.Action{ .{ .status = snapshot.owner }, .{ .release = snapshot } }) |action| {
+        const outcome = try context.call(second, &output, .{ .retention = action });
+        try t.expectEqual(error.CatalogIdentityConflict, outcome.value.failure.cause);
+        try t.expect(!outcome.mutationAttempted());
+    }
+    try t.expectError(error.ClientContextClosed, context.call(second, &output, .{ .retention = .{ .metadata = snapshot } }));
 }
 
 test "context executes the shared catalog caller and preserves owned results after close" {
