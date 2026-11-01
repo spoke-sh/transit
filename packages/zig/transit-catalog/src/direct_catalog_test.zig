@@ -6646,3 +6646,314 @@ test "retained projection inspection separates metadata rights from row placemen
     try catalog.releaseRows(snapshot.object, pin, access.policy());
     try t.expectError(error.TableSnapshotReleased, catalog.projectionDefinitions(snapshot.object, pin, null, access.policy()));
 }
+
+fn historyRequest(catalog: *D, access: *Access, operation: u64, token: u8, names: []const []const u8) !@FieldType(c.DirectHistory.Request, "acquire") {
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    var selection: c.DirectHistory.Selection = .{ .owner = .{ .scope = scope, .principal = 1, .operation = operation }, .branch = 1, .directory = null };
+    for (names) |name| selection = try catalog.selectHistory(.{ .selection = selection, .namespace = 1, .name = try a.Name.init(name) }, access.policy());
+    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(20), .token = @splat(token) }, .intent = .{ .connection = connection, .namespace = 1, .operation = operation, .selection = selection.directory.? } };
+}
+
+test "historical acquisition preserves selected WAL cuts through lost replies rename name reuse and release" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    for ([_][]const u8{ "events", "other" }, 7..) |name, id| {
+        const create = try creation(id, id, name);
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        _ = try catalog.settle(create.binding, access.policy());
+        _ = try insertSelectedTable(&catalog, &access, name, id + 100);
+    }
+    const request = try historyRequest(&catalog, &access, 200, 1, &.{ "events", "other" });
+    const admitted = try catalog.acquireHistory(request, access.policy());
+    try t.expectEqual(@as(?u64, 7), admitted.state.inflight);
+    try t.expect(admitted.state.snapshot == null);
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.advanceHistory(request.key, .advance, access.policy()));
+    catalog.lose_table_reply = false;
+    const pin = (try catalog.pinState(.{ .scope = scope, .branch = 1, .object = 7 }, request.intent.identity(), access.policy())).handle.?;
+    try t.expectError(error.HistoricalRetentionOwned, catalog.releaseRows(.{ .scope = scope, .branch = 1, .object = 7 }, pin, access.policy()));
+    _ = try insertSelectedTable(&catalog, &access, "events", 999);
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.advanceHistory(request.key, .advance, access.policy()));
+    catalog.store.lose_reply = false;
+    var published: c.DirectHistory.Status = undefined;
+    for (0..16) |_| {
+        published = try catalog.advanceHistory(request.key, .advance, access.policy());
+        if (published.state.phase == .published) break;
+    } else return error.FixtureBudget;
+    const snapshot = published.state.snapshot.?;
+    try t.expectEqual(@as(u64, 2), snapshot.source_count);
+    try t.expectEqual(p.DataLifecycle.Consistency.independent, snapshot.consistency);
+    try t.expectEqualDeep(published, try catalog.acquireHistory(request, access.policy()));
+    try t.expectEqualDeep(published, try catalog.advanceHistory(request.key, .abandon, access.policy()));
+    var changed = request;
+    changed.intent.selection.count += 1;
+    try t.expectError(error.ClientTokenConflict, catalog.acquireHistory(changed, access.policy()));
+    try t.expectError(error.HistoricalOperationRequired, catalog.clientProgress(.{ .update = .{ .key = request.key, .expected = published.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+    var view = (try resolve(&catalog, &access, "events")).?;
+    const rename = try edit(&view, 201, .{ .rename = try a.Name.init("archived") });
+    view.deinit();
+    _ = try catalog.admit(rename, access.policy());
+    _ = try catalog.perform(rename.binding, access.policy());
+    _ = try catalog.settle(rename.binding, access.policy());
+    const replacement = try creation(9, 202, "events");
+    _ = try catalog.admit(replacement, access.policy());
+    _ = try catalog.perform(replacement.binding, access.policy());
+    try t.expectEqual(@as(?u64, 7), try catalog.lookupHistory(snapshot, 1, try .init("events"), access.policy()));
+    try t.expect(try catalog.lookupHistory(snapshot, 1, try .init("archived"), access.policy()) == null);
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    {
+        var selected = try catalog.openHistory(output.allocator(), snapshot, 7, true, access.policy());
+        defer selected.deinit();
+        var page = try selected.access.view.table.scanSnapshot(t.allocator, selected.binding.pin.?, null, .{}, selected.access.current);
+        defer page.deinit();
+        try t.expectEqual(@as(u64, 1), page.total_rows);
+        try t.expectEqual(@as(i128, 107), page.rows[0].?.row().cells[0].value.atom.signed);
+    }
+    access.visible_despite_denied_privileges = true;
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    var metadata = try catalog.openHistory(output.allocator(), snapshot, 7, false, access.policy());
+    metadata.deinit();
+    try t.expectError(error.CatalogDenied, catalog.openHistory(output.allocator(), snapshot, 7, true, access.policy()));
+    access.denied_privileges = null;
+    const closing = try catalog.advanceHistory(request.key, .release, access.policy());
+    try t.expectEqual(c.DirectHistory.Phase.releasing, closing.state.phase);
+    try t.expectEqualDeep(snapshot, closing.state.snapshot.?);
+    try t.expectError(error.HistoricalSnapshotReleased, catalog.openHistory(output.allocator(), snapshot, 7, true, access.policy()));
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.advanceHistory(request.key, .advance, access.policy()));
+    catalog.lose_table_reply = false;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    var released: c.DirectHistory.Status = undefined;
+    for (0..8) |_| {
+        released = try catalog.advanceHistory(request.key, .advance, access.policy());
+        if (released.state.phase == .released) break;
+    } else return error.FixtureBudget;
+    try t.expectEqualDeep(snapshot, released.state.snapshot.?);
+    try t.expectEqualDeep(released, try catalog.advanceHistory(request.key, .release, access.policy()));
+    for ([_]u64{ 7, 8 }) |id| try t.expect((try catalog.pinState(.{ .scope = scope, .branch = 1, .object = id }, request.intent.identity(), access.policy())).released);
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, catalog.openHistory(output.allocator(), snapshot, 7, true, access.policy()));
+    access.denied_privileges = null;
+    access.denied_metadata = 107;
+    try t.expectError(error.CatalogDenied, catalog.openHistory(output.allocator(), snapshot, 7, false, access.policy()));
+    try t.expectError(error.CatalogDenied, catalog.lookupHistory(snapshot, 1, try .init("events"), access.policy()));
+    access.denied_metadata = null;
+    try t.expectError(error.HistoricalSnapshotReleased, catalog.lookupHistory(snapshot, 1, try .init("events"), access.policy()));
+    var foreign = snapshot;
+    foreign.catalog_root.sha256[0] ^= 1;
+    try t.expectError(error.HistoricalIdentityConflict, catalog.openHistory(output.allocator(), foreign, 7, true, access.policy()));
+}
+
+test "historical acquisition refuses stale input and abandons only recorded pins" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try insertSelectedTable(&catalog, &access, "events", 100);
+    const stale = try historyRequest(&catalog, &access, 200, 1, &.{"events"});
+    _ = try catalog.acquireHistory(stale, access.policy());
+    _ = try insertSelectedTable(&catalog, &access, "events", 101);
+    try t.expectError(error.TableDataChanged, catalog.advanceHistory(stale.key, .advance, access.policy()));
+    _ = try catalog.advanceHistory(stale.key, .abandon, access.policy());
+    for (0..8) |_| {
+        const value = try catalog.advanceHistory(stale.key, .advance, access.policy());
+        if (value.state.phase == .cancelled) break;
+    } else return error.FixtureBudget;
+    try t.expect((try catalog.pinState(create.binding.target, stale.intent.identity(), access.policy())).handle == null);
+    const request = try historyRequest(&catalog, &access, 201, 2, &.{"events"});
+    _ = try catalog.acquireHistory(request, access.policy());
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.advanceHistory(request.key, .advance, access.policy()));
+    catalog.lose_table_reply = false;
+    const abandoned = try catalog.advanceHistory(request.key, .abandon, access.policy());
+    try t.expect(abandoned.state.inflight != null);
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, catalog.advanceHistory(request.key, .advance, access.policy()));
+    access.denied_privileges = null;
+    for (0..8) |_| {
+        const value = try catalog.advanceHistory(request.key, .advance, access.policy());
+        if (value.state.phase == .cancelled) break;
+    } else return error.FixtureBudget;
+    try t.expect((try catalog.pinState(create.binding.target, request.intent.identity(), access.policy())).released);
+}
+
+/// Metadata inspection must not hide a data read or immutable write in an
+/// otherwise read-only signed action. Real backing objects remain available.
+const MetadataObjects = struct {
+    const O = s.TransitObjectStore;
+    inner: O.ObjectStore,
+    reads: usize = 0,
+    fn from(raw: *anyopaque) *MetadataObjects {
+        return @ptrCast(@alignCast(raw));
+    }
+    fn allowed(key: []const u8) !void {
+        if (std.mem.endsWith(u8, key, ".tseg") or std.mem.endsWith(u8, key, ".tdel")) return error.UnexpectedMetadataDataRead;
+    }
+    fn get(raw: *anyopaque, key: []const u8, offset: u64, length: u32, output: []u8) ![]const u8 {
+        try allowed(key);
+        const self = from(raw);
+        self.reads += 1;
+        return self.inner.getRange(key, offset, length, output);
+    }
+    fn head(raw: *anyopaque, key: []const u8) !?O.ObjectMeta {
+        try allowed(key);
+        return from(raw).inner.head(key);
+    }
+    fn put(_: *anyopaque, _: []const u8, _: []const u8, _: [32]u8) !O.ObjectMeta {
+        return error.UnexpectedMetadataWrite;
+    }
+    fn conditional(_: *anyopaque, _: []const u8, _: O.Condition, _: []const u8) !bool {
+        return error.UnexpectedMetadataWrite;
+    }
+    fn delete(_: *anyopaque, _: []const u8) !void {
+        return error.UnexpectedMetadataWrite;
+    }
+    fn store(self: *MetadataObjects) O.ObjectStore {
+        return .{ .context = self, .vtable = &.{ .putImmutable = put, .putConditional = conditional, .getRange = get, .head = head, .delete = delete } };
+    }
+};
+
+test "historical acquisition signed disclosure and collectible directory closure" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    for (10..20) |operation| _ = try insertSelectedTable(&catalog, &access, "events", operation);
+    const flush_target: D.FlushTarget = .{ .object = create.binding.target, .through = (try catalog.inspectStorage(create.binding.target, 1, access.policy())).position };
+    for (0..8) |_| {
+        if ((try catalog.flushStorage(flush_target, access.policy())).complete) break;
+    } else return error.TestUnexpectedResult;
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const selection = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .select = .{ .selection = .{ .owner = .{ .scope = scope, .principal = 1, .operation = 100 }, .branch = 1, .directory = null }, .namespace = 1, .name = try a.Name.init("events") } } })).historical_catalog.selection;
+    const request: @FieldType(c.DirectHistory.Request, "acquire") = .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(20), .token = @splat(21) }, .intent = .{ .connection = connection, .namespace = 1, .operation = 100, .selection = selection.directory.? } };
+    var status = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .acquire = request } })).historical_catalog.status.?;
+    for (0..12) |_| {
+        if (status.state.phase == .published) break;
+        _ = output.reset(.retain_capacity);
+        status = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .advance = request.key } })).historical_catalog.status.?;
+    } else return error.TestUnexpectedResult;
+    const snapshot = status.state.snapshot.?;
+    const before_puts = objects.puts;
+    const before_control = try wal.log().tail(catalog.store.root.configuration.partition);
+    const before_data = try wal.log().tail(flush_target.through.partition);
+    var metadata_objects: MetadataObjects = .{ .inner = catalog.data_objects };
+    catalog.data_objects = metadata_objects.store();
+    defer catalog.data_objects = metadata_objects.inner;
+    const namespace = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .namespace = .{ .snapshot = snapshot, .name = try a.Name.init("public") } } })).historical_catalog.namespace.?;
+    try t.expectEqual(@as(u64, 1), namespace.id);
+    const selected_id = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .lookup = .{ .snapshot = snapshot, .namespace = 1, .name = try a.Name.init("events") } } })).historical_catalog.object.?;
+    try t.expectEqual(@as(u64, 7), selected_id);
+    const source = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .source = .{ .snapshot = snapshot, .object = 7 } } })).historical_catalog.source;
+    var reader = try c.DirectTableReader.initCatalog(t.allocator, connection, source);
+    defer reader.deinit();
+    try t.expectEqualDeep(snapshot, reader.basis.catalog.?);
+    try t.expectEqual(@as(u64, 10), reader.basis.row_count);
+    const listing = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .list = .{ .snapshot = snapshot, .namespace = 1, .after = null } } })).historical_catalog.listing;
+    try t.expectEqual(@as(usize, 1), listing.entries.len);
+    try t.expect(listing.next == null);
+    try t.expectEqualStrings("events", listing.entries[0].properties.name.slice());
+    try t.expect(metadata_objects.reads > 0);
+    try t.expectEqual(before_puts, objects.puts);
+    try t.expectEqual(before_control, try wal.log().tail(catalog.store.root.configuration.partition));
+    try t.expectEqual(before_data, try wal.log().tail(flush_target.through.partition));
+    catalog.data_objects = metadata_objects.inner;
+    const read: c.DirectHistory.Read = .{ .snapshot = snapshot, .object = 7, .after = null, .limits = .{ .rows = 8, .encoded_bytes = 65536 } };
+    const first = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = read } })).historical_catalog.page;
+    try t.expectEqual(@as(usize, 8), first.rows.len);
+    const cursor = first.next.?;
+    var next = read;
+    next.after = cursor;
+    var tampered = first;
+    tampered.snapshot.catalog_root.sha256[0] ^= 1;
+    try t.expectError(error.InvalidHistoricalResponse, c.DirectHistory.validateResult(t.allocator, connection, .{ .scan = read }, .{ .page = tampered }));
+    access.visible_despite_denied_privileges = true;
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .source = .{ .snapshot = snapshot, .object = 7 } } });
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } }));
+    access.denied_privileges = null;
+    const last = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } })).historical_catalog.page;
+    try t.expectEqual(@as(usize, 2), last.rows.len);
+    try t.expect(last.next == null);
+    // Unaccepted staging may be collected; accepted selected/retained directory
+    // pages and entry contents remain reachable through retained catalog WAL.
+    const orphan = try historyRequest(&catalog, &access, 101, 22, &.{"events"});
+    var workspace: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    {
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        const cut = try view.table.recoveryState();
+        try workspace.enqueue(.{ .table_history = try .init(.{ .root = cut.root, .chain = cut.chain }) });
+    }
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (true) {
+            const jobs = workspace.jobs.items.len;
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - jobs <= 3);
+            steps += 1;
+            if (steps > 100000) return error.FixtureBudget;
+            if (done) break;
+        }
+    }
+    var key: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try c.DirectHistoryDirectory.objectKey(snapshot.catalog_root, &key)));
+    try t.expect(workspace.marks.contains(try c.DirectHistoryDirectory.objectKey(snapshot.sources_root, &key)));
+    try t.expect(!workspace.marks.contains(try c.DirectHistoryDirectory.objectKey(orphan.intent.selection.content, &key)));
+    at = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (c.DirectStorageGraph.collectible(item.key) and !workspace.marks.contains(item.key)) try objects.objectStore().delete(item.key) else at += 1;
+    }
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try catalog.recover();
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .source = .{ .snapshot = snapshot, .object = 7 } } });
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } });
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .release = request.key } });
+    try t.expectError(error.HistoricalSnapshotReleased, SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .scan = next } }));
+    for (0..4) |_| {
+        status = (try SignedDispatch.call(&output, &catalog, &access, .{ .historical_catalog = .{ .advance = request.key } })).historical_catalog.status.?;
+        if (status.state.phase == .released) break;
+    } else return error.TestUnexpectedResult;
+    try t.expectEqualDeep(snapshot, status.state.snapshot.?);
+    try t.expect((try catalog.pinState(create.binding.target, source.binding.pin.?.owner, access.policy())).released);
+}

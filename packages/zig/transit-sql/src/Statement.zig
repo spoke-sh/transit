@@ -92,13 +92,16 @@ pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableCli
         return err;
     };
 }
-fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
-    try f.Sql.validateText(text);
+fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, original_text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+    const selected_catalog = try g.HistoricalSql.select(original_text, dialect);
+    const text = selected_catalog.statement;
+    if (selected_catalog.snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
     if (profile == .inspection and !tokenIs(first, "SELECT")) return error.UnsupportedGatewayStatement;
     if (first.tag != .word) return error.UnsupportedGatewayStatement;
-    const owned = try allocator.dupe(u8, text);
+    if (selected_catalog.snapshot != null and !tokenIs(first, "SELECT")) return error.HistoricalReadOnly;
+    const owned = try allocator.dupe(u8, original_text);
     errdefer allocator.free(owned);
     var plan: @FieldType(Self, "plan") = undefined;
     var declaration = lexer;
@@ -126,8 +129,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAccess(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read) };
-        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAccess(allocator, client.*, namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read) };
+            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAt(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
+        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAt(allocator, client.*, namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
         plan = .{ .dml = try c.DirectTablePreparedDml.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE") or (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")))) {

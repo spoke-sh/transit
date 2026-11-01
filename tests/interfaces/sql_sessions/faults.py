@@ -56,7 +56,19 @@ class Faults:
                         # hide a release-after-pin or eager scan.
                         for name in table:
                             owner.explain_actions[name] = owner.explain_actions.get(name, 0) + 1
-                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress') for name in table)
+                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress', 'historical_catalog') for name in table)
+                        if 'historical_catalog' in table:
+                            historical = table['historical_catalog']
+                            for name in historical:
+                                key = 'historical_catalog.' + name
+                                owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
+                            explain_failure |= any(name not in ('lookup', 'source', 'namespace', 'list') for name in historical)
+                            explain_failure |= historical.get('source', {}).get('rows', False)
+                        if 'client_progress' in table:
+                            explain_failure |= set(table['client_progress']) != {'inspect'}
+                        for check in table.get('check_set', []):
+                            if 'historical' in check:
+                                explain_failure |= check['historical'].get('rows', False)
 
                     if 'pin' in table:
                         before_pin, owner.before_pin_once = owner.before_pin_once, None

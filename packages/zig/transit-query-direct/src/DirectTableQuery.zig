@@ -71,7 +71,7 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableC
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     if (limits.requests < 4) return error.QueryPageBudget;
     _ = try prepared.binding.require(client, .read);
-    var scan = try Scan.open(allocator, client, snapshot, limits.requests - 2, cancellation);
+    var scan = if (prepared.binding.catalog) |catalog| try Scan.openCatalog(allocator, client, catalog, prepared.binding.interpretation.interpretation.object.object, limits.requests - 2, cancellation) else try Scan.open(allocator, client, snapshot, limits.requests - 2, cancellation);
     errdefer scan.deinit();
     scan.requests += 2;
     scan.request_limit = limits.requests;

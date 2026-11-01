@@ -139,6 +139,8 @@
       "test::sql-result-allocations",
       "test::sql-wire-gateway",
       "test::sql-sessions",
+      "test::sql-integrity",
+      "test::sql-history",
       "test::sql-log-declarations",
       "test::sql-transactions"
     ],

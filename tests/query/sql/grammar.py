@@ -26,7 +26,7 @@ def documentation_examples():
 
     grammar = (ROOT / 'contracts/sql/TransitExtensions.g4').read_text()
     extensions = re.search(r'extensionStatement\s*:(.*?);', grammar, re.S).group(1)
-    required = set(re.findall(r'\b[a-z]\w*\b', extensions)) | {'selectStatement', 'mutationStatement', 'asOfClause'}
+    required = set(re.findall(r'\b[a-z]\w*\b', extensions)) | {'selectStatement', 'mutationStatement', 'snapshotClause'}
     covered = set()
     count = 0
 
@@ -49,11 +49,11 @@ def documentation_examples():
                 statement = block[start:end].strip()
                 start = end
                 if statement:
-                    rule = {'as-of': 'asOfFragment', 'parameters': 'parameterTemplate', 'relational': 'relationalQuery', 'authorization': 'authorizationStatement'}.get(path.stem, 'statement')
+                    rule = {'parameters': 'parameterTemplate', 'relational': 'relationalQuery', 'authorization': 'authorizationStatement'}.get(path.stem, 'statement')
                     visit(tree(statement, rule))
                     count += 1
     assert required <= covered, f'Missing SQL reference examples: {sorted(required - covered)}'
-    print(f'SQL documentation: {count} examples parse; every statement and historical fragment covered (syntax only).')
+    print(f'SQL documentation: {count} examples parse; every statement and snapshot suffix covered (syntax only).')
 
 
 def check():
@@ -83,7 +83,11 @@ def check():
         assert accepted == case['postgres'], case['id']
     for sql in data['extensions']:
         tree(sql)
-    tree('FOR SYSTEM_TIME AS OF 240', 'asOfFragment')
+    tree("SELECT id FROM items AS OF SNAPSHOT 'selector'")
+    for invalid in ('FOR SYSTEM_TIME AS OF 240', "DELETE FROM items AS OF SNAPSHOT 'selector'"):
+        try: tree(invalid)
+        except ValueError: pass
+        else: raise AssertionError(('invalid historical syntax accepted', invalid))
     from query.sql.relational import reference_check
     reference_check()
     documentation_examples()

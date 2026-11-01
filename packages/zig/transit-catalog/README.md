@@ -277,6 +277,30 @@ filter evaluation reports `QueryTypeError` and `QueryConflict` rather than
 silently excluding those cells. These borrowed fixtures do not establish disk
 paging, a SQL historical selector or runtime policy integration.
 
+`DirectHistory` is the durable selected-Table owner. Its signed
+`historical_catalog` operations stage exact source selections, bind acquisition
+to an original client token, acquire and verify pins, publish the complete cut,
+and resume bounded abandonment or release. `DirectHistoryDirectory` stores
+content-addressed paged name, namespace and definition directories. The storage
+graph follows accepted acquisition roots and retained Table pins; a staged
+selection alone does not retain rows. `DirectHistory.Selector` encodes the full
+snapshot identity for SQL and callers without narrowing its identifiers.
+
+Historical lookup, metadata pages and scans apply current permissions to the
+original objects. Metadata calls read no segments and acquire no pins. Readers
+borrow a published catalog's retention; closing a reader never releases that
+catalog. An explicitly released snapshot refuses even while cleanup is pending.
+Single-Table cuts and independent source vectors retain their distinct
+consistency evidence. See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
+for operation ownership, pagination, interruption and disclosure limits.
+
+`DirectCatalogHistory` exposes these bounded actions through
+`DirectTableBridge.Action.history` and the shared Catalog host. It copies results
+into the caller's output arena, preserves full-width identities as decimal text,
+and binds list continuations to the exact selector and namespace. Persist the
+original acquisition key and intent before dispatch. Closing the host does not
+abandon or release the catalog.
+
 Browser declaration administration is a typed public interface in
 `BrowserAdministration`: inspect a key, list an eight-entry page, conditionally
 change a declaration, or prepare a publication against a live Table schema.

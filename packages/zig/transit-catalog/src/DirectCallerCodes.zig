@@ -2,6 +2,18 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.EmptyHistoricalSelection, .code = "catalog.empty_historical_selection", .category = .binding, .message = "Select at least one exact source before retaining a historical catalog." },
+    .{ .cause = error.HistoricalIdentityConflict, .code = "catalog.historical_identity_conflict", .category = .conflict, .message = "The historical binding differs from its original retained identity. Preserve the original selector and acquisition." },
+    .{ .cause = error.HistoricalReadOnly, .code = "catalog.historical_read_only", .category = .unsupported, .message = "Retained catalog bindings support reads and inspection. Mutations require an explicit current binding." },
+    .{ .cause = error.HistoricalObjectNotSelected, .code = "catalog.historical_object_not_selected", .category = .binding, .message = "The requested object is absent from the selected historical catalog. Current names cannot extend that retained selection." },
+    .{ .cause = error.HistoricalSnapshotReleased, .code = "catalog.historical_snapshot_released", .category = .lifecycle, .message = "The selected historical catalog was released. It cannot be silently replaced with a current data cut." },
+    .{ .cause = error.InvalidHistoricalBinding, .code = "catalog.invalid_historical_binding", .category = .binding, .message = "Supply the complete original historical binding and stable object identity." },
+    .{ .cause = error.InvalidHistoricalCursor, .code = "catalog.invalid_historical_cursor", .category = .binding, .message = "A historical cursor must retain its original directory, snapshot and continuation position." },
+    .{ .cause = error.InvalidHistoricalSelector, .code = "catalog.invalid_historical_selector", .category = .binding, .message = "Supply the canonical historical selector issued for the retained catalog." },
+    .{ .cause = error.InvalidHistoricalResponse, .code = "catalog.invalid_historical_response", .category = .integrity, .message = "The historical response does not match its request and retained evidence. Preserve the original selector and inspect its owner." },
+    .{ .cause = error.InvalidHistoricalState, .code = "catalog.invalid_historical_state", .category = .integrity, .message = "The persisted historical acquisition evidence is inconsistent. Preserve the original operation for inspection." },
+    .{ .cause = error.InvalidHistoricalTransition, .code = "catalog.invalid_historical_transition", .category = .integrity, .message = "The proposed historical lifecycle transition is inconsistent with its recorded progress." },
+    .{ .cause = error.InvalidTableReadBudget, .code = "catalog.invalid_read_budget", .category = .limit, .message = "The requested read exceeds its explicit row or encoded-byte budget." },
     .{ .cause = error.UnsupportedTransactionRead, .code = "catalog.unsupported_transaction_read", .category = .unsupported, .message = "This interface cannot represent the requested private transaction view. Use its transaction-aware read operations." },
     .{ .cause = error.InvalidTransactionRead, .code = "catalog.invalid_transaction_read", .category = .binding, .message = "The private read requires its original transaction token, active revision and qualified snapshot handle." },
     .{ .cause = error.TransactionReadChanged, .code = "catalog.transaction_read_changed", .category = .conflict, .message = "The transaction workspace changed. Close the stale cursor and explicitly inspect the current revision before preparing new work." },

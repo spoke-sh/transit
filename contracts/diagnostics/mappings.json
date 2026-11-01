@@ -4484,7 +4484,10 @@
         "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig",
         "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",
         "packages/zig/transit-catalog/src/DirectCatalogRetention.zig",
-        "packages/zig/transit-data-client/src/Catalog.zig"
+        "packages/zig/transit-data-client/src/Catalog.zig",
+        "packages/zig/transit-catalog/src/DirectHistory.zig",
+        "packages/zig/transit-catalog/src/DirectHistorySelector.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogHistory.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
@@ -4857,6 +4860,54 @@
         "TransactionReadChanged": {
           "code": "catalog.transaction_read_changed",
           "category": "conflict"
+        },
+        "EmptyHistoricalSelection": {
+          "code": "catalog.empty_historical_selection",
+          "category": "binding"
+        },
+        "HistoricalIdentityConflict": {
+          "code": "catalog.historical_identity_conflict",
+          "category": "conflict"
+        },
+        "HistoricalReadOnly": {
+          "code": "catalog.historical_read_only",
+          "category": "unsupported"
+        },
+        "HistoricalObjectNotSelected": {
+          "code": "catalog.historical_object_not_selected",
+          "category": "binding"
+        },
+        "HistoricalSnapshotReleased": {
+          "code": "catalog.historical_snapshot_released",
+          "category": "lifecycle"
+        },
+        "InvalidHistoricalBinding": {
+          "code": "catalog.invalid_historical_binding",
+          "category": "binding"
+        },
+        "InvalidHistoricalCursor": {
+          "code": "catalog.invalid_historical_cursor",
+          "category": "binding"
+        },
+        "InvalidHistoricalSelector": {
+          "code": "catalog.invalid_historical_selector",
+          "category": "binding"
+        },
+        "InvalidHistoricalResponse": {
+          "code": "catalog.invalid_historical_response",
+          "category": "integrity"
+        },
+        "InvalidHistoricalState": {
+          "code": "catalog.invalid_historical_state",
+          "category": "integrity"
+        },
+        "InvalidHistoricalTransition": {
+          "code": "catalog.invalid_historical_transition",
+          "category": "integrity"
+        },
+        "InvalidTableReadBudget": {
+          "code": "catalog.invalid_read_budget",
+          "category": "limit"
         }
       },
       "exceptions": [

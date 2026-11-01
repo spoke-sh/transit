@@ -23,6 +23,49 @@ fn privileges(admin: *Admin, client: c.DirectTableClient, config: Config, role: 
     }
     return error.ProofTableBudget;
 }
+const SavedHistory = struct { key: c.DirectClientToken.Key, intent: c.DirectHistory.Intent };
+fn history(init: std.process.Init, client: c.DirectTableClient, directory: []const u8, mode: []const u8, args: []const []const u8) !void {
+    if (args.len == 0) return error.Usage;
+    const operation = try std.fmt.parseInt(u64, args[0], 10);
+    const name = try std.fmt.allocPrint(init.arena.allocator(), "history-{d}.json", .{operation});
+    const previous = support.load(SavedHistory, init, directory, name) catch |err| switch (err) {
+        error.FileNotFound => null,
+        else => return err,
+    };
+    const saved = previous orelse blk: {
+        if (!std.mem.eql(u8, mode, "history-retain") or args.len < 2) return error.MissingHistoricalRequest;
+        var selection: c.DirectHistory.Selection = .{ .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation }, .branch = client.connection.branch, .directory = null };
+        for (args[1..]) |table| {
+            const response = try c.DirectHistory.call(client, .{ .select = .{ .selection = selection, .namespace = 1, .name = try .init(table) } });
+            defer response.deinit();
+            selection = response.value.result.historical_catalog.selection;
+        }
+        var token: [16]u8 = @splat(91);
+        std.mem.writeInt(u64, token[0..8], operation, .little);
+        const value: SavedHistory = .{
+            .key = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = @splat(91), .token = token },
+            .intent = .{ .connection = client.connection, .namespace = 1, .operation = operation, .selection = selection.directory.? },
+        };
+        // The complete original selection is durable before any acquisition.
+        // Retries load it, even after current names or data have changed.
+        try support.save(init, directory, name, value);
+        break :blk value;
+    };
+    const releasing = std.mem.eql(u8, mode, "history-release");
+    const inspect = std.mem.eql(u8, mode, "history-inspect");
+    if (!releasing and !inspect and !std.mem.eql(u8, mode, "history-retain")) return error.Usage;
+    for (0..1000) |step| {
+        const request: c.DirectHistory.Request = if (inspect) .{ .inspect = saved.key } else if (releasing) .{ .release = saved.key } else if (step == 0) .{ .acquire = .{ .key = saved.key, .intent = saved.intent } } else .{ .advance = saved.key };
+        const response = try c.DirectHistory.call(client, request);
+        defer response.deinit();
+        const status = response.value.result.historical_catalog.status orelse return error.MissingHistoricalStatus;
+        if (inspect or status.state.phase == (if (releasing) c.DirectHistory.Phase.released else c.DirectHistory.Phase.published)) {
+            var text: [c.DirectHistory.Selector.text_bytes]u8 = undefined;
+            return support.print(init, .{ .phase = status.state.phase, .snapshot = status.state.snapshot, .selector = if (status.state.snapshot) |snapshot| try c.DirectHistory.Selector.encode(snapshot, &text) else null });
+        }
+    }
+    return error.ProofHistoryBudget;
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "public")) return support.print(init, (try support.key(7)).public_key.toBytes());
@@ -48,6 +91,7 @@ pub fn main(init: std.process.Init) !void {
     }
     const config = try support.load(Config, init, directory, "catalog.json");
     var client = try caller(init, &wire, config);
+    if (std.mem.startsWith(u8, mode, "history-")) return history(init, client, directory, mode, args[4..]);
     if (std.mem.eql(u8, mode, "initialize")) {
         const response = try client.call(.initialize);
         defer response.deinit();

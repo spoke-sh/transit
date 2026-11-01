@@ -238,10 +238,11 @@ are not implied: writes require separately activated recorded effects.
 
 | Operation | Support | Required meaning |
 | --- | --- | --- |
-| `FOR SYSTEM_TIME AS OF integer` | **Planned — checked grammar fragment only** | A separately parsed token sequence, not a historical-query contract; reserve system-time spelling for SQL temporal semantics |
-| `AS OF SNAPSHOT ...`, `AS OF BRANCH ...` | **Planned — proposed syntax** | Typed catalog selectors, resolved once to immutable identities before name resolution |
+| `FOR SYSTEM_TIME AS OF ...` | **Reserved — rejected** | Temporal-table semantics; the ambiguous integer fragment is removed |
+| `AS OF SNAPSHOT ...` | **Implemented — selected direct Tables** | Exact published catalog selector, resolved before object/column names; [syntax and limits](as-of.md) |
+| `AS OF BRANCH ...` | **Planned — proposed syntax** | Resolve a branch head once to a qualified immutable basis |
 | Tag selector and exact resource-revision selector | **Planned — syntax undecided** | Keep tags, snapshot IDs, branch generations and resource-scoped journal revisions distinct |
-| Historical `DESCRIBE` and `SHOW TABLES` | **Planned — proposed syntax** | Inspect the selected historical definitions under current metadata rights; row rights remain separate |
+| Historical `DESCRIBE` and `SHOW TABLES` | **Implemented — selected direct Tables** | Inspect the selected historical definitions under current metadata rights; row rights remain separate |
 | `CREATE SNAPSHOT`, `CREATE BRANCH`, `USE BRANCH` | **Planned — proposed syntax** | Frozen catalog/data basis, isolated full-data or schema-only branches and explicit session defaults |
 | Projection into a different schema | **Planned — syntax undecided** | Stable identities or reviewed mappings, typed conversion/default/conflict policies; no silent rebinding |
 | Branch diff, three-way merge and schema-only promotion | **Planned — syntax undecided** | Frozen base/source/target, reviewable conflicts and constraints, conditional target-head publication; separate from SQL `MERGE INTO` |
@@ -273,10 +274,10 @@ resolves `name`, while the renamed head resolves `display_name`. Converting old
 data to a different schema requires an explicit projection. A moved branch or
 session default cannot change already accepted work.
 
-The [system-time fragment reference](as-of.md) explains the existing isolated
-parser rule. The intended implementation replaces its integer-revision ambiguity
-deliberately. No fallback interprets a temporal expression as a snapshot ID or
-resource revision. Timestamp convenience remains undecided until branch scope,
+The [historical selector reference](as-of.md) describes the implemented selected
+Table profile. Its canonical selector replaces the ambiguous integer fragment;
+`s42` above remains only a placeholder in this proposed branch workflow. No
+fallback interprets temporal expressions as snapshot IDs or resource revisions. Timestamp convenience remains undecided until branch scope,
 publication clock, ties and unavailable-history behavior have a contract.
 
 The branch model requires isolated catalog/data ownership and conditional head
@@ -296,7 +297,8 @@ pending inputs, jobs, subscriptions and uncertain remote outcomes.
 The [historical query model](../../internals/query-engine.md#historical-schemas-and-query-binding)
 and [branch/state model](../../internals/state-model.md#schema-history-and-branches)
 explain the intended mechanisms, alternatives and limits. Current retained-read
-handles and the declaration catalog do not implement these historical operations.
+handles and selected historical catalogs do not implement the whole-catalog
+branch, merge or restore workflows above.
 
 ## Evidence required to change a label
 
@@ -333,7 +335,7 @@ standards text. Runtime and installed caller checks remain separate.
 | F491 | implemented | implemented | implemented | implemented | implemented | unverified | Table-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, inline CHECK, subqueries and effects reject. |
 | F492 | implemented | implemented | staged | staged | staged | unverified | Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the M11 index runtime. |
 | F111 | implemented | implemented | implemented | implemented | implemented | unverified | Admits SERIALIZABLE and READ ONLY common cuts; rejects weaker isolation levels. |
-| T181-X003 | rejected | rejected | rejected | rejected | rejected | unverified | Standalone caller-owned manifest/query helpers only. SQL sessions do not bind historical catalog cuts, and the helper supplies no WAL publication or retention owner. FOR SYSTEM_TIME AS OF is a separate reference grammar fragment, not an alias for an LSN or manifest. |
+| T181-X003 | implemented | implemented | implemented | implemented | staged | unverified | Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Temporal syntax, explicit target-schema projection and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut. |
 | X001-RANGE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone interval helper. RANGE and MULTIRANGE are absent from current logical type/value/schema codecs and SQL execution. |
 | X002-VECTOR | rejected | rejected | rejected | rejected | rejected | unverified | Standalone vector metric helper. VECTOR is absent from current logical type/value/schema codecs, SQL lowering and storage slabs. |
 | G001-PGQ | rejected | rejected | rejected | rejected | rejected | unverified | Standalone property-graph descriptor validation. No SQL compiler, DirectCatalog persistence or graph execution. |

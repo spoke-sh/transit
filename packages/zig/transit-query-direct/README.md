@@ -10,6 +10,15 @@ rows, bytes and source requests. `DirectRelationalCompilation` and
 `DirectRelationalQuery` supply finite joins and grouped aggregation over explicit
 source cuts. Independent Table cuts remain an independent source vector.
 
+The historical preparation entry points bind names and schemas through a
+published `DirectHistory` catalog before compiling. Prepared bindings retain
+the exact catalog identity as well as each source cut. Historical executors
+scan those retained sources and validate current access on every disclosure;
+they never substitute a live-name lookup or a newer physical index. Their
+borrowed catalog pins remain owned by the original acquisition. The
+[historical SQL reference](../../../docs/handbook/reference/sql/as-of.md)
+defines the admitted selector and read-only scope.
+
 The caller owns snapshot acquisition and release. Closing an executor releases
 its local buffers and spill work; it does not release the caller's retained pin.
 Current authorization is checked after computation and before disclosure,

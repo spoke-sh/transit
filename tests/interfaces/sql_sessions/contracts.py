@@ -23,7 +23,7 @@ else:
     value = dict(schema=schema.hex(), cells=[(b'\x03' + (2**128 - 1).to_bytes(16, 'little')).hex(), '00', '01'])
     path = ROOT / 'packages/zig/transit-sql-protocol/src/fixtures/logical.json'
     current = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
-    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None))
+    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None, historical=None))
     batch = dict(cursor=[6]*32, batch=0, schema=value['schema'], observation=observation, rows=[value['cells']], complete=True, completion=dict(rows=1))
     binary = encode_fixture(current, [2]*16, batch)
     assert Decoder().response(binary, CONTENT_TYPE, current)['result']['batch'] == batch

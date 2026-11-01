@@ -84,6 +84,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
         .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
+        .historical_catalog => return .{ .historical_catalog = try historical(allocator, catalog, policy, action.historical_catalog) },
         .kv => {
             var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
             defer scratch.deinit();
@@ -312,9 +313,15 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         },
         .check_set => {
             const values = @field(action.*, @tagName(action_tag));
-
+            var scratch = std.heap.ArenaAllocator.init(catalog.allocator);
+            defer scratch.deinit();
             for (values) |value| switch (value) {
                 .access => |access| try catalog.checkAccess(access, policy),
+                .historical => |input| {
+                    _ = scratch.reset(.retain_capacity);
+                    var source = try catalog.openHistory(scratch.allocator(), input.snapshot, input.object, input.rows, policy);
+                    defer source.deinit();
+                },
                 .snapshot => |snapshot| {
                     var source = try catalog.snapshotDefinition(catalog.allocator, snapshot.object, snapshot.handle, policy);
                     defer source.deinit();
@@ -685,6 +692,50 @@ fn branch(output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.D
         break :result .{ .page = .{ .head = head, .source = selected.entry.source, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
     };
     // Includes buffered rows, schema, and genuinely empty terminal results.
+    _ = try current.acquire(current.context);
+    current.release(current.context);
+    return result;
+}
+
+fn historical(output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectHistory.Request) !c.DirectHistory.Result {
+    switch (request) {
+        .select => |value| return .{ .selection = try catalog.selectHistory(value, policy) },
+        .acquire => |value| return .{ .status = try catalog.acquireHistory(value, policy) },
+        .inspect => |key| return .{ .status = try catalog.inspectHistory(key, policy) },
+        .advance => |key| return .{ .status = try catalog.advanceHistory(key, .advance, policy) },
+        .abandon => |key| return .{ .status = try catalog.advanceHistory(key, .abandon, policy) },
+        .release => |key| return .{ .status = try catalog.advanceHistory(key, .release, policy) },
+        .lookup => |value| return .{ .object = try catalog.lookupHistory(value.snapshot, value.namespace, value.name, policy) },
+        .namespace => |value| return .{ .namespace = try catalog.namespaceHistory(value.snapshot, value.name, policy) },
+        .list => |value| return .{ .listing = try catalog.listHistory(output, value, policy) },
+        .source, .scan => {},
+    }
+    const snapshot = if (request == .source) request.source.snapshot else request.scan.snapshot;
+    const object = if (request == .source) request.source.object else request.scan.object;
+    var scratch = std.heap.ArenaAllocator.init(catalog.allocator);
+    defer scratch.deinit();
+    var selected = try catalog.openHistory(scratch.allocator(), snapshot, object, request == .scan or (request == .source and request.source.rows), policy);
+    defer selected.deinit();
+    const current = selected.access.current;
+    var definition = try selected.access.view.table.inspectSnapshot(catalog.allocator, selected.binding.pin.?, current);
+    defer definition.deinit();
+    const result: c.DirectHistory.Result = if (request == .source) .{ .source = .{
+        .snapshot = snapshot,
+        .binding = selected.binding,
+        .rows = definition.root.live_rows,
+        .changed_lsn = definition.root.changed_lsn,
+        .authority = selected.authority,
+        .schema = try schema(output, catalog.allocator, definition.schema.schema),
+    } } else result: {
+        const read = request.scan;
+        var page = try selected.access.view.table.scanSnapshot(catalog.allocator, selected.binding.pin.?, read.after, read.limits, current);
+        defer page.deinit();
+        const rows = try output.alloc(w.Binary, page.count);
+        const buffer = try catalog.allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+        defer catalog.allocator.free(buffer);
+        for (rows, 0..) |*row, i| row.* = try w.Binary.encode(output, try page.rows[i].?.row().encode(definition.schema.schema, buffer));
+        break :result .{ .page = .{ .snapshot = snapshot, .source = selected.binding.source, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
+    };
     _ = try current.acquire(current.context);
     current.release(current.context);
     return result;

@@ -161,6 +161,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => .stream,
         .queue => .queue,
         .branch => .branch,
+        .historical_catalog => .historical_catalog,
         .kv => .kv,
         .kv_declaration => .kv_declaration,
         .kv_lookup => .kv_lookup,
@@ -226,6 +227,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
+        .historical_catalog => |value| try c.DirectHistory.validateResult(allocator, request.connection, request.action.historical_catalog, value),
         .kv => |value| {
             try c.DirectKVResponse.validate(allocator, request.action.kv, value);
             if (value == .value) try workspace(request, value.value.workspace, value.value.interpretation.interpretation, value.value.position, value.value.changed_lsn, null);

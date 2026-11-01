@@ -155,7 +155,7 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
         const page = try c.DirectClientToken.list(source.client.table(binding), execution.configuration.account, after_id, pending);
         if (page.next) |next| through = if (through) |previous| @min(previous, next) else next;
         for (page.entries) |slot| if (slot) |state| {
-            if (state.receipt.binding.intent == .branch) continue;
+            if (state.receipt.binding.intent == .branch or state.receipt.binding.intent == .history) continue;
             if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
             for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
                 states[count] = state;

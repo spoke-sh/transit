@@ -13,6 +13,7 @@ pub const Completion = session_protocol.Completion;
 pub const DatabaseRuntime = @import("DatabaseRuntime.zig");
 pub const Probe = @import("Probe.zig");
 pub const ReadBatch = session_protocol.Wire.ReadBatch;
+pub const HistoricalSql = @import("HistoricalSql.zig");
 pub const Statement = @import("Statement.zig");
 pub const TransactionSql = @import("TransactionSql.zig");
 pub const TransactionWork = @import("TransactionWork.zig");

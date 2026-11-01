@@ -31,6 +31,11 @@ pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot:
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     return .{ .allocator = allocator, .client = client, .reader = try c.DirectTableReader.open(allocator, client, snapshot), .request_limit = request_limit, .cancellation = cancellation };
 }
+pub fn openCatalog(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: q.protocol.DataLifecycle.Snapshot, object: u64, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
+    if (request_limit < 2) return error.InvalidQueryBudget;
+    if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+    return .{ .allocator = allocator, .client = client, .reader = try c.DirectTableReader.openCatalog(allocator, client, snapshot, object), .request_limit = request_limit, .cancellation = cancellation };
+}
 pub fn deinit(self: *Self) void {
     if (self.page) |*page| page.deinit();
     self.reader.deinit();
@@ -83,6 +88,9 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
     self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
 }
 pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
+    // Historical sources evaluate the same plan over their original layout.
+    // Current physical access paths require separate historical qualification.
+    if (self.reader.basis.catalog != null) return;
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
     if (self.point_key != null or self.count_range != null) return;

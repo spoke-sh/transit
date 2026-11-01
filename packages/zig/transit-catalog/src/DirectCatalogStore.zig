@@ -401,6 +401,12 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
                 return error.InvalidDirectCatalogTransition;
         }
     }
+    if (accepted.receipt.binding.intent == .history) {
+        const state = try c.DirectHistory.State.load(self.allocator, self.objects, accepted);
+        if (prior) |old| {
+            try c.DirectHistory.State.transition(try c.DirectHistory.State.load(self.allocator, self.objects, old), state);
+        } else if (!std.meta.eql(state, c.DirectHistory.State.initial())) return error.InvalidHistoricalTransition;
+    }
     var unchanged = record.root;
     try self.branchTransition(before, record);
     if (accepted.receipt.binding.intent == .branch) {

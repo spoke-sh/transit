@@ -88,6 +88,7 @@ pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .branch, .transaction => true,
+        .historical_catalog => |value| value.mutation(),
         .kv_declaration => |value| value.mutation(),
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
@@ -109,6 +110,11 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .historical_catalog => |value| switch (value) {
+            .source => |input| input.object,
+            .scan => |input| input.object,
+            else => null,
+        },
         .stream => |value| value.target().interpretation.object.object,
         .queue => |value| value.target().interpretation.object.object,
         .kv => |value| value.target().object,

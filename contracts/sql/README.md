@@ -2,16 +2,17 @@
 
 The public [SQL statement reference](../../docs/handbook/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
-the separate [historical-read fragment](../../docs/handbook/reference/sql/as-of.md).
+the [historical snapshot suffix](../../docs/handbook/reference/sql/as-of.md).
 The [grammar surface inventory](../../docs/handbook/reference/sql/grammar-surface.md)
 separates implemented profiles, checked grammar, proposed syntax and undecided
 syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
 `EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD` clauses
 belong to the checked Table grammar. Proposed graph, foreign-relation, physical
-encoding (`ENCODING`), expression collation, branching, and historical-selector examples are
-not inputs to this checked grammar. The integer system-time fragment has no
-execution semantics; the intended language reserves that spelling for SQL
-temporal meaning and uses separate typed Transit selectors.
+encoding (`ENCODING`), expression collation and branching examples remain outside
+this checked grammar. `AS OF SNAPSHOT` is a statement-level suffix over the
+exact retained catalog; its quoted selector is validated by `HistoricalSql`
+before names are resolved. The former ambiguous integer system-time fragment
+is removed. `FOR SYSTEM_TIME` remains reserved for temporal-table semantics.
 
 The reference grammar covers finite SELECT, general typed Table DDL/DML and
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;

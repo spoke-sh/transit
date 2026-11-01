@@ -15,15 +15,23 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     return prepareAccess(allocator, client, namespace, text, dialect, detail, .read);
 }
 pub fn prepareAccess(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access) !Self {
+    return prepareAt(allocator, client, namespace, text, dialect, detail, access, null);
+}
+pub fn prepareAt(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot) !Self {
+    if (snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
     if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     var location: f.Sql.Location = .{};
     const name = try f.TableSelect.targetDialect(arena.allocator(), text, &location, dialect);
-    const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
+    const response = if (snapshot) |cut| try c.DirectHistory.resolve(client, cut, namespace, name, access == .read) else try client.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
     defer response.deinit();
-    const metadata = response.value.result.lookup orelse return error.TableNotFound;
-    const binding = try c.DirectTableBinding.init(client.connection, metadata);
+    const metadata: c.DirectTableProtocol.Definition = if (snapshot != null) blk: {
+        const source = response.value.result.historical_catalog.source;
+        break :blk .{ .interpretation = source.binding.declaration, .namespace = source.binding.namespace.id, .authorization = source.binding.properties.authorization, .name = source.binding.properties.name, .position = source.binding.source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.rows, .schema = source.schema };
+    } else response.value.result.lookup orelse return error.TableNotFound;
+    var binding = try c.DirectTableBinding.init(client.connection, metadata);
+    binding.catalog = snapshot;
     _ = try binding.require(client, access);
     var schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
     defer schema.deinit();

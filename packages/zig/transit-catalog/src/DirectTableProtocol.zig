@@ -264,7 +264,7 @@ pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
 pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
-pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
+pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot, historical: @FieldType(c.DirectHistory.Request, "source") };
 /// Read current data only while this exact definition and original logical
 /// basis remain valid. The seek key does not retain data or prove prior reads.
 pub const CurrentRead = struct {
@@ -314,6 +314,7 @@ pub const FilterScan = struct {
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     branch: c.DirectBranch.Request,
+    historical_catalog: c.DirectHistory.Request,
     transaction: c.DirectTransactionRequest.Request,
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
@@ -414,6 +415,7 @@ pub const Request = struct {
             .stream => |value| value.mutation(),
             .queue => |value| value.mutation(),
             .branch => |value| value.mutation(),
+            .historical_catalog => |value| value.mutation(),
             inline .kv, .kv_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
@@ -429,7 +431,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -479,6 +481,7 @@ pub const Request = struct {
                 try value.validate(connection.principal, connection.scope);
             },
             .branch => |value| try value.validate(connection),
+            .historical_catalog => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
@@ -565,6 +568,7 @@ pub const Request = struct {
                 if (values.len == 0 or values.len > 16) return error.InvalidTableReadBudget;
                 for (values) |value| switch (value) {
                     .access => |access| try access.validate(connection.scope, connection.branch),
+                    .historical => |historical| try (c.DirectHistory.Request{ .source = historical }).validate(connection),
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
                 };
             },
@@ -822,6 +826,7 @@ pub const Point = struct {
 pub const StateList = struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } };
 pub const Result = union(enum) {
     branch: c.DirectBranch.Result,
+    historical_catalog: c.DirectHistory.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
     client_token: ?c.DirectClientToken.Receipt,

@@ -378,3 +378,21 @@ See the [schema](../../../contracts/TABLE_SCHEMA_V1.md),
 [direct Table](../../../contracts/DIRECT_TABLE_V1.md) and
 [data lifecycle](../../../contracts/DATA_LIFECYCLE_V1.md) contracts, and the
 [catalog owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md).
+
+## Selected historical catalogs
+
+The public Zig `transit_catalog.DirectHistory` operations select exact Table
+bindings, acquire retention with an original account/client token, and publish
+a `DataLifecycle.Snapshot` only after every source has a verified pin. Progress
+can be inspected and resumed after an uncertain reply. A selected set can retain
+old names, columns, defaults and collations through later ALTER, DROP and name
+reuse. It includes accepted WAL-only rows and the physical schema directory.
+
+Use the published [SQL snapshot selector](sql/as-of.md) for historical SELECT,
+SHOW TABLES, DESCRIBE and EXPLAIN. Current metadata and SELECT privileges remain
+separate and are checked on the original objects before disclosure. Independent
+selections make no common transaction-cut promise. Explicit release changes
+availability without erasing the original acquisition outcome; reader close
+does not release that separately retained basis. See the
+[exact contract](../../../contracts/HISTORICAL_CATALOG_V1.md) for bounded progress,
+private-pin ownership, collection roots and failure distinctions.

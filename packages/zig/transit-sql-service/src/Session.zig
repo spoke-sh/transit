@@ -125,6 +125,7 @@ pub const Read = struct {
                 const scan = &query.execution.scan;
                 const source = scan.reader.basis;
                 if (source.workspace) |view| break :blk try self.transactionBasis(allocator, &.{view});
+                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() }}) } };
                 break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() } };
             },
             .relational => |query| blk: {
@@ -133,6 +134,16 @@ pub const Read = struct {
                     const count = query.tables.declarations.len;
                     for (query.tables.scans[0..count], views[0..count]) |scan, *view| view.* = scan.?.reader.basis.workspace orelse return error.InvalidTransactionObservation;
                     break :blk try self.transactionBasis(allocator, views[0..count]);
+                }
+                if (query.tables.scans[0].?.reader.basis.catalog) |snapshot| {
+                    const sources = try allocator.alloc(@FieldType(g.results.Observation.Data, "table"), query.tables.declarations.len);
+                    for (query.tables.scans[0..sources.len], sources) |slot, *out| {
+                        const scan = slot.?;
+                        const source = scan.reader.basis;
+                        if (!std.meta.eql(source.catalog, snapshot)) return error.InvalidHistoricalObservation;
+                        out.* = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() };
+                    }
+                    break :blk .{ .historical = .{ .snapshot = snapshot, .sources = sources } };
                 }
                 break :blk .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) };
             },
@@ -155,11 +166,19 @@ pub const Read = struct {
             .inspection => |inspection| {
                 const prepared = inspection.prepared;
                 metadata.kind = prepared.kind;
+                metadata.historical = prepared.historical_list;
                 metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
-                if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                if (prepared.metadata) |binding| {
+                    metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                    metadata.historical = binding.catalog;
+                }
                 if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
-                    if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {
+                    if (statement.plan == .select) {
+                        metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation});
+                        metadata.historical = statement.plan.select.binding.catalog;
+                    } else if (statement.plan == .relational) {
+                        metadata.historical = statement.plan.relational.catalog;
                         const definitions = try allocator.alloc(p.DataLifecycle.Definition, statement.plan.relational.bindings.len);
                         for (statement.plan.relational.bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
                         metadata.definitions = definitions;
@@ -206,7 +225,11 @@ pub const Read = struct {
         self.validated_open = false;
         self.validated_disclosure = false;
     }
-    pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
+    pub fn nextBatch(self: *Read, requested: u8) !g.ReadBatch {
+        // A historical catalog page has distinct protected objects. Keep their
+        // union within one native disclosure guard, including namespace rights.
+        // This bounds a physical batch, never the complete catalog result.
+        const maximum = if (self.value == .inspection and self.value.inspection.prepared.historical_list != null) @min(requested, 8) else requested;
         self.validated_disclosure = false;
         try self.host.deadline.check(self.host.io);
         if (self.validated_open) {
@@ -235,6 +258,7 @@ pub const Read = struct {
             }
             if (!try self.builder.append(self.prepared.fields(), self.input.rows[self.input_index].?)) break;
             if (self.value == .settings) try self.disclosure.append(self.value.settings.subject);
+            if (self.value == .inspection) try self.disclosure.append(self.value.inspection.subject);
             self.input_index += 1;
         }
         complete = complete or (self.started and self.input.complete and self.input_index == self.input.len);
@@ -288,7 +312,7 @@ pub const Read = struct {
         result.rows[0] = cells;
         result.len = @intFromBool(cells != null);
         result.complete = cells == null or switch (self.value) {
-            .inspection => |inspection| inspection.index == inspection.prepared.count(),
+            .inspection => |inspection| inspection.complete(),
             .probe => true,
             else => false,
         };
@@ -603,6 +627,14 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
             var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
             for (0..count) |i| {
                 const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+                if (binding.catalog) |snapshot| {
+                    const response = try c.DirectHistory.call(self.table, .{ .source = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = true } });
+                    defer response.deinit();
+                    const selected = response.value.result.historical_catalog.source;
+                    if (!std.meta.eql(selected.binding.declaration, binding.interpretation)) return error.HistoricalIdentityConflict;
+                    snapshots[i] = selected.table().snapshot;
+                    continue;
+                }
                 if (self.table.transaction != null) {
                     const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
                     defer response.deinit();
@@ -741,6 +773,10 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
         error.CheckConstraintViolation => .{ "23514".*, "A CHECK constraint rejected the proposed row" },
+        error.InvalidHistoricalSelector => .{ "22023".*, "Expected an exact published historical snapshot selector" },
+        error.HistoricalObjectNotSelected => .{ "42P01".*, "Object is absent from the selected historical catalog" },
+        error.HistoricalSnapshotReleased => .{ "55000".*, "The selected historical snapshot has been explicitly released" },
+        error.UnsupportedHistoricalTransaction, error.UnsupportedHistoricalKind, error.HistoricalReadOnly => .{ "0A000".*, "This statement cannot execute against a historical catalog" },
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
@@ -836,6 +872,10 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expect(std.mem.indexOf(u8, capacity.detail.?, "17") != null);
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidHistoricalSelector).state);
+    try std.testing.expectEqualStrings("42P01", &host.diagnostic(error.HistoricalObjectNotSelected).state);
+    try std.testing.expectEqualStrings("55000", &host.diagnostic(error.HistoricalSnapshotReleased).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.UnsupportedHistoricalTransaction).state);
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     const changed = host.diagnostic(error.TableDefinitionChanged);

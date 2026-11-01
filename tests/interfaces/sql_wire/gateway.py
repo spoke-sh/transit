@@ -47,7 +47,7 @@ def directory(binaries):
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5", instrumentation=""):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-log","sessions-kv","sessions-table","transactions","console-statements")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-log","sessions-kv","sessions-table","sessions-integrity","sessions-history","transactions","console-statements")
     assert instrumentation in ('', '--instrument')
     instrumented = instrumentation == '--instrument'
     assert not instrumented or slice == 'console-statements'
@@ -126,7 +126,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=settings_faults.url if settings_faults is not None else f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'transactions', 'console-statements'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'sessions-integrity', 'sessions-history', 'transactions', 'console-statements'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
                 configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
@@ -166,7 +166,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 from interfaces.sql_sessions.faults import Faults
                 settings_faults = Faults(f'http://127.0.0.1:{settings_port}')
 
-            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'transactions'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'sessions-integrity', 'sessions-history', 'transactions'):
                 from interfaces.sql_sessions.faults import Faults
                 session_faults = Faults(url)
             if slice in ('sessions', 'sessions-kv', 'sessions-table'):
@@ -192,7 +192,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 tls(root, session_port, str(Path(console).resolve()), repeat,
                     probes={'native': probe} if instrumented else {})
                 return
-            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'transactions'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-log', 'sessions-kv', 'sessions-table', 'sessions-integrity', 'sessions-history', 'transactions'):
                 from interfaces.sql_sessions.native import run as sessions
                 source_processes = {}
                 def select_source(name):
@@ -264,6 +264,14 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 if slice == 'sessions-log':
                     from interfaces.sql_sessions.logs import run as log_declarations
                     log_declarations(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), str(Path(console).resolve()))
+                    return
+                if slice == 'sessions-history':
+                    from interfaces.sql_sessions.history import run as history
+                    history(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, lambda mode, *args: call(catalog, mode, *args), session_faults)
+                    return
+                if slice == 'sessions-integrity':
+                    from interfaces.sql_sessions.integrity import run as integrity
+                    integrity(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions)
                     return
                 if slice == 'transactions':
                     from interfaces.sql_sessions.transactions import run as transactions

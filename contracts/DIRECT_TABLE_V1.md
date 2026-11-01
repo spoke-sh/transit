@@ -1895,3 +1895,13 @@ not replace the frozen command with abort, undo a decision or establish that a
 remote reply was never accepted. Explicit settle commands retain the original
 transaction attempt and the common decision owner. See [SQL sessions](SQL_SESSION_V1.md#table-transactions-and-recovery)
 for attachment and uncertainty behavior.
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.

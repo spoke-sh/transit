@@ -108,7 +108,9 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d`.
+`9c077a0fad2150f7e09647db000d606ae34175548e3b41bf9b765b789109e17a`.
+It binds historical catalog acquisition and release progress, immutable catalog
+selectors, and catalog-aware read fingerprints and SQL observation provenance.
 It persists CHECK and staged foreign-key integrity, exact parent definitions,
 column dependency indices and original-operation cleanup progress, including the
 `finalizing` DDL observation. It also admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across

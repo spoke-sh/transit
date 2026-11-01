@@ -56,6 +56,13 @@ retention operations. These are explicit operations, not an automatic settlement
 API. Metadata-dependent preparation performs authorized reads. Importing a
 saved operation does not supply a new identity or grant.
 
+`history` actions expose selected historical catalog acquisition, explicit
+advancement/abandonment/release, metadata lookup and bounded listing through the
+same handle. Save the original key and selection intent before acquisition;
+resume them after uncertainty. Results own copied full-width host values in
+`output`. Neither closing the handle nor closing a SQL result releases history.
+See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md#shared-host-operations).
+
 `Catalog.callLog(output, action)` exposes the shared `DirectLogClient.Action`
 for Stream/Queue lifecycle preview, admission, bounded execution/inspection/
 cancellation, lookup, paged listing and caller-scoped pending discovery. A declaration contains an explicit

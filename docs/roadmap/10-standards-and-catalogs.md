@@ -202,8 +202,11 @@ Independent Python CHECK/FK byte fixtures, Fuze compiler/codec tests, disk Table
 validation tests, disk foreign-key interruption/cancellation tests and the
 transaction/savepoint constraint test have executed during development. The
 diagnostic grammar and representative Python/TypeScript value checks also pass.
-These working-tree checks do not qualify installed SQL/caller composition or
-close P2/P3/P8; final committed-revision qualification remains required.
+The installed native/PostgreSQL/MySQL integrity scenario passes CHECK INSERT and
+UPDATE refusal, NULL handling, NOT VALID new-write enforcement, atomic validation,
+stable-column renames, transaction/savepoint rejection, original DDL recovery
+after gateway restart, and staged-FK dependency cleanup. This development evidence
+does not close P2/P3/P8; final committed-revision qualification remains required.
 
 The projection increment adds real retained-directory inspection to the Table
 owner and signed dispatcher: one physical schema generation or eight row
@@ -212,6 +215,27 @@ full-width host projections and snapshot-bound continuations. Disk mixed-layout
 tests and in-memory signed dispatch/permission tests execute these operations.
 They establish directory interpretation and bounded pagination, not payload
 verification, historical SQL, installed language/UI composition or complete P3.
+
+The historical catalog increment adds paged selected-name/definition directories,
+original-token acquisition and abandonment, verified publication and explicit
+bounded release. Source pins preserve the original Table interpretation and WAL
+frontier. SQL snapshot suffixes bind this catalog before compilation and carry
+its identity through result and metadata observations. The ambiguous integer
+system-time grammar fragment is removed. Eight focused owner tests pass during
+development, including independent signatures/selectors, lost replies, collection,
+current disclosure and metadata reads with segment access/writes blocked. The
+reference grammar also passes. The installed native/PostgreSQL/MySQL history
+scenario now passes rename/name reuse, prepared reuse, gateway restart,
+independent multi-source reads, paged metadata, buffered revocation and explicit
+release. These development binaries do not establish final committed-revision
+qualification. Common-cut transfer, explicit target projection, P1's
+other type families, P6 and P7 still require implementation and qualification.
+
+The shared Catalog host now exposes explicit historical acquisition, progress,
+release and metadata operations with full-width neutral values and selector-bound
+list cursors. Current-object authorization precedes released-snapshot disclosure;
+result validation rejects mismatched source cuts and scope. Installed host/SDK
+and Board composition remain part of P7/P8, beyond the SQL transport run above.
 
 The following table preserves the original source audit. It is not a description
 of the newer increments above.

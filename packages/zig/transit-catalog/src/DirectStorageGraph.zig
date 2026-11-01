@@ -90,6 +90,9 @@ const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, ope
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
     branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
+    historical: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
+    historical_directory: struct { catalog: r.Root, owner: d.Operation, branch: u64, kind: c.DirectHistoryDirectory.Kind, reference: c.DirectHistoryDirectory.Reference, slot: u8 = 0 },
+    historical_walk: struct { root: c.DirectHistoryDirectory.Root, walk: c.DirectCatalogWalk },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
@@ -146,7 +149,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "catalog-history/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -386,6 +389,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (record.action == .log) try workspace.enqueue(.{ .log_operation = .{ .configuration = record.root.configuration, .operation = record.action.log } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .branch and !record.action.client_token.pending and !record.action.client_token.cancel)
                 try workspace.enqueue(.{ .branch = .{ .root = record.root, .progress = record.action.client_token } });
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .history)
+                try workspace.enqueue(.{ .historical = .{ .root = record.root, .progress = record.action.client_token } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
                 const call = record.action.client_token.receipt.binding.intent.transaction_call;
                 if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
@@ -399,6 +404,53 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 if (latest.len != 8) return error.InvalidClientToken;
                 if (std.mem.readInt(u64, latest.data[0..8], .little) + 1 == record.action.client_token.revision.next_lsn)
                     try workspace.enqueue(.{ .transaction = .{ .root = walk.cut.root, .progress = record.action.client_token } });
+            }
+            return false;
+        },
+        .historical => |*value| {
+            const intent = value.progress.receipt.binding.intent.history;
+            const state = try c.DirectHistory.State.load(allocator, index.store, value.progress);
+            const selected = switch (value.slot) {
+                0 => intent.selection,
+                1 => state.retained orelse return true,
+                else => return true,
+            };
+            try workspace.enqueue(.{ .historical_directory = .{ .catalog = value.root, .owner = intent.identity(), .branch = intent.connection.branch, .kind = if (value.slot == 0) .selection else .retained, .reference = selected } });
+            value.slot += 1;
+            return false;
+        },
+        .historical_directory => |*value| {
+            const H = c.DirectHistoryDirectory;
+            var directory = try H.init(allocator, index.store, value.owner, value.branch, value.kind, value.reference.count, 0, 1);
+            defer directory.deinit();
+            try directory.restore(value.reference);
+            if (value.slot == 0) try markContent(workspace, try H.objectKey(value.reference.content, &key_buffer), value.reference.content);
+            const roots = [_]?s.TreeStore.pages.Reference{ directory.root.objects, directory.root.names, directory.root.namespaces, directory.root.namespace_names };
+            if (value.slot == roots.len) return true;
+            if (roots[value.slot]) |reference| try workspace.enqueue(.{ .historical_walk = .{ .root = directory.root, .walk = try .init(value.catalog, .{ .reference = reference, .kind = if (value.slot == 0) .values else .pages_only }) } });
+            value.slot += 1;
+            return false;
+        },
+        .historical_walk => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse return true;
+            switch (edge) {
+                .page => |page| {
+                    try markPage(index, workspace, page.reference);
+                    if (try workspace.visited(try scope(.{ .historical = value.root, .page = page }))) try value.walk.skip();
+                },
+                .value => |entry| {
+                    const H = c.DirectHistoryDirectory;
+                    const content = try H.contentOf(entry.value);
+                    const binding = try H.load(index.store, H.Entry, content);
+                    try binding.validate(value.root.owner, value.root.branch, value.root.kind);
+                    if (entry.key.len != 8 or std.mem.readInt(u64, entry.key.data[0..8], .big) != binding.source.interpretation.object.object) return error.InvalidHistoricalDirectory;
+                    try markContent(workspace, try H.objectKey(content, &key_buffer), content);
+                    // Retained control history preserves interpretation evidence.
+                    // Current Table pin state separately owns data retention;
+                    // an earlier acquisition record must not resurrect releases.
+                    try workspace.enqueue(.{ .declaration = binding.declaration });
+                },
+                .declaration => return error.InvalidHistoricalDirectory,
             }
             return false;
         },

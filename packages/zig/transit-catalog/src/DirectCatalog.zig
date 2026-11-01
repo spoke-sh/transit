@@ -29,6 +29,8 @@ pub const Options = struct {
     /// Durable token capacity, independent of the bounded resident page cache.
     /// Exhaustion refuses new bindings; it never forgets accepted identities.
     client_token_quota: u64 = 1_000_000,
+    /// Maximum sources in one newly admitted historical selection.
+    history_selection_limit: u64 = 1_000_000,
     transaction_limits: p.Transaction.Limits = c.DirectTransaction.default_limits,
     transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
     /// Same bounded log owner profiles used by the embedding data service.
@@ -1314,6 +1316,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectHistory.format) return error.HistoricalOperationRequired;
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
@@ -1336,6 +1339,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
     try reference.validate();
     return switch (reference) {
+        .history => self.guard(allocator, policy, null, null, .database),
         .branch => |value| self.branchGuard(allocator, value, policy, false),
         .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
@@ -1407,6 +1411,10 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {
+        .history => |value| {
+            try self.prepareHistoryAdmission(value, policy);
+            try c.OperationBinding.claimHistoryInTree(self.allocator, &self.store.index, value, key);
+        },
         .branch => |value| {
             try self.prepareBranchAdmission(value, policy);
             try c.OperationBinding.claimBranchInTree(self.allocator, &self.store.index, value);
@@ -1498,6 +1506,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     // Transaction workspace, cancellation and settlement belong to the
     // transaction owner. Generic client bookkeeping cannot replace that state
     // or manufacture a cancellation request while the original attempt lives.
+    if (state.receipt.binding.intent == .history) return error.HistoricalOperationRequired;
     if (state.receipt.binding.intent == .branch) return error.BranchOperationRequired;
     if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
@@ -1526,6 +1535,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
 }
 fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
     switch (reference) {
+        .history => return error.HistoricalOperationRequired,
         .branch => return error.BranchOperationRequired,
         .transaction => return error.ClientOperationPending,
         .transaction_call => return error.TransactionOperationRequired,
@@ -5035,6 +5045,7 @@ fn requireUnreservedBranchPin(self: *Self, object: d.Object, owner: d.Operation)
     try self.requireInitialized();
     try owner.validate();
     if (!std.meta.eql(owner.scope, self.config().scope)) return error.DataIdentityConflict;
+    if (try c.OperationBinding.lookupHistory(self.allocator, self.store.objects, owner) != null) return error.HistoricalRetentionOwned;
     const value = try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) orelse return;
     const progress = try self.store.branchByDigest(value);
     // Ordinary multi-source readers can use one owner on several Tables.
@@ -5188,4 +5199,353 @@ pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, 
     var pinned = try access.view.table.inspectSnapshot(self.allocator, entry_value.pin, access.current);
     defer pinned.deinit();
     return .{ .access = access, .entry = entry_value, .mode = intent.mode };
+}
+fn historyDirectory(self: *Self, owner: d.Operation, kind: c.DirectHistoryDirectory.Kind, reference: ?c.DirectHistoryDirectory.Reference) !c.DirectHistoryDirectory {
+    var directory = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, owner, self.config().branch, kind, if (reference) |value| @max(value.count, 1) else self.options.history_selection_limit, self.options.resident_pages, self.options.index_work_bytes);
+    errdefer directory.deinit();
+    if (reference) |value| try directory.restore(value);
+    return directory;
+}
+
+pub fn selectHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "select"), policy: Policy) !c.DirectHistory.Selection {
+    try self.requireInitialized();
+    const selected = request.selection;
+    if (!std.meta.eql(selected.owner.scope, self.config().scope) or selected.owner.principal != policy.subject.principal() or selected.branch != self.config().branch or self.transaction_read != null) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var view = try self.resolve(scratch.allocator(), request.namespace, request.name, policy) orelse return error.CatalogNameNotFound;
+    defer view.deinit();
+    const namespace = try self.schema(request.namespace);
+    const current = try self.guard(scratch.allocator(), policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .read);
+    try check(current);
+    if (view.table.root.transaction != null) return error.HistoricalSourceChanged;
+    var directory = try self.historyDirectory(selected.owner, .selection, selected.directory);
+    defer directory.deinit();
+    directory.object_limit = self.options.history_selection_limit;
+    const value: c.DirectHistoryDirectory.Entry = .{ .namespace = namespace, .properties = view.properties, .declaration = view.table.root.declared(), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = null };
+    try directory.put(value);
+    const reference = try directory.seal();
+    try check(current);
+    return .{ .owner = selected.owner, .branch = selected.branch, .directory = reference };
+}
+
+fn prepareHistoryAdmission(self: *Self, intent: c.DirectHistory.Intent, policy: Policy) !void {
+    if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal() or self.transaction_read != null) return error.CatalogDenied;
+    if (intent.selection.count > self.options.history_selection_limit) return error.HistoricalObjectLimit;
+    var directory = try self.historyDirectory(intent.identity(), .selection, intent.selection);
+    defer directory.deinit();
+}
+
+fn historyProgress(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectClientToken.Progress {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return null;
+    if (progress.receipt.binding.intent != .history) return error.HistoricalOperationRequired;
+    return progress;
+}
+fn historyStatus(self: *Self, progress: c.DirectClientToken.Progress) !c.DirectHistory.Status {
+    return .{ .receipt = progress.receipt, .revision = progress.revision, .state = try c.DirectHistory.State.load(self.allocator, self.store.objects, progress) };
+}
+pub fn inspectHistory(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectHistory.Status {
+    return try self.historyStatus(try self.historyProgress(key, policy) orelse return null);
+}
+pub fn acquireHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "acquire"), policy: Policy) !c.DirectHistory.Status {
+    _ = try self.clientToken(.{ .bind = .{ .key = request.key, .fingerprint = try request.intent.digest(), .intent = .{ .history = request.intent }, .budget = request.budget } }, policy);
+    return self.advanceHistory(request.key, .advance, policy);
+}
+fn publishHistoryState(self: *Self, progress: *c.DirectClientToken.Progress, state: c.DirectHistory.State, current: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    var updated = progress.*;
+    updated.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    updated.pending = state.pending();
+    updated.cancel = state.cancelled();
+    updated.record = try state.stage(self.store.objects, updated);
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    try self.store.clientIndices(&next, updated);
+    try self.store.publish(next, .{ .client_token = updated }, current);
+    progress.* = updated;
+}
+fn historyNext(directory: *c.DirectHistoryDirectory, after: ?u64) !?c.DirectHistoryDirectory.Entry {
+    const page = try directory.page(if (after) |id| .{ .directory = try directory.commitment(), .after = id } else null);
+    return page.entries[0];
+}
+fn historySourceUnchanged(self: *Self, view: *const View, value: c.DirectHistoryDirectory.Entry) !void {
+    if (view.table.root.transaction != null or !std.meta.eql(view.table.root.declared(), value.declaration) or !std.meta.eql(view.properties, value.properties) or !std.meta.eql(try self.schema(value.namespace.id), value.namespace)) return error.HistoricalSourceChanged;
+}
+const HistoryEpoch = struct {
+    underlying: P.Guard,
+    expected: u64,
+    fn guard(self: *HistoryEpoch) P.Guard {
+        return .{ .context = self, .acquire = acquire, .release = release };
+    }
+    fn acquire(context: *anyopaque) !P.Guard.Fence {
+        const self: *HistoryEpoch = @ptrCast(@alignCast(context));
+        const fence = try self.underlying.acquire(self.underlying.context);
+        errdefer self.underlying.release(self.underlying.context);
+        if (fence.policy_epoch != self.expected) return error.HistoricalAuthorityChanged;
+        return fence;
+    }
+    fn release(context: *anyopaque) void {
+        const self: *HistoryEpoch = @ptrCast(@alignCast(context));
+        self.underlying.release(self.underlying.context);
+    }
+};
+
+/// Exactly one control transition or one Table pin step. The host serializes
+/// acquisition with publication; no total-selection loop or current-cut retry.
+pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum { advance, abandon, release }, policy: Policy) !c.DirectHistory.Status {
+    var progress = try self.historyProgress(key, policy) orelse return error.ClientOperationMissing;
+    var state = (try self.historyStatus(progress)).state;
+    if (self.transaction_read != null) return error.UnsupportedHistoricalTransaction;
+    if (state.phase == .cancelled or state.phase == .released or (state.phase == .published and command != .release)) return self.historyStatus(progress);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, null, null, .database);
+    try check(current);
+    const intent = progress.receipt.binding.intent.history;
+    if (command == .abandon and (state.phase == .acquiring or state.phase == .verifying)) {
+        state.phase = .abandoning;
+        try self.publishHistoryState(&progress, state, current);
+        return self.historyStatus(progress);
+    }
+    if (command == .release and state.phase == .published) {
+        state.phase = .releasing;
+        try self.publishHistoryState(&progress, state, current);
+        return self.historyStatus(progress);
+    }
+    if (command == .release and state.phase != .releasing) return error.HistoricalNotPublished;
+    var selection = try self.historyDirectory(intent.identity(), .selection, intent.selection);
+    defer selection.deinit();
+    if (state.phase == .abandoning or state.phase == .releasing) {
+        if (state.inflight) |object| {
+            const value = try selection.get(object) orelse return error.InvalidHistoricalState;
+            var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, true);
+            defer access.view.deinit();
+            const pin = try access.view.table.pinState(intent.identity(), access.current);
+            access.view.table.lose_reply = self.lose_table_reply;
+            if (pin.handle) |handle| if (!pin.released) try access.view.table.releaseSnapshot(handle, access.current);
+            state.inflight = null;
+            try self.publishHistoryState(&progress, state, access.current);
+            return self.historyStatus(progress);
+        }
+        var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+        defer retained.deinit();
+        if (try historyNext(&retained, state.released_after)) |value| {
+            var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, true);
+            defer access.view.deinit();
+            const pin = try access.view.table.pinState(intent.identity(), access.current);
+            if (!std.meta.eql(pin.handle, value.pin)) return error.InvalidHistoricalState;
+            access.view.table.lose_reply = self.lose_table_reply;
+            if (!pin.released) try access.view.table.releaseSnapshot(value.pin.?, access.current);
+            state.released_after = value.source.interpretation.object.object;
+            try self.publishHistoryState(&progress, state, access.current);
+        } else {
+            if (state.released_after != state.after) return error.IncompleteHistoricalSelection;
+            state.phase = if (state.phase == .abandoning) .cancelled else .released;
+            try self.publishHistoryState(&progress, state, current);
+        }
+        return self.historyStatus(progress);
+    }
+    if (state.phase == .acquiring) {
+        var value = try historyNext(&selection, state.after) orelse {
+            if (state.inflight != null or state.retained == null or state.retained.?.count != intent.selection.count) return error.IncompleteHistoricalSelection;
+            state.phase = .verifying;
+            try self.publishHistoryState(&progress, state, current);
+            return self.historyStatus(progress);
+        };
+        const object = value.source.interpretation.object;
+        var access = try self.snapshotAccess(scratch.allocator(), object, intent.identity(), policy, false);
+        defer access.view.deinit();
+        const pin_state = try access.view.table.pinState(intent.identity(), access.current);
+        if (state.inflight == null) {
+            try self.historySourceUnchanged(&access.view, value);
+            if (pin_state.handle != null) return error.DataIdentityConflict;
+            state.inflight = object.object;
+            try self.publishHistoryState(&progress, state, access.current);
+            return self.historyStatus(progress);
+        }
+        if (state.inflight.? != object.object) return error.InvalidHistoricalState;
+        access.view.table.lose_reply = self.lose_table_reply;
+        if (pin_state.handle) |handle| {
+            if (pin_state.released) return error.TableSnapshotReleased;
+            value.pin = handle;
+        } else {
+            try self.historySourceUnchanged(&access.view, value);
+            value.pin = try access.view.table.pin(intent.identity(), value.source.accepted, access.current);
+        }
+        try value.verify(scratch.allocator(), self.data_objects);
+        var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
+        defer frozen.deinit();
+        var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+        defer retained.deinit();
+        retained.object_limit = intent.selection.count;
+        try retained.put(value);
+        state.retained = try retained.seal();
+        state.after = object.object;
+        state.inflight = null;
+        try self.publishHistoryState(&progress, state, access.current);
+        return self.historyStatus(progress);
+    }
+    if (state.phase != .verifying or state.retained == null) return error.InvalidHistoricalState;
+    var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+    defer retained.deinit();
+    if (try historyNext(&retained, state.verified_after)) |value| {
+        const selected_entry = try selection.get(value.source.interpretation.object.object) orelse return error.InvalidHistoricalState;
+        var without_pin = value;
+        without_pin.pin = null;
+        if (!std.meta.eql(selected_entry, without_pin)) return error.InvalidHistoricalState;
+        var access = try self.snapshotAccess(scratch.allocator(), value.source.interpretation.object, intent.identity(), policy, false);
+        defer access.view.deinit();
+        var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
+        defer frozen.deinit();
+        try value.verify(scratch.allocator(), self.data_objects);
+        const epoch = try access.current.acquire(access.current.context);
+        access.current.release(access.current.context);
+        if (state.policy_epoch != null and state.policy_epoch.? != epoch.policy_epoch) {
+            state.verified_after = null;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.policy_epoch = epoch.policy_epoch;
+            state.verified_after = value.source.interpretation.object.object;
+            var fenced: HistoryEpoch = .{ .underlying = access.current, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
+    } else {
+        if (state.verified_after != state.after or state.policy_epoch == null or retained.root.count != intent.selection.count) return error.IncompleteHistoricalSelection;
+        const epoch = try current.acquire(current.context);
+        current.release(current.context);
+        if (epoch.policy_epoch != state.policy_epoch.?) {
+            state.verified_after = null;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.snapshot = .{ .definition = p.Growth.current_definition, .owner = intent.identity(), .branch = intent.connection.branch, .catalog_root = intent.selection.content, .sources_root = state.retained.?.content, .source_count = intent.selection.count, .consistency = if (intent.selection.count == 1) .{ .single_partition = (try historyNext(&retained, null)).?.source.accepted } else .independent };
+            state.phase = .published;
+            var fenced: HistoryEpoch = .{ .underlying = current, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
+    }
+    return self.historyStatus(progress);
+}
+
+const HistoryPublication = struct {
+    intent: c.DirectHistory.Intent,
+    phase: c.DirectHistory.Phase,
+    fn requirePublished(self: HistoryPublication) !void {
+        if (self.phase == .releasing or self.phase == .released) return error.HistoricalSnapshotReleased;
+        if (self.phase != .published) return error.HistoricalNotPublished;
+    }
+};
+fn historyPublication(self: *Self, snapshot: d.Snapshot, policy: Policy) !HistoryPublication {
+    try self.requireInitialized();
+    try snapshot.validate();
+    if (snapshot.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    if (!std.meta.eql(snapshot.owner.scope, self.config().scope) or snapshot.branch != self.config().branch or self.transaction_read != null) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, null, null, .database);
+    try check(current);
+    const reservation = try c.OperationBinding.lookupHistory(self.allocator, self.store.objects, snapshot.owner) orelse return error.HistoricalNotPublished;
+    const progress = try self.store.clientTokenState(reservation.key) orelse return error.HistoricalNotPublished;
+    if (progress.receipt.binding.intent != .history or !std.meta.eql(progress.receipt.binding.intent.history, reservation.intent)) return error.InvalidHistoricalState;
+    const state = (try self.historyStatus(progress)).state;
+    const recorded = state.snapshot orelse return error.HistoricalNotPublished;
+    if (!std.meta.eql(recorded, snapshot)) return error.HistoricalIdentityConflict;
+    try check(current);
+    return .{ .intent = reservation.intent, .phase = state.phase };
+}
+pub fn lookupHistory(self: *Self, snapshot: d.Snapshot, namespace_id: u64, name: a.Name, policy: Policy) !?u64 {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const namespace = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(namespace);
+    // Accepted selection metadata survives release. Resolve it before reporting
+    // availability so a released selector never bypasses current object rights.
+    var directory = try self.historyDirectory(publication.intent.identity(), .selection, publication.intent.selection);
+    defer directory.deinit();
+    const value = try directory.lookup(namespace_id, name) orelse {
+        try publication.requirePublished();
+        try check(namespace);
+        return null;
+    };
+    var access = try self.storageAccess(scratch.allocator(), value.source.interpretation.object, policy, false);
+    defer access.view.deinit();
+    try check(access.current);
+    try publication.requirePublished();
+    return value.source.interpretation.object.object;
+}
+pub const RetainedHistoryRead = struct {
+    access: SnapshotAccess,
+    authority: c.DirectReadAuthority,
+    binding: c.DirectHistoryDirectory.Entry,
+    pub fn deinit(self: *RetainedHistoryRead) void {
+        self.access.view.deinit();
+    }
+};
+pub fn openHistory(self: *Self, scratch: std.mem.Allocator, snapshot: d.Snapshot, object: u64, rows: bool, policy: Policy) !RetainedHistoryRead {
+    const publication = try self.historyPublication(snapshot, policy);
+    const target: d.Object = .{ .scope = snapshot.owner.scope, .branch = snapshot.branch, .object = object };
+    // Check current rights before exposing retention or directory membership.
+    var access = if (rows) try self.readAccess(scratch, target, policy, false) else try self.storageAccess(scratch, target, policy, false);
+    errdefer access.view.deinit();
+    try check(access.current);
+    try publication.requirePublished();
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = snapshot.sources_root, .count = snapshot.source_count });
+    defer directory.deinit();
+    const value = try directory.get(object) orelse return error.HistoricalObjectNotSelected;
+    try snapshot.requireSource(value.source);
+    // A published owner, not the requesting principal, owns the private pin.
+    // Current metadata/SELECT rights still come from the original Table object.
+    var frozen = try access.view.table.inspectSnapshot(scratch, value.pin.?, access.current);
+    defer frozen.deinit();
+    if (!std.meta.eql(frozen.root.declared(), value.declaration) or !std.meta.eql(frozen.position(), value.source.accepted)) return error.InvalidHistoricalBinding;
+    return .{ .access = access, .authority = try self.sourceAuthority(&access), .binding = value };
+}
+
+/// Namespace lookup uses the retained spelling and current namespace rights.
+pub fn namespaceHistory(self: *Self, snapshot: d.Snapshot, name: a.Name, policy: Policy) !?a.Schema {
+    const publication = try self.historyPublication(snapshot, policy);
+    var directory = try self.historyDirectory(publication.intent.identity(), .selection, publication.intent.selection);
+    defer directory.deinit();
+    const value = try directory.namespaceByName(name) orelse {
+        try publication.requirePublished();
+        return null;
+    };
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(value.id), null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    return value;
+}
+
+pub fn listHistory(self: *Self, output: std.mem.Allocator, input: @FieldType(c.DirectHistory.Request, "list"), policy: Policy) !c.DirectHistory.Listing {
+    const publication = try self.historyPublication(input.snapshot, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const namespace = try self.authorizationSchema(input.namespace);
+    const current = try self.guard(scratch.allocator(), policy, namespace, null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = input.snapshot.sources_root, .count = input.snapshot.source_count });
+    defer directory.deinit();
+    const page = try directory.page(input.after);
+    var selected: [8]c.DirectHistoryDirectory.Entry = undefined;
+    var count: usize = 0;
+    for (page.entries) |slot| {
+        const entry_value = slot orelse break;
+        if (entry_value.namespace.id != input.namespace) continue;
+        _ = scratch.reset(.retain_capacity);
+        var access = try self.storageAccess(scratch.allocator(), entry_value.source.interpretation.object, policy, false);
+        defer access.view.deinit();
+        try check(access.current);
+        selected[count] = entry_value;
+        count += 1;
+    }
+    // Authenticated dispatch accumulates the selected objects' requirements and
+    // fences their union after all output has been buffered.
+    return .{ .snapshot = input.snapshot, .namespace = input.namespace, .entries = try output.dupe(c.DirectHistoryDirectory.Entry, selected[0..count]), .next = page.next };
 }

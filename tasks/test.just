@@ -218,6 +218,13 @@ sql-gateway:
 sql-sessions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
 
+# Installed CHECK enforcement, staged foreign keys and original DDL recovery.
+sql-history:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-history
+
+sql-integrity:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-integrity
+
 # Native, PostgreSQL and MySQL declarations, metadata and original token recovery.
 sql-log-declarations:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-log

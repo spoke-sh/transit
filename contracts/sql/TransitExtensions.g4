@@ -3,7 +3,10 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
+// The SQL service binds this exact catalog before compiling the inner query.
+historicalStatement: (selectStatement | SHOW TABLES | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause;
+snapshotClause: AS OF SNAPSHOT STRING;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
     : (BEGIN (WORK | TRANSACTION)? | START TRANSACTION) transactionOptions?
@@ -46,7 +49,6 @@ privilegeList: ALL PRIVILEGES? | privilege (COMMA privilege)*;
 grantOption: WITH GRANT OPTION;
 revokeBehavior: RESTRICT | CASCADE;
 membershipOption: (ADMIN | INHERIT | SET) (OPTION | TRUE | FALSE);
-asOfFragment: asOfClause EOF;
 // Explicit compiler entry; parameters are not accepted by ordinary statements.
 parameterTemplate: templateSelect SEMI? EOF;
 templateSelect
@@ -61,7 +63,7 @@ templateLimitClause: LIMIT (INTEGER | PARAMETER);
 
 // Explicit Table relational root; admission/type checks remain with RelationalSql.
 // The single-source statement root retains its independent LIMIT/subquery profile.
-relationalQuery: EXPLAIN? relationalSelect SEMI? EOF;
+relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
     : SELECT relationalSelection (COMMA relationalSelection)* FROM relationalTarget
       relationalJoin? whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
@@ -315,17 +317,7 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-// Isolated fragment only; no production operation interprets this integer.
-// Keep the rule unchanged until a deliberate grammar/contract cutover.
-// The intended language reserves FOR SYSTEM_TIME for SQL temporal semantics
-// and uses separate typed Transit snapshot/branch/tag and resource selectors.
-// See docs/handbook/reference/sql/as-of.md; this rule enables neither historical queries
-// nor a mapping from a system-time expression to a resource journal revision.
-asOfClause
-    : FOR SYSTEM_TIME AS OF INTEGER
-    ;
-
-identifier: settingIdentifier | STREAMS | QUEUES;
+identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
@@ -508,7 +500,7 @@ SECRET: 'SECRET';
 AS: 'AS';
 OF: 'OF';
 FOR: 'FOR';
-SYSTEM_TIME: 'SYSTEM_TIME';
+SNAPSHOT: 'SNAPSHOT';
 INT64: 'INT64';
 BOOL: 'BOOL';
 UTF8: 'UTF8';

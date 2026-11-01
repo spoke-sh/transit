@@ -53,7 +53,7 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory:
     errdefer self.owned.deinit();
     self.owned.plan.budgets = options.budgets;
     self.owned.plan.lifetime = .interactive;
-    self.tables = try q.DirectRelationalTables.open(owned, client, snapshots, self.owned.plan.sources, options.requests - 2, cancellation);
+    self.tables = try q.DirectRelationalTables.openAt(owned, client, snapshots, self.owned.plan.sources, options.requests - 2, cancellation, prepared.catalog);
     errdefer self.tables.deinit();
     for (prepared.bindings[0..snapshots.len], self.tables.scans[0..snapshots.len]) |binding, scan| {
         if (!std.meta.eql(binding.interpretation, scan.?.reader.basis.interpretation)) return error.RelationalSourceChanged;

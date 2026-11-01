@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.table-integrity.catalog-constraint-dependencies.2026-11-01.
+/// SHA-256 of transit.v1.historical-catalog-retention-and-sql-snapshot.2026-11-01.
 pub const Definition = enum {
-    @"3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
+    @"9c077a0fad2150f7e09647db000d606ae34175548e3b41bf9b765b789109e17a",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -818,6 +818,8 @@ test "native responses require the current contract definition even with a v1 la
     const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
+        // Before historical catalog retention and catalog-bound read fingerprints.
+        "3bd69bc70a4f087a2e756ce3a5349d3eea65d98163400bc7d33275c6860c996d",
         // Before persisted Table integrity and recoverable column dependencies.
         "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
         // Before tagged catalog assertions and SQL unchanged outcomes.

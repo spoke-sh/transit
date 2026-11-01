@@ -16,12 +16,16 @@ schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
 sources: [r.max_sources]r.Source = undefined,
 plan: r.Plan,
 access: c.TableAuthority.Access = .read,
+catalog: ?q.protocol.DataLifecycle.Snapshot = null,
 pub const resident_base = @sizeOf(Self) + r.max_sources * f.TableSchema.max_bytes;
 
 pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
     return prepareAccess(allocator, clients, namespace, text, lifetime, options, location, .read);
 }
 pub fn prepareAccess(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location, access: c.TableAuthority.Access) !*Self {
+    return prepareAt(allocator, clients, namespace, text, lifetime, options, location, access, null);
+}
+pub fn prepareAt(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot) !*Self {
     if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     if (clients.len == 0) return error.InvalidRelationalSources;
     for (clients) |client| try options.requireClient(client);
@@ -31,6 +35,7 @@ pub fn prepareAccess(allocator: std.mem.Allocator, clients: []const c.DirectTabl
     errdefer allocator.destroy(self);
     self.parent = allocator;
     self.access = .read;
+    self.catalog = snapshot;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
@@ -39,10 +44,15 @@ pub fn prepareAccess(allocator: std.mem.Allocator, clients: []const c.DirectTabl
     errdefer for (&self.schemas) |*slot| if (slot.*) |*schema| schema.deinit();
     for (clients, self.syntax.targets, 0..) |client, target, i| {
         if (!std.meta.eql(client.transaction, clients[0].transaction) or !std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority or !std.mem.eql(u8, &client.key.public_key.bytes, &clients[0].key.public_key.bytes)) return error.RelationalCallerChanged;
-        const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+        if (snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
+        const response = if (snapshot) |cut| try c.DirectHistory.resolve(client, cut, namespace, target.name, access == .read) else try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
         defer response.deinit();
-        const metadata = response.value.result.lookup orelse return error.TableNotFound;
+        const metadata: c.DirectTableProtocol.Definition = if (snapshot != null) blk: {
+            const source = response.value.result.historical_catalog.source;
+            break :blk .{ .interpretation = source.binding.declaration, .namespace = source.binding.namespace.id, .authorization = source.binding.properties.authorization, .name = source.binding.properties.name, .position = source.binding.source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.rows, .schema = source.schema };
+        } else response.value.result.lookup orelse return error.TableNotFound;
         self.bindings[i] = try c.DirectTableBinding.init(client.connection, metadata);
+        self.bindings[i].catalog = snapshot;
         self.positions[i] = metadata.position;
         _ = try self.bindings[i].require(client, access);
         const bytes = try metadata.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
@@ -61,7 +71,7 @@ pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
     try self.validateBindings(client);
     var checks: [r.max_sources]c.DirectTableProtocol.ReadCheck = undefined;
     for (self.bindings[0..self.syntax.targets.len], 0..) |binding, i| {
-        checks[i] = .{ .access = .{ .namespace = binding.namespace, .target = binding.interpretation.interpretation, .access = self.access } };
+        checks[i] = if (self.catalog) |snapshot| .{ .historical = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = self.access == .read } } else .{ .access = .{ .namespace = binding.namespace, .target = binding.interpretation.interpretation, .access = self.access } };
     }
     const response = try client.call(.{ .check_set = checks[0..self.syntax.targets.len] });
     defer response.deinit();
@@ -71,7 +81,7 @@ pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
 pub fn validateBindings(self: *const Self, client: c.DirectTableClient) !void {
     for (self.bindings[0..self.syntax.targets.len]) |binding| {
         try binding.validate();
-        if (!std.meta.eql(binding.connection, client.connection)) return error.CatalogIdentityConflict;
+        if (!std.meta.eql(binding.connection, client.connection) or !std.meta.eql(binding.catalog, self.catalog)) return error.CatalogIdentityConflict;
     }
 }
 /// Bind an explicitly requested query to original saved interpretations and
@@ -86,6 +96,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
     errdefer allocator.destroy(self);
     self.parent = allocator;
     self.access = .read;
+    self.catalog = null;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);

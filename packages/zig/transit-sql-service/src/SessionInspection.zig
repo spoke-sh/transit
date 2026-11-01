@@ -12,6 +12,7 @@ metadata: ?c.DirectTableBinding = null,
 log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
 source: bool = false,
+historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
 storage: bool = false,
 node_storage: bool = false,
 kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
@@ -24,6 +25,7 @@ const describe_fields = [_]f.Types.Field{
     .{ .name = "object", .type = .uint64 },                  .{ .name = "schema_revision", .type = .uint64 },
     .{ .name = "column_id", .type = .uint64 },
 };
+const historical_list_fields = [_]f.Types.Field{ .{ .name = "name", .type = .utf8 }, .{ .name = "object", .type = .uint64 }, .{ .name = "definition_revision", .type = .uint64 } };
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
 // Log inspection is also a database-wire surface. Its character bound uses
 // the common lossless unsigned type; native Table descriptions retain theirs.
@@ -50,12 +52,15 @@ fn unsigned(value: u64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .unsigned = value } } };
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
+    const selection = try g.database.HistoricalSql.select(sql, host.dialect);
+    if (selection.snapshot != null and (host.source != null or host.table.transaction != null)) return error.UnsupportedHistoricalTransaction;
     if (host.source) |source| return if (host.native_profile) prepareSource(host, source, sql) else null;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
-    var parser = try f.SqlTyped.initDialect(a, sql, null, false, host.dialect);
+    var parser = try f.SqlTyped.initDialect(a, selection.statement, null, false, host.dialect);
     if (try f.LogDdl.inspection(parser)) |inspection| {
+        if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
         const name = try c.TableMetadata.Name.init(inspection.name);
         const response = try host.table.call(.{ .log_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
@@ -74,6 +79,15 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
     }
     if (try parser.takeWord("SHOW")) {
+        if (selection.snapshot) |snapshot| {
+            try parser.requireWord("TABLES");
+            try parser.finish();
+            // Read one page to check publication/current namespace permission.
+            // Preparation retains no list rows or data handles.
+            const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = host.namespace, .after = null } });
+            defer response.deinit();
+            return .{ .arena = arena, .historical_list = snapshot, .rows = &.{}, .output = &historical_list_fields };
+        }
         if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
             return null;
@@ -98,11 +112,11 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     if (try parser.takeWord("DESCRIBE")) {
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
-        const response = try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = if (selection.snapshot) |snapshot| try c.DirectHistory.resolve(host.table, snapshot, host.namespace, name.slice(), false) else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
-        const definition = response.value.result.lookup orelse return error.CatalogNameNotFound;
-        const binding = try c.DirectTableBinding.init(host.table.connection, definition);
-        var owned_schema = try f.TableSchema.decode(a, try definition.schema.decode(a, f.TableSchema.max_bytes));
+        const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return error.CatalogNameNotFound);
+        const schema = if (selection.snapshot != null) response.value.result.historical_catalog.source.schema else response.value.result.lookup.?.schema;
+        var owned_schema = try f.TableSchema.decode(a, try schema.decode(a, f.TableSchema.max_bytes));
         defer owned_schema.deinit();
         const rows = try describeRows(a, owned_schema.schema);
         return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = &describe_fields };
@@ -125,19 +139,19 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                     .limit = bound.plan.limit,
                     .schema = f.LogicalJson.TypeEnvelope{ .definition = f.Types.definition, .type = statement.output.?.type },
                     .executed = false,
-                    .basis = @as(?[]const u8, null),
+                    .basis = selected.binding.catalog,
                 }, .{});
             },
             .relational => |compilation| try std.json.Stringify.valueAlloc(a, .{
                 .traits = f.OperatorTraits.Summary.forExplain(try f.OperatorTraits.forRelationalPlan(compilation.plan)),
-                .consistency = "independent_table_snapshots",
+                .consistency = if (compilation.catalog) |snapshot| @tagName(snapshot.consistency) else "independent_table_snapshots",
                 .sources = compilation.plan.sources.len,
                 .join = if (compilation.plan.join) |join| @tagName(join.kind) else "none",
                 .grouped = compilation.grouped(),
                 .group_columns = compilation.plan.group_by.len,
                 .schema = f.LogicalJson.TypeEnvelope{ .definition = f.Types.definition, .type = statement.output.?.type },
                 .executed = false,
-                .basis = @as(?[]const u8, null),
+                .basis = compilation.catalog,
             }, .{}),
             else => unreachable,
         };
@@ -162,6 +176,10 @@ fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []c
     return rows;
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
+    if (self.historical_list) |snapshot| {
+        const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = host.namespace, .after = null } });
+        defer response.deinit();
+    }
     if (self.node_storage) try validateNode(host);
     if (self.source) {
         const source = host.source orelse return error.UnknownSqlSource;
@@ -214,9 +232,46 @@ pub const Read = struct {
     storage_values: [Storage.fields.len]f.Types.Values.Cell = undefined,
     node_observation: g.query.protocol.Storage.Observation = undefined,
     node_values: [Storage.node_fields.len]f.Types.Values.Cell = undefined,
+    historical_entries: [8]c.DirectHistoryDirectory.Entry = undefined,
+    historical_count: usize = 0,
+    historical_index: usize = 0,
+    historical_after: ?c.DirectHistoryDirectory.Cursor = null,
+    historical_loaded: bool = false,
+    historical_requests: u64 = 0,
+    historical_row: [historical_list_fields.len]f.Types.Values.Cell = undefined,
+    subject: ?g.BatchDisclosure.Subject = null,
+    pub fn complete(self: *const Read) bool {
+        if (self.prepared.historical_list != null) return self.historical_loaded and self.historical_after == null and self.historical_index == self.historical_count;
+        return self.index == self.prepared.count();
+    }
+    fn historicalNext(self: *Read, snapshot: c.protocol.DataLifecycle.Snapshot) !?[]const f.Types.Values.Cell {
+        while (self.historical_index == self.historical_count) {
+            if (self.complete()) return null;
+            if (self.historical_requests >= 10000) return error.QueryPageBudget;
+            self.historical_requests += 1;
+            const response = try c.DirectHistory.call(self.host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.host.namespace, .after = self.historical_after } });
+            defer response.deinit();
+            const page = response.value.result.historical_catalog.listing;
+            @memcpy(self.historical_entries[0..page.entries.len], page.entries);
+            self.historical_count = page.entries.len;
+            self.historical_index = 0;
+            self.historical_after = page.next;
+            self.historical_loaded = true;
+        }
+        const entry = &self.historical_entries[self.historical_index];
+        const checked = try c.DirectHistory.call(self.host.table, .{ .source = .{ .snapshot = snapshot, .object = entry.source.interpretation.object.object } });
+        defer checked.deinit();
+        self.subject = .{ .historical = .{ .snapshot = snapshot, .object = entry.source.interpretation.object.object, .rows = false } };
+        self.historical_row = .{ text(entry.properties.name.slice()), unsigned(entry.source.interpretation.object.object), unsigned(entry.source.interpretation.revision) };
+        self.historical_index += 1;
+        self.index += 1;
+        return &self.historical_row;
+    }
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
+        self.subject = null;
         try self.prepared.validate(self.host);
-        if (self.index == self.prepared.count()) return null;
+        if (self.prepared.historical_list) |snapshot| return self.historicalNext(snapshot);
+        if (self.complete()) return null;
         if (self.prepared.node_storage) {
             const response = try self.host.wire.query(.{ .realm = self.host.table.connection.scope.realm, .principal = self.host.table.connection.principal, .kind = .storage }, self.host.table.key);
             self.node_observation = response.body.storage;

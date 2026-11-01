@@ -438,3 +438,13 @@ compatibility fields, unflushed coverage and inconsistent-cut rejection. They
 qualify descriptor validation only. Durable acceptance, interrupted pin
 acquisition, policy races, process crashes and installed caller behavior require
 the owning runtime's separate evidence in the [proof ledger](../docs/history/qualification/README.md).
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.

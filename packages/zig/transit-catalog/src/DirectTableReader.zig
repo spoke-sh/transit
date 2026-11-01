@@ -16,6 +16,7 @@ pub const Basis = struct {
     row_count: u64,
     authority: c.DirectReadAuthority,
     workspace: ?c.protocol.Transaction.ReadView = null,
+    catalog: ?d.Snapshot = null,
     fn from(source: w.Source) Basis {
         return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority, .workspace = source.workspace };
     }
@@ -93,6 +94,7 @@ failure: ?f.LogicalQuery.Failure = null,
 /// Select physical input columns before traversal. The source descriptor stays
 /// complete; returned FTR1 rows use the canonical projected Table layout.
 pub fn selectColumns(self: *Self, columns: []const u8) !void {
+    if (self.basis.catalog != null) return error.UnsupportedHistoricalProjection;
     if (self.after != null or self.consumed != 0 or self.complete or self.released or self.history_point != null or self.filter != null) return error.InvalidTableCursor;
     self.projection = try f.TableProjection.init(self.schema.schema, columns);
     for (columns, self.projection_wire[0..columns.len]) |index, *wire| wire.* = index;
@@ -101,6 +103,7 @@ pub fn selectColumns(self: *Self, columns: []const u8) !void {
 /// Freeze the original plan and its canonical bytes before traversal. The
 /// physical projection is derived from that same plan, never caller hints.
 pub fn selectPlan(self: *Self, plan: f.LogicalQuery.Plan) !void {
+    if (self.basis.catalog != null) return error.UnsupportedHistoricalProjection;
     if (self.after != null or self.consumed != 0 or self.complete or self.released or self.history_point != null or self.filter != null) return error.InvalidTableCursor;
     const basis = try self.basis.fingerprint();
     if (!std.mem.eql(u8, &basis, &plan.source_basis)) return error.SourceChanged;
@@ -124,6 +127,16 @@ pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot:
     defer response.deinit();
     return init(allocator, client.connection, response.value.result.snapshot);
 }
+pub fn openCatalog(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: d.Snapshot, object: u64) !Self {
+    if (client.transaction != null) return error.UnsupportedHistoricalTransaction;
+    const response = try c.DirectHistory.call(client, .{ .source = .{ .snapshot = snapshot, .object = object, .rows = true } });
+    defer response.deinit();
+    return initCatalog(allocator, client.connection, response.value.result.historical_catalog.source);
+}
+pub fn initCatalog(allocator: std.mem.Allocator, connection: w.Connection, source: c.DirectHistory.Source) !Self {
+    try c.DirectHistory.validateResult(allocator, connection, .{ .source = .{ .snapshot = source.snapshot, .object = source.binding.source.interpretation.object.object, .rows = true } }, .{ .source = source });
+    return initBound(allocator, connection, source.table(), source.snapshot);
+}
 pub fn openHistoryStart(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: w.Snapshot) !Self {
     const response = try client.call(.{ .history_start = snapshot });
     defer response.deinit();
@@ -142,9 +155,15 @@ fn initHistory(allocator: std.mem.Allocator, connection: w.Connection, source: w
     return result;
 }
 fn init(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source) !Self {
+    return initBound(allocator, connection, source, null);
+}
+fn initBound(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, catalog: ?d.Snapshot) !Self {
     try connection.validate();
     try connection.object(source.snapshot.object);
-    try connection.owner(source.snapshot.handle.owner);
+    if (catalog) |snapshot| {
+        try snapshot.validate();
+        if (!std.meta.eql(snapshot.owner, source.snapshot.handle.owner) or snapshot.branch != connection.branch or !std.meta.eql(snapshot.owner.scope, connection.scope)) return error.InvalidHistoricalResponse;
+    } else try connection.owner(source.snapshot.handle.owner);
     try source.snapshot.handle.content.validate();
     try source.interpretation.validate();
     try source.accepted.validate();
@@ -157,7 +176,9 @@ fn init(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source
     errdefer schema.deinit();
     if (schema.schema.object != source.snapshot.object.object or
         !std.mem.eql(u8, &try schema.schema.fingerprint(), &source.interpretation.schema_fingerprint)) return error.InvalidTableResponse;
-    return .{ .allocator = allocator, .connection = connection, .basis = Basis.from(source), .schema = schema };
+    var basis = Basis.from(source);
+    basis.catalog = catalog;
+    return .{ .allocator = allocator, .connection = connection, .basis = basis, .schema = schema };
 }
 pub fn deinit(self: *Self) void {
     if (self.filter) |*filter| {
@@ -180,12 +201,21 @@ fn requireClient(self: *const Self, client: c.DirectTableClient) !void {
 /// result computed from cached rows. Cached data carries no authorization.
 pub fn check(self: *const Self, client: c.DirectTableClient) !void {
     try self.requireClient(client);
+    if (self.basis.catalog) |snapshot| {
+        const response = try c.DirectHistory.call(client, .{ .source = .{ .snapshot = snapshot, .object = self.basis.snapshot.object.object, .rows = true } });
+        defer response.deinit();
+        var basis = Basis.from(response.value.result.historical_catalog.source.table());
+        basis.catalog = snapshot;
+        if (!std.meta.eql(self.basis, basis)) return error.InvalidHistoricalResponse;
+        return;
+    }
     const response = try client.call(if (self.history_point) |point| .{ .history_source = .{ .object = self.basis.snapshot.object, .point = point } } else .{ .snapshot = self.basis.snapshot });
     defer response.deinit();
     const source = if (self.history_point != null) response.value.result.history_source.source else response.value.result.snapshot;
     if (!std.meta.eql(self.basis, Basis.from(source))) return error.InvalidTableResponse;
 }
 fn scanAction(self: *const Self, after: ?P.SnapshotCursor, limits: P.ReadLimits) w.Action {
+    if (self.basis.catalog) |snapshot| return .{ .historical_catalog = .{ .scan = .{ .snapshot = snapshot, .object = self.basis.snapshot.object.object, .after = after, .limits = limits } } };
     if (self.filter) |filter| return .{ .filter_scan = .{ .snapshot = self.basis.snapshot, .plan = filter.wire, .fingerprint = filter.fingerprint, .after = after, .limits = limits } };
     if (self.projection) |*selected| return .{ .column_scan = .{ .snapshot = self.basis.snapshot, .columns = self.projection_wire[0..selected.len], .after = after, .limits = limits } };
     return if (self.history_point) |point|
@@ -214,6 +244,7 @@ pub fn next(self: *Self, client: c.DirectTableClient, limits: P.ReadLimits) !?Ba
     }
     const response = try client.call(self.scanAction(self.after, limits));
     defer response.deinit();
+    if (self.basis.catalog != null) return try self.consume(try self.catalogPage(response.value.result.historical_catalog.page), limits);
     if (self.filter != null) return try self.consumeFiltered(response.value.result.filtered_page, limits);
     return try self.consume(if (self.history_point != null) response.value.result.history_page.page else response.value.result.page, limits);
 }
@@ -228,13 +259,14 @@ pub fn readAfter(self: *const Self, client: c.DirectTableClient, after: ?f.Table
     const cursor: ?P.SnapshotCursor = if (after) |identity| .{ .source = try self.cursorSource(), .after = try identity.encode() } else null;
     const response = try client.call(self.scanAction(cursor, limits));
     defer response.deinit();
+    if (self.basis.catalog != null) return self.decodePage(try self.catalogPage(response.value.result.historical_catalog.page), limits, cursor);
     return self.decodePage(if (self.history_point != null) response.value.result.history_page.page else response.value.result.page, limits, cursor);
 }
 /// Collision-safe lookup under the retained schema's physical key semantics.
 /// Neither a hit nor absence changes sequential coverage or its cursor.
 pub fn readKey(self: *const Self, client: c.DirectTableClient, key: []const u8) !?f.TableRow.Owned {
     try self.requireClient(client);
-    if (self.history_point != null) return error.UnsupportedHistoricalPointRead;
+    if (self.history_point != null or self.basis.catalog != null) return error.UnsupportedHistoricalPointRead;
     if (key.len == 0 or key.len > f.Collation.max_sort_key_bytes) return error.InvalidTableKey;
     const binary = try w.Binary.encode(self.allocator, key);
     defer self.allocator.free(binary.base64);
@@ -262,7 +294,7 @@ fn decodePoint(self: *const Self, point: w.Point, key: []const u8) !?f.TableRow.
 /// continuation; this does not alter the reader's full-table coverage cursor.
 pub fn readRange(self: *const Self, client: c.DirectTableClient, interval: P.KeyRange, after: ?P.KeyRange.Cursor, limits: P.ReadLimits) !RangeBatch {
     try self.requireClient(client);
-    if (self.history_point != null) return error.UnsupportedHistoricalRangeRead;
+    if (self.history_point != null or self.basis.catalog != null) return error.UnsupportedHistoricalRangeRead;
     try limits.validate();
     if (limits.encoded_bytes > w.max_page_bytes) return error.InvalidTableReadBudget;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -313,6 +345,10 @@ fn decodeRange(self: *const Self, page: w.KeyRangePage, interval: P.KeyRange, af
     }
     if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
     return result;
+}
+fn catalogPage(self: *const Self, page: c.DirectHistory.Page) !w.Page {
+    if (self.basis.catalog == null or !std.meta.eql(self.basis.catalog.?, page.snapshot) or !std.meta.eql(self.basis.interpretation.interpretation, page.source.interpretation) or !std.meta.eql(self.basis.accepted, page.source.accepted)) return error.InvalidHistoricalResponse;
+    return .{ .snapshot = self.basis.snapshot, .interpretation = self.basis.interpretation, .accepted = page.source.accepted, .changed_lsn = self.basis.changed_lsn, .total_rows = page.total_rows, .rows = page.rows, .encoded_bytes = page.encoded_bytes, .next = page.next };
 }
 fn consume(self: *Self, page: w.Page, limits: P.ReadLimits) !Batch {
     if (self.complete or self.released) return error.InvalidTableResponse;
@@ -422,6 +458,7 @@ fn consumeFiltered(self: *Self, value: w.FilteredPage, limits: P.ReadLimits) !Ba
 /// Explicit and retryable. If its reply is lost, retain this original reader or
 /// snapshot handle and retry release; destruction alone performs no remote work.
 pub fn release(self: *Self, client: c.DirectTableClient) !void {
+    if (self.basis.catalog != null) return error.HistoricalRetentionOwned;
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     if (self.basis.workspace != null) {
         self.released = true;
