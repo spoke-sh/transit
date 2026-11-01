@@ -5,81 +5,8 @@ const c = @import("root.zig");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const q = p.StreamQueue;
-const read = p.StreamRead;
 
-pub const Request = union(p.LogWorkload.StreamKind) {
-    append: q.Append,
-    assign: q.GroupAssignment,
-    consume: read.Request,
-    release: read.Release,
-    offset: struct {
-        commit: q.OffsetCommit,
-        cursor: read.Cursor,
-        pub fn validate(self: @This()) !void {
-            try self.commit.validate();
-            try self.cursor.validate();
-            if (!std.meta.eql(self.commit.coverage, self.cursor.coverage) or
-                self.commit.operation.principal != self.cursor.read.owner.principal)
-                return error.StreamReadConflict;
-        }
-    },
-
-    pub fn validate(self: Request) !void {
-        switch (self) {
-            inline else => |value| try value.validate(),
-        }
-        if (self == .append and self.append.kind != .stream) return error.CatalogKindMismatch;
-    }
-    pub fn identity(self: Request) d.Operation {
-        return switch (self) {
-            .offset => |value| value.commit.operation,
-            inline else => |value| value.operation,
-        };
-    }
-    pub fn target(self: Request) q.Partition {
-        return switch (self) {
-            .assign => |value| value.cut.target,
-            .offset => |value| value.commit.coverage.cut.target,
-            inline else => |value| value.target,
-        };
-    }
-    pub fn access(self: Request) c.LogAuthority.Access {
-        return switch (self) {
-            .append => .append,
-            .assign => .administer,
-            .consume => |value| if (value.group != null) .acquire else .read,
-            .release => .read,
-            .offset => .settle,
-        };
-    }
-    pub fn control(self: Request) bool {
-        return switch (self) {
-            .assign => |value| value.expected != null,
-            .release, .offset => true,
-            .append, .consume => false,
-        };
-    }
-    /// Payload bytes are already bound by Append.payload. Hash every remaining
-    /// frozen field, including cursor authentication and exact consumer basis.
-    pub fn binding(self: Request, scratch: std.mem.Allocator) !Binding {
-        try self.validate();
-        const bytes = try p.Json.valueAllocBounded(scratch, self, 16 * 1024);
-        defer scratch.free(bytes);
-        var digest = std.crypto.hash.sha2.Sha256.init(.{});
-        digest.update("transit.catalog.stream.operation.v1\x00");
-        digest.update(&p.Growth.definition_bytes);
-        digest.update(bytes);
-        const result: Binding = .{
-            .definition = p.Growth.current_definition,
-            .operation = self.identity(),
-            .target = self.target(),
-            .kind = std.meta.activeTag(self),
-            .intent = digest.finalResult(),
-        };
-        try result.validate();
-        return result;
-    }
-};
+pub const Request = p.LogWorkload.StreamRequest;
 
 pub const Binding = p.LogWorkload.StreamBinding;
 
