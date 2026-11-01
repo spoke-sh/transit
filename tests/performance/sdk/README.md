@@ -105,3 +105,21 @@ revocation, uncertain-operation and process-death schedules. Other languages,
 wide/nested values, concurrent facets, transactions, allocation/copy attribution
 and clean-lane qualification remain separate obligations in
 [Milestone 9](../../../docs/roadmap/09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01).
+
+## Repeated Node module imports
+
+`just test::sdk-import-cost .cache/bindings/ReleaseSafe/node --repeat 5` installs
+the real packages outside the checkout, then imports them in independent Node
+processes. Package preparation stays outside timing. Each observation verifies
+installed package resolution and the public Client/Catalog/Query constructors,
+and records import CPU, import and launch latency, and process high-water RSS.
+It never opens a client or starts a native host. These module-only results do not
+replace launch-to-first-verified-result from the complete SDK workload.
+
+Automatic raw JSONL output retains package and driver hashes, source, Node/host
+identity, all attempts and a terminal campaign outcome. Alternate matched control
+and candidate installations; preserve runtime/driver/cache settings and report
+the actual sample counts. Build each arm's packages and compiled SDK outputs in
+its own source checkout: the installer validates the tarball against those
+outputs. Missing packages, failed imports or incomplete experiments do not pass.
+This diagnostic has no frozen numerical regression budget.

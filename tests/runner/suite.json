@@ -340,7 +340,8 @@
       "bindings::release-zig",
       "bindings::feedback",
       "test::sdk-performance",
-      "test::installed-performance"
+      "test::installed-performance",
+      "test::sdk-import-cost"
     ]
   },
   "nested_tasks": {
