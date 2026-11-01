@@ -9,6 +9,59 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Allocation-journal cancellation and installed browser gate — 2026-11-01
+
+The allocation-journal change committed as
+`1c4106d5470cc028fe6e9c444d1be94f7f5e0573` protects one bounded append group
+through sync, then restores cancellation before object/marker publication. It
+changes no timeout, lease, storage format or contract definition. The focused
+checks ran on that implementation before its commit, on base
+`41c66c2838298344773afe413e2f10a49dc22f24`; the installed check below built
+clean committed `1c4106d54`. All use definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`.
+
+Inside the pinned Nix shell, in `packages/zig/transit-backend-local`, these
+ReleaseSafe selections pass:
+
+| Command selection for `zig build test … -Doptimize=ReleaseSafe --summary all` | Result |
+| --- | --- |
+| `-Dtest-filter='allocation journal cancellation' -Dtest-filter='direct data creation sync failures' -Dtest-filter='batched native and direct publications'` | 4/4 tests, 25 seconds execution |
+| `-Dtest-filter='allocation' -Dtest-filter='direct collection' -Dtest-filter='batched native and direct publications' -Dtest-filter='direct data creation sync failures'` | 23/23 tests, two minutes execution; eight deletion-sync and 29 marking-sync fault schedules recover |
+
+The cancellation case delivers real cancellation during sync for native/direct
+inventories and single/batched writes. Each preserves an accepted journal tail,
+reports cancellation at the next cancellable boundary, retries on the same
+healthy owner and reopens correctly. Genuine write/sync faults keep their
+existing recovery-required behavior. Raw local logs are
+`/var/tmp/transit-m6-allocation-cancel1.log` (SHA-256
+`60813df3364c253c7edc5268865d0ee7ad1c823bdbbaee5081e8701813aa006f`)
+and `/var/tmp/transit-m6-allocation-cancel2.log` (SHA-256
+`b0959149a694dba0dc20b8eef71bcb3695a23e706b5168211a8786e439964708`).
+The same implementation passes 60 fast checks, the handbook build and 10,028
+documentation links across 710 files.
+
+The clean-source `zig build test-declarative-browser -Doptimize=ReleaseSafe
+--summary all` run is **an aggregate failure**, with 10/12 build steps complete.
+Its main installed browser scenario passes original-claim reply loss, callback
+concurrency/restart, key rotation, process death, revocation, active watches,
+81 durable identities, bounded pagination, buffered policy changes and production
+origin checks. The separate documented-example fixture then runs `migrate plan`
+after core readiness but before the local SQL rendezvous exists. Its retained
+server log records core ready at 10:55:31.446 and SQL accepting at 10:55:31.640.
+Core readiness does not promise SQL readiness under the CLI contract. This
+failure is distinct from the earlier allocation-recovery failure during identity
+population; neither earlier failure is erased by this partial pass.
+
+The installed run uses CLI SHA-256
+`5375fa9e87f7f46a3c1605280652522461d93f0d7d37e2fd6db4ff81025942e1`,
+admin `4be92c5cf7bb7c3419a8eeb17944cc030d9d5250b44cff90eb314fc0297018b3`
+and fault-node `df494dfc49af5bb29766bc64c990fc11fde4ba90327beea4eb2cef92b26e8b08`.
+The raw log `/var/tmp/transit-m6-browser-allocation-fix1.log` has SHA-256
+`b2766bc4c6578c8bb07526db383910527f3cd112877addac2d32a625bdb1b11b`;
+private example state remains at `/var/tmp/transit-browser-nfvwecjd` with those
+attributions. This is focused component and partial installed evidence, not a
+completed browser lane, later-definition qualification or whole M6 pass.
+
 ## Integrated causal Document map trees — 2026-11-01
 
 The first integrated storage slice connects canonical causal map changes to
