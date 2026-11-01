@@ -10433,6 +10433,289 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Event.zig": {
+      "errors": {},
+      "outcomes": {
+        "Event.kind": [
+          "object_start",
+          "object_end",
+          "array_start",
+          "array_end",
+          "key",
+          "string",
+          "number",
+          "boolean",
+          "null_value",
+          "element_start",
+          "element_end",
+          "attribute",
+          "text",
+          "comment",
+          "processing_instruction"
+        ],
+        "Step.result": [
+          "event",
+          "need_input",
+          "yield",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Profile.zig"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Json.zig": {
+      "errors": {
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 2,
+        "DocumentWorkspaceTooSmall": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidJsonEscape": 1,
+        "InvalidJsonLiteral": 1,
+        "InvalidJsonNumber": 10,
+        "InvalidJsonString": 1,
+        "InvalidJsonSyntax": 4,
+        "InvalidJsonUnicode": 5,
+        "TrailingDocumentBytes": 2
+      },
+      "outcomes": {
+        "Escape": [
+          "none",
+          "escaped",
+          "hex",
+          "low_slash",
+          "low_u"
+        ],
+        "Frame.kind": [
+          "object",
+          "array"
+        ],
+        "Frame.state": [
+          "key_or_end",
+          "key",
+          "colon",
+          "value_or_end",
+          "value",
+          "comma_or_end"
+        ],
+        "Number": [
+          "minus",
+          "zero",
+          "integer",
+          "dot",
+          "fraction",
+          "exponent_mark",
+          "exponent_sign",
+          "exponent"
+        ],
+        "Token": [
+          "none",
+          "string",
+          "number",
+          "literal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "afterValue()": "<inferred>",
+        "append()": "<inferred>",
+        "byte()": "<inferred>",
+        "finishNumber()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "numberByte()": "<inferred>",
+        "stringByte()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 2
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Profile.zig": {
+      "errors": {
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentWorkLimitExceeded": 1,
+        "UnsupportedDocumentProfile": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Budget.chargeWork()": "<inferred>",
+        "Budget.consume()": "<inferred>",
+        "Budget.node()": "<inferred>",
+        "Budget.output()": "<inferred>",
+        "descriptor()": "<inferred>",
+        "require()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Reader.zig": {
+      "errors": {
+        "DocumentInputLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentProfilePartConflict": 4,
+        "DocumentReaderFailed": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1
+      },
+      "outcomes": {
+        "Parser": [
+          "json",
+          "xml"
+        ],
+        "Workspace": [
+          "json",
+          "xml"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "verifiedPart()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
+      },
+      "imports": [
+        "Event.zig",
+        "Json.zig",
+        "Profile.zig",
+        "Xml.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Utf8.zig": {
+      "errors": {
+        "InvalidDocumentUtf8": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "accept()": "<inferred>",
+        "finish()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Xml.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 2,
+        "DuplicateXmlAttribute": 1,
+        "IncompleteDocumentFrame": 3,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidXmlAttribute": 5,
+        "InvalidXmlCharacter": 3,
+        "InvalidXmlComment": 1,
+        "InvalidXmlDeclaration": 5,
+        "InvalidXmlEntity": 5,
+        "InvalidXmlName": 1,
+        "InvalidXmlSyntax": 5,
+        "TrailingDocumentBytes": 1,
+        "UnsupportedXmlDeclaration": 2,
+        "UnsupportedXmlEncoding": 1,
+        "UnsupportedXmlEntity": 1,
+        "UnsupportedXmlNamespace": 2,
+        "XmlElementMismatch": 1
+      },
+      "outcomes": {
+        "Mode": [
+          "text",
+          "markup"
+        ],
+        "Pending": [
+          "none",
+          "attributes",
+          "empty_end"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "decode()": "<inferred>",
+        "entity()": "<inferred>",
+        "init()": "<inferred>",
+        "markupComplete()": "<inferred>",
+        "markupEvent()": "<inferred>",
+        "next()": "<inferred>",
+        "pendingEvent()": "<inferred>",
+        "processingInstruction()": "<inferred>",
+        "readAttribute()": "<inferred>",
+        "readName()": "<inferred>",
+        "textEvent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 5
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Event.zig",
+        "Json.zig",
+        "Profile.zig",
+        "Reader.zig",
+        "Xml.zig"
+      ]
+    },
     "packages/zig/transit-document/src/Bytes.zig": {
       "errors": {
         "IndexValueTooLarge": 1,
@@ -19623,6 +19906,119 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/DocumentProfile.zig": {
+      "errors": {
+        "DocumentProfileConflict": 1,
+        "DocumentProfileCoverageGap": 1,
+        "DocumentProfilePartConflict": 1,
+        "DocumentProfileSpanConflict": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidDocumentProfile": 1,
+        "InvalidDocumentProfileLimits": 1,
+        "InvalidDocumentProfilePart": 1,
+        "InvalidDocumentProfileSpan": 1,
+        "InvalidDocumentProfileValidation": 1
+      },
+      "outcomes": {
+        "Capture": [
+          "preparing",
+          "ready",
+          "capturing",
+          "complete",
+          "unknown",
+          "retired"
+        ],
+        "Collation": [
+          "utf8_binary",
+          "ascii_ci",
+          "ebcdic_cp037"
+        ],
+        "Encoding": [
+          "utf8",
+          "ascii",
+          "binary",
+          "latin1",
+          "ebcdic_cp037",
+          "ebcdic_cp500",
+          "ebcdic_cp1047"
+        ],
+        "Format": [
+          "json",
+          "xml",
+          "http",
+          "mime",
+          "ftp",
+          "edi_x12",
+          "edifact",
+          "hl7",
+          "smtp",
+          "imap",
+          "pop3",
+          "ldap",
+          "ldif",
+          "sip",
+          "sdp",
+          "amqp",
+          "mqtt",
+          "ntp",
+          "docx",
+          "xlsx",
+          "odf",
+          "pdf",
+          "grpc"
+        ],
+        "Framing": [
+          "single",
+          "delimited",
+          "length_prefixed",
+          "multipart",
+          "ber",
+          "zip",
+          "pdf_xref"
+        ],
+        "Part.coverage": [
+          "prefix",
+          "complete",
+          "redacted"
+        ],
+        "Provenance": [
+          "exact",
+          "derived"
+        ],
+        "Span.space": [
+          "raw",
+          "decoded",
+          "derived"
+        ],
+        "Validation.status": [
+          "valid",
+          "invalid",
+          "incomplete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.sealed()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Descriptor.validateFields()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Part.requireExact()": "<inferred>",
+        "Part.validate()": "<inferred>",
+        "Provenance.validate()": "<inferred>",
+        "Span.requireWithin()": "<inferred>",
+        "Span.validate()": "<inferred>",
+        "Validation.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/DocumentRead.zig": {
       "errors": {
         "DocumentReadConflict": 3,
@@ -20741,7 +21137,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -20926,6 +21322,7 @@
         "Diagnostic.zig",
         "DocumentDeclaration.zig",
         "DocumentOperation.zig",
+        "DocumentProfile.zig",
         "DocumentRead.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
