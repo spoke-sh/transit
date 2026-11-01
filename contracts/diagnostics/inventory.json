@@ -9615,6 +9615,87 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-data-client/src/LocalRecoveryStore.zig": {
+      "errors": {
+        "FileNotFound": 2,
+        "IncompatibleRecoveryStore": 3,
+        "InvalidRecoveryRecord": 7,
+        "InvalidRecoveryStorePath": 1,
+        "PathAlreadyExists": 2,
+        "RecoveryKeyConflict": 2,
+        "RecoveryPageCapacity": 1,
+        "RecoveryRecordCapacity": 3,
+        "RecoveryRecordMissing": 2,
+        "RecoveryRevisionConflict": 2,
+        "RecoveryRevisionExhausted": 1,
+        "RecoveryStoreOwned": 1,
+        "RecoveryStorePermissions": 1,
+        "UnsupportedRecoveryStore": 1
+      },
+      "outcomes": {
+        "remove().policy": [
+          "forget_original"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "get()": "<inferred>",
+        "insert()": "<inferred>",
+        "listPage()": "<inferred>",
+        "open()": "<inferred>",
+        "private()": "<inferred>",
+        "publish()": "<inferred>",
+        "read()": "<inferred>",
+        "remove()": "<inferred>",
+        "syncDirectory()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 7
+      },
+      "imports": [
+        "builtin",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/SqlRecovery.zig": {
+      "errors": {
+        "DuplicateSubmissionPersistence": 1,
+        "IncompatibleRecoveryStore": 1,
+        "RecoveryKeyConflict": 3,
+        "RecoveryOutcomeConflict": 1,
+        "RecoveryRecordCapacity": 2,
+        "RecoveryRecordMissing": 1,
+        "RecoveryRevisionConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Loaded.pending()": "<inferred>",
+        "encode()": "<inferred>",
+        "execute()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "persist()": "<inferred>",
+        "save()": "<inferred>",
+        "saveCompletion()": "<inferred>",
+        "validateCompletion()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 19,
+        "catch": 2
+      },
+      "imports": [
+        "LocalRecoveryStore.zig",
+        "std",
+        "transit_sql_client"
+      ]
+    },
     "packages/zig/transit-data-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9629,7 +9710,10 @@
         "Admission.zig",
         "Catalog.zig",
         "Context.zig",
-        "transit_catalog"
+        "LocalRecoveryStore.zig",
+        "SqlRecovery.zig",
+        "transit_catalog",
+        "transit_sql_client"
       ]
     },
     "packages/zig/transit-document/src/Bytes.zig": {

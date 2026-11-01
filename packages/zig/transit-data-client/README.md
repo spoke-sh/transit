@@ -6,7 +6,7 @@ transports and one local immutable intent. It uses no Station handler, activatio
 or native Station artifact. The existing catalog ABI composes this same caller
 with its native buffer and host scheduling boundary.
 
-The package depends on `transit-catalog`; the low-level `transit-client` remains
+The package depends on `transit-catalog` and `transit-sql-client`; the low-level `transit-client` remains
 below Catalog. The build rejects transitive Station imports. Consumer Zig
 applications import this module through the [Zig SDK](../../../sdks/zig/README.md).
 
@@ -15,6 +15,12 @@ handle/data/control capacity and joined local closure. It exposes the same
 explicit Table, log, Stream and Queue calls. See the
 [context guide](docs/context.md) for handle lifetimes, reserved control capacity,
 close cancellation and remaining boundaries.
+
+`LocalRecoveryStore` supplies explicit, bounded Linux local-file recovery storage.
+`SqlRecovery` persists the SQL executor's original attempt before dispatch and
+keeps receipt-storage errors separate from verified command outcomes. See the
+[recovery guide](docs/recovery.md) for ownership, atomic publication, original-token
+observation and qualification limits.
 
 ## Construction and ownership
 

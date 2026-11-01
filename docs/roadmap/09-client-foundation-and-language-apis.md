@@ -93,7 +93,7 @@ This planning change establishes no new runtime qualification.
 
 ### Implemented context and submission slice
 
-The first implementation from this refresh is based on `b60f12154` after
+The implementation from this refresh is based on `b60f12154` after
 integrating the latest M8 wire and M19 branch work. It advances P2 and the SQL
 submission prerequisite of P4; it does not complete either work package.
 
@@ -109,14 +109,20 @@ submission prerequisite of P4; it does not complete either work package.
 - Package tests cover deterministic capacity, allocation failure, stale handles,
   close races and result ownership. SQL loopback tests check persistence ordering,
   store failure/cancellation, scope substitution, context denial, lost replies
-  and recovery-record validation. These do not establish a durable disk store,
-  real-service caller-loss recovery or installed foreign-language composition.
+  and recovery-record validation.
+- `LocalRecoveryStore` now supplies explicit Linux local-file storage with a
+  process-held exclusive lock, checksummed definition-bound records, immutable
+  original bytes, revision-checked evidence updates, atomic publication and
+  bounded enumeration. `SqlRecovery` connects it to the executor and preserves
+  known command outcomes when receipt persistence fails. Actual-file and loopback
+  tests do not establish real-service caller-loss, power-loss or installed
+  foreign-language qualification.
 
 The [context guide](../../packages/zig/transit-data-client/docs/context.md) and
 [SQL persistence API](../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
 own the current semantics. Remaining work includes P0's representative resource
 baseline, principal coordination, fair queued admission, SQL/context composition,
-the local durable store and ordinary Catalog settlement, generated data ABI/host,
+store process-loss qualification and ordinary Catalog settlement, generated data ABI/host,
 installed language APIs, and each M6/M7 public handoff. The source inventory below
 records the pre-implementation audit; the ordered work packages remain the
 completion gates.
@@ -220,8 +226,10 @@ sole evidence that an operation executes.
    is not permission to recompile or send a replacement statement. Interactive
    SELECT results remain non-resumable after session loss. Apply this ordering
    to BEGIN, statements and COMMIT, not only Table writes.
-   Ship the explicitly configured local durable store with atomic update, fenced
-   ownership, bounded paging and private permissions. **Exit:** injected failure
+   The local store and SQL adapter now provide atomic update, exclusive process
+   ownership, bounded paging and private permissions. Add the remaining domain
+   adapters, recovery claims and real-service process-loss qualification.
+   **Exit:** injected failure
    at each store/send/receipt boundary preserves the original identity; known
    commitment and failed receipt persistence remain separate observations.
 4. **Implement P5's SQL/result/transaction facet in Zig.** Compose existing

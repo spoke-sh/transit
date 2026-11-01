@@ -18,7 +18,10 @@ Its [Catalog context](../../../packages/zig/transit-data-client/docs/context.md)
 composes explicit Table, Stream and Queue operations with bounded data/control
 admission and joined close. The exported SQL executor independently supports
 [pre-dispatch persistence](../../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
-of the original attempt through an application callback.
+of the original attempt through an application callback. The data client's
+[local recovery adapter](../../../packages/zig/transit-data-client/docs/recovery.md)
+connects that callback to explicit Linux filesystem storage with bounded records,
+original-token observation and separate receipt-persistence failures.
 
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../../examples/station-sdk/README.md).

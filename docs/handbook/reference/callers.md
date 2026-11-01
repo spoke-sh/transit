@@ -34,7 +34,10 @@ The [SQL executor](../../../packages/zig/transit-sql-client/README.md#persisting
 can invoke an application persistence callback before its first execute send.
 It supplies the original token and nonsecret scope/content; separately
 authenticated recovery observes that token without replaying SQL. Saving an
-attempt does not establish acceptance, and the library supplies no disk store.
+attempt does not establish acceptance. The data client's optional
+[local recovery store and SQL adapter](../../../packages/zig/transit-data-client/docs/recovery.md)
+persist original submissions and command evidence on Linux. Receipt-storage
+failure remains separate from a known command outcome; recovery never replays SQL.
 
 Catalog descriptions carry six authorization domain identifiers: database,
 schema, table, stream, queue and KV. Each must be a positive native counter, and all
