@@ -9,6 +9,38 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Exact Queue timer membership — 2026-11-01
+
+Implementation `b56101dac` separates exact membership completion from earliest
+event selection. Membership stops only after reading and validating an exact
+currently eligible occurrence. Earliest selection still checks every possibly
+earlier source; incomplete or stale observations cannot establish absence or
+membership. It changes no format, cache, deadline or work-budget setting.
+
+On base `1932cea7f` with the identical implementation patch, the pinned-shell
+ReleaseSafe storage selection passes **30/30 tests** in two minutes with 31 MB
+peak test RSS:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='queue schedule' \
+  -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' \
+  -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The disk case establishes exact active-buffer membership with one provider read,
+while earliest-event selection under the same small work budget still refuses.
+Stale and different later events cannot match; a missing source still refuses.
+Existing disk reopen, frozen merge-input, lease and transaction cases also pass.
+The raw log `/var/tmp/transit-m6-schedule-membership-test1.log` has SHA-256
+`3bff51849ea3103c37c5b4b47db63160b2f1e2ad66d8095b00ff32ad311c245d`.
+This is component evidence. The [cold Queue baseline](performance.md) remains
+failed until a separately attributed installed run completes.
+
 ## Queue replay cache provenance — 2026-11-01
 
 Implementation `16484c8136d5f804fd7f5e303a7999b14c7817e0` retains only

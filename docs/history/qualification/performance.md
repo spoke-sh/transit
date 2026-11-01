@@ -100,6 +100,29 @@ The retained installation's `m6-cache-replay-investigation.stdout` has SHA-256
 The failed read and cleanly joined node are diagnostic evidence, not a passing
 baseline or permission to resubmit the original mutation.
 
+A subsequent `strace` diagnostic separates startup from the same original
+operation's request interval. It classifies object descriptors by fixed storage
+family in memory, retaining aggregate counts rather than filenames or payloads.
+Startup opens 242,530 object descriptors and 80,941 object payloads. During
+1,024 replayed frames, the request interval opens 66,934 bitmap descriptors and
+33,467 bitmap payloads, plus 37,530 index descriptors and 18,765 index payloads.
+Native-page opens are 138 descriptors and 69 payloads. This attributes most
+observed request-time file opens to direct bitmap/index storage, not native
+authorization. It does not establish CPU attribution or isolated latency.
+
+The traced original read still fails `OwnerRecoveryBudget` at position 1,025;
+no mutation is attempted. Runtime/caller and definition match the preceding
+follow-up, and no owned heavy work overlaps. Starting host load is
+7.421/7.925/8.814. The retained installation's
+`m6-cache-replay-families.json` has SHA-256
+`124630d017e37b3118c374c56d3dcfb4ccea0d83268a0eb6dfc0d919c4f8c918`;
+its `.stdout` has
+`c4d5b40f1d48131a8762ddf0db20888611a0e1145e139d26027a53042997021a`.
+The external diagnostic driver `/var/tmp/transit-m6-profile-original-families.py`
+has SHA-256
+`c34eef180085b7dfc85a05025ec396397ce20d58c88360f608699994f87ea635`.
+Tracing and classifier I/O make this diagnostic unsuitable for a performance gate.
+
 ## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
 
 The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)
