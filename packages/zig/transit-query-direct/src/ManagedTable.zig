@@ -38,6 +38,7 @@ pub const Declaration = struct {
         try self.name.validate();
         try self.source.validate();
         try self.output.validate();
+        if (self.options.budgets.output_rows > std.math.maxInt(u64) - 2) return error.InvalidQueryBudget;
         if (self.namespace == 0 or self.sql.len == 0 or self.sql.len > f.Sql.max_statement_bytes or
             !std.meta.eql(self.operation.scope, self.connection.scope) or self.operation.principal != self.connection.principal or
             !std.meta.eql(self.source.connection, self.connection) or !std.meta.eql(self.output.connection, self.connection) or
@@ -487,9 +488,10 @@ fn privateClient(self: Self, transaction: c.DirectClientToken.Key) !c.DirectTabl
 pub fn step(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: std.Io.Dir, cancellation: ?*const std.atomic.Value(bool)) !bool {
     return self.stepInner(token, io, directory, cancellation) catch |err| {
         const reason: flow.Blocked = switch (err) {
-            error.ManagedTableResultBudget, error.RelationalResultBudget, error.RelationalWorkBudget, error.RelationalResidentBudget, error.RelationalSpillBudget, error.RelationalSpillWorkBudget, error.QueryPageBudget, error.QueryResultBudget, error.TransactionMemoryLimit, error.TransactionStatementLimit, error.TransactionWorkLimit, error.KVBuildBudget => .budget,
+            error.ManagedTableResultBudget, error.RelationalResultBudget, error.RelationalWorkBudget, error.RelationalResidentBudget, error.RelationalSpillBudget, error.RelationalSpillWorkBudget, error.QueryPageBudget, error.QueryResultBudget, error.TransactionMemoryLimit, error.TransactionWorkspaceLimit, error.KVBuildBudget => .budget,
             error.CatalogDenied, error.AccessDenied, error.Rejected => .authorization,
             error.TableDefinitionChanged, error.TableNotFound, error.DataflowSourceChanged => .source_changed,
+            error.FailedRelationalQuery => .execution_failed,
             else => return err,
         };
         const progress = try c.DirectClientToken.inspect(self.client, token) orelse return err;

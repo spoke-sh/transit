@@ -21261,10 +21261,12 @@
         "DataflowIdentityConflict": 5,
         "DataflowLeaseFenced": 1,
         "DataflowSourceChanged": 6,
+        "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 3,
         "IncompleteDataflowCoverage": 3,
         "InvalidManagedTableHead": 2,
         "InvalidManagedTableRecord": 11,
+        "InvalidQueryBudget": 1,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
         "ManagedTableCleanupPending": 1,
@@ -21284,8 +21286,7 @@
         "TableDefinitionChanged": 2,
         "TableNotFound": 7,
         "TransactionMemoryLimit": 1,
-        "TransactionStatementLimit": 1,
-        "TransactionWorkLimit": 1,
+        "TransactionWorkspaceLimit": 1,
         "UnsupportedManagedTable": 1
       },
       "outcomes": {

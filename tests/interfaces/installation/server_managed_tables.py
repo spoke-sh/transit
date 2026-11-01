@@ -110,6 +110,11 @@ def run(cli, node, host, board, gateway):
         assert failed['revision'] == 0
         assert records(fixture.console('SELECT id FROM failed_output;\n')[-1]) == []
         fixture.console('RETIRE DATAFLOW failed_projection;\n')
+        fixture.console('CREATE TABLE overflow_input (id BIGINT NOT NULL);\nCREATE TABLE overflow_output (total BIGINT);\nINSERT INTO overflow_input (id) VALUES (9223372036854775807),(1);\nINSERT INTO overflow_output (total) VALUES (7);\nCREATE DATAFLOW overflow_projection INTO overflow_output AS SELECT SUM(id) AS total FROM overflow_input;\nAUTHORIZE DATAFLOW overflow_projection;\nACTIVATE DATAFLOW overflow_projection;\n')
+        overflow = await_head(fixture, 'overflow_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
+        assert overflow['revision'] == 0
+        assert records(fixture.console('SELECT total FROM overflow_output;\n')[-1]) == [{'total': '7'}]
+        fixture.console('RETIRE DATAFLOW overflow_projection;\n')
         fixture.stop()
         success = True
         print('Installed managed Tables: SQL publication/control, verified complete and empty successors, suspend/restart/resume, refresh, idle parking and retirement passed.', flush=True)

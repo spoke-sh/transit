@@ -108,6 +108,9 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     invalid.operation.operation = 652021;
     invalid.options.requests = 0;
     try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
+    invalid.options.requests = options.requests;
+    invalid.options.budgets.output_rows = std.math.maxInt(u64);
+    try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
     try t.expect(try c.DirectClientToken.lookup(client, manager.nameKey(invalid.namespace, invalid.name)) == null);
     try control(manager, declaration, .authorize, 652005);
     try control(manager, declaration, .activate, 652006);
