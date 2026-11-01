@@ -238,6 +238,37 @@ replace its implementation order and source assessment. Milestone 12 remains
 **In Progress**. These are implementation and qualification requirements, not
 new executable SQL or new runtime proof.
 
+### Installed Table implementation slice — 2026-11-01
+
+The selected first PR implements the installed finite Table lifecycle across
+R0–R3. It replaces the capability ledger's lifecycle-helper claim with the actual
+cohosted native SQL and typed profile: publication, authorization, activation,
+suspension, resume, refresh, retirement, metadata-only EXPLAIN and observed state.
+Paged catalog tokens and a named direct KV hold definitions, original work,
+control epochs and completion checkpoints. The existing serializable Table/KV
+transaction pins the source cut and commits output plus checkpoint together.
+Publication generations wake a service-owned reconciler; startup scans durable
+work and settled computations park. No Station turn owns this path.
+
+This slice does **not** close every R1/R2/R3 exit gate below. It does not add
+ordered/net change consumers, snapshot-to-tail history handoff, historical output
+retention, collectible abandoned immutable request records, the full crash-point
+matrix or a growth proof beyond the former helper capacities. Those remain
+explicit follow-up gates, alongside T5/T8 implementation correspondence. The
+finite consumer recomputes at a retained common cut and may coalesce intervening
+source changes. Incremental algebra and later SQL/connector packages remain
+separate work.
+
+Executable acceptance owners are
+[`managed_table.zig`](../../tests/catalog/tables/managed_table.zig) and
+[`server_managed_tables.py`](../../tests/interfaces/installation/server_managed_tables.py),
+registered as `just test::managed-tables`. Their assertions cover exact output
+rows, process replacement after private staging, original decisions, control
+races, dependency-cycle refusal, empty successors, restart while suspended and
+idle parking. Registration and this implementation record do not certify an
+execution; completed runner evidence and selected clean lanes are reported with
+the PR.
+
 ### Current implementation and evidence boundaries
 
 | Boundary | Present at this source | Remaining implementation |
