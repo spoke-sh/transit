@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Queue replay cache provenance — 2026-11-01
+
+Implementation `16484c8136d5f804fd7f5e303a7999b14c7817e0` retains only
+provider-verified immutable index pages between Queue replay transitions. Newly
+staged pages, unflushed batch reads and reads served by the private derivation
+overlay are discarded at that boundary. It changes no stored format, definition,
+page-count budget, recovery-step limit, authorization boundary or deadline.
+The [storage owner](../../../packages/zig/transit-storage/README.md) describes
+the cache's limited evidence.
+
+The following pinned-shell ReleaseSafe selection passes **27/27 tests**, with
+one minute reported execution and 29 MB peak test RSS:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='derived page eviction' \
+  -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' \
+  -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The changes were tested in a separate checkout based on `e58935ced`, immediately
+before committing the identical patch as `d0eb64bbd6e3939fa9355f320565e0ee1b7f845d`
+and applying it as the implementation commit above. Definition remains
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
+This is focused component evidence, not a clean-source lane or performance run.
+
+The new disk case removes an accepted item-index page, reconstructs the same
+candidate bytes from WAL, and requires recovery to refuse the missing provider
+page with both one and 16 resident cache pages. Restoring the original bytes
+makes the unchanged WAL recover successfully. Separate cases prove that a
+private overlay read and an unflushed batch cannot survive as verified cache
+entries. Verified provider pages remain cache hits across derivation without
+additional provider reads or backing allocations. Existing Queue scheduling,
+original-receipt, lease, retention and transaction replay cases also pass.
+
+The raw log `/var/tmp/transit-m6-replay-cache-test1.log` has SHA-256
+`a41469d277370bc43b0fe49abc42ca7871d6c53391adaa94286f85df317c353d`.
+The original cold-baseline timeout remains recorded in
+[performance evidence](performance.md); these checks alone establish no latency
+improvement or successful recovery of that installation.
+
 ## Allocation-journal cancellation and installed browser gate — 2026-11-01
 
 The allocation-journal change committed as
