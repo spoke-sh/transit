@@ -116,7 +116,7 @@ universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
-[SQL grammar, standards comparison and dialect ergonomics milestone](41-sql-grammar-and-dialect-ergonomics.md)
+[SQL grammar, standards comparison and dialect ergonomics milestone](43-sql-grammar-and-dialect-ergonomics.md)
 audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
 DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
 compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
@@ -219,7 +219,7 @@ What earlier milestones have already established in the codebase:
 | [M13: Data structures & performance](13-data-structures-and-performance.md) & [M14: Strings & search](14-vectorized-strings-and-search.md) | Bounded scratch arenas (`#194`) and dictionary/FSST codecs | Exact collation descriptors ($\kappa$) required by 16B collation-prefixed Umbra/German strings, compressed-domain predicates and order-preserving sort keys |
 | [M17: Geospatial & 3D computing](17-geospatial-and-spatio-temporal-computing.md) & [M18: Multi-model & foreign relations](18-multi-model-and-foreign-relations.md) | Architectural review commitments (`2026-10-29`) | Reserved $\kappa_{\text{spatial}}$ catalog descriptors (`SRID`, vertical datum/orientation, `PLANAR`/`GEODESIC`, $\delta_{\text{grid}}$, Shewchuk predicates, curve order), unboxed `VECTOR(dim, T)` with $\kappa_{\text{metric}}$, and catalog bindings for views, SQL/PGQ property graphs and SQL/MED foreign/mainframe tables |
 | [M20: Branches, merges & restore](20-branches-merges-and-restore.md) | Single-branch (`main`) catalog and partition roots | Immutable `manifest/v{N}` catalog cuts, typed branch/snapshot selectors, conditional head publication, independent transition/canonical fixtures and constraint descriptors re-verified during 3-way merge |
-| [M22: Formal semantics](22-formal-semantics-and-correspondence.md) & [M41: SQL grammar & dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | `A1` (`FuzeRewrite.lean`), `A2` (`CollationOrder.lean`), `A5` (`CodecProofs.lean`) and `T8` (`DdlAndDataflowLifecycle.tla`) proof obligations | Machine-readable standards & collation ledger (`contracts/sql/standards-ledger.json`), normalized key/collation fixtures for `A2`/`A5`, and lazy-evolution/5-state `T8` transition rules |
+| [M22: Formal semantics](22-formal-semantics-and-correspondence.md) & [M43: SQL grammar & dialect ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | `A1` (`FuzeRewrite.lean`), `A2` (`CollationOrder.lean`), `A5` (`CodecProofs.lean`) and `T8` (`DdlAndDataflowLifecycle.tla`) proof obligations | Machine-readable standards & collation ledger (`contracts/sql/standards-ledger.json`), normalized key/collation fixtures for `A2`/`A5`, and lazy-evolution/5-state `T8` transition rules |
 
 ### Accepted architectural decisions
 
