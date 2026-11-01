@@ -336,6 +336,13 @@ stale bindings before reading dependent literals, then returns an independently
 owned plan. The [Table query contract](../../../contracts/TABLE_QUERY_V1.md#canonical-logical-plans)
 defines its byte budget, field layout and separation from query admission.
 
+`LogicalPrepared.adoptSyntax` lets dedicated workload parsers reuse the same
+typed projection/predicate binder and parameter checks. Metadata operands share
+its type and index space. Success transfers the parser arena; failure leaves
+cleanup with the caller. Bound FQP1 plans own their values independently of the
+template and metadata. The workload owner separately freezes metadata in its
+native operation; this compiler helper grants no admission or coverage.
+
 `LogicalPrepared` owns general logical SELECT templates with typed comparison
 and LIMIT parameters, including Boolean predicates and recursive projections.
 Binding checks the complete source/schema commitment and returns independent

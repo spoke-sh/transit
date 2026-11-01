@@ -14047,7 +14047,7 @@
     "packages/zig/transit-fuze/src/LogicalPrepared.zig": {
       "errors": {
         "InvalidParameterIndex": 1,
-        "InvalidQuerySchema": 1,
+        "InvalidQuerySchema": 2,
         "ParameterCountMismatch": 1,
         "ParameterGap": 2,
         "ParameterTypeConflict": 1,
@@ -14058,6 +14058,8 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "adoptOwned()": "<inferred>",
+        "adoptSyntax()": "<inferred>",
         "bind()": "<inferred>",
         "init()": "<inferred>",
         "initDialect()": "<inferred>",
@@ -14070,8 +14072,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
-        "catch": 5
+        "try": 24,
+        "catch": 4
       },
       "imports": [
         "LogicalPlanCodec.zig",
