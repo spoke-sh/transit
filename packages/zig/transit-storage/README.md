@@ -116,6 +116,11 @@ not expire the Queue's current payloads.
 containers in bounded, reusable memory. It enforces separate byte, object-count
 and total resident budgets for that operation. Reads fall through to the existing
 provider; private puts reach the provider only through explicit `persist`.
+Persistence groups at most eight selected objects through the immutable batch
+API, verifies each returned size and digest, and retains the exact private bytes
+after partial failure. All groups must finish before the enclosing owner can
+publish its root. This uses bounded borrowed views into the existing candidate
+buffer and adds no per-object allocation.
 Replay can reconstruct and compare roots without writing or requiring old
 intermediate staging objects. Persistence alone publishes no root and supplies no
 WAL acceptance. The enclosing owner must clear derived page caches when abandoning

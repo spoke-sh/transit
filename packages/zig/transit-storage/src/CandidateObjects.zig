@@ -90,10 +90,24 @@ pub fn persist(self: *Self) !void {
 /// accepted reference in this candidate. This never deletes existing objects;
 /// it is not a substitute for the retained storage graph's collection authority.
 pub fn persistSelected(self: *Self, selection: anytype) !void {
+    var batch: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
+    var count: usize = 0;
     for (self.entries[0..self.count]) |entry| {
         if (!selection.keep(self.key(entry))) continue;
-        const stored = try self.underlying.putImmutable(self.key(entry), self.bytes(entry), entry.digest);
-        if (!std.meta.eql(stored, entry.metadata())) return error.InvalidCandidateObject;
+        batch[count] = .{ .key = self.key(entry), .bytes = self.bytes(entry), .sha256 = entry.digest };
+        count += 1;
+        if (count == batch.len) {
+            try self.persistBatch(batch[0..count]);
+            count = 0;
+        }
+    }
+    if (count != 0) try self.persistBatch(batch[0..count]);
+}
+fn persistBatch(self: *Self, batch: []const Objects.ImmutablePut) !void {
+    var metadata: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+    try self.underlying.putImmutableBatch(batch, metadata[0..batch.len]);
+    for (batch, metadata[0..batch.len]) |item, stored| {
+        if (stored.size != item.bytes.len or !std.mem.eql(u8, &stored.sha256, &item.sha256)) return error.InvalidCandidateObject;
     }
 }
 fn put(ctx: *anyopaque, name: []const u8, value: []const u8, digest: [32]u8) !Objects.ObjectMeta {
