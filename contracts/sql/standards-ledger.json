@@ -650,16 +650,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Lowers correlated subqueries algebraically via deduplicated domain D = delta(pi_corr(T_outer)) without O(N*M) nested-loop probes.",
+      "deviations": "Typed-array helpers only. Production RelationalSql supports at most two sources with INNER/LEFT equality joins; multi-way, RIGHT/FULL/SEMI/ANTI/LATERAL and correlated subquery lowering are unavailable.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -671,16 +671,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Preserves 5-state cell failure witnesses across window frames and enforces bounded Tier 2 NVMe spill quotas.",
+      "deviations": "Typed-array window helpers only; no production OVER/QUALIFY parser or execution path. SpillTracker counts proposed work and does not perform disk spill.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -692,16 +692,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Requires explicit iteration/row work bounds and deterministic cycle detection.",
+      "deviations": "Typed-array recursion and set helpers only; production SQL has no WITH/RECURSIVE or set-operation lowering.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -715,16 +715,16 @@
         "ASCII_CI",
         "EBCDIC_037_PAD"
       ],
-      "deviations": "Evaluates 5-state IN / NOT IN semantics with 16B SIMD prefix probes under the column's declared collation profile.",
+      "deviations": "Component evaluator only; production predicates do not bind constant IN lists to this helper. A component lookup does not establish SQL parsing, execution or recovery.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -736,16 +736,16 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Rejects ambient WASI/network/clock imports and executes in-engine with per-row instruction fuel and memory bounds (zero actor-mailbox hops).",
+      "deviations": "Component macro evaluator and caller-built instruction interpreter only. No catalog function binding, Wasm binary validator/runtime, or production SQL UDF execution.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -758,16 +758,16 @@
         "T181-X003",
         "X001-RANGE"
       ],
-      "deviations": "Isolates historical decision cuts from post-facto backfills and exposes kinematic interpolation hooks for Milestone 17 4D TRAJECTORY.",
+      "deviations": "Caller-supplied temporal row helpers only. No production bitemporal SQL binding or retained historical source adapter; the helper join uses nested scans.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -779,16 +779,16 @@
       "dependencies": [
         "T181-X003"
       ],
-      "deviations": "Enforces current policy_epoch per batch and guarantees STREAM_SLICE never mutates CONSUME ... FROM consumer-group watermarks.",
+      "deviations": "Caller-supplied arrays only. Neither function has production SQL lowering, retained source reads, current native authorization or durable history coverage.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -801,16 +801,16 @@
         "F031-F034",
         "F111"
       ],
-      "deviations": "Rejects duplicate source row matches deterministically (error.MergeCardinalityViolation) and invalidates plans on DefinitionId or policy_epoch transitions.",
+      "deviations": "Array-based merge proposal helper only. No production MERGE parser, transaction preparation or atomic publication through the common transaction owner.",
       "corpus_sources": [
         "contracts/sql/corpus/mutations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -823,16 +823,16 @@
         "E021-E051",
         "F401-JOIN"
       ],
-      "deviations": "Preserves reversible 5-state and checked-arithmetic overflow witnesses across retractions; spatial boundary Z-set operators hand off to Milestone 17.",
+      "deviations": "Bounded resident Z-set helpers only. Arrangement run counters do not write .tseg data; the finite join helper shares implementation with incremental execution and is not an independent oracle.",
       "corpus_sources": [
         "contracts/sql/corpus/relational.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -846,16 +846,16 @@
         "T181-X003",
         "X011-DBSP-ZSET"
       ],
-      "deviations": "Replaces boolean ENABLE/DISABLE with a 5-state machine, aligns multi-object changes to M5 Transaction.Cut (0x54584331), and fails closed if history was compacted during suspension.",
+      "deviations": "Resident lifecycle helper only. No production declaration/control SQL, durable catalog owner, WAL wake integration or atomic output/checkpoint publication.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "rejected",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -882,6 +882,6 @@
       }
     }
   ],
-  "sha256": "2bff88d850b4027e4ba6d5e78b9484061e7fcc43366d3ec8a101e06405588e56",
+  "sha256": "112ad2d8ddd137481844fa363e339b55ffa7271f4c3186317a63a8e64bc58f4d",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures."
 }

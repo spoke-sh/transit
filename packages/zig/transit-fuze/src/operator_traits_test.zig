@@ -180,3 +180,25 @@ test "standards ledger unsupported declarations match the production compiler" {
         try testing.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null));
     }
 }
+
+test "analytical component helpers do not advertise production SQL support" {
+    // These are actual production parser calls, not searches for helper symbols.
+    const cases = .{
+        .{ "F401-JOIN", "SELECT a.id FROM a RIGHT JOIN b ON a.id = b.id", error.UnsupportedConstruct },
+        .{ "T611-WINDOW", "SELECT SUM(a.id) OVER (PARTITION BY a.id) FROM a", error.InvalidSqlSyntax },
+        .{ "T121-RECURSIVE-CTE", "WITH a AS (SELECT id FROM t) SELECT id FROM a", error.InvalidSqlSyntax },
+        .{ "X009-CHANGES-STREAM-SLICE", "SELECT id FROM CHANGES(t)", error.UnsupportedConstruct },
+        .{ "T182-BITEMPORAL-AS-OF", "SELECT id FROM t FOR SYSTEM_TIME AS OF 10", error.UnsupportedConstruct },
+    };
+    inline for (cases) |case| {
+        const feature = StandardsLedger.findFeature(case[0]).?;
+        try testing.expectEqual(StandardsLedger.StageState.rejected, feature.states.parse);
+        try testing.expectEqual(StandardsLedger.StageState.rejected, feature.states.execute);
+        try testing.expectError(case[2], f.RelationalSql.parse(testing.allocator, case[1], null));
+    }
+    // Preserve the existing, separately advertised two-source profile.
+    var supported = try f.RelationalSql.parse(testing.allocator, "SELECT a.id FROM a LEFT JOIN b ON a.id = b.id", null);
+    defer supported.deinit();
+    try testing.expectEqual(@as(usize, 2), supported.targets.len);
+    try testing.expectEqual(@FieldType(f.Relational.Join, "kind").left, supported.join.?.kind);
+}
