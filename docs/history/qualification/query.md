@@ -11,6 +11,75 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## SQL original workload operation and result recovery — 2026-11-01
 
+### Installed original-result recovery
+
+The registered `test-sql-gateway` profile passes on clean source
+`c06e6954427b0c4af8d8ebbc3d9fce33c990f355` with definition
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The ReleaseSafe build and installed execution pass **9/9 steps**. The run makes
+1,410 direct requests and completes in 28.646 seconds; this is a functional
+recovery result, not a latency qualification.
+
+Five saved workload tokens cover a 75-row append, a filtered finite consume,
+an empty claim accepted before enqueue, a three-row enqueue and its original
+claim. Database recovery settles the pending native work after node replacement.
+SQL returns **116 rows across eight batches**: the consume returns 35 projected
+rows while retaining authenticated coverage of all 75 source rows. A second
+node replacement preserves the exact selections, frozen projection identities
+and saved bindings. Repeated batches are byte-identical; disabling the login
+credential refuses retained terminal disclosure for all five results. The empty
+claim remains empty after later enqueue. No refetch dispatches a fresh claim.
+This SQL profile does not assert that leases have expired before refetch; the
+separate native original-result profile owns that executed boundary.
+
+The existing Table lost-admission, lost-commit, coordinator-fencing, framing,
+capacity-retry and cleanup checks also pass. The report records two original
+commit-reply crashes and two additional workload node deaths. SQL issues zero
+Station sends or turns, and the settled runtime makes zero idle upstream requests.
+The report now retains source and binary identities after successful installation
+cleanup.
+
+Two earlier attempts remain failures. The first fixture reused token 91 from
+its lost-admission scenario: one workload binding was accepted before the next
+conflicted. Commit `c5927232f` separates the fixture token namespace. The private
+installation `/var/tmp/transit-sql-database-40vyw48c` and its original bindings
+remain preserved. The second attempt recovered all native workloads but failed
+while reading the consume. Inspection of that same original operation in
+`/var/tmp/transit-sql-database-4nutj67f` identifies
+`InvalidStreamReadBudget`: SQL requested 65,536 scanned rows against the native
+owner's default 4,096. Commit `9c0aa5e6a` uses the shared native reader default;
+no owner limit, deadline or lease was increased. The passing run includes this
+correction. Neither failed run is counted as passed evidence.
+
+Commit `c5cf25469` separately normalizes invalid frozen projection data to an
+invalid-request refusal while preserving allocation failure and source conflicts.
+Its focused Catalog check passes **4/4** including malformed/truncated plans,
+foreign definitions, duplicate fields, unknown columns and allocation failure.
+SQL owner tests pass **12/12** after the scan-budget correction. The shared
+VALUES preparation in `c06e69544` passes **25/25** focused Fuze tests, including
+allocation-failure and ownership checks; an additional compute target is cached.
+Its first attempt failed allocation-count determinism after schema cloning moved;
+restoring the existing allocation order passed without weakening the test.
+Fast checks pass **60/60**, and documentation checks pass 10,074 local links.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Installed node | `49950faf3b95fc4478c49a488ac4fea9e8fd3b65be851f14722e2cf6be4cdce4` |
+| Installed Catalog proof | `fa004fa32113d2914a051f8a6eb9eab5525813f0d6e1547ccf5ee5946d8c4578` |
+| Installed gateway proof | `4dc40f95328bf800c4f611e568433daef701435317400823e4313b8b390bcd7a` |
+| `/var/tmp/transit-m6-workload-installed3.log` | `c6b75c272c3ab6b1a5185a770db5b1868eab8f6362a94c01a922be50ff82d065` |
+| `/var/tmp/transit-m6-workload-installed2.log` (failed) | `7190b5eb720870cfd2d0da245f2d781fe7ec527fe2700e31843a9ad12bbc74a6` |
+| `/var/tmp/transit-m6-workload-original-diagnostic3.log` | `1b5c9d7bcd04e5237430d9dc98cdb4ebb85dc1be61d5d6241504adf67bc83f92` |
+| `/var/tmp/transit-m6-workload-projection-refusal1.log` | `eaca3e5fb2ccb48ae15a0bfdcae032095437694e6e848e3b574d643d382a9186` |
+| `/var/tmp/transit-m6-workload-values2.log` | `91dff5b3c737f7cf1672351e451161ff109f388a23c0980645314ccf407a6820` |
+| `/var/tmp/transit-m6-workload-scan-budget1.log` | `36010f879fa4dccfbcf8e379960b882f71f7cb1ff9575df5fb3bd48d28035ea8` |
+| `/var/tmp/transit-m6-workload-gateway-fast3.log` | `f115f2c86723e9afebacfd5ba1fcc79736f6d09711f918f5de0eb993dca2f3c6` |
+
+Workload SQL admission, mixed SQL transactions, the Station replacement,
+provider/resource schedules and performance gates remain outside this result.
+
+### Component preparation
+
 Commit `41efda5332f64592aa0160ce169bde7b3c315cc1` connects existing native workload tokens to
 SQL operation inspection, database recovery and retained result opening. Its
 current-v1 definition is
