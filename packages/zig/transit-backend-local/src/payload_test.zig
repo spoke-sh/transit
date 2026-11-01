@@ -125,7 +125,10 @@ test "local payload creation sync uncertainty resolves by verification without r
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
         var calls: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             calls += 1;
             if (remaining != 0) {
                 remaining -= 1;
@@ -226,7 +229,10 @@ test "local payload deletion sync uncertainty preserves retirement and the creat
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             if (remaining != 0) {
                 remaining -= 1;
                 if (remaining == 0) return error.InputOutput;
@@ -279,7 +285,10 @@ test "local payload verification propagates every recovery barrier without publi
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
         var calls: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             calls += 1;
             if (remaining != 0) {
                 remaining -= 1;

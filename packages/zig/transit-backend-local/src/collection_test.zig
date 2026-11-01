@@ -449,7 +449,10 @@ test "native allocation FIFO carries ownership exactly once across every consume
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
         var calls: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             calls += 1;
             if (remaining != 0) {
                 remaining -= 1;

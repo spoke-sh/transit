@@ -46,7 +46,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
 fn launch(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic, loaded: Config.Loaded, diagnostics: *telemetry.Runtime, startup: *Startup) !void {
     const config = loaded.config;
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
-    const identity = try config.identities(init, executable, diagnostic);
+    const identity = try Startup.measure(startup, .artifact_validation, Config.identities, .{ config, init, executable, diagnostic });
     // The sibling lock also serializes first initialization before the directory exists.
     diagnostic.field = "installation";
     const lock_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.lock", .{config.installation});
@@ -76,6 +76,7 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
     defer wire.deinit();
     wire.timeout_ms = 2000;
     var installation: Installation = .{ .init = init, .config = config, .record = record, .record_path = record_path, .wire = &wire, .root = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "root.seed" })), .caller_key = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "caller.seed" })) };
+    installation.startup = startup;
     defer {
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.root));
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.caller_key));
@@ -227,7 +228,7 @@ fn cycle(self: *Self) !void {
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
     const destinations = [_]u64{ connection.source, connection.requester };
-    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
+    _ = try Files.jsonIfChanged(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, try config.command(allocator, self.executable, .query_host, &.{courier_config}), &.{}, false);
     try installation.initializeBehaviors();
     self.startup.next(.table_readiness);
@@ -245,19 +246,24 @@ fn cycle(self: *Self) !void {
     // The retained record outlives this cycle, including automatic child
     // restarts. Keep its endpoint in the installation's process arena.
     self.startup.next(.configuration_checkpoint);
-    installation.record.endpoint = try Provider.url(self.init.arena.allocator(), config.ports.gateway);
-    try installation.save();
+    const endpoint = try Provider.url(self.init.arena.allocator(), config.ports.gateway);
+    if (!std.mem.eql(u8, installation.record.endpoint, endpoint)) {
+        installation.record.endpoint = endpoint;
+        try installation.save();
+    }
     const configuration = try installation.path("configuration.json");
     const binding = try Installation.settingsBinding(installation.record, config.realm);
     try @import("Configuration.zig").boot(self.init, configuration, binding, self.boot, self.loaded, installation.record.identity, installation.record.complete);
     // Publish completion only after the first settings checkpoint is durable.
     // A crash before this save can resume bootstrap; a completed installation
     // must never replace a missing accepted checkpoint with generation one.
-    installation.record.complete = true;
-    try installation.save();
+    if (!installation.record.complete) {
+        installation.record.complete = true;
+        try installation.save();
+    }
     self.startup.next(.gateway);
     const gateway_config = try installation.path("gateway.json");
-    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
+    _ = try Files.jsonIfChanged(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts, .configuration = .{ .path = configuration, .binding = binding } });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     self.active_role = .sql;
@@ -377,7 +383,7 @@ fn node(self: *Self, allocator: std.mem.Allocator) !void {
         storage.maintenance.archive.enabled = false;
         storage.maintenance.compact = false;
     }
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .browser = config.browser, .sql_control = @import("transit_sql_host").Deployment.Config{ .socket = try @import("transit_sql_host").Deployment.socketPath(allocator, self.init.io, self.init.environ_map.get("XDG_RUNTIME_DIR"), config.installation), .crypto_capacity = if ((config.sql.wireListening() and config.sql.tls.mode != .disabled) or (config.sql.native.http != null and config.sql.native.http.?.tls)) (16 + @as(usize, if (config.sql.wireListening() and config.sql.tls.mode != .disabled) config.sql.connections else 0) + @as(usize, if (config.sql.native.http != null and config.sql.native.http.?.tls) 16 else 0)) * 1024 * 1024 else 0 }, .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    _ = try Files.jsonIfChanged(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .browser = config.browser, .sql_control = @import("transit_sql_host").Deployment.Config{ .socket = try @import("transit_sql_host").Deployment.socketPath(allocator, self.init.io, self.init.environ_map.get("XDG_RUNTIME_DIR"), config.installation), .crypto_capacity = if ((config.sql.wireListening() and config.sql.tls.mode != .disabled) or (config.sql.native.http != null and config.sql.native.http.?.tls)) (16 + @as(usize, if (config.sql.wireListening() and config.sql.tls.mode != .disabled) config.sql.connections else 0) + @as(usize, if (config.sql.native.http != null and config.sql.native.http.?.tls) 16 else 0)) * 1024 * 1024 else 0 }, .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ node_config, "--bootstrap" };
     try self.start(allocator, .node, try config.command(allocator, self.executable, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 1) else 2]), &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
@@ -396,9 +402,9 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const tables = installation.directCatalog();
     const config: Common = .{ .tables = if (role == .source) .{ .url = installation.wire.url, .scope = tables.scope, .branch = tables.branch, .audience = tables.audience } else null, .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .unified_source = .{ .peer = connection.requester, .initializer = Installation.caller } } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
-    try self.start(allocator, role, try installation.config.command(allocator, self.executable, .query_host, &.{ "--bootstrap-json", json }), &.{}, true);
+    try Startup.measure(self.startup, .worker_spawn, Self.start, .{ self, allocator, role, try installation.config.command(allocator, self.executable, .query_host, &.{ "--bootstrap-json", json }), @as([]const Process.Variable, &.{}), true });
     var bytes: [1024]u8 = undefined;
-    const registration = try self.processes[@backingInt(role)].registration(self.init.io, &bytes);
+    const registration = try Startup.measure(self.startup, .worker_registration, Process.registration, .{ &self.processes[@backingInt(role)], self.init.io, @as([]u8, &bytes) });
     const parsed = try std.json.parseFromSlice(struct { growing_bootstrap: q.wire.bootstrap.GrowingRegistration }, allocator, registration, .{});
     const observed = parsed.value.growing_bootstrap;
     if (observed.version != 1 or observed.realm != connection.realm or observed.pid != pid or observed.principal != principal or observed.generation != generation) return error.InvalidRegistration;

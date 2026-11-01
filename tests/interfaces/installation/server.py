@@ -12,6 +12,7 @@ import struct
 import subprocess
 import sys
 import time
+import urllib.error
 
 from harness.local_installation import LocalInstallation
 from harness.phases import phase
@@ -40,7 +41,9 @@ class Fixture(LocalInstallation):
                 port = self.config["ports"]["gateway"]
                 assert report["gateway_url"] == self.url, report
                 assert report["allowed_hosts"] == [f"127.0.0.1:{port}", f"localhost:{port}"] + self.config.get("gateway_allowed_hosts", []), report
-                assert report["ui"] == "disabled" and report["board_url"] is None, report
+                assert report["ui"] == ('disabled' if self.no_ui else 'ready'), report
+                board_url = None if self.no_ui else f"http://127.0.0.1:{self.config['board']['port']}"
+                assert report["board_url"] == board_url, report
                 activation = self.record()["registration"]
                 markers = {path.name for path in (self.installation / "activations").glob("*.activation")}
                 if self.activation is not None:
@@ -49,11 +52,50 @@ class Fixture(LocalInstallation):
                     assert activation["public_key"] != self.activation["public_key"]
                     assert self.markers < markers, (self.markers, markers)
                 self.activation, self.markers = activation, markers
-                with self.http.open(self.url + "/health", timeout=5) as response:
-                    assert response.status == 200
                 self.ready_sql(deadline)
+                # SQL activation can reopen the physical owner after the core
+                # receipt. Observe all admission gates within the original
+                # deadline; a transient 503 is not completed startup.
+                self.health_attempts = 0
+                while True:
+                    assert self.process.poll() is None, Path(self.logs[-1].name).read_text()
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, 'Gateway did not become ready'
+                    self.health_attempts += 1
+                    try:
+                        with self.http.open(self.url + "/health", timeout=min(5, remaining)) as response:
+                            assert response.status == 200
+                        break
+                    except urllib.error.HTTPError as error:
+                        if error.code != 503:
+                            raise
+                        error.close()
+                        time.sleep(min(.05, max(0, deadline - time.monotonic())))
+                self.board_attempts = 0
+                if board_url:
+                    self.ready_board(board_url, deadline)
                 return report
         raise TimeoutError(f"Server readiness at {self.root}")
+
+    def ready_board(self, board_url, deadline):
+        # The supervisor has just read this same route. Respect Board's finite
+        # read interval; neither a 429 nor a transient 503 establishes readiness.
+        while True:
+            assert self.process.poll() is None, 'Manager exited before Board readiness'
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'Board did not become ready'
+            self.board_attempts += 1
+            try:
+                with self.http.open(board_url + '/api/v1/atlas', timeout=min(5, remaining)) as response:
+                    atlas = json.load(response)
+                    assert atlas['realm'] == self.config['realm'], atlas
+                    assert atlas['identity']['principal'] == 25, atlas
+                    return
+            except urllib.error.HTTPError as error:
+                if error.code not in (429, 503):
+                    raise
+                error.close()
+                time.sleep(min(.1, max(0, deadline - time.monotonic())))
 
     def ready_sql(self, deadline):
         # The core ready record precedes SQL admission. Fault schedules must
@@ -303,7 +345,7 @@ def run(cli, node, host):
                 rejected = fixture.console('SELECT COUNT(*) FROM items;\n', expected=1)
                 assert rejected.stderr and not rejected.stdout, rejected
                 assert record_path.read_bytes() == encoded
-            for missing in ('default_table', 'table_registrar_receipt'):
+            for missing in ('default_table', 'table_registrar_receipt', 'workers'):
                 record = json.loads(saved)
                 del record[missing]
                 encoded = json.dumps(record).encode()

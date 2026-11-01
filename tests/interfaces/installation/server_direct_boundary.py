@@ -132,7 +132,8 @@ def run_node(binary, directory, upstream_port):
                     self.reply(response.status, response.read())
                 finally:
                     upstream.close()
-            except (ConnectionError, OSError, TimeoutError):
+            except (ConnectionError, OSError, TimeoutError) as error:
+                print(f'Direct boundary transport failure: {type(error).__name__}', file=sys.stderr, flush=True)
                 self.close_connection = True
             finally:
                 slots.release()

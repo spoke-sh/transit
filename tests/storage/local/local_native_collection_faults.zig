@@ -9,7 +9,7 @@ const Engine = core.growing.Engine(local.Store, local.PageStore);
 const Fault = struct {
     var real: std.Io = undefined;
     var point: []const u8 = "none";
-    var syncs: usize = 0;
+    var syncs: std.atomic.Value(usize) = .init(0);
     var deletes: usize = 0;
     fn stop() noreturn {
         std.Io.File.stdout().writeStreamingAll(real, "{\"stopped\":true}\n") catch std.process.exit(91);
@@ -24,8 +24,8 @@ const Fault = struct {
     }
     fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
         try real.vtable.fileSync(context, file);
-        syncs += 1;
-        if (selected("sync", syncs)) stop();
+        const count = syncs.fetchAdd(1, .monotonic) + 1;
+        if (selected("sync", count)) stop();
     }
     fn delete(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8) std.Io.Dir.DeleteFileError!void {
         try real.vtable.dirDeleteFile(context, dir, name);
@@ -145,12 +145,12 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
     if (std.mem.eql(u8, args[2], "delete")) {
         if ((try collector.current()).?.phase != .deleting) return error.MissingIntent;
         Fault.point = args[3];
-        Fault.syncs = 0;
+        Fault.syncs.store(0, .monotonic);
         Fault.deletes = 0;
         if (!try collector.step(&engine, .{ .unix_ms = now })) return error.UnexpectedWait;
         if (std.mem.eql(u8, Fault.point, "ack")) Fault.stop();
         if (!std.mem.eql(u8, Fault.point, "none")) return error.BoundaryNotReached;
-        return emit(init, .{ .syncs = Fault.syncs, .deletes = Fault.deletes });
+        return emit(init, .{ .syncs = Fault.syncs.load(.monotonic), .deletes = Fault.deletes });
     }
     if (!std.mem.eql(u8, args[2], "recover")) return error.InvalidArguments;
     for (0..2000) |_| {

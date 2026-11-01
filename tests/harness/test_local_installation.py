@@ -1,12 +1,14 @@
 """Exercise private installation files, frozen binaries and actual manager death."""
 import json
+import io
 import os
 from pathlib import Path
 import select
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+import urllib.error
+from unittest.mock import Mock, patch
 
 from harness.local_installation import LocalInstallation, freeze_executables
 from interfaces.installation.server import Fixture
@@ -14,6 +16,41 @@ from interfaces.cli.console_terminal import Terminal
 
 
 class Installations(unittest.TestCase):
+    def test_board_readiness_counts_retryable_responses_without_extending_deadline(self):
+        fixture = Fixture.__new__(Fixture)
+        fixture.config = {'realm': 73}
+        fixture.process = Mock()
+        fixture.process.poll.return_value = None
+        fixture.http = Mock()
+        fixture.board_attempts = 0
+        atlas = io.BytesIO(b'{"realm":73,"identity":{"principal":25}}')
+        fixture.http.open.side_effect = [urllib.error.HTTPError('http://board', code, '', {}, None)
+                                        for code in (429, 503)] + [atlas]
+        with patch('interfaces.installation.server.time.monotonic', return_value=0), \
+                patch('interfaces.installation.server.time.sleep') as sleep:
+            fixture.ready_board('http://board', 1)
+            self.assertEqual(fixture.board_attempts, 3)
+            self.assertEqual(sleep.call_count, 2)
+        fixture.http.open.side_effect = urllib.error.HTTPError('http://board', 429, '', {}, None)
+        with patch('interfaces.installation.server.time.monotonic', side_effect=[0, 1, 1]), \
+                patch('interfaces.installation.server.time.sleep'):
+            with self.assertRaisesRegex(AssertionError, 'Board did not become ready'):
+                fixture.ready_board('http://board', 1)
+
+    def test_board_readiness_does_not_retry_denial(self):
+        fixture = Fixture.__new__(Fixture)
+        fixture.process = Mock()
+        fixture.process.poll.return_value = None
+        fixture.http = Mock()
+        fixture.board_attempts = 0
+        fixture.http.open.side_effect = urllib.error.HTTPError('http://board', 403, '', {}, None)
+        with patch('interfaces.installation.server.time.monotonic', return_value=0), \
+                patch('interfaces.installation.server.time.sleep') as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                fixture.ready_board('http://board', 1)
+            self.assertEqual(fixture.board_attempts, 1)
+            sleep.assert_not_called()
+
     def test_terminal_does_not_inherit_build_or_runtime_overrides(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

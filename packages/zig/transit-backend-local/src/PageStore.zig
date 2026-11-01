@@ -1,5 +1,6 @@
 //! Bounded page cache and operation staging over immutable local objects.
-//! A private stage is durable but invisible until the native WAL publishes it.
+//! Private pages are buffered in bounded groups; finish seals all dependencies
+//! durably before the native WAL can publish their candidate root.
 const std = @import("std");
 const core = @import("transit_core");
 const p = core.protocol;
@@ -9,10 +10,13 @@ const Self = @This();
 const envelope_bytes = 40;
 pub const max_resident_pages = 4096;
 pub const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
+const Staged = struct { reference: pages.Reference, page: pages.Page };
 
 backend: *Backend,
 observe: @import("Diagnostics.zig") = .{},
 cache: []?Cached,
+pending: []Staged,
+pending_count: usize = 0,
 access: u64 = 0,
 hits: u64 = 0,
 misses: u64 = 0,
@@ -28,12 +32,14 @@ candidate: ?struct { epoch: u64, nonce: [16]u8, ordinal: u64 = 0, bytes: usize =
 pub fn init(backend: *Backend, resident_pages: usize) !Self {
     if (resident_pages > max_resident_pages) return error.InvalidPageCacheBudget;
     const cache = try backend.allocator.alloc(?Cached, resident_pages);
+    errdefer backend.allocator.free(cache);
     @memset(cache, null);
-    return .{ .backend = backend, .cache = cache };
+    return .{ .backend = backend, .cache = cache, .pending = try backend.allocator.alloc(Staged, pages.mutation_batch) };
 }
 
 pub fn deinit(self: *Self) void {
     self.backend.allocator.free(self.cache);
+    self.backend.allocator.free(self.pending);
     self.* = undefined;
 }
 
@@ -47,13 +53,15 @@ pub fn begin(self: *Self, epoch: u64, control: bool) !void {
 }
 
 pub fn discard(self: *Self) void {
+    self.pending_count = 0;
     self.candidate = null;
 }
 
 pub fn finish(self: *Self) !void {
     if (self.candidate == null) return error.NoStorageCandidate;
-    // Every object was synced before stage returned. No separate visibility
-    // record is published here; the authority journal owns that decision.
+    // Preparing a root may read its own unflushed children. No candidate may
+    // escape preparation until every buffered page has crossed all barriers.
+    try self.flush();
     self.discard();
 }
 
@@ -99,45 +107,53 @@ pub fn stage(self: *Self, reference: pages.Reference, page: *const pages.Page) !
 fn stageImpl(self: *Self, reference: pages.Reference, page: *const pages.Page) !pages.Reference {
     if (!std.mem.allEqual(u8, &reference.location, 0)) return error.UnsupportedPageLocation;
     try reference.verify(page);
+    if (self.pending_count == self.pending.len) try self.flush();
     var bytes: [envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
     envelope('p', &bytes);
     const body = try page.encode(bytes[envelope_bytes..]);
     const encoded = bytes[0 .. envelope_bytes + body.len];
     var result = reference;
     result.location = try self.location('p', reference.digest, encoded.len);
-    self.create_payload_bytes_attempted +|= encoded.len;
-    self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.putNativeTracked(self.candidate.?.epoch, .page, result.location, encoded, self.control, self.track_activity);
-    self.created +|= 1;
-    self.remember(result, page.*);
+    self.pending[self.pending_count] = .{ .reference = result, .page = page.* };
+    self.pending_count += 1;
     return result;
 }
 
-pub noinline fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
+pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Reference) !void {
     if (batch.len != output.len or batch.len > pages.mutation_batch) return error.InvalidPageBatch;
-    if (batch.len == 0) return;
-    var buffers: [pages.mutation_batch][envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
     var references: [pages.mutation_batch]pages.Reference = undefined;
-    var puts: [pages.mutation_batch]Backend.NativePut = undefined;
-    for (batch, buffers[0..batch.len], references[0..batch.len], puts[0..batch.len]) |*page, *bytes, *reference, *put| {
-        reference.* = try page.reference();
-        envelope('p', bytes);
-        const body = try page.encode(bytes[envelope_bytes..]);
-        const encoded = bytes[0 .. envelope_bytes + body.len];
-        reference.location = try self.location('p', reference.digest, encoded.len);
-        self.create_payload_bytes_attempted +|= encoded.len;
-        self.observe.metrics.request_payload_bytes +|= encoded.len;
-        put.* = .{ .address = reference.location, .bytes = encoded };
-    }
-    try self.observe.run(self.backend.io, "page.stage_batch", Backend.putNativePages, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
-    for (batch, references[0..batch.len]) |*page, reference| {
-        self.created +|= 1;
-        self.remember(reference, page.*);
-    }
+    for (batch, references[0..batch.len]) |*page, *reference| reference.* = try self.stage(try page.reference(), page);
     @memcpy(output, references[0..batch.len]);
 }
 
+/// Coalesce single-page tree/path mutations across one native candidate. The
+/// directory never grows with history and also works with a zero-page cache.
+noinline fn flush(self: *Self) !void {
+    const batch = self.pending[0..self.pending_count];
+    if (batch.len == 0) return;
+    var buffers: [pages.mutation_batch][envelope_bytes + pages.max_encoded_bytes]u8 = undefined;
+    var puts: [pages.mutation_batch]Backend.NativePut = undefined;
+    for (batch, buffers[0..batch.len], puts[0..batch.len]) |*staged, *bytes, *put| {
+        envelope('p', bytes);
+        const body = try staged.page.encode(bytes[envelope_bytes..]);
+        const encoded = bytes[0 .. envelope_bytes + body.len];
+        self.create_payload_bytes_attempted +|= encoded.len;
+        self.observe.metrics.request_payload_bytes +|= encoded.len;
+        put.* = .{ .address = staged.reference.location, .bytes = encoded };
+    }
+    try self.observe.run(self.backend.io, "page.stage_batch", Backend.putNativePages, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
+    for (batch) |*staged| {
+        self.created +|= 1;
+        self.remember(staged.reference, staged.page);
+    }
+    self.pending_count = 0;
+}
+
 pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
+    for (self.pending[0..self.pending_count]) |*staged| if (std.meta.eql(staged.reference, reference)) {
+        self.hits +|= 1;
+        return staged.page;
+    };
     for (self.cache) |*slot| if (slot.*) |*cached| {
         if (std.meta.eql(cached.reference, reference)) {
             self.hits +|= 1;
@@ -200,7 +216,7 @@ pub fn clearCache(self: *Self) void {
 }
 
 pub fn residentBytes(self: *const Self) usize {
-    return self.cache.len * @sizeOf(?Cached);
+    return self.cache.len * @sizeOf(?Cached) + self.pending.len * @sizeOf(Staged);
 }
 
 fn touch(self: *Self) u64 {

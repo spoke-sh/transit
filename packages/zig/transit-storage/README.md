@@ -7,6 +7,12 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+Immutable object batches sync independent files with at most eight concurrent
+tasks through `SyncBatch`. Every task joins on failure as well as success.
+Content files and names become durable before descriptor publication; the final
+descriptor-directory sync still precedes return. An I/O runtime may execute the
+work inline without changing these guarantees.
+
 `KVPartition` provides typed point reads and atomic put/remove batches over the
 same paged engine, with an explicit persisted KV kind. It supports binary keys
 up to 1,024 bytes and text/binary values up to 1,047,552 bytes, bounded batches,

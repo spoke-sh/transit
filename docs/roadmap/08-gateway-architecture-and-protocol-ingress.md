@@ -303,6 +303,7 @@ the last step.
 | Next change | Existing obligation | Entry dependency | Reviewable exit |
 | --- | --- | --- | --- |
 | 1. Current baseline and neutral host contracts | P0/P5 | This source audit; M4/M5 contracts | Frozen controls, capability/ownership matrix, concrete event/delegation/buffer contracts and acceptance budgets |
+| 1a. Installed startup reduction | P0/P2/P3/P5; S0–S6 below | Startup attribution; existing native activation and installation contracts | Measured fresh/restart reductions, preserved original work and unchanged readiness gates |
 | 2. Installed-path read/publication closure | P2a/P2b, #211 W5b/W6/W7 | Step 1 attribution; coordinate M6 R9 | Independently measured improvements with unchanged original-operation and disk recovery oracles |
 | 3. Incremental protocol continuations | P4 core | Step 1 event contract | Pure PG/MySQL/TSR1 modules, host adapters and actual engine byte/failure/allocation proofs |
 | 4. Deadline and worker scheduling | P3 | Step 1 budgets; step 3 continuations for full scheduler cutover | Absolute deadlines, bounded runnable/blocking lanes, core-sized workers and blocked-peer progress |
@@ -330,6 +331,9 @@ attribution, not a startup speedup or a new readiness gate. Profile the dominant
 phase before changing identity hashing, WAL replay, provisioning, worker activation
 or SQL enrollment. Remaining controls include aged history, interrupted bootstrap,
 unclean recovery and UI-enabled startup; preserve all current recovery gates.
+The [startup reduction plan](#installed-startup-reduction-plan--2026-10-31)
+defines the implementation sequence and proposed latency budgets. It can proceed
+without waiting for the remaining wire-codec or remote-placement work.
 
 Use the existing [console workload](../../tests/performance/console/console_latency.py)
 and [statement cases](../../tests/performance/console/statements.py), with
@@ -376,6 +380,233 @@ per arm. Keep cold/restart observations separate; do not infer p99 from that
 sample count. Freeze numeric queue, control-latency and regression budgets
 against the measured host before scheduler selection. The existing absolute
 latency objectives below remain unchanged.
+
+#### Installed startup reduction plan — 2026-10-31
+
+**Status: In Progress.** Make declared data and configured services usable quickly
+after `transit server`, while preserving installation identity, current grants,
+accepted operations and complete recovery. The original audit covers source
+`644d0a09ecd7c86cdbf50afa0977937e13b444c5`. The implemented first reduction uses
+conditional built-in worker rotation, unchanged derived-file reuse, eight-page
+private candidate buffers and bounded concurrent file barriers. The
+[paired startup probes](../history/qualification/performance.md#installed-startup-publication-reduction--2026-10-31)
+record roughly threefold median improvements, with the targets below still open.
+The [server guide](../../apps/transit-cli/docs/server.md) owns current readiness
+semantics, and the [installation contract](../../contracts/APPLICATION_INSTALLATION_V1.md)
+and [native replacement contract](../../contracts/TRANSIT_V1.md#conditional-local-worker-replacement)
+own recovery and activation requirements.
+
+**Baseline and objectives.** The [October 31 measurement](../history/qualification/performance.md#installed-startup-phase-attribution--2026-10-31)
+is one fresh headless installation and two retained restarts on a shared host,
+before this source audit. It is evidence for prioritization, not a current-HEAD
+median, tail estimate or clean-cache result.
+
+| Observation | Fresh | Retained restart | Implementation priority |
+| --- | ---: | ---: | --- |
+| External readiness | 59.081 s | 8.550 / 7.898 s | Measure the complete existing gate and first verified SQL result |
+| Provisioning | 35.036 s | <0.001 s | Reduce serial authorization/bootstrap publications |
+| Worker activation/initialization | 7.738 s | 5.185 / 5.090 s | Replace repeated grants with conditional worker rotation |
+| Initial Table readiness | 6.730 s | 0.009 / 0.010 s | Attribute initial DDL admission/publication, not just readiness polling |
+| SQL setup | 6.519 s | 1.182 / 1.029 s | Separate first enrollment from retained activation and recovery |
+| Installation validation/preparation | 1.389 s | 1.184 / 1.185 s | Measure hashing separately from record reads and durable writes |
+
+The initial node restart took 0.310 s. Removing it cannot explain a large
+improvement by itself. Even eliminating all recorded provisioning leaves about
+24 seconds of the fresh path. No single phase optimization establishes the goal.
+
+Proposed engineering milestones on a frozen reference host are **p50 ≤15 s fresh
+and ≤3 s retained restart**, then **p50 ≤5 s fresh and ≤1 s retained restart**,
+with final empirical **p95 ≤10 s / ≤2 s**, respectively. These are targets, not
+SLOs or extrapolations from three samples. Qualify the normal UI/application-enabled
+default separately from the existing headless control; a headless pass does not
+qualify the default. Interrupted bootstrap, aged history and unclean recovery
+have their own workload-sized budgets frozen in S0. Do not label a new installation
+as a cold-device run. Compare complete outcomes at identical durability, build
+mode, services, history size and resource settings.
+
+**Reviewable implementation sequence.** S1 and S2 can proceed independently after
+S0. S3 is the main fresh-start work; S4 follows its authority boundaries. Keep
+contract and implementation reviews separate where persisted meaning changes.
+
+| Step | Owning implementation | Change and exit evidence |
+| --- | --- | --- |
+| S0. Reliable baseline and detailed attribution | `Startup`, `Installation`, `Sql`, local backend and existing console performance runner | Current-source fresh/restart/default profiles; operation, journal and sync counts; failures retained; identify CPU, publication and wait costs before selecting barriers |
+| S1. Conditional built-in worker replacement | `Server.worker`, `Installation.activate`, existing `rotate_worker` | Retained source/requester activation uses two conditional native mutations in total instead of seven grant/ownership mutations; no resource grants reissued; exact retry and revocation proofs |
+| S2. Cheap validation and retained setup | `Config`, `Files`, `Process`, `SqlEnrollment`, `Sql` | Full executable identity verification is faster; unchanged derived files are not rewritten; retained enrollment is inspection/recovery plus required fenced activation |
+| S3a. Reduce publication cost per setup operation | `Installation`, `SqlJournal`, `Local`, local WAL/page/allocation owners | Counted reduction in journal/page/file/directory barriers with the same accepted outcomes; crash tests at every changed publication boundary |
+| S3b. Reduce serial bootstrap operations where still necessary | Native/authorization contracts and their shared core/client owners | A separately specified bounded operation can reduce measured bootstrap/authorization round trips and publications; no installer-only authority or implicit batch semantics |
+| S4. Shorten the dependency path | `Server.cycle`, `Tables`, `Sql`, `Applications`, local host | Bounded overlap of independent work, event-driven readiness and optional in-process Table activation; all configured services still satisfy their original gates |
+| S5. Bound recovery as history grows | Local WAL/page/allocation recovery and SQL account discovery | Recovery cost attributed by bytes/records/accounts, bounded resident memory, validated checkpoints and complete pending-work discovery |
+| S6. Qualify and freeze regression budgets | Existing performance and installation/fault owners | Paired full-outcome scorecard, passing affected clean lanes, default-profile evidence and published limits |
+
+The first implementation covers S1, the derived-file portion of S2 and the
+per-candidate batching portion of S3a. S0 now exports nested debug work timings,
+launch-to-first-verified-result, failed samples and readiness attempt counts.
+The five paired fresh installations and ten restarts per arm/profile are
+iteration evidence, not S6 acceptance. Full executable hashing remains intact;
+accelerated hashing, stripped-artifact comparisons, operation-count reduction,
+dependency overlap, aged-history budgets and the larger acceptance campaign
+remain open. No bulk authorization command or earlier readiness gate is added.
+
+**S0 — measure the operations inside the phases.** Extend the existing
+[`startup.py`](../../tests/performance/console/startup.py) workload rather than
+creating a second installation harness. Preserve `ready_ns` and separate readback;
+also report launch-to-first-verified-result, every attempt/backoff, first-attempt
+success and final outcome. Failures remain in the campaign denominator. Distinguish
+core ready, local SQL ready, optional listener readiness and Board readiness.
+Do not turn a transient health response into success or silently discard retries.
+
+Add bounded nested attribution for executable hashing/bytes, each worker's
+spawn/registration/activation, native capability reads and mutations,
+authorization begin/advance/publish, installation checkpoint writes, initial Table
+DDL stages, SQL administrator/account enrollment, recovery sweeps and listener
+activation. Count file and directory syncs separately from WAL appends and device
+I/O. Measure owner admission wait, CPU and elapsed I/O where available. Use fixed
+operation/role labels; exclude credentials, payloads and unbounded account/path
+labels. Keep detailed records at debug level or in bounded aggregate counters,
+and compare their overhead against default info logging. Update the reporter's
+parent/child accounting before adding nested spans; the current flat phase sum
+must not double-count them. Retain explicit dropped/suppressed-event refusal.
+
+Reproduce the `server-sql-lifetimes` worker `AuthorityTimeout`/connection-closure
+and health-503 failures recorded in [PR #293](https://github.com/spoke-sh/transit/pull/293).
+Later PostgreSQL readiness and Station fixture changes do not establish their
+cause or resolution. Inspect original pending work and listener/storage recovery
+with existing deadlines. A passing retry cannot erase a failed campaign. Land a
+focused reliability fix if required before claiming performance acceptance.
+
+**S1 — rotate workers instead of provisioning them again.** At the audited baseline,
+[`Installation.activate`](../../apps/transit-cli/server/Installation.zig)
+issued `grant`, two resource grants and `own` for source, and `grant`, one resource
+grant and `own` for requester. Each `submit` reads capabilities, persists a frozen
+request and then persists its receipt. Worker registration is also saved. Those
+seven mutations alone cause fourteen pending/receipt checkpoint writes, before
+registration and authority-observation checkpoints or backend publication costs.
+
+Reuse the conditional `rotate_worker` path already used by
+[`Applications`](../../apps/transit-cli/server/Applications.zig). First enrollment
+still creates scoped principals and required grants once. Retained replacement
+must bind each role's exact prior public key, PID, generation and permission mask;
+it must preserve resource revocation, signed sequence, mailbox, state and outputs.
+The baseline's single `registration` field is not a two-role activation journal:
+design the retained per-role evidence before wiring this change. Resolve an old
+pending rotation before launching a new generation. A stale key, revoked principal,
+blocked/retired PID or missing receipt must not fall back to granting authority.
+Apply the current-v1 cutover policy if the retained installation meaning changes.
+Prove lost replies and crashes before/after rotation, current grant denial,
+old-worker fencing and manager/child replacement. Measure the resulting worker
+phase; seven-to-two commands is not itself a seven-to-two latency claim.
+
+**S2 — remove repeated work that is not an authority decision.**
+[`Config.identities`](../../apps/transit-cli/server/Config.zig) already hashes the
+embedded executable once and derives role-bound identities from that digest.
+Do not propose that existing optimization again. Measure hashing CPU and bytes;
+evaluate stripped ReleaseSafe distribution artifacts and verified accelerated
+SHA-256 while preserving runtime safety checks and a full content digest on every
+start. Validate standalone role binaries and invocation-mode identity as before.
+A filename, size/mtime cache or declared build ID cannot replace byte verification.
+Each changed binary requires its own correctly provisioned benchmark fixture.
+
+Audit derived launch/configuration/profile files in
+[`Files`](../../apps/transit-cli/server/Files.zig),
+[`Process`](../../apps/transit-cli/server/Process.zig) and
+[`SqlEnrollment`](../../apps/transit-cli/server/SqlEnrollment.zig). Use the existing
+`jsonIfChanged` only for reconstructible files whose bytes are unchanged; changed
+files retain atomic publication and private permissions. Do not apply this rule
+to frozen requests, receipts, rollback floors or accepted configuration checkpoints.
+Split `Sql.prepare` attribution into retained-account validation, pending-work
+discovery, proposals, activation and host start. Avoid duplicate parsing and
+unchanged proposal/profile writes within one validated startup observation;
+always preserve current authorization, account-generation fencing and recovery of
+disabled accounts with accepted work. Benchmark hash and SQL changes separately.
+
+**S3 — reduce durable work, then reduce the number of dependent decisions.**
+The fresh path currently walks thirteen installation authorization steps, each
+through the public begin/advance/publish lifecycle, plus native resource/process
+setup. SQL administrator/enrollment and initial Table DDL add their own publications.
+[`Files.write`](../../apps/transit-cli/server/Files.zig) performs atomic-file write,
+file sync, replace and directory sync for each checkpoint. Attribute these costs
+separately from native/page/allocation publication before changing storage.
+
+S3a first reuses the existing qualified page/allocation batching and shared
+directory-barrier techniques in the local backend where the measured path still
+misses them. Evaluate a bounded installation journal over the existing durable-log
+abstraction if repeated atomic-file publication dominates; define its binding,
+replay, checkpoint and corruption behavior before replacing JSON journals. A frozen
+request must be durable before dispatch, and its receipt durable before dependent
+identities are used. Group independent writes only across proven safe boundaries;
+do not delete these barriers or delay a lone writer until another fills a batch.
+Coordinate initial Table DDL publication with #211 W5b/W6 instead of adding a
+special default-Table storage path.
+
+If the remaining serial command count prevents the fresh target, S3b defines a
+bounded generic native/bootstrap or multi-action authorization operation in
+[`TRANSIT_V1`](../../contracts/TRANSIT_V1.md) /
+[`AUTHORIZATION_V1`](../../contracts/AUTHORIZATION_V1.md) before implementation.
+Specify one original identity, expected policy basis, ordered dependencies and
+created-ID bindings, atomicity/partial-result semantics, byte/work limits, current
+authorization and exact crash/reply-loss recovery. Select one model explicitly.
+The current client grant changeset has ordered partial outcomes and does **not**
+provide atomic multi-action publication or general provisioning. Neither wrapping
+it in one RPC nor retaining a local completion flag changes that fact. Use shared
+core/client operations, regenerate affected consumers/fixtures and replace the
+definition on an incompatible cutover. This is higher-risk contract work, not a
+prerequisite for landing S1/S2 or an excuse to bypass native validation.
+
+**S4 — overlap only independent work.** Model the dependencies from identity
+validation and journal recovery through policy publication, Table activation,
+worker activation, SQL account/host initialization and configured UI/listeners.
+Preserve the single root-sequence coordinator and pending-operation fence across
+installation, SQL and applications. Separate clients/arenas and bounded task slots
+are required before concurrent preparation; sharing the current mutable wire
+client or signing several requests from one observed sequence is invalid.
+Overlap child launch, local preparation and independent owner work only where
+their durable dependencies are satisfied. Use notifications/owned readiness
+handshakes in place of repeated 100-ms health polls where supported, with bounded
+fallback observation and unchanged terminal refusal semantics.
+
+Evaluate attaching the Table owner to the already-running node after provisioning
+through the shared typed lifecycle owner, with fingerprint/generation validation,
+closed admission until recovery completes and exact retry. Its measured 0.310-s
+restart cost makes this a later change. Preserve configured maintenance and SQL
+control ownership. Moving workers or Board behind an earlier ready announcement
+does not meet this plan. A future database-only profile has separate product and
+M6/M7 contracts; it cannot stand in for accelerating the existing default profile.
+
+**S5/S6 — scale and acceptance.** Add explicit fixtures for fresh creation,
+graceful restart, interrupted bootstrap at each journal boundary, SIGKILL recovery,
+nonempty/aged WAL and account history, and default Board/application startup.
+Include configured PostgreSQL/MySQL/TLS listeners as separate profiles. Qualify
+validated checkpoints and bounded paged account/history discovery; skipping
+pending work, essential roots or physical integrity checks is not faster recovery.
+Do not add a fixed retained-cardinality ceiling or enable expiry to meet a budget.
+
+Use five-run probes while iterating. Final acceptance needs alternating frozen
+control/candidate campaigns, at least three batches and at least fifty fresh and
+fifty restart observations per arm for each claimed profile. Aggregate separate
+bounded invocations; do not raise the existing per-invocation restart cap merely
+to collect samples. Report empirical p50/p95, maxima, failures, retries, first
+verified result, CPU/RSS, I/O/publication counts and per-phase contribution; do not
+claim p99 from this sample size. Preserve source/binary/driver identity, build
+mode, cache condition, filesystem/device, host load and background-maintenance
+work. No competing agent-owned build or heavy proof runs during timing. Freeze
+tail/regression budgets from these controls; the first verified result must
+improve with readiness so deferred work cannot manufacture a win.
+
+Each PR carries its owning component/fault tests and matched before/after probe.
+Use existing lifecycle, server logging, single-executable, direct-Table/fault,
+SQL lifetime/local/TLS and application recovery schedules as applicable. Changed
+native/authorization or persisted contracts add generated-contract, rejection,
+revocation and disk fault/model checks. Before pushing implementation, run the
+affected committed-source `just ci clean --lane NAME` checks (at least the owning
+installation lane, plus native/storage/SQL lanes when those owners change).
+One failed lane remains failed. Only after qualified campaigns meet the budgets
+should the startup regression gate and current measured limits be promoted into
+the server/performance references and qualification history.
+
+Start implementation with **S0 attribution/reliability and S1 worker rotation**;
+follow with the independently measurable S2 changes and the measured S3 publication
+work. Scheduler and topology changes follow evidence from those reductions.
 
 #### 2. Close the measured installed read/write path
 

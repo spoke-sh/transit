@@ -41,6 +41,10 @@ def run(fixture):
                 self.send_header('Content-Length', '0')
                 self.end_headers()
                 return
+            if state['mode'] == 'drop_status' and action == 'execute':
+                # Block only direct execution before dispatch. Admission and
+                # status remain available; a fast commit cannot outrun the hook.
+                fixture.boundary.pause()
             upstream = Upstream('local')
             try:
                 upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
@@ -49,10 +53,6 @@ def run(fixture):
                 if action in ('execute', 'status'):
                     observed = json.loads(data).get('result', {})
                     state['observations'].append((action, {key: observed.get('operation', {}).get(key) for key in ('phase', 'outcome', 'blocked')}, observed.get('err', {}).get('code')))
-                if state['mode'] == 'drop_status' and action == 'execute':
-                    # Admission must finish before withholding execution. The
-                    # next observation, not a wall-clock timer, releases it.
-                    fixture.boundary.pause()
                 if state['mode'] == 'drop_'+action:
                     state['mode'] = None
                     if action == 'status':
@@ -110,6 +110,8 @@ def run(fixture):
                         fixture.boundary.resume()
                 applied(completed)
                 assert state['mode'] is None, 'The selected reply-loss boundary was not reached'
+                if mode == 'drop_status':
+                    assert fixture.boundary.observed.exists(), 'Direct execution did not reach the fault boundary'
                 assert len(state['executions']) == before+1, 'Console automatically replayed SQL'
                 token = state['executions'][-1]['token']
                 operation = fixture.sql_session(dict(status=dict(token=token)))['operation']

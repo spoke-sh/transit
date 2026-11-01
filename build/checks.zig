@@ -1073,8 +1073,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/runner/launch.py"));
     server_test.addFileArg(b.path("tests/interfaces/installation/server.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
-    if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     server_test.step.dependOn(&operation_install.step);
     server_test.has_side_effects = true;
     server_test.step.dependOn(&lifecycle_test.step);
@@ -1134,6 +1132,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var node_imports = node_artifact.root_module.import_table.iterator();
     while (node_imports.next()) |entry| fault_node_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_sql_host")) fault_host else entry.value_ptr.*);
     const fault_node = b.addExecutable(.{ .name = "transit-node-fault-fixture", .root_module = fault_node_module });
+    // The lifecycle proof also withholds accepted direct execution to exercise
+    // native-session reply loss; co-hosted calls bypass its HTTP proxy.
+    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
+    if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));

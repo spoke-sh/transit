@@ -1514,9 +1514,11 @@
         "InstallationSyncFailed": 2,
         "InvalidInstallationAuthority": 2,
         "InvalidInstallationDirectory": 1,
-        "ServerStopped": 3,
+        "InvalidRegistration": 1,
+        "ServerStopped": 4,
         "StorageIdentityMismatch": 1,
-        "UnresolvedProvisioning": 4
+        "UnresolvedProvisioning": 4,
+        "UnsupportedWorkerRotation": 1
       },
       "outcomes": {
         "DirectoryState": [
@@ -1528,6 +1530,7 @@
           "provision",
           "initialize",
           "activation",
+          "worker_enrollment",
           "installer",
           "board",
           "authority",
@@ -1548,6 +1551,7 @@
         "provision()": "<inferred>",
         "provisionAuthorization()": "<inferred>",
         "provisionBoard()": "<inferred>",
+        "provisionWorkers()": "<inferred>",
         "query()": "<inferred>",
         "releaseRoot()": "<inferred>",
         "reserveRoot()": "<inferred>",
@@ -1557,7 +1561,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 73,
         "catch": 4
       },
       "imports": [
@@ -1565,6 +1569,7 @@
         "Config.zig",
         "Files.zig",
         "Provider.zig",
+        "Startup.zig",
         "std",
         "transit_query"
       ]
@@ -1876,6 +1881,7 @@
         "../Signals.zig",
         "Files.zig",
         "Installation.zig",
+        "Startup.zig",
         "std",
         "transit_query"
       ]
@@ -1946,6 +1952,14 @@
           "board",
           "sql_readiness",
           "retry_delay"
+        ],
+        "Work": [
+          "artifact_validation",
+          "journal_checkpoint",
+          "native_query",
+          "native_submit",
+          "worker_spawn",
+          "worker_registration"
         ]
       },
       "error_sets": {},
@@ -1953,7 +1967,7 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "std",
@@ -2668,7 +2682,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 51,
         "catch": 2
       },
       "imports": [
@@ -2696,6 +2710,7 @@
       "error_returns": {
         "begin()": "<inferred>",
         "finish()": "<inferred>",
+        "flush()": "<inferred>",
         "init()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
@@ -2712,7 +2727,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -19107,7 +19122,7 @@
           "deadline"
         ],
         "Definition": [
-          "b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c"
+          "@\"04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6\""
         ],
         "Effect.phase": [
           "pending",
@@ -33084,6 +33099,7 @@
         "confirmImmutable()": "<inferred>",
         "delete()": "<inferred>",
         "head()": "<inferred>",
+        "linkContentFile()": "<inferred>",
         "lockKey()": "<inferred>",
         "open()": "<inferred>",
         "prepareContent()": "<inferred>",
@@ -33110,10 +33126,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
+        "try": 113,
         "catch": 10
       },
       "imports": [
+        "SyncBatch.zig",
         "TransitObjectStore.zig",
         "std",
         "transit_protocol"
@@ -35312,6 +35329,23 @@
         "LogPartition.zig"
       ]
     },
+    "packages/zig/transit-storage/src/SyncBatch.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "run()": "<inferred>",
+        "sync()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/TableArchive.zig": {
       "errors": {
         "InvalidTableArchive": 9,
@@ -36580,6 +36614,7 @@
         "S3ObjectStore.zig",
         "StreamCompaction.zig",
         "StreamPartition.zig",
+        "SyncBatch.zig",
         "TableArchive.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",

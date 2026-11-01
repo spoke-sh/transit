@@ -190,12 +190,18 @@ core ready record and SQL status remain separate observations; a SQL failure doe
 not remove the core administration path or authorize renewed grants.
 
 Every growing worker replacement acquires a fresh exact generation. The local
-catalog/query workers rotate their keys. SQL account workers retain their
+catalog/query workers enroll their PID-scoped credentials and resource grants
+once, then use `rotate_worker` with the recorded prior key, permission mask and
+observed generation. Enrollment receipts and per-worker keys are required
+installation fields. Rotation updates the recorded key only after observing its
+original native receipt; restart cannot renew revoked credentials or resource
+grants. SQL account workers retain their
 enrolled identities and require current grants; replacement never regrants them.
 Persist the intended public registration, grant changes and expected ownership
 before submission. Flush any pending signed operation byte-for-byte before
 preparing another. Record its receipt before deriving dependent identities.
-Reissue foreign resource grants separately from associations. After manager loss,
+Foreign resource grants are separate from associations and are not reissued by
+replacement. After manager loss,
 identify and reap surviving owned children before activation; never attach to
 an unrelated PID based only on its number. A child starting or returning a health
 response grants no native authority. Provider snapshot reuse is outside v1.

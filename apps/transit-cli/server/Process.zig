@@ -30,7 +30,7 @@ stdout_task: ?std.Io.Future(void) = null,
 stderr_task: ?std.Io.Future(void) = null,
 pub fn start(self: *Self, init: std.process.Init, executable: []const u8, launch_path: []const u8, launch: Launch, needs_registration: bool) !void {
     std.debug.assert(self.child == null);
-    try Files.json(init.io, init.gpa, launch_path, launch);
+    _ = try Files.jsonIfChanged(init.io, init.gpa, launch_path, launch);
     var parent: [32]u8 = undefined;
     var environment: std.process.Environ.Map = .init(init.gpa);
     defer environment.deinit();

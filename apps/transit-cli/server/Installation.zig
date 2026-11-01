@@ -33,13 +33,21 @@ pub const Record = struct {
     default_table: ?q.catalog.DirectTableIntent.Reference,
     table_registrar_receipt: ?u64,
     complete: bool,
+    workers: [2]Worker,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
     installer_receipt: ?u64 = null,
     board_receipts: [3]?u64 = @splat(null),
 };
-const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer, board, authority, table_registrar }, index: u8 };
+pub const Worker = struct {
+    public_key: [32]u8,
+    enrollment: [3]?u64,
+};
+const worker_permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish);
+const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, worker_enrollment, installer, board, authority, table_registrar }, index: u8 };
 const Self = @This();
+const Startup = @import("Startup.zig");
+startup: ?*Startup = null,
 init: std.process.Init,
 config: Config,
 record: Record,
@@ -89,13 +97,13 @@ pub fn path(self: *const Self, name: []const u8) ![]const u8 {
     return std.fs.path.join(self.init.arena.allocator(), &.{ self.config.installation, name });
 }
 pub fn save(self: *Self) !void {
-    Files.json(self.init.io, self.init.gpa, self.record_path, self.record) catch |err| {
+    Startup.measure(self.startup, .journal_checkpoint, Files.json, .{ self.init.io, self.init.gpa, self.record_path, self.record }) catch |err| {
         self.failed = true;
         return err;
     };
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    const response = try self.wire.query(.{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root);
+    const response = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;
@@ -106,11 +114,12 @@ pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
 }
 pub fn flush(self: *Self) !void {
     const pending = self.record.pending orelse return;
-    const receipt = try self.wire.submit(pending.signed);
+    const receipt = try Startup.measure(self.startup, .native_submit, q.wire.Client.submit, .{ self.wire, pending.signed });
     switch (pending.effect) {
         .provision => self.record.provision[pending.index] = receipt.position,
         .initialize => self.record.initialized[pending.index] = true,
-        .activation => {},
+        .activation => self.record.workers[pending.index].public_key = pending.signed.request.command.rotate_worker.public_key,
+        .worker_enrollment => self.record.workers[pending.index / 3].enrollment[pending.index % 3] = receipt.position,
         .authority => switch (pending.signed.request.command.authorization) {
             .begin => self.record.authorization_change = receipt.position,
             .advance => {},
@@ -134,8 +143,9 @@ pub fn flush(self: *Self) !void {
 pub fn submit(self: *Self, principal: u64, command: g.Command, effect: @FieldType(Pending, "effect"), index: u8) !void {
     if (self.record.pending != null) return error.UnresolvedProvisioning;
     const key = if (principal == 0) self.root else self.caller_key;
-    const basis = try self.wire.query(.{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key);
+    const basis = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key });
     if (basis.position < self.record.position) return error.AuthorityRollback;
+    if (command == .rotate_worker and !basis.body.capabilities.worker_rotation) return error.UnsupportedWorkerRotation;
     self.record.position = basis.position;
     self.record.pending = .{ .signed = try g.sign(.{ .realm = self.config.realm, .principal = principal, .sequence = try std.math.add(u64, basis.principal_sequence, 1), .command = command }, key), .effect = effect, .index = index };
     try self.save();
@@ -206,10 +216,34 @@ pub fn provision(self: *Self) !void {
         };
         try self.submit(0, command, .provision, @intCast(i));
     }
+    try self.provisionWorkers();
     if (self.config.applications != null and self.record.installer_receipt == null) {
         var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path("installer.seed"));
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         try self.submit(0, .{ .create_principal = .{ .subject = installer, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.admin) } }, .installer, 0);
+    }
+}
+
+/// Enroll each built-in principal once. Subsequent activation rotates its exact
+/// recorded key and ownership generation without restoring any removed grant.
+fn provisionWorkers(self: *Self) !void {
+    const c = self.connection();
+    for ([_]u64{ source, requester }, 0..) |principal, index| {
+        const worker = &self.record.workers[index];
+        const pid = if (index == 0) c.source else c.requester;
+        const resource = if (index == 0) c.resource else c.requests;
+        const steps: usize = if (index == 0) 3 else 2;
+        for (0..steps) |step| {
+            if (worker.enrollment[step] != null) continue;
+            if (@import("../Signals.zig").interrupted()) return error.ServerStopped;
+            const command: g.Command = switch (step) {
+                0 => .{ .create_principal = .{ .subject = principal, .public_key = worker.public_key, .permissions = worker_permissions, .pid = pid } },
+                1 => .{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.all_permissions } },
+                2 => .{ .grant_resource = .{ .resource = c.requests, .subject = principal, .permissions = read_permissions } },
+                else => unreachable,
+            };
+            try self.submit(0, command, .worker_enrollment, @intCast(index * 3 + step));
+        }
     }
 }
 /// Each installation action is recorded once. The pending signed operation and
@@ -277,12 +311,15 @@ pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration)
     // granting anything, and resolve old frozen operations before calling here.
     self.record.registration = registration;
     try self.save();
-    const c = self.connection();
-    const resource = if (registration.principal == source) c.resource else c.requests;
-    try self.submit(0, .{ .grant = .{ .subject = registration.principal, .public_key = registration.public_key, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = registration.pid } }, .activation, 0);
-    try self.submit(0, .{ .grant_resource = .{ .resource = resource, .subject = registration.principal, .permissions = p.State.all_permissions } }, .activation, 0);
-    if (registration.principal == source) try self.submit(0, .{ .grant_resource = .{ .resource = c.requests, .subject = source, .permissions = read_permissions } }, .activation, 0);
-    try self.submit(0, .{ .own = .{ .pid = registration.pid, .expected_generation = registration.generation - 1, .worker = registration.principal } }, .activation, 0);
+    const index: u8 = if (registration.principal == source) 0 else if (registration.principal == requester) 1 else return error.InvalidRegistration;
+    try self.submit(0, .{ .rotate_worker = .{
+        .pid = registration.pid,
+        .worker = registration.principal,
+        .expected_generation = registration.generation - 1,
+        .expected_public_key = self.record.workers[index].public_key,
+        .expected_permissions = worker_permissions,
+        .public_key = registration.public_key,
+    } }, .activation, index);
 }
 pub fn initializeBehaviors(self: *Self) !void {
     const c = self.connection();
@@ -340,7 +377,16 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity, sta
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .default_table = null, .table_registrar_receipt = null, .complete = false });
+    var workers: [2]Worker = undefined;
+    for (&workers) |*worker| {
+        var seed: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &seed);
+        try init.io.randomSecure(&seed);
+        var key = try p.Ed25519.KeyPair.generateDeterministic(seed);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        worker.* = .{ .public_key = key.public_key.toBytes(), .enrollment = @splat(null) };
+    }
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .default_table = null, .table_registrar_receipt = null, .complete = false, .workers = workers });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     // Remove only an empty directory, never its contents. If anything appeared
     // since classification, rmdir refuses it. Nonreplacing publication also

@@ -23,7 +23,10 @@ const SyncFault = struct {
     var real: *const std.Io.VTable = undefined;
     var remaining: usize = 0;
     var calls: usize = 0;
+    var mutex: std.Io.Mutex = .init;
     fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+        try mutex.lock(t.io);
+        defer mutex.unlock(t.io);
         calls += 1;
         if (remaining != 0) {
             remaining -= 1;
@@ -262,7 +265,10 @@ test "direct collection drops an unpublished newer intent without deleting its o
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
+        var mutex: std.Io.Mutex = .init;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try mutex.lock(t.io);
+            defer mutex.unlock(t.io);
             if (remaining != 0) {
                 remaining -= 1;
                 if (remaining == 0) return error.InputOutput;
