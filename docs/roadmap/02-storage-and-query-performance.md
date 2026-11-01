@@ -118,7 +118,7 @@ open.
 Resolve commit authority before wiring storage, establish the correct bounded
 local slice, then complete the [installed cutover](03-live-storage-and-sql-cutover.md).
 The sequencing review transfers #117/#121 implementation and distributed runtime
-qualification to [milestone 18](23-storage-providers-and-concurrency.md).
+qualification to [milestone 23](23-storage-providers-and-concurrency.md).
 #109 remains the umbrella for its original outstanding local and provider scope;
 this milestone remained In Progress at that assessment. Local cross-process CAS, fencing at its
 supported authority boundary and all local recovery obligations remain here.
@@ -567,7 +567,7 @@ The current exclusive owner also serializes validation, publication and receipt
 observation. Delaying its sync alone cannot safely create overlapping accepted
 operations or remove immutable staging costs.
 
-[Milestone 12's existing runtime optimization work](13-data-structures-and-performance.md)
+[Milestone 13's existing runtime optimization work](13-data-structures-and-performance.md)
 owns evaluation of batching/group commit under measured concurrent load, with
 explicit queue bounds, acknowledgement timing, per-operation uncertainty and
 control reserve. This decision does not claim that group commit lacks a benefit
@@ -726,7 +726,7 @@ authorized public reads; Board receives no raw provider access.
 
 Provider acknowledgement, durable-copy locations, disk/host loss and network
 partition profiles remain in [#121](https://github.com/spoke-sh/transit/issues/121)
-and [milestone 18](23-storage-providers-and-concurrency.md). This owner proves
+and [milestone 23](23-storage-providers-and-concurrency.md). This owner proves
 the declared local sync/restart profile and explicitly excludes losing the only
 durable disk. Distributed providers, cache qualification and concurrent writer
 integration have moved; local safety, native recovery, codecs and bounded

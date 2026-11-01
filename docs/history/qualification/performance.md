@@ -9,6 +9,218 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Executable hashing and installed SDK measurement — 2026-11-01
+
+The [startup owner](../../../apps/transit-cli/docs/server.md#logging-and-readiness)
+now distinguishes native authorization operations, journal checkpoints and nested
+SQL preparation work. Its reporter validates the span tree and reports exclusive
+work separately from inclusive parent time. Executable identity still verifies
+SHA-256 over every byte; the streaming implementation uses the pinned OpenSSL
+library's CPU dispatch. There is no size/mtime shortcut or retained hash cache.
+
+The matched experiment freezes the instrumented control before that hash change
+and the candidate after it, on base `a000b8d18449fdee7901955d0c94417ceeab32eb`.
+The exact embedded CLI identities are `23bdce7bab295b5182ab227a03787419a8cb756a-dirty`
+and `97c7b3c509f7044e8a9cda70cd3f2d39e3e9c1dd-dirty`; those build identities are
+preserved. Control/candidate CLI SHA-256 values are
+`7419dd032f353efcf3cb32fbe4a30706943c11cde95c66f183e2e75510178b12` /
+`c303d21f6c3cf1cdb116e241ef99e73c548c2e37fd8f1910d07bd9ca9c69a2c0`.
+The standalone node, query host, SQL gateway and Board binaries are identical
+between arms. Clean driver revision `42214e3a131861be3cce86f1386b5d0371f34430`
+records their individual hashes. Later integration with main does not reattribute
+these timings to the integrated source.
+
+Three pairs per profile alternate control/candidate order AB, BA, AB. Each arm
+creates one fresh installation, verifies SQL, writes the known row, and verifies
+that row and retained installation/provisioning identities through three restarts.
+All **48 info-level launches** complete. Headless uses standalone roles; default
+uses the embedded roles with Board/application management. Readiness includes the
+existing SQL and authorized Board gates, with every observer retry inside the
+original elapsed time and deadline.
+
+| Profile / launch | Samples per arm | Ready median, control → candidate | First verified result median, control → candidate |
+| --- | ---: | ---: | ---: |
+| Headless / fresh | 3 | 4.129 → 3.208 s | 4.498 → 3.599 s |
+| Headless / restart | 9 | 1.867 → 0.797 s | 2.198 → 1.145 s |
+| Embedded UI / fresh | 3 | 3.899 → 3.349 s | 4.133 → 3.574 s |
+| Embedded UI / restart | 9 | 1.234 → 0.868 s | 1.443 → 1.069 s |
+
+The separate debug campaign completes 32 launches: three headless pairs and one
+default pair, with the same fresh/three-restart schedule. Headless retained
+artifact-validation median falls **1.236 → 0.216 s**; readiness falls
+**2.519 → 1.475 s**. Default fresh readiness in its single pair instead increases
+**12.316 → 13.494 s**. An extension planned two more default pairs but aborts on
+its first candidate launch: readiness and SQL verification succeed, while 34
+suppressed telemetry events make the work trace incomplete. This is **32 passed
+and one failed diagnostic attempt**, with the remaining extension invocations
+unreached. The failure is retained; no rate limit is raised. Complete fast debug
+attribution needs bounded aggregate reporting or another qualified approach.
+
+Both campaigns use ReleaseSafe, pinned Zig `0.17.0-dev.2267+48abf1a34`, Linux
+6.17.0-41 x86_64 with 48 logical CPUs and ext4 on local NVMe. OS/server caches are
+retained; fresh installation does not mean cold device. No owned heavy build or
+proof overlaps timing, but other host activity is uncontrolled. Large differences
+between the info/debug campaigns cannot establish instrumentation overhead.
+Synchronous durability, authority checks and readiness deadlines are unchanged.
+These exploratory samples do not qualify final p95 budgets, aged recovery or the
+planned minimum of 50 fresh and 50 restart samples per arm/profile. They do not
+establish an overall 10–100× improvement.
+
+Raw invocation plans, samples and recomputed summaries remain under ignored
+`.cache/performance/startup-sdk-followup/`. `startup-evidence-index.json` records
+their SHA-256 values and has SHA-256
+`59ace3f029ab865a84d5da1c6e23a0c886a3926dc65c713d8293c1c4e24d8114`.
+`startup-info-*.jsonl` is the normal campaign; `startup-headless-*.jsonl` and
+`startup-default-*.jsonl` retain diagnostic successes and the failed extension.
+`startup-debug.jsonl` is the earlier one-fresh/one-restart attribution probe.
+These local artifacts are not distributed with the repository.
+
+The new [SDK workload](../../../tests/performance/sdk/README.md) executes public
+Zig, installed Python synchronous/asynchronous wheels and Node packages outside
+the checkout. One complete campaign on driver revision `42214e3a1` verifies
+**240 workload calls: 200 steady samples and 40 warmups**, ten cases per language, exact
+values/counts/digests and terminal coverage. All four consumer trees close and
+join. Package installation, cold opening, first verified response, operation
+latency and process-tree resource snapshots are separate measurements.
+
+| Consumer | Metadata p50 | Point query p50 | Full 70-row query p50 | One-row write p50 | Eight-row write p50 | Observed process-tree RSS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zig | 3.82 ms | 479.85 ms | 1286.54 ms | 124.54 ms | 174.57 ms | 14.5 MiB |
+| Python sync | 4.40 ms | 498.39 ms | 1291.72 ms | 126.28 ms | 167.83 ms | 54.7 MiB |
+| Python async | 5.21 ms | 527.45 ms | 1439.85 ms | 123.85 ms | 172.33 ms | 54.9 MiB |
+| Node | 5.13 ms | 580.86 ms | 1391.80 ms | 136.73 ms | 186.49 ms | 444.8 MiB |
+
+Single launch-to-first-verified metadata observations are 13.7 ms (Zig),
+267.4 ms (Python sync), 275.3 ms (Python async) and 5437.3 ms (Node). Node
+records 5342.6 ms inside SDK module import and 33.2 ms opening its clients;
+this identifies module initialization for profiling, not a repeated cold-start
+distribution or an explained allocation cause.
+
+Consumer timings include original-request persistence, complete snapshot/query
+lifecycle and bounded canonical value verification. RSS is a post-workload
+process-tree observation, not an allocation counter or a common cross-language
+peak. Allocation and copy counts are explicitly unavailable. Five steady samples
+per case establish harness operation and candidate bottlenecks, not comparative
+SDK gains or numeric regression budgets. The native provenance record identifies
+`8861e0cef61358f2b64fa332ff2c3e0c3ac605f4` with dirty source SHA-256
+`47281f88308b1b8e51196752ab44080977856f9d25e13ba164fdf29ce53cea78`;
+installed native artifact hashes match that frozen ReleaseSafe build. The driver
+and native build retain separate provenance.
+
+This complete SDK campaign explicitly disables automatic Table flush/archive/
+compaction in its private fixed-data fixture; foreground durability is unchanged.
+The default-maintenance attempt failed an exact snapshot frontier conflict and
+remains failed. No fresh snapshot or original operation is silently substituted.
+Other development attempts failed unsupported ORDER BY, the original order-sensitive
+oracle and a package-shim identity check; their raw attempts are retained and do
+not contribute passing samples. The corrected independent oracle canonicalizes
+bounded rows without asserting SQL order, and native identity checking examines
+the installed executable rather than the package-manager launcher script.
+
+`sdk-complete.jsonl` has SHA-256
+`2983124297afc11fe272e83a712240d87b296312bf1d0d53741061b30a093ce0`;
+its automatic copy is `.cache/performance/sdk/runs/campaign-dolz6970/observations.jsonl`.
+The reporter independently accepts its complete phase/repetition inventory.
+Existing installed Python and Node Catalog/Query recovery schedules separately
+pass 383 and 193 public requests after installer-helper extraction, covering
+lost replies, process replacement, retained reads and current revocation. These
+are correctness schedules, not additional performance samples.
+
+The unchanged-base direct maintenance proof fails during archive/compaction
+convergence: `HttpConnectionClosing`, `MaintenanceTimeout`, and WAL recovery
+required after a possible timed-out mutation. `maintenance-control.log` and the
+private fixture `/var/tmp/transit-table-maintenance-e3szc3c5` retain the evidence.
+The exact latency cause remains unestablished; the operation deadlines and WAL
+poison/recovery gates remain intact. This and the default SDK frontier conflict
+keep maintenance qualification open.
+
+Before integration, known-digest/arbitrary-chunk hashing tests, CLI lifecycle,
+server logging/privacy, startup reporter controls and SDK oracle/report controls
+pass. The candidate bootstrap/gateway/rollback suite passes in 47.74 s, including
+changed-executable rejection, older-history rejection, original provisioning
+receipt recovery and revoked-worker refusal. These do not replace the subsequent
+clean-source lane results.
+
+Integrated validation uses `8aed48703782dde9d3cae29907f7fbd100e62838`, rebased
+onto main `c8d060cb2`. The first clean installation attempt at `79f4beda9` finds
+missing EVP symbols in the operation fixture. Its shared CLI-support module now
+links libcrypto directly; the remaining compiler jobs in that failed run were
+stopped after the linker failure. The corrected clean run builds that fixture
+and passes its first thirteen installation/UI tasks, including logging,
+single-executable startup, direct SQL/fault/lifetime checks, configured SQL/TLS,
+local authentication, Board and Board query recovery.
+
+The corrected run then fails `launchers::local::test-station` on unexpected
+courier-proxy connection refusals. The retained node log records three owner
+reopen events for `WalRecoveryRequired` and approximately two-second
+`/v1/command` timeouts with uncertain outcomes; it does not identify the underlying
+I/O or wait cost. The query completes before cleanup, but
+that does not satisfy the proxy's independent no-unexpected-error check. Preserve
+`.cache/performance/startup-sdk-followup/clean-installation-ui-fixed.log` and
+`/var/tmp/transit-ci-p7qgzmrj/src/.cache/launchers/local/station-f57bd2` for that
+failure. The exact cause of the WAL recovery remains unresolved. The original
+lane leaves workbench and declarative-browser tasks unreached. The normal local
+launcher shutdown subsequently stops the failed proof's remaining owned services
+while retaining its data and keys.
+
+The clean scripting lane passes all three installed Python, Node and Ruby tasks.
+Its evidence is `.cache/ci/clean/8aed48703782-transit-ci-xod350j6/`.
+The clean core attempt passes 59 fast checks, diagnostic error/outcome/grammar
+checks, the host flake check and 19 contract checks. Its native run is deliberately
+interrupted after more than 30 minutes with storage suites still active, rather
+than declared passed. The runner ultimately records 2,053 of 2,054 native tests
+passed and `branch ancestry resolves deep disk history beyond cache and
+branch-local clocks` terminated by the injected INT signal. This is an operator
+interruption, not an observed assertion failure or established deadlock.
+`check::core` exits after 2,099.79 seconds; its later diagnostics/history steps and
+the remaining 27 lane tasks are unreached. The checkout at
+`/var/tmp/transit-ci-msffpfjg`, `clean-core.log` and `core-interruption.json` retain
+the source, partial result and interruption record. This is not a complete core
+or whole-suite qualification.
+
+Independent continuation in the unchanged clean installation checkout passes
+`transit-board::workbench-test`: exact 145-row traversal, empty/metadata results,
+definition guards, read-only admission, capacity and terminal revocation. The
+separate `test::declarative-browser` attempt fails during migration planning,
+before browser coverage: the CLI cannot discover a local SQL service. Its private
+fixture is `/var/tmp/transit-browser-y5rhff4o`; `ui-declarative-continuation.log`
+retains the failed command and diagnostic. These continuations do not turn the
+failed installation/UI lane into a pass.
+
+The independent `bindings::runtime-boundary` check passes: 24 source-invalidation
+controls, evaluation-cache controls, actual filtered Nix Transit/gateway builds
+and executable help checks, and rejection of disabled/missing test inputs. The
+runtime source excludes SDK and test trees. `runtime-boundary-continuation.log`
+records that result separately from the interrupted core lane.
+
+The first integrated SDK smoke attempt completes its 30 Zig/Python workload
+calls but fails before Node installation because the reused clean checkout lacks
+compiled TypeScript outputs for the installer's package-identity check. It is a
+failed campaign, retained as `sdk-integrated-smoke.jsonl` with private fixture
+`/var/tmp/transit-server-proof-_qeo8ced`. Preparing those outputs with the pinned
+TypeScript compiler preserves the original packaged artifacts and their identity
+checks; the [workload guide](../../../tests/performance/sdk/README.md) now documents
+that preparation when reusing packages from another checkout.
+
+The focused ReleaseSafe `test-cli-lifecycle` check passes in that same committed
+clean checkout, including executable-hash identity tests. A subsequent intended
+complete SDK attempt (`sdk-integrated-complete.jsonl`) instead fails during Zig's
+eight-row write after eight verified workload calls: `HttpConnectionClosing`
+terminates the consumer and joined close fails. Its private installation and
+saved original operation remain at `/var/tmp/transit-server-proof-d84tke2c`.
+The retained manager log does not explain the connection closure; no write is
+replayed as new work and this attempt remains failed.
+
+A separate Node-only campaign then passes ten cases and joined close, and its
+reporter accepts the complete inventory (`sdk-integrated-node.jsonl`, automatic
+copy `campaign-ermv7kvz/observations.jsonl`). Both failed integrated attempts and
+this Node campaign use clean driver/native source `8aed48703782`, the same
+declared artifacts and the explicit maintenance-disabled profile. The verified
+prefixes and separate Node pass do **not** establish one complete integrated
+four-language campaign or a new performance scorecard. That gate remains open.
+`integration-evidence-index.json` records the integrated run/log hashes and has
+SHA-256 `6b80f27201e6cbcc31e94d54ad22e8e6cda8e1f24cba622586f8deb01cc1f466`.
+
 ## Installed startup publication reduction — 2026-10-31
 
 The [startup workload](../../../tests/performance/README.md#installed-startup)

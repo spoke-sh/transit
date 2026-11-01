@@ -7,6 +7,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 
 | Boundary | Checks |
 | --- | --- |
+| Document profile commitment and offline grammar interpretation | [Contract fixture](tables/document_profile_contract.py), [JSON/Expat oracle](tables/document_profiles.py); `zig build test-document-profiles` (also under `test-fixtures`) |
 | Independent Table schema bytes | [Schema](tables/table_schema.py) |
 | Signed direct declarations and policy | [Envelope validator](tables/direct_table_contract.py), [catalog fixtures](tables/table_catalog.py) |
 | Definition/dependency and index lifecycle fixtures | [Catalog](tables/catalog_fixture.py), [indexes](tables/index_lifecycle_contract.py) |

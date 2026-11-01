@@ -34,6 +34,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-serving-http](../../../packages/zig/transit-serving-http/README.md) / `transit_serving_http` | Reusable signed HTTP/SSE/WebSocket dispatch, local challenges and joined streaming tasks | transit-serving, transit-http-server |
 | [transit-exchange](../../../packages/zig/transit-exchange/README.md) / `transit_exchange` | segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-document](../../../packages/zig/transit-document/README.md) / `transit_document` | Deterministic Document changes, merge evaluation and bounded logical traversal over an explicit index interface | None |
+| [transit-document-profiles](../../../packages/zig/transit-document-profiles/README.md) / `transit_document_profiles` | Offline bounded JSON/XML interpretation, raw event provenance and complete-part verification | transit-protocol |
 | [transit-station-document](../../../packages/zig/transit-station-document/README.md) / `transit_station_document` | structured merge, collaborative text and paged accepted-state publication | transit-station |
 | [transit-station-http](../../../packages/zig/transit-station-http/README.md) / `transit_station_http` | finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
 | [transit-tls](../../../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
@@ -69,6 +70,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-query](../../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-query-direct, transit-station, transit-station-document |
 | [transit-catalog](../../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Named Table creation, immutable definitions, bounded metadata, signed caller, neutral values and explicit catalog behavior | transit-client, transit-protocol, transit-fuze, transit-storage |
 | [transit-fuze](../../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
+| [transit-spatial](../../../packages/zig/transit-spatial/README.md) / `transit_spatial` | Explicit coordinate references, exact determinant predicates and bounded planar ring/polygon kernels; local library APIs | transit-protocol |
 
 
 ## Executables and examples

@@ -12,6 +12,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const serving = context.serving;
     const web_dependencies = context.web_dependencies;
     const document = context.document;
+    const document_profiles = b.dependency("transit_document_profiles", .{ .target = target, .optimize = optimize });
     const document_core = b.dependency("transit_document", .{ .target = target, .optimize = optimize });
     const station_grpc = context.station_grpc;
     const station_flight = context.station_flight;
@@ -78,6 +79,23 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("serving-example", "Install the signed HTTP service example").dependOn(&install_serving.step);
     b.step("transit-serving-example", "Install the signed HTTP service artifact").dependOn(&install_serving.step);
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
+    const spatial_test = b.addSystemCommand(&.{ "python3", "-B" });
+    spatial_test.addFileArg(b.path("tests/runner/launch.py"));
+    spatial_test.addFileArg(b.path("tests/query/logical/spatial.py"));
+    inline for (.{ std.builtin.OptimizeMode.Debug, std.builtin.OptimizeMode.ReleaseFast }) |mode| {
+        const spatial = b.dependency("transit_spatial", .{ .target = target, .optimize = mode }).module("transit_spatial");
+        const fixture = b.addExecutable(.{ .name = "transit-spatial-" ++ @tagName(mode), .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/query/logical/spatial.zig"),
+            .target = target,
+            .optimize = mode,
+            .imports = &.{ .{ .name = "transit_spatial", .module = spatial }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = mode }).module("transit_protocol") } },
+        }) });
+        spatial_test.addArtifactArg(fixture);
+        spatial_test.step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = spatial })).step);
+    }
+    spatial_test.has_side_effects = true;
+    spatial_test.stdio = .inherit;
+    b.step("test-spatial", "Check exact spatial kernels against an independent rational oracle").dependOn(&spatial_test.step);
     const diagnostic_grammar = b.addExecutable(.{ .name = "transit-diagnostic-grammar", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/diagnostic_grammar.zig"),
         .target = target,
@@ -93,12 +111,27 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .link_libc = true,
     }) });
     b.step("mutation-latency-client", "Build the persistent public mutation caller control").dependOn(&b.addInstallArtifact(mutation_latency_client, .{}).step);
+    if (sdk) |public_sdk| {
+        const sdk_performance = b.addExecutable(.{ .name = "transit-sdk-performance", .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/sdk/consumers/zig/performance.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "transit_data_client", .module = public_sdk.module("transit_data_client") },
+                .{ .name = "transit_catalog", .module = public_sdk.module("transit_catalog") },
+                .{ .name = "transit_query_direct", .module = public_sdk.module("transit_query_direct") },
+            },
+            .link_libc = true,
+        }) });
+        b.step("sdk-performance-client", "Build the public Zig SDK performance consumer").dependOn(&b.addInstallArtifact(sdk_performance, .{}).step);
+    }
     const cli_support = b.createModule(.{
         .root_source_file = b.path("apps/transit-cli/Support.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     });
+    cli_support.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const file_capture = test_modules.get(.operations_file_capture);
     const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/performance/query/main.zig"),
@@ -278,9 +311,23 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run compiled components, independent fixtures and local process faults");
     const components_step = b.step("test-components", "Run compiled component tests, including package-local filesystem checks");
+    const document_profiles_probe = b.addExecutable(.{ .name = "transit-document-profiles-probe", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/catalog/tables/document_profiles.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_document_profiles", .module = document_profiles.module("transit_document_profiles") }},
+    }) });
+    const document_profiles_oracle = b.addSystemCommand(&.{ "python3", "-B" });
+    document_profiles_oracle.addFileArg(b.path("tests/runner/launch.py"));
+    document_profiles_oracle.addFileArg(b.path("tests/catalog/tables/document_profiles.py"));
+    document_profiles_oracle.addArtifactArg(document_profiles_probe);
+    document_profiles_oracle.has_side_effects = true;
+    document_profiles_oracle.stdio = .inherit;
+    b.step("test-document-profiles", "Compare bounded Document parsers with independent JSON and XML oracles").dependOn(&document_profiles_oracle.step);
     const fixtures_step = b.step("test-fixtures", "Run independent contract fixtures and native/port codec checks");
     const faults_step = b.step("test-faults", "Run local storage process-death and CLI lifecycle checks");
     test_step.dependOn(components_step);
+    fixtures_step.dependOn(&document_profiles_oracle.step);
     test_step.dependOn(fixtures_step);
     test_step.dependOn(faults_step);
     const counter_tests = b.addTest(.{ .root_module = b.createModule(.{
@@ -360,6 +407,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document_profiles.module("transit_document_profiles") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document_core.module("transit_document") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
@@ -725,6 +773,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const lifecycle_export = b.addRunArtifact(exporter);
     lifecycle_export.addArg("--data-lifecycle");
     b.step("data-lifecycle-contract", "Export neutral data lifecycle and snapshot schemas").dependOn(&lifecycle_export.step);
+    const document_profile_export = b.addRunArtifact(exporter);
+    document_profile_export.addArg("--document-profile");
+    b.step("document-profile-contract", "Export Document interpretation and provenance schemas").dependOn(&document_profile_export.step);
     const index_export = b.addRunArtifact(exporter);
     index_export.addArg("--index-lifecycle");
     b.step("index-lifecycle-contract", "Export neutral index declaration and coverage schemas").dependOn(&index_export.step);
@@ -907,7 +958,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const operation_install = b.addInstallArtifact(operations, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
     b.step("test-operation-fixture", "Build private native operation test helpers").dependOn(&operation_install.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = operation_module })).step);
-    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
+    const lifecycle_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
         .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") },
         .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
         .{ .name = "transit_tls_server", .module = tls_server.module("transit_tls_server") },
@@ -915,7 +966,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
-    } }) }));
+    } });
+    lifecycle_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
+    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = lifecycle_module }));
     faults_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove console recovery and bounded local process mechanics").dependOn(&lifecycle_test.step);
     const diagnostics_test = b.addSystemCommand(&.{ "python3", "-B" });

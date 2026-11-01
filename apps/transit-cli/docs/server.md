@@ -75,11 +75,17 @@ the child's CPU, storage I/O and scheduling costs.
 
 At debug level, `server.startup.work` attributes executable validation,
 installation/SQL journal checkpoints, native queries and submissions, and worker
-spawn/registration to their parent phase. Each record counts one attempted
+spawn/registration. Authorization begin/advance/publish/abandon and capability
+reads have separate labels. SQL labels distinguish administrator and account
+provisioning, retained-account discovery, enrollment, initialization, activation,
+trust preparation and host startup. Work can nest inside another work span;
+`parent_span_id` identifies the immediate owner. Each record counts one attempted
 operation, with its duration and outcome. Checkpoint timing includes serialization,
 file sync, rename and directory sync; native request timing includes transport
 and the server's durable processing. These child durations are included in the
-phase duration. The fixed labels contain no requests, keys or SQL text.
+parent duration. Sum only immediate children when attributing exclusive cost;
+nested inclusive durations cannot be added together. The fixed labels contain
+no requests, keys, account names or SQL text.
 Restart reuses byte-identical derived role/launch configurations and SQL operator
 profiles. Changed files still publish atomically with file and directory sync.
 Accepted-operation journals and configuration generations retain their durable
@@ -143,6 +149,12 @@ hash, role, invocation mode and shared contract definition before starting
 children. Restart requires those same identities. Changing between a built-in
 role and a standalone executable is an incompatible artifact change even when
 the files have identical bytes.
+
+Every start still reads and SHA-256 hashes every executable byte. The streaming
+hash uses the pinned OpenSSL library's runtime CPU dispatch, including in portable
+baseline builds. It retains a 64 KiB read buffer and one hash context; no timestamp,
+size or cached digest substitutes for content verification. Hash failures reject
+the executable through the existing configuration diagnostic.
 
 With no `--config`, the server selects the **first existing** file:
 

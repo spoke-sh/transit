@@ -25,7 +25,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](36-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](42-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -45,14 +45,20 @@ access paths. The [data structures and performance milestone](13-data-structures
 delivers the local workload scorecard, selected optimizations and regression
 budgets. Earlier owners establish baselines and meet their existing gates; later
 providers, distributed execution and language surfaces extend the same measures.
-[Final qualification](36-qualification-and-benchmarks.md) combines the evidence
+[Final qualification](42-qualification-and-benchmarks.md) combines the evidence
 at one revision. Publish wins, regressions and unresolved competitive gaps with
 reproducible results; correctness, current authorization and accepted-work
 recovery remain part of every performance profile.
 
+The next implementation sequence for startup and the existing 10–100× SQL
+objectives is the [M8 follow-up performance plan](08-gateway-architecture-and-protocol-ingress.md#follow-up-performance-delivery--2026-11-01).
+Run the [M9 SDK measurement and optimization sequence](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01)
+alongside it using shipped APIs. These plans preserve the milestones' existing
+scope and status; SDK gains require their own measured baselines.
+
 ## Delivery phases
 
-Six phases group the linear milestone sequence by the capability an application
+Seven phases group the linear milestone sequence by the capability an application
 or operator gains. The phase outcomes summarize their milestones' acceptance
 criteria; each numbered milestone remains the owner of scope, status and proof.
 Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
@@ -64,13 +70,14 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 23–26 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 27–30 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
 | [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 31–34 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
-| [VI: Qualification and release](#phase-vi-qualification-and-release) | 35–38 | One committed revision has a harmonized SQL grammar audited against formal standards and industry dialects, combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
+| [VI: Scientific, media and evidence workloads](#phase-vi-scientific-media-and-evidence-workloads) | 35–40 | Applications compose calibrated scientific arrays, synchronized video, attributable ML/AI experiments, robotics replay, software/build/deployment evidence and constrained planning over shared versioned data, numerical, policy and publication contracts |
+| [VII: Qualification and release](#phase-vii-qualification-and-release) | 41–44 | One committed revision has a harmonized SQL grammar audited against formal standards and industry dialects, combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
 
 Phases are delivery groupings, not additional runtime dependencies or release
 dates. Contract work and implementation may overlap when the owning prerequisites
 are satisfied; an adapter exposes only qualified capabilities. A phase is complete
 only when every milestone it contains is complete. Focused correctness, recovery
-and performance checks remain acceptance gates throughout the sequence; phase VI
+and performance checks remain acceptance gates throughout the sequence; phase VII
 combines that evidence at one revision.
 
 ## Milestone sequence
@@ -86,7 +93,7 @@ combines that evidence at one revision.
 | 5 | [Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md) | Completed | Local serializable multi-Table transactions, retained common cuts, savepoints, original decision recovery and Table checkpoint/outbox composition; native KV/Document and Stream/Queue participant extension handed to M6/M7 |
 | 6 | [Declarative streams, queues and durable runtime architecture](06-streams-queues-and-durable-runtime.md) | In Progress ([current assessment](06-streams-queues-and-durable-runtime.md#source-baseline-and-remaining-gaps); [next implementation changes](06-streams-queues-and-durable-runtime.md#first-implementation-changes)) | Delivered database/SQL separation, typed Stream/Queue lifecycles, payloads, leases and bounded local maintenance; complete named direct KV, mixed state/append/settlement transactions, Queue waits/DLQ, dedicated SQL and finite `STREAM_SLICE`, transactional Station/consumer cutover and common-revision performance/recovery qualification |
 | 7 | [Logical document storage, `.tseg` trees and Station decoupling](07-document-storage-and-station-decoupling.md) | In Progress ([remaining implementation plan](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work)) | `Document` decoupled from `Station` actor turns (`STATION_DOCUMENT_V1`/`SIX1`), logical $\tau \perp \kappa \perp \epsilon$ Document algebra in `DocumentPartition` over `TWAL1` + `.tseg` succinct trees ($2N$-bit `BP`), adaptive columnar path shredding, 5-state cells and pluggable versioned/CRDT merge profiles |
-| 8 | [Gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md) | In Progress ([wire foundation and plan](08-gateway-architecture-and-protocol-ingress.md#wire-foundation-implementation--2026-10-31)) | Preserve delivered recovery/co-hosting and browser ingress; close measured console/publication costs toward [#211's 10–100× target](https://github.com/spoke-sh/transit/issues/211), then qualify resumable pure codecs, core-bounded scheduling, coarse remote SQL and Flight/Serving integration with explicit M6/M7 owner/caller gates |
+| 8 | [Gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md) | In Progress ([remaining implementation plan](08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-11-01)) | Preserve delivered co-hosting/recovery, pure startup/command continuations, startup reductions and log declaration SQL; complete deadlines, core-bounded scheduling, configuration handoff, coarse remote SQL and Flight/Serving integration, with M6/M7 owner gates and measured [#211 latency closure](https://github.com/spoke-sh/transit/issues/211) |
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([implementation plan](10-standards-and-catalogs.md#implementation-plan--2026-10-30)) | Capability evidence, declarative `CHECK`/`FOREIGN KEY` catalog bindings, collation-preserving history and exact retained catalog/data interpretation |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
@@ -95,14 +102,14 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 12 | [Managed computations and WAL-activated dataflows](12-sql-and-dataflows.md) | In Progress ([remaining implementation plan](12-sql-and-dataflows.md#implementation-plan-for-remaining-work--2026-11-01)) | Durable service-owned computation lifecycle and transaction-consistent WAL activation, incremental execution, analytical SQL, bitemporal `AS OF JOIN`, retained change queries and governed sink outboxes; preserve component foundations while qualifying installed callers and recovery |
+| 12 | [Managed computations and WAL-activated dataflows](12-sql-and-dataflows.md) | In Progress ([remaining implementation plan](12-sql-and-dataflows.md#implementation-plan-for-remaining-work--2026-11-01)) | Durable service-owned computation lifecycle and transaction-consistent WAL activation, incremental execution, analytical SQL, bitemporal `AS OF JOIN`, DBSP interval-depth and identity-aware order-book (`LOB`) maintenance, retained change queries and governed sink outboxes; preserve component foundations while qualifying installed callers and recovery |
 | 13 | [Data structures, query optimization and runtime performance](13-data-structures-and-performance.md) | In Progress | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
-| 14 | [First-class strings, perfect hashing and vectorized search execution](14-vectorized-strings-and-search.md) | In Progress ([implementation plan](14-vectorized-strings-and-search.md#implementation-plan--2026-10-30)) | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons, and declarative search/proximity contracts over swappable `.tseg` index profiles (qualifying vectorized 256-doc Block-Max BM25 and hybrid search first) |
+| 14 | [First-class strings, perfect hashing and vectorized search execution](14-vectorized-strings-and-search.md) | In Progress ([implementation plan](14-vectorized-strings-and-search.md#implementation-plan--2026-10-30)) | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons, and declarative search/proximity/sequence contracts over swappable `.tseg` index profiles (256-doc Block-Max BM25, hybrid search, biological sequences `BIO_SEQ` `.seq_2bit`/`.cram_ref_delta`/`.fm_bwt`/`.geno_pbwt`, chemical `MOLECULE` `.mol_graph` Morgan bitvectors, and `.audio_fingerprint` constellation hashes) |
 | 15 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](15-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
-| 16 | [Document type library, protocol grammars and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) | Planned | Declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`/`SDP`, `AMQP`, `MQTT`, `NTP`) and compound container/layout formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, plus transport-decoupled gateway/connector exchange capture (`STATION_EXCHANGE_V1` $\to$ `DocumentPartition`) and causal lineage |
-| 17 | [Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries](17-geospatial-and-spatio-temporal-computing.md) | Planned | Orthogonal $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ 2D/3D types (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `COCHAIN_FIELD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact `orient2d`/`3d` predicates & snap-rounding grids, 16B inline 2D/3D MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker`/`.raster_morton`/`.float_zfp` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face` + $C^0..C^3$ cochain fields), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring coverings (`.s2_roaring`, `.octree_roaring`), instanced `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem volume/flux aggregates and spatial/3D clash joins |
-| 18 | [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md) | Planned | Document/graph/2D-spatial/3D-coboundary projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector/2D-3D-spatial hybrid search composition, foreign formats (`Parquet`/`GeoParquet`, `FlatGeobuf`, `COG`, `glTF`/`GLB`, `OpenUSD`, `KTX2`, `OpenVDB`, `IFC`/`STEP`, `3D Tiles`, `LAS`/`LAZ`/`COPC`, `CGNS`/`VTU`/`OpenFOAM`/`Zarr`/`NetCDF`/`GRIB2`, `CSV`/`JSONL`, mainframe `FB`/`VB`), streaming CDC ingress and typed COPY/import/export |
-| 19 | [Interactive 3D worlds, game asset pipelines and simulation streaming](19-game-asset-pipelines-and-simulation-streaming.md) | Planned | Orthogonal $\tau \perp \kappa_{\text{asset}} \perp \epsilon$ game/simulation assets (`TEXTURE2D`/`3D`/`CUBEMAP`, `VOLUME_GRID`, `SPLAT3D`, `SKELETON3D`, `ANIMATION_CLIP`, `MATERIAL`, `SHADER_VARIANT`, `AUDIO_CUE`, `NAVMESH`), virtualized `.mesh_cluster_dag` micropolygon DAGs, `.tex_mip_morton` `BCn`/`ASTC`/`KTX2` virtual texture pyramids, `.vdb_hierarchy` (including staggered MAC/AMR/LBM grids) & `.splat_hilbert` codecs, `.skin_weights` & `.anim_acl` pose evaluation, WAL-activated Derived Data Cache (DDC) cooking, incremental DBSP `NavMesh` & `HLOD` maintenance, Eulerian/Lagrangian fluid dynamics (`ST_Gradient`/`ST_Divergence`/`ST_Curl`/`ST_QCriterion`/`ST_IsoSurface`/`ST_Streamlines`, $2h$ Hilbert SPH sweeps, DBSP control-volume conservation & Lift/Drag integrals), and ECS archetype / frustum / progressive `.float_zfp` AoI streaming under fog-of-war Spatial RLS |
+| 16 | [Document type library, protocol grammars and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) | In progress ([implementation plan](16-document-profiles-and-gateway-exchange-lifecycle.md#implementation-plan--2026-11-01)) | Declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`/`SDP`, `AMQP`, `MQTT`, `NTP`) and compound container/layout formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, plus transport-decoupled gateway/connector exchange capture (`STATION_EXCHANGE_V1` $\to$ `DocumentPartition`) and causal lineage |
+| 17 | [Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries](17-geospatial-and-spatio-temporal-computing.md) | In Progress ([implementation plan](17-geospatial-and-spatio-temporal-computing.md#implementation-plan--2026-11-01)) | Orthogonal $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ 2D/3D types (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `SPARSE_MATRIX`, `COCHAIN_FIELD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact `orient2d`/`3d` predicates & snap-rounding grids, 16B inline 2D/3D MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker`/`.raster_morton`/`.float_zfp`/`.sparse_bcsr` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face` + $C^0..C^3$ cochain fields), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring coverings (`.s2_roaring`, `.octree_roaring`), instanced `.scene_dag`, 2.5D VLSI `.layout_manhattan`, `.pcloud_hilbert` (including 3D protein/atomic structures & spatial transcriptomics) and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, `DRC`/`LVS`, Discrete Divergence Theorem volume/flux aggregates and spatial/3D clash joins |
+| 18 | [Multi-model and multi-format foreign relations](18-multi-model-and-foreign-relations.md) | Planned | Document/graph/2D-spatial/3D-coboundary projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector/2D-3D-spatial hybrid search composition, foreign formats (`Parquet`/`GeoParquet`, `FlatGeobuf`, `COG`, `glTF`/`GLB`, `OpenUSD`, `KTX2`, `OpenVDB`, `IFC`/`STEP`, `3D Tiles`, `LAS`/`LAZ`/`COPC`, `CGNS`/`VTU`/`OpenFOAM`/`Zarr`/`NetCDF`/`GRIB2`, `FASTQ`/`BAM`/`CRAM`/`VCF`/`PDB`/`mmCIF`/`SMILES`/`.h5ad`, `DICOM`/`NIfTI`/`OME-Zarr`, `OASIS`/`GDSII`/`LEF`/`DEF`/`SPICE`, `FLAC`/`WAV`/`MiniSEED`/`EDF+`/`ITCH`, `CSV`/`JSONL`, mainframe `FB`/`VB`), streaming CDC ingress and typed COPY/import/export |
+| 19 | [Interactive 3D worlds, game asset pipelines and simulation streaming](19-game-asset-pipelines-and-simulation-streaming.md) | Planned | Orthogonal $\tau \perp \kappa_{\text{asset}} \perp \epsilon$ game/simulation/signal assets (`TEXTURE2D`/`3D`/`CUBEMAP`, `VOLUME_GRID`, `SPLAT3D`, `SKELETON3D`, `ANIMATION_CLIP`, `MATERIAL`, `SHADER_VARIANT`, `WAVEFORM`, `AUDIO_CUE`, `NAVMESH`), virtualized `.mesh_cluster_dag` micropolygon DAGs, `.tex_mip_morton` `BCn`/`ASTC`/`KTX2` virtual texture pyramids, `.vdb_hierarchy` (staggered MAC/AMR/LBM grids) & `.splat_hilbert` codecs, `.skin_weights` & `.anim_acl` pose evaluation, `.wave_lpc_pyramid` audio/waveform envelopes + SIMD spectral/convolution DSP (`DSP_STFT`/`DSP_ConvolveIR`) & qualified gated `LUFS` loudness, WAL-activated Derived Data Cache (DDC) cooking, incremental DBSP `NavMesh` & `HLOD` maintenance, Eulerian/Lagrangian fluid & molecular dynamics (`ST_Gradient`/`ST_Divergence`/`ST_Curl`/`ST_QCriterion`/`ST_IsoSurface`/`ST_Streamlines`, $2h$ Hilbert SPH/MD sweeps, DBSP control-volume conservation & Lift/Drag integrals), and ECS archetype / frustum / progressive `.float_zfp` AoI streaming under fog-of-war Spatial RLS |
 | 20 | [Branches, merges and restore](20-branches-merges-and-restore.md) | In Progress ([immutable Table increment](20-branches-merges-and-restore.md#local-table-branch-increment); broader plan remains open) | Durable multi-commit branches, 2-way/3-way `DIFF` & `DIFF_SCHEMA` over `.tseg` segment/spatial skipping and 5-state `IS CONFLICT` cells, Git-like remote $\leftrightarrow$ local incremental mirroring (`REMOTE`/`FETCH`/`MIRROR`), logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 21 | [Service and SDK coverage](21-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 22 | [Formal semantics and implementation correspondence](22-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models (including `T8` DDL evolution and 5-state dataflow lifecycle) and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
@@ -134,14 +141,25 @@ combines that evidence at one revision.
 | 33 | [Recorded outbound MCP and application guidance](33-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
 | 34 | [Language-native programming model and mixed application composition](34-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
 
-### Phase VI: Qualification and release
+### Phase VI: Scientific, media and evidence workloads
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 35 | [SQL grammar, standards comparison and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake/Delta, Dolt, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), 2-way/3-way `DIFF` & `DIFF_SCHEMA`, standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
-| 36 | [Qualification and complete benchmarks](36-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 37 | [Release distribution](37-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
-| 38 | [Declarative language, structural context and corpus-native synthesis research](38-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
+| 35 | [Scientific arrays, measurements and reproducible numerical computation](35-scientific-arrays-and-measurements.md) | Planned | Named-axis dense/sparse arrays, units/clocks/calibration, quality and numerical fidelity, dependency-aware kernels and attributable earth-observation/climate/scientific results |
+| 36 | [Video and synchronized multimodal timelines](36-video-and-multimodal-timelines.md) | Planned | Versioned media tracks and alignment, bounded indexed decoding, source-bound annotations and authorized temporal inspection/export |
+| 37 | [ML/AI features, model artifacts and reproducible experiments](37-ml-ai-and-experiment-provenance.md) | Planned | Knowledge-time-correct features, model/transform/run identities, attributable embeddings and predictions, bounded recovery and exact-basis evaluation/publication |
+| 38 | [Robotics, industrial sensing and calibrated replay](38-robotics-and-sensor-replay.md) | Planned | Clock/frame/calibration-aware sensor capture, MCAP/ROS profiles, bounded synchronized replay and candidate evaluation with physical actuation separately authorized |
+| 39 | [Software, build and deployment evidence](39-software-build-and-deployment-evidence.md) | Planned | Exact source/dependency/build/test/artifact/deployment evidence, bounded impact queries and candidate checks, with a scoped Spoke Platform integration handoff |
+| 40 | [Constrained planning and attributable optimization](40-constrained-planning-and-optimization.md) | Planned | Frozen problems, feasible/optimal/infeasible/unknown outcomes, verified candidates and bounds, bounded solver recovery and reviewed plan publication |
+
+### Phase VII: Qualification and release
+
+| Order | Milestone | Status | Intended outcome |
+| --- | --- | --- | --- |
+| 41 | [SQL grammar, standards comparison and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake/Delta, Dolt, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), 2-way/3-way `DIFF` & `DIFF_SCHEMA`, standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
+| 42 | [Qualification and complete benchmarks](42-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
+| 43 | [Release distribution](43-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 44 | [Declarative language, structural context and corpus-native synthesis research](44-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -186,15 +204,56 @@ evidence rather than assuming every preceding number is a technical dependency.
 | IV | Reimplement the Board workbench | 30 | Deliver the installed data-first interface, bounded profiles/workbooks/spatial-map/lineage views and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
 | V | Extend agent-host interfaces and activation | 31–33 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
 | V | Prove complete application composition | 34 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
-| VI | Harmonize SQL grammar, standards and dialect ergonomics | 35 | Audit the complete SQL grammar against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), qualify compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas, numeric underscores) to canonical `FQP1`/`FDM1` plan bytes, standardize 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and verify actionable foreign-dialect diagnostics before freezing 1.0 qualification |
-| VI | Qualify and distribute one revision | 36–37 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
-| VI | Explore declarative language, structural context and synthesis | 38 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
+| VI | Establish scientific measurement and computation contracts | 35 | Qualify named axes, units, clocks, calibration, quality, numerical error and sparse/dense tiled execution; prove conservative pruning and incremental/finite agreement on earth-observation and calibrated-sensor journeys |
+| VI | Deliver media, ML/AI and robotics lifecycles | 36–38 | Qualify indexed video/timeline disclosure, exact model/input/evaluation attribution and synchronized sensor replay; exercise gaps, corrections, bounded work, restart and revocation without replaying physical effects |
+| VI | Connect evidence to reviewed plans | 39–40 | Qualify source-to-deployment evidence and Platform exchange boundaries, then constrained candidate outcomes/bounds, original-operation recovery and exact reviewed publication separately from external execution |
+| VII | Harmonize SQL grammar, standards and dialect ergonomics | 41 | Audit the complete SQL grammar against ISO SQL:2023, ISO SQL/MM Spatial and industry dialects (PostgreSQL/PostGIS, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), qualify compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas, numeric underscores) to canonical `FQP1`/`FDM1` plan bytes, standardize 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and verify actionable foreign-dialect diagnostics before freezing 1.0 qualification |
+| VII | Qualify and distribute one revision | 42–43 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| VII | Explore declarative language, structural context and synthesis | 44 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
 this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
+
+## Scientific, media and evidence workload expansion — 2026-11-01
+
+Add six independently reviewable milestones after the common application
+foundation and before combined qualification. Each is Planned and defines its
+own contract, caller journey, resource bounds and recovery/disclosure evidence.
+Earlier delivered scope and unfinished gates are preserved. The existing audio,
+biology, EDA, medical-imaging and simulation plans remain with M14/M17–M19;
+new shared contracts generalize their interpretation and computation boundaries.
+
+| Shared concern | Owning extension | Consumer obligations |
+| --- | --- | --- |
+| Measurement interpretation and numerical fidelity | [M35](35-scientific-arrays-and-measurements.md) | Preserve units, named axes, clock/frame/calibration revisions, quality separate from five-state interpretation, and conservative error bounds |
+| Computation dependencies and derivation | [M12](12-sql-and-dataflows.md) lifecycle; [M35](35-scientific-arrays-and-measurements.md) numerical/window/halo/frontier profiles | Bind exact source basis, executable/model/parameters, retained artifacts and complete output; qualify incremental updates or bounded recomputation |
+| Synchronized media | [M36](36-video-and-multimodal-timelines.md) | Preserve frame/sample/byte coordinates, decode dependencies, uncertainty and current authorization across metadata, previews and exports |
+| Model and experiment attribution | [M37](37-ml-ai-and-experiment-provenance.md) | Prevent future-knowledge leakage, distinguish predicted from observed evidence, bind model/transform/evaluation versions and keep application policy above Transit |
+| Sensor episodes and replay | [M38](38-robotics-and-sensor-replay.md) | Preserve gaps, clock/calibration changes and replay progress; require separate authority and qualification for physical actions |
+| Software evidence and Platform exchange | [M39](39-software-build-and-deployment-evidence.md) | Bind exact source/build/test/artifact/deployment identities, preserve incomplete evidence and leave hosting/product policy with Platform |
+| Constrained planning | [M40](40-constrained-planning-and-optimization.md) | Distinguish feasible, optimal, infeasible and unknown search, retain bounds/tolerances and review exact candidates separately from effects |
+
+The first cross-domain demonstrator is calibrated sensor replay: capture raw
+samples and a camera interval, bind calibration, derive features, inspect an
+event, revise calibration on a branch and identify changed results. Reopen the
+original basis after restart, revoke access during disclosure and prove replay
+sends no device command. M35 supplies the numerical slice; M36 and M38 qualify
+the complete synchronized journey. Software evidence can progress independently
+of video/robotics kernels once its explicit prerequisites are qualified.
+
+Phase VI does not require every earlier numbered milestone as an implicit
+technical dependency. Owners can settle contracts and deliver independent slices
+as their actual prerequisites become executable. Existing minimum authorization,
+bounded work and recovery requirements remain gates in every phase.
+
+This insertion moves the former M35 grammar, M36 qualification, M37 release and
+M38 synthesis-research owners to M41, M42, M43 and M44 respectively. Phase VII
+retains their statuses and obligations. The post-release synthesis research is
+separate from M37's concrete model/feature/experiment lifecycle. No planning edit
+establishes implemented support, new benchmark results or Platform readiness.
 
 ## Interactive 3D worlds, game asset pipelines and simulation streaming review — 2026-11-01
 
@@ -214,7 +273,7 @@ frame-budgeted Area-of-Interest (AoI) streaming. Inserting
 [Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md) in Phase II
 (after [Milestone 18](18-multi-model-and-foreign-relations.md) and before
 [Milestone 20](20-branches-merges-and-restore.md)) shifts the sequence to
-`1–38` and establishes five architectural commitments:
+`1–38` and establishes six architectural commitments:
 
 1. **Orthogonal $\tau \perp \kappa_{\text{asset}} \perp \epsilon$ game and simulation asset codecs (`.mesh_cluster_dag`, `.tex_mip_morton`, `.vdb_hierarchy`, `.splat_hilbert`, `.skin_weights`, `.anim_acl`):**
    Separate logical asset types (`MESH3D`, `TEXTURE2D`/`3D`/`CUBEMAP`,
@@ -279,6 +338,35 @@ frame-budgeted Area-of-Interest (AoI) streaming. Inserting
    control-volume conservation residuals ($(+\Phi_f) + (-\Phi_f) = 0$) and wall
    Lift/Drag force integrals, and 5-state `IS TYPE_ERROR` CFL/divergence blowup
    diagnostics in [Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md).
+6. **Computational biology, genomics, structural proteomics, cheminformatics, audio/acoustic wave DSP, medical imaging and 2.5D EDA/VLSI chip layouts ([Milestone 12](12-sql-and-dataflows.md), [Milestone 14](14-vectorized-strings-and-search.md), [Milestone 17](17-geospatial-and-spatio-temporal-computing.md), [Milestone 18](18-multi-model-and-foreign-relations.md), [Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md)):**
+   Extend the same orthogonal $\tau \perp \kappa \perp \epsilon$ and DBSP Z-set
+   foundations across scientific and signal workloads:
+   - *Genomics, Proteomics, Cheminformatics & Single-Cell Atlases:* add `BIO_SEQ`
+     (`.seq_2bit` and reference-compressed `.cram_ref_delta` bound to
+     $\kappa_{\text{genome}}$), succinct FM-Index / Run-Length BWT (`.fm_bwt`) and
+     $(w, k)$-minimizer Roaring indexes with SIMD Wavefront Alignment (`WFA`),
+     biobank cohort Positional BWT (`.geno_pbwt` mapping `./.` to 5-state
+     `IS MISSING`), `MOLECULE` (`.mol_graph` + 2048-bit Morgan/ECFP substructure
+     bitvectors), 3D atomic/MD conformations (`.pcloud_hilbert` at $10^{-3}\,\text{Å}$ +
+     `.octree_roaring` Solvent-Accessible Surface Area `SASA`), and `.sparse_bcsr`
+     single-cell matrices (`FASTQ`, `BAM`/`CRAM`, `VCF`/`BCF`, `BED`/`GFF3`,
+     `PDB`/`mmCIF`, `SMILES`/`SDF`, `.h5ad`).
+   - *Audio, 3D Room/Wave Acoustics & High-Rate Signal DSP:* add `WAVEFORM` with
+     `.wave_lpc_pyramid` (lossless `LPC` + Rice residuals or `.float_zfp` blocks
+     with inline multi-resolution `(min_peak, max_peak, rms_energy, zero_crossing_rate, clipping_bitmap)`
+     zone maps for $O(1)$ zero-decode timeline rendering and silence skipping),
+     `.audio_fingerprint` spectral constellation hashes, SIMD `DSP_FFT` /
+     `DSP_STFT` / `DSP_MelSpectrogram` / `DSP_ConvolveIR`, 3D `.topo_face` +
+     `MAC_GRID` room acoustics, and incremental DBSP `ITU-R BS.1770` `LUFS`
+     loudness metering.
+   - *2.5D VLSI/EDA Chip Layouts, Medical Imaging & Order-Book Z-Sets:* add
+     `.layout_manhattan` ($D_4$ dihedral symmetries and `(nx, ny, dx, dy)` cell
+     arrays over `.scene_dag` + `.topo_arc` for incremental DBSP `DRC`/`LVS` on
+     `OASIS`/`GDSII`/`LEF`/`DEF`/`SPICE`), `DICOM`/`NIfTI`/`OME-Zarr` medical
+     volume projections under [Milestone 27](27-control-and-policy-plane.md)
+     HIPAA/GDPR security-barrier RLS and dynamic PHI masking, and linear DBSP
+     Z-set Limit-Order-Book (`LOB`) depth maintenance in
+     [Milestone 12](12-sql-and-dataflows.md).
 
 ## Geospatial computing, 3D volumetric models, logical topological compression and companion data-type formalization review — 2026-10-29
 
@@ -398,7 +486,7 @@ sequence to `1–37` and establishes four architectural commitments:
    read-only 2D map, progressive-LOD 3D scene/mesh/point-cloud and `DIFF`/clash
    layers in [Milestone 30](30-board-reimplementation.md); and audit ISO SQL/MM
    Spatial (`ST_*` / `ST_3D*`) in
-   [Milestone 35](35-sql-grammar-and-dialect-ergonomics.md).
+   [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md).
 
 ## SQL grammar, standards comparison, dialect ergonomics and dataflow lifecycle review — 2026-10-29
 
@@ -434,7 +522,7 @@ establishes four architectural refinements:
    Unlike ISO SQL `EXCEPT [ALL]` (one-way, primary-key blind and schema-rigid) or
    table-doubling diff functions (`from_<col>` / `to_<col>`),
    [Milestone 20](20-branches-merges-and-restore.md) and
-   [Milestone 35](35-sql-grammar-and-dialect-ergonomics.md) define key-aligned
+   [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md) define key-aligned
    two-way and three-way `DIFF(object, ...)` and `DIFF_SCHEMA(...)` table-valued
    functions that skip shared `.tseg` segments and `.tdel` bitmaps in $O(1)$
    ([`A4: BranchMergeAlgebra.lean`](22-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)),
@@ -453,11 +541,11 @@ establishes four architectural refinements:
    transferring only missing `.tseg`/`.tdel` deltas, testing schema migrations
    and fenced dataflows on a local branch, and pushing the delta segments and
    candidate manifest back to the remote as a reviewed proposal.
-4. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 35](35-sql-grammar-and-dialect-ergonomics.md)):**
-   Inserting [Milestone 35](35-sql-grammar-and-dialect-ergonomics.md) at the
-   start of Phase VI (after [Milestone 34](34-programming-model.md) and before
-   [Milestone 36](36-qualification-and-benchmarks.md) and
-   [Milestone 37](37-releases.md)) shifts the sequence to `1–36`. It audits the
+4. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)):**
+   The grammar owner is now [Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)
+   at the start of Phase VII, after the scientific/media/evidence workload
+   phase and before [qualification](42-qualification-and-benchmarks.md) and
+   [release](43-releases.md). It audits the
    complete SQL grammar across Tables, KV, Documents, Streams, Queues, Dataflows,
    Property Graphs, Foreign Tables and Branches against **ISO/IEC 9075
    SQL:2023**, **PostgreSQL 17**, **DuckDB**, **Snowflake / Delta Lake**,
@@ -723,7 +811,7 @@ subsequent milestones to `13–30`:
      late materialization, while handing off speculative research into
      declarative spans, multi-scale `NEAR` maps, context-conditioned continuation
      and branch-verified agency to
-     [Milestone 38](38-declarative-language-context-and-synthesis.md).
+     [Milestone 44](44-declarative-language-context-and-synthesis.md).
 3. **Data-centric pipeline fusion, CedarDB join structures, Flying-Start Adaptive Morsel Tier-Up and AOT query compilation ([Milestone 12](12-sql-and-dataflows.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 15](15-data-centric-compilation-and-specialization.md)):**
    Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011),
    [Umbra](https://umbra-db.com/) (Neumann & Freitag, CIDR 2020),
@@ -1226,7 +1314,7 @@ requirements; no original tracker closes merely because its work was split.
    `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](36-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](42-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -1256,7 +1344,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `38-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `44-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 Keep phase membership contiguous and exhaustive: each milestone appears exactly

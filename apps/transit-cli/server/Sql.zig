@@ -13,6 +13,7 @@ const Files = @import("Files.zig");
 const Deployment = @import("transit_sql_host").Deployment;
 const Provider = @import("Provider.zig");
 const Self = @This();
+const Startup = @import("Startup.zig");
 const telemetry = q.wire.observability.telemetry;
 installation: *Installation,
 diagnostics: *telemetry.Runtime,
@@ -80,19 +81,30 @@ fn prepare(self: *Self) !void {
     self.local = null;
     _ = self.setup_arena.reset(.free_all);
     const allocator = self.setup_arena.allocator();
-    try E.administrator(installation, allocator, &self.meta);
+    try Startup.measure(installation.startup, .sql_administrator, E.administrator, .{ installation, allocator, &self.meta });
     if (installation.config.sql.native.local) {
         self.local = try Discovery.locate(allocator, installation.init.io, installation.init.environ_map.get("XDG_RUNTIME_DIR"), installation.config.installation, true);
-        self.provisioning = try E.createAccount(installation, allocator, Settings.local_account);
-        try E.provision(installation, allocator, &self.provisioning.?);
+        self.provisioning = try Startup.measure(installation.startup, .sql_account_prepare, E.createAccount, .{ installation, allocator, Settings.local_account });
+        try Startup.measure(installation.startup, .sql_account_provision, E.provision, .{ installation, allocator, &self.provisioning.? });
         self.provisioning = null;
     }
     if (installation.config.sql.listening()) for (installation.config.sql.accounts) |desired| {
         if (!desired.enabled) continue;
-        self.provisioning = try E.createAccount(installation, allocator, desired);
-        try E.provision(installation, allocator, &self.provisioning.?);
+        self.provisioning = try Startup.measure(installation.startup, .sql_account_prepare, E.createAccount, .{ installation, allocator, desired });
+        try Startup.measure(installation.startup, .sql_account_provision, E.provision, .{ installation, allocator, &self.provisioning.? });
         self.provisioning = null;
     };
+    try Startup.measure(installation.startup, .sql_account_discovery, Self.discoverAccounts, .{ self, allocator });
+    if (installation.config.sql.wireListening() and installation.config.sql.tls.mode != .disabled) {
+        self.trust = Startup.measure(installation.startup, .sql_trust, Trust.prepare, .{ installation, allocator, &self.meta }) catch |err| blk: {
+            if (installation.failed) return err;
+            self.trust_error = @errorName(err);
+            break :blk null;
+        };
+    }
+}
+fn discoverAccounts(self: *Self, allocator: std.mem.Allocator) !void {
+    const installation = self.installation;
     var directory = try std.Io.Dir.cwd().openDir(installation.init.io, try E.path(installation, allocator, "accounts"), .{ .iterate = true });
     defer directory.close(installation.init.io);
     var iterator = directory.iterate();
@@ -132,13 +144,6 @@ fn prepare(self: *Self) !void {
         }
         if (self.entries.items.len == g.Limits.max_accounts) return error.GatewayConnectionCapacity;
         try self.entries.append(self.allocator, .{ .record = try E.loadAccount(installation, allocator, record.name), .desired = desired });
-    }
-    if (installation.config.sql.wireListening() and installation.config.sql.tls.mode != .disabled) {
-        self.trust = Trust.prepare(installation, allocator, &self.meta) catch |err| blk: {
-            if (installation.failed) return err;
-            self.trust_error = @errorName(err);
-            break :blk null;
-        };
     }
 }
 fn transportReady(self: *const Self) bool {
@@ -224,7 +229,7 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     if (!self.pending_start) {
         var accounts: std.ArrayList(g.Configuration.Account) = .empty;
         for (self.entries.items) |*entry| if (entry.record.initialized) {
-            try self.activate(allocator, &entry.record);
+            try Startup.measure(installation.startup, .sql_activation, Self.activate, .{ self, allocator, &entry.record });
             try accounts.append(allocator, try self.runtimeAccount(allocator, entry.*));
         };
         if (accounts.items.len == 0) return;
@@ -315,19 +320,19 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
         self.setup_complete = true;
     }
     for (self.entries.items) |*entry| try entry.record.journal.flush(self.installation, try E.accountPath(self.installation, allocator, entry.record.name, "account.json"), &entry.record);
-    try E.catalogAccess(self.installation, allocator);
+    try Startup.measure(self.installation.startup, .sql_catalog_access, E.catalogAccess, .{ self.installation, allocator });
     for (self.entries.items, 0..) |*entry, index| {
         if (entry.desired) |desired_config| {
-            entry.state = if (desired_config.enabled) try E.enrollment(self.installation, allocator, &entry.record, desired_config) else .unavailable;
+            entry.state = if (desired_config.enabled) try Startup.measure(self.installation.startup, .sql_enrollment, E.enrollment, .{ self.installation, allocator, &entry.record, desired_config }) else .unavailable;
         } else entry.state = .unavailable;
-        if (!entry.record.initialized and entry.state == .bound) try self.beginInitialization(index, allocator);
+        if (!entry.record.initialized and entry.state == .bound) try Startup.measure(self.installation.startup, .sql_initialization, Self.beginInitialization, .{ self, index, allocator });
     }
     var initialized: usize = 0;
     for (self.entries.items) |entry| if (entry.record.initialized) {
         initialized += 1;
     };
     if (self.entries.items.len == 0) self.status = if (self.installation.config.sql.listening()) .awaiting_authorization else .recovery;
-    if (initialized != self.service_count) try self.startService(allocator);
+    if (initialized != self.service_count) try Startup.measure(self.installation.startup, .sql_host_start, Self.startService, .{ self, allocator });
     if (self.service_fingerprint) |fingerprint| {
         const observed = try self.hostCall(allocator, .status, self.installation.config.sql.request_timeout_ms);
         defer observed.deinit();

@@ -75,7 +75,26 @@ native requests. Relational reads additionally bound resident/spill bytes to
 and lease rather than opening a new cut. These per-query budgets are subordinate
 to the session allocator and the native snapshot owner's lease/resource quotas.
 
-## In-process command continuations
+## In-process connection and command continuations
+
+PostgreSQL/MySQL `StartupSession` engines use pure `Wire.Startup` events for
+startup input, TLS negotiation, credential selection, password exchanges,
+cancellation and final admission. The host owns credential files, randomness,
+cryptography, TLS and native authority. Upgrade completion must precede encrypted
+startup; failure closes without plaintext fallback. Credential comparison,
+native session admission and command buffer reservation precede the first login
+success. Refusal cannot publish AuthenticationOk or a MySQL OK packet.
+
+Input and output slices belong to the engine until their final acknowledged
+fragment; each fragment advances the generation/sequence token. Host challenges
+remain borrowed through the next poll; proofs are copied. EOF, cancelled I/O or
+an attempted output failure closes without a protocol retry. Abort fences late
+completions; the host joins outstanding effects before erasing credential/input
+storage and freeing buffers. Each engine owns an 8192-byte payload buffer plus
+an eight-byte PostgreSQL or four-byte MySQL header. Output reserves 2048 bytes
+at initialization and needs no further allocation
+within the selected startup limits. These are codec bounds, not TLS or native
+authentication allocation claims.
 
 Authenticated PostgreSQL/MySQL `Session` engines are pure state machines over
 `transit-sql-protocol.Wire.Session` events. The host owns execution, current
@@ -102,7 +121,7 @@ re-execute SQL or require the original execution attachment to remain open.
 Abort suppresses further execution and output without rolling back accepted
 work. The host joins outstanding borrowers, closes reads and destroys prepared
 objects before releasing codec memory. The installed blocking driver retains
-its existing worker, deadline and authentication orchestration. These in-process
+its existing worker and deadline orchestration. These in-process
 APIs do not alter upstream wire bytes or the durable current-v1 definition.
 
 ## Transport and login policy

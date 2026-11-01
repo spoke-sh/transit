@@ -2678,6 +2678,32 @@
       "limits": "One Table input and predeclared Table output. Process-death schedules are not power-loss evidence. No ordered-change handoff, incremental algebra, historical output retention or abandoned-record collection claim.",
       "qualification": "Executable typed and installed SQL scenarios; see their runner records for completion and source identity.",
       "model": null
+    },
+    {
+      "id": "DOCUMENT-PROFILE-01",
+      "claim": "Offline interpretation and complete-part observation preserve descriptor identity, bounded workspace, raw provenance and late-failure uncertainty",
+      "owner": "packages/zig/transit-document-profiles/README.md",
+      "implementation": [
+        "packages/zig/transit-protocol/src/DocumentProfile.zig",
+        "packages/zig/transit-document-profiles/src/Json.zig",
+        "packages/zig/transit-document-profiles/src/Xml.zig",
+        "packages/zig/transit-document-profiles/src/Reader.zig"
+      ],
+      "profile": "Current-v1 offline JSON and restricted UTF-8 XML scalar parsers",
+      "tasks": [
+        "check::contracts",
+        "check::native",
+        "test::packages-build"
+      ],
+      "scenarios": [
+        "Independent descriptor commitment and full-width span fixture with definition rejection",
+        "Independent Python JSON/Expat values, order, chunk schedules, raw spans and malformed byte mutations",
+        "Sticky depth/token/input/output/node/attribute/work refusal and fixed workspace over 100000 fields/elements",
+        "Same-length valid replacement hash failure, truncated/overlong parts and redacted/prefix coverage refusal"
+      ],
+      "limits": "Scalar reference interpretation only; XML has ASCII names, no namespaces or DTD/custom/external entities. Caller-owned non-overlapping buffers and declared limits. Events are provisional until complete. No Document publication, storage shredding, schema validation, SIMD qualification, gateway integration, dispatch or remote-outcome authority.",
+      "qualification": "Runnable component and independent oracle assertions. Registration alone is not a pass or installed-runtime evidence.",
+      "model": null
     }
   ]
 }

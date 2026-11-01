@@ -95,7 +95,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 37](37-releases.md).
+[milestone 43](43-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -107,7 +107,7 @@ than converting every absent historical value to NULL. Key, type, codec,
 collation and constraint changes that require validation/reindexing retain an
 explicit bounded existing path or explicit refusal. General online rewrites,
 new constraints and arbitrary historical SQL remain in milestones
-[8](10-standards-and-catalogs.md) and [9](11-indexing-and-access-paths.md).
+[10](10-standards-and-catalogs.md) and [11](11-indexing-and-access-paths.md).
 
 **D4 — Compose maintenance; do not widen logical retention.** Automatic flush,
 archive/checkpoint, bounded compaction and safe collection operate within
@@ -116,9 +116,9 @@ default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
 logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
-[milestone 10](12-sql-and-dataflows.md), distributed providers/writers in
-[18](23-storage-providers-and-concurrency.md), and general cache/index/group-commit
-optimization in [11](13-data-structures-and-performance.md).
+[milestone 12](12-sql-and-dataflows.md), distributed providers/writers in
+[23](23-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [13](13-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
 the result boundary. Fix storage/read ownership, current-policy disclosure and
@@ -1502,7 +1502,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 18](23-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 23](23-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the

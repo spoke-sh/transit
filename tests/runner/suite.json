@@ -50,6 +50,7 @@
     "storage-query": [
       "test::arrow",
       "test::fuze-types",
+      "test::spatial",
       "test::fuze-sources",
       "test::file-query",
       "test::logical-arrow",
@@ -337,7 +338,8 @@
       "bindings::release-build",
       "bindings::release-test",
       "bindings::release-zig",
-      "bindings::feedback"
+      "bindings::feedback",
+      "test::sdk-performance"
     ]
   },
   "nested_tasks": {

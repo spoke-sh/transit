@@ -1284,6 +1284,27 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/ArtifactHash.zig": {
+      "errors": {
+        "ArtifactHashFailed": 3,
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "final()": "<inferred>",
+        "init()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "apps/transit-cli/server/AuthorizationProfile.zig": {
       "errors": {},
       "outcomes": {},
@@ -1358,13 +1379,14 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 45,
         "catch": 18
       },
       "imports": [
         "../Diagnostic.zig",
         "../RuntimeRole.zig",
         "../Settings.zig",
+        "ArtifactHash.zig",
         "Files.zig",
         "Hosts.zig",
         "Logging.zig",
@@ -1775,6 +1797,7 @@
         "beginInitialization()": "<inferred>",
         "configuration()": "<inferred>",
         "create()": "<inferred>",
+        "discoverAccounts()": "<inferred>",
         "hostCall()": "<inferred>",
         "prepare()": "<inferred>",
         "recover()": "<inferred>",
@@ -1788,7 +1811,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 89,
         "catch": 7
       },
       "imports": [
@@ -1801,6 +1824,7 @@
         "SqlJournal.zig",
         "SqlSettings.zig",
         "SqlTrust.zig",
+        "Startup.zig",
         "std",
         "transit_query",
         "transit_sql_client",
@@ -1957,9 +1981,25 @@
           "artifact_validation",
           "journal_checkpoint",
           "native_query",
+          "native_capabilities",
           "native_submit",
+          "authorization_query",
+          "authorization_begin",
+          "authorization_advance",
+          "authorization_publish",
+          "authorization_abandon",
           "worker_spawn",
-          "worker_registration"
+          "worker_registration",
+          "sql_administrator",
+          "sql_account_prepare",
+          "sql_account_provision",
+          "sql_account_discovery",
+          "sql_catalog_access",
+          "sql_enrollment",
+          "sql_initialization",
+          "sql_activation",
+          "sql_host_start",
+          "sql_trust"
         ]
       },
       "error_sets": {},
@@ -10397,6 +10437,289 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Event.zig": {
+      "errors": {},
+      "outcomes": {
+        "Event.kind": [
+          "object_start",
+          "object_end",
+          "array_start",
+          "array_end",
+          "key",
+          "string",
+          "number",
+          "boolean",
+          "null_value",
+          "element_start",
+          "element_end",
+          "attribute",
+          "text",
+          "comment",
+          "processing_instruction"
+        ],
+        "Step.result": [
+          "event",
+          "need_input",
+          "yield",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Profile.zig"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Json.zig": {
+      "errors": {
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 2,
+        "DocumentWorkspaceTooSmall": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidJsonEscape": 1,
+        "InvalidJsonLiteral": 1,
+        "InvalidJsonNumber": 10,
+        "InvalidJsonString": 1,
+        "InvalidJsonSyntax": 4,
+        "InvalidJsonUnicode": 5,
+        "TrailingDocumentBytes": 2
+      },
+      "outcomes": {
+        "Escape": [
+          "none",
+          "escaped",
+          "hex",
+          "low_slash",
+          "low_u"
+        ],
+        "Frame.kind": [
+          "object",
+          "array"
+        ],
+        "Frame.state": [
+          "key_or_end",
+          "key",
+          "colon",
+          "value_or_end",
+          "value",
+          "comma_or_end"
+        ],
+        "Number": [
+          "minus",
+          "zero",
+          "integer",
+          "dot",
+          "fraction",
+          "exponent_mark",
+          "exponent_sign",
+          "exponent"
+        ],
+        "Token": [
+          "none",
+          "string",
+          "number",
+          "literal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "afterValue()": "<inferred>",
+        "append()": "<inferred>",
+        "byte()": "<inferred>",
+        "finishNumber()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "numberByte()": "<inferred>",
+        "stringByte()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 2
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Profile.zig": {
+      "errors": {
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentWorkLimitExceeded": 1,
+        "UnsupportedDocumentProfile": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Budget.chargeWork()": "<inferred>",
+        "Budget.consume()": "<inferred>",
+        "Budget.node()": "<inferred>",
+        "Budget.output()": "<inferred>",
+        "descriptor()": "<inferred>",
+        "require()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Reader.zig": {
+      "errors": {
+        "DocumentInputLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentProfilePartConflict": 4,
+        "DocumentReaderFailed": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1
+      },
+      "outcomes": {
+        "Parser": [
+          "json",
+          "xml"
+        ],
+        "Workspace": [
+          "json",
+          "xml"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "verifiedPart()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 1
+      },
+      "imports": [
+        "Event.zig",
+        "Json.zig",
+        "Profile.zig",
+        "Xml.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Utf8.zig": {
+      "errors": {
+        "InvalidDocumentUtf8": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "accept()": "<inferred>",
+        "finish()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/Xml.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 2,
+        "DuplicateXmlAttribute": 1,
+        "IncompleteDocumentFrame": 3,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidXmlAttribute": 5,
+        "InvalidXmlCharacter": 3,
+        "InvalidXmlComment": 1,
+        "InvalidXmlDeclaration": 5,
+        "InvalidXmlEntity": 5,
+        "InvalidXmlName": 1,
+        "InvalidXmlSyntax": 5,
+        "TrailingDocumentBytes": 1,
+        "UnsupportedXmlDeclaration": 2,
+        "UnsupportedXmlEncoding": 1,
+        "UnsupportedXmlEntity": 1,
+        "UnsupportedXmlNamespace": 2,
+        "XmlElementMismatch": 1
+      },
+      "outcomes": {
+        "Mode": [
+          "text",
+          "markup"
+        ],
+        "Pending": [
+          "none",
+          "attributes",
+          "empty_end"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "decode()": "<inferred>",
+        "entity()": "<inferred>",
+        "init()": "<inferred>",
+        "markupComplete()": "<inferred>",
+        "markupEvent()": "<inferred>",
+        "next()": "<inferred>",
+        "pendingEvent()": "<inferred>",
+        "processingInstruction()": "<inferred>",
+        "readAttribute()": "<inferred>",
+        "readName()": "<inferred>",
+        "textEvent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 5
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Event.zig",
+        "Json.zig",
+        "Profile.zig",
+        "Reader.zig",
+        "Xml.zig"
+      ]
+    },
     "packages/zig/transit-document/src/Bytes.zig": {
       "errors": {
         "IndexValueTooLarge": 1,
@@ -12263,41 +12586,19 @@
       "errors": {
         "DecimalOverflow": 2,
         "DivisionByZero": 2,
-        "IncompatibleGeodesicSrid": 1,
         "InexactDecimalRounding": 1,
-        "InvalidDecimalParameters": 5,
-        "InvalidSpatialSnapGrid": 1,
-        "InvalidSpatialSrid": 1,
-        "InvalidSpatialUnitScale": 1
+        "InvalidDecimalParameters": 5
       },
       "outcomes": {
         "RoundingMode": [
           "reject",
           "half_even",
           "toward_zero"
-        ],
-        "SpatialDescriptor.AxisOrientation": [
-          "right_handed_z_up",
-          "right_handed_y_up"
-        ],
-        "SpatialDescriptor.ExactPredicateMode": [
-          "shewchuk_adaptive"
-        ],
-        "SpatialDescriptor.Manifold": [
-          "planar",
-          "geodesic_wgs84"
-        ],
-        "SpatialDescriptor.SpaceFillingCurve": [
-          "none",
-          "s2_hilbert",
-          "h3",
-          "hilbert_3d"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "DecimalValue.validate()": "<inferred>",
-        "SpatialDescriptor.validate()": "<inferred>",
         "add()": "<inferred>",
         "checkPrecisionBounds()": "<inferred>",
         "div()": "<inferred>",
@@ -17743,6 +18044,7 @@
         "model.zig",
         "std",
         "transit_memory",
+        "transit_spatial",
         "zarrow",
         "zarrow_compute"
       ]
@@ -18510,6 +18812,52 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/StartupSession.zig": {
+      "errors": {
+        "GatewayDatabaseDenied": 1,
+        "InvalidAuthentication": 3,
+        "TlsRequired": 3,
+        "WireSessionClosed": 1
+      },
+      "outcomes": {
+        "State": [
+          "greeting",
+          "header",
+          "body",
+          "response",
+          "upgrade",
+          "lookup",
+          "selected",
+          "password_header",
+          "password",
+          "verified",
+          "admit",
+          "admitted",
+          "output",
+          "failed",
+          "done"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "complete()": "<inferred>",
+        "fail()": "<inferred>",
+        "init()": "<inferred>",
+        "input()": "<inferred>",
+        "poll()": "<inferred>",
+        "send()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 44,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -18528,6 +18876,7 @@
         "Handshake.zig",
         "Scalar.zig",
         "Session.zig",
+        "StartupSession.zig",
         "transit_sql_protocol"
       ]
     },
@@ -18854,6 +19203,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-postgres/src/StartupSession.zig": {
+      "errors": {
+        "GatewayConnectionCapacity": 1,
+        "InvalidAuthentication": 2,
+        "TlsRequired": 1,
+        "UnsupportedStartupSetting": 1,
+        "WireSessionClosed": 1
+      },
+      "outcomes": {
+        "State": [
+          "start",
+          "header",
+          "startup",
+          "upgrade",
+          "upgraded",
+          "lookup",
+          "selected",
+          "mechanisms",
+          "initial_header",
+          "initial_body",
+          "challenge",
+          "final_header",
+          "final_body",
+          "verified",
+          "admission",
+          "admitted",
+          "final",
+          "ok",
+          "parameters",
+          "key",
+          "ready",
+          "output",
+          "cancelled",
+          "failed",
+          "done"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "complete()": "<inferred>",
+        "fail()": "<inferred>",
+        "init()": "<inferred>",
+        "input()": "<inferred>",
+        "passwordBody()": "<inferred>",
+        "passwordHeader()": "<inferred>",
+        "poll()": "<inferred>",
+        "send()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 63,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -18872,6 +19280,7 @@
         "Scalar.zig",
         "Session.zig",
         "Startup.zig",
+        "StartupSession.zig",
         "transit_sql_protocol"
       ]
     },
@@ -19699,6 +20108,119 @@
       "imports": [
         "DocumentDeclaration.zig",
         "DocumentRead.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentProfile.zig": {
+      "errors": {
+        "DocumentProfileConflict": 1,
+        "DocumentProfileCoverageGap": 1,
+        "DocumentProfilePartConflict": 1,
+        "DocumentProfileSpanConflict": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidDocumentProfile": 1,
+        "InvalidDocumentProfileLimits": 1,
+        "InvalidDocumentProfilePart": 1,
+        "InvalidDocumentProfileSpan": 1,
+        "InvalidDocumentProfileValidation": 1
+      },
+      "outcomes": {
+        "Capture": [
+          "preparing",
+          "ready",
+          "capturing",
+          "complete",
+          "unknown",
+          "retired"
+        ],
+        "Collation": [
+          "utf8_binary",
+          "ascii_ci",
+          "ebcdic_cp037"
+        ],
+        "Encoding": [
+          "utf8",
+          "ascii",
+          "binary",
+          "latin1",
+          "ebcdic_cp037",
+          "ebcdic_cp500",
+          "ebcdic_cp1047"
+        ],
+        "Format": [
+          "json",
+          "xml",
+          "http",
+          "mime",
+          "ftp",
+          "edi_x12",
+          "edifact",
+          "hl7",
+          "smtp",
+          "imap",
+          "pop3",
+          "ldap",
+          "ldif",
+          "sip",
+          "sdp",
+          "amqp",
+          "mqtt",
+          "ntp",
+          "docx",
+          "xlsx",
+          "odf",
+          "pdf",
+          "grpc"
+        ],
+        "Framing": [
+          "single",
+          "delimited",
+          "length_prefixed",
+          "multipart",
+          "ber",
+          "zip",
+          "pdf_xref"
+        ],
+        "Part.coverage": [
+          "prefix",
+          "complete",
+          "redacted"
+        ],
+        "Provenance": [
+          "exact",
+          "derived"
+        ],
+        "Span.space": [
+          "raw",
+          "decoded",
+          "derived"
+        ],
+        "Validation.status": [
+          "valid",
+          "invalid",
+          "incomplete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.sealed()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Descriptor.validateFields()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Part.requireExact()": "<inferred>",
+        "Part.validate()": "<inferred>",
+        "Provenance.validate()": "<inferred>",
+        "Span.requireWithin()": "<inferred>",
+        "Span.validate()": "<inferred>",
+        "Validation.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -20821,7 +21343,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -21007,6 +21529,7 @@
         "Diagnostic.zig",
         "DocumentDeclaration.zig",
         "DocumentOperation.zig",
+        "DocumentProfile.zig",
         "DocumentRead.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
@@ -26226,6 +26749,187 @@
         "std"
       ]
     },
+    "packages/zig/transit-spatial/src/Planar.zig": {
+      "errors": {
+        "InvalidSpatialBounds": 1,
+        "InvalidSpatialGeometry": 1,
+        "SpatialPrecisionMismatch": 1,
+        "SpatialWorkExceeded": 1
+      },
+      "outcomes": {
+        "Invalid.reason": [
+          "too_few_points",
+          "not_closed",
+          "repeated_vertex",
+          "self_intersection",
+          "zero_area",
+          "hole_outside",
+          "rings_intersect",
+          "nested_holes"
+        ],
+        "Location": [
+          "exterior",
+          "boundary",
+          "interior"
+        ],
+        "SegmentRelation": [
+          "disjoint",
+          "touch",
+          "cross",
+          "overlap"
+        ]
+      },
+      "error_sets": {
+        "invalid().<error>": [
+          "InvalidSpatialGeometry"
+        ]
+      },
+      "error_returns": {
+        "Box.contains()": "<inferred>",
+        "Box.intersects()": "<inferred>",
+        "Box.validate()": "<inferred>",
+        "Budget.charge()": "<inferred>",
+        "Polygon.area()": "<inferred>",
+        "Polygon.init()": "<inferred>",
+        "Polygon.locate()": "<inferred>",
+        "Ring.init()": "<inferred>",
+        "Ring.locate()": "<inferred>",
+        "Ring.signedArea()": "<inferred>",
+        "intersectingEdges()": "<inferred>",
+        "normalizeCoordinate()": "<inferred>",
+        "segmentRelation()": "<inferred>",
+        "twiceArea()": "<inferred>",
+        "validatePoint()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 42,
+        "catch": 0
+      },
+      "imports": [
+        "Predicates.zig",
+        "Reference.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-spatial/src/Predicates.zig": {
+      "errors": {
+        "InvalidSpatialCoordinate": 1,
+        "SpatialCoordinateRange": 1,
+        "SpatialPredicateWorkspaceExceeded": 1
+      },
+      "outcomes": {
+        "Path": [
+          "interval",
+          "exact"
+        ],
+        "Sign": [
+          "negative",
+          "zero",
+          "positive"
+        ]
+      },
+      "error_sets": {
+        "determinant().<error>": [
+          "SpatialPredicateWorkspaceExceeded"
+        ]
+      },
+      "error_returns": {
+        "Exact.add()": "<inferred>",
+        "Exact.append()": "<inferred>",
+        "Exact.compress()": "<inferred>",
+        "Exact.grow()": "<inferred>",
+        "Exact.mul()": "<inferred>",
+        "Exact.sub()": "<inferred>",
+        "Interval.add()": "<inferred>",
+        "Interval.mul()": "<inferred>",
+        "Interval.sub()": "<inferred>",
+        "determinant()": "error { SpatialPredicateWorkspaceExceeded }",
+        "evaluate()": "<inferred>",
+        "incircle()": "<inferred>",
+        "insphere()": "<inferred>",
+        "matrixFor()": "<inferred>",
+        "orient2d()": "<inferred>",
+        "orient3d()": "<inferred>",
+        "validateCoordinate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-spatial/src/Reference.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidSpatialEncoding": 7,
+        "InvalidSpatialFrame": 2,
+        "InvalidSpatialPrecision": 1,
+        "InvalidSpatialReference": 5,
+        "SpatialOutputTooSmall": 1,
+        "SpatialReferenceMismatch": 1,
+        "UnsupportedSpatialOperation": 1,
+        "UnsupportedSpatialReference": 1
+      },
+      "outcomes": {
+        "Axes": [
+          "xy",
+          "xyz",
+          "longitude_latitude",
+          "longitude_latitude_height"
+        ],
+        "Manifold": [
+          "planar",
+          "wgs84_ellipsoid"
+        ],
+        "Precision": [
+          "exact",
+          "binary_grid"
+        ],
+        "VerticalDatum": [
+          "none",
+          "local",
+          "wgs84_ellipsoid"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "requirePlanar()": "<inferred>",
+        "requireSame()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-spatial/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Planar.zig",
+        "Predicates.zig",
+        "Reference.zig"
+      ]
+    },
     "packages/zig/transit-sql-client/src/Client.zig": {
       "errors": {
         "AuthenticationFailed": 3,
@@ -26776,23 +27480,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql-host/src/MysqlInput.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_mysql"
-      ]
-    },
     "packages/zig/transit-sql-host/src/Native.zig": {
       "errors": {
         "EndOfStream": 1,
@@ -26849,40 +27536,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql-host/src/PostgresInput.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_postgres"
-      ]
-    },
-    "packages/zig/transit-sql-host/src/PostgresStartup.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_postgres"
-      ]
-    },
     "packages/zig/transit-sql-host/src/Shutdown.zig": {
       "errors": {},
       "outcomes": {},
@@ -26937,19 +27590,17 @@
         "Cancelled": 2,
         "FreshOwnershipRequired": 1,
         "GatewayActivationSyncFailed": 1,
-        "GatewayConnectionCapacity": 3,
-        "GatewayCredentialChanged": 2,
-        "GatewayDatabaseDenied": 1,
+        "GatewayConnectionCapacity": 2,
+        "GatewayCredentialChanged": 1,
         "GatewayDeadline": 4,
         "GatewayDraining": 3,
         "GatewayOwnerUnavailable": 1,
-        "InvalidAuthentication": 8,
+        "InvalidAuthentication": 5,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
         "Timeout": 2,
         "TlsMemoryCapacity": 1,
-        "TlsRequired": 6,
-        "UnsupportedStartupSetting": 1,
+        "TlsRequired": 1,
         "WireSessionExhausted": 1
       },
       "outcomes": {
@@ -26977,6 +27628,10 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Authentication.admit()": "<inferred>",
+        "Authentication.deny()": "anyerror",
+        "Authentication.drive()": "<inferred>",
+        "Authentication.perform()": "<inferred>",
         "Output.writeAll()": "<inferred>",
         "Server.acquire()": "<inferred>",
         "Server.authenticationDeadline()": "anyerror",
@@ -26998,19 +27653,16 @@
         "serve()": "<inferred>",
         "workerReserveFailures()": "<inferred>"
       },
-      "open_error_set_uses": 21,
+      "open_error_set_uses": 23,
       "propagation": {
-        "try": 164,
-        "catch": 21
+        "try": 109,
+        "catch": 26
       },
       "imports": [
         "Connection.zig",
         "Deployment.zig",
         "FrameInput.zig",
-        "MysqlInput.zig",
         "Native.zig",
-        "PostgresInput.zig",
-        "PostgresStartup.zig",
         "Shutdown.zig",
         "WireSessionDriver.zig",
         "builtin",
@@ -27256,6 +27908,7 @@
         "WireLimits.zig",
         "WireReadBatch.zig",
         "WireSession.zig",
+        "WireStartup.zig",
         "WireType.zig",
         "root.zig"
       ]
@@ -27416,6 +28069,71 @@
       },
       "imports": [
         "Wire.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireStartup.zig": {
+      "errors": {
+        "InvalidAuthentication": 1,
+        "InvalidWireDrain": 1,
+        "InvalidWireGeneration": 1,
+        "InvalidWireMessage": 1,
+        "InvalidWireOutput": 1,
+        "StaleWireCompletion": 1,
+        "UnexpectedWireCompletion": 3,
+        "WireCompletionMissing": 1,
+        "WireRequestPending": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {
+        "Method": [
+          "trust",
+          "password"
+        ],
+        "Request": [
+          "input",
+          "output",
+          "upgrade",
+          "lookup",
+          "scram_start",
+          "scram_finish",
+          "password",
+          "admit",
+          "cancel"
+        ],
+        "Result": [
+          "ok",
+          "received",
+          "written",
+          "method",
+          "challenge",
+          "proof",
+          "failed"
+        ],
+        "Tls": [
+          "disabled",
+          "optional",
+          "required"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Continuation.advance()": "<inferred>",
+        "Continuation.complete()": "<inferred>",
+        "Continuation.event()": "<inferred>",
+        "Continuation.init()": "<inferred>",
+        "Continuation.issue()": "<inferred>",
+        "Continuation.ok()": "<inferred>",
+        "Continuation.take()": "<inferred>",
+        "Name.set()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "WireSession.zig",
         "std"
       ]
     },

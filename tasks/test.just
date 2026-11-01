@@ -6,6 +6,10 @@ set working-directory := ".."
 _default:
     @just --list test
 
+# Exact spatial predicates, validity and reference bytes against independent rational oracles.
+spatial:
+    zig build test-spatial
+
 # Verified segment metadata/page ranges and the disk-backed direct Table reader.
 storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
@@ -392,6 +396,7 @@ packages:
     cd packages/zig/transit-station-app && zig build test
     cd packages/zig/transit-serving && zig build test
     cd packages/zig/transit-document && zig build test
+    cd packages/zig/transit-document-profiles && zig build test
     cd packages/zig/transit-station-document && zig build test
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
@@ -414,6 +419,7 @@ packages:
     cd packages/zig/transit-data-client && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
+    cd packages/zig/transit-spatial && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
@@ -727,6 +733,13 @@ diagnostic-grammar:
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+
+# Installed Catalog/Query SDK costs; enter nix develop .#bindings first.
+# Packages and optimized native clients must already be prepared before timing.
+[positional-arguments]
+sdk-performance *args:
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway sdk-performance-client -Doptimize=ReleaseSafe --prefix .cache/transit-sdk-performance/release 1>&2
+    python3 -B tests/runner/launch.py tests/performance/sdk/run.py --cli .cache/transit-sdk-performance/release/bin/transit --node .cache/transit-sdk-performance/release/bin/transit-node --host .cache/transit-sdk-performance/release/bin/transit-query-host --zig .cache/transit-sdk-performance/release/bin/transit-sdk-performance --wheels .cache/bindings/ReleaseSafe/wheels --node-packages .cache/bindings/ReleaseSafe/node "$@"
 
 # Matching TLS component control for the persistent console statement workload.
 [positional-arguments]

@@ -256,7 +256,7 @@ stop-the-world global mutex, model the coupled state machines of **schema/index
 evolution** ([Milestone 10](10-standards-and-catalogs.md),
 [Milestone 11](11-indexing-and-access-paths.md)) and **five-state managed
 computations/dataflows** ([Milestone 12](12-sql-and-dataflows.md),
-[Milestone 35](35-sql-grammar-and-dialect-ergonomics.md)) interleaving with
+[Milestone 41](41-sql-grammar-and-dialect-ergonomics.md)) interleaving with
 concurrent transactions, `TransitLog` (`TWAL1`) compaction, policy revocations
 and worker replacement:
 
@@ -400,7 +400,11 @@ container combinations, including the nine pairings for three representations.
 For error-bounded scientific float blocks (`.float_zfp` under $\kappa_{\text{numeric}}$),
 prove the pointwise $L_\infty$ reconstruction bound
 ($\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$) and exact 0th-coefficient
-block mean preservation.
+block mean preservation; for biological sequences (`.seq_2bit`, `.cram_ref_delta`,
+`.fm_bwt`), chemical Morgan fingerprints (`(fp_mol & fp_query) == fp_query`), and
+audio waveforms (`.wave_lpc_pyramid`), prove lossless round-trip, `LF`-mapping
+bijection, zero-false-negative substructure screening, and `(min_peak, max_peak, rms)`
+envelope zone-map pruning soundness.
 Keep algorithm selection with the structure owner. Use independent byte fixtures,
 allocation bounds and fuzzing to cover implementation behavior outside the
 formal encoding functions.
@@ -491,8 +495,8 @@ inherit a proof whose assumptions the new profile violates.
 | [Reviewed publication](29-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, remote/local proposal push, current reviewer authority and protected-destination enforcement |
 | [Reactive activation](32-reactive-context-and-agent-activation.md) | T5/T8: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
 | [Recorded integrations](33-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [SQL grammar and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
-| [Complete qualification](36-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
+| [Complete qualification](42-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -508,7 +512,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](36-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](42-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

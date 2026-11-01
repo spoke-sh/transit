@@ -10,6 +10,7 @@
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
 | Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
+| Installed SDK costs | [Catalog/Query workload, packaging and report guide](sdk/README.md) |
 | Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
 
 Use the existing `just test` benchmark commands. Python entry points use
@@ -64,9 +65,12 @@ visible. Missing completion, telemetry loss, orphaned phases and overlapping
 durations fail the diagnostic sample. Child logs and credentials stay private.
 `--startup-debug` adds bounded child spans for executable validation, installation
 journal checkpoints, native queries/submissions, and worker spawn/registration.
-Count those records to distinguish request count from elapsed operation cost.
-Their times are already included in their parent phase; never add them to its
-duration. Debug runs include instrumentation overhead and are diagnostic controls,
+Authorization actions and SQL enrollment/discovery/activation/host work have
+separate labels. `work_totals` reports each label's attempt/failure count,
+inclusive `duration_ns` and `exclusive_ns` after subtracting immediate children.
+Nested work belongs to its immediate parent, whose inclusive time already
+contains it. The reporter rejects duplicate spans, orphaned/cyclic parents and
+child-duration overflow. Debug runs include instrumentation overhead and are diagnostic controls,
 separate from the info-level latency comparison.
 
 Artifact preparation, the retained-row setup write, verification and shutdown

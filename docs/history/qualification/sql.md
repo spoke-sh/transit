@@ -2210,3 +2210,84 @@ translation. The passing rerun includes the corrected assertion and host lock
 routing. These focused runs do not close the broad history-replay timeout or
 establish final committed-HEAD clean qualification, borrowed batches, relational
 text pushdown, physical Table collection or a performance improvement.
+
+## Connection startup continuations — 2026-11-01
+
+Source `f4da821b142e25acd0318864cd8d9a5e8fcb8bb2`, based on `origin/main`
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`, moves PostgreSQL/MySQL startup,
+TLS negotiation and authentication transitions into pure `StartupSession`
+engines. The [gateway contract](../../../contracts/SQL_GATEWAY_V1.md#in-process-connection-and-command-continuations)
+owns the event, admission and buffer-lifetime rules. The shared host retains
+credential files, cryptography, TLS, current native authority and joined cleanup.
+
+`python3 -B tests/runner/ci_clean.py --lane interfaces-sql` passes all six tasks
+from that committed source in a separate clone: TLS, result allocations, the
+full wire gateway, native SQL sessions, Stream/Queue declarations and Table
+transactions. The run uses the pinned tools and local disk fixtures. Completion,
+timing and binary attribution are retained under
+`.cache/ci/clean/f4da821b142e-transit-ci-tbko7x5n` in the implementation worktree.
+
+The full gateway run includes pinned CLI, C and Python clients, both protocol
+handshakes, certificate and credential rotation, native-role revocation,
+fragmented input, large rows, reserved cancellation capacity and joined shutdown.
+A new independent SCRAM schedule replaces the credential after the challenge but
+before the final proof. The old verifier still verifies that proof; final
+admission rejects it before server-final, AuthenticationOk, parameters or
+ReadyForQuery. A subsequent connection with the restored credential succeeds.
+Native session, declaration and transaction cases preserve original tokens,
+retained cuts, exact repeated batches, revocation and lost-commit recovery.
+
+The clean `installation-ui` lane at the same source passes its first fourteen
+tasks, including installed co-hosted SQL, authentication, lifetimes, direct-owner
+faults, Board query recovery and the Station launcher. It then fails the workbench
+fixture: `SELECT * FROM empty_metrics` returns HTTP 503 / `SqlRequestTimeout`
+under the fixture's unchanged two-second native-client budget. The final
+`declarative-browser` task does not run in that attempt. The failed clean checkout
+and runner evidence remain at `/var/tmp/transit-ci-rmu9y12y`; the private fixture
+remains at `/var/tmp/transit-server-proof-zmz5jnfg`. This failure is not a complete
+installation/UI pass, and its cause has not been established.
+
+A fresh `just transit-board::workbench-test` at `f4da821b142e` passes the
+145-row traversal, empty/metadata results, definition guards, read-only admission,
+capacity and terminal revocation with unchanged deadlines. Its log is
+`/var/tmp/transit-m8-workbench-rerun.log`; this does not explain the first timeout.
+The separate `just test::declarative-browser` follow-up at that source fails
+before browser assertions when secret provisioning receives a `/table/v1`
+`record` refusal (`InvalidRequest`). Its private fixture is retained at
+`/var/tmp/transit-browser-eqce5oe4` and its log at
+`/var/tmp/transit-m8-declarative-browser.log`.
+
+After merging `origin/main` at `f49a3da65`, source
+`de5b5f29d122a0c40d1f0f1a22a28ba42b357f36` includes main's browser/branch format
+separation and refreshed definition. The owning
+`zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- faults` passes with
+pinned clients, including mid-SCRAM credential rotation, selected-role and native
+revocation, detached original writes, certificate rotation, capacity and joined
+drain. This is a focused workspace follow-up, not a repeated clean SQL lane;
+its log is `/var/tmp/transit-m8-merged-wire-faults.log`. All 58 fast checks and
+`just transit-docs::check` also pass on the merged source.
+
+The merged-source `just test::declarative-browser` passes provisioning, public
+sources/provider modes, original claim recovery, callbacks/restart, secret/JWKS
+rotation, native authorization and watch revocation. It then times out waiting
+for an HTTP callback during the identity-population loop, after reporting
+population 30, under the unchanged ten-second client timeout. Node logs also
+record maintenance timeouts; the cause has not been established. The remaining
+population/pagination, restriction, expiry and later assertions are unproved by
+this attempt. Its log is `/var/tmp/transit-m8-merged-browser.log` and private
+state remains at `/var/tmp/transit-browser-3uiftnnz`. Neither browser attempt nor
+the original installation/UI lane is a pass; the earlier private installations
+and their original uncertain work remain separate from these fresh fixtures.
+
+Focused package checks during implementation also pass partial startup input at
+every split, one-byte output drains, malformed/oversized input, TLS failure,
+lookup/verification/admission refusal, late and duplicate completions, slot
+replacement and cancellation. Sealing the backing allocator after initialization
+permits the tested trust/password handshakes without further allocation. Those
+codec checks do not cover credential-file, cryptographic or TLS allocations.
+
+This is selected local qualification, not complete CI, a paired latency result,
+a worker-saturation proof or a power-loss/provider guarantee. Worker/deadline
+scheduling, native HTTP and Flight/Serving composition, coarse remote execution
+and owner-qualified direct Document ingress retain their separate gates. The
+fresh fixtures do not settle earlier retained failures recorded in this ledger.

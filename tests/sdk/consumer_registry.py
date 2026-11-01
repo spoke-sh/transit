@@ -16,6 +16,16 @@ from sdk.consumers.java import java_client_sdk
 from sdk.consumers.dotnet import dotnet_client_sdk
 from sdk.consumers.beam import beam_client_sdk
 from sdk.consumers.go import go_client_sdk
+from sdk.direct_sdk_catalog import install_python, install_node
+
+# The programs themselves import installed SDKs only in their isolated process.
+# Keep their source and installer ownership explicit for the shared benchmark.
+PERFORMANCE_CONSUMERS = {
+    "zig": ("tests/sdk/consumers/zig/performance.zig", None),
+    "python-sync": ("tests/sdk/consumers/python/python_performance_sdk.py", install_python),
+    "python-async": ("tests/sdk/consumers/python/python_performance_sdk.py", install_python),
+    "node": ("tests/sdk/consumers/node/node_performance_sdk.mjs", install_node),
+}
 
 RAW_RUNNERS = {
     "python": python_client_sdk.run,

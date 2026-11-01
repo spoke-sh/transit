@@ -97,7 +97,7 @@ half-committed transaction as a completed result.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
    expose the same typed lifecycle state machine and DDL verbs across SQL
    (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and
-   Board; [SQL grammar and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md)
+   Board; [SQL grammar and dialect ergonomics](41-sql-grammar-and-dialect-ergonomics.md)
    audits these forms against PostgreSQL (`ENABLE`/`DISABLE`) and Snowflake
    (`SUSPEND`/`RESUME`/`REFRESH`) dialects. Inspection and `EXPLAIN` do no work.
    Board consumes the same definitions and evidence through its explicit
@@ -136,14 +136,27 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   five-state values, checked arithmetic, explicit collations, source identities,
   output types and bounded operator state (with Tier 2 NVMe spill for large sorts,
   window frames, joins and aggregations).
-- **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods):**
+- **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods) and linear DBSP Z-set interval-depth / state-book maintenance:**
   combine system-time knowledge cuts (`FOR SYSTEM_TIME AS OF`) with declarative
   application/valid-time periods (`PERIOD FOR valid_time` backed by
   [Milestone 10's](10-standards-and-catalogs.md) canonical `RANGE<TIMESTAMPTZ>`
   type) and native streaming **`AS OF JOIN`** (matching each left observation to
   the nearest prior or exact valid-time right row per entity key—and supporting
   [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) piecewise-linear
-  4D `TRAJECTORY` interpolation—without $O(N^2)$ inequality joins). Ensure
+  4D `TRAJECTORY` interpolation—without $O(N^2)$ inequality joins). In addition,
+  exploit DBSP Z-set linearity for **1D interval-depth / genomic pileup coverage**
+  (encoding `[start_pos, end_pos)` intervals as $+1$ at `start_pos` and $-1$ at
+  `end_pos` so `RANGE_UNION`, coverage depth and overlap joins maintain via
+  Abelian prefix sums) and **discrete event-sourced state / Limit-Order-Book
+  (`LOB`) depth reconstruction**. Price-level quantity deltas over
+  `(resource_id, side, price_tick)` support L2 aggregation; L3 additionally needs
+  individual order identity, lifecycle and feed-defined ordering. Qualify
+  add/cancel/execute/delete/replace semantics, sequence gaps, duplicate messages
+  and corrections before aggregation. VWAP needs its own trade-price/volume
+  basis and correction rules. Measure update work and indexed maintenance costs
+  rather than assuming every event is constant work. Keep domain/trading policy
+  in applications; the [ITCH specification](https://nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/NQTVITCHSpecification.pdf)
+  is a scoped protocol reference, not an implicit venue selection. Ensure
   point-in-time research, backtesting and decision auditing evaluate what was
   valid in the domain *and* known to the system at the decision cut, preventing
   later backfill corrections from leaking into earlier simulated decisions.
@@ -179,6 +192,23 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 - Bind outputs to recorded connector effects through independently authorized
   activation. Compiling, explaining, reading and replaying never dispatch a
   dataflow.
+
+## Rich-workload computation handoff
+
+Keep one shared computation lifecycle as the later workload profiles arrive.
+[Scientific computation](35-scientific-arrays-and-measurements.md) extends
+operator traits with point/window/halo/graph/global dependency extent, numerical
+fidelity and valid update/retraction or bounded-rebuild behavior.
+[ML/AI](37-ml-ai-and-experiment-provenance.md) binds feature/model/experiment
+identity; [Robotics](38-robotics-and-sensor-replay.md) binds calibrated replay;
+[software evidence](39-software-build-and-deployment-evidence.md) binds exact
+build/test/deployment observations; and
+[constrained planning](40-constrained-planning-and-optimization.md) adds domain
+candidate/bound/termination evidence. Each reuses original accepted identity,
+source basis, bounded progress and complete publication rather than introducing
+another job authority. SQL completion, solver optimality, model accuracy and
+physical consequences remain different facts. These later extensions do not
+defer this milestone's existing finite/incremental equivalence gates.
 
 ## Formal model follow-through
 
@@ -875,7 +905,7 @@ coordinates with the active in-progress and recently completed milestones:
 | [M13: Data structures & performance](13-data-structures-and-performance.md), [M14: Strings & search](14-vectorized-strings-and-search.md) & [M15: Compilation](15-data-centric-compilation-and-specialization.md) | `transit-memory` bounded arenas/slabs (`#194`) and `transit-io` | Correctness, bounded Tier 2 NVMe spill, morsel-budgeted execution and `comptime`/plan-bound perfect-hash `IN (...)` lookup baselines that M13/M14/M15 accelerate via CedarDB hash tables, Umbra strings and data-centric push fusion |
 | [M17: Geospatial & 3D computing](17-geospatial-and-spatio-temporal-computing.md) & [M18: Multi-model & foreign relations](18-multi-model-and-foreign-relations.md) | Reserved $\kappa_{\text{spatial}}$ descriptors in `DecimalArithmetic.zig` and `ForeignTableDescriptor`/`PropertyGraphDescriptor` in `HistoricalCatalog.zig` | DBSP Z-set arrangement and bilinear join hooks extended by M17 for incremental `ST_Union` ($\partial_2$), `ST_3DUnion` ($\partial_3$), Discrete Divergence Theorem volume aggregates and `INTERIOR`/`BOUNDARY` cell-covering spatial joins; streaming `AS OF JOIN` interpolation hook for 4D `TRAJECTORY`; `SOURCE`/`SINK` catalog foundation extended by M18 for foreign formats and streaming CDC ingress |
 | [M20: Branches, merges & restore](20-branches-merges-and-restore.md) | Single-branch (`main`) `ManifestCut` timeline in `HistoricalCatalog.zig` | Strict separation between relational SQL `MERGE INTO` (DML) and catalog branch `MERGE` (M20), plus branch-scoped computation watermark bindings |
-| [M22: Formal semantics](22-formal-semantics-and-correspondence.md), [M30: Board](30-board-reimplementation.md), [M32: Reactive context](32-reactive-context-and-agent-activation.md) & [M35: SQL ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M32 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
+| [M22: Formal semantics](22-formal-semantics-and-correspondence.md), [M30: Board](30-board-reimplementation.md), [M32: Reactive context](32-reactive-context-and-agent-activation.md) & [M41: SQL ergonomics](41-sql-grammar-and-dialect-ergonomics.md) | `StatementResult.tla`, `TransactionDecision.tla`, `FuzeCell.lean`, `FuzeRewrite.lean`, `CollationOrder.lean` and `SchemaProjection.lean` | Executable `T5` (`SubscriptionHandoff.tla`), `T8` (`DdlAndDataflowLifecycle.tla`) and `A3` (`FuzeDelta.lean`) correspondence models; read-only Board lineage/freshness/blocked-reason inspection; qualified completed-revision evidence for M32 reactive watches; and dialect-ergonomic `ENABLE`/`DISABLE` aliases mapped onto the 5-state lifecycle |
 
 ### Accepted architectural decisions
 
@@ -926,7 +956,7 @@ coordinates with the active in-progress and recently completed milestones:
    - `REFRESH` triggers a bounded one-shot catch-up or snapshot recomputation to
      a target or current `ManifestCut` while preserving the last completed
      revision until the successor commits. Dialect aliases such as PostgreSQL
-     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M35`)
+     `ENABLE` / `DISABLE` lower explicitly to `ACTIVATE` / `SUSPEND` (`M41`)
      without collapsing the underlying 5-state machine.
 3. **D3 — Transaction-consistent multi-source `TransitLog` consumption, explicit consumer contracts and atomic snapshot-to-live handoff (`T5`):**
    Each managed computation declares one of three consumer contracts:

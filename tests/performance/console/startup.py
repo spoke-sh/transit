@@ -50,13 +50,35 @@ def timings(path):
             raise ValueError('startup timing does not reach SQL readiness')
     if any(p['parent_span_id'] not in {a['span_id'] for a in attempts} for p in phases):
         raise ValueError('startup phase has no terminal attempt')
-    if any(w['parent_span_id'] not in {p['span_id'] for p in phases} for w in work):
-        raise ValueError('startup work has no terminal phase')
-    for phase in phases:
-        children = [w for w in work if w['parent_span_id'] == phase['span_id']]
-        if sum(w['duration_ns'] for w in children) > phase['duration_ns']:
+    # Inclusive spans form a tree: SQL preparation can contain journal/native
+    # work. Only immediate children may be subtracted from a parent's duration.
+    nodes = {row['span_id']: row for row in attempts + phases + work}
+    if len(nodes) != len(attempts) + len(phases) + len(work):
+        raise ValueError('duplicate startup span identity')
+    phase_ids = {p['span_id'] for p in phases}
+    work_ids = {w['span_id'] for w in work}
+    for row in work:
+        parent, seen = row['parent_span_id'], {row['span_id']}
+        while parent not in phase_ids:
+            if parent not in work_ids:
+                raise ValueError('startup work has no terminal phase')
+            if parent in seen or len(seen) == 16:
+                raise ValueError('cyclic or excessive startup work nesting')
+            seen.add(parent)
+            parent = nodes[parent]['parent_span_id']
+    for row in phases + work:
+        children_ns = sum(w['duration_ns'] for w in work if w['parent_span_id'] == row['span_id'])
+        if children_ns > row['duration_ns']:
             raise ValueError('overlapping startup work')
-    return dict(attempts=attempts, phases=phases, work=work, losses=losses)
+        row['exclusive_ns'] = row['duration_ns'] - children_ns
+    totals = {}
+    for row in work:
+        total = totals.setdefault(row['operation'], dict(count=0, failed=0, duration_ns=0, exclusive_ns=0))
+        total['count'] += 1
+        total['failed'] += row['outcome'] != 'ok'
+        total['duration_ns'] += row['duration_ns']
+        total['exclusive_ns'] += row['exclusive_ns']
+    return dict(attempts=attempts, phases=phases, work=work, work_totals=totals, losses=losses)
 
 
 def run(fixture, restarts):

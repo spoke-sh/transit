@@ -226,6 +226,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
             app.root_module.addOptions("build_version", @import("version.zig").options(b));
+            // Executable hashing uses the same pinned library as server TLS,
+            // with runtime CPU dispatch even for portable baseline binaries.
+            app.root_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
             // The native debug linker reserves large sparse section gaps in
             // this executable. Pack ELF output with pinned LLVM/LLD while
             // retaining debug information and the executable admission bound.

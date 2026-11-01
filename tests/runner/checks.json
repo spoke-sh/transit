@@ -184,6 +184,16 @@
         ]
       },
       {
+        "id": "sdk_performance_report",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/sdk/test_report.py"
+        ]
+      },
+      {
         "id": "mutation_latency_test",
         "phase": "static",
         "command": [
@@ -661,6 +671,22 @@
           "name": "protocol",
           "args": [
             "--data-lifecycle"
+          ]
+        }
+      },
+      {
+        "id": "document-profile",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/document_profile_contract.py"
+        ],
+        "generator": {
+          "name": "protocol",
+          "args": [
+            "--document-profile"
           ]
         }
       },
