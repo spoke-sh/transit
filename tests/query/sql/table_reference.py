@@ -31,6 +31,10 @@ def nullable(ctx):
 
 
 def data_type(ctx):
+    if ctx.VECTOR():
+        return {'vector': dict(dimensions=int(ctx.INTEGER(0).getText()), element=ctx.scalarTypeName().getText().lower())}, None
+    if ctx.RANGE() or ctx.MULTIRANGE():
+        return {'range' if ctx.RANGE() else 'multirange': data_type(ctx.dataType(0))[0]}, None
     if ctx.scalarTypeName():
         name = ctx.scalarTypeName().getText().upper()
         parameters = [int(i.getText()) for i in ctx.INTEGER()]
@@ -107,12 +111,15 @@ def literal(ctx, typ):
 
 def column(ctx, identity):
     typ, bound=data_type(ctx.dataType())
-    result=dict(id=str(identity),name=identifier(ctx.identifier()),type=typ,nullable=True,default=None,max_characters=bound,encoding='plain',collation='none')
+    result=dict(id=str(identity),name=identifier(ctx.identifier()),type=typ,nullable=True,default=None,max_characters=bound,encoding='plain',collation='none',
+                semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))
     primary=False
     for constraint in ctx.columnConstraint():
         if constraint.nullability(): result['nullable']=nullable(constraint.nullability())
         elif constraint.DEFAULT(): result['default']=literal(constraint.literal(),typ)
         elif constraint.COLLATE(): result['collation']=constraint.collation().getText().lower()
+        elif constraint.ROUNDING(): result['semantics']['rounding']=constraint.identifier().getText().lower()
+        elif constraint.METRIC(): result['semantics']['metric']=constraint.identifier().getText().lower()
         else: assert constraint.PRIMARY(); primary=True
     if primary: result['nullable']=False
     return result,primary
@@ -149,5 +156,15 @@ def schema_bytes(schema):
         data += b'FTP1'
         for c in schema['columns']:
             assert c['encoding'] == 'plain'
-            data += bytes([0, {'none': 0, 'utf8_binary': 1, 'ascii_ci': 2, 'ebcdic_cp037': 3}[c['collation']]])
+            data += bytes([0, {'none': 0, 'utf8_binary': 1, 'ascii_ci': 2, 'ebcdic_cp037': 3, 'ebcdic_037_pad': 5, 'ebcdic_1047_nopad': 6}[c['collation']]])
+    if any(any(value is not None for value in c['semantics'].values()) for c in schema['columns']):
+        data += b'FTK1'
+        for c in schema['columns']:
+            value = c['semantics']
+            assert value['timezone'] is None and value['spatial'] is None
+            data += bytes([int(value['rounding'] is not None) | (int(value['metric'] is not None) << 1)])
+            if value['rounding'] is not None:
+                data += bytes([{'reject': 0, 'half_even': 1, 'toward_zero': 2}[value['rounding']]])
+            if value['metric'] is not None:
+                data += bytes([{'l2_squared': 1, 'cosine': 2, 'dot_product': 3, 'hamming': 4}[value['metric']]])
     return data

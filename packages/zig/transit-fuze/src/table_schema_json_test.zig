@@ -146,7 +146,7 @@ test "neutral schema conversion rejects large shared defaults before whole schem
     for (&columns, 0..) |*column, i| {
         const name = try std.fmt.allocPrint(inputs.allocator(), "column_{d}", .{i});
         const id = try std.fmt.allocPrint(inputs.allocator(), "{d}", .{i + 1});
-        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null, .encoding = .plain, .collation = .none };
+        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null, .encoding = .plain, .collation = .none, .semantics = .{ .rounding = null, .metric = null, .timezone = null, .spatial = null } };
     }
     const source: j.Schema = .{ .definition = p.Growth.current_definition, .object = "1", .revision = "1", .next_column = "129", .columns = &columns, .primary_key = &.{} };
     var tracker: e.FailingAllocator = .init(e.allocator, .{ .resize_fail_index = 0 });

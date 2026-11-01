@@ -9,7 +9,7 @@ int64 output profile. Each source and transport owns its admission bounds.
 ## Schema and physical representations
 
 The mandatory schema metadata `transit.definition` is
-`transit.fuze.logical-arrow.v1.2026-09-30`. `transit.logical_schema` contains the
+`transit.fuze.logical-arrow.v1.2026-11-01.companions`. `transit.logical_schema` contains the
 lowercase hex `FTY1` descriptor of the root struct, including the mandatory current
 [logical type definition](FUZE_TYPES_V1.md). Logical meaning follows that
 descriptor, never inference from an Arrow physical type. Missing/foreign
@@ -20,7 +20,7 @@ Each root field is a non-null Arrow struct containing `state:uint8`, `kind:uint8
 nullable `value:PAYLOAD`, and non-null `alternatives:list<ALTERNATIVE>`. State IDs
 are missing 0, null 1, type-error 2, value 3, conflict 4. Kind is the logical tag
 for a value or observed type-error kind, and zero otherwise. Type-error kind zero
-means unknown; observed null/Document text/character use 28/29/30. These are not
+means unknown; observed null/Document text/character use 31/32/33. These are not
 descriptor tags. These kind semantics
 belong to this explicitly identified logical profile. A non-value has a null
 payload; only conflicts have nonempty alternatives. An alternative is a non-null
@@ -45,6 +45,15 @@ nonzero assignment identities. No conflict winner is selected.
 | List / array | List / fixed-size list of non-null element cell wrappers |
 | Map | Arrow map of non-null primitive keys and non-null value cell wrappers |
 | Tagged union | Struct with non-null `tag:uint8` and non-null `variants:struct` |
+| Range | Struct of non-null `empty:bool`, nullable native `lower` and `upper`, non-null `lower_inclusive:bool` and `upper_inclusive:bool` |
+| Multirange | List of non-null range structs, in canonical run order |
+| Dense vector | Fixed-size binary of the descriptor's exact byte width; little-endian unboxed elements |
+
+Range bounds have no nested cell wrappers. A null bound is unbounded, and its
+inclusivity flag must be false. Empty ranges have two null bounds and false
+inclusivity flags. Vectors obtain dimension and element type from the mandatory
+logical descriptor; an arbitrary Arrow binary array does not establish a vector.
+Cell state and conflict alternatives remain on the enclosing logical cell.
 
 Map entries retain logical typed-key order. Arrow `keys_sorted` is false because
 the physical byte order of a 128-bit key need not match logical integer order.

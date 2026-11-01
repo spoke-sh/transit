@@ -108,14 +108,18 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`9c077a0fad2150f7e09647db000d606ae34175548e3b41bf9b765b789109e17a`.
-It binds historical catalog acquisition and release progress, immutable catalog
+`675994384444f1bac263246c9abd8d580cbeccf5d02965be57bbfd728e57e7f5`.
+It adds canonical range/multirange and unboxed vector values, their logical
+Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
+bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved
+spatial metadata. Old logical definitions and the former type-error kind IDs
+reject at their enclosing definition boundary. It binds historical catalog acquisition and release progress, immutable catalog
 selectors, and catalog-aware read fingerprints and SQL observation provenance.
 It persists CHECK and staged foreign-key integrity, exact parent definitions,
 column dependency indices and original-operation cleanup progress, including the
 `finalizing` DDL observation. It also admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across
 schemas, SQL, query plans and language bindings. The Table schema definition is
-`transit.table.schema.v1.2026-11-01.integrity`; earlier schemas and shared definitions
+`transit.table.schema.v1.2026-11-01.semantics`; earlier schemas and shared definitions
 reject before execution. Existing CP037 NO PAD comparison is unchanged.
 
 It also binds direct KV, mixed state/log transactions and frozen Stream/Queue

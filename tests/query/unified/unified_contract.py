@@ -77,7 +77,7 @@ def current_definition():
 
 
 def logical_schema(kind):
-    types = b'transit.fuze.types.v1.2026-09-30'
+    types = b'transit.fuze.types.v1.2026-11-01.companions'
     columns = [('key', 6, 3), ('value', 2, 3)] if kind == 'kv' else [('id', 1, 0), ('label', 5, 1)] if kind == 'table' else [('title', 5, 3), ('body', 5, 3)]
     return b'FTY1' + bytes([len(types)]) + types + bytes([22, len(columns)]) + b''.join(bytes([len(name)]) + name.encode() + bytes([flags, tag]) for name, tag, flags in columns)
 

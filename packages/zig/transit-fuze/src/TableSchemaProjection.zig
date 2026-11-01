@@ -52,7 +52,7 @@ fn compatibleColumn(before: s.Column, after: s.Column) !bool {
     // validation scan and by validateRow on each projected result. They do not
     // require changing the physical representation of an existing cell.
     return try before.type.eql(after.type) and before.encoding == after.encoding and
-        before.collation == after.collation;
+        before.collation == after.collation and before.semantics.eql(after.semantics);
 }
 
 /// Validate the complete physical row before selecting cells, including dropped

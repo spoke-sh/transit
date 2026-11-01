@@ -107,7 +107,7 @@ independent of a column’s collation.
 ## Canonical envelope
 
 The envelope contains magic `FTS1`, a u8-length mandatory definition
-`transit.table.schema.v1.2026-11-01.integrity`, three u64 identities (object, revision,
+`transit.table.schema.v1.2026-11-01.semantics`, three u64 identities (object, revision,
 next-column), and a u16 column count. Each column contains its u64 ID, u8-length
 UTF-8 name, u16-length `FTY1` descriptor, boolean nullable byte, u32 character
 limit (zero means absent), and boolean default-present byte. A present default
@@ -117,7 +117,19 @@ physical attributes include `FTP1` followed by each column's u8 encoding and u8
 collation in column order. All-default schemas omit the trailer; a redundant
 all-default trailer rejects. Enum values follow `TableSchema.Encoding` and
 `TableSchema.Collation` in the owning Zig types.
-Nonempty integrity follows the physical trailer, when present, as `FTI1`, u32
+Nonempty column semantics follow the physical trailer, when present, as `FTK1`
+and one semantic record per column. A record starts with u8 presence flags:
+rounding bit 0, metric bit 1, pinned timezone bit 2, reserved spatial bit 3.
+Rounding and metric are u8 owning enum tags. Timezone records contain a u8-length
+version name, 32-byte content digest, u8-length zone name and u32-length actual
+TZif bytes. Spatial records contain u32 SRID, u16 vertical datum, u64 unit scale
+in nanometers, u8 axis orientation, u8 manifold, f64 grid scale bits, u8 exact
+predicate mode and u8 curve order. Unknown flags/tags, invalid type/semantic
+combinations, digest mismatch and redundant empty `FTK1` sections reject.
+The layout fingerprint commits these interpretation rules and actual TZif bytes;
+changing them requires a physical rewrite, not a lazy projection.
+
+Nonempty integrity follows these optional trailers as `FTI1`, u32
 next-ID, u8 CHECK count and CHECK records, then u8 foreign-key count and records.
 Each CHECK contains u32 ID, u8-length name, boolean validated flag, u8 atom count,
 and atoms: tag 1 + u64 column + u8 comparison + u32-length typed `FVL1` literal;
@@ -154,12 +166,24 @@ contains decimal-string realm/resource/catalog/branch/object/revision and a
 current-format declaration and never substitutes a missing shared definition.
 
 Each column has `id`, `name`, a shared logical `type`, `nullable`, `default`,
-`max_characters`, `encoding` and `collation`. All fields are present, including
+`max_characters`, `encoding`, `collation` and `semantics`. All fields are present, including
 explicit `plain` and `none` for default physical descriptors. JSON null for `default` means no default;
 a logical cell containing SQL NULL remains an explicit default. Logical defaults
 use the shared neutral cell representation: exact integer/decimal strings,
 floating-point bits, binary hex and recursive typed constructors. A schema never
 turns rich values into an untyped string.
+
+`semantics` contains mandatory nullable `rounding`, `metric`, `timezone` and
+`spatial` members. Timezone contains `version` (version ID and 32-byte digest),
+`zone` and lowercase `tzif_hex`. Spatial unit scale is a canonical decimal
+string to retain full u64 precision. The current v1 schema requires this member;
+old neutral schemas cannot acquire current semantics through a default.
+
+SQL column declarations admit `ROUNDING REJECT|HALF_EVEN|TOWARD_ZERO` for DECIMAL,
+`METRIC L2_SQUARED|COSINE|DOT_PRODUCT|HAMMING` for compatible VECTOR elements,
+and `TIMEZONE 'zone' TZDB 'version' TZIF X'hex'` for TIMESTAMPTZ. The artifact,
+not the host's timezone installation, determines the digest. Spatial descriptors
+can bind opaque BINARY metadata through typed APIs; spatial execution rejects.
 
 Encoding and collation use the owning `TableSchema.Encoding` and
 `TableSchema.Collation` enum names, including `comp_3` for packed decimal.

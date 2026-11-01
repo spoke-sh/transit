@@ -48,7 +48,7 @@ authority(#transit_catalog_authority{database_domain=D,schema_domain=S,table_dom
     check(length(lists:usort([D,S,T,ST,Q,K]))=:=6 andalso DO=/=SO),
     #{<<"database_domain">>=>counter(D),<<"schema_domain">>=>counter(S),<<"table_domain">>=>counter(T),<<"stream_domain">>=>counter(ST),<<"queue_domain">>=>counter(Q),<<"kv_domain">>=>counter(K),<<"database">>=>counter(DO),<<"initial_schema_authority">>=>counter(SO),<<"initial_schema">>=>counter(NS)}.
 column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation) ->
-    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>collation(Collation)}.
+    #{<<"name">>=>identifier(Name),<<"type">>=>transit_logical:type_wire(Type),<<"nullable">>=>transit_sdk_value:boolean(Nullable),<<"default">>=>optional(Default,fun transit_logical:cell_wire/1),<<"max_characters">>=>optional(Max,fun small/1),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>collation(Collation),<<"semantics">>=>#{<<"rounding">>=>null,<<"metric">>=>null,<<"timezone">>=>null,<<"spatial">>=>null}}.
 column(#transit_catalog_column{id=Id,name=Name,type=Type,nullable=Nullable,default=Default,max_characters=Max,encoding=Encoding,collation=Collation}) ->
     (column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation))#{<<"id">>=>decimal(Id)}.
 %% Retain only a bounded prefix plus one individually bounded conversion.
@@ -79,7 +79,7 @@ mutation({update,Assignments,Predicate}) ->
 mutation({delete,Predicate}) -> {P,_}=predicates(Predicate,limit(<<"catalog_action_bytes">>)),
     {#{<<"action">>=>#{<<"delete">>=>#{}},<<"predicate">>=>P},delete}.
 change({add,Name,Type,Nullable,Default,Max,Encoding,Collation}) -> #{<<"add">>=>column_fields(Name,Type,Nullable,Default,Max,Encoding,Collation)};
-change({physical,Column,Encoding,Collation}) -> #{<<"physical">>=>#{<<"column">>=>decimal(Column),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations())}};
+change({physical,Column,Encoding,Collation}) -> #{<<"physical">>=>#{<<"column">>=>decimal(Column),<<"encoding">>=>enum(Encoding,encodings()),<<"collation">>=>enum(Collation,collations()),<<"semantics">>=>null}};
 change({drop,Column}) -> #{<<"drop">>=>decimal(Column)};
 change({rename,Column,Name}) -> #{<<"rename">>=>#{<<"column">>=>decimal(Column),<<"name">>=>identifier(Name)}};
 change({default,Column,Value}) -> #{<<"default">>=>#{<<"column">>=>decimal(Column),<<"value">>=>optional(Value,fun transit_logical:cell_wire/1)}};
@@ -103,7 +103,8 @@ parse_schema(Input) ->
     Columns=[parse_column(C)||C<-list(maps:get(<<"columns">>,V),128)],Keys=[wide(K)||K<-list(maps:get(<<"primary_key">>,V),length(Columns))],
     Out=#transit_catalog_schema{object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),next_column=wide(maps:get(<<"next_column">>,V)),columns=Columns,primary_key=Keys},schema(Out),Out.
 parse_column(V) ->
-    fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>,<<"encoding">>,<<"collation">>]),
+    fields(V,[<<"id">>,<<"name">>,<<"type">>,<<"nullable">>,<<"default">>,<<"max_characters">>,<<"encoding">>,<<"collation">>,<<"semantics">>]),
+    check(maps:get(<<"semantics">>,V)=:=#{<<"rounding">>=>null,<<"metric">>=>null,<<"timezone">>=>null,<<"spatial">>=>null}),
     #transit_catalog_column{id=wide(maps:get(<<"id">>,V)),name=identifier(maps:get(<<"name">>,V)),type=transit_logical:type_from_wire(maps:get(<<"type">>,V)),nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),default=parsed(maps:get(<<"default">>,V),fun transit_logical:cell_from_wire/1),max_characters=parsed(maps:get(<<"max_characters">>,V),fun small/1),encoding=known(maps:get(<<"encoding">>,V),encodings()),collation=known(maps:get(<<"collation">>,V),collations())}.
 parse_assignments(V) -> [begin
     fields(A,[<<"column">>,<<"value">>]), Cell=maps:get(<<"value">>,A),

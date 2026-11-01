@@ -130,6 +130,20 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
             parser.annotate(.keyword);
             try parser.advance();
             try value.validateEncodingAndCollation();
+        } else if (try parser.takeWord("ROUNDING")) {
+            if (value.semantics.rounding != null) return error.DuplicateColumnConstraint;
+            value.semantics.rounding = try semanticEnum(@import("DecimalArithmetic.zig").RoundingMode, parser);
+        } else if (try parser.takeWord("METRIC")) {
+            if (value.semantics.metric != null) return error.DuplicateColumnConstraint;
+            value.semantics.metric = try semanticEnum(@import("VectorMetric.zig").Metric, parser);
+        } else if (try parser.takeWord("TIMEZONE")) {
+            if (value.semantics.timezone != null) return error.DuplicateColumnConstraint;
+            const zone = try semanticBytes(parser, .utf8);
+            try parser.requireWord("TZDB");
+            const version = try semanticBytes(parser, .utf8);
+            try parser.requireWord("TZIF");
+            const bytes = try semanticBytes(parser, .binary);
+            value.semantics.timezone = try @import("PinnedTimezone.zig").Descriptor.init(version, zone, bytes);
         } else if (unsupportedConstraint(parser.*)) {
             return error.UnsupportedTableConstraint;
         } else break;
@@ -140,6 +154,27 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         value.nullable = false;
     }
     return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable };
+}
+fn semanticBytes(parser: *Parser, expected: @import("Types.zig").Type) ![]const u8 {
+    const cell = try parser.value(expected);
+    if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidColumnSemantics;
+    return cell.value.atom.bytes;
+}
+fn semanticEnum(comptime E: type, parser: *Parser) !E {
+    const entries = comptime blk: {
+        const fields = @typeInfo(E).@"enum";
+        var pairs: [fields.field_names.len]struct { []const u8, E } = undefined;
+        for (fields.field_names, fields.field_values, &pairs) |name, value, *pair| pair.* = .{ name, @fromBackingInt(@intCast(value)) };
+        break :blk pairs;
+    };
+    const names = std.StaticStringMap(E).initComptime(entries);
+    var spelling: [32]u8 = undefined;
+    if (parser.token.tag != .word or parser.token.text.len > spelling.len) return error.InvalidColumnSemantics;
+    for (parser.token.text, spelling[0..parser.token.text.len]) |byte, *out| out.* = std.ascii.toLower(byte);
+    const result = names.get(spelling[0..parser.token.text.len]) orelse return error.InvalidColumnSemantics;
+    parser.annotate(.keyword);
+    try parser.advance();
+    return result;
 }
 fn unsupportedConstraint(parser: Parser) bool {
     inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "AUTO_INCREMENT" }) |word| if (parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, word)) return true;
@@ -371,7 +406,7 @@ fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
         _ = try parser.takeWord("COLUMN");
         const added = try column(parser, 1);
         if (added.primary) return error.UnsupportedTableConstraint;
-        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation } };
+        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation, .semantics = added.value.semantics } };
     } else if (try parser.takeWord("DROP")) blk: {
         if (try parser.takeWord("CONSTRAINT")) {
             const name = try parser.named(.column);

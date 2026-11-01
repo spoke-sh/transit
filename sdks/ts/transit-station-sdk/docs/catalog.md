@@ -61,6 +61,16 @@ encoding and collation, nullability, optional defaults and character bounds.
 Nested values use the [logical value API](logical.md). Returned schemas require
 physical descriptors explicitly; missing fields never acquire defaults.
 
+`Column.semantics` accepts decimal `rounding`, a vector `metric`, pinned
+`timezone` rules and reserved `spatial` metadata. Timezone rules own the version
+label, digest, zone name and actual TZif bytes. Returned schemas preserve these
+fields, and changing them requires the owner's physical rewrite lifecycle.
+An absent `physical.semantics` preserves existing rules; `{}` explicitly clears
+them. Range/multirange descriptors carry a `subtype`; vector descriptors carry
+`dimensions` and `element`. Vector cells hold exact little-endian `Uint8Array`
+bytes with no per-element cell tags. Shared Zig validation owns canonical ranges,
+finite vector elements and valid type/metric combinations.
+
 `prepare(name, identity, action)` supports `create`, `alter`, `rename`, `drop` and
 `mutate`. Existing-object actions require the complete `Metadata.basis` returned
 by `lookup(name, namespace)`. `Basis.save()` preserves the connection, namespace,

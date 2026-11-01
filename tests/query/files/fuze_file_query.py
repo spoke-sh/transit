@@ -29,6 +29,10 @@ def type_bytes(value):
         return result + bytes([params['precision'], params['scale']])
     if kind == 'timestamp':
         return result + bytes([params == 'utc'])
+    if kind in ('range', 'multirange'):
+        return result + type_bytes(params)
+    if kind == 'vector':
+        return result + struct.pack('<IB', params['dimensions'], {'float32': 1, 'float16': 2, 'bfloat16': 3, 'int8': 4, 'binary': 5}[params['element']])
     if kind in ('structure', 'tagged_union'):
         result += bytes([len(params)])
         for field in params:
@@ -78,6 +82,14 @@ def atom_bytes(value, typ):
     raise AssertionError(kind)
 
 
+def range_bytes(value, subtype):
+    lower, upper = value['lower'], value['upper']
+    flags = int(value['is_empty']) | (2 if lower else 0) | (4 if upper else 0)
+    flags |= 8 if lower and lower['inclusive'] else 0
+    flags |= 16 if upper and upper['inclusive'] else 0
+    return bytes([flags]) + b''.join(atom_bytes(bound['value'], subtype) for bound in (lower, upper) if bound)
+
+
 def cell_bytes(cell, typ):
     state, content = next(iter(cell.items()))
     if state in ('missing', 'null'):
@@ -91,6 +103,12 @@ def cell_bytes(cell, typ):
     shape, value = next(iter(content.items()))
     if shape == 'atom':
         raw = atom_bytes(value, typ)
+    elif shape == 'range':
+        raw = range_bytes(value, params)
+    elif shape == 'multirange':
+        raw = struct.pack('<I', len(value)) + b''.join(range_bytes(run, params) for run in value)
+    elif shape == 'vector':
+        raw = bytes.fromhex(value)
     elif shape == 'structure':
         raw = b''.join(cell_bytes(c, field['type']) for c, field in zip(value, params, strict=True))
     elif shape in ('list', 'array'):

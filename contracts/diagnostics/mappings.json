@@ -46,6 +46,10 @@
         {
           "source": "packages/zig/transit-fuze/src/relational_sql_test.zig",
           "name": "relational SQL binds shared three-valued predicates and precise unknown names"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/companion_values_test.zig",
+          "name": "companion declaration failures retain structured binding diagnostics"
         }
       ],
       "exceptions": [
@@ -811,6 +815,102 @@
         },
         "OnlinePhasedRewriteRequired": {
           "code": "sql.phased_rewrite_required",
+          "category": "unsupported"
+        },
+        "UnsupportedRangeSubtype": {
+          "code": "sql.unsupported_range_subtype",
+          "category": "unsupported"
+        },
+        "InvalidRangeLiteral": {
+          "code": "sql.invalid_range_literal",
+          "category": "binding"
+        },
+        "InvalidRangeValue": {
+          "code": "sql.invalid_range_value",
+          "category": "binding"
+        },
+        "NonCanonicalRange": {
+          "code": "sql.noncanonical_range",
+          "category": "binding"
+        },
+        "NonCanonicalMultiRange": {
+          "code": "sql.noncanonical_multirange",
+          "category": "binding"
+        },
+        "RangeBoundOverflow": {
+          "code": "sql.range_bound_overflow",
+          "category": "constraint"
+        },
+        "InvalidVectorLiteral": {
+          "code": "sql.invalid_vector_literal",
+          "category": "binding"
+        },
+        "InvalidVectorDimensions": {
+          "code": "sql.invalid_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidBinaryVectorDimensions": {
+          "code": "sql.invalid_binary_vector_dimensions",
+          "category": "binding"
+        },
+        "VectorDimensionMismatch": {
+          "code": "sql.vector_dimension_mismatch",
+          "category": "binding"
+        },
+        "InvalidVectorValue": {
+          "code": "sql.invalid_vector_value",
+          "category": "binding"
+        },
+        "IncompatibleVectorMetric": {
+          "code": "sql.incompatible_vector_metric",
+          "category": "binding"
+        },
+        "InvalidColumnSemantics": {
+          "code": "sql.invalid_column_semantics",
+          "category": "binding"
+        },
+        "IncompatibleNumericSemantics": {
+          "code": "sql.incompatible_numeric_semantics",
+          "category": "binding"
+        },
+        "IncompatibleTimezoneSemantics": {
+          "code": "sql.incompatible_timezone_semantics",
+          "category": "binding"
+        },
+        "IncompatibleSpatialSemantics": {
+          "code": "sql.incompatible_spatial_semantics",
+          "category": "binding"
+        },
+        "InvalidSpatialUnitScale": {
+          "code": "sql.invalid_spatial_unit_scale",
+          "category": "binding"
+        },
+        "InvalidTimezoneData": {
+          "code": "sql.invalid_timezone_data",
+          "category": "binding"
+        },
+        "InvalidTimezoneName": {
+          "code": "sql.invalid_timezone_name",
+          "category": "binding"
+        },
+        "InvalidTzdbVersion": {
+          "code": "sql.invalid_tzdb_version",
+          "category": "binding"
+        },
+        "TimezoneDefinitionMismatch": {
+          "code": "sql.timezone_definition_mismatch",
+          "category": "binding"
+        },
+        "TimezoneDataTooLarge": {
+          "code": "sql.timezone_data_too_large",
+          "category": "limit"
+        },
+        "UnsupportedTimezoneFormat": {
+          "code": "sql.unsupported_timezone_format",
+          "category": "unsupported"
+        },
+        "LeapSecondTimezoneUnsupported": {
+          "code": "sql.leap_second_timezone_unsupported",
           "category": "unsupported"
         }
       }
@@ -4369,6 +4469,42 @@
         "UnsupportedVectorCpu": {
           "code": "file.unsupported_vector_cpu",
           "category": "unsupported"
+        },
+        "VectorDimensionMismatch": {
+          "code": "file.vector_dimension_mismatch",
+          "category": "binding"
+        },
+        "InvalidVectorDimensions": {
+          "code": "file.invalid_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidBinaryVectorDimensions": {
+          "code": "file.invalid_binary_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidVectorValue": {
+          "code": "file.invalid_vector_value",
+          "category": "binding"
+        },
+        "UnsupportedRangeSubtype": {
+          "code": "file.unsupported_range_subtype",
+          "category": "unsupported"
+        },
+        "InvalidRangeValue": {
+          "code": "file.invalid_range_value",
+          "category": "binding"
+        },
+        "NonCanonicalRange": {
+          "code": "file.noncanonical_range",
+          "category": "binding"
+        },
+        "NonCanonicalMultiRange": {
+          "code": "file.noncanonical_multirange",
+          "category": "binding"
+        },
+        "RangeBoundOverflow": {
+          "code": "file.range_bound_overflow",
+          "category": "binding"
         }
       }
     },

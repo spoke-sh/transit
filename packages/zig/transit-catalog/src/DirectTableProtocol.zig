@@ -105,13 +105,13 @@ pub const Connection = struct {
 /// Defaults are FVL1 typed cells, preserving binary values and floating bits.
 /// The Table owner validates the resulting value against its accepted column.
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Binary, max_characters: ?u32, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation },
+    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Binary, max_characters: ?u32, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation, semantics: f.TableSchema.Semantics.Neutral },
     drop: u64,
     rename: struct { column: u64, name: []const u8 },
     default: struct { column: u64, value: ?Binary },
     nullable: struct { column: u64, value: bool },
     type: struct { column: u64, type: f.Types.Type, max_characters: ?u32 },
-    physical: struct { column: u64, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation },
+    physical: struct { column: u64, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation, semantics: ?f.TableSchema.Semantics.Neutral },
     integrity: Binary,
 
     fn cell(allocator: std.mem.Allocator, value: ?Binary) !?f.Types.Values.Cell {
@@ -122,13 +122,13 @@ pub const Change = union(enum) {
     }
     pub fn native(self: Change, allocator: std.mem.Allocator) !f.TableEvolution.Change {
         return switch (self) {
-            .add => |value| .{ .add = .{ .name = value.name, .type = value.type, .nullable = value.nullable, .default = try cell(allocator, value.default), .max_characters = value.max_characters, .encoding = value.encoding, .collation = value.collation } },
+            .add => |value| .{ .add = .{ .name = value.name, .type = value.type, .nullable = value.nullable, .default = try cell(allocator, value.default), .max_characters = value.max_characters, .encoding = value.encoding, .collation = value.collation, .semantics = try f.TableSchema.Semantics.native(value.semantics, allocator) } },
             .drop => |value| .{ .drop = value },
             .rename => |value| .{ .rename = .{ .column = value.column, .name = value.name } },
             .default => |value| .{ .default = .{ .column = value.column, .value = try cell(allocator, value.value) } },
             .nullable => |value| .{ .nullable = .{ .column = value.column, .value = value.value } },
             .type => |value| .{ .type = .{ .column = value.column, .type = value.type, .max_characters = value.max_characters } },
-            .physical => |value| .{ .physical = .{ .column = value.column, .encoding = value.encoding, .collation = value.collation } },
+            .physical => |value| .{ .physical = .{ .column = value.column, .encoding = value.encoding, .collation = value.collation, .semantics = if (value.semantics) |rules| try f.TableSchema.Semantics.native(rules, allocator) else null } },
             .integrity => |value| .{ .integrity = (try f.TableSchema.decode(allocator, try value.decode(allocator, f.TableSchema.max_bytes))).schema },
         };
     }

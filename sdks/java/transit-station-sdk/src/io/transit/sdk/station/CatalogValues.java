@@ -48,7 +48,9 @@ final class CatalogValues {
         if (cols.isEmpty() || cols.size() > 128 || keys.size() > cols.size()) throw incompatible("catalog-schema-bound");
         List<Column> columns = new ArrayList<>();
         for (JsonElement col : cols) {
-            JsonObject c = fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation");
+            JsonObject c = fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation", "semantics");
+            JsonObject semantics = fields(c.get("semantics"), "rounding", "metric", "timezone", "spatial");
+            for (String key : List.of("rounding", "metric", "timezone", "spatial")) if (!semantics.get(key).isJsonNull()) throw incompatible("catalog-column-semantics-unsupported");
             columns.add(new Column(wide(c.get("id")), string(c.get("name")), Logical.typeFromWire(c.get("type")), bool(c.get("nullable")), optional(c.get("default"), Logical::cellFromWire), optional(c.get("max_characters"), n -> number(n, 1)), variant(Encoding.class, c.get("encoding")), variant(Collation.class, c.get("collation"))));
         }
         Schema result = new Schema(wide(v.get("object")), wide(v.get("revision")), wide(v.get("next_column")), columns, keys.asList().stream().map(CatalogValues::wide).toList());

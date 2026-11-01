@@ -165,7 +165,7 @@ pub fn execute(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
 }
 test "logical codec owns complete results and rejects incompatible definitions without I/O" {
     const testing = std.testing;
-    const input = "{\"bind\":{\"type_json\":\"{\\\"definition\\\":\\\"transit.fuze.types.v1.2026-09-30\\\",\\\"type\\\":{\\\"uint128\\\":{}}}\",\"literal\":\"340282366920938463463374607431768211455\"}}";
+    const input = "{\"bind\":{\"type_json\":\"{\\\"definition\\\":\\\"transit.fuze.types.v1.2026-11-01.companions\\\",\\\"type\\\":{\\\"uint128\\\":{}}}\",\"literal\":\"340282366920938463463374607431768211455\"}}";
     try testing.checkAllAllocationFailures(testing.allocator, struct {
         fn run(allocator: std.mem.Allocator, bytes: []const u8) !void {
             const output = try execute(allocator, bytes);

@@ -110,7 +110,7 @@ def codecs(config):
     assert len(wide_bundle.data) > 1000
     datatype = l.ListType(l.Element(l.ScalarType('uint128'), True))
     with l.Codec() as codec:
-        value = codec.value_json(json.dumps(dict(definition='transit.fuze.types.v1.2026-09-30',
+        value = codec.value_json(json.dumps(dict(definition='transit.fuze.types.v1.2026-11-01.companions',
             field=dict(name='value', type=wire_type(datatype)), cell={'value': {'list': [{'value': {'atom': {'unsigned': str(2**128-1)}}}, {'null': {}}]}})))
         nested = q.decode_arrow((q.Column('value', datatype),), codec.arrow(value), 1)
         assert nested == ((l.Present(l.SequenceValue('list', (l.Present(l.Atom('unsigned', 2**128-1)), l.Null()))),),)

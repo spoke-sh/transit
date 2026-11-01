@@ -16,6 +16,7 @@ from .catalog_values import (
     CheckLiteral as CheckLiteral, CheckColumns as CheckColumns, CheckNull as CheckNull,
     CheckConstraint as CheckConstraint, ForeignKeyConstraint as ForeignKeyConstraint, TableIntegrity as TableIntegrity,
     Column as Column, Encoding as Encoding, Collation as Collation, Schema as Schema,
+    ColumnSemantics as ColumnSemantics, TimezoneRules as TimezoneRules, SpatialSemantics as SpatialSemantics,
     Identity as Identity, Basis as Basis, Metadata as Metadata, ObjectIdentity as ObjectIdentity,
     Interpretation as Interpretation, StoredDefinition as StoredDefinition, Position as Position,
     Content as Content, Namespace as Namespace, Entry as Entry, Cursor as Cursor, Page as Page,

@@ -7284,7 +7284,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -7559,7 +7559,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 175,
+        "try": 177,
         "catch": 3
       },
       "imports": [
@@ -9259,7 +9259,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -12530,6 +12530,71 @@
         "Types.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/ColumnSemantics.zig": {
+      "errors": {
+        "IncompatibleNumericSemantics": 1,
+        "IncompatibleSpatialSemantics": 1,
+        "IncompatibleTimezoneSemantics": 1,
+        "IncompatibleVectorMetric": 1,
+        "InvalidColumnSemantics": 2,
+        "InvalidSpatialUnitScale": 3,
+        "InvalidTimezoneData": 4,
+        "UnsupportedSpatialExecution": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "foreign()": "<inferred>",
+        "hex()": "<inferred>",
+        "native()": "<inferred>",
+        "read()": "<inferred>",
+        "readEnum()": "<inferred>",
+        "requireSpatialExecution()": "<inferred>",
+        "validate()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 51,
+        "catch": 2
+      },
+      "imports": [
+        "DecimalArithmetic.zig",
+        "PinnedTimezone.zig",
+        "Timezone.zig",
+        "Types.zig",
+        "VectorMetric.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/CompanionLiteral.zig": {
+      "errors": {
+        "InvalidRangeLiteral": 8,
+        "InvalidVectorLiteral": 4,
+        "MultiRangeBufferTooSmall": 1,
+        "VectorBufferTooSmall": 1,
+        "VectorDimensionMismatch": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "multirange()": "<inferred>",
+        "range()": "<inferred>",
+        "vector()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 2
+      },
+      "imports": [
+        "RangeValue.zig",
+        "Types.zig",
+        "VectorMetric.zig",
+        "VectorValue.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/DecimalArithmetic.zig": {
       "errors": {
         "DecimalOverflow": 2,
@@ -13327,7 +13392,7 @@
     },
     "packages/zig/transit-fuze/src/LogicalArrow.zig": {
       "errors": {
-        "ArrowShapeTooLarge": 4,
+        "ArrowShapeTooLarge": 6,
         "ArrowWorkspaceExceeded": 1,
         "OutOfMemory": 1
       },
@@ -13341,15 +13406,18 @@
         "integers()": "<inferred>",
         "messages()": "<inferred>",
         "messagesInner()": "<inferred>",
+        "multirangePayload()": "anyerror",
         "nested()": "<inferred>",
         "payload()": "anyerror",
         "primitive()": "<inferred>",
-        "structure()": "<inferred>"
+        "rangePayload()": "anyerror",
+        "structure()": "<inferred>",
+        "vectorPayload()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 5,
       "propagation": {
-        "try": 82,
-        "catch": 2
+        "try": 105,
+        "catch": 3
       },
       "imports": [
         "ColumnRows.zig",
@@ -13419,12 +13487,13 @@
         "cell()": "anyerror",
         "date()": "<inferred>",
         "preview()": "<inferred>",
+        "range()": "<inferred>",
         "time()": "<inferred>",
         "typeName()": "anyerror"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 85,
+        "try": 105,
         "catch": 1
       },
       "imports": [
@@ -13434,8 +13503,8 @@
     },
     "packages/zig/transit-fuze/src/LogicalInspect.zig": {
       "errors": {
-        "InvalidArrowResult": 52,
-        "ValueBudgetExceeded": 4
+        "InvalidArrowResult": 55,
+        "ValueBudgetExceeded": 5
       },
       "outcomes": {},
       "error_sets": {},
@@ -13456,12 +13525,13 @@
         "infer()": "<inferred>",
         "ordinary()": "<inferred>",
         "primitive()": "<inferred>",
+        "rangeValue()": "<inferred>",
         "segment()": "<inferred>",
         "value()": "anyerror"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 112,
+        "try": 132,
         "catch": 1
       },
       "imports": [
@@ -13474,15 +13544,16 @@
         "IncompatibleDefinition": 2,
         "InvalidArrayLength": 1,
         "InvalidConflict": 1,
-        "InvalidHexEncoding": 2,
+        "InvalidHexEncoding": 3,
         "InvalidIntegerEncoding": 5,
         "InvalidUnion": 1,
         "InvalidUuid": 1,
         "JsonByteBudgetExceeded": 1,
         "OutOfMemory": 1,
         "Overflow": 8,
-        "TypeMismatch": 7,
-        "ValueBudgetExceeded": 3
+        "TypeMismatch": 10,
+        "ValueBudgetExceeded": 3,
+        "VectorDimensionMismatch": 1
       },
       "outcomes": {
         "Alternative.value": [
@@ -13518,7 +13589,10 @@
           "array",
           "map",
           "tagged_union",
-          "json"
+          "json",
+          "range",
+          "multirange",
+          "vector"
         ]
       },
       "error_sets": {},
@@ -13540,11 +13614,13 @@
         "encodeType()": "<inferred>",
         "foreignAtom()": "<inferred>",
         "foreignCell()": "anyerror",
+        "foreignRange()": "<inferred>",
         "foreignValue()": "anyerror",
         "fromForeign()": "<inferred>",
         "hex()": "<inferred>",
         "nativeAtom()": "<inferred>",
         "nativeCell()": "anyerror",
+        "nativeRange()": "<inferred>",
         "nativeValue()": "anyerror",
         "signed()": "<inferred>",
         "unhex()": "<inferred>",
@@ -13552,7 +13628,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 92,
+        "try": 109,
         "catch": 3
       },
       "imports": [
@@ -13757,7 +13833,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 67,
+        "try": 68,
         "catch": 0
       },
       "imports": [
@@ -14093,6 +14169,42 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/PinnedTimezone.zig": {
+      "errors": {
+        "AmbiguousLocalTime": 1,
+        "InvalidTimeBucket": 1,
+        "NonexistentLocalTime": 1,
+        "TimestampOverflow": 3,
+        "TimezoneCoverageUnavailable": 2,
+        "TimezoneDefinitionMismatch": 1
+      },
+      "outcomes": {
+        "Fold": [
+          "reject",
+          "earlier",
+          "later"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.cloneInto()": "<inferred>",
+        "Descriptor.init()": "<inferred>",
+        "Descriptor.load()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Loaded.bucketLocal()": "<inferred>",
+        "Loaded.localToUtc()": "<inferred>",
+        "Loaded.utcToLocal()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 4
+      },
+      "imports": [
+        "Timezone.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PlainColumnBuffers.zig": {
       "errors": {
         "ColumnPageTooLarge": 3,
@@ -14345,6 +14457,49 @@
         "catch": 2
       },
       "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/RangeValue.zig": {
+      "errors": {
+        "InvalidRangeValue": 1,
+        "MultiRangeBufferTooSmall": 1,
+        "NonCanonicalMultiRange": 2,
+        "NonCanonicalRange": 1,
+        "RangeBoundOverflow": 3,
+        "UnsupportedRangeSubtype": 3,
+        "ValueBudgetExceeded": 2
+      },
+      "outcomes": {
+        "Predicate": [
+          "overlaps",
+          "contains",
+          "adjacent"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "atomFromCoefficient()": "<inferred>",
+        "canonical()": "<inferred>",
+        "canonicalFor()": "<inferred>",
+        "coefficient()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "logical()": "<inferred>",
+        "native()": "<inferred>",
+        "normalizeMulti()": "<inferred>",
+        "order()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateMulti()": "<inferred>",
+        "validateSubtype()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 2
+      },
+      "imports": [
+        "Range.zig",
+        "Types.zig",
         "std"
       ]
     },
@@ -14999,6 +15154,52 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ScalarProgram.zig": {
+      "errors": {
+        "InvalidScalarReference": 2,
+        "InvalidTimeBucket": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "ScalarProgramBudget": 1,
+        "TypeMismatch": 2
+      },
+      "outcomes": {
+        "DecimalOperation": [
+          "add",
+          "subtract",
+          "multiply",
+          "divide"
+        ],
+        "Instruction": [
+          "input",
+          "decimal_binary",
+          "decimal_rescale",
+          "at_time_zone",
+          "time_bucket"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "absent()": "<inferred>",
+        "decimalField()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "prepare()": "<inferred>",
+        "prior()": "<inferred>",
+        "timestampField()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 24,
+        "catch": 0
+      },
+      "imports": [
+        "DecimalArithmetic.zig",
+        "PinnedTimezone.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/SearchOracle.zig": {
       "errors": {
         "InvalidBm25Parameters": 2,
@@ -15362,14 +15563,20 @@
         "IncompatibleColumnCollation": 1,
         "IncompatibleColumnEncoding": 1,
         "IncompatibleForeignKeyColumnType": 1,
+        "IncompatibleNumericSemantics": 1,
+        "IncompatibleSpatialSemantics": 1,
+        "IncompatibleTimezoneSemantics": 1,
+        "IncompatibleVectorMetric": 1,
         "Inexact": 1,
         "InvalidArrayLength": 1,
         "InvalidBinaryLiteral": 1,
+        "InvalidBinaryVectorDimensions": 1,
         "InvalidCharacterLimit": 1,
         "InvalidCheckConstraint": 1,
         "InvalidColumnCount": 1,
         "InvalidColumnIdentity": 1,
         "InvalidColumnName": 1,
+        "InvalidColumnSemantics": 1,
         "InvalidConstraintCount": 1,
         "InvalidConstraintName": 1,
         "InvalidDate": 1,
@@ -15398,6 +15605,8 @@
         "InvalidQueryInteger": 1,
         "InvalidQueryScalar": 1,
         "InvalidQuerySchema": 1,
+        "InvalidRangeLiteral": 1,
+        "InvalidRangeValue": 1,
         "InvalidRelationalBudgets": 1,
         "InvalidRelationalGroups": 1,
         "InvalidRelationalJoin": 1,
@@ -15405,6 +15614,7 @@
         "InvalidRelationalSources": 1,
         "InvalidRowWidth": 1,
         "InvalidSchemaTransition": 1,
+        "InvalidSpatialUnitScale": 1,
         "InvalidSqlAuthorizationName": 1,
         "InvalidSqlEncoding": 1,
         "InvalidSqlPrivilege": 1,
@@ -15415,14 +15625,21 @@
         "InvalidTableSchemaIdentity": 1,
         "InvalidTime": 1,
         "InvalidTimestamp": 1,
+        "InvalidTimezoneData": 1,
+        "InvalidTimezoneName": 1,
         "InvalidTypeParameters": 1,
+        "InvalidTzdbVersion": 1,
         "InvalidUnion": 1,
         "InvalidUtf8": 1,
         "InvalidUuid": 1,
+        "InvalidVectorDimensions": 1,
+        "InvalidVectorLiteral": 1,
+        "InvalidVectorValue": 1,
         "JsonByteBudgetExceeded": 1,
         "JsonDepthExceeded": 1,
         "JsonFieldBudgetExceeded": 1,
         "JsonTokenBudgetExceeded": 1,
+        "LeapSecondTimezoneUnsupported": 1,
         "LiteralOutOfRange": 1,
         "LiteralTooLarge": 1,
         "MapKeyOrder": 1,
@@ -15430,6 +15647,8 @@
         "MultiplePrimaryKeys": 1,
         "MutationBatchTooLarge": 1,
         "NoPrimaryKey": 1,
+        "NonCanonicalMultiRange": 1,
+        "NonCanonicalRange": 1,
         "NonFiniteValue": 1,
         "NullLimitParameter": 1,
         "NullNotAllowed": 1,
@@ -15446,6 +15665,7 @@
         "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
         "QuerySourceChanged": 1,
+        "RangeBoundOverflow": 1,
         "RelationalPlanTooLarge": 1,
         "RelationalSourceChanged": 1,
         "ReusedColumnIdentity": 1,
@@ -15458,6 +15678,8 @@
         "TableSchemaRequired": 1,
         "TableSchemaTooLarge": 1,
         "TableTypeError": 1,
+        "TimezoneDataTooLarge": 1,
+        "TimezoneDefinitionMismatch": 1,
         "TypeBudgetExceeded": 1,
         "TypeMismatch": 1,
         "UnboundParameters": 1,
@@ -15493,6 +15715,7 @@
         "UnsupportedNestedCharacterLimit": 1,
         "UnsupportedNullComparison": 1,
         "UnsupportedPrimaryKeyType": 1,
+        "UnsupportedRangeSubtype": 1,
         "UnsupportedRelationalPredicate": 1,
         "UnsupportedRelationalType": 1,
         "UnsupportedSchema": 1,
@@ -15502,7 +15725,9 @@
         "UnsupportedTableSchemaDefinition": 1,
         "UnsupportedTemporalPrecision": 1,
         "UnsupportedTimeZoneType": 1,
-        "ValueBudgetExceeded": 1
+        "UnsupportedTimezoneFormat": 1,
+        "ValueBudgetExceeded": 1,
+        "VectorDimensionMismatch": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -15707,9 +15932,9 @@
         "InvalidLiteral": 1,
         "InvalidMapKey": 1,
         "InvalidRowWidth": 1,
-        "InvalidSqlSyntax": 16,
+        "InvalidSqlSyntax": 19,
         "UnknownUnionAlternative": 1,
-        "ValueBudgetExceeded": 5
+        "ValueBudgetExceeded": 6
       },
       "outcomes": {
         "value": [
@@ -15740,10 +15965,11 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 20,
+        "try": 26,
         "catch": 1
       },
       "imports": [
+        "CompanionLiteral.zig",
         "Sql.zig",
         "Types.zig",
         "std"
@@ -15949,7 +16175,7 @@
         "InvalidParameterIndex": 2,
         "InvalidParameterSite": 1,
         "InvalidSqlSyntax": 8,
-        "InvalidTypeParameters": 3,
+        "InvalidTypeParameters": 6,
         "NullableMapKey": 1,
         "TypeBudgetExceeded": 2,
         "UnboundParameters": 1,
@@ -15992,7 +16218,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 83,
+        "try": 94,
         "catch": 4
       },
       "imports": [
@@ -16000,6 +16226,7 @@
         "SqlLiteral.zig",
         "SqlTypes.zig",
         "Types.zig",
+        "VectorMetric.zig",
         "std"
       ]
     },
@@ -16418,11 +16645,12 @@
     },
     "packages/zig/transit-fuze/src/TableDdl.zig": {
       "errors": {
-        "DuplicateColumnConstraint": 3,
+        "DuplicateColumnConstraint": 6,
         "DuplicatePrimaryKeyColumn": 1,
         "ForeignKeyIndexEnforcementUnavailable": 1,
         "ForeignKeyResolutionRequired": 1,
         "InvalidColumnCount": 1,
+        "InvalidColumnSemantics": 3,
         "InvalidConstraintCount": 3,
         "InvalidPrimaryKey": 1,
         "MultiplePrimaryKeys": 3,
@@ -16483,6 +16711,8 @@
         "compileWithForeignKeys()": "<inferred>",
         "create()": "<inferred>",
         "drop()": "<inferred>",
+        "semanticBytes()": "<inferred>",
+        "semanticEnum()": "<inferred>",
         "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
@@ -16492,11 +16722,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 137,
+        "try": 150,
         "catch": 1
       },
       "imports": [
+        "DecimalArithmetic.zig",
         "PerfectHash.zig",
+        "PinnedTimezone.zig",
         "Sql.zig",
         "SqlCheck.zig",
         "SqlForeignKey.zig",
@@ -16507,6 +16739,7 @@
         "TableEvolution.zig",
         "TableSchema.zig",
         "Types.zig",
+        "VectorMetric.zig",
         "std"
       ]
     },
@@ -16817,7 +17050,7 @@
         "InvalidPrimaryKey": 2,
         "InvalidRowWidth": 2,
         "InvalidTableDefault": 1,
-        "InvalidTableSchemaEncoding": 10,
+        "InvalidTableSchemaEncoding": 11,
         "InvalidTableSchemaIdentity": 1,
         "NoPrimaryKey": 1,
         "NullablePrimaryKey": 1,
@@ -16889,11 +17122,12 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 103,
+        "try": 109,
         "catch": 5
       },
       "imports": [
         "Collation.zig",
+        "ColumnSemantics.zig",
         "Ebcdic037.zig",
         "IbmHfp.zig",
         "PerfectHash.zig",
@@ -16926,7 +17160,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 27,
         "catch": 2
       },
       "imports": [
@@ -17168,7 +17402,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 20,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -17247,7 +17481,7 @@
         "InvalidFieldCount": 1,
         "InvalidFieldName": 4,
         "InvalidMapKey": 1,
-        "InvalidTypeEncoding": 6,
+        "InvalidTypeEncoding": 7,
         "InvalidUnion": 1,
         "TypeBudgetExceeded": 5,
         "UnsupportedQueryType": 1,
@@ -17283,6 +17517,9 @@
           "map",
           "tagged_union",
           "json",
+          "range",
+          "multirange",
+          "vector",
           "null_value",
           "text",
           "character"
@@ -17314,7 +17551,10 @@
           "array",
           "map",
           "tagged_union",
-          "json"
+          "json",
+          "range",
+          "multirange",
+          "vector"
         ],
         "Timestamp": [
           "civil",
@@ -17347,7 +17587,10 @@
           "array",
           "map",
           "tagged_union",
-          "json"
+          "json",
+          "range",
+          "multirange",
+          "vector"
         ]
       },
       "error_sets": {},
@@ -17375,17 +17618,20 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 73,
+        "try": 85,
         "catch": 1
       },
       "imports": [
         "BoundedJson.zig",
+        "RangeValue.zig",
         "Scalar.zig",
         "TypeDiagnostic.zig",
         "TypeOps.zig",
         "TypeSemantics.zig",
         "ValueCodec.zig",
         "Values.zig",
+        "VectorMetric.zig",
+        "VectorValue.zig",
         "std"
       ]
     },
@@ -17665,9 +17911,9 @@
         "InvalidArrayLength": 1,
         "InvalidConflict": 2,
         "InvalidUnion": 1,
-        "InvalidValueEncoding": 8,
+        "InvalidValueEncoding": 9,
         "UnsupportedAtomType": 1,
-        "ValueBudgetExceeded": 5
+        "ValueBudgetExceeded": 6
       },
       "outcomes": {},
       "error_sets": {},
@@ -17685,17 +17931,19 @@
         "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
         "readCell()": "anyerror",
+        "readRange()": "<inferred>",
         "readValue()": "anyerror",
         "write()": "<inferred>",
         "writeAtom()": "<inferred>",
         "writeBound()": "<inferred>",
         "writeBytes()": "<inferred>",
         "writeCell()": "anyerror",
+        "writeRange()": "<inferred>",
         "writeValue()": "anyerror"
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 119,
+        "try": 137,
         "catch": 0
       },
       "imports": [
@@ -17711,9 +17959,12 @@
         "MapKeyOrder": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 2,
-        "TypeMismatch": 4,
+        "TypeMismatch": 7,
+        "UnexpectedToken": 3,
+        "UnknownField": 1,
         "UnorderedType": 1,
-        "ValueBudgetExceeded": 2
+        "ValueBudgetExceeded": 2,
+        "ValueTooLong": 1
       },
       "outcomes": {
         "Alternative.value": [
@@ -17735,7 +17986,10 @@
           "array",
           "map",
           "tagged_union",
-          "json"
+          "json",
+          "range",
+          "multirange",
+          "vector"
         ]
       },
       "error_sets": {},
@@ -17743,6 +17997,7 @@
         "Budget.child()": "<inferred>",
         "Budget.data()": "<inferred>",
         "Cell.validate()": "<inferred>",
+        "Value.jsonParse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
         "atomOrder()": "<inferred>",
         "checkCell()": "anyerror",
         "checkValue()": "anyerror",
@@ -17754,7 +18009,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 38,
+        "try": 51,
         "catch": 0
       },
       "imports": [
@@ -18000,6 +18255,33 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/VectorValue.zig": {
+      "errors": {
+        "InvalidVectorValue": 1,
+        "VectorBufferTooSmall": 1,
+        "VectorDimensionMismatch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.byteLen()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "cloneInto()": "<inferred>",
+        "copyInto()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "order()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "VectorMetric.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/VectorizedSearch.zig": {
       "errors": {
         "InvalidSearchQuery": 2,
@@ -18127,6 +18409,7 @@
         "BranchDiff.zig",
         "Collation.zig",
         "ColumnPredicate.zig",
+        "ColumnSemantics.zig",
         "DecimalArithmetic.zig",
         "Declaration.zig",
         "Ebcdic1047.zig",
@@ -18152,6 +18435,7 @@
         "PerfectHash.zig",
         "PerfectHashIn.zig",
         "PhysicalCodecs.zig",
+        "PinnedTimezone.zig",
         "Prepared.zig",
         "QueryCollations.zig",
         "QueryValues.zig",
@@ -18167,6 +18451,7 @@
         "RelationalSql.zig",
         "RelationalValues.zig",
         "RlsAndMasking.zig",
+        "ScalarProgram.zig",
         "SearchOracle.zig",
         "SourceCodec.zig",
         "Sql.zig",
@@ -20205,7 +20490,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"9c077a0fad2150f7e09647db000d606ae34175548e3b41bf9b765b789109e17a\""
+          "@\"675994384444f1bac263246c9abd8d580cbeccf5d02965be57bbfd728e57e7f5\""
         ],
         "Effect.phase": [
           "pending",
@@ -38496,10 +38781,10 @@
       "constraintColumns": "LPAREN identifier ( COMMA identifier ) * RPAREN",
       "referentialClause": "ON ( DELETE | UPDATE ) ( RESTRICT | NO ACTION | CASCADE | SET NULL_ )",
       "columnDef": "identifier dataType columnConstraint *",
-      "columnConstraint": "nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation",
+      "columnConstraint": "nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation | ROUNDING identifier | METRIC identifier | TIMEZONE STRING TZDB STRING TZIF X STRING",
       "collation": "UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD",
       "nullability": "NOT NULL_ | NULL_",
-      "dataType": "scalarTypeName ( LPAREN INTEGER ( COMMA INTEGER ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA INTEGER RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN",
+      "dataType": "scalarTypeName ( LPAREN INTEGER ( COMMA INTEGER ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA INTEGER RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN | ( RANGE | MULTIRANGE ) LT dataType GT | VECTOR LPAREN INTEGER COMMA scalarTypeName RPAREN",
       "scalarTypeName": "IDENTIFIER | INT64 | UINT64 | FLOAT64 | BOOL | UTF8 | BINARY | BYTEA | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE PRECISION ? | CHARACTER VARYING",
       "typeField": "identifier dataType nullability ? OPTIONAL ?",
       "alterTable": "ALTER TABLE identifier ( ADD COLUMN ? columnDef | ADD tableConstraint | DROP CONSTRAINT identifier RESTRICT ? | VALIDATE CONSTRAINT identifier | DROP COLUMN ? identifier RESTRICT ? | RENAME COLUMN ? identifier TO identifier | RENAME TO identifier | ALTER COLUMN ? identifier ( SET DEFAULT literal | DROP DEFAULT | SET NOT NULL_ | DROP NOT NULL_ | ( SET DATA ) ? TYPE dataType ) )",
@@ -38518,7 +38803,7 @@
       "explainStatement": "EXPLAIN selectStatement",
       "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "BEGIN": "'BEGIN'",
       "CONSTRAINT": "'CONSTRAINT'",
       "CHECK": "'CHECK'",
@@ -38619,6 +38904,14 @@
       "DEFAULT": "'DEFAULT'",
       "PRIMARY": "'PRIMARY'",
       "COLLATE": "'COLLATE'",
+      "RANGE": "'RANGE'",
+      "MULTIRANGE": "'MULTIRANGE'",
+      "VECTOR": "'VECTOR'",
+      "ROUNDING": "'ROUNDING'",
+      "METRIC": "'METRIC'",
+      "TIMEZONE": "'TIMEZONE'",
+      "TZDB": "'TZDB'",
+      "TZIF": "'TZIF'",
       "UTF8_BINARY": "'UTF8_BINARY'",
       "ASCII_CI": "'ASCII_CI'",
       "EBCDIC_CP037": "'EBCDIC_CP037'",

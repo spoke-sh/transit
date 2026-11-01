@@ -532,13 +532,13 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Standalone interval helper. RANGE and MULTIRANGE are absent from current logical type/value/schema codecs and SQL execution.",
+      "deviations": "Schema-bound RANGE and MULTIRANGE values, Table row/page codecs, SQL declarations and string literals, neutral JSON and logical Arrow are implemented. SQL containment/overlap/adjacency operators remain staged.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "rejected",
-        "lower": "rejected",
+        "parse": "implemented",
+        "lower": "implemented",
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
@@ -546,7 +546,8 @@
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
-        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/companion_values_test.zig"
       ]
     },
     {
@@ -558,13 +559,13 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Standalone vector metric helper. VECTOR is absent from current logical type/value/schema codecs, SQL lowering and storage slabs.",
+      "deviations": "VECTOR descriptors and unboxed 64-byte-aligned values, Table row/page codecs, SQL declarations and string literals, persisted metrics, neutral JSON and logical Arrow are implemented. SQL distance expressions remain staged.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
-        "parse": "rejected",
-        "lower": "rejected",
+        "parse": "implemented",
+        "lower": "implemented",
         "execute": "rejected",
         "recover": "rejected",
         "transport": "rejected"
@@ -572,7 +573,8 @@
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
-        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+        "packages/zig/transit-fuze/src/operator_traits_test.zig",
+        "packages/zig/transit-fuze/src/companion_values_test.zig"
       ]
     },
     {
@@ -1027,7 +1029,7 @@
       ]
     }
   ],
-  "sha256": "f448730c386044298baecaffaf61364ddb2fad07bfe70841107bb9210e81b388",
+  "sha256": "08ce4bfab5e88661bdea3cab0210002462ffabc2358b4eb2ce8e9d41d9c3f0e0",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
@@ -1070,14 +1072,14 @@
       "feature": "X001-RANGE",
       "entrypoint": "table_ddl",
       "sql": "CREATE TABLE t (span RANGE<BIGINT>)",
-      "accept": false
+      "accept": true
     },
     {
       "id": "vector",
       "feature": "X002-VECTOR",
       "entrypoint": "table_ddl",
       "sql": "CREATE TABLE t (embedding VECTOR(3, FLOAT32))",
-      "accept": false
+      "accept": true
     },
     {
       "id": "property-graph",

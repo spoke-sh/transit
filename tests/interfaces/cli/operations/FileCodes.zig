@@ -2,6 +2,15 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.VectorDimensionMismatch, .code = "file.vector_dimension_mismatch", .category = .binding, .message = "The dense payload does not match its declared dimension and element width." },
+    .{ .cause = error.InvalidVectorDimensions, .code = "file.invalid_vector_dimensions", .category = .binding, .message = "A vector dimension must be between 1 and 65536." },
+    .{ .cause = error.InvalidBinaryVectorDimensions, .code = "file.invalid_binary_vector_dimensions", .category = .binding, .message = "A binary vector bit dimension must be divisible by eight." },
+    .{ .cause = error.InvalidVectorValue, .code = "file.invalid_vector_value", .category = .binding, .message = "A dense vector element is not finite or representable by its declared type." },
+    .{ .cause = error.UnsupportedRangeSubtype, .code = "file.unsupported_range_subtype", .category = .unsupported, .message = "Range bounds require int64, decimal, date or timestamp." },
+    .{ .cause = error.InvalidRangeValue, .code = "file.invalid_range_value", .category = .binding, .message = "Range bounds or empty flags do not match the declared subtype." },
+    .{ .cause = error.NonCanonicalRange, .code = "file.noncanonical_range", .category = .binding, .message = "The range payload is not canonical for its declared subtype." },
+    .{ .cause = error.NonCanonicalMultiRange, .code = "file.noncanonical_multirange", .category = .binding, .message = "Multirange runs must be sorted, disjoint and nonadjacent." },
+    .{ .cause = error.RangeBoundOverflow, .code = "file.range_bound_overflow", .category = .binding, .message = "Discrete range normalization exceeds the declared bound domain." },
     .{ .cause = error.InvalidBatchBudget, .code = "file.invalid_compute_budget", .category = .limit, .message = "Compute rows must be 1 to 1024 and physical bytes 4096 to 1048576." },
     .{ .cause = error.BatchBudgetExceeded, .code = "file.compute_budget", .category = .limit, .message = "The physical budget cannot hold the bound plan and one compute lane. Choose a larger bounded compute reservation." },
     .{ .cause = error.InvalidProvenance, .code = "file.compute_provenance", .category = .integrity, .message = "A physical lane lacks its original source position. No complete result is available." },

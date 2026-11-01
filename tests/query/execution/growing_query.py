@@ -172,7 +172,7 @@ def run(node, caller, *, finish_pages=64):
                     assert reader.schema == pa.schema([field("id", pa.int64()), field("value", pa.string())])
                     from query.files.fuze_file_query import descriptor
                     assert reader.schema.metadata == {
-                        b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-09-30',
+                        b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-11-01.companions',
                         b'transit.logical_schema': descriptor({'structure': [
                             {'name': 'id', 'type': {'int64': {}}, 'nullable': False, 'optional': False},
                             {'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': False},

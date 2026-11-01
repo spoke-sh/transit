@@ -44,7 +44,7 @@ def arrow_fixture(producer):
             path.write_text(json.dumps(dict(columns=columns, rows=expected_rows if data else [])))
             generated = subprocess.run([producer, '--batch', str(path)], capture_output=True, check=True, timeout=30).stdout
         physical = pa.ipc.open_stream(generated).schema
-        assert physical.metadata[b'transit.definition'] == b'transit.fuze.logical-arrow.v1.2026-09-30'
+        assert physical.metadata[b'transit.definition'] == b'transit.fuze.logical-arrow.v1.2026-11-01.companions'
         assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': columns}).hex().encode()
         batches = list(pa.ipc.open_stream(generated))
         assert len(batches) == 1 and batches[0].num_rows == (5 if data else 0)

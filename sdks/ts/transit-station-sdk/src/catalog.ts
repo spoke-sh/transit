@@ -4,6 +4,7 @@ import type { ClientConfig } from "@transit/client";
 import { configuration, integer, text, validators } from "@transit/client/internal";
 import { CatalogBridge } from "./bridge.ts";
 import { wide, nativeWide as decodeNativeWide } from "./values.ts";
+import { hex, unhex } from "./framing.ts";
 import { encodeType, decodeType, encodeCell, decodeCell, encodeAtom } from "./logical-values.ts";
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
 import type { CatalogAction, CatalogResult, CatalogConfig } from "./wire.ts";
@@ -219,6 +220,90 @@ export interface TableLimits {
 }
 export type Encoding = NativeSchema["columns"][number]["encoding"];
 export type Collation = NativeSchema["columns"][number]["collation"];
+type NativeSemantics = NativeSchema["columns"][number]["semantics"];
+export interface TimezoneRules {
+  readonly version: string;
+  readonly digest: Uint8Array;
+  readonly zone: string;
+  readonly tzif: Uint8Array;
+}
+export interface SpatialSemantics {
+  readonly srid: number;
+  readonly verticalDatum: number;
+  readonly unitScaleNm: bigint;
+  readonly axisOrientation: "right_handed_z_up" | "right_handed_y_up";
+  readonly manifold: "planar" | "geodesic_wgs84";
+  readonly snapGridScale: number;
+  readonly exactPredicates: "shewchuk_adaptive";
+  readonly curveOrder: "none" | "s2_hilbert" | "h3" | "hilbert_3d";
+}
+export interface ColumnSemantics {
+  readonly rounding?: "reject" | "half_even" | "toward_zero";
+  readonly metric?: "l2_squared" | "cosine" | "dot_product" | "hamming";
+  readonly timezone?: TimezoneRules;
+  readonly spatial?: SpatialSemantics;
+}
+function semanticsWire(value: ColumnSemantics = {}): NativeSemantics {
+  const zone = value.timezone,
+    spatial = value.spatial;
+  if (zone && (zone.digest.byteLength !== 32 || zone.tzif.byteLength > 128 * 1024))
+    throw new TypeError("Invalid pinned timezone artifact");
+  return {
+    rounding: value.rounding ?? null,
+    metric: value.metric ?? null,
+    timezone: zone
+      ? {
+          version: { version_id: text(zone.version, 64), digest: Array.from(zone.digest) },
+          zone: name(zone.zone),
+          tzif_hex: hex(zone.tzif, 128 * 1024),
+        }
+      : null,
+    spatial: spatial
+      ? {
+          srid: spatial.srid,
+          vertical_datum: spatial.verticalDatum,
+          unit_scale_nm: positive(spatial.unitScaleNm).toString(),
+          axis_orientation: spatial.axisOrientation,
+          manifold: spatial.manifold,
+          snap_grid_scale: spatial.snapGridScale,
+          exact_predicates: spatial.exactPredicates,
+          curve_order: spatial.curveOrder,
+        }
+      : null,
+  };
+}
+function semanticsValue(value: NativeSemantics): ColumnSemantics {
+  const zone = value.timezone,
+    spatial = value.spatial;
+  return {
+    ...(value.rounding === null ? {} : { rounding: value.rounding }),
+    ...(value.metric === null ? {} : { metric: value.metric }),
+    ...(zone === null
+      ? {}
+      : {
+          timezone: {
+            version: zone.version.version_id,
+            digest: Uint8Array.from(zone.version.digest),
+            zone: zone.zone,
+            tzif: unhex(zone.tzif_hex, 128 * 1024),
+          },
+        }),
+    ...(spatial === null
+      ? {}
+      : {
+          spatial: {
+            srid: spatial.srid,
+            verticalDatum: spatial.vertical_datum,
+            unitScaleNm: nativeWide(spatial.unit_scale_nm),
+            axisOrientation: spatial.axis_orientation,
+            manifold: spatial.manifold,
+            snapGridScale: spatial.snap_grid_scale,
+            exactPredicates: spatial.exact_predicates,
+            curveOrder: spatial.curve_order,
+          },
+        }),
+  };
+}
 export interface Column {
   readonly id: bigint;
   readonly name: string;
@@ -228,6 +313,7 @@ export interface Column {
   readonly maxCharacters?: number;
   readonly encoding?: Encoding;
   readonly collation?: Collation;
+  readonly semantics?: ColumnSemantics;
 }
 const schemas = new WeakMap<Schema, NativeSchema>();
 // Charge completed fragments before constructing another owned logical tree.
@@ -250,68 +336,182 @@ export function schemaWire(value: Schema): NativeSchema {
 }
 export type CheckComparison = "lt" | "lte" | "eq" | "gte" | "gt" | "neq";
 export type CheckAtom =
-  | { readonly kind: "compareLiteral"; readonly column: bigint; readonly op: CheckComparison; readonly literal: Atom }
-  | { readonly kind: "compareColumns"; readonly left: bigint; readonly op: CheckComparison; readonly right: bigint }
+  | {
+      readonly kind: "compareLiteral";
+      readonly column: bigint;
+      readonly op: CheckComparison;
+      readonly literal: Atom;
+    }
+  | {
+      readonly kind: "compareColumns";
+      readonly left: bigint;
+      readonly op: CheckComparison;
+      readonly right: bigint;
+    }
   | { readonly kind: "isNull" | "isNotNull"; readonly column: bigint };
 export interface CheckConstraint {
-  readonly id: number; readonly name: string; readonly atoms: readonly CheckAtom[]; readonly validated: boolean;
+  readonly id: number;
+  readonly name: string;
+  readonly atoms: readonly CheckAtom[];
+  readonly validated: boolean;
 }
 export type ReferentialAction = "restrict" | "no_action" | "cascade" | "set_null";
 export interface ForeignKeyConstraint {
-  readonly id: number; readonly name: string; readonly localColumns: readonly bigint[];
-  readonly targetDefinition: Interpretation; readonly targetSchemaRevision: bigint; readonly targetColumns: readonly bigint[];
-  readonly onDelete: ReferentialAction; readonly onUpdate: ReferentialAction;
+  readonly id: number;
+  readonly name: string;
+  readonly localColumns: readonly bigint[];
+  readonly targetDefinition: Interpretation;
+  readonly targetSchemaRevision: bigint;
+  readonly targetColumns: readonly bigint[];
+  readonly onDelete: ReferentialAction;
+  readonly onUpdate: ReferentialAction;
   readonly enforcement: "staged_awaiting_index";
 }
 export interface TableIntegrity {
-  readonly nextId: number; readonly checks: readonly CheckConstraint[]; readonly foreignKeys: readonly ForeignKeyConstraint[];
+  readonly nextId: number;
+  readonly checks: readonly CheckConstraint[];
+  readonly foreignKeys: readonly ForeignKeyConstraint[];
 }
 type NativeIntegrity = NonNullable<NativeSchema["integrity"]>;
 function integrityWire(value: TableIntegrity): NativeIntegrity {
-  if (value.checks.length + value.foreignKeys.length > 64) throw new TypeError("Too many Table constraints");
+  if (value.checks.length + value.foreignKeys.length > 64)
+    throw new TypeError("Too many Table constraints");
   return {
     next_id: integer(value.nextId, "constraint identity", 1, 0xffffffff),
     checks: (value.checks ?? []).map((check) => {
-      if (!check.atoms.length || check.atoms.length > 32) throw new TypeError("Invalid CHECK atom count");
-      return { id: integer(check.id, "constraint identity", 1, 0xffffffff), name: name(check.name), validated: check.validated,
+      if (!check.atoms.length || check.atoms.length > 32)
+        throw new TypeError("Invalid CHECK atom count");
+      return {
+        id: integer(check.id, "constraint identity", 1, 0xffffffff),
+        name: name(check.name),
+        validated: check.validated,
         atoms: check.atoms.map((atom) => {
-          if (atom.kind === "compareLiteral") return { compare_literal: { column: positive(atom.column).toString(), op: atom.op, literal: { value: { atom: encodeAtom(atom.literal) } } } };
-          if (atom.kind === "compareColumns") return { compare_columns: { left_column: positive(atom.left).toString(), op: atom.op, right_column: positive(atom.right).toString() } };
-          return atom.kind === "isNull" ? { is_null: positive(atom.column).toString() } : { is_not_null: positive(atom.column).toString() };
+          if (atom.kind === "compareLiteral")
+            return {
+              compare_literal: {
+                column: positive(atom.column).toString(),
+                op: atom.op,
+                literal: { value: { atom: encodeAtom(atom.literal) } },
+              },
+            };
+          if (atom.kind === "compareColumns")
+            return {
+              compare_columns: {
+                left_column: positive(atom.left).toString(),
+                op: atom.op,
+                right_column: positive(atom.right).toString(),
+              },
+            };
+          return atom.kind === "isNull"
+            ? { is_null: positive(atom.column).toString() }
+            : { is_not_null: positive(atom.column).toString() };
         }),
       };
     }),
     foreign_keys: value.foreignKeys.map((fk) => {
-      const d = fk.targetDefinition, o = d.object, s = scope(o.scope);
-      if (fk.enforcement !== "staged_awaiting_index") throw new TypeError("Foreign-key enforcement is unavailable");
-      if (!fk.localColumns.length || fk.localColumns.length > 128 || fk.localColumns.length !== fk.targetColumns.length) throw new TypeError("Invalid foreign-key column count");
-      return { id: integer(fk.id, "constraint identity", 1, 0xffffffff), name: name(fk.name), local_columns: fk.localColumns.map((v) => positive(v).toString()),
-        target_object: positive(o.objectId).toString(), target_revision: positive(fk.targetSchemaRevision).toString(), target_columns: fk.targetColumns.map((v) => positive(v).toString()),
-        target_definition: { realm: s.realm.toString(), resource: s.resource.toString(), catalog: s.catalog, branch: positive(o.branch).toString(), object: positive(o.objectId).toString(), revision: positive(d.revision).toString(), digest: digest(d.digest) },
-        on_delete: fk.onDelete, on_update: fk.onUpdate, enforcement: fk.enforcement };
+      const d = fk.targetDefinition,
+        o = d.object,
+        s = scope(o.scope);
+      if (fk.enforcement !== "staged_awaiting_index")
+        throw new TypeError("Foreign-key enforcement is unavailable");
+      if (
+        !fk.localColumns.length ||
+        fk.localColumns.length > 128 ||
+        fk.localColumns.length !== fk.targetColumns.length
+      )
+        throw new TypeError("Invalid foreign-key column count");
+      return {
+        id: integer(fk.id, "constraint identity", 1, 0xffffffff),
+        name: name(fk.name),
+        local_columns: fk.localColumns.map((v) => positive(v).toString()),
+        target_object: positive(o.objectId).toString(),
+        target_revision: positive(fk.targetSchemaRevision).toString(),
+        target_columns: fk.targetColumns.map((v) => positive(v).toString()),
+        target_definition: {
+          realm: s.realm.toString(),
+          resource: s.resource.toString(),
+          catalog: s.catalog,
+          branch: positive(o.branch).toString(),
+          object: positive(o.objectId).toString(),
+          revision: positive(d.revision).toString(),
+          digest: digest(d.digest),
+        },
+        on_delete: fk.onDelete,
+        on_update: fk.onUpdate,
+        enforcement: fk.enforcement,
+      };
     }),
   };
 }
 function integrity(value: NativeIntegrity): TableIntegrity {
-  return Object.freeze({ nextId: value.next_id ?? 1,
-    checks: Object.freeze((value.checks ?? []).map((check) => Object.freeze({ id: check.id, name: check.name, validated: check.validated,
-      atoms: Object.freeze(check.atoms.map((atom): CheckAtom => {
-        if ("compare_literal" in atom) {
-          const c = atom.compare_literal, cell = decodeCell(c.literal);
-          if (cell.state !== "value" || cell.value.kind !== "atom") throw new IncompatibleNative("Invalid CHECK literal");
-          return Object.freeze({ kind: "compareLiteral", column: nativeWide(c.column), op: c.op, literal: cell.value.atom });
-        }
-        if ("compare_columns" in atom) return Object.freeze({ kind: "compareColumns", left: nativeWide(atom.compare_columns.left_column), op: atom.compare_columns.op, right: nativeWide(atom.compare_columns.right_column) });
-        return Object.freeze("is_null" in atom ? { kind: "isNull", column: nativeWide(atom.is_null) } : { kind: "isNotNull", column: nativeWide(atom.is_not_null) });
-      })),
-    }))),
-    foreignKeys: Object.freeze((value.foreign_keys ?? []).map((fk): ForeignKeyConstraint => {
-      const d = fk.target_definition;
-      if (fk.enforcement !== "staged_awaiting_index" || d.object !== fk.target_object) throw new IncompatibleNative("Invalid staged foreign key");
-      return Object.freeze({ id: fk.id, name: fk.name, localColumns: Object.freeze(fk.local_columns.map(nativeWide)), targetSchemaRevision: nativeWide(fk.target_revision), targetColumns: Object.freeze(fk.target_columns.map(nativeWide)),
-        targetDefinition: Object.freeze({ object: Object.freeze({ scope: new Scope(new ResourceRef(Number(nativeWide(d.realm)), Number(nativeWide(d.resource))), nativeWide(d.catalog)), branch: nativeWide(d.branch), objectId: nativeWide(d.object) }), revision: nativeWide(d.revision), digest: digest(d.digest) }),
-        onDelete: fk.on_delete, onUpdate: fk.on_update, enforcement: fk.enforcement });
-    })),
+  return Object.freeze({
+    nextId: value.next_id ?? 1,
+    checks: Object.freeze(
+      (value.checks ?? []).map((check) =>
+        Object.freeze({
+          id: check.id,
+          name: check.name,
+          validated: check.validated,
+          atoms: Object.freeze(
+            check.atoms.map((atom): CheckAtom => {
+              if ("compare_literal" in atom) {
+                const c = atom.compare_literal,
+                  cell = decodeCell(c.literal);
+                if (cell.state !== "value" || cell.value.kind !== "atom")
+                  throw new IncompatibleNative("Invalid CHECK literal");
+                return Object.freeze({
+                  kind: "compareLiteral",
+                  column: nativeWide(c.column),
+                  op: c.op,
+                  literal: cell.value.atom,
+                });
+              }
+              if ("compare_columns" in atom)
+                return Object.freeze({
+                  kind: "compareColumns",
+                  left: nativeWide(atom.compare_columns.left_column),
+                  op: atom.compare_columns.op,
+                  right: nativeWide(atom.compare_columns.right_column),
+                });
+              return Object.freeze(
+                "is_null" in atom
+                  ? { kind: "isNull", column: nativeWide(atom.is_null) }
+                  : { kind: "isNotNull", column: nativeWide(atom.is_not_null) },
+              );
+            }),
+          ),
+        }),
+      ),
+    ),
+    foreignKeys: Object.freeze(
+      (value.foreign_keys ?? []).map((fk): ForeignKeyConstraint => {
+        const d = fk.target_definition;
+        if (fk.enforcement !== "staged_awaiting_index" || d.object !== fk.target_object)
+          throw new IncompatibleNative("Invalid staged foreign key");
+        return Object.freeze({
+          id: fk.id,
+          name: fk.name,
+          localColumns: Object.freeze(fk.local_columns.map(nativeWide)),
+          targetSchemaRevision: nativeWide(fk.target_revision),
+          targetColumns: Object.freeze(fk.target_columns.map(nativeWide)),
+          targetDefinition: Object.freeze({
+            object: Object.freeze({
+              scope: new Scope(
+                new ResourceRef(Number(nativeWide(d.realm)), Number(nativeWide(d.resource))),
+                nativeWide(d.catalog),
+              ),
+              branch: nativeWide(d.branch),
+              objectId: nativeWide(d.object),
+            }),
+            revision: nativeWide(d.revision),
+            digest: digest(d.digest),
+          }),
+          onDelete: fk.on_delete,
+          onUpdate: fk.on_update,
+          enforcement: fk.enforcement,
+        });
+      }),
+    ),
   });
 }
 
@@ -319,7 +519,9 @@ export class Schema {
   readonly objectId: bigint;
   readonly revision: bigint;
   readonly nextColumn: bigint;
-  get integrity(): TableIntegrity { return integrity(schemaWire(this).integrity!); }
+  get integrity(): TableIntegrity {
+    return integrity(schemaWire(this).integrity!);
+  }
   constructor(
     objectId: bigint,
     revision: bigint,
@@ -350,6 +552,7 @@ export class Schema {
           max_characters: column.maxCharacters ?? null,
           encoding: column.encoding ?? "plain",
           collation: column.collation ?? "none",
+          semantics: semanticsWire(column.semantics),
         }),
       ),
       primary_key: primaryKey.map((value) => positive(value).toString()),
@@ -367,6 +570,7 @@ export class Schema {
       nullable: column.nullable,
       encoding: column.encoding,
       collation: column.collation,
+      semantics: semanticsValue(column.semantics),
       ...(column.default === null ? {} : { default: decodeCell(column.default) }),
       ...(column.max_characters === null ? {} : { maxCharacters: column.max_characters }),
     }));
@@ -384,6 +588,7 @@ export function schemaValue(value: NativeSchema): Schema {
     nullable: column.nullable,
     encoding: column.encoding,
     collation: column.collation,
+    semantics: semanticsValue(column.semantics),
     ...(column.default === null ? {} : { default: decodeCell(column.default) }),
     ...(column.max_characters === null ? {} : { maxCharacters: column.max_characters }),
   }));
@@ -430,6 +635,7 @@ export type Change =
       readonly column: bigint;
       readonly encoding: Encoding;
       readonly collation: Collation;
+      readonly semantics?: ColumnSemantics;
     }
   | {
       readonly kind: "type";
@@ -484,6 +690,7 @@ function operation(value: Operation): Action<"prepare">["action"] {
               max_characters: item.column.maxCharacters ?? null,
               encoding: item.column.encoding ?? "plain",
               collation: item.column.collation ?? "none",
+              semantics: semanticsWire(item.column.semantics),
             },
           };
           break;
@@ -510,6 +717,7 @@ function operation(value: Operation): Action<"prepare">["action"] {
               column: positive(item.column).toString(),
               encoding: item.encoding,
               collation: item.collation,
+              semantics: item.semantics === undefined ? null : semanticsWire(item.semantics),
             },
           };
           break;
@@ -747,7 +955,9 @@ function observation(value: NativeObservation, original: Reference): Observation
   const actual =
     "name_assertion" in value ? value.name_assertion : "rows" in value ? value.rows : value.ddl;
   if (!("not_observed" in actual)) {
-    const record = ("finalizing" in actual ? actual.finalizing.evidence : Object.values(actual)[0]) as { binding: unknown };
+    const record = (
+      "finalizing" in actual ? actual.finalizing.evidence : Object.values(actual)[0]
+    ) as { binding: unknown };
     const expected = "table" in selected ? selected.table.binding : selected.name_assertion;
     if (!isDeepStrictEqual(record.binding, expected))
       throw new IncompatibleNative("Observation changed the original operation binding");
@@ -770,9 +980,19 @@ function observation(value: NativeObservation, original: Reference): Observation
   if ("not_observed" in found)
     return Object.freeze({ kind: "table", state: "not_observed", reference: original });
   if ("finalizing" in found) {
-    if (!found.finalizing.operation.requires_settlement || !["admitted", "ready"].includes(found.finalizing.operation.phase)) throw new IncompatibleNative("Invalid finalizing operation phase");
-    if (!isDeepStrictEqual(found.finalizing.operation.binding, found.finalizing.evidence.binding)) throw new IncompatibleNative("Changed finalizing operation binding");
-    return Object.freeze({ kind: "table", state: "finalizing", reference: original, commit: commit(found.finalizing.evidence) });
+    if (
+      !found.finalizing.operation.requires_settlement ||
+      !["admitted", "ready"].includes(found.finalizing.operation.phase)
+    )
+      throw new IncompatibleNative("Invalid finalizing operation phase");
+    if (!isDeepStrictEqual(found.finalizing.operation.binding, found.finalizing.evidence.binding))
+      throw new IncompatibleNative("Changed finalizing operation binding");
+    return Object.freeze({
+      kind: "table",
+      state: "finalizing",
+      reference: original,
+      commit: commit(found.finalizing.evidence),
+    });
   }
   if ("committed" in found)
     return Object.freeze({

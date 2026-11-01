@@ -164,13 +164,13 @@ fn wireCell(allocator: std.mem.Allocator, value: ?f.Types.Values.Cell, logical_t
 /// Encode a validated logical column change for the shared direct DDL owner.
 pub fn encodeChange(allocator: std.mem.Allocator, change: f.TableEvolution.Change, schema: f.TableSchema.Schema) !c.DirectTableProtocol.Change {
     return switch (change) {
-        .add => |v| .{ .add = .{ .name = v.name, .type = v.type, .nullable = v.nullable, .default = try wireCell(allocator, v.default, v.type), .max_characters = v.max_characters, .encoding = v.encoding, .collation = v.collation } },
+        .add => |v| .{ .add = .{ .name = v.name, .type = v.type, .nullable = v.nullable, .default = try wireCell(allocator, v.default, v.type), .max_characters = v.max_characters, .encoding = v.encoding, .collation = v.collation, .semantics = try v.semantics.foreign(allocator) } },
         .drop => |v| .{ .drop = v },
         .rename => |v| .{ .rename = .{ .column = v.column, .name = v.name } },
         .default => |v| .{ .default = .{ .column = v.column, .value = try wireCell(allocator, v.value, schema.columns[try schema.index(v.column)].type) } },
         .nullable => |v| .{ .nullable = .{ .column = v.column, .value = v.value } },
         .type => |v| .{ .type = .{ .column = v.column, .type = v.type, .max_characters = v.max_characters } },
-        .physical => |v| .{ .physical = .{ .column = v.column, .encoding = v.encoding, .collation = v.collation } },
+        .physical => |v| .{ .physical = .{ .column = v.column, .encoding = v.encoding, .collation = v.collation, .semantics = if (v.semantics) |rules| try rules.foreign(allocator) else null } },
         .integrity => |v| blk: {
             var bytes: [f.TableSchema.max_bytes]u8 = undefined;
             break :blk .{ .integrity = try .encode(allocator, try v.encode(&bytes)) };

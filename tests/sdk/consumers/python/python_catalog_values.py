@@ -232,13 +232,14 @@ try:
     rejects(IncompatibleNative, lambda: owner.lookup('items'))
     physical_wire = dict(integrity={'next_id': 1, 'checks': [], 'foreign_keys': []}, definition=definition, object=str(schema.object_id), revision='1', next_column='2',
         columns=[dict(id='1', name='text', type={'utf8': {}}, nullable=True, default=None,
-                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
+                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037',
+                      semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))], primary_key=[])
     owner._api.response = {'metadata': dict(metadata, schema=physical_wire)}
     physical = owner.lookup('items').schema
     assert physical.columns[0].encoding == m.Encoding.EBCDIC and physical.columns[0].collation == m.Collation.EBCDIC_CP037
     assert physical._wire() == physical_wire
-    assert v._change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {'physical': dict(column='1', encoding='fsst', collation='ascii_ci')}
-    for field in ('encoding', 'collation'):
+    assert v._change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {'physical': dict(column='1', encoding='fsst', collation='ascii_ci', semantics=None)}
+    for field in ('encoding', 'collation', 'semantics'):
         for missing in (True, False):
             bad = copy.deepcopy(physical_wire)
             if missing: del bad['columns'][0][field]

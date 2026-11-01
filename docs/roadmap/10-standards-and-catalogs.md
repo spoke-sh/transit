@@ -237,6 +237,22 @@ list cursors. Current-object authorization precedes released-snapshot disclosure
 result validation rejects mismatched source cuts and scope. Installed host/SDK
 and Board composition remain part of P7/P8, beyond the SQL transport run above.
 
+The companion-value increment integrates RANGE/MULTIRANGE and aligned dense
+VECTOR values through descriptors, canonical/neutral codecs, Table schemas and
+rows, SQL declarations/literals, Arrow export/import and TypeScript/Python value
+APIs. Persisted column semantics bind rounding, metrics, actual TZif artifacts
+and reserved spatial metadata; incompatible layouts require a rewrite. The
+current-v1 cutover regenerates contracts and language resources and retains
+explicit old-definition rejection. Narrower SDK profiles reject unsupported
+descriptors instead of discarding them.
+
+Development checks pass 497 Fuze tests, 305 independent DDL cases and 251 PyArrow
+cases. The focused disk test recovers admitted DDL after a lost reply and two
+reopenings, retaining companion defaults and semantic descriptors. These checks
+do not close P1 or P8: production interval/distance/decimal/timezone expression
+integration, decimal aggregates and final installed-consumer qualification remain
+required, alongside the historical catalog work listed above.
+
 The following table preserves the original source audit. It is not a description
 of the newer increments above.
 

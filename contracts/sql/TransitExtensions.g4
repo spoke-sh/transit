@@ -216,7 +216,11 @@ foreignKeyConstraint
 constraintColumns: LPAREN identifier (COMMA identifier)* RPAREN;
 referentialClause: ON (DELETE | UPDATE) (RESTRICT | NO ACTION | CASCADE | SET NULL_);
 columnDef: identifier dataType columnConstraint*;
-columnConstraint: nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation;
+columnConstraint
+    : nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation
+    | ROUNDING identifier | METRIC identifier
+    | TIMEZONE STRING TZDB STRING TZIF X STRING
+    ;
 collation: UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD;
 nullability: NOT NULL_ | NULL_;
 
@@ -226,6 +230,8 @@ dataType
     | LIST LPAREN dataType nullability? RPAREN
     | ARRAY LPAREN dataType nullability? COMMA INTEGER RPAREN
     | MAP LPAREN dataType nullability? COMMA dataType nullability? RPAREN
+    | (RANGE | MULTIRANGE) LT dataType GT
+    | VECTOR LPAREN INTEGER COMMA scalarTypeName RPAREN
     ;
 // Unknown scalar names/parameter combinations produce attributed binding errors.
 // Quoted type names are not aliases. INT8 retains Transit's eight-bit meaning.
@@ -324,6 +330,7 @@ legacyIdentifier
     | INSERT | UPDATE | DELETE | SET | VALUES
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
     | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD
+    | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF
     | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
     | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
@@ -439,6 +446,14 @@ RESTRICT: 'RESTRICT';
 DEFAULT: 'DEFAULT';
 PRIMARY: 'PRIMARY';
 COLLATE: 'COLLATE';
+RANGE: 'RANGE';
+MULTIRANGE: 'MULTIRANGE';
+VECTOR: 'VECTOR';
+ROUNDING: 'ROUNDING';
+METRIC: 'METRIC';
+TIMEZONE: 'TIMEZONE';
+TZDB: 'TZDB';
+TZIF: 'TZIF';
 UTF8_BINARY: 'UTF8_BINARY';
 ASCII_CI: 'ASCII_CI';
 EBCDIC_CP037: 'EBCDIC_CP037';

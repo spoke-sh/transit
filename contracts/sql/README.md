@@ -14,6 +14,13 @@ exact retained catalog; its quoted selector is validated by `HistoricalSql`
 before names are resolved. The former ambiguous integer system-time fragment
 is removed. `FOR SYSTEM_TIME` remains reserved for temporal-table semantics.
 
+Companion declarations `RANGE<T>`, `MULTIRANGE<T>` and `VECTOR(dim, element)`
+belong to the checked Table grammar. Column `ROUNDING`, `METRIC` and
+`TIMEZONE 'zone' TZDB 'version' TZIF X'hex'` clauses lower through the same
+typed schema validator. Their exact supported combinations follow the
+[schema contract](../TABLE_SCHEMA_V1.md); declaring them does not enable an
+unimplemented expression or transport.
+
 The reference grammar covers finite SELECT, general typed Table DDL/DML and
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.

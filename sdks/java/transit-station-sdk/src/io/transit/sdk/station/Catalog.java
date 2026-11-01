@@ -84,7 +84,7 @@ public final class Catalog {
         JsonObject wire() { JsonObject out = columnWire(name, type, nullable, defaultValue, maxCharacters, encoding, collation); out.addProperty("id", id.toString()); return out; }
     }
     static JsonObject columnWire(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters, Encoding encoding, Collation collation) {
-        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation));
+        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation), "semantics", obj("rounding", null, "metric", null, "timezone", null, "spatial", null));
     }
     public record Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns, List<BigInteger> primaryKey) {
         public Schema {
@@ -166,7 +166,7 @@ public final class Catalog {
     }
     public record SetPhysical(BigInteger column, Encoding encoding, Collation collation) implements Change {
         public SetPhysical { positive(column); Objects.requireNonNull(encoding); Objects.requireNonNull(collation); }
-        public JsonObject wire() { return obj("physical", obj("column", column.toString(), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation))); }
+        public JsonObject wire() { return obj("physical", obj("column", column.toString(), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation), "semantics", null)); }
     }
     public sealed interface Operation permits Create, Alter, Rename, Drop, Mutate { Kind kind(); BigInteger object(); JsonObject wire(); }
     public record Create(Schema schema, boolean ifNotExists) implements Operation {

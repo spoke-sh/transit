@@ -3,10 +3,11 @@
 const std = @import("std");
 const t = @import("Types.zig");
 const v = t.Values;
-pub const definition = "transit.table.schema.v1.2026-11-01.integrity";
+pub const definition = "transit.table.schema.v1.2026-11-01.semantics";
 pub const max_columns = 128;
 pub const max_bytes = 65536;
 pub const ColumnId = u64;
+pub const Semantics = @import("ColumnSemantics.zig");
 /// Orthogonal physical column representation ($\epsilon$). Logical values and
 /// expressions evaluate over `Type` ($\tau$) independently of physical codec.
 pub const Encoding = enum(u8) {
@@ -41,6 +42,7 @@ pub const Column = struct {
     max_characters: ?u32 = null,
     encoding: Encoding = .plain,
     collation: Collation = .none,
+    semantics: Semantics = .{},
 
     pub fn field(self: Column) t.Field {
         return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
@@ -163,6 +165,10 @@ pub const Schema = struct {
         }
         return false;
     }
+    pub fn hasSemantics(self: Schema) bool {
+        for (self.columns) |column| if (!column.semantics.empty()) return true;
+        return false;
+    }
     /// Physical row interpretation only. Preparation/admission must retain the
     /// full schema fingerprint; this digest never authorizes stale operations.
     pub fn layoutFingerprint(self: Schema) ![32]u8 {
@@ -182,6 +188,17 @@ pub const Schema = struct {
                 hash.update(&.{ @backingInt(column.encoding), @backingInt(column.collation) });
             }
         }
+        if (self.hasSemantics()) {
+            hash.update("FTK1");
+            // Schema validation bounds every retained descriptor. Hash the
+            // canonical interpretation, including the complete TZif artifact.
+            var bytes: [max_bytes]u8 = undefined;
+            for (self.columns) |column| {
+                var writer: std.Io.Writer = .fixed(&bytes);
+                try column.semantics.write(&writer);
+                hash.update(writer.buffered());
+            }
+        }
         return hash.finalResult();
     }
     pub fn validate(self: Schema) !void {
@@ -196,6 +213,7 @@ pub const Schema = struct {
             }
             if (column.max_characters) |limit| if (limit == 0 or column.type != .utf8) return error.InvalidCharacterLimit;
             try column.validateEncodingAndCollation();
+            try column.semantics.validate(column.type);
             if (column.default) |value| try column.validateCell(value);
         }
         try row_type.validate(.{});
@@ -348,6 +366,10 @@ pub const Schema = struct {
                 try writer.writeByte(@backingInt(column.collation));
             }
         }
+        if (self.hasSemantics()) {
+            try writer.writeAll("FTK1");
+            for (self.columns) |column| try column.semantics.write(writer);
+        }
         if (!self.integrity.empty()) {
             try writer.writeAll("FTI1");
             try self.integrity.write(self, writer);
@@ -423,6 +445,11 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
         }
         if (!has_physical) return error.InvalidTableSchemaEncoding;
     }
+    if (std.mem.startsWith(u8, bytes[reader.seek..], "FTK1")) {
+        _ = try reader.take(4);
+        for (columns) |*column| column.semantics = try Semantics.read(a, &reader);
+        if (!schema.hasSemantics()) return error.InvalidTableSchemaEncoding;
+    }
     if (reader.seek < bytes.len) {
         if (bytes.len - reader.seek < 4 or !std.mem.eql(u8, try reader.take(4), "FTI1")) return error.InvalidTableSchemaEncoding;
         schema.integrity = try @import("TableConstraints.zig").Integrity.read(a, schema, &reader);
@@ -441,7 +468,7 @@ fn boolean(reader: *std.Io.Reader) !bool {
 }
 pub fn keyType(data_type: t.Type) bool {
     return switch (data_type) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval => false,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector => false,
         else => true,
     };
 }
@@ -452,7 +479,7 @@ fn stored(cell: v.Cell) anyerror!void {
         .conflict => return error.TableConflict,
         .missing, .null => {},
         .value => |value| switch (value) {
-            .atom, .json => {},
+            .atom, .json, .range, .multirange, .vector => {},
             .structure, .list, .array => |children| for (children) |child| try stored(child),
             .map => |entries| for (entries) |entry| try stored(entry.value),
             .tagged_union => |tagged| try stored(tagged.value.*),

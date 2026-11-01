@@ -108,7 +108,7 @@ public static partial class Catalog
             return value;
         }
     }
-    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters, Encoding encoding, Collation collation) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null), ("encoding", Logical.EnumName(encoding)), ("collation", Logical.EnumName(collation)));
+    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters, Encoding encoding, Collation collation) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null), ("encoding", Logical.EnumName(encoding)), ("collation", Logical.EnumName(collation)), ("semantics", V.Obj(("rounding", null), ("metric", null), ("timezone", null), ("spatial", null))));
     public sealed record Schema {
         public ulong ObjectId { get; }
         public ulong Revision { get; }
@@ -229,7 +229,7 @@ public static partial class Catalog
         public Encoding Encoding { get; }
         public Collation Collation { get; }
         public SetPhysical(ulong column, Encoding encoding, Collation collation) { Column = Positive(column); Logical.EnumName(encoding); Logical.EnumName(collation); Encoding = encoding; Collation = collation; }
-        internal override JsonObject Wire() => V.Obj(("physical", V.Obj(("column", Turn.Decimal(Column)), ("encoding", Logical.EnumName(Encoding)), ("collation", Logical.EnumName(Collation)))));
+        internal override JsonObject Wire() => V.Obj(("physical", V.Obj(("column", Turn.Decimal(Column)), ("encoding", Logical.EnumName(Encoding)), ("collation", Logical.EnumName(Collation)), ("semantics", null))));
     }
     public sealed record SetType : Change {
         public ulong Column { get; }

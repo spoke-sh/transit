@@ -341,6 +341,71 @@ fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
 }
 
+test "companion Table defaults and semantic descriptors recover admitted DDL from disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: p.DataLifecycle.Binding = undefined;
+    var fingerprint: [32]u8 = undefined;
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            var compiled = try c.fuze.TableDdl.compile(t.allocator, "CREATE TABLE companions (id BIGINT PRIMARY KEY, span RANGE<BIGINT> DEFAULT '[1,3]', runs MULTIRANGE<DECIMAL(5,2)> DEFAULT '{[1.00,2.00),[2.00,3.00]}', embedding VECTOR(3,FLOAT32) METRIC COSINE DEFAULT '[-0.0,1.25,-2.5]', amount DECIMAL(8,2) ROUNDING HALF_EVEN)", null, null);
+            defer compiled.deinit();
+            var request = try creation(7, 1, "companions");
+            request.intent.action.create.schema = try compiled.statement.create.bind(7);
+            request.binding.intent = try request.intent.digest(t.allocator);
+            binding = request.binding;
+            fingerprint = try request.intent.action.create.schema.fingerprint();
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.admit(request, access.policy()));
+            continue;
+        }
+        try t.expect(try catalog.perform(binding, access.policy()) == .committed);
+        var view = (try resolve(&catalog, &access, "companions")).?;
+        defer view.deinit();
+        const schema = view.table.declaration.schema.schema;
+        try t.expectEqual(fingerprint, try schema.fingerprint());
+        try t.expectEqual(.cosine, schema.columns[3].semantics.metric.?);
+        try t.expectEqual(.half_even, schema.columns[4].semantics.rounding.?);
+        const vector = schema.columns[3].default.?.value.vector;
+        try t.expect(@intFromPtr(vector.ptr) % 64 == 0);
+        try t.expectEqualSlices(u8, &.{ 0, 0, 0, 128, 0, 0, 160, 63, 0, 0, 32, 192 }, vector);
+        try t.expectEqual(@as(i128, 4), schema.columns[1].default.?.value.range.upper.?.value.signed);
+        try t.expectEqual(@as(usize, 1), schema.columns[2].default.?.value.multirange.len);
+        if (restart == 1) {
+            var dml = try c.fuze.TableDml.compile(t.allocator, "INSERT INTO companions(id) VALUES (1)", "companions", schema, null);
+            defer dml.deinit();
+            const change: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 2 }, .target = binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = try dml.plan.fingerprint(t.allocator) };
+            const inserted = (try catalog.applyRows(.{ .binding = change, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(change.identity, 0), .cells = dml.plan.action.insert[0] }, .expect = .absent } }}, .ingestion = .point }, access.policy())).committed;
+            var finished = false;
+            for (0..16) |_| {
+                if ((try catalog.flushStorage(.{ .object = binding.target, .through = inserted.outcome.position }, access.policy())).complete) {
+                    finished = true;
+                    break;
+                }
+            }
+            try t.expect(finished);
+        } else {
+            try t.expect(view.table.root.next_segment > 0);
+            var read = try catalog.readCurrent(t.allocator, .{ .namespace = 1, .interpretation = view.table.root.interpretation, .expected = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, .selection = .{ .rows = .{ .after = null, .limits = .{} } } }, access.policy());
+            defer read.deinit();
+            try t.expectEqual(@as(u8, 1), read.selection.rows.count);
+            const cells = read.selection.rows.rows[0].?.row().cells;
+            try t.expectEqualSlices(u8, vector, cells[3].value.vector);
+            try t.expect(@intFromPtr(cells[3].value.vector.ptr) % 64 == 0);
+            try t.expectEqual(@as(i128, 4), cells[1].value.range.upper.?.value.signed);
+            try t.expectEqual(@as(usize, 1), cells[2].value.multirange.len);
+        }
+    }
+}
+
 fn tokenBinding(objects: s.TransitObjectStore.ObjectStore, operation: u64, token: u8) !c.DirectClientToken.Binding {
     const request = try creation(7, operation, "events");
     var arena = std.heap.ArenaAllocator.init(t.allocator);

@@ -133,7 +133,9 @@ Schema decode_schema(const Json &input, Arena &a) {
     Schema out{}; out.object = full(v.at("object")); out.revision = full(v.at("revision")); out.next_column = full(v.at("next_column"));
     const auto &columns = v.at("columns").array(128); require(!columns.empty(), "catalog-response-columns"); auto *values = a.array<Column>(columns.size()); out.columns = values; out.column_count = columns.size();
     for (size_t i = 0; i < columns.size(); ++i) {
-        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation"}); char name[256]{}; string(c.at("name"), name);
+        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation", "semantics"}); char name[256]{}; string(c.at("name"), name);
+        const auto &semantics = c.at("semantics"); semantics.fields({"rounding", "metric", "timezone", "spatial"});
+        for (const char *key : {"rounding", "metric", "timezone", "spatial"}) require(semantics.at(key).is_null(), "catalog-column-semantics-unsupported");
         auto *owned_name = a.array<char>(std::strlen(name) + 1); std::copy_n(name, std::strlen(name) + 1, owned_name);
         auto *type = a.array<transit_logical_type_view>(1); *type = logical_detail::type_from(c.at("type"), a);
         transit_logical_cell_view *cell = nullptr;

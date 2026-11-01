@@ -10,7 +10,7 @@ from transit_station.logical import Codec
 
 with Codec() as codec:
     datatype = codec.type_json(
-        '{"definition":"transit.fuze.types.v1.2026-09-30","type":{"uint128":{}}}'
+        '{"definition":"transit.fuze.types.v1.2026-11-01.companions","type":{"uint128":{}}}'
     )
     value = codec.bind(datatype, '340282366920938463463374607431768211455')
     saved = value.bytes

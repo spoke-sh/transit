@@ -147,7 +147,7 @@ test "schema codec requires the exact definition and canonical flags" {
     const encoded = try schema.encode(&buffer);
     buffer[5] ^= 1;
     try expect.expectError(error.UnsupportedTableSchemaDefinition, s.decode(expect.allocator, encoded));
-    for ([_][]const u8{ "transit.table.schema.v1.2026-10-23", "transit.table.schema.v1.2026-11-01" }) |old_definition| {
+    for ([_][]const u8{ "transit.table.schema.v1.2026-10-23", "transit.table.schema.v1.2026-11-01", "transit.table.schema.v1.2026-11-01.integrity" }) |old_definition| {
         _ = try schema.encode(&buffer);
         buffer[4] = @intCast(old_definition.len);
         @memcpy(buffer[5..][0..old_definition.len], old_definition);
@@ -166,10 +166,12 @@ test "schema codec requires the exact definition and canonical flags" {
 
 test "all logical type families fit Table columns without implying key traits" {
     const signed: t.Type = .int64;
+    const vector_bytes: [2]u8 align(64) = .{ 1, 255 };
     const choices = [_]t.Type{
-        .int8,     .int16,   .int32,                                                                   .int64,                            .int128,                                                         .uint8,                                                         .uint16,                                                   .uint32, .uint64,                  .uint128,
-        .float32,  .float64, .boolean,                                                                 .utf8,                             .binary,                                                         .{ .decimal = .{ .precision = 38, .scale = 2 } },               .date,                                                     .time,   .{ .timestamp = .civil }, .{ .timestamp = .utc },
-        .interval, .uuid,    .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true }} }, .{ .list = .{ .type = &signed } }, .{ .array = .{ .element = .{ .type = &signed }, .length = 3 } }, .{ .map = .{ .key = &signed, .value = .{ .type = &signed } } }, .{ .tagged_union = &.{.{ .name = "n", .type = .int64 }} }, .json,
+        .int8,                                                 .int16,   .int32,                                                                   .int64,                            .int128,                                                         .uint8,                                                         .uint16,                                                   .uint32, .uint64,                  .uint128,
+        .float32,                                              .float64, .boolean,                                                                 .utf8,                             .binary,                                                         .{ .decimal = .{ .precision = 38, .scale = 2 } },               .date,                                                     .time,   .{ .timestamp = .civil }, .{ .timestamp = .utc },
+        .interval,                                             .uuid,    .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true }} }, .{ .list = .{ .type = &signed } }, .{ .array = .{ .element = .{ .type = &signed }, .length = 3 } }, .{ .map = .{ .key = &signed, .value = .{ .type = &signed } } }, .{ .tagged_union = &.{.{ .name = "n", .type = .int64 }} }, .json,   .{ .range = &signed },    .{ .multirange = &signed },
+        .{ .vector = .{ .dimensions = 2, .element = .int8 } },
     };
     for (choices) |data_type| {
         const value: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "v", .type = data_type }} };
@@ -196,6 +198,9 @@ test "all logical type families fit Table columns without implying key traits" {
             .map => .{ .value = .{ .map = &.{.{ .key = .{ .signed = 1 }, .value = integer(2) }} } },
             .tagged_union => .{ .value = .{ .tagged_union = .{ .index = 0, .value = &integer(42) } } },
             .json => .{ .value = .{ .json = "{\"exact\":18446744073709551615}" } },
+            .range => .{ .value = .{ .range = .{ .lower = .{ .value = .{ .signed = 1 }, .inclusive = true } } } },
+            .multirange => .{ .value = .{ .multirange = &.{.{ .lower = .{ .value = .{ .signed = 1 }, .inclusive = true } }} } },
+            .vector => .{ .value = .{ .vector = &vector_bytes } },
         };
         try value.validateRow(&.{cell});
         var with_default = value.columns[0];

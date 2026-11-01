@@ -5,13 +5,13 @@ const s = @import("TableSchema.zig");
 const t = @import("Types.zig");
 const Cell = t.Values.Cell;
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null, encoding: s.Encoding = .plain, collation: s.Collation = .none },
+    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null, encoding: s.Encoding = .plain, collation: s.Collation = .none, semantics: s.Semantics = .{} },
     drop: s.ColumnId,
     rename: struct { column: s.ColumnId, name: []const u8 },
     default: struct { column: s.ColumnId, value: ?Cell },
     nullable: struct { column: s.ColumnId, value: bool },
     type: struct { column: s.ColumnId, type: t.Type, max_characters: ?u32 = null },
-    physical: struct { column: s.ColumnId, encoding: s.Encoding = .plain, collation: s.Collation = .none },
+    physical: struct { column: s.ColumnId, encoding: s.Encoding = .plain, collation: s.Collation = .none, semantics: ?s.Semantics = null },
     /// Complete captured source schema with only integrity replaced. The owner
     /// checks the rest verbatim before advancing the schema revision.
     integrity: s.Schema,
@@ -105,7 +105,7 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
             if (count == columns.len) return error.InvalidColumnCount;
             validate_rows = !column.nullable and column.default == null;
             after.next_column = try std.math.add(u64, before.next_column, 1);
-            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation };
+            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation, .semantics = column.semantics };
             count += 1;
         },
         .drop => |id| {
@@ -139,6 +139,7 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
             };
             column.encoding = value.encoding;
             column.collation = value.collation;
+            if (value.semantics) |semantics| column.semantics = semantics;
         },
     }
     after.columns = columns[0..count];

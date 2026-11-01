@@ -13,8 +13,8 @@ from pathlib import Path
 import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
-DEFINITION = b'transit.table.schema.v1.2026-11-01.integrity'
-TYPES = b'transit.fuze.types.v1.2026-09-30'
+DEFINITION = b'transit.table.schema.v1.2026-11-01.semantics'
+TYPES = b'transit.fuze.types.v1.2026-11-01.companions'
 ROWS = b'transit.table.row.v1.2026-10-05'
 
 
@@ -137,7 +137,8 @@ def fixtures():
              default=None, max_characters=None),
     ], primary_key=['11'], integrity=dict(next_id=1, checks=[], foreign_keys=[]))
     for column in neutral['columns']:
-        column.update(encoding='plain', collation='none')
+        column.update(encoding='plain', collation='none',
+                      semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))
     physical = copy.deepcopy(neutral)
     for column, encoding, collation in zip(physical['columns'],
             ('bitpacked', 'ebcdic', 'rle', 'comp_3'), ('none', 'ebcdic_cp037', 'none', 'none')):
@@ -194,7 +195,7 @@ def main():
         validator.validate(json.loads(result['physical_schema_json']))
         validator.validate(json.loads(result['integrity_schema_json']))
         validator.validate(json.loads(result['foreign_schema_json']))
-        for key in ('encoding', 'collation'):
+        for key in ('encoding', 'collation', 'semantics'):
             changed = copy.deepcopy(neutral)
             del changed['columns'][0][key]
             assert list(validator.iter_errors(changed)), key

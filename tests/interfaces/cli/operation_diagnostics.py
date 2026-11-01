@@ -236,7 +236,7 @@ with tempfile.TemporaryDirectory(prefix='transit-file-evidence-') as directory:
     assert facts(detail)['object'] == {'text':str(missing_schema)} and not result.stdout, detail
     assert [a['kind'] for a in detail['actions'] if a] == ['retry_read'], detail
     schema = root/'schema.json'
-    schema_definition = 'transit.fuze.types.v1.2026-09-30'
+    schema_definition = 'transit.fuze.types.v1.2026-11-01.companions'
     def schema_value(type):
         return {'definition':schema_definition,'type':{'structure':[{'name':'id','type':type}]}}
     csv.write_text('id\n1\n')

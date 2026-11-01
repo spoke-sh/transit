@@ -63,7 +63,7 @@ module Transit
           v = object(value, %w[realm resource catalog]); Scope.new(resource: ResourceRef.new(realm: v.fetch('realm'), resource: v.fetch('resource')), catalog: decimal(v.fetch('catalog')))
         end
         def column(name, type, nullable, default, max_characters, encoding, collation)
-          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, 'encoding' => symbol(encoding, ENCODINGS), 'collation' => symbol(collation, COLLATIONS) }
+          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, 'encoding' => symbol(encoding, ENCODINGS), 'collation' => symbol(collation, COLLATIONS), 'semantics' => { 'rounding' => nil, 'metric' => nil, 'timezone' => nil, 'spatial' => nil } }
         end
       end
       private_constant :CONTRACT, :Values
@@ -228,7 +228,7 @@ module Transit
           Values.symbol(encoding, ENCODINGS); Values.symbol(collation, COLLATIONS)
           super(column: Values.wide(column), encoding: encoding, collation: collation)
         end
-        def wire = { 'physical' => { 'column' => column.to_s, 'encoding' => encoding.to_s, 'collation' => collation.to_s } }
+        def wire = { 'physical' => { 'column' => column.to_s, 'encoding' => encoding.to_s, 'collation' => collation.to_s, 'semantics' => nil } }
       end
       Create = Data.define(:schema, :if_not_exists) do
         def initialize(schema:, if_not_exists: false) = super(schema: Values.typed(schema, Schema), if_not_exists: Internal.boolean(if_not_exists))
@@ -276,7 +276,9 @@ module Transit
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
           columns = v.fetch('columns').map do |c|
-            object(c, %w[id name type nullable default max_characters encoding collation]); Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'), encoding: enum(c.fetch('encoding'), ENCODINGS), collation: enum(c.fetch('collation'), COLLATIONS))
+            object(c, %w[id name type nullable default max_characters encoding collation semantics])
+            raise IncompatibleNative, 'Column semantics unsupported by this caller' unless c.fetch('semantics') == { 'rounding' => nil, 'metric' => nil, 'timezone' => nil, 'spatial' => nil }
+            Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'), encoding: enum(c.fetch('encoding'), ENCODINGS), collation: enum(c.fetch('collation'), COLLATIONS))
           end
           Schema.new(object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), next_column: decimal(v.fetch('next_column')), columns: columns, primary_key: v.fetch('primary_key').map { |k| decimal(k) })
         end

@@ -130,7 +130,7 @@ async function codecs() {
   const codec = await logical.Codec.open();
   try {
     const type = {kind: 'list', element: {type: {kind: 'uint128'}, nullable: true}};
-    const json = JSON.stringify({definition: 'transit.fuze.types.v1.2026-09-30',
+    const json = JSON.stringify({definition: 'transit.fuze.types.v1.2026-11-01.companions',
       field: {name: '東京', type: wireType(type)},
       cell: {value: {list: [{value: {atom: {unsigned: ((1n << 128n) - 1n).toString()}}}, {null: {}}]}}});
     const value = await logical.Value.fromJson(codec, json);

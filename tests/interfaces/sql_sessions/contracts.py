@@ -15,7 +15,7 @@ if args.schema:
     assert value['routes'] == dict(method='POST', data='/v1/sql/session', control='/v1/sql/control')
     path = ROOT / 'contracts/sql-session-v1.schema.json'
 else:
-    definition = b'transit.fuze.types.v1.2026-09-30'
+    definition = b'transit.fuze.types.v1.2026-11-01.companions'
     fields = [(b'wide', 0, 14), (b'absent', 2, 1), (b'nullable', 1, 5)]
     schema = b'FTY1' + bytes([len(definition)]) + definition + bytes([22, len(fields)])
     for name, flags, tag in fields:

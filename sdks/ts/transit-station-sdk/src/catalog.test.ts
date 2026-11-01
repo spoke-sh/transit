@@ -29,6 +29,74 @@ import {
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
 import contract from "./contract.json" with { type: "json" };
 const maximum = (1n << 64n) - 1n;
+test("column semantic metadata owns bytes and full-width spatial units", () => {
+  const digest = Uint8Array.from({ length: 32 }, (_, i) => i);
+  const tzif = new Uint8Array([84, 90, 105, 102, 0, 255]);
+  const schema = new Schema(
+    7n,
+    1n,
+    3n,
+    [
+      {
+        id: 1n,
+        name: "ts",
+        type: { kind: "timestamp", zone: "utc" },
+        semantics: { timezone: { version: "fixture", digest, zone: "Etc/UTC", tzif } },
+      },
+      {
+        id: 2n,
+        name: "opaque",
+        type: { kind: "binary" },
+        semantics: {
+          spatial: {
+            srid: 4326,
+            verticalDatum: 0,
+            unitScaleNm: maximum,
+            axisOrientation: "right_handed_z_up",
+            manifold: "planar",
+            snapGridScale: 1e-9,
+            exactPredicates: "shewchuk_adaptive",
+            curveOrder: "none",
+          },
+        },
+      },
+    ],
+    [],
+  );
+  digest.fill(0);
+  tzif.fill(0);
+  const rules = schema.columns[0]!.semantics!.timezone!;
+  assert.deepEqual(
+    [...rules.digest],
+    Array.from({ length: 32 }, (_, i) => i),
+  );
+  assert.deepEqual([...rules.tzif], [84, 90, 105, 102, 0, 255]);
+  rules.tzif.fill(0);
+  assert.deepEqual([...schema.columns[0]!.semantics!.timezone!.tzif], [84, 90, 105, 102, 0, 255]);
+  assert.equal(schema.columns[1]!.semantics!.spatial!.unitScaleNm, maximum);
+});
+test("companion values preserve independent descriptors, exact bits and owned bytes", async () => {
+  const fixture = JSON.parse(
+    await readFile(
+      new URL(
+        "../../../../packages/zig/transit-fuze/src/fixtures/companion-values.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  for (const item of fixture.cases) {
+    if (item.error !== null) continue; // Semantic admission belongs to Zig.
+    assert.deepEqual(encodeType(decodeType(item.field.type)), item.field.type, item.name);
+    const native = decodeCell(item.cell);
+    assert.deepEqual(encodeCell(native), item.cell, item.name);
+    if (native.state === "value" && native.value.kind === "vector") {
+      const second = decodeCell(item.cell);
+      native.value.bytes.fill(0);
+      assert.deepEqual(encodeCell(second), item.cell, item.name);
+    }
+  }
+});
 test("logical cells preserve source-only mismatch kinds", () => {
   for (const actual of ["unknown", "null_value", "text", "character"] as const) {
     const cell: Cell = { state: "type_error", actual };
@@ -285,6 +353,7 @@ const metadata = {
         max_characters: null,
         encoding: "ebcdic",
         collation: "ebcdic_cp037",
+        semantics: { rounding: null, metric: null, timezone: null, spatial: null },
       },
     ],
   },
@@ -339,11 +408,13 @@ test("lookup retains full schema descriptors and original connection", async () 
       assert.rejects(client.lookup("items"), IncompatibleNative),
     );
   }
-  const changed = structuredClone(metadata);
-  Reflect.deleteProperty(changed.schema.columns[0]!, "encoding");
-  await withHost({ metadata: changed }, (client) =>
-    assert.rejects(client.lookup("items"), ReadFailed),
-  );
+  for (const field of ["encoding", "semantics"]) {
+    const changed = structuredClone(metadata);
+    Reflect.deleteProperty(changed.schema.columns[0]!, field);
+    await withHost({ metadata: changed }, (client) =>
+      assert.rejects(client.lookup("items"), ReadFailed),
+    );
+  }
 });
 
 test("compile, load and typed bulk preparation perform only their requested actions", async () => {
@@ -620,13 +691,53 @@ for await (const line of createInterface({input:process.stdin})) {
 }
 
 test("Table integrity preserves exact parent definitions and owned CHECK literals", () => {
-  const definition = { object: { scope: new Scope(new ResourceRef(1, 2), 3n), branch: 1n, objectId: 90n }, revision: 8n, digest: "ab".repeat(32) };
+  const definition = {
+    object: { scope: new Scope(new ResourceRef(1, 2), 3n), branch: 1n, objectId: 90n },
+    revision: 8n,
+    digest: "ab".repeat(32),
+  };
   const literal = new Uint8Array([1, 2, 3]);
-  const value = new Schema(91n, 2n, 3n, [
-    { id: 1n, name: "id", type: { kind: "int64" }, nullable: false },
-    { id: 2n, name: "payload", type: { kind: "binary" }, nullable: true },
-  ], [1n], { nextId: 3, checks: [{ id: 1, name: "payload_check", atoms: [{ kind: "compareLiteral", column: 2n, op: "eq", literal: { kind: "binary", value: literal } }], validated: false }],
-    foreignKeys: [{ id: 2, name: "parent_id", localColumns: [1n], targetDefinition: definition, targetSchemaRevision: 3n, targetColumns: [7n], onDelete: "restrict", onUpdate: "no_action", enforcement: "staged_awaiting_index" }] });
+  const value = new Schema(
+    91n,
+    2n,
+    3n,
+    [
+      { id: 1n, name: "id", type: { kind: "int64" }, nullable: false },
+      { id: 2n, name: "payload", type: { kind: "binary" }, nullable: true },
+    ],
+    [1n],
+    {
+      nextId: 3,
+      checks: [
+        {
+          id: 1,
+          name: "payload_check",
+          atoms: [
+            {
+              kind: "compareLiteral",
+              column: 2n,
+              op: "eq",
+              literal: { kind: "binary", value: literal },
+            },
+          ],
+          validated: false,
+        },
+      ],
+      foreignKeys: [
+        {
+          id: 2,
+          name: "parent_id",
+          localColumns: [1n],
+          targetDefinition: definition,
+          targetSchemaRevision: 3n,
+          targetColumns: [7n],
+          onDelete: "restrict",
+          onUpdate: "no_action",
+          enforcement: "staged_awaiting_index",
+        },
+      ],
+    },
+  );
   literal[0] = 99;
   const checks = value.integrity.checks;
   assert.equal(checks[0]!.validated, false);
@@ -641,17 +752,35 @@ test("Table integrity preserves exact parent definitions and owned CHECK literal
   assert.equal(value.integrity.foreignKeys[0]!.targetSchemaRevision, 3n);
 });
 
-
 test("committed DDL retains pending dependency settlement and its original identity", async () => {
   const wire = structuredClone(recovery);
   wire.table.binding.action = "alter";
   const original = Reference.restore(JSON.stringify(wire));
   const resulting = structuredClone(stored);
-  resulting.interpretation.revision = (BigInt(wire.table.binding.expected_definition.revision) + 1n).toString();
-  const evidence = { binding: wire.table.binding, resulting, transaction: null,
-    outcome: { position: { partition: "9", next_lsn: "10" }, matched: "0", affected: "0", live_rows: "0" } };
-  const operation = { binding: wire.table.binding, intent: wire.table.content, phase: "admitted", reason: "none",
-    dependency_steps: 1, protected_columns: 1, requires_settlement: true, closing: null };
+  resulting.interpretation.revision = (
+    BigInt(wire.table.binding.expected_definition.revision) + 1n
+  ).toString();
+  const evidence = {
+    binding: wire.table.binding,
+    resulting,
+    transaction: null,
+    outcome: {
+      position: { partition: "9", next_lsn: "10" },
+      matched: "0",
+      affected: "0",
+      live_rows: "0",
+    },
+  };
+  const operation = {
+    binding: wire.table.binding,
+    intent: wire.table.content,
+    phase: "admitted",
+    reason: "none",
+    dependency_steps: 1,
+    protected_columns: 1,
+    requires_settlement: true,
+    closing: null,
+  };
   const value = { observation: { ddl: { finalizing: { evidence, operation } } } };
   await withHost(value, async (client) => {
     const result = await client.inspect(original);

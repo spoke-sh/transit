@@ -392,8 +392,12 @@ impl Column {
                 "max_characters",
                 "encoding",
                 "collation",
+                "semantics",
             ],
         )?;
+        if v["semantics"] != json!({"rounding":null,"metric":null,"timezone":null,"spatial":null}) {
+            return Err(invalid());
+        }
         Ok(Self {
             id: w(&v["id"], false)?,
             name: name(string(&v["name"], "column-name")?)?.into(),
@@ -419,7 +423,7 @@ fn column(
         return Err(invalid());
     }
     Ok(
-        json!({"name":name(name_)?,"type":datatype.wire()?,"nullable":nullable,"default":default.map(Cell::wire).transpose()?,"max_characters":max_characters,"encoding":encoding.tag(),"collation":collation.tag()}),
+        json!({"name":name(name_)?,"type":datatype.wire()?,"nullable":nullable,"default":default.map(Cell::wire).transpose()?,"max_characters":max_characters,"encoding":encoding.tag(),"collation":collation.tag(),"semantics":{"rounding":null,"metric":null,"timezone":null,"spatial":null}}),
     )
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -787,7 +791,7 @@ impl Change {
                 encoding,
                 collation,
             } => {
-                json!({"physical":{"column":positive(*column)?.to_string(),"encoding":encoding.tag(),"collation":collation.tag()}})
+                json!({"physical":{"column":positive(*column)?.to_string(),"encoding":encoding.tag(),"collation":collation.tag(),"semantics":null}})
             }
             Self::Type {
                 column,

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import copy
 import json
+import math
 from pathlib import Path
 from typing import Any, Generic, Literal, TypeAlias, TypeVar
 from transit_client import ResourceRef
@@ -170,6 +171,72 @@ class Collation(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class TimezoneRules:
+    version: str
+    digest: bytes
+    zone: str
+    tzif: bytes
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'digest', owned_bytes(self.digest, 32))
+        object.__setattr__(self, 'tzif', owned_bytes(self.tzif, 128 * 1024))
+        if len(self.digest) != 32: raise ValueError('Expected complete timezone digest')
+
+
+@dataclass(frozen=True, slots=True)
+class SpatialSemantics:
+    srid: int
+    vertical_datum: int
+    unit_scale_nm: int
+    axis_orientation: Literal['right_handed_z_up', 'right_handed_y_up']
+    manifold: Literal['planar', 'geodesic_wgs84']
+    snap_grid_scale: float
+    exact_predicates: Literal['shewchuk_adaptive']
+    curve_order: Literal['none', 's2_hilbert', 'h3', 'hilbert_3d']
+    def __post_init__(self) -> None:
+        if self.axis_orientation not in ('right_handed_z_up', 'right_handed_y_up'): raise ValueError('Unknown spatial axis orientation')
+        if self.manifold not in ('planar', 'geodesic_wgs84'): raise ValueError('Unknown spatial manifold')
+        if self.exact_predicates != 'shewchuk_adaptive': raise ValueError('Unknown spatial predicate mode')
+        if self.curve_order not in ('none', 's2_hilbert', 'h3', 'hilbert_3d'): raise ValueError('Unknown spatial curve order')
+        if isinstance(self.snap_grid_scale, bool) or not isinstance(self.snap_grid_scale, (int, float)) or not math.isfinite(self.snap_grid_scale) or self.snap_grid_scale <= 0:
+            raise ValueError('Invalid spatial grid scale')
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnSemantics:
+    rounding: Literal['reject', 'half_even', 'toward_zero'] | None = None
+    metric: Literal['l2_squared', 'cosine', 'dot_product', 'hamming'] | None = None
+    timezone: TimezoneRules | None = None
+    spatial: SpatialSemantics | None = None
+    def _wire(self) -> dict[str, Any]:
+        zone, spatial = self.timezone, self.spatial
+        if self.rounding not in (None, 'reject', 'half_even', 'toward_zero'): raise ValueError('Unknown numeric rounding')
+        if self.metric not in (None, 'l2_squared', 'cosine', 'dot_product', 'hamming'): raise ValueError('Unknown vector metric')
+        return dict(rounding=self.rounding, metric=self.metric,
+            timezone=None if zone is None else dict(version=dict(version_id=_text(zone.version, 64), digest=list(zone.digest)), zone=_name(zone.zone), tzif_hex=zone.tzif.hex()),
+            spatial=None if spatial is None else dict(srid=integer(spatial.srid, 'SRID', minimum=1, maximum=0xffffffff),
+                vertical_datum=integer(spatial.vertical_datum, 'vertical datum', minimum=0, maximum=0xffff), unit_scale_nm=str(_wide(spatial.unit_scale_nm)),
+                axis_orientation=spatial.axis_orientation, manifold=spatial.manifold, snap_grid_scale=spatial.snap_grid_scale,
+                exact_predicates=spatial.exact_predicates, curve_order=spatial.curve_order))
+
+
+def _semantics(value: object) -> ColumnSemantics:
+    v = _object(value, 'rounding metric timezone spatial')
+    zone, spatial = None, None
+    if v['timezone'] is not None:
+        z = _object(v['timezone'], 'version zone tzif_hex')
+        version = _object(z['version'], 'version_id digest')
+        digest = version['digest']
+        if not isinstance(digest, list) or len(digest) != 32: raise ValueError('Invalid timezone digest')
+        zone = TimezoneRules(_text(version['version_id'], 64), bytes(integer(n, 'digest byte', minimum=0, maximum=255) for n in digest), _name(z['zone']), _hex(z['tzif_hex'], 128 * 1024))
+    if v['spatial'] is not None:
+        s = _object(v['spatial'], 'srid vertical_datum unit_scale_nm axis_orientation manifold snap_grid_scale exact_predicates curve_order')
+        spatial = SpatialSemantics(s['srid'], s['vertical_datum'], _decimal(s['unit_scale_nm']), s['axis_orientation'], s['manifold'], s['snap_grid_scale'], s['exact_predicates'], s['curve_order'])
+    result = ColumnSemantics(v['rounding'], v['metric'], zone, spatial)
+    result._wire()
+    return result
+
+
+@dataclass(frozen=True, slots=True)
 class Column:
     id: int
     name: str
@@ -179,13 +246,14 @@ class Column:
     max_characters: int | None = None
     encoding: Encoding = Encoding.PLAIN
     collation: Collation = Collation.NONE
+    semantics: ColumnSemantics = ColumnSemantics()
     def _wire(self) -> dict[str, Any]:
-        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters, self.encoding, self.collation))
+        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters, self.encoding, self.collation, self.semantics))
 
 
-def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None, encoding: Encoding, collation: Collation) -> dict[str, Any]:
+def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None, encoding: Encoding, collation: Collation, semantics: ColumnSemantics = ColumnSemantics()) -> dict[str, Any]:
     return dict(name=_name(name), type=logical.type_wire(datatype), nullable=_boolean(nullable), default=None if default is None else logical.cell_wire(default),
-                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation))
+                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation), semantics=semantics._wire())
 
 
 CheckComparison: TypeAlias = Literal['lt', 'lte', 'eq', 'gte', 'gt', 'neq']
@@ -396,6 +464,7 @@ class AddColumn:
     max_characters: int | None = None
     encoding: Encoding = Encoding.PLAIN
     collation: Collation = Collation.NONE
+    semantics: ColumnSemantics = ColumnSemantics()
 
 
 @dataclass(frozen=True, slots=True)
@@ -433,6 +502,7 @@ class SetPhysical:
     column: int
     encoding: Encoding
     collation: Collation
+    semantics: ColumnSemantics | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,8 +564,8 @@ def _schema(value: object) -> Schema:
     if not isinstance(v['columns'], list) or not 1 <= len(v['columns']) <= 128 or not isinstance(v['primary_key'], list): raise ValueError('Invalid columns')
     columns = []
     for item in v['columns']:
-        c = _object(item, 'id name type nullable default max_characters encoding collation')
-        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation'])))
+        c = _object(item, 'id name type nullable default max_characters encoding collation semantics')
+        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation']), _semantics(c['semantics'])))
     return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']), _integrity(v['integrity']))
 
 
@@ -576,13 +646,13 @@ def _mutation_value(value: object) -> Mutation:
 
 def _change(value: Change) -> object:
     if isinstance(value, SetIntegrity): return {'integrity': value.schema._wire()}
-    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation)}
+    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation, value.semantics)}
     column = str(_wide(value.column))
     if isinstance(value, DropColumn): return {'drop': column}
     if isinstance(value, RenameColumn): return {'rename': dict(column=column, name=_name(value.name))}
     if isinstance(value, SetDefault): return {'default': dict(column=column, value=None if value.value is None else logical.cell_wire(value.value))}
     if isinstance(value, SetNullable): return {'nullable': dict(column=column, value=_boolean(value.nullable))}
-    if isinstance(value, SetPhysical): return {'physical': dict(column=column, encoding=_enum(value.encoding, Encoding), collation=_enum(value.collation, Collation))}
+    if isinstance(value, SetPhysical): return {'physical': dict(column=column, encoding=_enum(value.encoding, Encoding), collation=_enum(value.collation, Collation), semantics=None if value.semantics is None else value.semantics._wire())}
     if isinstance(value, SetType): return {'type': dict(column=column, type=logical.type_wire(value.type), max_characters=None if value.max_characters is None else integer(value.max_characters, 'characters', maximum=0xffffffff))}
     raise TypeError('Expected typed schema change')
 

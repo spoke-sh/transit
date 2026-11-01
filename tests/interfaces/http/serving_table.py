@@ -197,7 +197,7 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     value = _native_source(definition, owner)
     fields = value['source']['table']['row_type']['structure']
     assert fields == [dict(name='id', type={'int64': {}}, nullable=False, optional=False), dict(name='count', type={'int64': {}}, nullable=True, optional=False)], fields
-    types = b'transit.fuze.types.v1.2026-09-30'
+    types = b'transit.fuze.types.v1.2026-11-01.companions'
     descriptor = b'FTY1' + bytes([len(types)]) + types + b'\x16\2\2id\0\1\5count\1\1'
     table_source = value['source']['table']
     scope, stored = table_source['scope'], table_source['interpretation']

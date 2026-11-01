@@ -169,7 +169,7 @@ test "standards ledger unsupported declarations match the production compiler" {
     const cases = .{
         .{ "F491", "CREATE TABLE t (id BIGINT CHECK (id > 0))", error.UnsupportedTableConstraint },
         .{ "F492", "CREATE TABLE t (id BIGINT REFERENCES parent(id))", error.UnsupportedTableConstraint },
-        .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BIGINT>)", error.UnknownSqlType },
+        .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BOOLEAN>)", error.UnsupportedRangeSubtype },
         .{ "X002-VECTOR", "CREATE TABLE t (embedding VECTOR(3, FLOAT64))", error.InvalidTypeParameters },
     };
     inline for (cases) |case| {

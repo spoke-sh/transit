@@ -72,6 +72,14 @@ all rows. SQL compilation accepts `dialect="transit"` or `"mysql"`, an optional
 CREATE object identity and the same ingestion selection.
 
 Logical descriptors and cells use the [typed logical values](logical.md).
+`RangeType`, `MultiRangeType` and `VectorType` carry exact interval or dense
+vector shapes; `RangeValue`, `MultiRangeValue` and `VectorValue` own their values.
+Vector bytes are little-endian with no per-element cell tags. `Column.semantics`
+accepts `ColumnSemantics` for decimal rounding, vector metrics, pinned
+`TimezoneRules` and reserved `SpatialSemantics`. Timezone rules retain actual
+TZif bytes as well as their version/name/digest. `SetPhysical.semantics=None`
+preserves the existing descriptor; an empty `ColumnSemantics()` clears it.
+Changing interpretation rules requires the owner's physical rewrite lifecycle.
 Integers, decimals and temporal values keep their exact widths. Binary values
 own their bytes. Conversion bounds depth, child count, names and payload bytes;
 schema and mutation encoding charge each fragment before constructing the next.
