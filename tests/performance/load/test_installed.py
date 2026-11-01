@@ -2,7 +2,7 @@
 import copy
 import unittest
 
-from performance.load.installed import integers
+from performance.load.installed import admission_refusal, integers
 from performance.load.report import compare, summarize
 
 
@@ -24,6 +24,20 @@ def campaign():
 
 
 class InstalledReportTest(unittest.TestCase):
+    def test_admission_refusal_does_not_hide_transport_failure(self):
+        diagnostic = RuntimeError('connection failed: FATAL:  Account or database access denied\n')
+        self.assertEqual(admission_refusal('postgres', diagnostic),
+                         dict(sqlstate=None, refusal_basis='postgres_fatal_message'))
+        self.assertIsNone(admission_refusal('mysql', diagnostic))
+        for message in ('timeout expired', 'connection refused', 'TLS verification failed',
+                        'Account or database access denied', str(diagnostic)+'another error'):
+            self.assertIsNone(admission_refusal('postgres', RuntimeError(message)))
+        diagnostic.sqlstate = '28000'
+        self.assertEqual(admission_refusal('mysql', diagnostic),
+                         dict(sqlstate='28000', refusal_basis='sqlstate'))
+        diagnostic.sqlstate = 'XX000'
+        self.assertIsNone(admission_refusal('postgres', diagnostic))
+
     def test_signed_independent_values(self):
         self.assertEqual(integers([['03ffffffffffffffff'], ['030000000000000000']]), [-1, 0])
         for malformed in ([['01']], [['0300']], [['030000000000000000', '030000000000000000']]):

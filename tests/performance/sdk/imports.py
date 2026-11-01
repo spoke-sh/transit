@@ -35,7 +35,7 @@ console.log(JSON.stringify({complete:true, import_ns:Number(process.hrtime.bigin
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--node-packages', required=True, type=Path)
-    parser.add_argument('--repeat', type=int, default=5, choices=range(1, 101))
+    parser.add_argument('--repeat', type=int, default=5, choices=range(1, 101), metavar='1..100')
     args = parser.parse_args()
     evidence = directory(ROOT / '.cache/performance/sdk/imports.json') / 'observations.jsonl'
     print(f'Installed import observations: {evidence}', file=sys.stderr)
@@ -88,7 +88,9 @@ def main():
         finally:
             try:
                 if success:
+                    success = False
                     shutil.rmtree(root)
+                    success = True
                 else:
                     print(f'Failed import fixture retained at {root}', file=sys.stderr)
             finally:

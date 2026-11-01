@@ -66,9 +66,11 @@ authentication, exact SELECT 1 and close. Warm samples use an existing connectio
 The driver then opens `--peers` additional authenticated idle connections and
 measures the existing session plus native control inspection under that pressure.
 
-Every additional peer attempt is retained as admitted or a typed wire refusal.
+Every additional peer attempt is retained as admitted or an observed wire refusal.
 The current startup engines can encode final admission refusal as authentication
 SQLSTATE; the report preserves that code without inferring capacity as its cause.
+When libpq omits the startup SQLSTATE, only the exact server-owned fatal admission
+diagnostic is recognized, with a null SQLSTATE and an explicit diagnostic basis.
 Other errors fail the campaign. Compare admission outcomes as well as latency.
 Choose 4 peers for below-limit controls and 8 or more to cross the default
 per-account capacity of 8 (the measured connection occupies one slot).

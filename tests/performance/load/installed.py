@@ -66,6 +66,19 @@ def integers(rows):
     return sorted(result)
 
 
+def admission_refusal(protocol, error):
+    state = getattr(error, 'sqlstate', None)
+    if state in ('53000', '53300', '28000', '28P01'):
+        return dict(sqlstate=state, refusal_basis='sqlstate')
+    # libpq discards ErrorResponse fields when startup fails. Recognize only
+    # this server-owned fatal diagnostic; do not convert transport errors into
+    # refusals or manufacture a SQLSTATE/capacity cause from its text.
+    if protocol == 'postgres' and state is None and re.search(
+            r'FATAL: +Account or database access denied\s*\Z', str(error)):
+        return dict(sqlstate=None, refusal_basis='postgres_fatal_message')
+    return None
+
+
 def process_snapshot(fixture):
     pids = resources.tree([fixture.process.pid])
     observed = [resources.process(pid, 'installation') for pid in sorted(pids)]
@@ -249,11 +262,11 @@ def connections(fixture, args, recorder, configured):
                             # Startup currently maps final-admission refusal to
                             # authentication SQLSTATE too. Retain that exact
                             # outcome; do not claim it proves capacity exhaustion.
-                            state = getattr(error, 'sqlstate', None)
-                            if state not in ('53000', '53300', '28000', '28P01'):
+                            refusal = admission_refusal(protocol, error)
+                            if refusal is None:
                                 raise
                             refused += 1
-                            sample.update(verified=True, admitted=False, sqlstate=state)
+                            sample.update(verified=True, admitted=False, **refusal)
                         else:
                             peers.callback(peer.close)
                             query(peer)
@@ -287,9 +300,9 @@ def main():
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--binary-revision', required=True)
     parser.add_argument('--profile', choices=('managed', 'connections'), required=True)
-    parser.add_argument('--repeat', type=int, choices=range(1, 101), default=3)
-    parser.add_argument('--rows', type=int, choices=range(1, 901), default=16)
-    parser.add_argument('--peers', type=int, choices=range(1, 17), default=4)
+    parser.add_argument('--repeat', type=int, choices=range(1, 101), metavar='1..100', default=3)
+    parser.add_argument('--rows', type=int, choices=range(1, 901), metavar='1..900', default=16)
+    parser.add_argument('--peers', type=int, choices=range(1, 17), metavar='1..16', default=4)
     args = parser.parse_args()
     if not re.fullmatch('[0-9a-f]{40}', args.binary_revision):
         parser.error('--binary-revision must be the full source commit')
