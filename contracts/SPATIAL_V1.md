@@ -71,3 +71,86 @@ runtime addresses do not enter the commitment.
 The descriptor owns no buffers or resources. Returned decoded values are plain
 values; encoded slices borrow caller output. A fingerprint identifies these
 rules, not a live catalog definition, retained snapshot or permission.
+
+## Exact determinant predicates
+
+`Predicates.orient2d`, `orient3d`, `incircle` and `insphere` classify the exact
+determinant of the supplied binary64 coordinates. Inputs must be finite, with
+each coordinate zero or absolute magnitude in the inclusive range
+`[2^-100, 2^100]`. Subnormals and nonzero coordinates outside that range reject;
+they are not rounded to zero. Negative zero has the same geometric meaning as
+positive zero. These numeric kernels do not infer a CRS from coordinates.
+
+The fast path evaluates an outward-rounded interval. Only a strictly separated
+interval establishes a sign. Otherwise, error-free `Two_Sum`, `Split` and
+`Two_Product` operations and zero-eliminating expansion addition compute the
+sign. The expansion algorithms follow
+[Shewchuk's robust arithmetic](https://www.cs.cmu.edu/~quake/robust.html), with
+strict binary64 rounding and no FMA contraction even in `ReleaseFast`. This
+bounded composition is not a claim to port the specialized adaptive C routines
+or match their performance. Each expansion has 64 components; exhaustion returns
+`SpatialPredicateWorkspaceExceeded` before a partial sign can escape. It never
+truncates an expansion or substitutes a tolerance. There is no heap allocation.
+
+The coordinate restriction keeps split intermediates and products finite. Every
+input is an integer multiple of `2^-152`; determinant degree is at most five.
+Nonzero expansion products therefore remain at least `2^-760`, above binary64
+underflow. The implementation uses strict operations rather than relying on the
+build's default floating-point mode. Qualification must execute each target;
+compilation alone does not establish its rounding behavior.
+
+`orient2d(a,b,c)` is positive for counterclockwise points. `orient3d(a,b,c,d)`
+is the sign of `det(a-d,b-d,c-d)`. `incircle` is positive inside the circle when
+`a,b,c` are counterclockwise; `insphere` is positive inside the sphere when
+`a,b,c,d` have positive orientation. Reversing orientation reverses those signs.
+Zero means a zero determinant, including duplicate or degenerate inputs; it
+does not prove a unique circle or sphere. The returned path (`interval` or
+`exact`) is diagnostic and does not enter geometry identity.
+
+Exact signs do not construct exact intersection coordinates. No noding,
+overlay, repair, transformation or geodesic operation is supplied here.
+
+## Planar rings and polygons
+
+`Planar` admits XY planar references only. A `Ring` borrows a closed coordinate
+slice with at least three edges; a `Polygon` borrows a validated shell and a
+directory of validated holes. Callers construct them through `init` and keep
+coordinates, references, bounds and the directory immutable for every borrow's
+lifetime. No operation retains pointers beyond its returned borrowed value.
+The native structs are not wire decoders: constructed fields are trusted after
+validation, and callers must not forge or mutate them.
+
+Ring validation rejects consecutive duplicate vertices, self-intersections,
+touches between nonadjacent edges, adjacent backtracking and zero area. Polygon
+validation rejects holes outside the shell, all touching/intersecting ring
+boundaries, nested holes and different complete references. Both winding
+directions are admitted. This deliberately strict simple-polygon profile is not
+full OGC polygon validity. Structural errors report a bounded reason and original
+ring/edge indices, without payloads; reference, coordinate and work refusals
+leave that witness absent. Invalid construction returns no usable geometry.
+
+`locate` returns `exterior`, `boundary` or `interior`; a hole interior is exterior
+to its polygon. Half-open ray crossings and exact orientation avoid divisions
+and count shared vertices once. Closed-segment classification distinguishes
+`disjoint`, `touch`, `cross` and collinear `overlap`, including zero-length
+segments. Boxes include their boundary and reject invalid coordinates/bounds
+before producing a pruning answer. Boxes describe coordinate numbers only;
+combining interpreted operands still requires identical references.
+
+`Ring.signedArea` and `Polygon.area` accumulate exact dyadic products in a bounded
+signed integer and round once to binary64. Polygon area subtracts exact absolute
+hole areas before rounding. Units are coordinate units squared, never inferred
+meters or ellipsoidal area. No input winding is changed. `normalizeCoordinate`
+explicitly rounds to the descriptor's binary grid, nearest with ties to even;
+grid validation rejects off-grid inputs instead of snapping them during ingestion.
+Normalizing individual coordinates is not topology-preserving snap rounding or
+geometry repair; the resulting shape must be validated again.
+
+Variable loops charge a caller-owned `Budget` before each vertex, edge, candidate
+pair or area contribution. Insufficient work returns `SpatialWorkExceeded`
+without wrapping the counter; consumed work is not restored on failure. Ring
+validation is quadratic in edges, point location and area are linear, and hole
+validation can be quadratic across all edges. Coordinates remain caller-owned;
+there is no fixed collection-cardinality cap, durable state or spill claim.
+Expansion work is fixed and bounded per predicate. This scalar reference profile
+does not establish query-level resource metering or vectorized throughput.
