@@ -9,6 +9,44 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Frozen workload projection bodies — 2026-11-01
+
+Commit `b5fcc0c003053c33cd51f341fea46531fe75f49e` includes the ordered projection
+layout and encoded Fuze plan in the canonical workload body. Its coordinated
+current-v1 definition is
+`c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca`.
+The [saved-work contract](../../../contracts/DIRECT_TABLE_V1.md) requires an
+explicit projection or `null`; no earlier missing field acquires a default.
+
+ReleaseSafe catalog checks selected by `-Dtest-filter='workload result'` and
+`-Dtest-filter='workload token'` pass **7/7**. The existing physical-disk replacement
+schedule now freezes projections for Stream append/consume and Queue enqueue/claim,
+destroys compiler buffers, and reloads the saved aliases and ordered layout after
+replacement. Changing the native operation fails the projection binding check;
+missing projection fields reject. Original raw page ownership, expired leases,
+post-buffer revocation, allocation failures and authenticated offset handoff remain
+in the same executed schedule. The first run overlapped fixture regeneration and
+failed two old signature-vector checks; the run after regeneration passes all
+seven. That initial run is not a passing qualification.
+
+Contract checks pass **19/19** and fast checks **60/60**. The root
+`direct-table-proof test-local-catalog -Dlocal-catalog-filter='shared refusals'`
+ReleaseSafe build passes **9/9 steps and 2/2 selected host tests**. Documentation
+checks pass 10,068 local links across 710 files. These are candidate owner, caller
+compilation and contract checks; no installed result profile or performance
+measurement was rerun under this definition.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-projection-owner2.log` | `ac3344287624b2fe78eb4d1f589f87a01f9ced5eb2c6ae181e521f9bf7d27943` |
+| `/var/tmp/transit-m6-workload-projection-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-projection-fast2.log` | `5805a4e23bad621c6327036ae0ea39fe2603d761ebecd852e596b84aa60b0042` |
+| `/var/tmp/transit-m6-workload-projection-callers1.log` | `9cea6006308c90b876bbff14f774c3846257d1ed97588b91b253af063c4e0064` |
+
+This qualifies frozen projection ownership and rejection through the catalog's
+disk replacement test. It does not enable workload SQL or qualify SQL result
+reopening, projection execution, provider recovery or the full M6 gate.
+
 ## Original workload result delivery over the signed service — 2026-11-01
 
 Commit `41e517fa2dd60b993fab0f7f5517496f18c80aaa` exposes the existing original-result
