@@ -2247,6 +2247,38 @@ and runner evidence remain at `/var/tmp/transit-ci-rmu9y12y`; the private fixtur
 remains at `/var/tmp/transit-server-proof-zmz5jnfg`. This failure is not a complete
 installation/UI pass, and its cause has not been established.
 
+A fresh `just transit-board::workbench-test` at `f4da821b142e` passes the
+145-row traversal, empty/metadata results, definition guards, read-only admission,
+capacity and terminal revocation with unchanged deadlines. Its log is
+`/var/tmp/transit-m8-workbench-rerun.log`; this does not explain the first timeout.
+The separate `just test::declarative-browser` follow-up at that source fails
+before browser assertions when secret provisioning receives a `/table/v1`
+`record` refusal (`InvalidRequest`). Its private fixture is retained at
+`/var/tmp/transit-browser-eqce5oe4` and its log at
+`/var/tmp/transit-m8-declarative-browser.log`.
+
+After merging `origin/main` at `f49a3da65`, source
+`de5b5f29d122a0c40d1f0f1a22a28ba42b357f36` includes main's browser/branch format
+separation and refreshed definition. The owning
+`zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- faults` passes with
+pinned clients, including mid-SCRAM credential rotation, selected-role and native
+revocation, detached original writes, certificate rotation, capacity and joined
+drain. This is a focused workspace follow-up, not a repeated clean SQL lane;
+its log is `/var/tmp/transit-m8-merged-wire-faults.log`. All 58 fast checks and
+`just transit-docs::check` also pass on the merged source.
+
+The merged-source `just test::declarative-browser` passes provisioning, public
+sources/provider modes, original claim recovery, callbacks/restart, secret/JWKS
+rotation, native authorization and watch revocation. It then times out waiting
+for an HTTP callback during the identity-population loop, after reporting
+population 30, under the unchanged ten-second client timeout. Node logs also
+record maintenance timeouts; the cause has not been established. The remaining
+population/pagination, restriction, expiry and later assertions are unproved by
+this attempt. Its log is `/var/tmp/transit-m8-merged-browser.log` and private
+state remains at `/var/tmp/transit-browser-3uiftnnz`. Neither browser attempt nor
+the original installation/UI lane is a pass; the earlier private installations
+and their original uncertain work remain separate from these fresh fixtures.
+
 Focused package checks during implementation also pass partial startup input at
 every split, one-byte output drains, malformed/oversized input, TLS failure,
 lookup/verification/admission refusal, late and duplicate completions, slot
