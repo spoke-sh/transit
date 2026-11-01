@@ -44,6 +44,20 @@ const log_fields = [_]f.Types.Field{
 test "log metadata fields use the lossless common database wire matrix" {
     for (log_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
 }
+test "metadata preparation leaves dialect probes to their owner without allocation or I O" {
+    // Only the dialect is available: no connected runtime or allocator may be
+    // touched when this metadata adapter declines another owner's statement.
+    var host: g.Session = undefined;
+    host.dialect = .mysql;
+    for ([_][]const u8{
+        "SELECT @@character_set_connection, @@collation_connection, @@sql_mode",
+        "SELECT @@version_comment LIMIT 1",
+        "SET @@session.autocommit=on",
+    }) |sql| {
+        try std.testing.expect(try prepare(&host, sql) == null);
+        try std.testing.expect(try g.Probe.parse(sql, .mysql) != null);
+    }
+}
 fn text(bytes: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = bytes } } };
 }
@@ -54,16 +68,16 @@ fn unsigned(value: u64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .unsigned = value } } };
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
+    // Inspect only this adapter's statements. SELECT (including MySQL's @@
+    // probes) and writes belong to their own preparation/lexing boundaries.
+    var lexer: f.Sql.Lexer = .{ .text = sql, .dialect = host.dialect };
+    const first = try lexer.next();
+    if (first.tag != .word or (!std.ascii.eqlIgnoreCase(first.text, "SHOW") and
+        !std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") and
+        !std.ascii.eqlIgnoreCase(first.text, "EXPLAIN"))) return null;
     const selection = try g.database.HistoricalSql.select(sql, host.dialect);
     if (selection.snapshot != null and host.table.transaction != null) return error.UnsupportedHistoricalTransaction;
-    if (selection.snapshot != null and host.source != null) {
-        var lexer: f.Sql.Lexer = .{ .text = selection.statement, .dialect = host.dialect };
-        const first = try lexer.next();
-        // SELECT is prepared by SourceSession against the retained Table basis.
-        // This metadata adapter must not reject it before that owner runs.
-        if (first.tag == .word and std.ascii.eqlIgnoreCase(first.text, "SELECT")) return null;
-        return error.UnsupportedHistoricalKind;
-    }
+    if (selection.snapshot != null and host.source != null) return error.UnsupportedHistoricalKind;
     if (host.source) |source| return if (host.native_profile) prepareSource(host, source, sql) else null;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
