@@ -88,7 +88,7 @@ test "unboxed VECTOR(dim, elem_type) 64B slab alignment and L2, cosine, dot, ham
     try testing.expectError(error.ZeroMagnitudeCosineVector, VectorMetric.cosineDistanceF32(&zero_vec, &slab_a));
 }
 
-test "deterministic DECIMAL(p, s) arithmetic rounding rules, pinned tzdb version, and spatial descriptor" {
+test "deterministic DECIMAL(p, s) arithmetic rounding rules" {
     const a: DecimalArithmetic.DecimalValue = .{ .coefficient = 12345, .precision = 10, .scale = 3 }; // 12.345
     // Exact half-way tie: 12.345 -> scale 2 is 12.34 under HALF_EVEN (4 is even)
     const r_even = try DecimalArithmetic.rescale(a, 10, 2, .half_even);
@@ -111,21 +111,6 @@ test "deterministic DECIMAL(p, s) arithmetic rounding rules, pinned tzdb version
     const sum = try DecimalArithmetic.add(a, c);
     try testing.expectEqual(@as(u8, 3), sum.scale);
     try testing.expectEqual(@as(i128, 13845), sum.coefficient);
-
-    // Spatial descriptor validation
-    const spatial: DecimalArithmetic.SpatialDescriptor = .{
-        .srid = 4326,
-        .manifold = .geodesic_wgs84,
-        .axis_orientation = .right_handed_z_up,
-        .snap_grid_scale = 1e-7,
-        .curve_order = .s2_hilbert,
-    };
-    try spatial.validate();
-    const bad_geodesic: DecimalArithmetic.SpatialDescriptor = .{
-        .srid = 3857,
-        .manifold = .geodesic_wgs84,
-    };
-    try testing.expectError(error.IncompatibleGeodesicSrid, bad_geodesic.validate());
 }
 
 test "EBCDIC_037_PAD and EBCDIC_1047_NOPAD collation comparisons and order-preserving sort keys" {

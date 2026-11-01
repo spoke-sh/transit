@@ -6,6 +6,7 @@
     .dependencies = .{
         .transit_bitmap = .{ .path = "../transit-bitmap" },
         .transit_memory = .{ .path = "../transit-memory" },
+        .transit_spatial = .{ .path = "../transit-spatial" },
         .transit_protocol = .{ .path = "../transit-protocol" },
         .zarrow = .{
             .url = "git+https://github.com/rupurt/zarrow#4276ac30d63d1af159490b7dc70e15d749b8d01b",

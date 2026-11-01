@@ -43,6 +43,13 @@ truncated read reaches the caller without transport/decoder origin evidence,
 the diagnostic explicitly marks that origin unrecorded. It does not infer
 corruption or authorize submitting the SQL again.
 
+Fuze also exposes [local spatial kernels](../../../packages/zig/transit-spatial/README.md)
+for explicit coordinate references, exact 2D/3D determinant signs and bounded
+planar rings/polygons. Their [contract](../../../contracts/SPATIAL_V1.md) defines
+coordinate ranges, validity, precision and borrowed lifetimes. Spatial Table
+types, SQL functions, persistent indexes and maintained spatial queries are not
+admitted by these library APIs.
+
 ## Physical execution
 
 File and general Table queries use bounded typed columns. Int64, uint64, finite

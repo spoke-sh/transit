@@ -7,6 +7,7 @@ pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
 pub const BatchExecution = @import("BatchExecution.zig");
 pub const Batch = @import("Batch.zig");
+pub const Spatial = @import("transit_spatial");
 pub const memory = @import("transit_memory");
 pub const MemoryBudget = memory.Budget;
 pub const RelationalValues = @import("RelationalValues.zig");
@@ -119,6 +120,7 @@ test {
     _ = Range;
     _ = VectorMetric;
     _ = DecimalArithmetic;
+    _ = Spatial;
     _ = Timezone;
     _ = TableConstraints;
     _ = PerfectHash;
