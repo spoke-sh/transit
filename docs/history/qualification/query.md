@@ -9,6 +9,41 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Dedicated append compiler preparation — 2026-11-01
+
+The local source committed as `b08ef96d9c85f1097755a98764627d048b10bc59`
+(helper commit `8fa3a9e31`) adds standalone `LogAppendSql` preparation. The
+native definition remains
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+This is compiler evidence, with no SQL admission or installed execution claim.
+
+The registered Table DML profile passes its existing 44 cases and **28** new
+independent append cases comparing the dedicated ANTLR tree, canonical typed
+row bytes, metadata, projections and refusals. The first run failed because
+the proof executable serialized a byte-slice of projection indices as a JSON
+string; the corrected fixture exports numeric indices. Production bytes matched.
+Focused Fuze checks pass **24/24**, including allocation failures, independent
+ownership, typed parameters, source-binding refusals and projection restoration.
+The SQL code-registry check passes **23/23**; both runs have an additional cached
+compute target.
+
+Diagnostic grammar passes **518** cases and **782** coverage obligations.
+The ordinary grammar passes 174 PostgreSQL SELECT comparisons, 32 exclusions,
+42 extensions and 132 documentation examples, plus its separate relational
+checks. Fast checks pass **60/60** after adding the new reviewed diagnostic
+mappings; the earlier missing-mapping run remains a failure. Documentation
+checks pass 10,078 local links across 710 files.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-corpus1.log` (failed fixture) | `0f3f2b00cbff28b7fc358a51f6381a1c0a46b2b63ec6935d127bb4c96fe41387` |
+| `/var/tmp/transit-m6-log-append-corpus2.log` | `428d09347215f332b62ec63217e51123572c00702fcdc9ad2579f9d9eb3dd474` |
+| `/var/tmp/transit-m6-log-append-sql3.log` | `4a1a5198d600d97a5c3059f505e5a401788641309954e9f8040772602e6623c0` |
+| `/var/tmp/transit-m6-log-append-codes1.log` | `7fce4fa13451ee9fe33dd5e3be58555c7712acaed49c13c80289de9b8b728c53` |
+| `/var/tmp/transit-m6-log-append-diagnostics2.log` | `b2088e894e612e301e3c506e5d9e29135eac4cddf45cfffced6bf505576d8679` |
+| `/var/tmp/transit-m6-log-append-grammar1.log` | `6c9977c365d3458fc44e4305b398b9b01bf2e0a2e4c12bf4d1b1a69d5bd9cb61` |
+| `/var/tmp/transit-m6-log-append-fast2.log` | `1bbd36e1545488744a155dcbc4098323b90baa35b32086826f199efed5df3453` |
+
 ## SQL original workload operation and result recovery — 2026-11-01
 
 ### Installed original-result recovery
