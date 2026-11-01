@@ -9,6 +9,102 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed startup publication reduction — 2026-10-31
+
+The [startup workload](../../../tests/performance/README.md#installed-startup)
+compares frozen ReleaseSafe binaries from control
+`a52ea10cf74ace63634581927cd35e122ec18cb4` and candidate
+`76ab6352f356c4946c676daf19c19b8c928400a3`, using clean driver source
+`6addec46c7b085d09f5451b09eb9afbb11e442ff`. The candidate batches private native
+pages, overlaps independent file barriers, rotates enrolled workers conditionally
+and avoids rewriting unchanged derived files. These observations precede the
+integration of main's branch-foundation changes; they do not qualify later source.
+
+Each of five alternating pairs per profile creates a fresh installation, checks
+an empty SQL result, inserts exactly `(1, 73)`, then checks that row through two
+graceful restarts. Every restart must retain installation identity and provisioning
+receipts. Headless uses standalone role binaries; the default profile uses the
+embedded roles with Board and application management enabled. External readiness
+includes the existing SQL/gateway gates and, for Board, a verified authorized atlas
+read. Its bounded retries count toward the same launch deadline and elapsed time.
+
+All **60 attempted launches** complete with exact result verification and no
+telemetry loss. All 30 candidate launches complete in one supervisor attempt;
+20 of 30 control launches do. The control records 13 extra attempts: six failed
+provisioning phases and seven failed worker phases. Failed attempts and backoff
+remain in the successful launch's elapsed time; the records do not establish the
+specific transport/storage cause of each failed phase.
+
+| Profile / launch | Samples per arm | Ready median, control → candidate | First verified result median, control → candidate |
+| --- | ---: | ---: | ---: |
+| Headless / fresh | 5 | 61.119 → 21.707 s | 62.166 → 23.062 s |
+| Headless / restart | 10 | 10.411 → 3.208 s | 11.186 → 3.975 s |
+| Embedded UI / fresh | 5 | 76.259 → 22.836 s | 77.316 → 23.767 s |
+| Embedded UI / restart | 10 | 7.856 → 2.666 s | 9.518 → 4.074 s |
+
+| Profile / launch | Observed readiness range, control | Observed readiness range, candidate |
+| --- | ---: | ---: |
+| Headless / fresh | 60.264–138.864 s | 18.270–45.317 s |
+| Headless / restart | 8.099–24.154 s | 3.044–5.920 s |
+| Embedded UI / fresh | 63.548–94.587 s | 20.486–35.725 s |
+| Embedded UI / restart | 7.047–21.045 s | 2.460–7.397 s |
+
+Retained worker activation has median phase time 6.225 → 0.510 seconds headless
+and 5.342 → 0.536 seconds with embedded roles. Fresh provisioning has median
+37.120 → 12.996 seconds headless and 42.161 → 12.944 seconds with embedded roles.
+Phase totals include every supervisor attempt in that launch.
+
+These are iteration probes on a shared Linux x86_64 host with 48 logical CPUs,
+Linux 6.17.0-41, ext4 on `/dev/nvme0n1p2`, pinned Zig
+`0.17.0-dev.2267+48abf1a34` and default JSON info logging. Recorded one-minute load
+ranges from 14.09 to 38.58. No agent-owned build or heavy proof runs during this
+campaign; other host work is uncontrolled. OS caches are not evicted. A fresh
+installation is not a cold-device measurement. Both arms use unchanged configured
+durability, residency and deadlines; the candidate additionally reserves eight
+private page slots. Fresh worker enrollment moves into provisioning, so the
+fresh worker-phase reduction alone would overstate the activation optimization.
+
+The roughly threefold readiness improvement also reduces launch-to-first-verified
+result. It does not establish the roadmap's 5-second/1-second targets, p95/p99,
+aged-history recovery, allocation/CPU/I/O budgets or an SDK throughput improvement.
+The [larger acceptance campaign](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#installed-startup-reduction-plan--2026-10-31)
+remains open; no startup regression budget is frozen from these samples.
+
+Executed through the shared launcher in pinned `nix develop`, for each frozen
+artifact prefix and profile:
+
+```sh
+python3 -B tests/runner/launch.py tests/performance/console/console_latency.py \
+  "$prefix/bin/transit" "$prefix/bin/transit-node" "$prefix/bin/transit-query-host" \
+  --startup-restarts 2 --binary-revision "$revision"
+# Add --startup-default for the embedded UI/application profile.
+```
+
+Ignored records under `.cache/performance/startup-implementation/` retain all
+twenty `paired-*.jsonl` files, the exact invocation order in `campaign.json`, and
+their hashes, complete executable/helper identities and recomputed statistics in
+`campaign-summary.json` (SHA-256
+`2257418579335bdada495a74a8317d28d3c7bc9c45f5b3876cf2483634e7b01e`).
+The driver SHA-256 is
+`b5d3bd2b3676c84d5e11bf1cdf024c2d567490ed263ae48a6b706a6ec91fd76e`;
+control/candidate CLI hashes are
+`51e73ca3bb214d20132ec1e95203a0ce32842b211d8e721bdf76e38a98b0ffe2` /
+`5b4bb6eea868a7f0f232eeeac920f00f3c9cbd726784c70449e660488ddb507d`.
+These local artifacts are not distributed with the repository.
+
+Two preliminary failures remain separate from this final-observer campaign.
+The traced control receives HTTP 503 before its old observer waits for SQL
+readiness; it records 5,642 completed fsyncs with 9.623 ms median duration.
+Their summed 71.416 seconds span processes and are not a critical-path estimate.
+`control-fsync.trace` has SHA-256
+`7ebd87898a6132dfa05d4e1eec63b48056899ac7757947d8bdccabc773fc6881`.
+The first default candidate probe receives Board HTTP 429 because the observer
+reads inside Board's 100 ms read interval; `candidate-default-probe.jsonl` has
+SHA-256 `77b7b925611fcc8bce9f43b778ec45abb7b6df54afbb19e69d3e841e7286eadc`.
+The final observer counts these retryable responses within the original deadline,
+requires actual readiness and still rejects denial. Neither preliminary failure
+is erased or relabeled as a passing sample.
+
 ## Installed startup phase attribution — 2026-10-31
 
 The [startup workload](../../../tests/performance/console/startup.py) measures

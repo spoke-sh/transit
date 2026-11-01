@@ -383,10 +383,14 @@ latency objectives below remain unchanged.
 
 #### Installed startup reduction plan — 2026-10-31
 
-**Status: Planned.** Make declared data and configured services usable quickly
+**Status: In Progress.** Make declared data and configured services usable quickly
 after `transit server`, while preserving installation identity, current grants,
-accepted operations and complete recovery. This plan audits source
-`644d0a09ecd7c86cdbf50afa0977937e13b444c5`; it introduces no runtime behavior.
+accepted operations and complete recovery. The original audit covers source
+`644d0a09ecd7c86cdbf50afa0977937e13b444c5`. The implemented first reduction uses
+conditional built-in worker rotation, unchanged derived-file reuse, eight-page
+private candidate buffers and bounded concurrent file barriers. The
+[paired startup probes](../history/qualification/performance.md#installed-startup-publication-reduction--2026-10-31)
+record roughly threefold median improvements, with the targets below still open.
 The [server guide](../../apps/transit-cli/docs/server.md) owns current readiness
 semantics, and the [installation contract](../../contracts/APPLICATION_INSTALLATION_V1.md)
 and [native replacement contract](../../contracts/TRANSIT_V1.md#conditional-local-worker-replacement)
@@ -435,6 +439,15 @@ contract and implementation reviews separate where persisted meaning changes.
 | S5. Bound recovery as history grows | Local WAL/page/allocation recovery and SQL account discovery | Recovery cost attributed by bytes/records/accounts, bounded resident memory, validated checkpoints and complete pending-work discovery |
 | S6. Qualify and freeze regression budgets | Existing performance and installation/fault owners | Paired full-outcome scorecard, passing affected clean lanes, default-profile evidence and published limits |
 
+The first implementation covers S1, the derived-file portion of S2 and the
+per-candidate batching portion of S3a. S0 now exports nested debug work timings,
+launch-to-first-verified-result, failed samples and readiness attempt counts.
+The five paired fresh installations and ten restarts per arm/profile are
+iteration evidence, not S6 acceptance. Full executable hashing remains intact;
+accelerated hashing, stripped-artifact comparisons, operation-count reduction,
+dependency overlap, aged-history budgets and the larger acceptance campaign
+remain open. No bulk authorization command or earlier readiness gate is added.
+
 **S0 — measure the operations inside the phases.** Extend the existing
 [`startup.py`](../../tests/performance/console/startup.py) workload rather than
 creating a second installation harness. Preserve `ready_ns` and separate readback;
@@ -462,9 +475,9 @@ cause or resolution. Inspect original pending work and listener/storage recovery
 with existing deadlines. A passing retry cannot erase a failed campaign. Land a
 focused reliability fix if required before claiming performance acceptance.
 
-**S1 — rotate workers instead of provisioning them again.** Today
+**S1 — rotate workers instead of provisioning them again.** At the audited baseline,
 [`Installation.activate`](../../apps/transit-cli/server/Installation.zig)
-issues `grant`, two resource grants and `own` for source, and `grant`, one resource
+issued `grant`, two resource grants and `own` for source, and `grant`, one resource
 grant and `own` for requester. Each `submit` reads capabilities, persists a frozen
 request and then persists its receipt. Worker registration is also saved. Those
 seven mutations alone cause fourteen pending/receipt checkpoint writes, before
@@ -475,7 +488,7 @@ Reuse the conditional `rotate_worker` path already used by
 still creates scoped principals and required grants once. Retained replacement
 must bind each role's exact prior public key, PID, generation and permission mask;
 it must preserve resource revocation, signed sequence, mailbox, state and outputs.
-The current single `registration` field is not a two-role activation journal:
+The baseline's single `registration` field is not a two-role activation journal:
 design the retained per-role evidence before wiring this change. Resolve an old
 pending rotation before launching a new generation. A stale key, revoked principal,
 blocked/retired PID or missing receipt must not fall back to granting authority.
