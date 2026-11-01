@@ -9,6 +9,73 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Workload terminal closures and installed Queue regression — 2026-11-01
+
+Implementation `3549e606e` (identical change committed as
+`97b573e69a4eb5e3a67d4f88a1d72d45fb23635d` in the qualification checkout)
+adds native Stream/Queue cancellation and narrowly qualified producer/lease
+refusals in the partition's existing receipt directory. The current-v1 cutover is
+`54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad`.
+Schemas, bindings, independent signing fixtures and public owners move together.
+No SQL workload intent, result-reopen or Station replacement gate is closed here.
+
+The following ReleaseSafe checks pass inside the pinned shell:
+
+| Owner | Selection | Result |
+| --- | --- | --- |
+| `transit-protocol` | `zig build test` | **111/111** |
+| `transit-storage` | partition cancellation; log transaction Queue/queue/terminal | **8/8** |
+| `transit-catalog` | direct Stream/Queue cancellation, composition, waits and signed fixtures | **11/11** |
+| Root | `just check contracts` | **19/19** |
+| Root | `just check fast` | **60/60**, including 10,041 documentation links |
+| Root | `zig build transit-node direct-table-proof -Doptimize=ReleaseSafe --summary all` | **10/10 build steps** |
+
+The component selections use repeated `-Dtest-filter` arguments for the names
+shown, plus `-Doptimize=ReleaseSafe --summary all`. The protocol package does not
+support `test-filter`; its complete suite ran. A separate direct-contract rerun
+also checks mandatory closure fields and foreign definitions against independent
+fixtures. The reflector shares one closure definition across both response unions.
+
+Disk tests lose the cancellation append reply, reopen, recover the same closure,
+and reject late mutation or changed-content reuse. Existing acceptance wins
+cancellation. Closure preserves offsets, logical change position, clock and
+Queue state. Catalog tests preserve the global operation reservation across
+partition/kind conflicts, current rights, waits, mutation and replacement.
+An unavailable clock leaves settlement unresolved; confirmed lease expiry records
+a refusal, does not ACK, and remains observable without a live clock. Ordinary
+successful mutations retain their existing receipt lookup count. The initial
+retirement fixture incorrectly reused a definition revision and was corrected to
+stage a real successor before the passing run; its failed log remains retained.
+
+On clean `97b573e69`, the actual node and signed caller pass the installed
+`queues` profile with **976 requests**, four lost replies (`633001`, `633002`,
+`633004`, `633008`) and 78 expiry probes. It exercises FIFO heads, wait timeout
+and acceptance, original empty claims, ACK, retired-lease expiry, retained
+payloads through tiering, explicit result release and terminal retention through
+SIGKILL/restart. This existing profile is a cutover regression, not an installed
+cancellation race proof or a large cold-recovery performance measurement.
+
+```sh
+python3 -B tests/runner/launch.py tests/storage/tables/direct_table_service.py \
+  zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof queues
+```
+
+The matching node/caller SHA-256 values are
+`9a1d27f070f62eadeb7df75d9c4c393383a2f633f7da967e56fd330976375651`
+and `88fc6e5a4c293fbb04f24caab9ae22c2289707bd360b5a1fcabdbf95c4931875`.
+Raw logs under `/var/tmp/` have these hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `transit-m6-closure-catalog5.log` | `b5e1c2f4ab3e688aee0a965f902f4a5ce1bd30fe2aa5511280855de383401097` |
+| `transit-m6-closure-storage4.log` | `97820e8732953657ada8ff57602491816afc404282a5ffbbb5f1d9eed60e51d8` |
+| `transit-m6-closure-protocol2.log` | `7ae0c976fb8e6c6b272f0244da2f798345fff03117eaf0c36c1bc99d59f7c963` |
+| `transit-m6-closure-contracts1.log` | `38c89b1c5af4901c53fbd095590a44fd12cf3179214105e0db633f822cef7033` |
+| `transit-m6-closure-fast1.log` | `4617c6294c1a76249b449124121729ecad87c5ea4a1042fbb5b6a1f4322275af` |
+| `transit-m6-closure-fixture-shapes2.log` | `05d6554837fd716bc8cea4a73dde7f1b14febfa7a4fbb77d193676683d7a2d7b` |
+| `transit-m6-closure-runtime2.log` | `2db87328e6011d07f00bb00647dce059fefd51f0fe20a2ca061a4d40499ca6ae` |
+| `transit-m6-closure-installed-queues1.log` | `dd4ab8b5af9d59b28dc19fe021a1f79d6c4cd35b14c0a2c86ae71c3b568f627c` |
+
 ## Combined bounded reads and Queue scheduling — 2026-11-01
 
 On clean source `ed290f0ab`, the whole-object, bounded-range, private-candidate,
