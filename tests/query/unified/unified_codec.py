@@ -84,7 +84,8 @@ def table_collation_fixtures():
                             dict(name='label', type={'utf8': {}}, nullable=True, optional=False)]}
     encoded = descriptor(schema)
     rows = []
-    for tag, name in enumerate(('none', 'utf8_binary', 'ascii_ci', 'ebcdic_cp037')):
+    for tag, name in ((0, 'none'), (1, 'utf8_binary'), (2, 'ascii_ci'), (3, 'ebcdic_cp037'),
+                      (5, 'ebcdic_037_pad'), (6, 'ebcdic_1047_nopad')):
         collations = bytes([0, tag])
         table = (b'TQS1' + current_definition() + struct.pack('<8Q', 1, 7, 9, 3, 1, 1, 9, 1)
                  + bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32

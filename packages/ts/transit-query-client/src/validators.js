@@ -8881,7 +8881,7 @@ return errors === 0;
 validate218.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 const schema97 = {"type":"array","maxItems":128,"items":{"$ref":"#/$defs/Response/$defs/T44"}};
-const schema98 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root"]};
+const schema98 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root","ebcdic_037_pad","ebcdic_1047_nopad"]};
 
 function validate310(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -8897,7 +8897,7 @@ if(typeof data !== "string"){
 validate310.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root"))){
+if(!(((((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root")) || (data === "ebcdic_037_pad")) || (data === "ebcdic_1047_nopad"))){
 validate310.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema98.enum}}];
 return false;
 }
@@ -20556,7 +20556,7 @@ validate675.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 const schema201 = {"anyOf":[{"$ref":"#/$defs/Response/$defs/T147"},{"type":"null"}]};
 const schema202 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"$ref":"#/$defs/Response/$defs/T148"},"code":{"$ref":"#/$defs/Response/$defs/T149"},"category":{"$ref":"#/$defs/Response/$defs/T150"},"stage":{"$ref":"#/$defs/Response/$defs/T151"},"outcome":{"$ref":"#/$defs/Response/$defs/T152"},"evidence":{"$ref":"#/$defs/Response/$defs/T153"},"message":{"$ref":"#/$defs/Response/$defs/T154"},"cause":{"$ref":"#/$defs/Response/$defs/T155"},"identity":{"$ref":"#/$defs/Response/$defs/T156"},"location":{"$ref":"#/$defs/Response/$defs/T161"},"facts":{"$ref":"#/$defs/Response/$defs/T166"},"actions":{"$ref":"#/$defs/Response/$defs/T176"}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
-const schema203 = {"type":"string","enum":["82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"]};
+const schema203 = {"type":"string","enum":["12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"]};
 
 function validate690(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20572,7 +20572,7 @@ if(typeof data !== "string"){
 validate690.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate690.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema203.enum}}];
 return false;
 }
@@ -29286,7 +29286,7 @@ if(typeof data !== "string"){
 validate954.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate954.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema203.enum}}];
 return false;
 }

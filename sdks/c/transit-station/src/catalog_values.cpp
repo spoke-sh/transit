@@ -26,7 +26,7 @@ public:
     std::string finish() { return std::move(bytes); }
 };
 Json encoding(uint32_t v) { return Json::string(choice(v, {"plain", "bitpacked", "rle", "dictionary", "fsst", "comp", "comp_3", "zoned", "ibm_hfp", "ebcdic"})); }
-Json collation(uint32_t v) { return Json::string(choice(v, {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root"})); }
+Json collation(uint32_t v) { return Json::string(choice(v, {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root", "ebcdic_037_pad", "ebcdic_1047_nopad"})); }
 void column_fields(Writer &w, const transit_station_catalog_column_spec &c) {
     w.text("\"name\":"); w.value(Json::string(name(c.name))); w.text(",\"type\":"); w.value(descriptor(c.type));
     w.text(",\"nullable\":"); w.value(Json::boolean(c.nullable)); w.text(",\"default\":"); w.value(cell(c.default_value));

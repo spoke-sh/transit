@@ -38,7 +38,7 @@ current(V) -> check(V=:=definition()),V.
 fixed(V,N) -> B=transit_sdk_value:bytes(V,N),check(byte_size(B)=:=N),B.
 unhex(V,N) -> fixed(transit_sdk_value:unhex(V,N),N).
 encodings() -> [plain,bitpacked,rle,dictionary,fsst,comp,comp_3,zoned,ibm_hfp,ebcdic].
-collations() -> [none,utf8_binary,ascii_ci,ebcdic_cp037,icu_root].
+collations() -> [none,utf8_binary,ascii_ci,ebcdic_cp037,icu_root,ebcdic_037_pad,ebcdic_1047_nopad].
 collation(V) -> enum(V,collations()).
 kinds() -> [create,alter,rename,drop,insert,update,delete].
 

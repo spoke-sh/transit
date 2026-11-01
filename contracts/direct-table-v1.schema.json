@@ -70,7 +70,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -3685,7 +3685,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T105": {
@@ -9950,7 +9952,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -18259,7 +18261,7 @@
         "T316": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T317": {
@@ -20217,7 +20219,7 @@
         "T397": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T398": {
@@ -20787,7 +20789,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -22585,7 +22587,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T66": {
@@ -22963,7 +22967,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -23979,7 +23983,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -24580,7 +24584,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T2": {
@@ -25074,7 +25078,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T7": {
@@ -29599,7 +29603,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T157": {
@@ -31221,7 +31227,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -31241,7 +31247,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T5": {
@@ -33248,7 +33254,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                    "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                   ]
                 },
                 "realm": {
@@ -35325,7 +35331,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                                                       ]
                                                     },
                                                     "realm": {
@@ -36659,7 +36665,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                                                           ]
                                                         },
                                                         "realm": {
@@ -41305,7 +41311,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T180": {
@@ -42868,7 +42876,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T3": {

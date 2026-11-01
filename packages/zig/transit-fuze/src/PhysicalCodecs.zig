@@ -1085,8 +1085,20 @@ pub fn evaluateCompressedStringPage(
                         }
                     },
                     .null_compare => {},
-                    .compare => |cmp| {
-                        const dir = try PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile);
+                    .compare => |cmp| compare_codes: {
+                        const dir = PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile) catch |err| switch (err) {
+                            error.DuplicatePerfectHashKey => {
+                                // Dictionary codes preserve original bytes. Distinct
+                                // codes may compare equal under ASCII_CI or PAD SPACE;
+                                // all equivalent codes must participate in the mask.
+                                for (dict_slices[0..dict_len], 0..) |entry_bytes, di| {
+                                    stats.dictionary_entries_inspected += 1;
+                                    if (try predicate.evaluate(column, .{ .value = .{ .atom = .{ .bytes = entry_bytes } } }) == .yes) setCodeBit.set(&matching_codes, di);
+                                }
+                                break :compare_codes;
+                            },
+                            else => return err,
+                        };
                         switch (cmp.op) {
                             .eq => {
                                 stats.dictionary_perfect_hash_probes += 1;
@@ -1119,8 +1131,17 @@ pub fn evaluateCompressedStringPage(
                             },
                         }
                     },
-                    .in_set => |literals| {
-                        const dir = try PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile);
+                    .in_set => |literals| in_codes: {
+                        const dir = PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile) catch |err| switch (err) {
+                            error.DuplicatePerfectHashKey => {
+                                for (dict_slices[0..dict_len], 0..) |entry_bytes, di| {
+                                    stats.dictionary_entries_inspected += 1;
+                                    if (try predicate.evaluate(column, .{ .value = .{ .atom = .{ .bytes = entry_bytes } } }) == .yes) setCodeBit.set(&matching_codes, di);
+                                }
+                                break :in_codes;
+                            },
+                            else => return err,
+                        };
                         for (literals) |lit| {
                             stats.dictionary_perfect_hash_probes += 1;
                             if (try dir.lookup(dict_slices[0..dict_len], lit)) |code| {

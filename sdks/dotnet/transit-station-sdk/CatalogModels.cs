@@ -16,7 +16,7 @@ public static partial class Catalog
     internal static string Current(string value) => value == ContractDefinition ? value : throw new ArgumentException("Missing or foreign Table definition");
     internal static Bytes Digest(Bytes value) { ArgumentNullException.ThrowIfNull(value); if (value.Length != 32) throw new ArgumentException("Expected digest"); return value; }
     public enum Encoding { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp_3, Zoned, IbmHfp, Ebcdic }
-    public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot }
+    public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot, Ebcdic_037Pad, Ebcdic_1047Nopad }
     public enum Kind { Create, Alter, Rename, Drop, Insert, Update, Delete }
     public enum Ingestion { Point, Bulk }
     public enum Dialect { Transit, Mysql }

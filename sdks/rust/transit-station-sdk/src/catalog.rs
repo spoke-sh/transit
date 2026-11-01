@@ -127,7 +127,7 @@ macro_rules! tags {
     };
 }
 tags!(both Encoding {Plain=>"plain",Bitpacked=>"bitpacked",Rle=>"rle",Dictionary=>"dictionary",Fsst=>"fsst",Comp=>"comp",Comp3=>"comp_3",Zoned=>"zoned",IbmHfp=>"ibm_hfp",Ebcdic=>"ebcdic"});
-tags!(both Collation {None=>"none",Utf8Binary=>"utf8_binary",AsciiCi=>"ascii_ci",EbcdicCp037=>"ebcdic_cp037",IcuRoot=>"icu_root"});
+tags!(both Collation {None=>"none",Utf8Binary=>"utf8_binary",AsciiCi=>"ascii_ci",EbcdicCp037=>"ebcdic_cp037",IcuRoot=>"icu_root",Ebcdic037Pad=>"ebcdic_037_pad",Ebcdic1047Nopad=>"ebcdic_1047_nopad"});
 impl Collation {
     pub(crate) fn wire(self) -> &'static str {
         self.tag()

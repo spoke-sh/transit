@@ -71,6 +71,10 @@ Complete descriptor/default validation enforces recursive budgets, exact numeric
 ranges, NOT NULL and character constraints before returning a declaration.
 
 Named constraints, UNIQUE, CHECK, REFERENCES/foreign keys, generated/identity
-columns, collation and auto-increment clauses reject. The compiler does not admit
+columns and auto-increment clauses reject. Text column declarations admit
+`COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `EBCDIC_037_PAD` and
+`EBCDIC_1047_NOPAD`; defaults undergo the same repertoire validation as writes.
+Expression-level collation overrides and SQL changes to an existing column’s
+collation reject. The compiler does not admit
 CTAS, arbitrary expressions, multi-action ALTER, transaction sessions or query
 execution. These limits are independent of the capabilities of typed values.

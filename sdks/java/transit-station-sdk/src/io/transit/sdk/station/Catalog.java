@@ -23,7 +23,7 @@ public final class Catalog {
     static String hex(Bytes value) { return HexFormat.of().formatHex(value.copy()); }
     static long u32(long value) { if (value < 1 || value > 0xffffffffL) throw new IllegalArgumentException("Expected positive uint32"); return value; }
     public enum Encoding { PLAIN, BITPACKED, RLE, DICTIONARY, FSST, COMP, COMP_3, ZONED, IBM_HFP, EBCDIC }
-    public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT }
+    public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT, EBCDIC_037_PAD, EBCDIC_1047_NOPAD }
     public enum Kind { CREATE, ALTER, RENAME, DROP, INSERT, UPDATE, DELETE }
     public enum Ingestion { POINT, BULK }
     public enum Dialect { TRANSIT, MYSQL }

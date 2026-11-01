@@ -15,6 +15,8 @@ test "query collations preserve independent masks through saved scalar batch and
         .{ .collation = .utf8_binary, .mask = 0b00000100 },
         .{ .collation = .ascii_ci, .mask = 0b00000100 },
         .{ .collation = .ebcdic_cp037, .mask = 0b00110001 },
+        .{ .collation = .ebcdic_037_pad, .mask = 0b00110001 },
+        .{ .collation = .ebcdic_1047_nopad, .mask = 0b00110001 },
     }) |case| {
         var compiled = try f.TableSelect.compile(t.allocator, "SELECT name FROM people WHERE name < 'A'", "people", schema, @splat(7), null);
         defer compiled.deinit();
@@ -96,7 +98,8 @@ test "query collation admission rejects foreign plans invalid profiles and unmap
 }
 
 test "Table DML predicates use declared collations with independent equality and order outcomes" {
-    for ([_]f.TableSchema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037 }) |collation| {
+    for ([_]f.TableSchema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad }) |collation| {
+        const ebcdic = collation == .ebcdic_cp037 or collation == .ebcdic_037_pad or collation == .ebcdic_1047_nopad;
         const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "name", .type = .utf8, .collation = collation }};
         const table: f.TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &columns };
         var equality = try f.TableDml.compile(t.allocator, "DELETE FROM people WHERE name = 'A'", "people", table, null);
@@ -104,8 +107,8 @@ test "Table DML predicates use declared collations with independent equality and
         try t.expectEqual(collation == .ascii_ci, try equality.plan.matches(&.{text("a")}));
         var order = try f.TableDml.compile(t.allocator, "UPDATE people SET name = 'X' WHERE name < 'A'", "people", table, null);
         defer order.deinit();
-        try t.expectEqual(collation == .ebcdic_cp037, try order.plan.matches(&.{text("z")}));
-        try t.expectEqual(collation != .ebcdic_cp037, try order.plan.matches(&.{text("0")}));
+        try t.expectEqual(ebcdic, try order.plan.matches(&.{text("z")}));
+        try t.expectEqual(!ebcdic, try order.plan.matches(&.{text("0")}));
     }
 }
 
@@ -122,4 +125,49 @@ test "SQL column collations bind declarations defaults and added columns" {
     try t.expectError(error.DuplicateColumnConstraint, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (s TEXT COLLATE ASCII_CI COLLATE UTF8_BINARY)", null, null));
     try t.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (s TEXT COLLATE ICU_ROOT)", null, null));
     try t.expectError(error.UnrepresentableEbcdic037, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (s TEXT COLLATE EBCDIC_CP037 DEFAULT '東京')", null, null));
+}
+
+test "EBCDIC Table collations preserve schema keys and eager repertoire admission" {
+    inline for (.{
+        .{ "EBCDIC_037_PAD", f.TableSchema.Collation.ebcdic_037_pad, error.UnrepresentableEbcdic037 },
+        .{ "EBCDIC_1047_NOPAD", f.TableSchema.Collation.ebcdic_1047_nopad, error.UnrepresentableEbcdic1047 },
+    }) |case| {
+        var ddl = try f.TableDdl.compile(t.allocator, "CREATE TABLE codes (name TEXT COLLATE " ++ case[0] ++ " PRIMARY KEY)", null, null);
+        defer ddl.deinit();
+        const table = try ddl.statement.create.bind(1);
+        var bytes: [f.TableSchema.max_bytes]u8 = undefined;
+        const encoded = try table.encode(&bytes);
+        var restored = try f.TableSchema.decode(t.allocator, encoded);
+        defer restored.deinit();
+        try t.expectEqual(case[1], restored.schema.columns[0].collation);
+        var left: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        var right: [f.Collation.max_sort_key_bytes]u8 = undefined;
+        const a = try f.Collation.encodePrimaryKeySortKey(restored.schema, &.{text("A")}, false, &left);
+        const b = try f.Collation.encodePrimaryKeySortKey(restored.schema, &.{text("A ")}, false, &right);
+        try t.expectEqual(case[1] == .ebcdic_037_pad, std.mem.eql(u8, a, b));
+        try t.expectError(case[2], table.columns[0].validateCell(text("東京")));
+        var plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = @splat(7), .projection = &.{0}, .collations = .fromTable(table) };
+        var batch = try f.Batch.init(t.allocator, plan, .{ .rows = 8, .bytes = 65536 });
+        defer batch.deinit();
+        // No predicate is needed to reject invalid input before it enters a batch.
+        try t.expectError(case[2], batch.append(&.{text("東京")}, .{ .row = 1, .boundary = 1 }));
+        try t.expectEqual(@as(usize, 0), batch.len);
+        plan.predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .bytes = "A " } } };
+        var failure: ?f.LogicalQuery.Plan.PredicateFailure = null;
+        try t.expectEqual(case[1] == .ebcdic_037_pad, try plan.matches(&.{text("A")}, &failure));
+        try t.expectError(case[2], f.TableDdl.compile(t.allocator, "CREATE TABLE bad (name TEXT COLLATE " ++ case[0] ++ " DEFAULT '東京')", null, null));
+        try t.expectError(error.IncompatibleColumnCollation, f.TableDdl.compile(t.allocator, "CREATE TABLE bad (n BIGINT COLLATE " ++ case[0] ++ ")", null, null));
+    }
+}
+
+test "CP1047 public comparison distinguishes CP037 punctuation independently of codec" {
+    // Independently specified IBM code-page weights: CP037 not-sign 5F,
+    // caret B0; CP1047 caret 5F, not-sign B0.
+    try t.expectEqual(.lt, try f.Collation.compareBytes("¬", "^", .ebcdic_cp037));
+    try t.expectEqual(.gt, try f.Collation.compareBytes("¬", "^", .ebcdic_1047_nopad));
+    for ([_]f.TableSchema.Encoding{ .plain, .dictionary, .fsst, .ebcdic }) |encoding| {
+        const column: f.TableSchema.Column = .{ .id = 1, .name = "code", .type = .utf8, .collation = .ebcdic_1047_nopad, .encoding = encoding };
+        try column.validateCell(text("¬"));
+        try column.validateCell(text("^"));
+    }
 }

@@ -142,7 +142,7 @@ implementing branch storage.
 P0–P8 sequence with completion work against that source. The
 [October 30 record](#implementation-plan--2026-10-30) preserves the initial
 plan and delivered helper evidence. Milestone 10 remains **In Progress**;
-this documentation change establishes no new runtime qualification.
+the source audit itself establishes no new runtime qualification.
 
 An application must be able to retain a declared data basis, evolve names and
 schemas, then query or inspect that original basis with its original meaning.
@@ -160,6 +160,32 @@ and Document historical execution is admitted per qualified owner, not inferred
 from a shared descriptor. New broad language coverage, writable branches,
 index-backed foreign keys and general graph/foreign execution retain their
 existing milestone owners.
+
+### First integrated increment — 2026-11-01
+
+The capability ledger now generates the public support matrix, records explicit
+unverified standards references and MIT fixture provenance, rejects dependency
+cycles, and checks positive/negative cases against the production DDL, relational
+and inspection entry points. Analytical, search, dataflow and policy helpers no
+longer imply public SQL support.
+
+CP037 PAD SPACE and CP1047 NO PAD are integrated through Table schemas, SQL
+CREATE/ADD COLUMN, defaults and row validation, saved query plans, comparison
+keys, relational hashes, compressed predicates and affected language bindings.
+Existing CP037 NO PAD is preserved. Dictionary comparisons retain every distinct
+stored value when multiple codes compare equal. The coordinated current-v1
+cutover updates reflected resources and independent signing/encoding fixtures;
+old schemas and shared definitions reject before execution.
+
+The owning tests cover index/scan agreement, prepared and captured plans,
+UPDATE/DELETE with retained reads, disk reopen, padded-key conflicts, code-page
+punctuation, zone-map pruning, and six-profile consumer wire fixtures. Executing
+these checks is required for qualification; their presence alone is not evidence.
+
+This completes the collation integration slice, not Milestone 10. P0's remaining
+historical/effect contracts, the other P1 type families, P2–P6, broader historical
+client work and final P8 closure remain open. The following source-basis table
+records the original audit, before this increment.
 
 ### Current implementation and remaining gaps
 

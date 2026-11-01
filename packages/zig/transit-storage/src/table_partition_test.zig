@@ -1796,7 +1796,7 @@ test "Table history floor fields are mandatory and a previous definition cannot 
     defer frame.deinit();
     const bytes = buffer[0..frame.frames[0].payload.len];
     @memcpy(bytes, frame.frames[0].payload);
-    _ = try std.fmt.hexToBytes(bytes[8..40], "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6");
+    _ = try std.fmt.hexToBytes(bytes[8..40], "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc");
     try t.expectError(error.IncompatibleDefinition, r.decode(t.allocator, bytes, 0));
 }
 
@@ -3003,26 +3003,31 @@ test "Table lazy ALTER preserves row indexes beyond a rewrite group and publishe
 }
 
 test "Table ALTER rejects duplicate collation keys without publishing schema or rows" {
-    const text_schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .utf8_binary }}, .primary_key = &.{1} };
-    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
-    defer wal.deinit();
-    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
-    defer objects.deinit();
-    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = text_schema, .properties = "names" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
-    defer table.deinit();
-    try table.recover();
-    var access: Access = .{};
-    const values = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "A" } } }, .{ .value = .{ .atom = .{ .bytes = "a" } } } };
-    var second = change(&values[1], 1);
-    second.put.row.identity.ordinal = 1;
-    _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), second }, .point, access.guard());
-    const before = table.root;
-    const request = ddlBinding(&table, 2, .alter);
-    try t.expectError(error.DuplicatePrimaryKey, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = .ascii_ci } }, .properties = "names" } }, access.guard()));
-    try t.expectEqualDeep(before, table.root);
-    try t.expect((try table.observe(request, access.guard())) == null);
-    try table.recover();
-    try t.expectEqualDeep(before, table.root);
+    for ([_]struct { text: []const u8, collation: f.TableSchema.Collation }{
+        .{ .text = "a", .collation = .ascii_ci },
+        .{ .text = "A ", .collation = .ebcdic_037_pad },
+    }) |case| {
+        const text_schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false, .collation = .utf8_binary }}, .primary_key = &.{1} };
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = text_schema, .properties = "names" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        var access: Access = .{};
+        const values = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "A" } } }, .{ .value = .{ .atom = .{ .bytes = case.text } } } };
+        var second = change(&values[1], 1);
+        second.put.row.identity.ordinal = 1;
+        _ = try table.apply(binding(&table, 1), &.{ change(&values[0], 1), second }, .point, access.guard());
+        const before = table.root;
+        const request = ddlBinding(&table, 2, .alter);
+        try t.expectError(error.DuplicatePrimaryKey, table.changeDefinition(request, .{ .alter = .{ .change = .{ .physical = .{ .column = 1, .collation = case.collation } }, .properties = "names" } }, access.guard()));
+        try t.expectEqualDeep(before, table.root);
+        try t.expect((try table.observe(request, access.guard())) == null);
+        try table.recover();
+        try t.expectEqualDeep(before, table.root);
+    }
 }
 
 test "Table lazy schema projection keeps ADD values and exact physical mappings across disk restart and normalization" {

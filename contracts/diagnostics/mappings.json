@@ -728,6 +728,10 @@
         "UnrepresentableEbcdic037": {
           "code": "sql.unrepresentable_cp037",
           "category": "binding"
+        },
+        "UnrepresentableEbcdic1047": {
+          "code": "sql.unrepresentable_cp1047",
+          "category": "binding"
         }
       }
     },

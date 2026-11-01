@@ -77,7 +77,7 @@ codecs(A,Cfg)->
                         #transit_catalog_column{id=2,name= <<"label">>,type=utf8,collation=Collation}]),
         #transit_unified_bundle{bytes=Bytes}=ok(A:prepare(S,#transit_unified_plan{projection=[1]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),
         Bytes=binary:decode_hex(maps:get(<<"wire_hex">>,F))
-    end,lists:zip(Collations,[none,utf8_binary,ascii_ci,ebcdic_cp037])),
+    end,lists:zip(Collations,[none,utf8_binary,ascii_ci,ebcdic_cp037,ebcdic_037_pad,ebcdic_1047_nopad])),
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
     lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)),
         #transit_unified_bundle{bytes=Counted}=ok(A:prepare(source(#transit_resource{realm=46,resource=7},Kind,true),#transit_unified_plan{projection=[1],aggregate=count_values,output_names=[<<"present">>]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),Counted=binary:decode_hex(maps:get(<<"counted_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),

@@ -671,6 +671,8 @@ pub const DdlOptionTag = enum(u8) {
     index_block_max_bm25 = 15,
     index_trigram_bitmap = 16,
     index_vector_ann = 17,
+    collation_ebcdic_037_pad = 18,
+    collation_ebcdic_1047_nopad = 19,
 };
 
 /// Compile-time collision-free perfect hash map for DDL codec, collation, and search index profiles.
@@ -688,6 +690,8 @@ pub const DdlOptionMap = ComptimeMap(DdlOptionTag, true, .{
     .{ "UTF8_BINARY", .collation_utf8_binary },
     .{ "ASCII_CI", .collation_ascii_ci },
     .{ "EBCDIC_CP037", .collation_ebcdic_cp037 },
+    .{ "EBCDIC_037_PAD", .collation_ebcdic_037_pad },
+    .{ "EBCDIC_1047_NOPAD", .collation_ebcdic_1047_nopad },
     .{ "ICU_ROOT", .collation_icu_root },
     .{ "BLOCK_MAX_BM25", .index_block_max_bm25 },
     .{ "TRIGRAM_BITMAP", .index_trigram_bitmap },

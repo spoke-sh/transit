@@ -85,35 +85,35 @@
     {
       "id": "EBCDIC_037_PAD",
       "sql_spelling": "EBCDIC_037_PAD",
-      "runtime_tag": null,
+      "runtime_tag": "ebcdic_037_pad",
       "pad_attribute": "PAD_SPACE",
-      "repertoire": "Standalone IBM CP037 PAD SPACE helper; not a TableSchema or SQL collation",
+      "repertoire": "UTF-8 U+0000-U+00FF ordered by IBM CP037 with virtual U+0020 padding",
       "normalized_key_order_preserving": true,
-      "zone_map_pruning_sound": false,
+      "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/Collation.zig",
       "states": {
-        "parse": "rejected",
-        "lower": "rejected",
-        "execute": "rejected",
-        "recover": "rejected",
-        "transport": "rejected"
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "implemented"
       }
     },
     {
       "id": "EBCDIC_1047_NOPAD",
       "sql_spelling": "EBCDIC_1047_NOPAD",
-      "runtime_tag": null,
+      "runtime_tag": "ebcdic_1047_nopad",
       "pad_attribute": "NO_PAD",
-      "repertoire": "IBM CP1047 (z/OS UNIX System Services / Open Systems EBCDIC)",
+      "repertoire": "UTF-8 U+0000-U+00FF ordered by IBM CP1047 without padding",
       "normalized_key_order_preserving": true,
-      "zone_map_pruning_sound": false,
+      "zone_map_pruning_sound": true,
       "owner": "packages/zig/transit-fuze/src/Collation.zig",
       "states": {
-        "parse": "rejected",
-        "lower": "rejected",
-        "execute": "rejected",
-        "recover": "rejected",
-        "transport": "rejected"
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "implemented"
       }
     },
     {
@@ -1020,7 +1020,7 @@
       ]
     }
   ],
-  "sha256": "7367e5971531db83fea20fc2c69d18f3b9c86ba2e262e188c49b22c91ded4c89",
+  "sha256": "ae7f25f8a174296d64dc1aa4ecdc82b1bddc7c65c3ab055a9869c5119c0d63c2",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
@@ -1169,6 +1169,20 @@
       "entrypoint": "inspection",
       "sql": "EXPLAIN POLICY FOR t",
       "accept": false
+    },
+    {
+      "id": "ebcdic_037_pad-table",
+      "feature": "F031-F034",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE codes (name TEXT COLLATE EBCDIC_037_PAD PRIMARY KEY)",
+      "accept": true
+    },
+    {
+      "id": "ebcdic_1047_nopad-table",
+      "feature": "F031-F034",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE TABLE codes (name TEXT COLLATE EBCDIC_1047_NOPAD PRIMARY KEY)",
+      "accept": true
     }
   ],
   "fixture_provenance": {

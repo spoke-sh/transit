@@ -138,8 +138,8 @@ Standard editions, application schema history and Transit's
 | SQL:2023 Foundation and SQL/JSON | **Planned — syntax undecided** beyond the implemented subset above | Audit selected relational/type features and explicit structured-value projections, including missing/null/error/conflict conversion |
 | SQL/PGQ: `CREATE PROPERTY GRAPH`, `GRAPH_TABLE` | **Planned — proposed syntax** | Catalog graph mappings over existing resources; finite, read-only, fixed-length patterns with stable element identity and bag multiplicity |
 | SQL/MED: `CREATE FOREIGN TABLE` | **Planned — proposed syntax** | Typed foreign relation over a recoverable immutable capture (`parquet`, `arrow_ipc`, `csv`, `jsonl`, or mainframe `fixed_record`/`variable_record` copybook layouts); filesystem and S3 bindings require explicit qualification |
-| Column `COLLATE` | **Implemented — Table declarations and finite predicates** | CREATE TABLE and ADD COLUMN accept `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037` on text columns; [Table semantics](../tables.md) bind prepared and retained queries to the declaration |
-| Expression collation and physical codec clauses (`ENCODING`) | **Planned — proposed syntax** | Expression overrides, PAD SPACE, versioned Unicode collations and physical codec clauses require explicit contracts |
+| Column `COLLATE` | **Implemented — Table declarations and finite predicates** | CREATE TABLE and ADD COLUMN accept `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `EBCDIC_037_PAD`, `EBCDIC_1047_NOPAD` on text columns; [Table semantics](../tables.md) bind prepared and retained queries to the declaration |
+| Expression collation and physical codec clauses (`ENCODING`) | **Planned — proposed syntax** | Expression overrides, versioned Unicode collations and physical codec clauses require explicit contracts |
 | GQL frontend | **Outside selected profile** | Future frontend target over shared semantics; no accepted GQL grammar |
 | Cypher and PGQL | **Outside selected profile** | Named comparison/import dialects; independent compatibility evidence and explicit selection are required before support |
 

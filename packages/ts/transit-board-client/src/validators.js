@@ -2025,7 +2025,7 @@ validate195.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema53 = {"anyOf":[{"$ref":"https://transit.invalid/generated-validator/66"},{"type":"null"}]};
 const schema54 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"$ref":"https://transit.invalid/generated-validator/32"},"code":{"type":"string","maxLength":96},"category":{"$ref":"https://transit.invalid/generated-validator/33"},"stage":{"$ref":"https://transit.invalid/generated-validator/34"},"outcome":{"$ref":"https://transit.invalid/generated-validator/35"},"evidence":{"$ref":"https://transit.invalid/generated-validator/36"},"message":{"type":"string","maxLength":384},"cause":{"$ref":"https://transit.invalid/generated-validator/37"},"identity":{"$ref":"https://transit.invalid/generated-validator/42"},"location":{"$ref":"https://transit.invalid/generated-validator/46"},"facts":{"$ref":"https://transit.invalid/generated-validator/61"},"actions":{"$ref":"https://transit.invalid/generated-validator/65"}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
-const schema55 = {"type":"string","enum":["82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"]};
+const schema55 = {"type":"string","enum":["12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"]};
 
 function validate200(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -2041,7 +2041,7 @@ if(typeof data !== "string"){
 validate200.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate200.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum}}];
 return false;
 }
@@ -24802,7 +24802,7 @@ return errors === 0;
 validate711.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 const schema195 = {"type":"array","maxItems":128,"items":{"$ref":"#/$defs/UnifiedQueryResponse/$defs/T44"}};
-const schema196 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root"]};
+const schema196 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root","ebcdic_037_pad","ebcdic_1047_nopad"]};
 
 function validate804(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -24818,7 +24818,7 @@ if(typeof data !== "string"){
 validate804.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root"))){
+if(!(((((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root")) || (data === "ebcdic_037_pad")) || (data === "ebcdic_1047_nopad"))){
 validate804.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema196.enum}}];
 return false;
 }
@@ -36486,7 +36486,7 @@ if(typeof data !== "string"){
 validate1183.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate1183.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum}}];
 return false;
 }

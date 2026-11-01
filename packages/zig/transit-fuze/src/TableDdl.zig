@@ -103,7 +103,20 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         } else if (try parser.takeWord("COLLATE")) {
             if (seen_collation) return error.DuplicateColumnConstraint;
             seen_collation = true;
-            value.collation = if (try parser.takeWord("UTF8_BINARY")) .utf8_binary else if (try parser.takeWord("ASCII_CI")) .ascii_ci else if (try parser.takeWord("EBCDIC_CP037")) .ebcdic_cp037 else return error.UnsupportedColumnCollation;
+            if (parser.token.tag == .eof) if (parser.editor) |editor| {
+                inline for (.{ "UTF8_BINARY", "ASCII_CI", "EBCDIC_CP037", "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD" }) |name_| editor.word(name_);
+            };
+            if (parser.token.tag != .word) return error.UnsupportedColumnCollation;
+            value.collation = switch (@import("PerfectHash.zig").DdlOptionMap.get(parser.token.text) orelse return error.UnsupportedColumnCollation) {
+                .collation_utf8_binary => .utf8_binary,
+                .collation_ascii_ci => .ascii_ci,
+                .collation_ebcdic_cp037 => .ebcdic_cp037,
+                .collation_ebcdic_037_pad => .ebcdic_037_pad,
+                .collation_ebcdic_1047_nopad => .ebcdic_1047_nopad,
+                else => return error.UnsupportedColumnCollation,
+            };
+            parser.annotate(.keyword);
+            try parser.advance();
             try value.validateEncodingAndCollation();
         } else if (unsupportedConstraint(parser.*)) {
             return error.UnsupportedTableConstraint;

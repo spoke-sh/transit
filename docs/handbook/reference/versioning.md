@@ -108,8 +108,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`.
-It binds direct KV, mixed state/log transactions and frozen Stream/Queue
+`12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072`.
+It admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across
+schemas, SQL, query plans and language bindings. The Table schema definition is
+`transit.table.schema.v1.2026-11-01`; earlier schemas and shared definitions
+reject before execution. Existing CP037 NO PAD comparison is unchanged.
+
+It also binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
 directories; typed branch operations share the original client-token decision

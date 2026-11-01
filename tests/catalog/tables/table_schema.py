@@ -13,7 +13,7 @@ from pathlib import Path
 import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
-DEFINITION = b'transit.table.schema.v1.2026-10-23'
+DEFINITION = b'transit.table.schema.v1.2026-11-01'
 TYPES = b'transit.fuze.types.v1.2026-09-30'
 ROWS = b'transit.table.row.v1.2026-10-05'
 

@@ -81,21 +81,27 @@ Tables contain 1–128 ordered named columns with the shared
 [logical types](sql/types.md), plus orthogonal physical encoding descriptors
 ($\epsilon$: `plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp3`, `zoned`,
 `comp`, `ibm_hfp`, `ebcdic`) and collation descriptors ($\kappa$: `none`,
-`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `icu_root`). Encodings and collations
+`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `ebcdic_037_pad`,
+`ebcdic_1047_nopad`, `icu_root`). Encodings and collations
 are validated against the column's logical type and committed into the schema
 layout fingerprint so physical layout or collation evolution is tracked explicitly.
 The [representation contract](../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
 defines admitted type/codec pairs. CP037 accepts UTF-8 scalars U+0000–U+00FF;
 HFP accepts exactly representable values in its normalized range and preserves
 signed zero. Unrepresentable values reject before mutation acceptance. Text
-collations use no space padding. `icu_root` rejects explicitly.
+collations use NO PAD except `ebcdic_037_pad`, which compares as if the shorter
+string were padded with CP037 spaces. Thus `A` and `A ` are the same key under
+that profile; original stored text retains its spaces. Both code pages require
+U+0000–U+00FF, and CP1047 has its own punctuation weights. `icu_root` rejects
+explicitly.
 
 The direct typed interface preserves physical descriptors in its schema bytes.
 The neutral JSON schema and language SDKs preserve each column’s explicit
 `encoding` and `collation`, including default `plain`/`none` values. Missing or
 unknown wire descriptors reject; constructors supply defaults for new schemas.
-SQL CREATE TABLE and ADD COLUMN accept `COLLATE UTF8_BINARY`, `COLLATE ASCII_CI`
-and `COLLATE EBCDIC_CP037` on text columns. Omission keeps binary comparison.
+SQL CREATE TABLE and ADD COLUMN accept `COLLATE UTF8_BINARY`, `COLLATE ASCII_CI`,
+`COLLATE EBCDIC_CP037`, `COLLATE EBCDIC_037_PAD` and
+`COLLATE EBCDIC_1047_NOPAD` on text columns. Omission keeps binary comparison.
 Direct and captured finite SELECT, prepared comparisons and UPDATE/DELETE
 predicates use that declared collation, as do primary-key lookups and range
 counts. Saved plans bind each input column's collation alongside its logical

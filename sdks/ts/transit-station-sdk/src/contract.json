@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+  "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "handler_action_bytes": 262144,
@@ -2535,7 +2535,7 @@
         "T17": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T18": {
@@ -5181,7 +5181,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T62": {
@@ -6280,7 +6282,7 @@
         "T106": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T107": {
@@ -6957,7 +6959,7 @@
         "T125": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T126": {
@@ -8253,7 +8255,7 @@
         "T171": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T172": {
@@ -12785,7 +12787,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T323": {
@@ -13482,7 +13486,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T340": {
@@ -19464,7 +19470,7 @@
         "T5": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T6": {
@@ -21400,7 +21406,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T62": {
@@ -24032,7 +24040,7 @@
         "T7": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T8": {
@@ -25972,7 +25980,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T64": {
@@ -27288,7 +27298,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "profile": {
@@ -27571,7 +27581,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+        "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
         "profile": "native_v1",
         "gated_dispatch": true,
         "retained_confirmation": true,
@@ -28269,7 +28279,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -29103,7 +29113,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -30117,7 +30127,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -31625,7 +31635,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -32459,7 +32469,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -33473,7 +33483,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                       ]
                     },
                     "code": {
@@ -39617,7 +39627,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T40": {
@@ -40762,7 +40774,7 @@
         "T86": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T87": {
@@ -42189,7 +42201,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T42": {
@@ -43346,7 +43360,7 @@
         "T88": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T89": {
@@ -44800,7 +44814,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                    "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                   ]
                 },
                 "catalogs": {
@@ -45519,7 +45533,7 @@
         "T11": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T12": {
@@ -45826,7 +45840,7 @@
         "T27": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T28": {
@@ -47012,7 +47026,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T63": {
@@ -48229,7 +48245,7 @@
             "consistency"
           ],
           "x-transit-defaults": {
-            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
             "sources": 2,
             "active_queries": 1,
             "page_rows": 1,
@@ -48242,7 +48258,7 @@
         "T3": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T4": {
@@ -48309,7 +48325,7 @@
             "executed"
           ],
           "x-transit-defaults": {
-            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
             "executed": false
           }
         },
@@ -48393,7 +48409,7 @@
         "T13": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T14": {
@@ -51192,7 +51208,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T105": {
@@ -54586,7 +54604,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "connection": {
@@ -55004,7 +55022,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T7": {
@@ -59536,7 +59554,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T158": {
@@ -60233,7 +60253,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T175": {
@@ -61626,7 +61648,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "definition": "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -61646,7 +61668,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
           ]
         },
         "T5": {
@@ -63653,7 +63675,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                    "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                   ]
                 },
                 "realm": {
@@ -65730,7 +65752,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                        "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                                                       ]
                                                     },
                                                     "realm": {
@@ -67064,7 +67086,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                            "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"
                                                           ]
                                                         },
                                                         "realm": {
@@ -71717,7 +71739,9 @@
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
         "T181": {

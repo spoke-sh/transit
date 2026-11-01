@@ -56,14 +56,23 @@ does not turn an incompatible schema into another codec.
 UTF-8 byte order), `ascii_ci` (ASCII A–Z folded only) and `ebcdic_cp037` (unsigned
 CP037 weights after UTF-8 decoding). All use NO PAD; trailing spaces remain
 significant. CP037 collation has the same U+0000–U+00FF repertoire restriction
-even with another physical codec. `icu_root` is a reserved descriptor rejected
+even with another physical codec. `ebcdic_037_pad` uses CP037 weights and virtual
+space padding: trailing U+0020 is insignificant, but control weights below CP037
+space remain ordered below padding. `ebcdic_1047_nopad` uses the CP1047 table and
+NO PAD. Both admit only U+0000–U+00FF and preserve original stored text.
+Collation tags 5 and 6 are distinct from existing CP037 tag 3.
+`icu_root` is a reserved descriptor rejected
 by validation and comparison; no Unicode collation version or locale is implied.
-These descriptors do not extend SQL grammar or query evaluator admission.
+Table CREATE/ADD COLUMN and finite query comparisons admit these five text
+profiles through the shared schema and comparison owners. Locale-dependent
+Unicode rules remain unsupported. Ordered storage keys, equality hashes and
+zone-map boundaries use the declared comparison; CP037 physical encoding remains
+independent of a column’s collation.
 
 ## Canonical envelope
 
 The envelope contains magic `FTS1`, a u8-length mandatory definition
-`transit.table.schema.v1.2026-10-23`, three u64 identities (object, revision,
+`transit.table.schema.v1.2026-11-01`, three u64 identities (object, revision,
 next-column), and a u16 column count. Each column contains its u64 ID, u8-length
 UTF-8 name, u16-length `FTY1` descriptor, boolean nullable byte, u32 character
 limit (zero means absent), and boolean default-present byte. A present default

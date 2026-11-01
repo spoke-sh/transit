@@ -175,9 +175,16 @@ test "standards ledger unsupported declarations match the production compiler" {
         try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findFeature(case[0]).?.states.parse);
         try testing.expectError(case[2], f.TableDdl.compile(testing.allocator, case[1], null, null));
     }
-    inline for (.{ "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD", "ICU_ROOT" }) |collation| {
+    inline for (.{"ICU_ROOT"}) |collation| {
         try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findCollation(collation).?.states.parse);
         try testing.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null));
+    }
+    inline for (.{ "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD" }) |collation| {
+        const descriptor = StandardsLedger.findCollation(collation).?;
+        try testing.expectEqual(StandardsLedger.StageState.implemented, descriptor.states.parse);
+        var compiled = try f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null);
+        defer compiled.deinit();
+        try testing.expectEqual(descriptor.runtime_tag.?, compiled.statement.create.columns[0].collation);
     }
 }
 

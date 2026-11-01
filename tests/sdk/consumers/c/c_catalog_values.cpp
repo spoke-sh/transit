@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
             if (!result.kind && out) {
                 const transit_station_catalog_metadata_view *v = nullptr; ok(transit_station_catalog_metadata_get(out, &v)); const transit_station_catalog_basis_view *b = nullptr; ok(transit_station_catalog_basis_get(v->basis, &b));
                 assert(b->interpretation.content.bytes == 300 && b->interpretation.content.sha256[31] == 171 && b->interpretation.interpretation.object.object == UINT64_MAX && v->schema.columns[0].type->kind == TRANSIT_LOGICAL_INT128);
-                assert(v->schema.columns[0].encoding == TRANSIT_CATALOG_RLE && v->schema.columns[1].encoding == TRANSIT_CATALOG_EBCDIC && v->schema.columns[1].collation == TRANSIT_CATALOG_EBCDIC_CP037);
+                assert(v->schema.columns[0].encoding == TRANSIT_CATALOG_RLE && v->schema.columns[1].encoding == TRANSIT_CATALOG_EBCDIC && v->schema.columns[1].collation == TRANSIT_CATALOG_EBCDIC_1047_NOPAD);
             } else assert(!out); transit_station_catalog_metadata_destroy(out);
         } else if (command == "list" || command == "list_next" || command == "empty_next") {
             transit_station_catalog_table_page *out = nullptr; result = transit_station_catalog_tables(client, 1, command == "list" ? nullptr : cursor.native(), &out);
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
             if (!result.kind) { const transit_station_catalog_intent *i = nullptr; const transit_station_catalog_saved_intent *s = nullptr; ok(transit_station_catalog_compiled_get(out, &i, &s)); transit_sdk_bytes data{}; ok(transit_station_catalog_saved_intent_export(s, &data)); assert(data.size > 600000); }
             else assert(!out); transit_station_catalog_compiled_destroy(out);
         } else if (command == "physical_create" || command == "physical_alter" || command == "physical_invalid") {
-            const auto type = logical::Type::scalar(TRANSIT_LOGICAL_UTF8); const transit_station_catalog_column column{1, "text", &type.native(), true, nullptr, 0, TRANSIT_CATALOG_EBCDIC, TRANSIT_CATALOG_EBCDIC_CP037}; const transit_station_catalog_schema schema{UINT64_MAX, 1, 2, &column, 1, nullptr, 0};
+            const auto type = logical::Type::scalar(TRANSIT_LOGICAL_UTF8); const transit_station_catalog_column column{1, "text", &type.native(), true, nullptr, 0, TRANSIT_CATALOG_EBCDIC, TRANSIT_CATALOG_EBCDIC_037_PAD}; const transit_station_catalog_schema schema{UINT64_MAX, 1, 2, &column, 1, nullptr, 0};
             transit_station_catalog_request request{}; request.name = "items"; request.identity = {10, 1};
             if (command == "physical_create") { request.action.kind = TRANSIT_CATALOG_CREATE; request.action.as.create = {&schema, false}; }
             else { request.action.kind = TRANSIT_CATALOG_ALTER; request.action.as.alter.basis = basis.native(); request.action.as.alter.change.kind = TRANSIT_CATALOG_PHYSICAL; request.action.as.alter.change.column = 1; request.action.as.alter.change.as.physical = {command == "physical_invalid" ? UINT32_MAX : TRANSIT_CATALOG_FSST, TRANSIT_CATALOG_ASCII_CI}; }

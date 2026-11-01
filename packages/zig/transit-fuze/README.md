@@ -577,8 +577,10 @@ virtual space padding of the shorter operand, including control characters
 below CP037 space. Its sort keys omit trailing spaces and encode non-space
 symbols with their preceding space-run length; each non-space symbol uses ten
 bytes plus one final terminator. The caller supplies the bounded key buffer.
-This helper and `ebcdic_1047_nopad` are separate from the currently admitted
-TableSchema/SQL collation tags.
+This profile and `ebcdic_1047_nopad` are admitted TableSchema/SQL collation
+tags. Schema/default validation, key ordering, hashes, query batches and
+compressed comparisons use the same descriptor. The existing `ebcdic_cp037`
+profile retains NO PAD semantics.
 
 `StandardsLedger` exposes the generated projection of
 [`standards-ledger.json`](../../../contracts/sql/standards-ledger.json).

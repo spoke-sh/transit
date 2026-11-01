@@ -45,7 +45,7 @@ typedef struct transit_station_catalog_client transit_station_catalog_client;
 typedef uint32_t transit_station_catalog_encoding;
 enum { TRANSIT_CATALOG_PLAIN, TRANSIT_CATALOG_BITPACKED, TRANSIT_CATALOG_RLE, TRANSIT_CATALOG_DICTIONARY, TRANSIT_CATALOG_FSST, TRANSIT_CATALOG_COMP, TRANSIT_CATALOG_COMP_3, TRANSIT_CATALOG_ZONED, TRANSIT_CATALOG_IBM_HFP, TRANSIT_CATALOG_EBCDIC };
 typedef uint32_t transit_station_catalog_collation;
-enum { TRANSIT_CATALOG_NONE, TRANSIT_CATALOG_UTF8_BINARY, TRANSIT_CATALOG_ASCII_CI, TRANSIT_CATALOG_EBCDIC_CP037, TRANSIT_CATALOG_ICU_ROOT };
+enum { TRANSIT_CATALOG_NONE, TRANSIT_CATALOG_UTF8_BINARY, TRANSIT_CATALOG_ASCII_CI, TRANSIT_CATALOG_EBCDIC_CP037, TRANSIT_CATALOG_ICU_ROOT, TRANSIT_CATALOG_EBCDIC_037_PAD, TRANSIT_CATALOG_EBCDIC_1047_NOPAD };
 typedef struct transit_station_catalog_column {
     uint64_t id; const char *name; const transit_logical_type_view *type; bool nullable;
     const transit_logical_cell_view *default_value; uint32_t max_characters;

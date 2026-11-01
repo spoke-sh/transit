@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const CatalogRequest = validate1991;
 const schema527 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/CatalogRequest/$defs/T1"},"action":{"$ref":"#/$defs/CatalogRequest/$defs/T2"}},"required":["definition","action"]};
-const schema55 = {"type":"string","enum":["82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"]};
+const schema55 = {"type":"string","enum":["12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072"]};
 
 function validate1992(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20,7 +20,7 @@ if(typeof data !== "string"){
 validate1992.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate1992.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum}}];
 return false;
 }
@@ -2195,7 +2195,7 @@ if(typeof data !== "string"){
 validate2073.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc")){
+if(!(data === "12daf44af5a302a94c56390e14168a1983f5fcea9b22f078c51fc5d5ee39c072")){
 validate2073.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema55.enum}}];
 return false;
 }
@@ -14894,7 +14894,7 @@ return errors === 0;
 }
 validate2446.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema196 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root"]};
+const schema196 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root","ebcdic_037_pad","ebcdic_1047_nopad"]};
 
 function validate2448(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -14910,7 +14910,7 @@ if(typeof data !== "string"){
 validate2448.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root"))){
+if(!(((((((data === "none") || (data === "utf8_binary")) || (data === "ascii_ci")) || (data === "ebcdic_cp037")) || (data === "icu_root")) || (data === "ebcdic_037_pad")) || (data === "ebcdic_1047_nopad"))){
 validate2448.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema196.enum}}];
 return false;
 }

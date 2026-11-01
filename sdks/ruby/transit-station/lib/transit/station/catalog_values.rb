@@ -10,7 +10,7 @@ module Transit
       DEFINITION = CONTRACT.fetch('definition').freeze
       LIMITS = CONTRACT.fetch('limits').freeze
       ENCODINGS = %i[plain bitpacked rle dictionary fsst comp comp_3 zoned ibm_hfp ebcdic].freeze
-      COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root].freeze
+      COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root ebcdic_037_pad ebcdic_1047_nopad].freeze
       module Values
         class WireBudget
           def initialize(limit) = @remaining = limit

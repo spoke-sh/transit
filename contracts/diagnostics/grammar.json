@@ -6323,6 +6323,76 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "ddl-collation-ebcdic_037_pad",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-ebcdic_037_pad",
+      "sql": "CREATE TABLE ebcdic_037_pad (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-collation-ebcdic_037_pad-literal",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD DEFAULT '\u6771\u4eac')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unrepresentable_cp037",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ddl-collation-ebcdic_1047_nopad",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-ebcdic_1047_nopad",
+      "sql": "CREATE TABLE ebcdic_1047_nopad (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-collation-ebcdic_1047_nopad-literal",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD DEFAULT '\u6771\u4eac')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unrepresentable_cp1047",
+        "category": "binding"
+      }
     }
   ]
 }

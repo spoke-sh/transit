@@ -757,6 +757,8 @@ test "retained Table key ranges follow binary ASCII CI and CP037 composite order
         .{ .collation = .utf8_binary, .order = .{ 3, 2, 0, 4, 1 } },
         .{ .collation = .ascii_ci, .order = .{ 3, 4, 2, 1, 0 } },
         .{ .collation = .ebcdic_cp037, .order = .{ 4, 1, 2, 0, 3 } },
+        .{ .collation = .ebcdic_037_pad, .order = .{ 4, 1, 2, 0, 3 } },
+        .{ .collation = .ebcdic_1047_nopad, .order = .{ 4, 1, 2, 0, 3 } },
     };
     const names = [_][]const u8{ "Z", "a", "A", "0", "a" };
     const numbers = [_]i128{ 0, 2, -1, 0, -2 };
@@ -939,6 +941,8 @@ test "filtered Table encoded collation decisions reuse one group and preserve NU
         .{ .collation = .utf8_binary, .mask = .{ true, false, true, false, true, true, false, false } },
         .{ .collation = .ascii_ci, .mask = .{ false, false, true, false, true, false, false, false } },
         .{ .collation = .ebcdic_cp037, .mask = .{ false, false, false, true, true, false, false, false } },
+        .{ .collation = .ebcdic_037_pad, .mask = .{ false, false, false, true, true, false, false, false } },
+        .{ .collation = .ebcdic_1047_nopad, .mask = .{ false, false, false, true, true, false, false, false } },
     };
     for (cases) |case| {
         var fields = columns;

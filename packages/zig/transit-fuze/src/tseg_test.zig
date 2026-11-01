@@ -306,3 +306,38 @@ test "segment readers reject foreign definition, interpretation and deletion own
     std.crypto.hash.sha2.Sha256.hash(del_bytes[0 .. del_encoded.len - 32], del_bytes[del_encoded.len - 32 ..][0..32], .{});
     try t.expectError(error.IncompatibleDefinition, TDel.DeletionVector.decode(t.allocator, del_encoded));
 }
+
+test "tseg EBCDIC zone maps retain PAD equality and code page punctuation order" {
+    const t = std.testing;
+    const names = [_][]const u8{ "", " ", "\x00", "^", "¬" };
+    for ([_]TableSchema.Collation{ .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad }) |collation| {
+        // Independent weights for this corpus. Empty NO PAD sorts before all
+        // symbols; PAD SPACE supplies 0x40 even before a control weight.
+        const weights = [_]i16{ if (collation == .ebcdic_037_pad) 0x40 else -1, 0x40, 0x00, if (collation == .ebcdic_1047_nopad) 0x5f else 0xb0, if (collation == .ebcdic_1047_nopad) 0xb0 else 0x5f };
+        for ([_]TableSchema.Encoding{ .plain, .dictionary, .fsst, .ebcdic }) |encoding| {
+            const columns = [_]TableSchema.Column{.{ .id = 1, .name = "code", .type = .utf8, .nullable = false, .encoding = encoding, .collation = collation }};
+            const schema: TableSchema.Schema = .{ .object = 42, .revision = 1, .next_column = 2, .columns = &columns };
+            var cells: [names.len][1]Values.Cell = undefined;
+            var rows: [names.len]TableRow.Row = undefined;
+            for (names, &cells, &rows, 0..) |name, *cell, *row, i| {
+                cell.* = .{.{ .value = .{ .atom = .{ .bytes = name } } }};
+                row.* = .{ .identity = .{ .origin = 1, .operation = 1, .ordinal = @intCast(i) }, .cells = cell };
+            }
+            const buffer = try t.allocator.alloc(u8, 128 * 1024);
+            defer t.allocator.free(buffer);
+            const segment = try TSeg.writeSegment(t.allocator, schema, &rows, .{ .segment_id = 1, .rows_per_group = 1 }, buffer);
+            var footer = try TSeg.readFooter(t.allocator, segment);
+            defer footer.deinit();
+            try t.expectEqual(names.len, footer.row_groups.len);
+            for (footer.row_groups, weights) |group, row_weight| {
+                for (cells, weights) |cell, predicate_weight| {
+                    var key: [128]u8 = undefined;
+                    const encoded = try Collation.encodeSortKey(cell[0], .utf8, collation, &key);
+                    try t.expectEqual(row_weight == predicate_weight, group.zone_maps[0].mayMatch(.eq, encoded));
+                    try t.expectEqual(row_weight < predicate_weight, group.zone_maps[0].mayMatch(.lt, encoded));
+                    try t.expectEqual(row_weight > predicate_weight, group.zone_maps[0].mayMatch(.gt, encoded));
+                }
+            }
+        }
+    }
+}

@@ -3,7 +3,7 @@
 const std = @import("std");
 const t = @import("Types.zig");
 const v = t.Values;
-pub const definition = "transit.table.schema.v1.2026-10-23";
+pub const definition = "transit.table.schema.v1.2026-11-01";
 pub const max_columns = 128;
 pub const max_bytes = 65536;
 pub const ColumnId = u64;
@@ -28,6 +28,8 @@ pub const Collation = enum(u8) {
     ascii_ci = 2,
     ebcdic_cp037 = 3,
     icu_root = 4,
+    ebcdic_037_pad = 5,
+    ebcdic_1047_nopad = 6,
 };
 pub const Column = struct {
     id: ColumnId,
@@ -65,7 +67,7 @@ pub const Column = struct {
         if (!valid_encoding) return error.IncompatibleColumnEncoding;
         const valid_collation = switch (self.collation) {
             .none => true,
-            .utf8_binary, .ascii_ci, .ebcdic_cp037 => self.type == .utf8,
+            .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad => self.type == .utf8,
             .icu_root => return error.UnsupportedColumnCollation,
         };
         if (!valid_collation) return error.IncompatibleColumnCollation;

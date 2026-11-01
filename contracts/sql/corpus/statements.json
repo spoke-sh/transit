@@ -2350,7 +2350,9 @@
     "ROLLBACK TRANSACTION TO original",
     "SAVEPOINT original",
     "RELEASE SAVEPOINT original",
-    "RELEASE original"
+    "RELEASE original",
+    "CREATE TABLE accounts (id TEXT COLLATE EBCDIC_037_PAD PRIMARY KEY)",
+    "CREATE TABLE codes (name TEXT COLLATE EBCDIC_1047_NOPAD)"
   ],
   "table_select": [
     {

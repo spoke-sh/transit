@@ -165,6 +165,8 @@ class Collation(str, Enum):
     ASCII_CI = 'ascii_ci'
     EBCDIC_CP037 = 'ebcdic_cp037'
     ICU_ROOT = 'icu_root'
+    EBCDIC_037_PAD = 'ebcdic_037_pad'
+    EBCDIC_1047_NOPAD = 'ebcdic_1047_nopad'
 
 
 @dataclass(frozen=True, slots=True)
