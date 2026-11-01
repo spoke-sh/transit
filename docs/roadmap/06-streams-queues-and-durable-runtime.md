@@ -1419,6 +1419,17 @@ is settled from transport success, a missing receipt or a renderer text heuristi
 **Owners:** checked grammar/diagnostics, Fuze compiler and source adapters,
 `transit-sql`, shared SQL service/client, native/console/PostgreSQL/MySQL callers.
 
+**Delivered portion — 2026-11-01:** single-partition PRODUCE/ENQUEUE and
+original-operation RETURNING pass the installed four-interface profile on clean
+`a72ecf3107b75bf22020c6454185068eecaa2866`; see the
+[append qualification](../history/qualification/query.md#sql-append-admission-and-original-result-delivery--2026-11-01).
+Typed CONSUME preparation in `9c48a5726` passes its
+[compiler and independent-corpus checks](../history/qualification/query.md#typed-consumption-preparation--2026-11-01),
+but is not admitted by SQL sessions. Native group/positional binding, waits,
+authenticated offset settlement, Queue acquisition/settlement, the finite
+analytical bridge, mixed SQL and the remaining installed fault matrix are open.
+The batch and milestone remain in progress.
+
 | Slice | Implementation | Required proof |
 | --- | --- | --- |
 | Stream verbs | Compile/bind `PRODUCE`, positional/group `CONSUME`, bounded `WAIT` and `COMMIT OFFSET` to shared owners. Preserve producer identity, partition routing, parameter types and authenticated progress. | Duplicate/conflicting producers; hot/sealed/reopened reads; filtered coverage and compaction gaps; assignment fencing; original offset recovery; Arrow batch-ingress capability and limits |

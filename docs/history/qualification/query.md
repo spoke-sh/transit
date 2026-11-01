@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Typed consumption preparation — 2026-11-01
+
+The local source committed as `9c48a5726698bcf5920a8db7cf3d23799407e6f7`
+(helper `1aa3eb0ae7e8e70eb885bedcddc341de1bf367e2`) adds pure
+`LogConsumeSql.Prepared` and shared row-header/schema-layout helpers. Focused
+ReleaseSafe checks pass **76/76 tests**, including existing logical/append
+coverage, allocation failures, template-independent bound ownership, collation,
+parameter conflicts/gaps, NULL metadata, duration bounds and original compiler
+diagnostics. A star projection excludes metadata used only by a predicate.
+
+The registered DML compiler driver passes its **44** existing Table cases,
+**28** append cases and **24** new consumption cases. The consumption oracle
+uses independently specified layouts, aliases, limits and predicate outcomes
+over five rows, including case-insensitive text and NULL. Diagnostic grammar
+passes **547 compiler cases / 822 coverage obligations**. Ordinary grammar
+passes 174 PostgreSQL SELECT comparisons, 32 exclusions, 42 extensions and
+136 documentation examples, plus 33 relational comparisons and 22 exclusions.
+Fast checks pass **60/60**. The current native definition is unchanged.
+
+The first focused compile failed in a new test that omitted the required
+predicate-failure output pointer; the test and independent driver now supply it.
+The first corpus run found that COUNT in a consumption row header produced an
+imprecise syntax diagnostic. The dedicated header now explicitly refuses
+aggregates. A subsequent diagnostic run found that generic SELECT failure
+routing replaced a consumption compiler cause with `unsupported_statement`.
+The new dedicated diagnostic projection preserves the actual cause, location,
+binding facts and `not_submitted` outcome without reparsing through SELECT.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-consume-compiler1.log` (test compile failure) | `15e40d823ba9446b4b911ce5dc8fe3340dfe25cf460171dfaa6177c4d3f2d6a6` |
+| `/var/tmp/transit-m6-consume-compiler3.log` | `64a4d1f8db09f1942abf8a558aeacdad849036a36387d9164967b4c1b72ca689` |
+| `/var/tmp/transit-m6-consume-corpus1.log` (aggregate diagnostic failure) | `089eeec464cc95582e219d6bdeba7fa28600593969faab596658f5126f7cd735` |
+| `/var/tmp/transit-m6-consume-corpus2.log` | `59d6fc532a20fc2b215a140c32aa0f58df68f2a086aaa0175cc9b04f3ea57c35` |
+| `/var/tmp/transit-m6-consume-diagnostics2.log` (cause-routing failure) | `c957f1d41d6bda9a0807fa1b10ffe24879cd40291245b7799c592925c23006c9` |
+| `/var/tmp/transit-m6-consume-diagnostics3.log` | `921c66f68f6284e16cb320e7741df54586c5e84a00fe84cf33f1ebefdb0805d0` |
+| `/var/tmp/transit-m6-consume-fast2.log` | `2d9f6414bb81656705d905452e9e3ae8dc7b31a93a72c80ff2f43c5cbc693911` |
+| `/var/tmp/transit-m6-consume-grammar1.log` | `5638c9822605e52b1181144e61d6769972c9a7c346294a4581d02cbb17ccd39f` |
+
+The [compiler contract](../../../contracts/sql/README.md) separates preparation
+from native execution. No SQL service admits CONSUME in this revision. Group
+names remain unresolved and waits unexecuted; the plan's LIMIT does not prove
+offset coverage. Source capture, current authority, group assignment, bounded
+execution and authenticated settlement remain separate implementation gates.
+
 ## SQL append admission and original-result delivery — 2026-11-01
 
 The installed `sessions-log` profile passes on clean source
