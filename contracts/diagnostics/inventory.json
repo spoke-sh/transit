@@ -34957,7 +34957,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 10,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "TransitObjectStore.zig",
