@@ -61,8 +61,9 @@ execution right or effect-control record is copied into the branch.
 
 Scan pages obey the existing Table row/byte budgets and carry the exact head,
 source, total row count and continuation cursor. The caller must consume the
-entire original cursor sequence and verify its terminal row count before
-claiming complete coverage. A missing page or failure is not completion.
+entire original cursor sequence, require unchanged head/source/total attribution
+across pages, and verify its terminal row count before claiming complete
+coverage. A missing page or failure is not completion.
 Catalog directories and source pins participate in physical collection;
 published branches have unlimited retention. There is no published branch drop,
 write, fork, merge, restore, SQL adapter or whole-catalog inclusion operation in

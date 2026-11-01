@@ -9,6 +9,67 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Immutable single-Table branches — 2026-10-31
+
+The implementation through `5ebdc096d`, based on `b60f12154`, supplies the
+[installed immutable Table branch profile](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches).
+It does not qualify writable branches, whole-catalog cuts, published branch
+deletion, diff, merge or restore. The pinned Nix environment supplies Zig
+`0.17.0-dev.2267+48abf1a34`; the following checks use local disk stores.
+
+At clean `5ebdc096d`, `zig build test -Dtest-filter="direct branch" --summary all`
+in `transit-catalog` passes all eight tests. They cover independent signatures,
+lost pin/publication replies and disk reopen, thirteen unflushed rows compared
+with an independent copy after parent advancement, exact retries, cancellation,
+name reuse without identity reuse, schema-only reads, current rights, stale
+sources and missing artifacts. The retained source pin cannot be captured or
+released by ordinary readers; an unrelated Table pin with the same reader owner
+remains releasable. The growth schedule publishes 137 branches with one resident
+page and reopens without its recovery hint. Raw output is
+`/tmp/transit-m19-clean-branch-focus.log`.
+
+On the same clean source, `zig build transit-node test-local-catalog
+-Dlocal-catalog-filter=branch -j2 --summary all` passes three tests. Signed
+service dispatch and the public `DirectBranch.call` through the resident typed
+host preserve response ownership and frozen reads after parent writes/flushing.
+Both physical collection schedules complete 370 steps and reclaim an
+independently staged orphan while retaining the branch. Revocation after
+buffering rejects row, schema and empty-result disclosure. Raw output is
+`/tmp/transit-m19-clean-branch-service.log`. These are local service/component
+checks, not a distributed ownership or performance qualification.
+
+The clean core attempt at `bcffc7081` passes fast checks, generated contracts and
+the complete native component target, then fails `test::cli-diagnostics`:
+startup logs precede the expected `error:` stderr prefix. The unchanged
+`b60f12154` baseline reproduces that assertion. Raw outputs are
+`/tmp/transit-m19-final-core.log` and `/tmp/transit-m19-baseline-cli.log`;
+source-attributed CI metadata remains under `/var/tmp/transit-ci-_lo3g2ap`.
+The lane stopped at `check::core`; its later tasks did not run. An earlier
+superseded core attempt found stale encoded/signing fixtures, corrected by
+`e8451ca73` before this run; it is not a passing attempt.
+
+Browser setup initially failed because Playwright's `--with-deps` host-package
+installation required unavailable sudo authentication. The clean checkout then
+used `just transit-board::browser-install` and the pinned Chromium without that
+privileged host setup. At `5ebdc096d`, `transit-board::browser` passes, and the
+query test's native lost-reply/capacity controls pass. Its interactive query
+fails the unchanged 120-second completion deadline in two runs. The source
+worker continues accepting progress; neither run establishes query completion.
+Two separate unchanged-main comparisons pass. This difference remains
+unexplained and is not classified as a baseline failure.
+
+Raw browser outputs are `/tmp/transit-m19-final-browser.log`,
+`/tmp/transit-m19-browser-query-retry.log`,
+`/tmp/transit-m19-baseline-browser.log` and
+`/tmp/transit-m19-baseline-browser-repeat.log`. Failed private installations
+remain at `/var/tmp/transit-storage-fp1g2d58` and
+`/var/tmp/transit-storage-dtkwbeix`; traces remain in the clean browser checkout
+`/var/tmp/transit-ci-0i4kqh5p/src/.cache/`, including
+`m19-browser-head-failure`. The browser lane stopped at its second task; the
+remaining six tasks did not run. An earlier attempt at `a5e4a8007` failed during
+native query upload with capacity/authority timeouts, preserved in
+`/tmp/transit-m19-clean-browser.log`. No deadline or assertion was relaxed.
+
 ## Bounded public Queue claim waits — 2026-10-31
 
 Storage readiness is implemented in `b890907b2`, the signed Queue wait and native
