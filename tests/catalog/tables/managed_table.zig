@@ -49,9 +49,20 @@ fn count(client: c.DirectTableClient, expected: u64) !void {
     try t.expectEqual(expected, metadata.row_count);
     var random: [8]u8 = undefined;
     try client.service.http.io.randomSecure(&random);
-    const pinned = try client.call(.{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = (std.mem.readInt(u64, &random, .little) % c.protocol.max_counter) + 1 }, .expected = metadata.position } });
-    defer pinned.deinit();
-    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin };
+    const owner: c.protocol.DataLifecycle.Operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = (std.mem.readInt(u64, &random, .little) % c.protocol.max_counter) + 1 };
+    const handle = if (client.call(.{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = owner, .expected = metadata.position } })) |pinned| blk: {
+        defer pinned.deinit();
+        break :blk pinned.value.result.pin;
+    } else |err| blk: {
+        // The shared proxy deliberately loses the first pin reply. Observe its
+        // original owner; never acquire a replacement cut to hide uncertainty.
+        if (err != error.InvalidTableResponse) return err;
+        const recovered = try client.call(.{ .pin_status = .{ .object = metadata.interpretation.interpretation.object, .owner = owner } });
+        defer recovered.deinit();
+        try t.expect(!recovered.value.result.pin_state.released);
+        break :blk recovered.value.result.pin_state.handle orelse return error.MissingOriginalPin;
+    };
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = handle };
     defer (client.call(.{ .release = snapshot }) catch unreachable).deinit();
     var query = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "managed_output", "SELECT id FROM managed_output", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer query.deinit();
