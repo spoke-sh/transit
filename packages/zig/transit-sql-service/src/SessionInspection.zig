@@ -27,9 +27,12 @@ const describe_fields = [_]f.Types.Field{
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
 const log_fields = [_]f.Types.Field{
     .{ .name = "object", .type = .uint64 },     .{ .name = "definition_revision", .type = .uint64 },
-    .{ .name = "partitions", .type = .uint32 }, .{ .name = "configuration", .type = .utf8 },
+    .{ .name = "partitions", .type = .uint64 }, .{ .name = "configuration", .type = .utf8 },
     .{ .name = "limits", .type = .utf8 },
 };
+test "log metadata fields use the lossless common database wire matrix" {
+    for (log_fields ++ describe_fields) |field| _ = try g.Type.from(field);
+}
 fn text(bytes: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = bytes } } };
 }
