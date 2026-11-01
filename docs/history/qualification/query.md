@@ -40,7 +40,8 @@ All Zig checks below used ReleaseSafe in the isolated implementation worktree.
 These are component and disk-owner results, **not an installed SQL CONSUME,
 provider-replacement, performance or whole-M6 qualification**. SQL consumption
 admission, named group binding, waits and SQL offset settlement remain open.
-No installed fault profile was executed on this new definition in this record.
+The initial component run did not include an installed fault profile. Subsequent
+installed results on this definition are recorded below.
 
 | Check | Result | Log SHA-256 |
 | --- | --- | --- |
@@ -85,6 +86,59 @@ passed all 60. These earlier failures remain failures:
 | `sql-protocol2` | Failed: 24/25 tests; independent observation fingerprint differed | `4883c6b5dd1c65faee100a3de22527feb251933252daa8f54825959daf0ff7c5` |
 | `sql-fixtures2` | Corrected SQL fixtures regenerated | `2b28b1d1e8b555d44700aeabc435f67bc2665072b179188c553f13324e99bdfa` |
 | `fast1` | Not executed: nonexistent recipe | `471e061e3d622eee604515633b2e4eb16df1f5cb9eda540bf64a54864d8ad76d` |
+
+### Installed original results and partial settlement
+
+Three ReleaseSafe installed profiles subsequently passed with the same current
+definition and pinned toolchain (`flake.lock` SHA-256
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`).
+Each source was clean. No other agent-owned heavy build overlapped its running
+fault schedule. These profiles qualify their recorded operations; they do not
+establish SQL CONSUME text admission or latency budgets.
+
+| Installed profile / clean source | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| `test-sql-gateway`, `02acf0253867858ff460c8259a6569d5f60d9a80` | 9/9 steps; 1,425 requests; five saved workloads, 116 rows in eight batches, original identities and five revoked terminal disclosures; two workload process deaths and two committed-reply timeout replacements | `39127b4e805c9dccea1cce407d6d2afbc48c82866229ab358abe6ebf2bcb6229` |
+| `test-direct-table-service -- workload-result`, `33fbfb96462ac99dbb0b1f7ea4a1c5dffe61a8fc` | 8/8 steps; 595 requests; lost claim/open/page replies, 257 replay records per partition, SIGKILL/restarts, saved positions, original payloads, finite reads, expired claim evidence and complete empty results | `afbf62841fa10919c84d11d3c16d604d0870fe1209d69014225c2ed7aa9f93bb` |
+| `test-direct-table-service -- mixed-transaction`, `a7b432a13d5d37675d97728818f72c16324889aa` | 8/8 steps; 86 requests; two lost replies and SIGKILL/restarts; one common decision publishes Table/KV changes, Queue ACK/enqueue, Stream append and settlement of the first of two input rows; the remaining input is readable at the original cut | `984e90d2b29d373681868da3a3b0f3bc8c437f31bf9831320958c86db019b63b` |
+
+Commands used `nix develop --option eval-cache false -c zig build <target>
+-Doptimize=ReleaseSafe --summary all`, followed by the listed profile argument
+where present. Logs are `/var/tmp/transit-m6-stream-progress-installed1.log`,
+`native-installed2.log` and `mixed-installed1.log` under the same prefix.
+The SQL profile observed zero settled-idle upstream requests and zero Station
+sends/turns. Its consumption results originate from the native workload API;
+they do not prove SQL logical LIMIT admission. The native original-result
+profile has no group settlement. The mixed profile supplies the installed
+authenticated-interval proof, including the retained unread suffix, without
+changing its lease, timeout or operation identities.
+
+All three runs used `transit-node` SHA-256
+`1419e8da2e524e126f9e708efb1801bfe73a28a88a15b60d61072f2dd7b41ee5`.
+The SQL gateway proof hash was
+`2489159adc67a45f77d01f6b39ad11e7ccb3a4c691558e752627d7ea871445dc`;
+the native original-result and mixed proof hashes were respectively
+`7345209381b992f052165f6c76a7e7b4a48db7c8096dff1b18a935e7e3c31246`
+and `8b3bbc080bda302242d1a5f115dcf94ddb8cf6693379d66bb102b5212bcbc7fd`.
+
+The first native installed build on `02acf0253` failed before executing the
+profile: a test caller incorrectly put the page row budget in its saved
+delivery descriptor. `33fbfb964` removes that field while retaining it on page
+requests. The failed build remains failed (5/8 steps), with log
+`/var/tmp/transit-m6-stream-progress-native-installed1.log`, SHA-256
+`ae59671ef27f8c3d9bec7dd8dc15945171af3e41aa3f3321562b94672322dbb5`.
+
+### Positional Catalog preparation
+
+`b3300394e73bb864c8f8e69b43caf7fc70c5a830` adds pure positional consumption
+binding. Five focused Catalog tests pass, including allocation failures,
+owned bound values, Boolean routing, preserved predicates and explicit refusal
+of unsupported group/wait or ambiguous partition bindings. Fast checks pass
+60/60. This is preparation evidence, not SQL activation or an installed profile.
+Logs `/var/tmp/transit-m6-consume-binding-catalog1.log` and `fast1.log` under
+the same prefix have SHA-256
+`9dfdc679b03bb23d329379ab294124e4e147a6ab204207a1ad21a95e1acf3af2`
+and `891986041d20bc1045633916633ccda861c8d9f06bdd9c2371f4e40aaaa915e4`.
 
 ## Typed consumption preparation — 2026-11-01
 

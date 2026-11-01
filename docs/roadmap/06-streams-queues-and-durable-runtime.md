@@ -1428,7 +1428,11 @@ Typed CONSUME preparation in `9c48a5726` passes its
 but is not admitted by SQL sessions. `02acf0253` adds authenticated interval
 settlement and bounded original-result consumption with passing
 [component and disk-owner checks](../history/qualification/query.md#bounded-consumption-results-and-authenticated-intervals--2026-11-01).
-SQL group/positional binding, waits, offset-settlement admission, Queue acquisition/settlement, the finite
+The same definition subsequently passes installed SQL/native original-result
+recovery and partial Stream settlement within a mixed transaction; see the
+[installed interval evidence](../history/qualification/query.md#installed-original-results-and-partial-settlement).
+`b3300394e` adds pure positional Catalog binding with five focused tests; SQL
+consumption admission remains open. SQL group binding, waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 The batch and milestone remain in progress.
 
