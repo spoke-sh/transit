@@ -1,5 +1,6 @@
 """Installed cohosted SQL: durable managed output, WAL wakeups and replacement."""
 import ctypes
+import http.client
 import json
 import os
 from pathlib import Path
@@ -44,16 +45,36 @@ def observe(client, action, deadline):
 def await_head(fixture, name, ready):
     # Keep one session while watching. The independent decoder verifies the
     # schema, observation and terminal count of every distinct SHOW result.
-    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    client = None
     deadline = time.monotonic() + 180
     try:
         while True:
-            # A fresh SHOW after a no-batch refusal cannot splice a result or
-            # replay work. It remains within the original observation deadline.
-            batch = observe(client, dict(execute=dict(sql=f'SHOW DATAFLOW {name}', token=None)), deadline)['batch']
-            assert batch['complete'] and batch['completion']['rows'] == 1
-            current = json.loads(text(batch['rows'][0][0]))
-            observe(client, dict(close_result=batch['cursor']), deadline)
+            try:
+                if client is None:
+                    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+                # Each SHOW is a distinct metadata result. A replacement
+                # session cannot splice batches or replay a control command.
+                batch = observe(client, dict(execute=dict(sql=f'SHOW DATAFLOW {name}', token=None)), deadline)['batch']
+                assert batch['complete'] and batch['completion']['rows'] == 1
+                current = json.loads(text(batch['rows'][0][0]))
+                observe(client, dict(close_result=batch['cursor']), deadline)
+            except (OSError, http.client.HTTPException):
+                assert time.monotonic() < deadline, 'Metadata transport did not recover'
+                if client is not None:
+                    client.http.close()
+                client = None
+                time.sleep(.1)
+                continue
+            except AssertionError as failure:
+                detail = failure.args[0] if failure.args else None
+                error = detail.get('err', {}) if isinstance(detail, dict) else {}
+                if error.get('code') not in ('SqlSessionExpired', 'SqlInstanceChanged'):
+                    raise
+                assert time.monotonic() < deadline, detail
+                client.http.close()
+                client = None
+                time.sleep(.1)
+                continue
             if ready(current['observation']['head']):
                 return current
             assert time.monotonic() < deadline, current
@@ -61,8 +82,14 @@ def await_head(fixture, name, ready):
     finally:
         # A canceled request can close its HTTP connection. Session cleanup
         # uses the same session identity on a fresh transport.
-        client.http.close()
-        client.close()
+        if client is not None:
+            client.http.close()
+            failing = sys.exc_info()[0] is not None
+            try:
+                client.close()
+            except (OSError, http.client.HTTPException):
+                if not failing:
+                    raise
 
 
 def await_revision(fixture, revision, expected):
