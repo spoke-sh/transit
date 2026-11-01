@@ -4092,6 +4092,7 @@ fn branchGuard(self: *Self, allocator: std.mem.Allocator, intent: c.DirectBranch
     if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var access = try self.readAccess(allocator, intent.source.interpretation.object, policy, false);
     defer access.view.deinit();
+    if (access.view.table.root.declared().kind != .table) return error.CatalogKindMismatch;
     if (access.view.properties.namespace != intent.namespace) return error.BranchIdentityConflict;
     const namespace = try self.authorizationSchema(intent.namespace);
     var requested = try self.requirements(policy, namespace, access.view.properties.target(intent.source.interpretation.object.object), .read);

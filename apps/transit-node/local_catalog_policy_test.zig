@@ -2221,10 +2221,39 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     const lookup = try dispatch(service, .{ .branch = .{ .lookup = .{ .namespace = 1, .name = request.intent.name } } });
     defer lookup.deinit();
     try t.expectEqualDeep(published.value.result, lookup.value.result);
+    // The public caller also crosses the real resident host, exercising its
+    // exclusive branch coordination and cached Table refresh. Request scratch
+    // is gone before the caller validates or consumes any response bytes.
+    const Host = @import("LocalTableHost.zig");
+    const Endpoint = struct {
+        host: *Host,
+        service: *@import("LocalTableService.zig"),
+        fn run(raw: *anyopaque, invocation: *c.client.LocalEndpoint.Invocation) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try t.expectEqualStrings("/table/v1", invocation.path);
+            var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+            defer scratch.deinit();
+            const incoming = try invocation.request(w.Request);
+            try invocation.respond(try self.host.executeTyped(t.io, self.service.engine, &scratch, invocation.allocator, incoming, incoming.transport().control != null));
+        }
+    };
+    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState() };
+    defer host.deinit();
+    var endpoint: Endpoint = .{ .host = &host, .service = service };
+    var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    transport.local = .{ .context = &endpoint, .invoke = Endpoint.run };
+    const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = try key(29), .credential_epoch = (try service.engine.principal(101)).credential_epoch };
+    const original = try c.DirectBranch.call(caller, .{ .create = request });
+    defer original.deinit();
+    try t.expectEqualDeep(published.value.result, original.value.result);
+    const source = try c.DirectBranch.call(caller, .{ .source = head });
+    defer source.deinit();
+    try t.expectEqual(3, source.value.result.branch.source.rows);
     var cursor: ?c.storage.TablePartition.SnapshotCursor = null;
     var count: usize = 0;
     while (true) {
-        const response = try dispatch(service, .{ .branch = .{ .scan = .{ .head = head, .after = cursor, .limits = .{ .rows = 1 } } } });
+        const response = try c.DirectBranch.call(caller, .{ .scan = .{ .head = head, .after = cursor, .limits = .{ .rows = 1 } } });
         defer response.deinit();
         const page = response.value.result.branch.page;
         try t.expectEqual(3, page.total_rows);

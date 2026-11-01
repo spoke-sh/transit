@@ -186,7 +186,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             try value.source.validate();
             try connection.object(value.source.interpretation.object);
             try value.interpretation.validate();
-            if (!std.meta.eql(value.source.interpretation, value.interpretation.interpretation) or (value.mode == .schema_only and value.rows != 0)) return error.InvalidBranchResponse;
+            if (value.interpretation.kind != .table or value.interpretation.retired or !std.meta.eql(value.source.interpretation, value.interpretation.interpretation) or (value.mode == .schema_only and value.rows != 0)) return error.InvalidBranchResponse;
             const bytes = try value.schema.decode(allocator, c.fuze.TableSchema.max_bytes);
             defer allocator.free(bytes);
             var decoded = try c.fuze.TableSchema.decode(allocator, bytes);

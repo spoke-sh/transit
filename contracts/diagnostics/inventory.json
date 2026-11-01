@@ -4346,7 +4346,7 @@
         "CatalogDenied": 60,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
-        "CatalogKindMismatch": 4,
+        "CatalogKindMismatch": 5,
         "CatalogNameHashCollision": 2,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,

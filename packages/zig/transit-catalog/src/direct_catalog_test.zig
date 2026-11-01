@@ -5107,6 +5107,9 @@ test "direct branch unflushed data survives lost pin reply parent changes and di
     defer output.deinit();
     const source = (try dispatchBranch(output.allocator(), &catalog, &access, .{ .source = published.state.head.? })).source;
     try t.expectEqual(13, source.rows);
+    var wrong_kind = source;
+    wrong_kind.interpretation.kind = .kv;
+    try t.expectError(error.InvalidBranchResponse, c.DirectBranch.validateResult(t.allocator, request.key.connection, .{ .source = published.state.head.? }, .{ .source = wrong_kind }));
     var schema_value = try c.fuze.TableSchema.decode(t.allocator, try source.schema.decode(output.allocator(), c.fuze.TableSchema.max_bytes));
     defer schema_value.deinit();
     var cursor: ?P.SnapshotCursor = null;
