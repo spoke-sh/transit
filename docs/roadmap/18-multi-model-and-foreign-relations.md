@@ -141,6 +141,33 @@ retrieval, streaming CDC ingestion and import/export costs.
        hierarchy pages via HTTP Range requests over `TransitObjectStore`,
        pruning 3D octants by `BBOX3D` / `OCT_CELL` before decoding point chunks
        into `.pcloud_hilbert` vectors.
+   - **Scientific, CFD mesh & multi-dimensional continuum array formats (`CGNS`, `VTK` / `VTU` / `VTI` / `PVD`, OpenFOAM `polyMesh` + field directories, `Zarr v3`, `NetCDF-4` / `HDF5`, `GRIB2`, `EXODUS II`, `Alembic` `.abc`):**
+     project standard simulation, weather/ocean and finite-volume/finite-element
+     containers onto [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
+     `.topo_face` cellular complexes, topology-decoupled `COCHAIN_FIELD` columns
+     (`.float_zfp`), `RASTER2D`/`GRID3D` (`.raster_morton`) and
+     [Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md)
+     continuum simulation streaming operators:
+     - *`CGNS` (CFD General Notation System) & `EXODUS II`:* map `CGNSBase_t` /
+       `Zone_t` structured and unstructured zones, `Elements_t` connectivity,
+       `GridCoordinates_t`, `FlowSolution_t` (`Vertex` $C^0$, `EdgeCenter` $C^1$,
+       `FaceCenter` $C^2$, `CellCenter` $C^3$) and `ZoneBC_t` boundary-condition
+       patches onto `.topo_face` meshes and `COCHAIN_FIELD` time-series columns.
+     - *OpenFOAM native `polyMesh` + time-directory fields:* ingest
+       `constant/polyMesh/{points,faces,owner,neighbour,boundary}` directly into
+       `.topo_face` coboundary tables ($\delta_2 = \partial_3^\top$, permuted by
+       `HILBERT_3D` / `RCM`) and stream timestep field files (`0.001/{U,p,phi,T}`)
+       into `.float_zfp`-compressed $C^3$ cell-state and $C^2$ face-flux cochain
+       columns without duplicating mesh topology across timesteps.
+     - *`VTK` / ParaView XML & binary formats (`VTU` unstructured grids, `VTI` image grids, `VTP` polydata, `PVD` time-series collections) & `Alembic` (`.abc` cached VFX geometry/particles):*
+       zero-copy or bounded-decoded projection of appended binary `DataArray`
+       blocks into `.topo_face`, `.pcloud_hilbert` and `COCHAIN_FIELD` vectors.
+     - *`Zarr v3`, `NetCDF-4` / `HDF5` & `GRIB2` (chunked N-dimensional scientific/climate/turbulence arrays):*
+       map cloud-native chunked N-D hypercubes onto `RASTER2D`/`GRID3D`
+       (`.raster_morton` + `.float_zfp`) via HTTP Range requests over
+       `TransitObjectStore`, pushing spatial/temporal slice predicates (`BBOX2D`/`BBOX3D`,
+       vertical pressure levels, time ranges) down to chunk directories before
+       decoding.
    - **Text and semi-structured formats (`CSV`, `JSONL`):** bounded streaming
      parsers that record malformed fields as `type_error` or `missing` cells
      rather than aborting scans.
@@ -159,7 +186,7 @@ retrieval, streaming CDC ingestion and import/export costs.
      conversion failures from unreadable/corrupt record framing; incomplete
      capture must not be published as a complete relation.
 5. **Deliver typed import/export and continuous Change Data Capture (CDC) ingress:**
-   support native `.tseg`, Parquet/`GeoParquet`, Arrow IPC/`GeoArrow`, `glTF`/`3D Tiles`, `LAS`/`LAZ` and CSV/JSONL transfer with explicit
+   support native `.tseg`, Parquet/`GeoParquet`, Arrow IPC/`GeoArrow`, `glTF`/`3D Tiles`, `LAS`/`LAZ`, `CGNS`/`VTU`/`Zarr`/`NetCDF` and CSV/JSONL transfer with explicit
    schemas, codecs, collations, five-state/error policy and bounded progress.
    Alongside batch `COPY`, provide governed **streaming CDC and logical-replication
    ingress adapters** (consuming external change envelopes such as PostgreSQL
@@ -178,11 +205,11 @@ retrieval, streaming CDC ingestion and import/export costs.
 
 ## Completion evidence
 
-Use independent relational, graph, 2D/3D spatial/CAD/BIM and mainframe-dataset oracles and current
+Use independent relational, graph, 2D/3D spatial/CAD/BIM, scientific/CFD (`CGNS`/`VTU`/`OpenFOAM`/`Zarr`) and mainframe-dataset oracles and current
 source rights. Qualify changed or missing files/objects, ETag mismatches,
 interrupted captures, corrupted `COMP-3` nibbles / `HIGH-VALUES` (`0xFF`) / space
-padding (`0x40`) or non-manifold/open 3D shells (`\partial_2 \partial_3 V \neq 0`) surfaced as `IS TYPE_ERROR`, EBCDIC-collated joins against
-UTF-8 tables, `IFC`/`glTF`/`OpenUSD`/`COPC` foreign projections and 3D clash/adjacency queries, lost acknowledgements, revocation after partial disclosure, invalid
+padding (`0x40`), non-manifold/open 3D shells ($\partial_2 \partial_3 V \neq 0$) or `NaN`/mismatched-cardinality `FlowSolution_t` cochain fields surfaced as `IS TYPE_ERROR`, EBCDIC-collated joins against
+UTF-8 tables, `IFC`/`glTF`/`OpenUSD`/`COPC`/`CGNS`/`VTU`/`Zarr` foreign projections and 3D clash/adjacency/flux queries, lost acknowledgements, revocation after partial disclosure, invalid
 graph endpoints and datasets exceeding resident RAM and NVMe caches.
 
 Qualify a captured mainframe dataset through foreign query, native Table

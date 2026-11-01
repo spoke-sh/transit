@@ -66,20 +66,20 @@ established behavior, limits and reasoning into the public owner with the change
   and completion. A common catalog and service-managed reconciliation are planned
   extensions, not assumptions about current behavior.
 - Keep logical types ($\tau$: scalars, `RANGE<T>`/`MULTIRANGE<T>`, unboxed
-  `VECTOR(dim, T)`, `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`SCENE3D`/`POINTCLOUD`/`RASTER2D`/`BBOX`/`S2_CELL`/`H3_CELL`/`OCT_CELL`/`TRAJECTORY`,
+  `VECTOR(dim, T)`, `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`SCENE3D`/`POINTCLOUD`/`RASTER2D`/`COCHAIN_FIELD`/`BBOX`/`S2_CELL`/`H3_CELL`/`OCT_CELL`/`TRAJECTORY`,
   and game/simulation assets `TEXTURE2D`/`VOLUME_GRID`/`SPLAT3D`/`SKELETON3D`/`ANIMATION_CLIP`/`NAVMESH`),
   physical codecs ($\epsilon$: bitpacking, RLE, dictionary, FSST, mainframe
-  `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`, `EBCDIC`, spatial/3D `.geoarrow`,
+  `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`, `EBCDIC`, spatial/3D/continuum `.geoarrow`,
   `.twkb_delta`, `.mesh_edgebreaker`, `.topo_arc`, `.topo_face`, `.s2_roaring`,
-  `.octree_roaring`, `.raster_morton`, and interactive asset `.mesh_cluster_dag`,
+  `.octree_roaring`, `.raster_morton`, `.float_zfp`, and interactive asset `.mesh_cluster_dag`,
   `.tex_mip_morton`, `.vdb_hierarchy`, `.splat_hilbert`, `.skin_weights`, `.anim_acl`),
   and semantic/ordering rules ($\kappa$: text collations `UTF8_BINARY`, `ASCII_CI`,
   `EBCDIC_CP037`, `ICU:<locale>`; spatial reference/manifold/precision descriptors
   $\kappa_{\text{spatial}}$ with SRID, `PLANAR`/`GEODESIC`, snap-rounding grid
-  $\delta_{\text{grid}}$, Shewchuk exact predicates and `S2_HILBERT`/`H3`/`HILBERT_3D`
+  $\delta_{\text{grid}}$, Shewchuk exact predicates and `S2_HILBERT`/`H3`/`HILBERT_3D`/`RCM`
   order; asset/navigation target profiles $\kappa_{\text{asset}}$ / $\kappa_{\text{nav}}$;
-  vector metrics $\kappa_{\text{metric}}$; deterministic decimal rounding
-  $\kappa_{\text{numeric}}$; and manifest-pinned IANA `tzdb` versions
+  vector metrics $\kappa_{\text{metric}}$; deterministic decimal rounding and
+  error-bounded float tolerances $\kappa_{\text{numeric}}$; and manifest-pinned IANA `tzdb` versions
   $\kappa_{\text{tz}}$) orthogonal in query and storage design. Zone maps
   (including 2D/3D bounding-box and `S2`/`H3`/`OCT_CELL` cell summaries) and
   B-tree/R-tree sort keys must respect the declared $\kappa$ descriptor so pruning is sound.
