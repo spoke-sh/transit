@@ -360,7 +360,7 @@
       "dependencies": [
         "UCS_BASIC"
       ],
-      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Scalar execution and saved-plan checks have component evidence; installed scalar transport/recovery qualification remains pending.",
+      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float results and explicitly refuse unsupported decimal result types.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/parameters.json"
@@ -378,7 +378,8 @@
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
         "tests/interfaces/sql_sessions/native.py",
         "packages/zig/transit-fuze/src/scalar_query_test.zig",
-        "tests/query/logical/scalar_programs.py"
+        "tests/query/logical/scalar_programs.py",
+        "tests/interfaces/sql_sessions/history.py"
       ]
     },
     {
@@ -514,7 +515,7 @@
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
-        "transport": "staged"
+        "transport": "implemented"
       },
       "reference_verified": false,
       "profile": "Public Zig historical catalog operations, read-only SQL sessions and explicit Table source descriptors under current authority. Captured queries retain an independently owned copy of the selected source and freeze explicit projection targets.",
@@ -542,15 +543,16 @@
         "parse": "implemented",
         "lower": "implemented",
         "execute": "implemented",
-        "recover": "staged",
-        "transport": "staged"
+        "recover": "implemented",
+        "transport": "implemented"
       },
       "reference_verified": false,
-      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "profile": "Native SQL stored values and scalar results, prepared historical reads and gateway restart. PostgreSQL/MySQL expose admitted boolean/float scalar outputs; unsupported compound value result types refuse.",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
         "packages/zig/transit-fuze/src/companion_values_test.zig",
-        "packages/zig/transit-fuze/src/scalar_query_test.zig"
+        "packages/zig/transit-fuze/src/scalar_query_test.zig",
+        "tests/interfaces/sql_sessions/history.py"
       ]
     },
     {
@@ -570,15 +572,16 @@
         "parse": "implemented",
         "lower": "implemented",
         "execute": "implemented",
-        "recover": "staged",
-        "transport": "staged"
+        "recover": "implemented",
+        "transport": "implemented"
       },
       "reference_verified": false,
-      "profile": "production SQL entry points; only the selected scope described in deviations",
+      "profile": "Native SQL stored values and scalar results, prepared historical reads and gateway restart. PostgreSQL/MySQL expose admitted boolean/float scalar outputs; unsupported compound value result types refuse.",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
         "packages/zig/transit-fuze/src/companion_values_test.zig",
-        "packages/zig/transit-fuze/src/scalar_query_test.zig"
+        "packages/zig/transit-fuze/src/scalar_query_test.zig",
+        "tests/interfaces/sql_sessions/history.py"
       ]
     },
     {
@@ -1053,13 +1056,14 @@
         "lower": "implemented",
         "execute": "implemented",
         "recover": "implemented",
-        "transport": "staged"
+        "transport": "implemented"
       },
       "reference_verified": false,
       "profile": "Native DirectDefinition declarations and Catalog definitions inspection; no SQL CREATE VIEW/GRAPH/FOREIGN claim",
       "evidence_sources": [
         "packages/zig/transit-catalog/src/catalog_definition_test.zig",
-        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "tests/interfaces/sql_sessions/history.py"
       ]
     },
     {
@@ -1079,8 +1083,8 @@
         "parse": "implemented",
         "lower": "implemented",
         "execute": "implemented",
-        "recover": "staged",
-        "transport": "staged"
+        "recover": "implemented",
+        "transport": "implemented"
       },
       "reference_verified": false,
       "profile": "Database SQL SELECT/DESCRIBE/EXPLAIN over current or historical accepted typed views",
@@ -1090,7 +1094,7 @@
       ]
     }
   ],
-  "sha256": "6df2399d56d67edfc4eae96aaf1411fa5560315cca9d7afd477a4aadd9b0eff9",
+  "sha256": "e38cea5525e677e582d8e0e0d552b4b38f8b65714306c9fcaf5956aa7f910b0c",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
