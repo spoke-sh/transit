@@ -72,9 +72,13 @@ The caller supplies separate scratch/output arenas; cursor advancement occurs
 only after disclosure checks, and returned rows survive scratch resets. Delivery
 pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
 limits. Closing frees local buffers without releasing the shared durable read
-dependency or changing leases/group progress. This module is not yet exposed
-through a new native action or the SQL result lifecycle; SQL projection freezing,
-result reopening and finite-consumption handoff still need their service wiring.
+dependency or changing leases/group progress. `offsetWork` prepares a separate
+settlement from the authenticated completed cursor and the original group; save
+it as a workload intent before dispatch. It cannot derive coverage from a caller's
+numeric offset or result row count. The native owner still authenticates the cursor
+and rechecks current rights/assignment. This module is not yet exposed through a
+new native action or the SQL result lifecycle; SQL projection freezing, result
+reopening and finite-consumption handoff still need their service wiring.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

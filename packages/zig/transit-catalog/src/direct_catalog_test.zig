@@ -7503,6 +7503,8 @@ test "workload results reopen original payload and selections without mutation a
         var tmp = t.tmpDir(.{});
         defer tmp.cleanup();
         var references: [2]Result.Reference = undefined;
+        var offset_reference: ?c.DirectWorkloadIntent.Reference = null;
+        var empty_reference: Result.Reference = undefined;
         var partition: u64 = undefined;
         var original_tail: u64 = undefined;
         var authorization: u64 = undefined;
@@ -7544,15 +7546,42 @@ test "workload results reopen original payload and selections without mutation a
                 const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
                 defer t.allocator.free(encoded.base64);
                 const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 }, .operation = identity, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) };
+                const empty_operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 90 };
+                const empty_work: c.DirectWorkloadIntent.Work = if (kind == .stream)
+                    .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = empty_operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
+                else
+                    .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = empty_operation, .maximum = 3, .lease_ms = 100 } }, .payload = null } };
+                var empty_intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, empty_work);
+                defer empty_intent.deinit();
+                const frozen_empty = try empty_intent.reference(@splat(7));
+                _ = try c.DirectRecord.store(objects.objectStore(), frozen_empty.record.scope, c.DirectWorkloadIntent.format, empty_intent.bytes);
+                switch (empty_work) {
+                    .stream => |value| (try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = value })).deinit(t.allocator),
+                    .queue => |value| (try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = value })).deinit(t.allocator),
+                }
+                var empty_result = try Result.open(t.allocator, &catalog, frozen_empty, .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 }, access.policy(), native);
+                empty_reference = empty_result.reference;
+                empty_result.deinit();
                 const selected_operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 101 };
                 const works: [2]c.DirectWorkloadIntent.Work = .{
                     if (kind == .stream) .{ .stream = .{ .work = .{ .append = append }, .payload = encoded } } else .{ .queue = .{ .work = .{ .enqueue = append }, .payload = encoded } },
                     if (kind == .stream)
-                        .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = selected_operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
+                        .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = selected_operation, .group = .{ .id = 1, .generation = 1, .principal = 1 }, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
                     else
                         .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = selected_operation, .maximum = 3, .lease_ms = 100 } }, .payload = null } },
                 };
                 for (works, &references) |work, *reference| {
+                    if (work == .stream and work.stream.work == .consume) {
+                        const cut = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .observe = append.target });
+                        const assigned = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .assign = .{
+                            .operation = .{ .scope = scope, .principal = 1, .operation = 99 },
+                            .cut = cut.cut,
+                            .expected = null,
+                            .group = work.stream.work.consume.group.?,
+                            .next = 0,
+                        } }, .payload = null } });
+                        try t.expect(assigned.operation.? == .assign);
+                    }
                     var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, work);
                     defer intent.deinit();
                     const frozen = try intent.reference(@splat(7));
@@ -7586,6 +7615,8 @@ test "workload results reopen original payload and selections without mutation a
                     const first_bytes = try first_encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
                     const first_row = try c.fuze.TableRow.decodeInto(scratch.allocator(), declaration_request.intent.action.create.schema, first_bytes);
                     try t.expectEqual(@as(i64, 10), first_row.row().cells[0].value.atom.signed);
+                    if (result.reference.selection == .consume)
+                        try t.expectError(error.WorkloadResultIncomplete, result.offsetWork(.{ .scope = scope, .principal = 1, .operation = 102 }));
                     // Early local close retains the native selection and receipt.
                     _ = output.reset(.retain_capacity);
                 }
@@ -7618,6 +7649,15 @@ test "workload results reopen original payload and selections without mutation a
                         const row_bytes = try encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
                         const decoded = try c.fuze.TableRow.decodeInto(scratch.allocator(), declaration_request.intent.action.create.schema, row_bytes);
                         try t.expectEqual(@as(i64, @intCast((index + 1) * 10)), decoded.row().cells[0].value.atom.signed);
+                    }
+                    if (reference.selection == .consume) {
+                        const work = try result.offsetWork(.{ .scope = scope, .principal = 1, .operation = 102 });
+                        try t.expectEqualDeep(reference.selection.consume.request.group.?, work.offset.commit.group);
+                        try t.expectEqual(@as(u64, 3), work.offset.commit.next);
+                        var intent = try c.DirectWorkloadIntent.create(t.allocator, reference.intent.connection, result.intent.parsed.value.source, .{ .stream = .{ .work = work, .payload = null } });
+                        defer intent.deinit();
+                        offset_reference = try intent.reference(@splat(7));
+                        _ = try c.DirectRecord.store(objects.objectStore(), offset_reference.?.record.scope, c.DirectWorkloadIntent.format, intent.bytes);
                     }
                     const prior = result.cursor;
                     owners.revoke_after = authorization;
@@ -7653,8 +7693,45 @@ test "workload results reopen original payload and selections without mutation a
                         try t.expectEqualDeep(before, bounded.cursor);
                     }
                 }
+                var empty_result = try Result.reopen(t.allocator, &catalog, empty_reference, access.policy(), native);
+                defer empty_result.deinit();
+                const empty_page = try empty_result.next(&scratch, &output, &catalog, access.policy(), native);
+                switch (empty_page) {
+                    .append => return error.TestUnexpectedResult,
+                    .consume => |page| try t.expect(page.cursor.coverage.complete and page.cursor.coverage.rows == 0 and page.rows.len == 0),
+                    .claim => |page| try t.expect(page.cursor.complete() and page.cursor.receipt.rows == 0 and page.rows.len == 0),
+                }
+                try t.expectError(if (kind == .stream) error.WorkloadResultGroupRequired else error.WorkloadResultUnavailable, empty_result.offsetWork(.{ .scope = scope, .principal = 1, .operation = 105 }));
                 try t.expectEqual(original_tail, try wal.log().tail(partition));
             }
+        }
+        if (offset_reference) |frozen| {
+            // Handoff survives replacement before dispatch. No numeric caller
+            // offset or fresh consume can substitute for the authenticated cut.
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            var owners: WorkloadOwners = .{ .access = &access };
+            defer owners.deinit();
+            const native = owners.native();
+            var saved = try c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), frozen);
+            defer saved.deinit();
+            const work = saved.parsed.value.work.stream;
+            var forged = work;
+            forged.work.offset.commit.operation.operation = 103;
+            forged.work.offset.cursor.authentication[0] ^= 1;
+            try t.expectError(error.StreamCursorUnauthenticated, native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = forged }));
+            try t.expectEqual(original_tail, try wal.log().tail(partition));
+            const committed = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = work });
+            try t.expect(committed.operation.? == .offset);
+            try t.expectEqualDeep(work.work.offset.commit, committed.operation.?.offset.commit);
+            const repeated = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .operation = work.work });
+            try t.expectEqualDeep(committed, repeated);
+            const group = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .group = .{ .target = work.work.target(), .id = 1 } });
+            try t.expectEqual(@as(u64, 3), group.group.?.next);
         }
     }
 }

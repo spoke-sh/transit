@@ -8033,8 +8033,10 @@
         "ClientOperationPending": 5,
         "InvalidWorkloadResultBudget": 3,
         "WorkloadResultConflict": 3,
+        "WorkloadResultGroupRequired": 1,
+        "WorkloadResultIncomplete": 1,
         "WorkloadResultRowTooLarge": 1,
-        "WorkloadResultUnavailable": 2
+        "WorkloadResultUnavailable": 3
       },
       "outcomes": {
         "Page": [
@@ -8064,12 +8066,13 @@
         "authorize()": "<inferred>",
         "next()": "<inferred>",
         "observe()": "<inferred>",
+        "offsetWork()": "<inferred>",
         "open()": "<inferred>",
         "reopen()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 45,
+        "try": 47,
         "catch": 0
       },
       "imports": [

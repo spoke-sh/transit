@@ -144,6 +144,25 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
+/// Prepare a separate settlement without dispatching it. Save this exact work
+/// before acceptance (for example in DirectWorkloadIntent). Only the native
+/// owner can authenticate coverage, check current assignment/rights and commit.
+/// SQL output counts and requested offsets cannot supply this handoff.
+pub fn offsetWork(self: *const Self, operation: p.DataLifecycle.Operation) !p.LogWorkload.StreamRequest {
+    if (self.reference.selection != .consume or self.cursor != .consume) return error.WorkloadResultUnavailable;
+    const receipt = self.reference.selection.consume;
+    const cursor = self.cursor.consume;
+    try cursor.requireReceipt(receipt);
+    if (!cursor.coverage.complete) return error.WorkloadResultIncomplete;
+    const group = receipt.request.group orelse return error.WorkloadResultGroupRequired;
+    const request: p.LogWorkload.StreamRequest = .{ .offset = .{
+        .commit = .{ .operation = operation, .group = group, .coverage = cursor.coverage, .expected_next = receipt.request.from, .next = receipt.until },
+        .cursor = cursor,
+    } };
+    try request.validate();
+    return request;
+}
+
 /// Every page (including repeated empty completion) checks original outcome and
 /// current payload rights after buffering. Cursor advancement is transactional
 /// with disclosure: failure leaves the local cursor unchanged. Output is owned
