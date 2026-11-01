@@ -135,3 +135,57 @@ owns authority and failure semantics; the [proof ledger](../../../../docs/histor
 distinguishes installed execution from decoder tests. Namespace administration,
 policy preparation, dependency and named-resource host actions remain separate
 from the typed Table methods described here.
+
+## Historical catalogs
+
+Historical catalogs retain a selected set of Table names, definitions and data
+cuts. The shared owner checks current rights on every call. A selection is not a
+retention pin; only a `published` acquisition supplies a usable snapshot.
+
+```typescript
+const key = client.prepareHistoryKey(accountBytes, tokenBytes);
+let selected = client.prepareHistorySelection(operation);
+const step = client.prepareHistoryStep(selected, namespace, "events");
+await save(step.save());
+selected = await client.selectHistory(step);
+const request = client.prepareHistoryAcquisition(selected, key, namespace);
+await save(request.save());
+const status = await client.acquireHistory(request);
+// Persist key and inspect/advance explicitly until status.phase is "published".
+```
+
+Add further names with successive saved selection steps before acquisition.
+Each `advanceHistory(key)` performs bounded work; there is no automatic polling.
+`inspectHistory(key)` observes the original operation, while `abandonHistory(key)`
+closes an unfinished acquisition. After publication, `releaseHistory(key)` and
+further explicit advances release its source pins. `prepareHistoryControl` creates a savable `HistoryControl` with the
+exact advance/abandon/release command for `resumeHistoryControl`. These operations
+may report an intermediate phase; a successful call does not imply completion.
+
+`Uncertain.recovery` retains the original `HistorySelectionStep`,
+`HistoryAcquisition` or `HistoryControl`. Save/restore preserves its account,
+token, operation, connection, selected directory and common-cut evidence. A lost
+selection reply establishes neither acceptance nor retained coverage. Explicitly
+retrying that step resolves the requested name again; acquisition itself always
+uses the saved directory. Read failures establish no mutation outcome.
+
+`prepareCommonHistoryAcquisition` accepts the original transaction key, its exact
+acquired catalog directory and `HistoryCommonCut`. The shared owner verifies
+membership and transfers the retained cuts to independent history pins. This
+method does not acquire a new transaction or infer a common cut from unrelated
+sources. Save the resulting acquisition before dispatch.
+
+A published `status.basis` reports its definition, original owner, branch,
+catalog and source roots, full-width source count, and `single_partition`,
+`independent` or `common_transaction` consistency. Save its opaque
+`HistoricalSnapshot` independently of the host. Use `historicalNamespace`,
+`historicalLookup`, `historicalTables` and `historicalSource` to inspect the old
+names, definitions, schema, accepted positions and row counts. Source inspection
+is metadata only; rows use the shared SQL result lifecycle and the
+[SQL snapshot selector](../../../../docs/handbook/reference/sql.md).
+
+Pages contain at most eight entries. Continue with `HistoryCursor`, including
+empty pages that still have a continuation. A cursor remains bound to its
+snapshot, namespace and retained directory; a page is not complete coverage of
+the catalog. Metadata returns owned values, and all wide identities use `bigint`.
+Closing the client does not abandon acquisitions or release published history.

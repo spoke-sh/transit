@@ -1217,7 +1217,451 @@ function retentionField<K extends Tags<RetentionResult>>(
   if (!(key in result)) throw new IncompatibleNative("Unexpected snapshot retention result");
   return (result as Extract<RetentionResult, Record<K, unknown>>)[key];
 }
-export type Recovery = SavedIntent | Reference | SnapshotAcquisition | Snapshot;
+type HistoryAction = Action<"history">;
+type HistoryResult = Result<"history">;
+type HistoryInput<K extends PropertyKey> = Extract<HistoryAction, Record<K, unknown>>[K];
+type HistoryOutput<K extends PropertyKey> = Extract<HistoryResult, Record<K, unknown>>[K];
+type NativeHistoryStatus = NonNullable<HistoryOutput<"status">>;
+type NativeHistorySnapshot = NonNullable<NativeHistoryStatus["snapshot"]>;
+export interface HistoryContent {
+  readonly bytes: bigint;
+  readonly digest: string;
+}
+export interface HistoryOperation {
+  readonly scope: Scope;
+  readonly principal: number;
+  readonly operation: bigint;
+}
+export interface HistoryDirectory {
+  readonly content: HistoryContent;
+  readonly count: bigint;
+}
+export interface HistoryCommonCut {
+  readonly transaction: HistoryOperation;
+  readonly acquired: Position;
+  readonly sources: HistoryContent;
+  readonly sourceCount: bigint;
+}
+export interface HistoryBudget {
+  readonly operations: bigint;
+  readonly bytes: bigint;
+  readonly pending: bigint;
+  readonly chargeBytes: bigint;
+}
+const historySaved = new WeakMap<object, string>();
+function savedHistory(value: object): string {
+  const saved = historySaved.get(value);
+  if (saved === undefined) throw new TypeError("Expected an owned historical catalog value");
+  return saved;
+}
+function historyContent(value: NativeHistorySnapshot["catalog_root"]): HistoryContent {
+  return Object.freeze({ bytes: nativeWide(value.bytes), digest: digest(value.sha256) });
+}
+function historyOperation(value: NativeHistorySnapshot["owner"]): HistoryOperation {
+  return Object.freeze({
+    scope: fromScope(value.scope),
+    principal: value.principal,
+    operation: nativeWide(value.operation),
+  });
+}
+function historyDirectory(
+  value: NonNullable<HistoryOutput<"selection">["directory"]>,
+): HistoryDirectory {
+  return Object.freeze({ content: historyContent(value.content), count: nativeWide(value.count) });
+}
+function historyCut(
+  value: NonNullable<HistoryInput<"acquire">["intent"]["common"]>["cut"],
+): HistoryCommonCut {
+  return Object.freeze({
+    transaction: historyOperation(value.transaction),
+    acquired: position(value.acquired),
+    sources: historyContent(value.sources),
+    sourceCount: nativeWide(value.source_count),
+  });
+}
+/** A selected immutable directory; selection alone does not retain data. */
+export class HistorySelection {
+  readonly owner: HistoryOperation;
+  readonly branch: bigint;
+  readonly directory: HistoryDirectory | undefined;
+  private constructor(value: HistoryOutput<"selection">) {
+    definition(value.definition);
+    this.owner = historyOperation(value.owner);
+    this.branch = nativeWide(value.branch);
+    this.directory = value.directory === null ? undefined : historyDirectory(value.directory);
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistorySelection {
+    return new HistorySelection(
+      checked<HistoryOutput<"selection">>(parseSaved(input), (selection) => ({
+        history: { select: { selection, namespace: 1, name: "validation" } },
+      })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+/** Original account/token and connection; this is attribution, never authority. */
+export class HistoryKey {
+  readonly account: string;
+  readonly token: string;
+  private constructor(value: HistoryInput<"inspect">) {
+    definition(value.definition);
+    this.account = digest(value.account);
+    if (!/^[0-9a-f]{32}$/.test(value.token)) throw new IncompatibleNative("Invalid history token");
+    this.token = value.token;
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoryKey {
+    return new HistoryKey(
+      checked<HistoryInput<"inspect">>(parseSaved(input), (inspect) => ({ history: { inspect } })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+/** Save before dispatch. An uncertain selection may be retried, but is not acceptance. */
+export class HistorySelectionStep {
+  readonly selection: HistorySelection;
+  readonly namespace: number;
+  readonly name: string;
+  private constructor(value: HistoryInput<"select">) {
+    this.selection = HistorySelection.restore(JSON.stringify(value.selection));
+    this.namespace = value.namespace;
+    this.name = name(value.name);
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistorySelectionStep {
+    return new HistorySelectionStep(
+      checked<HistoryInput<"select">>(parseSaved(input), (select) => ({ history: { select } })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+/** Complete acquisition input, including frozen selection, budget and optional common cut. */
+export class HistoryAcquisition {
+  readonly key: HistoryKey;
+  readonly operation: bigint;
+  readonly namespace: number;
+  readonly selection: HistoryDirectory;
+  readonly common: HistoryCommonCut | undefined;
+  readonly commonKey: HistoryKey | undefined;
+  private constructor(value: HistoryInput<"acquire">) {
+    definition(value.intent.definition);
+    this.key = HistoryKey.restore(JSON.stringify(value.key));
+    if (!isDeepStrictEqual(value.key.connection, value.intent.connection))
+      throw new IncompatibleNative("Foreign historical acquisition connection");
+    this.operation = nativeWide(value.intent.operation);
+    this.namespace = value.intent.namespace;
+    this.selection = historyDirectory(value.intent.selection);
+    this.common = value.intent.common === null ? undefined : historyCut(value.intent.common.cut);
+    this.commonKey =
+      value.intent.common === null
+        ? undefined
+        : HistoryKey.restore(JSON.stringify(value.intent.common.key));
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoryAcquisition {
+    return new HistoryAcquisition(
+      checked<HistoryInput<"acquire">>(parseSaved(input), (acquire) => ({ history: { acquire } })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+/** Exact bounded control action, preserved if its outcome is uncertain. */
+export class HistoryControl {
+  readonly key: HistoryKey;
+  readonly command: "advance" | "abandon" | "release";
+  private constructor(value: HistoryAction) {
+    if ("advance" in value) {
+      this.command = "advance";
+      this.key = HistoryKey.restore(JSON.stringify(value.advance));
+    } else if ("abandon" in value) {
+      this.command = "abandon";
+      this.key = HistoryKey.restore(JSON.stringify(value.abandon));
+    } else if ("release" in value) {
+      this.command = "release";
+      this.key = HistoryKey.restore(JSON.stringify(value.release));
+    } else throw new IncompatibleNative("Expected a historical control action");
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoryControl {
+    return new HistoryControl(
+      checked<HistoryAction>(parseSaved(input), (history) => ({ history })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+/** Opaque selector. The shared owner validates compatibility and retained coverage on every call. */
+export class HistoricalSnapshot {
+  readonly selector: string;
+  constructor(selector: string) {
+    text(selector, 594);
+    if (!/^[0-9a-f]{594}$/.test(selector))
+      throw new TypeError("Expected a canonical historical selector");
+    this.selector = selector;
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoricalSnapshot {
+    const value = parseSaved(input);
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Object.keys(value).length !== 1 ||
+      !("selector" in value) ||
+      typeof value.selector !== "string"
+    )
+      throw new IncompatibleNative("Invalid saved historical selector");
+    return new HistoricalSnapshot(value.selector);
+  }
+  save(): string {
+    return JSON.stringify({ selector: this.selector });
+  }
+}
+export interface HistoryBasis {
+  readonly definition: string;
+  readonly snapshot: HistoricalSnapshot;
+  readonly owner: HistoryOperation;
+  readonly branch: bigint;
+  readonly catalogRoot: HistoryContent;
+  readonly sourcesRoot: HistoryContent;
+  readonly sourceCount: bigint;
+  readonly consistency:
+    | { readonly kind: "single_partition"; readonly position: Position }
+    | { readonly kind: "independent" }
+    | { readonly kind: "common_transaction"; readonly cut: HistoryCommonCut };
+}
+function historyBasis(value: NativeHistorySnapshot, selected?: HistoricalSnapshot): HistoryBasis {
+  definition(value.definition);
+  if (selected && value.selector !== selected.selector)
+    throw new IncompatibleNative("Changed historical snapshot");
+  return Object.freeze({
+    definition: value.definition,
+    snapshot: selected ?? new HistoricalSnapshot(value.selector),
+    owner: historyOperation(value.owner),
+    branch: nativeWide(value.branch),
+    catalogRoot: historyContent(value.catalog_root),
+    sourcesRoot: historyContent(value.sources_root),
+    sourceCount: nativeWide(value.source_count),
+    consistency: Object.freeze(
+      "independent" in value.consistency
+        ? { kind: "independent" as const }
+        : "single_partition" in value.consistency
+          ? {
+              kind: "single_partition" as const,
+              position: position(value.consistency.single_partition),
+            }
+          : {
+              kind: "common_transaction" as const,
+              cut: historyCut(value.consistency.common_transaction),
+            },
+    ),
+  });
+}
+export interface HistoryIntent {
+  readonly operation: bigint;
+  readonly namespace: number;
+  readonly selection: HistoryDirectory;
+  readonly common?: { readonly key: HistoryKey; readonly cut: HistoryCommonCut };
+}
+export interface HistoryStatus {
+  readonly key: HistoryKey;
+  readonly intent: HistoryIntent;
+  readonly admitted: Position;
+  readonly revision: Position;
+  readonly phase:
+    | "acquiring"
+    | "verifying"
+    | "published"
+    | "abandoning"
+    | "cancelled"
+    | "releasing"
+    | "released";
+  readonly retained: HistoryDirectory | undefined;
+  readonly after: bigint | undefined;
+  readonly inflight: bigint | undefined;
+  readonly verifiedAfter: bigint | undefined;
+  readonly policyEpoch: bigint | undefined;
+  readonly releasedAfter: bigint | undefined;
+  readonly basis: HistoryBasis | undefined;
+}
+function historyStatus(
+  value: HistoryOutput<"status">,
+  key: HistoryKey,
+  original?: HistoryAcquisition,
+): HistoryStatus | undefined {
+  if (value === null) return undefined;
+  if (
+    !isDeepStrictEqual(value.key, JSON.parse(key.save())) ||
+    (original &&
+      !isDeepStrictEqual(
+        value.intent,
+        (JSON.parse(original.save()) as HistoryInput<"acquire">).intent,
+      ))
+  )
+    throw new IncompatibleNative("Changed original historical acquisition");
+  definition(value.intent.definition);
+  if (!isDeepStrictEqual(value.intent.connection, value.key.connection))
+    throw new IncompatibleNative("Changed history intent connection");
+  const intent: HistoryIntent = Object.freeze({
+    operation: nativeWide(value.intent.operation),
+    namespace: value.intent.namespace,
+    selection: historyDirectory(value.intent.selection),
+    ...(value.intent.common === null
+      ? {}
+      : {
+          common: Object.freeze({
+            key: HistoryKey.restore(JSON.stringify(value.intent.common.key)),
+            cut: historyCut(value.intent.common.cut),
+          }),
+        }),
+  });
+  const published =
+    value.phase === "published" || value.phase === "releasing" || value.phase === "released";
+  if (published !== (value.snapshot !== null))
+    throw new IncompatibleNative("Missing or premature history publication");
+  if (value.snapshot !== null) {
+    const snapshot = value.snapshot;
+    const common = value.intent.common;
+    if (
+      !isDeepStrictEqual(snapshot.owner.scope, value.key.connection.scope) ||
+      snapshot.owner.principal !== value.key.connection.principal ||
+      snapshot.owner.operation !== value.intent.operation ||
+      snapshot.branch !== value.key.connection.branch ||
+      snapshot.source_count !== value.intent.selection.count ||
+      !isDeepStrictEqual(snapshot.catalog_root, value.intent.selection.content) ||
+      (common !== null
+        ? !("common_transaction" in snapshot.consistency) ||
+          !isDeepStrictEqual(snapshot.consistency.common_transaction, common.cut)
+        : "common_transaction" in snapshot.consistency)
+    )
+      throw new IncompatibleNative("Changed published history basis");
+  }
+  const optional = (v: string | null): bigint | undefined =>
+    v === null ? undefined : nativeWide(v);
+  return Object.freeze({
+    key,
+    intent,
+    admitted: position(value.admitted),
+    revision: position(value.revision),
+    phase: value.phase,
+    retained: value.retained === null ? undefined : historyDirectory(value.retained),
+    after: optional(value.after),
+    inflight: optional(value.inflight),
+    verifiedAfter: optional(value.verified_after),
+    policyEpoch: optional(value.policy_epoch),
+    releasedAfter: optional(value.released_after),
+    basis: value.snapshot === null ? undefined : historyBasis(value.snapshot),
+  });
+}
+export interface HistoryNamespace {
+  readonly scope: Scope;
+  readonly id: number;
+  readonly authorization: number;
+  readonly name: string;
+  readonly revision: bigint;
+}
+function historyNamespace(value: NonNullable<HistoryOutput<"namespace">>): HistoryNamespace {
+  return Object.freeze({
+    scope: fromScope(value.scope),
+    id: value.id,
+    authorization: value.authorization,
+    name: value.name,
+    revision: nativeWide(value.revision),
+  });
+}
+export interface HistoryEntry {
+  readonly namespace: HistoryNamespace;
+  readonly name: string;
+  readonly definition: StoredDefinition;
+  readonly accepted: Position;
+  readonly catalog: Position;
+}
+function historyEntry(value: HistoryOutput<"listing">["entries"][number]): HistoryEntry {
+  return Object.freeze({
+    namespace: historyNamespace(value.namespace),
+    name: value.name,
+    definition: stored(value.declaration),
+    accepted: position(value.accepted),
+    catalog: position(value.catalog),
+  });
+}
+export class HistoryCursor {
+  readonly snapshot: HistoricalSnapshot;
+  readonly namespace: number;
+  private constructor(value: NonNullable<HistoryInput<"list">["after"]>) {
+    this.snapshot = new HistoricalSnapshot(value.selector);
+    this.namespace = value.namespace;
+    historyDirectory(value.directory);
+    nativeWide(value.after);
+    historySaved.set(this, JSON.stringify(value));
+    Object.freeze(this);
+  }
+  static restore(input: string): HistoryCursor {
+    return new HistoryCursor(
+      checked<NonNullable<HistoryInput<"list">["after"]>>(parseSaved(input), (after) => ({
+        history: { list: { selector: after?.selector, namespace: after?.namespace, after } },
+      })),
+    );
+  }
+  save(): string {
+    return savedHistory(this);
+  }
+}
+export interface HistoryPage {
+  readonly basis: HistoryBasis;
+  readonly namespace: number;
+  readonly entries: readonly HistoryEntry[];
+  readonly next?: HistoryCursor;
+}
+export interface HistorySource {
+  readonly basis: HistoryBasis;
+  readonly binding: HistoryEntry;
+  readonly schema: Schema;
+  readonly rowCount: bigint;
+  readonly changedLsn: bigint;
+  readonly authority: ReadAuthority;
+}
+function historyField<K extends Tags<HistoryResult>>(
+  value: CatalogResult,
+  key: K,
+): HistoryOutput<K> {
+  const result = field(value, "history");
+  if (!(key in result)) throw new IncompatibleNative("Unexpected historical catalog result");
+  return (result as Extract<HistoryResult, Record<K, unknown>>)[key];
+}
+function historyBudget(value?: HistoryBudget): HistoryInput<"acquire">["budget"] {
+  return value === undefined
+    ? { operations: "1000000", bytes: "4294967296", pending: "1024", charge_bytes: "4608" }
+    : {
+        operations: positive(value.operations).toString(),
+        bytes: positive(value.bytes).toString(),
+        pending: positive(value.pending).toString(),
+        charge_bytes: positive(value.chargeBytes).toString(),
+      };
+}
+
+export type Recovery =
+  | SavedIntent
+  | Reference
+  | SnapshotAcquisition
+  | Snapshot
+  | HistorySelectionStep
+  | HistoryAcquisition
+  | HistoryControl;
 export class Uncertain extends UnknownOutcome {
   readonly recovery: Recovery;
   constructor(recovery: Recovery, cause: UnknownOutcome) {
@@ -1639,6 +2083,333 @@ export class Client {
       original,
       (result) => observation(field(result, "observation"), original),
     );
+  }
+  prepareHistorySelection(operation: bigint): HistorySelection {
+    return HistorySelection.restore(
+      JSON.stringify({
+        definition: currentDefinition,
+        owner: {
+          scope: scope(this.connection.scope),
+          principal: this.#principal,
+          operation: positive(operation).toString(),
+        },
+        branch: this.connection.branch.toString(),
+        directory: null,
+      }),
+    );
+  }
+  prepareHistoryKey(account: Uint8Array, token: Uint8Array): HistoryKey {
+    if (account.byteLength !== 32 || token.byteLength !== 16)
+      throw new TypeError("Expected 32-byte account and 16-byte token");
+    return HistoryKey.restore(
+      JSON.stringify({
+        definition: currentDefinition,
+        connection: this.historyConnection(),
+        account: hex(account, 32),
+        token: hex(token, 16),
+      }),
+    );
+  }
+  prepareHistoryStep(
+    selection: HistorySelection,
+    namespace: number,
+    selectedName: string,
+  ): HistorySelectionStep {
+    return HistorySelectionStep.restore(
+      JSON.stringify({
+        selection: JSON.parse(selection.save()),
+        namespace: integer(namespace, "namespace"),
+        name: name(selectedName),
+      }),
+    );
+  }
+  async selectHistory(original: HistorySelectionStep): Promise<HistorySelection> {
+    const select = JSON.parse(original.save()) as HistoryInput<"select">;
+    if (
+      !isDeepStrictEqual(select.selection.owner.scope, scope(this.connection.scope)) ||
+      select.selection.owner.principal !== this.#principal ||
+      select.selection.branch !== this.connection.branch.toString()
+    )
+      throw new TypeError("Foreign history selection");
+    return this.mutation({ history: { select } }, original, (result) => {
+      const selected = historyField(result, "selection");
+      if (
+        !isDeepStrictEqual(selected.owner, select.selection.owner) ||
+        selected.branch !== select.selection.branch ||
+        selected.directory === null
+      )
+        throw new IncompatibleNative("Changed history selection owner");
+      return HistorySelection.restore(JSON.stringify(selected));
+    });
+  }
+  prepareHistoryAcquisition(
+    selection: HistorySelection,
+    key: HistoryKey,
+    namespace = 1,
+    budget?: HistoryBudget,
+  ): HistoryAcquisition {
+    const selected = JSON.parse(selection.save()) as HistoryOutput<"selection">;
+    this.historyKey(key);
+    if (
+      selected.directory === null ||
+      !isDeepStrictEqual(selected.owner.scope, scope(this.connection.scope)) ||
+      selected.owner.principal !== this.#principal ||
+      selected.branch !== this.connection.branch.toString()
+    )
+      throw new TypeError("Expected a selected history directory on this connection");
+    return HistoryAcquisition.restore(
+      JSON.stringify({
+        key: JSON.parse(key.save()),
+        intent: {
+          definition: currentDefinition,
+          connection: this.historyConnection(),
+          namespace: integer(namespace, "namespace"),
+          operation: selected.owner.operation,
+          selection: selected.directory,
+          common: null,
+        },
+        budget: historyBudget(budget),
+      }),
+    );
+  }
+  prepareCommonHistoryAcquisition(
+    key: HistoryKey,
+    operation: bigint,
+    namespace: number,
+    selection: HistoryDirectory,
+    transaction: HistoryKey,
+    cut: HistoryCommonCut,
+    budget?: HistoryBudget,
+  ): HistoryAcquisition {
+    const common = {
+      key: this.historyKey(transaction),
+      cut: {
+        transaction: {
+          scope: scope(cut.transaction.scope),
+          principal: cut.transaction.principal,
+          operation: positive(cut.transaction.operation).toString(),
+        },
+        acquired: {
+          partition: positive(cut.acquired.partition).toString(),
+          next_lsn: positive(cut.acquired.nextLsn).toString(),
+        },
+        sources: {
+          bytes: positive(cut.sources.bytes).toString(),
+          sha256: digest(cut.sources.digest),
+        },
+        source_count: positive(cut.sourceCount).toString(),
+      },
+    };
+    return HistoryAcquisition.restore(
+      JSON.stringify({
+        key: this.historyKey(key),
+        intent: {
+          definition: currentDefinition,
+          connection: this.historyConnection(),
+          namespace: integer(namespace, "namespace"),
+          operation: positive(operation).toString(),
+          selection: {
+            content: {
+              bytes: positive(selection.content.bytes).toString(),
+              sha256: digest(selection.content.digest),
+            },
+            count: positive(selection.count).toString(),
+          },
+          common,
+        },
+        budget: historyBudget(budget),
+      }),
+    );
+  }
+  async acquireHistory(original: HistoryAcquisition): Promise<HistoryStatus> {
+    this.historyKey(original.key);
+    const acquire = JSON.parse(original.save()) as HistoryInput<"acquire">;
+    return this.mutation({ history: { acquire } }, original, (result) => {
+      const status = historyStatus(historyField(result, "status"), original.key, original);
+      if (!status) throw new IncompatibleNative("Missing history admission");
+      return status;
+    });
+  }
+  async inspectHistory(key: HistoryKey): Promise<HistoryStatus | undefined> {
+    return historyStatus(
+      historyField(
+        await this.#bridge.call({ history: { inspect: this.historyKey(key) } }),
+        "status",
+      ),
+      key,
+    );
+  }
+  async advanceHistory(key: HistoryKey): Promise<HistoryStatus | undefined> {
+    return this.changeHistory("advance", key);
+  }
+  async abandonHistory(key: HistoryKey): Promise<HistoryStatus | undefined> {
+    return this.changeHistory("abandon", key);
+  }
+  async releaseHistory(key: HistoryKey): Promise<HistoryStatus | undefined> {
+    return this.changeHistory("release", key);
+  }
+  private async changeHistory(
+    command: "advance" | "abandon" | "release",
+    key: HistoryKey,
+  ): Promise<HistoryStatus | undefined> {
+    const native = this.historyKey(key);
+    const history: HistoryAction =
+      command === "advance"
+        ? { advance: native }
+        : command === "abandon"
+          ? { abandon: native }
+          : { release: native };
+    return this.resumeHistoryControl(HistoryControl.restore(JSON.stringify(history)));
+  }
+  prepareHistoryControl(
+    key: HistoryKey,
+    command: "advance" | "abandon" | "release",
+  ): HistoryControl {
+    const native = this.historyKey(key);
+    return HistoryControl.restore(JSON.stringify({ [command]: native }));
+  }
+  async resumeHistoryControl(original: HistoryControl): Promise<HistoryStatus | undefined> {
+    this.historyKey(original.key);
+    const history = JSON.parse(original.save()) as HistoryAction;
+    return this.mutation({ history }, original, (result) =>
+      historyStatus(historyField(result, "status"), original.key),
+    );
+  }
+  async historicalLookup(
+    snapshot: HistoricalSnapshot,
+    namespace: number,
+    selectedName: string,
+  ): Promise<bigint | undefined> {
+    const result = historyField(
+      await this.#bridge.call({
+        history: {
+          lookup: {
+            selector: snapshot.selector,
+            namespace: integer(namespace, "namespace"),
+            name: name(selectedName),
+          },
+        },
+      }),
+      "object",
+    );
+    return result === null ? undefined : nativeWide(result);
+  }
+  async historicalNamespace(
+    snapshot: HistoricalSnapshot,
+    selectedName: string,
+  ): Promise<HistoryNamespace | undefined> {
+    const result = historyField(
+      await this.#bridge.call({
+        history: { namespace: { selector: snapshot.selector, name: name(selectedName) } },
+      }),
+      "namespace",
+    );
+    if (result === null) return undefined;
+    if (
+      result.name !== selectedName ||
+      !isDeepStrictEqual(result.scope, scope(this.connection.scope))
+    )
+      throw new IncompatibleNative("Changed historical namespace");
+    return historyNamespace(result);
+  }
+  async historicalTables(
+    snapshot: HistoricalSnapshot,
+    namespace: number,
+    cursor?: HistoryCursor,
+  ): Promise<HistoryPage> {
+    integer(namespace, "namespace");
+    if (
+      cursor &&
+      (cursor.snapshot.selector !== snapshot.selector || cursor.namespace !== namespace)
+    )
+      throw new TypeError("History cursor belongs to a different selection");
+    const value = historyField(
+      await this.#bridge.call({
+        history: {
+          list: {
+            selector: snapshot.selector,
+            namespace,
+            after: cursor ? (JSON.parse(cursor.save()) as HistoryInput<"list">["after"]) : null,
+          },
+        },
+      }),
+      "listing",
+    );
+    const basis = historyBasis(value.snapshot, snapshot);
+    if (
+      value.namespace !== namespace ||
+      value.entries.some(
+        (entry) =>
+          entry.namespace.id !== namespace ||
+          !isDeepStrictEqual(entry.namespace.scope, scope(this.connection.scope)),
+      )
+    )
+      throw new IncompatibleNative("Changed historical page scope");
+    const next =
+      value.next === null ? undefined : HistoryCursor.restore(JSON.stringify(value.next));
+    if (next && (next.snapshot.selector !== snapshot.selector || next.namespace !== namespace))
+      throw new IncompatibleNative("Changed historical continuation");
+    if (
+      value.next !== null &&
+      (!isDeepStrictEqual(value.next.directory.content, value.snapshot.sources_root) ||
+        value.next.directory.count !== value.snapshot.source_count ||
+        (cursor &&
+          nativeWide(value.next.after) <=
+            nativeWide(
+              (JSON.parse(cursor.save()) as NonNullable<HistoryInput<"list">["after"]>).after,
+            )))
+    )
+      throw new IncompatibleNative(
+        "Historical continuation changed directory or failed to advance",
+      );
+    return Object.freeze({
+      basis,
+      namespace,
+      entries: Object.freeze(value.entries.map(historyEntry)),
+      ...(next ? { next } : {}),
+    });
+  }
+  async historicalSource(snapshot: HistoricalSnapshot, objectId: bigint): Promise<HistorySource> {
+    const value = historyField(
+      await this.#bridge.call({
+        history: { source: { selector: snapshot.selector, object: positive(objectId).toString() } },
+      }),
+      "source",
+    );
+    const basis = historyBasis(value.snapshot, snapshot);
+    if (
+      value.binding.declaration.interpretation.object.object !== objectId.toString() ||
+      value.schema.object !== objectId.toString() ||
+      !isDeepStrictEqual(
+        value.binding.declaration.interpretation.object.scope,
+        value.snapshot.owner.scope,
+      ) ||
+      value.binding.declaration.interpretation.object.branch !== value.snapshot.branch
+    )
+      throw new IncompatibleNative("Changed historical source object");
+    return Object.freeze({
+      basis,
+      binding: historyEntry(value.binding),
+      schema: schemaValue(value.schema),
+      rowCount: nativeWide(value.rows),
+      changedLsn: nativeWide(value.changed_lsn),
+      authority: Object.freeze({ ...value.authority }),
+    });
+  }
+  private historyConnection(): HistoryInput<"inspect">["connection"] {
+    return {
+      scope: scope(this.connection.scope),
+      branch: this.connection.branch.toString(),
+      audience: this.connection.audience,
+      principal: this.#principal,
+      role: this.connection.role ?? null,
+    };
+  }
+  private historyKey(key: HistoryKey): HistoryInput<"inspect"> {
+    const value = JSON.parse(key.save()) as HistoryInput<"inspect">;
+    if (!isDeepStrictEqual(value.connection, this.historyConnection()))
+      throw new TypeError("Foreign history recovery connection");
+    return value;
   }
   prepareSnapshot(
     current: Pick<Metadata, "basis" | "position">,

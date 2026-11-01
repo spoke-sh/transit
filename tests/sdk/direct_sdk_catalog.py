@@ -41,9 +41,11 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
                    env=env, check=True, stdout=subprocess.DEVNULL)
     script = target / 'consumer.py'
     shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_catalog_sdk.py', script)
+    history_fixture = target / 'history-fixture.json'
+    shutil.copy2(ROOT / 'packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json', history_fixture)
     for test in ('python_catalog_values.py', 'python_relational_values.py'):
         shutil.copy2(ROOT / 'tests/sdk/consumers/python' / test, target / test)
-        subprocess.run([python, '-B', str(target / test)], cwd=target, env=env, check=True)
+        subprocess.run([python, '-B', str(target / test), *([str(history_fixture)] if test == 'python_catalog_values.py' else [])], cwd=target, env=env, check=True)
     seed = target / 'caller.seed'
     seed.write_text('7b'*32); seed.chmod(0o600)
     c = profile['catalog']
@@ -51,10 +53,10 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     config = target / 'client.json'
     config.write_text(json.dumps(dict(url=authority, service_url=service, connection=connection, seed_file=str(seed))))
     def connect(mode): return Consumer([python, '-B', str(script), mode, str(config)], env, target, read_timeout=180)
-    schedule(target, ('sync', 'async'), connect, restart, policy)
+    schedule(target, ('sync', 'async'), connect, restart, policy, historical_catalog=True)
 
 
-def schedule(target, modes, connect, restart, policy, *, retained_sql=True):
+def schedule(target, modes, connect, restart, policy, *, retained_sql=True, historical_catalog=False):
     for mode in modes:
         consumer = connect(mode)
         def replace():
@@ -71,18 +73,34 @@ def schedule(target, modes, connect, restart, policy, *, retained_sql=True):
             acquisition = (target / mode / 'acquisition.json').read_bytes()
             replace()
             assert consumer.call({'retained': {}})['opened' if retained_sql else 'retained']
+            if historical_catalog:
+                assert consumer.call({'history_begin': {}})['history_uncertain']
+                historical_original = (target / mode / 'history-acquisition.json').read_bytes()
+                replace()
+                assert consumer.call({'retained': {}})['opened']
+                assert consumer.call({'history_recover': {}})['published']
             policy(False)
-            try: assert consumer.call({'denied': dict(ordinal=0)})['denied']
+            try:
+                assert consumer.call({'denied': dict(ordinal=0)})['denied']
+                if historical_catalog: assert consumer.call({'history_denied': {}})['denied']
             finally: policy(True)
             assert consumer.call({'rows' if retained_sql else 'metadata': {}}) == (dict(rows=9, complete=True) if retained_sql else dict(rows=9, columns=2))
             policy(False)
             try: assert consumer.call({'denied': dict(ordinal=9)})['denied']
             finally: policy(True)
             assert consumer.call({'retire': {}})['original']
+            if historical_catalog: assert consumer.call({'history_inspect': {}})['original']
             assert consumer.call({'rows' if retained_sql else 'metadata': {}}) == (dict(rows=9, complete=True) if retained_sql else dict(rows=9, columns=2))
             assert consumer.call({'release': {}})['release_uncertain']
             replace()
             assert consumer.call({'verify': {}})['recovered']
+            if historical_catalog:
+                assert consumer.call({'history_release': {}})['history_release_uncertain']
+                historical_control = (target / mode / 'history-control.json').read_bytes()
+                replace()
+                assert consumer.call({'history_finish': {}})['released']
+                assert (target / mode / 'history-acquisition.json').read_bytes() == historical_original
+                assert (target / mode / 'history-control.json').read_bytes() == historical_control
             assert (target / mode / 'original.json').read_bytes() == original
             assert (target / mode / 'intent.json').read_bytes() == intent
             assert (target / mode / 'acquisition.json').read_bytes() == acquisition
@@ -121,7 +139,7 @@ def exercise_node(packages, root, authority, service, profile, restart, policy):
     def connect(mode):
         assert mode == 'node'
         return Consumer(['node', str(script), str(config)], env, target, read_timeout=180)
-    schedule(target, ('node',), connect, restart, policy)
+    schedule(target, ('node',), connect, restart, policy, historical_catalog=True)
 
 
 def exercise_ruby(packages, root, authority, service, profile, restart, policy):

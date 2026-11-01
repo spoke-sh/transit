@@ -433,6 +433,52 @@ def persist(path, content):
         assert path.read_bytes() == content, f"Direct Table contract drift: {path}"
 
 
+# Independent language-neutral history oracle: all u64 identities remain decimal
+# strings, while native authority IDs remain bounded JSON numbers.
+def history_host_scope(value):
+    return dict(realm=value["realm"], resource=value["resource"], catalog=str(value["catalog"]))
+
+
+def history_host_operation(value):
+    return dict(scope=history_host_scope(value["scope"]), principal=value["principal"], operation=str(value["operation"]))
+
+
+def history_host_content(value):
+    return dict(bytes=str(value["bytes"]), sha256=bytes(value["sha256"]).hex())
+
+
+def history_host_directory(value):
+    return dict(content=history_host_content(value["content"]), count=str(value["count"]))
+
+
+def history_host_key(value):
+    connection = value["connection"]
+    return dict(definition=value["definition"], connection=dict(connection, scope=history_host_scope(connection["scope"]), branch=str(connection["branch"])),
+                account=bytes(value["account"]).hex(), token=bytes(value["token"]).hex())
+
+
+def history_host_cut(value):
+    return dict(transaction=history_host_operation(value["transaction"]), acquired={k: str(v) for k, v in value["acquired"].items()},
+                sources=history_host_content(value["sources"]), source_count=str(value["source_count"]))
+
+
+common_acquire = common_history_fixture["request"]["action"]["historical_catalog"]["acquire"]
+common_intent = common_acquire["intent"]
+common_snapshot = common_history_fixture["snapshot"]
+history_host_key_value = history_host_key(common_acquire["key"])
+history_host = dict(
+    acquire=dict(key=history_host_key_value,
+                 intent=dict(definition=definition, connection=history_host_key_value["connection"], namespace=common_intent["namespace"], operation=str(common_intent["operation"]),
+                             selection=history_host_directory(common_intent["selection"]),
+                             common=dict(key=history_host_key(common_intent["common"]["key"]), cut=history_host_cut(common_intent["common"]["cut"]))),
+                 budget=dict(operations="1000000", bytes="4294967296", pending="1024", charge_bytes="4608")),
+    snapshot=dict(selector=common_history_fixture["selector"], definition=definition, owner=history_host_operation(common_snapshot["owner"]), branch=str(common_snapshot["branch"]),
+                  catalog_root=history_host_content(common_snapshot["catalog_root"]), sources_root=history_host_content(common_snapshot["sources_root"]), source_count=str(common_snapshot["source_count"]),
+                  consistency=dict(common_transaction=history_host_cut(common_snapshot["consistency"]["common_transaction"]))),
+)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json", (json.dumps(history_host, indent=2) + "\n").encode())
+
+
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-common-v1.json",
         (json.dumps(common_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())

@@ -82,6 +82,7 @@ def run(node, caller, mode="tables", *artifacts):
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
+        history_faults = set()
         accepted_inspections = []
         pressure_scan = []
         capture_pressure_scan = False
@@ -338,6 +339,19 @@ def run(node, caller, mode="tables", *artifacts):
                                     parsed["context"][0] ^= 1
                                     data = json.dumps(parsed).encode()
                                     retention_faults.add(key)
+                        historical = envelope["action"].get("historical_catalog")
+                        if mode in ("sdk-python", "sdk-node") and historical and any(tag in historical for tag in ("acquire", "release")):
+                            tag = "acquire" if "acquire" in historical else "release"
+                            assert response.status == 200, data
+                            parsed = json.loads(data)
+                            status = parsed["result"]["historical_catalog"]["status"]
+                            operation = status["receipt"]["binding"]["intent"]["history"]["operation"]
+                            key = (operation, tag)
+                            if operation in (92000, 92010) and key not in history_faults:
+                                assert status["state"]["phase"] == ("acquiring" if tag == "acquire" else "releasing"), status
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                history_faults.add(key)
                         if mode in ("board", "board-browser"):
                             for selected, tag in ((pin, "pin"), (release, "release")):
                                 if selected and board_fault["next"] == tag:
@@ -775,6 +789,8 @@ def run(node, caller, mode="tables", *artifacts):
                 exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), restart, policy)
                 assert abi_faults == ({2} if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else {2, 12}), abi_faults
                 assert retention_faults == {(operation, tag) for operation in ((90000,) if mode in ("sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust") else (90000, 90010)) for tag in ("pin", "release")}, retention_faults
+                if mode in ("sdk-python", "sdk-node"):
+                    assert history_faults == {(operation, tag) for operation in ((92000,) if mode == "sdk-node" else (92000, 92010)) for tag in ("acquire", "release")}, history_faults
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 assert list((root / "native").rglob("*.tseg"))
                 retained = "retained metadata with current access" if mode in ("sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else "cached/terminal revocation and retained SQL"

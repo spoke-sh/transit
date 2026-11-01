@@ -430,6 +430,14 @@ function catalogMutation(action: CatalogAction): boolean {
   if ("stage" in action || "admit" in action) return true;
   if ("operation" in action) return action.operation.command !== "inspect";
   if ("retention" in action) return "acquire" in action.retention || "release" in action.retention;
+  if ("history" in action)
+    return (
+      "select" in action.history ||
+      "acquire" in action.history ||
+      "advance" in action.history ||
+      "abandon" in action.history ||
+      "release" in action.history
+    );
   if ("dependencies" in action)
     return (
       "operation" in action.dependencies && action.dependencies.operation.command !== "inspect"

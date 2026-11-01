@@ -13,6 +13,12 @@ import {
   Identity,
   SavedIntent,
   Reference,
+  HistorySelection,
+  HistorySelectionStep,
+  HistoryAcquisition,
+  HistoryControl,
+  HistoricalSnapshot,
+  HistoryCursor,
   SnapshotOwner,
   SnapshotAcquisition,
   Snapshot,
@@ -790,4 +796,245 @@ test("committed DDL retains pending dependency settlement and its original ident
   });
   operation.requires_settlement = false;
   await withHost(value, (client) => assert.rejects(client.inspect(original), IncompatibleNative));
+});
+
+const historyFixture = JSON.parse(
+  await readFile(
+    new URL(
+      "../../../../packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const historyAcquisition = HistoryAcquisition.restore(JSON.stringify(historyFixture.acquire));
+const historyKey = historyAcquisition.key;
+const historicalSnapshot = new HistoricalSnapshot(historyFixture.snapshot.selector);
+const historyStatus = {
+  key: historyFixture.acquire.key,
+  intent: historyFixture.acquire.intent,
+  admitted: { partition: "1", next_lsn: "20" },
+  revision: { partition: "1", next_lsn: "30" },
+  phase: "published",
+  retained: { content: historyFixture.snapshot.sources_root, count: "2" },
+  after: maximum.toString(),
+  inflight: null,
+  verified_after: maximum.toString(),
+  policy_epoch: maximum.toString(),
+  released_after: null,
+  snapshot: historyFixture.snapshot,
+};
+const historyNamespace = {
+  scope: fixture.host.connection.scope,
+  id: 1,
+  authorization: 10,
+  name: "original",
+  revision: maximum.toString(),
+};
+const historyEntry = {
+  namespace: historyNamespace,
+  name: "items",
+  declaration: stored,
+  accepted: metadata.position,
+  catalog: { partition: "1", next_lsn: "12" },
+};
+const historyPage = {
+  snapshot: historyFixture.snapshot,
+  namespace: 1,
+  entries: [historyEntry],
+  next: {
+    selector: historicalSnapshot.selector,
+    namespace: 1,
+    directory: { content: historyFixture.snapshot.sources_root, count: "2" },
+    after: "7",
+  },
+};
+
+test("history values own full-width original common acquisition and reject missing definitions", async () => {
+  assert.equal(historyAcquisition.operation, maximum);
+  assert.equal(historyAcquisition.common?.transaction.operation, maximum - 1n);
+  assert.deepEqual(JSON.parse(historyAcquisition.save()), historyFixture.acquire);
+  assert.equal(
+    HistoricalSnapshot.restore(historicalSnapshot.save()).selector,
+    historicalSnapshot.selector,
+  );
+  for (const field of ["definition", "common", "selection"]) {
+    const invalid = structuredClone(historyFixture.acquire);
+    delete invalid.intent[field];
+    assert.throws(() => HistoryAcquisition.restore(JSON.stringify(invalid)), IncompatibleNative);
+  }
+  const invalid = structuredClone(historyFixture.acquire);
+  invalid.intent.operation = Number(maximum);
+  assert.throws(() => HistoryAcquisition.restore(JSON.stringify(invalid)), IncompatibleNative);
+  assert.throws(() => new HistoricalSnapshot("00".repeat(193)));
+  await withHost({ history: { status: historyStatus } }, async (client, requests) => {
+    const common = historyAcquisition.common!;
+    const original = client.prepareCommonHistoryAcquisition(
+      historyKey,
+      maximum,
+      1,
+      historyAcquisition.selection,
+      historyAcquisition.commonKey!,
+      common,
+    );
+    assert.deepEqual(JSON.parse(original.save()), historyFixture.acquire);
+    const result = await client.acquireHistory(original);
+    assert.equal(result.phase, "published");
+    assert.equal(result.intent.operation, maximum);
+    assert.equal(result.policyEpoch, maximum);
+    assert.equal(result.basis?.consistency.kind, "common_transaction");
+    assert.equal(result.basis?.owner.scope.catalog, maximum);
+    assert.equal(result.basis?.snapshot.selector, historicalSnapshot.selector);
+    await client.close();
+    const sent = (await requests()).filter((item) => item.catalog?.history);
+    assert.equal(sent.length, 1); // Closing is not an explicit release.
+    assert.deepEqual(sent[0].catalog.history.acquire, historyFixture.acquire);
+  });
+});
+
+test("history uncertainty preserves acquisition, selected step and exact release command", async () => {
+  await withHost("loss", async (client) => {
+    await assert.rejects(
+      client.acquireHistory(historyAcquisition),
+      (error) => error instanceof Uncertain && error.recovery === historyAcquisition,
+    );
+  });
+  await withHost("loss", async (client) => {
+    const selection = client.prepareHistorySelection(maximum);
+    const step = client.prepareHistoryStep(selection, 1, "items");
+    assert.equal(HistorySelectionStep.restore(step.save()).selection.owner.operation, maximum);
+    await assert.rejects(
+      client.selectHistory(step),
+      (error) => error instanceof Uncertain && error.recovery === step,
+    );
+  });
+  await withHost("loss", async (client) => {
+    await assert.rejects(
+      client.releaseHistory(historyKey),
+      (error) =>
+        error instanceof Uncertain &&
+        error.recovery instanceof HistoryControl &&
+        error.recovery.command === "release" &&
+        error.recovery.key.save() === historyKey.save(),
+    );
+  });
+  for (const mutate of [
+    (value: typeof historyStatus) => {
+      value.intent.operation = "1";
+    },
+    (value: typeof historyStatus) => {
+      value.snapshot = { ...value.snapshot, owner: { ...value.snapshot.owner, operation: "1" } };
+    },
+    (value: typeof historyStatus) => {
+      value.key = { ...value.key, token: "00".repeat(16) };
+    },
+  ]) {
+    const changed = structuredClone(historyStatus);
+    mutate(changed);
+    await withHost({ history: { status: changed } }, (client) =>
+      assert.rejects(
+        client.acquireHistory(historyAcquisition),
+        (error) => error instanceof Uncertain && error.recovery === historyAcquisition,
+      ),
+    );
+  }
+});
+
+test("history selection is explicit and never reacquires moving names during acquisition", async () => {
+  const selected = {
+    definition: contract.definition,
+    owner: historyFixture.snapshot.owner,
+    branch: "1",
+    directory: { content: historyFixture.snapshot.catalog_root, count: "2" },
+  };
+  await withHost({ history: { selection: selected } }, async (client, requests) => {
+    const step = client.prepareHistoryStep(client.prepareHistorySelection(maximum), 1, "items");
+    const result = await client.selectHistory(step);
+    const acquisition = client.prepareHistoryAcquisition(result, historyKey);
+    assert.equal(result.directory?.count, 2n);
+    assert.equal(JSON.parse(acquisition.save()).intent.common, null);
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    assert.equal(HistorySelection.restore(result.save()).owner.operation, maximum);
+  });
+});
+
+test("historical metadata preserves immutable basis, wide revisions, bounded pages and cursor scope", async () => {
+  await withHost({ history: { listing: historyPage } }, async (client, requests) => {
+    const page = await client.historicalTables(historicalSnapshot, 1);
+    assert.equal(page.entries[0]?.namespace.revision, maximum);
+    assert.equal(page.basis.sourceCount, 2n);
+    assert.equal(page.basis.snapshot, historicalSnapshot);
+    const cursor = HistoryCursor.restore(page.next!.save());
+    await assert.rejects(client.historicalTables(historicalSnapshot, 2, cursor), TypeError);
+    await assert.rejects(
+      client.historicalTables(new HistoricalSnapshot("00".repeat(297)), 1, cursor),
+      TypeError,
+    );
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    await assert.rejects(
+      client.historicalTables(historicalSnapshot, 1, cursor),
+      IncompatibleNative,
+    ); // no progress
+  });
+  for (const changed of [
+    { ...historyPage, snapshot: { ...historyPage.snapshot, selector: "00".repeat(297) } },
+    { ...historyPage, namespace: 2 },
+    {
+      ...historyPage,
+      next: { ...historyPage.next, directory: { ...historyPage.next.directory, count: "3" } },
+    },
+    { ...historyPage, entries: Array(9).fill(historyEntry) },
+  ])
+    await withHost({ history: { listing: changed } }, (client) =>
+      assert.rejects(client.historicalTables(historicalSnapshot, 1)),
+    );
+  await withHost(
+    { history: { listing: { ...historyPage, entries: [], next: null } } },
+    async (client) => {
+      const page = await client.historicalTables(historicalSnapshot, 1);
+      assert.equal(page.entries.length, 0);
+      assert.equal(page.next, undefined);
+    },
+  );
+  await withHost({ history: { namespace: historyNamespace } }, async (client) => {
+    assert.equal(
+      (await client.historicalNamespace(historicalSnapshot, "original"))?.revision,
+      maximum,
+    );
+  });
+  await withHost(
+    {
+      history: {
+        source: {
+          snapshot: historyFixture.snapshot,
+          binding: historyEntry,
+          schema: metadata.schema,
+          rows: maximum.toString(),
+          changed_lsn: maximum.toString(),
+          authority: { database: 9, schema: 10, table: 11 },
+        },
+      },
+    },
+    async (client) => {
+      const source = await client.historicalSource(historicalSnapshot, 7n);
+      assert.equal(source.rowCount, maximum);
+      assert.equal(source.changedLsn, maximum);
+      assert.equal(source.schema.columns[0]?.collation, "ebcdic_cp037");
+    },
+  );
+});
+
+test("lost historical metadata replies remain read failures", async () => {
+  await withHost("loss", (client) =>
+    assert.rejects(
+      client.inspectHistory(historyKey),
+      (error) => error instanceof ReadFailed && !(error instanceof Uncertain),
+    ),
+  );
+  await withHost("loss", (client) =>
+    assert.rejects(
+      client.historicalSource(historicalSnapshot, 7n),
+      (error) => error instanceof ReadFailed && !(error instanceof Uncertain),
+    ),
+  );
 });

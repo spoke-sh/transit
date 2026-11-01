@@ -181,6 +181,16 @@ wrapper limits. DDL observations distinguish `finalizing` (Table commit accepted
 dependency cleanup pending) from `committed`; continue the original operation
 to settlement rather than resubmitting SQL.
 
+Python and TypeScript also expose typed historical catalog selection, acquisition,
+explicit progress/release, and bounded metadata inspection through the same
+shared Catalog host. Saved requests preserve original account/token and operation
+identities, including common transaction cuts. Published snapshots report exact
+catalog/source roots and consistency; current rights govern disclosure. Closing
+an SDK client does not release durable history. See the language catalog guides
+for `HistoryAcquisition`, `HistoricalSnapshot` and `HistoryCursor`. These adapters
+provide metadata operations; row results use the shared SQL result lifecycle.
+Other language Catalog wrappers retain their documented current-catalog profile.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

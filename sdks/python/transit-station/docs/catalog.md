@@ -141,3 +141,57 @@ administration, policy preparation, dependencies and named resources have shared
 native actions; Python's typed catalog methods here cover Table lifecycle and
 inspection plus snapshot retention. The [proof ledger](../../../../docs/history/qualification/README.md)
 records installed qualification separately from source-level decoder tests.
+
+## Historical catalogs
+
+Historical catalogs retain selected Table names, definitions and exact data
+cuts. Current rights govern every operation. Selection alone does not retain
+data; a usable snapshot is returned only when acquisition reaches `published`.
+
+```python
+key = client.prepare_history_key(account_bytes, token_bytes)
+selected = client.prepare_history_selection(operation)
+step = client.prepare_history_step(selected, namespace, 'events')
+save(step.save())
+selected = client.select_history(step)
+request = client.prepare_history_acquisition(selected, key, namespace)
+save(request.save())
+status = client.acquire_history(request)
+# Persist key and inspect/advance explicitly until status.phase == 'published'.
+```
+
+Select additional names through successive saved steps before acquisition.
+`advance_history(key)` performs one bounded step. `inspect_history(key)` observes
+the original work; `abandon_history(key)` closes an unfinished acquisition.
+`release_history(key)` starts release of published history, with further explicit
+advances until completion. There is no implicit polling or settlement.
+`prepare_history_control` creates a savable `HistoryControl` with the exact
+command for `resume_history_control`.
+
+`Uncertain.original` preserves the complete `HistorySelectionStep`,
+`HistoryAcquisition` or `HistoryControl`. Save/restore retains the account, token,
+operation, connection, selected directory and optional common-cut evidence.
+A lost selection reply is not acceptance. Retrying a selection step resolves
+its requested name again; acquisition always uses the saved immutable directory.
+Read failures establish no mutation outcome.
+
+`prepare_common_history_acquisition` accepts the original transaction key, exact
+acquired catalog directory and `HistoryCommonCut`. The shared owner verifies
+membership and transfers the original cuts to independent history pins. Callers
+must save the resulting acquisition before dispatch. Independent source vectors
+cannot be relabeled as a common transaction cut.
+
+Published `status.basis` includes the definition, original owner, branch,
+catalog/source roots, source count and explicit consistency. Save its opaque
+`HistoricalSnapshot` separately. `historical_namespace`, `historical_lookup`,
+`historical_tables` and `historical_source` expose retained names, definitions,
+schema, accepted positions and row counts under current rights. Source reads are
+metadata only; row results use the shared SQL lifecycle and
+[SQL snapshot selector](../../../../docs/handbook/reference/sql.md).
+
+Pages contain at most eight entries and a snapshot/namespace/directory-bound
+`HistoryCursor`. Empty pages may still have continuations. Returned values are
+owned, immutable, and retain full-width Python integers. `AsyncClient` provides
+the same remote methods as awaitables; all `prepare_*` methods remain local.
+Cancelling an await leaves the native work owned, and close joins it without
+abandoning acquisitions or releasing durable history.

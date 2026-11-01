@@ -297,6 +297,14 @@ at this source.
 | SQL and results | M4 result lifecycle, M5 Table transactions, shared SQL readers and direct compilation are integrated | [`FOR SYSTEM_TIME AS OF`](../handbook/reference/sql/as-of.md) remains an isolated grammar fragment. No production historical selector/name binding, explicit projection or historical result provenance is provided by the fixture helper. |
 | Verification | [`historical_catalog_test.zig`](../../packages/zig/transit-catalog/src/historical_catalog_test.zig) exercises helper semantics; [`historical_catalog.py`](../../tests/catalog/tables/historical_catalog.py) regenerates neutral fixtures | Independent execution correspondence, installed callers, disk recovery, authorization races, bounded growth and one-revision closure. Matching generated fixtures is not an independent semantic oracle. |
 
+The Python and TypeScript Catalog adapters now expose owned historical selections,
+acquisitions, exact control recovery, common-cut inputs and bounded metadata
+pages through the existing shared host. Development tests cover full-width
+independent neutral fixtures, host loss, changed response identities, cursor
+scope/progress, and joined Python cancellation. These are boundary tests; the
+installed language journey, Board inspection and final clean qualification remain
+open with the other P3/P5/P6/P7 work.
+
 ### Recent foundations and upcoming handoffs
 
 | Owner and roadmap status | Progress to consume | M10 dependency or handoff |

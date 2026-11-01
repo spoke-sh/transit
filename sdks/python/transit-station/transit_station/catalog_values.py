@@ -6,7 +6,7 @@ import copy
 import json
 import math
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar, cast
 from transit_client import ResourceRef
 from transit_client._native import encode
 from transit_client.types import integer, owned_bytes
@@ -1305,3 +1305,318 @@ def _snapshot_metadata(value: object, snapshot: Snapshot) -> SnapshotMetadata:
     if (value['snapshot'] != snapshot._wire() or stored.interpretation.object != snapshot.owner.object or
         schema.object_id != snapshot.owner.object.object_id): raise ValueError('Changed retained source')
     return SnapshotMetadata(snapshot, stored, _position(value['accepted']), _decimal(value['changed_lsn'], 0), _decimal(value['row_count'], 0), schema, _authority(value['authority']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryOperation:
+    scope: Scope
+    principal: int
+    operation: int
+    def _wire(self) -> dict[str, object]:
+        return dict(scope=self.scope._wire(), principal=integer(self.principal, 'principal', minimum=0), operation=str(_wide(self.operation)))
+
+
+def _history_operation(value: object) -> HistoryOperation:
+    value = _object(value, 'scope principal operation')
+    return HistoryOperation(_scope(value['scope']), integer(value['principal'], 'principal', minimum=0), _decimal(value['operation']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryDirectory:
+    content: Content
+    count: int
+    def _wire(self) -> dict[str, object]:
+        return dict(content=dict(bytes=str(_wide(self.content.bytes)), sha256=_digest(self.content.sha256)), count=str(_wide(self.count)))
+
+
+def _history_directory(value: object) -> HistoryDirectory:
+    value = _object(value, 'content count')
+    return HistoryDirectory(_content(value['content']), _decimal(value['count']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCommonCut:
+    transaction: HistoryOperation
+    acquired: Position
+    sources: Content
+    source_count: int
+    def _wire(self) -> dict[str, object]:
+        return dict(transaction=self.transaction._wire(), acquired=self.acquired._wire(),
+                    sources=dict(bytes=str(_wide(self.sources.bytes)), sha256=_digest(self.sources.sha256)), source_count=str(_wide(self.source_count)))
+
+
+def _history_cut(value: object) -> HistoryCommonCut:
+    value = _object(value, 'transaction acquired sources source_count')
+    return HistoryCommonCut(_history_operation(value['transaction']), _position(value['acquired']), _content(value['sources']), _decimal(value['source_count']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryBudget:
+    operations: int = 1_000_000
+    bytes: int = 4_294_967_296
+    pending: int = 1024
+    charge_bytes: int = 4608
+    def _wire(self) -> dict[str, str]:
+        return {key: str(_wide(getattr(self, key))) for key in ('operations', 'bytes', 'pending', 'charge_bytes')}
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySelection(_Saved):
+    """Immutable selection directory; this does not retain its data."""
+    @classmethod
+    def restore(cls, saved: str) -> HistorySelection: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition owner branch directory'); _definition(value['definition'])
+        _history_operation(value['owner']); _decimal(value['branch'])
+        if value['directory'] is not None: _history_directory(value['directory'])
+    @property
+    def owner(self) -> HistoryOperation: return _history_operation(self._wire()['owner'])
+    @property
+    def branch(self) -> int: return _decimal(self._wire()['branch'])
+    @property
+    def directory(self) -> HistoryDirectory | None:
+        value = self._wire()['directory']
+        return None if value is None else _history_directory(value)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryKey(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryKey: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition connection account token'); _definition(value['definition']); _connection(value['connection'])
+        _hex(value['account'], 32, True); _hex(value['token'], 16, True)
+    @property
+    def account(self) -> bytes: return _hex(self._wire()['account'], 32, True)
+    @property
+    def token(self) -> bytes: return _hex(self._wire()['token'], 16, True)
+    def _check(self, connection: Connection, principal: int) -> dict[str, Any]:
+        value = _object(self._wire(), 'definition connection account token')
+        if value['connection'] != connection._wire(principal): raise ValueError('Foreign history recovery connection')
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySelectionStep(_Saved):
+    """Save before dispatch; retrying selection is not retention acceptance."""
+    @classmethod
+    def restore(cls, saved: str) -> HistorySelectionStep: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selection namespace name')
+        HistorySelection.restore(encode(value['selection']).decode()); integer(value['namespace'], 'namespace'); _name(value['name'])
+    @property
+    def selection(self) -> HistorySelection: return HistorySelection.restore(encode(self._wire()['selection']).decode())
+    @property
+    def namespace(self) -> int: return integer(self._wire()['namespace'], 'namespace')
+    @property
+    def name(self) -> str: return _name(self._wire()['name'])
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryIntent:
+    operation: int
+    namespace: int
+    selection: HistoryDirectory
+    common_key: HistoryKey | None
+    common_cut: HistoryCommonCut | None
+
+
+def _history_intent(value: object, key: HistoryKey) -> HistoryIntent:
+    value = _object(value, 'definition connection namespace operation selection common'); _definition(value['definition'])
+    if value['connection'] != key._wire()['connection']: raise ValueError('Changed history intent connection')
+    common_key, common_cut = None, None
+    if value['common'] is not None:
+        common = _object(value['common'], 'key cut')
+        common_key = HistoryKey.restore(encode(common['key']).decode()); common_cut = _history_cut(common['cut'])
+    return HistoryIntent(_decimal(value['operation']), integer(value['namespace'], 'namespace'), _history_directory(value['selection']), common_key, common_cut)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryAcquisition(_Saved):
+    """Complete original request, including selected directory and common cut."""
+    @classmethod
+    def restore(cls, saved: str) -> HistoryAcquisition: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        if not isinstance(value, dict) or set(value) not in ({'key', 'intent'}, {'key', 'intent', 'budget'}): raise ValueError('Unexpected history acquisition fields')
+        _history_intent(value['intent'], HistoryKey.restore(encode(value['key']).decode()))
+        if 'budget' in value:
+            budget = value['budget']
+            if not isinstance(budget, dict) or not set(budget) <= {'operations', 'bytes', 'pending', 'charge_bytes'}: raise ValueError('Unexpected history budget fields')
+            for limit in budget.values(): _decimal(limit)
+    @property
+    def key(self) -> HistoryKey: return HistoryKey.restore(encode(self._wire()['key']).decode())
+    @property
+    def intent(self) -> HistoryIntent: return _history_intent(self._wire()['intent'], self.key)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryControl(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryControl: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        command, key = _variant(value); _one_of(command, ('advance', 'abandon', 'release')); HistoryKey.restore(encode(key).decode())
+    @property
+    def command(self) -> str: return _variant(self._wire())[0]
+    @property
+    def key(self) -> HistoryKey: return HistoryKey.restore(encode(_variant(self._wire())[1]).decode())
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalSnapshot:
+    """Opaque selector, verified by the shared owner on every operation."""
+    selector: str
+    def __post_init__(self) -> None: _hex(self.selector, 297, True)
+    def save(self) -> str: return encode(dict(selector=self.selector)).decode()
+    @classmethod
+    def restore(cls, saved: str) -> HistoricalSnapshot:
+        return cls(_object(_saved(saved), 'selector')['selector'])
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryBasis:
+    definition: str
+    snapshot: HistoricalSnapshot
+    owner: HistoryOperation
+    branch: int
+    catalog_root: Content
+    sources_root: Content
+    source_count: int
+    consistency: Literal['single_partition', 'independent', 'common_transaction']
+    position: Position | None
+    common_cut: HistoryCommonCut | None
+
+
+def _history_basis(value: object, selected: HistoricalSnapshot | None = None) -> HistoryBasis:
+    value = _object(value, 'selector definition owner branch catalog_root sources_root source_count consistency'); _definition(value['definition'])
+    snapshot = HistoricalSnapshot(value['selector'])
+    if selected is not None and snapshot != selected: raise ValueError('Changed historical snapshot')
+    kind, payload = _variant(value['consistency'])
+    if kind not in ('single_partition', 'independent', 'common_transaction'): raise ValueError('Unknown history consistency')
+    position = _position(payload) if kind == 'single_partition' else None
+    common = _history_cut(payload) if kind == 'common_transaction' else None
+    if kind == 'independent': _object(payload, '')
+    return HistoryBasis(value['definition'], snapshot, _history_operation(value['owner']), _decimal(value['branch']), _content(value['catalog_root']),
+                        _content(value['sources_root']), _decimal(value['source_count']), cast(Literal['single_partition', 'independent', 'common_transaction'], kind), position, common)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryStatus:
+    key: HistoryKey
+    intent: HistoryIntent
+    admitted: Position
+    revision: Position
+    phase: Literal['acquiring', 'verifying', 'published', 'abandoning', 'cancelled', 'releasing', 'released']
+    retained: HistoryDirectory | None
+    after: int | None
+    inflight: int | None
+    verified_after: int | None
+    policy_epoch: int | None
+    released_after: int | None
+    basis: HistoryBasis | None
+
+
+def _history_status(value: object, key: HistoryKey, original: HistoryAcquisition | None = None) -> HistoryStatus | None:
+    if value is None: return None
+    value = _object(value, 'key intent admitted revision phase retained after inflight verified_after policy_epoch released_after snapshot')
+    if value['key'] != key._wire() or (original is not None and value['intent'] != original._wire()['intent']): raise ValueError('Changed original history acquisition')
+    intent = _history_intent(value['intent'], key)
+    phase = value['phase']
+    if phase not in ('acquiring', 'verifying', 'published', 'abandoning', 'cancelled', 'releasing', 'released'): raise ValueError('Unknown history phase')
+    published = phase in ('published', 'releasing', 'released')
+    if published != (value['snapshot'] is not None): raise ValueError('Missing or premature history publication')
+    if value['snapshot'] is not None:
+        snapshot = _object(value['snapshot'], 'selector definition owner branch catalog_root sources_root source_count consistency')
+        connection = value['key']['connection']; original_intent = value['intent']; common = original_intent['common']
+        consistency, evidence = _variant(snapshot['consistency'])
+        if (snapshot['owner'] != dict(scope=connection['scope'], principal=connection['principal'], operation=original_intent['operation']) or
+            snapshot['branch'] != connection['branch'] or snapshot['source_count'] != original_intent['selection']['count'] or snapshot['catalog_root'] != original_intent['selection']['content'] or
+            (common is not None and (consistency != 'common_transaction' or evidence != common['cut'])) or (common is None and consistency == 'common_transaction')):
+            raise ValueError('Changed published history basis')
+    def optional(name: str) -> int | None: return None if value[name] is None else _decimal(value[name], 0)
+    return HistoryStatus(key, intent, _position(value['admitted']), _position(value['revision']), phase,
+                         None if value['retained'] is None else _history_directory(value['retained']), optional('after'), optional('inflight'),
+                         optional('verified_after'), optional('policy_epoch'), optional('released_after'),
+                         None if value['snapshot'] is None else _history_basis(value['snapshot']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryNamespace:
+    scope: Scope
+    id: int
+    authorization: int
+    name: str
+    revision: int
+
+
+def _history_namespace(value: object) -> HistoryNamespace:
+    value = _object(value, 'scope id authorization name revision')
+    return HistoryNamespace(_scope(value['scope']), integer(value['id'], 'namespace'), integer(value['authorization'], 'authorization'), _name(value['name']), _decimal(value['revision']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryEntry:
+    namespace: HistoryNamespace
+    name: str
+    definition: StoredDefinition
+    accepted: Position
+    catalog: Position
+
+
+def _history_entry(value: object) -> HistoryEntry:
+    value = _object(value, 'namespace name declaration accepted catalog')
+    return HistoryEntry(_history_namespace(value['namespace']), _name(value['name']), _stored(value['declaration']), _position(value['accepted']), _position(value['catalog']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCursor(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryCursor: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selector namespace directory after')
+        HistoricalSnapshot(value['selector']); integer(value['namespace'], 'namespace'); _history_directory(value['directory']); _decimal(value['after'])
+    @property
+    def snapshot(self) -> HistoricalSnapshot: return HistoricalSnapshot(self._wire()['selector'])
+    @property
+    def namespace(self) -> int: return integer(self._wire()['namespace'], 'namespace')
+    def _check(self, snapshot: HistoricalSnapshot, namespace: int) -> object:
+        if self.snapshot != snapshot or self.namespace != namespace: raise ValueError('History cursor belongs to a different selection')
+        return self._wire()
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryPage:
+    basis: HistoryBasis
+    namespace: int
+    entries: tuple[HistoryEntry, ...]
+    next: HistoryCursor | None
+
+
+def _history_page(value: object, snapshot: HistoricalSnapshot, scope: Scope, namespace: int, previous: HistoryCursor | None = None) -> HistoryPage:
+    value = _object(value, 'snapshot namespace entries next'); basis = _history_basis(value['snapshot'], snapshot)
+    if value['namespace'] != namespace or not isinstance(value['entries'], list) or len(value['entries']) > 8: raise ValueError('Changed history page scope or bound')
+    entries = tuple(_history_entry(item) for item in value['entries'])
+    if any(item.namespace.id != namespace or item.namespace.scope != scope for item in entries): raise ValueError('Changed history entry scope')
+    cursor = None if value['next'] is None else HistoryCursor.restore(encode(value['next']).decode())
+    if cursor:
+        cursor._check(snapshot, namespace)
+        native = cursor._wire()
+        if _history_directory(native['directory']) != HistoryDirectory(basis.sources_root, basis.source_count) or (previous is not None and _decimal(native['after']) <= _decimal(previous._wire()['after'])):
+            raise ValueError('Historical continuation changed directory or failed to advance')
+    return HistoryPage(basis, namespace, entries, cursor)
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySource:
+    basis: HistoryBasis
+    binding: HistoryEntry
+    schema: Schema
+    row_count: int
+    changed_lsn: int
+    authority: ReadAuthority
+
+
+def _history_source(value: object, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
+    value = _object(value, 'snapshot binding schema rows changed_lsn authority')
+    basis = _history_basis(value['snapshot'], snapshot); binding = _history_entry(value['binding']); schema = _schema(value['schema'])
+    if binding.definition.interpretation.object.object_id != object_id or schema.object_id != object_id or binding.definition.interpretation.object.scope != basis.owner.scope or binding.definition.interpretation.object.branch != basis.branch: raise ValueError('Changed historical source object')
+    return HistorySource(basis, binding, schema, _decimal(value['rows'], 0), _decimal(value['changed_lsn'], 0), _authority(value['authority']))

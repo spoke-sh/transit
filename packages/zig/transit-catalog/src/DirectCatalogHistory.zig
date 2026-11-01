@@ -320,3 +320,18 @@ test "historical shared host rejects invalid selectors before transport and pres
     try t.expectEqual(.read, failure.stage);
     try t.expectEqual(.not_applicable, failure.outcome);
 }
+
+test "independent neutral history fixture matches shared caller projection" {
+    const t = std.testing;
+    const Native = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8, intent_digest: [32]u8, snapshot: d.Snapshot, selector: []const u8 };
+    const Host = struct { acquire: @FieldType(Action, "acquire"), snapshot: Snapshot };
+    const native = try p.Json.parseFromSlice(Native, t.allocator, @embedFile("fixtures/direct-history-common-v1.json"));
+    defer native.deinit();
+    const host = try p.Json.parseFromSlice(Host, t.allocator, @embedFile("fixtures/direct-history-host-v1.json"));
+    defer host.deinit();
+    try t.expectEqualDeep(native.value.request.action.historical_catalog.acquire, (try (Action{ .acquire = host.value.acquire }).native()).acquire);
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const projected = try Snapshot.foreign(output.allocator(), native.value.snapshot);
+    try t.expectEqualDeep(host.value.snapshot, projected);
+}

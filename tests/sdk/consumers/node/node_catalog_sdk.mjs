@@ -162,6 +162,61 @@ try {
       assert.equal((await client.lookup(name)).basis.definition.interpretation.object.objectId, objectId-1n);
       assert.equal((await client.tables(1)).consistency, 'independent');
       write({recovered:true});
+    } else if (command === 'history_begin') {
+      const key = client.prepareHistoryKey(new Uint8Array(32).fill(67), Buffer.from((92000n).toString(16).padStart(32, '0'), 'hex'));
+      const step = client.prepareHistoryStep(client.prepareHistorySelection(92000n), 1, name);
+      await persist('history-step.json', step.save());
+      const selected = await client.selectHistory(step);
+      const original = client.prepareHistoryAcquisition(selected, key);
+      await persist('history-acquisition.json', original.save());
+      await uncertain(() => client.acquireHistory(original), original);
+      write({history_uncertain:true});
+    } else if (command === 'history_recover') {
+      const original = m.HistoryAcquisition.restore(await read('history-acquisition.json'));
+      let status = await client.inspectHistory(original.key);
+      assert.equal(status.intent.operation, 92000n);
+      for (let i=0; i<16 && status.phase !== 'published'; i++) status = await client.advanceHistory(original.key);
+      assert.equal(status.phase, 'published'); assert.equal(status.basis.consistency.kind, 'single_partition');
+      assert.deepEqual((await client.acquireHistory(original)).basis, status.basis);
+      await persist('history-snapshot.json', status.basis.snapshot.save());
+      const source = await client.historicalSource(status.basis.snapshot, objectId);
+      assert.equal(source.rowCount, 9n); assert.equal(source.schema.columns.length, 2);
+      write({published:true});
+    } else if (command === 'history_denied') {
+      const retained = m.HistoricalSnapshot.restore(await read('history-snapshot.json'));
+      for (const invoke of [() => client.historicalSource(retained, objectId), () => client.historicalTables(retained, 1)]) {
+        await assert.rejects(invoke, error => error instanceof TransitError && error.status === 4 && !(error instanceof m.Uncertain));
+      }
+      write({denied:true});
+    } else if (command === 'history_inspect') {
+      const retained = m.HistoricalSnapshot.restore(await read('history-snapshot.json'));
+      assert.equal(await client.historicalLookup(retained, 1, name), objectId);
+      const source = await client.historicalSource(retained, objectId);
+      assert.equal(source.rowCount, 9n); assert.equal(source.schema.columns.length, 2);
+      const page = await client.historicalTables(retained, 1);
+      assert.equal(page.entries.length, 1); assert.equal(page.next, undefined); assert.equal(page.entries[0].name, name);
+      assert.deepEqual(page.entries[0].definition, source.binding.definition);
+      assert.equal(page.basis.snapshot.selector, retained.selector); assert.equal(page.basis.sourceCount, 1n);
+      write({original:true});
+    } else if (command === 'history_release') {
+      const retained = m.HistoricalSnapshot.restore(await read('history-snapshot.json'));
+      assert.equal((await client.historicalSource(retained, objectId)).rowCount, 9n);
+      const original = m.HistoryAcquisition.restore(await read('history-acquisition.json'));
+      const control = client.prepareHistoryControl(original.key, 'release');
+      await persist('history-control.json', control.save());
+      await uncertain(() => client.resumeHistoryControl(control), control);
+      write({history_release_uncertain:true});
+    } else if (command === 'history_finish') {
+      const control = m.HistoryControl.restore(await read('history-control.json'));
+      let status = await client.inspectHistory(control.key);
+      assert(['releasing','released'].includes(status.phase));
+      for (let i=0; i<16 && status.phase !== 'released'; i++) status = await client.advanceHistory(control.key);
+      assert.equal(status.phase, 'released');
+      assert.equal((await client.resumeHistoryControl(control)).phase, 'released');
+      const retained = m.HistoricalSnapshot.restore(await read('history-snapshot.json'));
+      assert.equal(status.basis.snapshot.selector, retained.selector);
+      await assert.rejects(() => client.historicalSource(retained, objectId), error => error instanceof TransitError && !(error instanceof m.Uncertain));
+      write({released:true});
     } else throw new Error(`Unknown proof phase: ${command}`);
   }
 } finally { await query.close(); await client.close(); }

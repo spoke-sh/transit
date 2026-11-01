@@ -11,6 +11,24 @@ from transit_client.errors import IncompatibleNative, UncertainOperation, Unsupp
 from transit_client.types import integer, owned_bytes
 from . import catalog_values as v
 from .catalog_values import (
+    HistoryOperation as HistoryOperation,
+    HistoryDirectory as HistoryDirectory,
+    HistoryCommonCut as HistoryCommonCut,
+    HistoryBudget as HistoryBudget,
+    HistorySelection as HistorySelection,
+    HistoryKey as HistoryKey,
+    HistorySelectionStep as HistorySelectionStep,
+    HistoryIntent as HistoryIntent,
+    HistoryAcquisition as HistoryAcquisition,
+    HistoryControl as HistoryControl,
+    HistoricalSnapshot as HistoricalSnapshot,
+    HistoryBasis as HistoryBasis,
+    HistoryStatus as HistoryStatus,
+    HistoryNamespace as HistoryNamespace,
+    HistoryEntry as HistoryEntry,
+    HistoryCursor as HistoryCursor,
+    HistoryPage as HistoryPage,
+    HistorySource as HistorySource,
     Scope as Scope, Connection as Connection, TableLimits as TableLimits,
     Configuration as Configuration, AuthorityProfile as AuthorityProfile, Subject as Subject,
     CheckLiteral as CheckLiteral, CheckColumns as CheckColumns, CheckNull as CheckNull,
@@ -36,7 +54,7 @@ from .catalog_values import (
 )
 
 T = TypeVar('T')
-Recovery: TypeAlias = SavedIntent | Reference | SnapshotAcquisition | Snapshot
+Recovery: TypeAlias = SavedIntent | Reference | SnapshotAcquisition | Snapshot | HistorySelectionStep | HistoryAcquisition | HistoryControl
 
 
 class Uncertain(UncertainOperation):
@@ -150,6 +168,80 @@ class _Queries:
     def cancel(self, original: Reference) -> _Request[Observation]:
         return _request({'operation': dict(reference=self._reference(original), command='cancel', steps=1)}, 'observation', lambda value: v._observation(value, original), original)
 
+    def prepare_history_selection(self, operation: int) -> HistorySelection:
+        return HistorySelection.restore(encode(dict(definition=v.DEFINITION, owner=dict(scope=self.connection.scope._wire(), principal=self.principal, operation=str(v._wide(operation))), branch=str(self.connection.branch), directory=None)).decode())
+
+    def prepare_history_key(self, account: bytes, token: bytes) -> HistoryKey:
+        account = owned_bytes(account, 32); token = owned_bytes(token, 16)
+        if len(account) != 32 or len(token) != 16: raise ValueError('Expected 32-byte account and 16-byte token')
+        return HistoryKey.restore(encode(dict(definition=v.DEFINITION, connection=self.connection._wire(self.principal), account=account.hex(), token=token.hex())).decode())
+
+    def prepare_history_step(self, selection: HistorySelection, namespace: int, name: str) -> HistorySelectionStep:
+        return HistorySelectionStep.restore(encode(dict(selection=selection._wire(), namespace=integer(namespace, 'namespace'), name=v._name(name))).decode())
+
+    def _history_selection(self, selection: HistorySelection) -> None:
+        owner = selection.owner
+        if owner.scope != self.connection.scope or owner.principal != self.principal or selection.branch != self.connection.branch: raise ValueError('Foreign history selection')
+
+    def select_history(self, original: HistorySelectionStep) -> _Request[HistorySelection]:
+        self._history_selection(original.selection)
+        def decode(value: object) -> HistorySelection:
+            result = HistorySelection.restore(encode(value).decode())
+            if result.owner != original.selection.owner or result.branch != original.selection.branch or result.directory is None: raise ValueError('Changed history selection owner')
+            return result
+        return _request({'history': {'select': original._wire()}}, 'history selection', decode, original)
+
+    def prepare_history_acquisition(self, selection: HistorySelection, key: HistoryKey, namespace: int = 1, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        self._history_selection(selection)
+        if selection.directory is None: raise ValueError('Expected a selected history directory')
+        return HistoryAcquisition.restore(encode(dict(key=key._check(self.connection, self.principal), intent=dict(definition=v.DEFINITION, connection=self.connection._wire(self.principal), namespace=integer(namespace, 'namespace'), operation=str(selection.owner.operation), selection=selection.directory._wire(), common=None), budget=budget._wire())).decode())
+
+    def prepare_common_history_acquisition(self, key: HistoryKey, operation: int, namespace: int, selection: HistoryDirectory, transaction: HistoryKey, cut: HistoryCommonCut, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        return HistoryAcquisition.restore(encode(dict(key=key._check(self.connection, self.principal), intent=dict(definition=v.DEFINITION, connection=self.connection._wire(self.principal), namespace=integer(namespace, 'namespace'), operation=str(v._wide(operation)), selection=selection._wire(), common=dict(key=transaction._check(self.connection, self.principal), cut=cut._wire())), budget=budget._wire())).decode())
+
+    def acquire_history(self, original: HistoryAcquisition) -> _Request[HistoryStatus]:
+        original.key._check(self.connection, self.principal)
+        def decode(value: object) -> HistoryStatus:
+            result = v._history_status(value, original.key, original)
+            if result is None: raise ValueError('Missing history admission')
+            return result
+        return _request({'history': {'acquire': original._wire()}}, 'history status', decode, original)
+
+    def inspect_history(self, key: HistoryKey) -> _Request[HistoryStatus | None]:
+        return _request({'history': {'inspect': key._check(self.connection, self.principal)}}, 'history status', lambda value: v._history_status(value, key))
+
+    def prepare_history_control(self, key: HistoryKey, command: str) -> HistoryControl:
+        return HistoryControl.restore(encode({command: key._check(self.connection, self.principal)}).decode())
+
+    def resume_history_control(self, original: HistoryControl) -> _Request[HistoryStatus | None]:
+        original.key._check(self.connection, self.principal)
+        return _request({'history': original._wire()}, 'history status', lambda value: v._history_status(value, original.key), original)
+
+    def _history_control(self, command: str, key: HistoryKey) -> _Request[HistoryStatus | None]:
+        return self.resume_history_control(HistoryControl.restore(encode({command: key._wire()}).decode()))
+
+    def advance_history(self, key: HistoryKey) -> _Request[HistoryStatus | None]: return self._history_control('advance', key)
+    def abandon_history(self, key: HistoryKey) -> _Request[HistoryStatus | None]: return self._history_control('abandon', key)
+    def release_history(self, key: HistoryKey) -> _Request[HistoryStatus | None]: return self._history_control('release', key)
+
+    def historical_lookup(self, snapshot: HistoricalSnapshot, namespace: int, name: str) -> _Request[int | None]:
+        return _request({'history': {'lookup': dict(selector=snapshot.selector, namespace=integer(namespace, 'namespace'), name=v._name(name))}}, 'history object', lambda value: None if value is None else v._decimal(value))
+
+    def historical_namespace(self, snapshot: HistoricalSnapshot, name: str) -> _Request[HistoryNamespace | None]:
+        def decode(value: object) -> HistoryNamespace | None:
+            if value is None: return None
+            result = v._history_namespace(value)
+            if result.name != name or result.scope != self.connection.scope: raise ValueError('Changed historical namespace')
+            return result
+        return _request({'history': {'namespace': dict(selector=snapshot.selector, name=v._name(name))}}, 'history namespace', decode)
+
+    def historical_tables(self, snapshot: HistoricalSnapshot, namespace: int, cursor: HistoryCursor | None = None) -> _Request[HistoryPage]:
+        integer(namespace, 'namespace')
+        return _request({'history': {'list': dict(selector=snapshot.selector, namespace=namespace, after=None if cursor is None else cursor._check(snapshot, namespace))}}, 'history listing', lambda value: v._history_page(value, snapshot, self.connection.scope, namespace, cursor))
+
+    def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> _Request[HistorySource]:
+        return _request({'history': {'source': dict(selector=snapshot.selector, object=str(v._wide(object_id)))}}, 'history source', lambda value: v._history_source(value, snapshot, object_id))
+
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         if basis.connection != self.connection or basis.principal != self.principal: raise ValueError('Foreign Table basis')
         return SnapshotAcquisition.restore(encode(dict(owner=dict(definition=v.DEFINITION, connection=self.connection._wire(self.principal),
@@ -226,6 +318,57 @@ class Client:
 
     def _call(self, request: _Request[T]) -> T:
         return self._worker.call(lambda: self._invoke(request))
+
+    def prepare_history_control(self, key: HistoryKey, command: str) -> HistoryControl:
+        return self._queries.prepare_history_control(key, command)
+
+    def prepare_history_selection(self, operation: int) -> HistorySelection:
+        return self._queries.prepare_history_selection(operation)
+
+    def prepare_history_key(self, account: bytes, token: bytes) -> HistoryKey:
+        return self._queries.prepare_history_key(account, token)
+
+    def prepare_history_step(self, selection: HistorySelection, namespace: int, name: str) -> HistorySelectionStep:
+        return self._queries.prepare_history_step(selection, namespace, name)
+
+    def prepare_history_acquisition(self, selection: HistorySelection, key: HistoryKey, namespace: int = 1, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        return self._queries.prepare_history_acquisition(selection, key, namespace, budget)
+
+    def prepare_common_history_acquisition(self, key: HistoryKey, operation: int, namespace: int, selection: HistoryDirectory, transaction: HistoryKey, cut: HistoryCommonCut, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        return self._queries.prepare_common_history_acquisition(key, operation, namespace, selection, transaction, cut, budget)
+
+    def select_history(self, original: HistorySelectionStep) -> HistorySelection:
+        return self._call(self._queries.select_history(original))
+
+    def acquire_history(self, original: HistoryAcquisition) -> HistoryStatus:
+        return self._call(self._queries.acquire_history(original))
+
+    def inspect_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return self._call(self._queries.inspect_history(key))
+
+    def advance_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return self._call(self._queries.advance_history(key))
+
+    def abandon_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return self._call(self._queries.abandon_history(key))
+
+    def release_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return self._call(self._queries.release_history(key))
+
+    def resume_history_control(self, original: HistoryControl) -> HistoryStatus | None:
+        return self._call(self._queries.resume_history_control(original))
+
+    def historical_lookup(self, snapshot: HistoricalSnapshot, namespace: int, name: str) -> int | None:
+        return self._call(self._queries.historical_lookup(snapshot, namespace, name))
+
+    def historical_namespace(self, snapshot: HistoricalSnapshot, name: str) -> HistoryNamespace | None:
+        return self._call(self._queries.historical_namespace(snapshot, name))
+
+    def historical_tables(self, snapshot: HistoricalSnapshot, namespace: int, cursor: HistoryCursor | None = None) -> HistoryPage:
+        return self._call(self._queries.historical_tables(snapshot, namespace, cursor))
+
+    def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
+        return self._call(self._queries.historical_source(snapshot, object_id))
 
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         return self._queries.prepare_snapshot(basis, position, operation)
@@ -307,6 +450,57 @@ class AsyncClient:
     def connection(self) -> Connection: return self._owner.connection
     async def _call(self, request: _Request[T]) -> T:
         return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(request)))
+    def prepare_history_control(self, key: HistoryKey, command: str) -> HistoryControl:
+        return self._owner._queries.prepare_history_control(key, command)
+
+    def prepare_history_selection(self, operation: int) -> HistorySelection:
+        return self._owner._queries.prepare_history_selection(operation)
+
+    def prepare_history_key(self, account: bytes, token: bytes) -> HistoryKey:
+        return self._owner._queries.prepare_history_key(account, token)
+
+    def prepare_history_step(self, selection: HistorySelection, namespace: int, name: str) -> HistorySelectionStep:
+        return self._owner._queries.prepare_history_step(selection, namespace, name)
+
+    def prepare_history_acquisition(self, selection: HistorySelection, key: HistoryKey, namespace: int = 1, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        return self._owner._queries.prepare_history_acquisition(selection, key, namespace, budget)
+
+    def prepare_common_history_acquisition(self, key: HistoryKey, operation: int, namespace: int, selection: HistoryDirectory, transaction: HistoryKey, cut: HistoryCommonCut, budget: HistoryBudget = HistoryBudget()) -> HistoryAcquisition:
+        return self._owner._queries.prepare_common_history_acquisition(key, operation, namespace, selection, transaction, cut, budget)
+
+    async def select_history(self, original: HistorySelectionStep) -> HistorySelection:
+        return await self._call(self._owner._queries.select_history(original))
+
+    async def acquire_history(self, original: HistoryAcquisition) -> HistoryStatus:
+        return await self._call(self._owner._queries.acquire_history(original))
+
+    async def inspect_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return await self._call(self._owner._queries.inspect_history(key))
+
+    async def advance_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return await self._call(self._owner._queries.advance_history(key))
+
+    async def abandon_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return await self._call(self._owner._queries.abandon_history(key))
+
+    async def release_history(self, key: HistoryKey) -> HistoryStatus | None:
+        return await self._call(self._owner._queries.release_history(key))
+
+    async def resume_history_control(self, original: HistoryControl) -> HistoryStatus | None:
+        return await self._call(self._owner._queries.resume_history_control(original))
+
+    async def historical_lookup(self, snapshot: HistoricalSnapshot, namespace: int, name: str) -> int | None:
+        return await self._call(self._owner._queries.historical_lookup(snapshot, namespace, name))
+
+    async def historical_namespace(self, snapshot: HistoricalSnapshot, name: str) -> HistoryNamespace | None:
+        return await self._call(self._owner._queries.historical_namespace(snapshot, name))
+
+    async def historical_tables(self, snapshot: HistoricalSnapshot, namespace: int, cursor: HistoryCursor | None = None) -> HistoryPage:
+        return await self._call(self._owner._queries.historical_tables(snapshot, namespace, cursor))
+
+    async def historical_source(self, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
+        return await self._call(self._owner._queries.historical_source(snapshot, object_id))
+
     def prepare_snapshot(self, basis: Basis, position: Position, operation: int) -> SnapshotAcquisition:
         return self._owner.prepare_snapshot(basis, position, operation)
     async def capabilities(self) -> Capabilities:
