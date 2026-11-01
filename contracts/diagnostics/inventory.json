@@ -1775,6 +1775,7 @@
         "beginInitialization()": "<inferred>",
         "configuration()": "<inferred>",
         "create()": "<inferred>",
+        "discoverAccounts()": "<inferred>",
         "hostCall()": "<inferred>",
         "prepare()": "<inferred>",
         "recover()": "<inferred>",
@@ -1788,7 +1789,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 89,
         "catch": 7
       },
       "imports": [
@@ -1801,6 +1802,7 @@
         "SqlJournal.zig",
         "SqlSettings.zig",
         "SqlTrust.zig",
+        "Startup.zig",
         "std",
         "transit_query",
         "transit_sql_client",
@@ -1957,9 +1959,25 @@
           "artifact_validation",
           "journal_checkpoint",
           "native_query",
+          "native_capabilities",
           "native_submit",
+          "authorization_query",
+          "authorization_begin",
+          "authorization_advance",
+          "authorization_publish",
+          "authorization_abandon",
           "worker_spawn",
-          "worker_registration"
+          "worker_registration",
+          "sql_administrator",
+          "sql_account_prepare",
+          "sql_account_provision",
+          "sql_account_discovery",
+          "sql_catalog_access",
+          "sql_enrollment",
+          "sql_initialization",
+          "sql_activation",
+          "sql_host_start",
+          "sql_trust"
         ]
       },
       "error_sets": {},
