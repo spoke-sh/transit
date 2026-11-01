@@ -92,6 +92,11 @@ and workload verbs (`PRODUCE`, `CONSUME`, `COMMIT OFFSET`,
 `ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`) are outside this SQL profile.
 Typed callers provide payload operations.
 
+The standalone Fuze [append compiler](../../../../contracts/sql/README.md)
+prepares `PRODUCE` and `ENQUEUE`, including typed metadata and frozen RETURNING
+projections. Its separate checked grammar root does not enable these statements
+in SQL sessions; native workload admission remains a separate integration gate.
+
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
 through the ordinary bounded result lifecycle. Their observation identifies

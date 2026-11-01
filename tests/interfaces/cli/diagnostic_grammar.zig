@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, mutation, application, relational, authorization, settings, transaction, managed } = .query,
+    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, log_append, mutation, application, relational, authorization, settings, transaction, managed } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -27,6 +27,17 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
             if (value.statement == .create) {
                 var query = try f.RelationalSql.parse(allocator, value.statement.create.sql, location);
                 defer query.deinit();
+            }
+        },
+        .log_append => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var value = try f.LogAppendSql.Prepared.init(allocator, case.sql, try basis.statement.create.bind(7), .transit, location);
+            defer value.deinit();
+            // Literal-only cases also exercise metadata binding refusals.
+            if (value.parameterTypes().len == 0) {
+                var bound = try value.bind(allocator, &.{}, location);
+                defer bound.deinit();
             }
         },
         .log_ddl => {
@@ -119,6 +130,7 @@ pub fn main(init: std.process.Init) !void {
                 const detail = (switch (case.profile) {
                     .authorization => f.SqlDiagnostic.authorization(case.sql, err, location),
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
+                    .log_append => f.SqlDiagnostic.logAppend(case.sql, err, location),
                     .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
                     .relational => f.SqlDiagnostic.tableSelect(case.sql, err, location),
                     .declaration => f.SqlDiagnostic.writeCompiler(case.sql, err, .declaration, binding),

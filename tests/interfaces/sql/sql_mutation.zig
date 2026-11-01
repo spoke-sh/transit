@@ -1,8 +1,8 @@
 //! General typed DML compiler consumer. Python supplies independent SQL/schema
 //! expectations and canonical payload bytes; this is not native admission.
 const std = @import("std");
-const f = @import("transit_station").fuze;
-const Case = struct { sql: []const u8, basis: []const u8 };
+const f = @import("transit_fuze");
+const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false };
 fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     const result = try allocator.alloc(u8, bytes.len * 2);
     const alphabet = "0123456789abcdef";
@@ -17,6 +17,30 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
     defer declaration.deinit();
     const table = declaration.statement.create;
     const schema = try table.bind(7);
+    if (case.workload) {
+        var prepared = try f.LogAppendSql.Prepared.init(init.gpa, case.sql, schema, .transit, null);
+        defer prepared.deinit();
+        var bound = try prepared.bind(init.gpa, &.{}, null);
+        defer bound.deinit();
+        const buffer = try init.gpa.alloc(u8, f.TableDmlCodec.max_bytes);
+        defer init.gpa.free(buffer);
+        const encoded = try f.TableDmlCodec.encode(init.gpa, bound.rows.plan, buffer);
+        var indices: [f.TableSchema.max_columns]u16 = undefined;
+        for (prepared.return_indices, 0..) |value, i| indices[i] = value;
+        try std.json.Stringify.value(.{
+            .index = index,
+            .kind = prepared.target.kind,
+            .name = prepared.target.source.name,
+            .bytes = try hex(init.arena.allocator(), encoded),
+            .partition = bound.partition,
+            .producer = bound.producer,
+            .visible_ms = bound.visible_ms,
+            .fields = prepared.return_fields,
+            .indices = indices[0..prepared.return_indices.len],
+            .names = prepared.return_names,
+        }, .{}, out);
+        return;
+    }
     var compiled = try f.TableDml.compile(init.gpa, case.sql, table.name, schema, null);
     defer compiled.deinit();
     const buffer = try init.gpa.alloc(u8, f.TableDmlCodec.max_bytes);

@@ -31,6 +31,44 @@ Catalog pages with current disclosure checks; payload verbs remain outside
 that profile. `just test::sql-log-declarations` exercises actual native,
 PostgreSQL and MySQL sessions, original-token recovery and buffered denial.
 
+`LogAppendSql` has a separate `logAppendStatement` root for **standalone
+preparation**, with no SQL service admission yet. It binds `PRODUCE INTO` and
+`ENQUEUE INTO` to an explicit schema, shares typed VALUES/defaults with Table
+binding, and owns its dedicated metadata and RETURNING clauses:
+
+```text
+PRODUCE INTO name [(columns)] VALUES (values) [, (values)]
+  [PARTITION operand]
+  [PRODUCER ID operand EPOCH operand SEQUENCE operand]
+  [RETURNING * | column [AS name] [, column [AS name]]]
+
+ENQUEUE INTO name [(columns)] VALUES (values) [, (values)]
+  [PARTITION operand]
+  [PRODUCER ID operand EPOCH operand SEQUENCE operand]
+  [WITH (visible_at = operand)]
+  [RETURNING * | column [AS name] [, column [AS name]]]
+```
+
+`DEFAULT VALUES` replaces the column/VALUES portion. Row and metadata operands
+share typed `$n` parameters; the MySQL dialect also binds positional `?` and
+backtick names. Partition operands are unsigned integers fitting 32 bits.
+Producer UUID, epoch and sequence must be nonzero. Queue visibility is a UTC
+timestamp at or after the Unix epoch with whole-millisecond precision. NULL
+metadata is refused. The enclosing adapter must still validate declared routing,
+limits, authority and exact operation identity before native admission.
+
+RETURNING expands `*` to application columns only; unqualified `_partition` and
+`_offset` select native metadata. Qualify a colliding application column with
+its source name. The current FQP1 layout cannot contain both that column and its
+same-named metadata field; preparation refuses this combination. Output names
+must be distinct. Repeated input fields with distinct aliases share one frozen
+input field. Aggregates, predicates and LIMIT are outside append RETURNING.
+The projection is encoded only against the final original native binding.
+The [append corpus](corpus/log-appends.json), exercised by
+`just test::table-dml-sql`, compares the dedicated grammar, canonical typed row
+bytes, metadata and projections independently. This does not qualify routing,
+upload, durable publication or workload execution through SQL transports.
+
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
 owning compiler and runtime. Reference grammar acceptance alone does not enable

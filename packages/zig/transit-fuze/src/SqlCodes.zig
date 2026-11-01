@@ -7,6 +7,12 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidLogAppendOperand, .code = "sql.invalid_log_append_operand", .category = .binding, .summary = "The append metadata operand has an invalid value", .hint = "Use non-NULL typed partition, producer and visibility operands." },
+    .{ .cause = error.UnsupportedLogAppendOption, .code = "sql.unsupported_log_append_option", .category = .unsupported, .summary = "The append option is not supported for this target", .hint = "VISIBLE_AT applies only to Queue enqueue operations." },
+    .{ .cause = error.NullWorkloadParameter, .code = "sql.null_workload_parameter", .category = .binding, .summary = "Workload metadata requires a non-NULL parameter", .hint = "Bind a value of the declared metadata type." },
+    .{ .cause = error.InvalidLogVisibilityTime, .code = "sql.invalid_log_visibility_time", .category = .binding, .summary = "Queue visibility requires a nonnegative whole-millisecond UTC timestamp", .hint = "Use an instant at or after the Unix epoch with no sub-millisecond remainder." },
+    .{ .cause = error.InvalidLogPartitioning, .code = "sql.invalid_log_partitioning", .category = .binding, .summary = "The log partition declaration or explicit partition is invalid", .hint = "Use the declared partitioning and a partition index within its unsigned 32-bit range." },
+    .{ .cause = error.InvalidLogProducer, .code = "sql.invalid_log_producer", .category = .binding, .summary = "Producer identity, epoch and sequence must be nonzero", .hint = "Supply a nonzero UUID and positive unsigned epoch and sequence." },
     .{ .cause = error.DuplicateSqlPrivilege, .code = "sql.duplicate_privilege", .category = .binding, .summary = "The statement repeats a privilege", .hint = "List each requested privilege once; repeated separate grants reconcile through native authority." },
     .{ .cause = error.UnsupportedAuthorizationSql, .code = "sql.unsupported_authorization", .category = .unsupported, .summary = "This authorization form is outside the supported profile", .hint = "Use one supported role, schema, privilege or ownership statement." },
     .{ .cause = error.InvalidSqlPrivilege, .code = "sql.invalid_privilege", .category = .binding, .summary = "The privilege or delegation option is invalid for this target", .hint = "Use CONNECT for databases, USAGE/CREATE for schemas, and SELECT/INSERT/UPDATE/DELETE for Tables. PUBLIC cannot receive delegation options." },

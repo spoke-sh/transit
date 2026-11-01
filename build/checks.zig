@@ -253,7 +253,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/interfaces/sql/sql_mutation.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(mutation_sql);
     const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });

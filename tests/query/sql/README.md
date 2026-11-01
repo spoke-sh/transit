@@ -9,7 +9,7 @@ and [contribution instructions](AGENTS.md).
 | Reference grammar and AST adapters | [grammar.py](grammar.py), [reference.py](reference.py) |
 | Compiler plans and Arrow results | [compiler.py](compiler.py), [unified.py](unified.py) |
 | Parameters and logical Table literals | [parameters.py](parameters.py), [table_reference.py](table_reference.py) |
-| Declarations, mutations and relational results | [declarations.py](declarations.py), [mutations.py](mutations.py), [relational.py](relational.py) |
+| Declarations, mutations, standalone log appends and relational results | [declarations.py](declarations.py), [mutations.py](mutations.py), [relational.py](relational.py) |
 | Lean rewrite properties | [rewrites.py](rewrites.py), [specification](../../../contracts/sql/FuzeRewrite.lean) |
 
 Use `just test::sql`, `just test::sql-grammar`, `just test::sql-rewrites` and the

@@ -166,6 +166,85 @@ def check(binary):
             expected=compiled_bytes(case['sql'],case['basis']).hex()
             assert response==dict(bytes=expected),(case,response,expected);agreed+=1
     print(f'General DML: {pg_cases} PostgreSQL/ANTLR AST comparisons; {agreed} exact independent ANTLR/typed FDM1 plans; {len(cases)} cases, defaults, reordered fields, general predicates and compound literals. Codec round trips preserve intent. No admission/publication claim.')
+    check_log_appends(binary)
+
+
+def log_append_expected(case):
+    """Interpret the dedicated ANTLR tree, without rewriting it as INSERT."""
+    import uuid
+    ctx = tree(case['sql'], 'logAppendStatement').logAppendCommand()
+    name = identifier(ctx.identifier())
+    schema = create(case['basis'])['schema']
+    columns = schema['columns']
+    values = ctx.logAppendValues()
+    names = [identifier(n) for n in values.identifier()]
+    selected = [next(i for i, c in enumerate(columns) if c['name'] == name) for name in names] if names else list(range(len(columns)))
+    rows = []
+    for row in values.logAppendRow() or [None]:
+        cells = [c['default'] or {'null': {}} for c in columns]
+        if row:
+            for index, value in zip(selected, row.logAppendValue(), strict=True):
+                if not value.DEFAULT(): cells[index] = literal(value.logAppendOperand().literal(), columns[index]['type'])
+        rows.append(cells)
+    typ = {'structure': [dict(name=c['name'], type=c['type'], nullable=c['nullable'], optional=False) for c in columns]}
+    encoded_name = name.encode()
+    body = b'FDM1' + hashlib.sha256(schema_bytes(schema)).digest() + bytes([len(encoded_name)]) + encoded_name
+    body += b'\1' + struct.pack('<H', len(rows)) + b''.join(sized({'value': {'structure': row}}, typ) for row in rows) + b'\0'
+    operands = iter(ctx.logAppendOperand())
+    partition = int(next(operands).getText()) if ctx.PARTITION() else None
+    producer = None
+    if ctx.PRODUCER():
+        producer = dict(id=list(uuid.UUID(next(operands).literal().STRING().getText()[1:-1]).bytes), epoch=int(next(operands).getText()), sequence=int(next(operands).getText()))
+    visible_ms = 0
+    if ctx.WITH():
+        instant = literal(next(operands).literal(), {'timestamp': 'utc'})['value']['atom']['timestamp_micros']
+        assert int(instant) >= 0 and int(instant) % 1000 == 0
+        visible_ms = int(instant) // 1000
+    assert next(operands, None) is None
+    fields, indices, names = [], [], []
+    projection = ctx.projection()
+    def output(qualifier, field, alias):
+        assert qualifier in (None, name)
+        if qualifier is None and field in ('_offset', '_partition'):
+            item = {field[1:]: {}}
+        else:
+            item = {'column': int(next(c['id'] for c in columns if c['name'] == field))}
+        if item not in fields: fields.append(item)
+        indices.append(fields.index(item)); names.append(alias or field)
+    if projection:
+        if projection.STAR():
+            for col in columns: output(name, col['name'], None)
+        else:
+            for item in projection.projectionItem():
+                qualifier, field = column(item.columnReference())
+                output(qualifier, field, identifier(item.outputAlias().identifier()) if item.outputAlias() else None)
+    return dict(kind='stream' if ctx.PRODUCE() else 'queue', name=name, bytes=body.hex(), partition=partition, producer=producer, visible_ms=visible_ms, fields=fields, indices=indices, names=names)
+
+
+def check_log_appends(binary):
+    corpus = json.loads((ROOT / 'contracts/sql/corpus/log-appends.json').read_text())
+    assert corpus['version'] == 1
+    cases = [dict(case, basis=case.get('basis', corpus['basis'])) for case in corpus['cases']]
+    path = CACHE / 'log-append-cases.json'
+    path.write_text(json.dumps([dict(sql=c['sql'], basis=c['basis'], workload=True) for c in cases]))
+    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    (CACHE / 'log-append-results.jsonl').write_text(result.stdout)
+    actual = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(actual) == len(cases)
+    for index, (case, response) in enumerate(zip(cases, actual, strict=True)):
+        assert response.pop('index') == index
+        if case.get('syntax_error'):
+            try: tree(case['sql'], 'logAppendStatement')
+            except ValueError: pass
+            else: raise AssertionError(('invalid append syntax accepted', case))
+            assert 'err' in response, (case, response)
+        elif case.get('error'):
+            tree(case['sql'], 'logAppendStatement')
+            assert response == dict(err=case['error']), (case, response)
+        else:
+            expected = log_append_expected(case)
+            assert response == expected, (case, expected, response)
+    print(f'Log append preparation: {len(cases)} independent grammar, typed payload, metadata, projection and refusal cases. No admission/publication claim.')
 
 
 if __name__=='__main__':

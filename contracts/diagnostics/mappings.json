@@ -3,7 +3,7 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
@@ -15,7 +15,8 @@
         "packages/zig/transit-fuze/src/TableSelect.zig",
         "packages/zig/transit-fuze/src/LogicalPrepared.zig",
         "packages/zig/transit-fuze/src/RelationalSql.zig",
-        "packages/zig/transit-fuze/src/AuthorizationSql.zig"
+        "packages/zig/transit-fuze/src/AuthorizationSql.zig",
+        "packages/zig/transit-fuze/src/LogAppendSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -46,6 +47,10 @@
         {
           "source": "packages/zig/transit-fuze/src/relational_sql_test.zig",
           "name": "relational SQL binds shared three-valued predicates and precise unknown names"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
         }
       ],
       "exceptions": [
@@ -112,6 +117,30 @@
             {
               "source": "packages/zig/transit-fuze/src/table_schema_test.zig",
               "name": "oversized typed defaults report the schema limit before encoding"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "cause": "InvalidWorkloadProjection",
+          "disposition": "internal_invariant",
+          "reason": "The adapter supplied a native operation kind inconsistent with the already compiled append. This is an internal binding invariant, not a SQL-input or accepted-work outcome; projection refuses it before any dispatch.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
+            }
+          ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "cause": "TableSchemaChanged",
+          "disposition": "internal_invariant",
+          "reason": "The adapter supplied a native binding with a different schema from the already compiled append. This internal binding invariant refuses projection before any dispatch; it does not reinterpret accepted work or classify a native outcome.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
             }
           ]
         }
@@ -727,6 +756,30 @@
         },
         "UnrepresentableEbcdic037": {
           "code": "sql.unrepresentable_cp037",
+          "category": "binding"
+        },
+        "InvalidLogAppendOperand": {
+          "code": "sql.invalid_log_append_operand",
+          "category": "binding"
+        },
+        "UnsupportedLogAppendOption": {
+          "code": "sql.unsupported_log_append_option",
+          "category": "unsupported"
+        },
+        "NullWorkloadParameter": {
+          "code": "sql.null_workload_parameter",
+          "category": "binding"
+        },
+        "InvalidLogVisibilityTime": {
+          "code": "sql.invalid_log_visibility_time",
+          "category": "binding"
+        },
+        "InvalidLogPartitioning": {
+          "code": "sql.invalid_log_partitioning",
+          "category": "binding"
+        },
+        "InvalidLogProducer": {
+          "code": "sql.invalid_log_producer",
           "category": "binding"
         }
       }

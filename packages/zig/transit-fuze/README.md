@@ -69,6 +69,16 @@ parameters share type, index and gap checks, and bound rows own their values.
 The enclosing parser still owns its verb, suffixes and statement boundary;
 these helpers provide no admission or execution authority.
 
+`LogAppendSql.Prepared` uses those helpers for dedicated `PRODUCE` and `ENQUEUE`
+syntax, optional partition/producer metadata, Queue visibility and RETURNING.
+It owns its source, schema, parameter descriptors and output layout; `bind`
+returns independently owned rows and validated metadata. `projection` freezes
+RETURNING against the adapter's exact original native binding, with borrowed
+fields and caller-owned encoded bytes. The [checked compiler
+profile](../../../contracts/sql/README.md) states types, collision refusals and
+limits. Preparation performs no Catalog reads, routing, uploads or admission;
+SQL services do not yet expose these verbs.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies

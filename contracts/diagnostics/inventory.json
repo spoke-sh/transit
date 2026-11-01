@@ -13560,6 +13560,57 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogAppendSql.zig": {
+      "errors": {
+        "DuplicateColumn": 1,
+        "InvalidLogAppendOperand": 4,
+        "InvalidLogPartitioning": 1,
+        "InvalidLogVisibilityTime": 2,
+        "InvalidOutputNames": 1,
+        "InvalidProjection": 1,
+        "InvalidWorkloadProjection": 3,
+        "NullWorkloadParameter": 1,
+        "ParameterCountMismatch": 1,
+        "TableSchemaChanged": 2,
+        "UnsupportedLogAppendOption": 1,
+        "UnsupportedStatement": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "stream",
+          "queue"
+        ],
+        "Operand.value": [
+          "literal",
+          "parameter"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Operand.bind()": "<inferred>",
+        "Operand.number()": "<inferred>",
+        "Operand.parse()": "<inferred>",
+        "Prepared.bind()": "<inferred>",
+        "Prepared.init()": "<inferred>",
+        "Prepared.projection()": "<inferred>",
+        "appendOwned()": "<inferred>",
+        "descriptor()": "<inferred>",
+        "header()": "<inferred>",
+        "returned()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 81,
+        "catch": 2
+      },
+      "imports": [
+        "SqlReference.zig",
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogDdl.zig": {
       "errors": {
         "CatalogKindMismatch": 1,
@@ -15645,6 +15696,10 @@
         "InvalidJson": 1,
         "InvalidKeyWidth": 1,
         "InvalidLiteral": 1,
+        "InvalidLogAppendOperand": 1,
+        "InvalidLogPartitioning": 1,
+        "InvalidLogProducer": 1,
+        "InvalidLogVisibilityTime": 1,
         "InvalidMapKey": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 1,
@@ -15695,6 +15750,7 @@
         "NullLimitParameter": 1,
         "NullNotAllowed": 1,
         "NullPrimaryKey": 1,
+        "NullWorkloadParameter": 1,
         "NullableMapKey": 1,
         "NullablePrimaryKey": 1,
         "Overflow": 1,
@@ -15746,6 +15802,7 @@
         "UnsupportedDeclarationType": 1,
         "UnsupportedFloatPrecision": 1,
         "UnsupportedLiteral": 1,
+        "UnsupportedLogAppendOption": 1,
         "UnsupportedMutationPredicate": 1,
         "UnsupportedNestedCharacterLimit": 1,
         "UnsupportedNullComparison": 1,
@@ -15864,7 +15921,7 @@
         "structured()": "<inferred>",
         "validateTableSyntax()": "<inferred>"
       },
-      "open_error_set_uses": 9,
+      "open_error_set_uses": 10,
       "propagation": {
         "try": 60,
         "catch": 32
@@ -18323,6 +18380,7 @@
         "FuzeDelta.zig",
         "GermanString.zig",
         "HybridSearch.zig",
+        "LogAppendSql.zig",
         "LogDdl.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
@@ -39659,6 +39717,12 @@
       "assignment": "columnReference EQ mutationValue",
       "mutationValue": "DEFAULT | literal",
       "mutationRow": "LPAREN mutationValue ( COMMA mutationValue ) * RPAREN",
+      "logAppendStatement": "logAppendCommand SEMI ? EOF",
+      "logAppendCommand": "( PRODUCE | ENQUEUE ) INTO identifier logAppendValues ( PARTITION logAppendOperand ) ? ( PRODUCER ID logAppendOperand EPOCH logAppendOperand SEQUENCE logAppendOperand ) ? ( WITH LPAREN VISIBLE_AT EQ logAppendOperand RPAREN ) ? ( RETURNING projection ) ?",
+      "logAppendValues": "DEFAULT VALUES | ( LPAREN identifier ( COMMA identifier ) * RPAREN ) ? VALUES logAppendRow ( COMMA logAppendRow ) *",
+      "logAppendRow": "LPAREN logAppendValue ( COMMA logAppendValue ) * RPAREN",
+      "logAppendValue": "DEFAULT | logAppendOperand",
+      "logAppendOperand": "literal | PARAMETER",
       "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createLog | alterLog | dropLog | createDocument | createKv | grantStatement | revokeStatement | showStatement | sessionSettingStatement | configurationSelect | describeStatement | explainStatement",
       "createLog": "CREATE logKind identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN logPartitioning ? ( WITH logOptions ) ?",
       "alterLog": "ALTER logKind identifier ( SET logOptions | RENAME TO identifier )",
@@ -39701,14 +39765,7 @@
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH",
-      "DATAFLOW": "'DATAFLOW'",
-      "AUTHORIZE": "'AUTHORIZE'",
-      "ACTIVATE": "'ACTIVATE'",
-      "SUSPEND": "'SUSPEND'",
-      "RESUME": "'RESUME'",
-      "REFRESH": "'REFRESH'",
-      "RETIRE": "'RETIRE'",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",
@@ -39717,6 +39774,14 @@
       "PARTITION": "'PARTITION'",
       "PARTITIONS": "'PARTITIONS'",
       "HASH": "'HASH'",
+      "PRODUCE": "'PRODUCE'",
+      "ENQUEUE": "'ENQUEUE'",
+      "PRODUCER": "'PRODUCER'",
+      "ID": "'ID'",
+      "EPOCH": "'EPOCH'",
+      "SEQUENCE": "'SEQUENCE'",
+      "VISIBLE_AT": "'VISIBLE_AT'",
+      "RETURNING": "'RETURNING'",
       "START": "'START'",
       "TRANSACTION": "'TRANSACTION'",
       "WORK": "'WORK'",

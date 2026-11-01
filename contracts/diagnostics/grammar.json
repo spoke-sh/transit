@@ -62,10 +62,10 @@
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure named Stream/Queue SHOW/DESCRIBE syntax used by the SQL service. No definition lookup or disclosure."
     },
-    "managed": {
-      "source": "packages/zig/transit-sql/src/ManagedSql.zig",
-      "contract": "contracts/DATAFLOW_V1.md",
-      "behavior": "Pure shared declaration/control parsing with finite relational syntax, including EXPLAIN prefix routing. No metadata lookup, authorization, publication or execution."
+    "log_append": {
+      "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Standalone typed Stream/Queue append preparation and literal metadata binding; no upload, routing, admission or execution."
     }
   },
   "cases": [
@@ -6330,110 +6330,334 @@
       }
     },
     {
-      "id": "managed-create",
-      "sql": "CREATE DATAFLOW projection INTO output AS SELECT id FROM items",
-      "profile": "managed",
+      "id": "log-append-0",
+      "sql": "PRODUCE INTO items DEFAULT VALUES",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-authorize",
-      "sql": "AUTHORIZE DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES RETURNING *;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-activate",
-      "sql": "ACTIVATE DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-2",
+      "sql": "PRODUCE INTO items VALUES (1, 'one', TRUE)",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-suspend",
-      "sql": "SUSPEND DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-3",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 3 RETURNING _partition, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-resume",
-      "sql": "RESUME DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-4",
+      "sql": "ENQUEUE INTO items (value, id) VALUES ('one', 1), ('two', 2) RETURNING value AS body, id",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-refresh",
-      "sql": "REFRESH DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-5",
+      "sql": "PRODUCE INTO items (id, value, extra) VALUES (1, DEFAULT, DEFAULT), (2, NULL, FALSE), (3, 'three', TRUE) RETURNING items.id AS first_id, items.id AS again_id, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-retire",
-      "sql": "RETIRE DATAFLOW projection",
-      "profile": "managed",
+      "id": "log-append-6",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 2",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-explain",
-      "sql": "EXPLAIN CREATE DATAFLOW projection INTO output AS SELECT id FROM items",
-      "profile": "managed",
+      "id": "log-append-7",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PARTITION 0 PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 2 SEQUENCE 3 WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z') RETURNING *",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": true
       }
     },
     {
-      "id": "managed-show-query-refusal",
-      "sql": "SHOW DATAFLOW projection",
-      "profile": "query",
+      "id": "log-append-8",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '2000-01-01T00:00:00.123Z') RETURNING id, _offset",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
       "grammar": "sql",
-      "root": "statement",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-9",
+      "sql": "produce into \"items\" (\"id\", \"value\") values (9, '\u00e9\u6771\u4eac') returning \"items\".\"value\" as \"Body\";",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-10",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION 4294967296",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
       "reference": true,
       "expected": {
         "accepted": false,
-        "code": "sql.unsupported_catalog",
-        "category": "unsupported",
-        "kind": "unsupported"
+        "code": "sql.invalid_log_partitioning",
+        "category": "binding"
       }
     },
     {
-      "id": "managed-keyword-identifiers",
-      "sql": "CREATE TABLE named (dataflow BIGINT, authorize BIGINT, activate BIGINT, suspend BIGINT, resume BIGINT, refresh BIGINT, retire BIGINT)",
+      "id": "log-append-11",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PARTITION NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_append_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-12",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00000000-0000-0000-0000-000000000000' EPOCH 1 SEQUENCE 1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-13",
+      "sql": "PRODUCE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 0 SEQUENCE 1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-14",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) PRODUCER ID UUID '00112233-4455-6677-8899-aabbccddeeff' EPOCH 1 SEQUENCE 0",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_producer",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-15",
+      "sql": "PRODUCE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_log_append_option",
+        "category": "unsupported"
+      }
+    },
+    {
+      "id": "log-append-16",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1970-01-01T00:00:00.000001Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_visibility_time",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-17",
+      "sql": "ENQUEUE INTO items (id) VALUES (1) WITH (visible_at = TIMESTAMP '1969-12-31T23:59:59Z')",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_visibility_time",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-18",
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING absent",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-19",
+      "sql": "PRODUCE INTO items (id) VALUES (1) RETURNING id, id",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_output_names",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-20",
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $1",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.parameter_type_conflict",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-21",
+      "sql": "PRODUCE INTO items (id) VALUES ($1) PARTITION $3",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.parameter_gap",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-27",
+      "sql": "PRODUCE INTO items (_offset) VALUES (1) RETURNING items._offset AS app_offset, _offset AS native_offset",
+      "basis": "CREATE TABLE items (_offset BIGINT)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-append-parameters-0",
+      "sql": "PRODUCE INTO items (id, value) VALUES ($1, $2) PARTITION $3 PRODUCER ID $4 EPOCH $5 SEQUENCE $6 RETURNING id;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-parameters-1",
+      "sql": "ENQUEUE INTO items DEFAULT VALUES WITH (visible_at = $1)",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
+      "profile": "log_append",
+      "grammar": "sql",
+      "root": "logAppendStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-append-contextual-keywords",
+      "sql": "CREATE TABLE named (produce BIGINT, enqueue BIGINT, producer BIGINT, id BIGINT, epoch BIGINT, sequence BIGINT, visible_at BIGINT, returning BIGINT)",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",

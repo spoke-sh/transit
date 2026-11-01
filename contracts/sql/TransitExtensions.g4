@@ -130,6 +130,21 @@ assignment: columnReference EQ mutationValue;
 mutationValue: DEFAULT | literal;
 mutationRow: LPAREN mutationValue (COMMA mutationValue)* RPAREN;
 
+// Standalone typed append compiler; not an executable session statement yet.
+logAppendStatement: logAppendCommand SEMI? EOF;
+logAppendCommand: (PRODUCE | ENQUEUE) INTO identifier logAppendValues
+    (PARTITION logAppendOperand)?
+    (PRODUCER ID logAppendOperand EPOCH logAppendOperand SEQUENCE logAppendOperand)?
+    (WITH LPAREN VISIBLE_AT EQ logAppendOperand RPAREN)?
+    (RETURNING projection)?;
+logAppendValues
+    : DEFAULT VALUES
+    | (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES logAppendRow (COMMA logAppendRow)*
+    ;
+logAppendRow: LPAREN logAppendValue (COMMA logAppendValue)* RPAREN;
+logAppendValue: DEFAULT | logAppendOperand;
+logAppendOperand: literal | PARAMETER;
+
 
 // ---- Parser rules -----------------------------------------------------
 
@@ -336,6 +351,7 @@ legacyIdentifier
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
+    | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
     ;
 
 DATAFLOW: 'DATAFLOW';
@@ -355,6 +371,14 @@ QUEUES: 'QUEUES';
 PARTITION: 'PARTITION';
 PARTITIONS: 'PARTITIONS';
 HASH: 'HASH';
+PRODUCE: 'PRODUCE';
+ENQUEUE: 'ENQUEUE';
+PRODUCER: 'PRODUCER';
+ID: 'ID';
+EPOCH: 'EPOCH';
+SEQUENCE: 'SEQUENCE';
+VISIBLE_AT: 'VISIBLE_AT';
+RETURNING: 'RETURNING';
 START: 'START';
 TRANSACTION: 'TRANSACTION';
 WORK: 'WORK';

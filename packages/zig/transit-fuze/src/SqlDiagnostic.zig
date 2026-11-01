@@ -346,6 +346,15 @@ pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self
     return result;
 }
 
+/// The dedicated append compiler shares typed row failures, not Table verbs.
+pub fn logAppend(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    var result = tableDml(text, cause, location) orelse return null;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Stream or Queue append cannot be compiled";
+    result.hint = "Use the declared columns and typed VALUES, optional partition/producer metadata and distinct RETURNING names. Native routing and admission limits apply separately.";
+    return result;
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var result = query(text, cause, inspection) orelse return null;
