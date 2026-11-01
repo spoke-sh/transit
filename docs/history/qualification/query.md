@@ -9,6 +9,35 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Catalog binding of append preparation — 2026-11-01
+
+The local source committed as `ad94de933f17793454119ee821fe9932663d1c9e`
+adds `DirectLogPreparedAppend` without activating SQL admission. Its focused
+ReleaseSafe Catalog run passes **6/6 tests**. The body restores after preparation
+and parameter storage are destroyed; exact producer identity, native row identity,
+Queue visibility, RETURNING and original intent reference survive. Independent
+SHA-256 expectations qualify ASCII_CI routing. Changed targets, missing/invalid
+manual partitions, explicit key mismatches, cross-partition batches and declared
+row/byte exhaustion refuse before staging.
+
+The first ReleaseSafe allocation sweep failed with
+`NondeterministicMemoryUsage`; ordinary binding passed. A diagnostic run identified
+the sweep failure, and Debug passed 6/6. The final sweep follows the existing
+Catalog test convention of disabling allocator resize/remap during enumeration,
+so every growth allocation is faulted deterministically; a separate ordinary run
+retains normal allocation behavior. No production allocation failure was ignored.
+Fast checks pass **60/60**, and documentation checks pass 10,078 links.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-catalog2.log` (failed allocation sweep) | `705f9752174ac709b8e330f546e54417ae1df9f810c082276b4dde5b70fc2288` |
+| `/var/tmp/transit-m6-log-append-catalog4.log` (Debug) | `bda0b9f408cf700015e2af00f41aa5b7698fe6d0a33c48f662c1b74742d0662b` |
+| `/var/tmp/transit-m6-log-append-catalog6.log` (final ReleaseSafe) | `f4ca52cf018d30f14a03c6d90df142163b5d6609e78117c04eeb0fa470bcea61` |
+| `/var/tmp/transit-m6-log-append-catalog-fast1.log` | `d8c9a254794466ba243e5907f68fbe8e2db876ef5d4999076130d53f3a32764d` |
+
+Current authorization at native admission and installed SQL/transport execution
+remain separate gates; this pure binding result does not establish them.
+
 ## Dedicated append compiler preparation — 2026-11-01
 
 The local source committed as `b08ef96d9c85f1097755a98764627d048b10bc59`
