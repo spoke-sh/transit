@@ -68,6 +68,15 @@ read-only operation lookup can disclose its actual receipt after commit.
 ordered row identities, byte budgets and finite coverage. Pages carry the
 original source declaration, including after a later ALTER or DROP.
 
+`DirectQueueTransferPlan` freezes an exhausted item's exact paired transfer,
+caller tokens, transaction limits and original operation identities into one
+immutable descriptor. Its source key excludes mutable policy and caller fields,
+so a future admission owner can reject a fresh attempt after a signer or policy
+change. The descriptor reconstructs a sorted two-Queue begin request and verifies
+canonical records after disk reopen. It grants no authority, retains no payload
+by itself and performs no admission, scheduling or completion. Automatic DLQ
+still requires a catalog-owned source binding and recoverable execution owner.
+
 `DirectStream.apply` composes Stream append, original-operation inspection,
 finite reads, consumer assignment and offset settlement with the current catalog
 declaration and native grants. The embedding host supplies a serialized owner

@@ -6166,6 +6166,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectQueueTransferPlan.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTransactionTransfer": 4,
+        "TransactionIdentityConflict": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "decode()": "<inferred>",
+        "digest()": "<inferred>",
+        "encode()": "<inferred>",
+        "load()": "<inferred>",
+        "sourceKey()": "<inferred>",
+        "store()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectReadAuthority.zig": {
       "errors": {
         "InvalidCatalogConfiguration": 1
@@ -9112,6 +9140,7 @@
         "DirectQueueClient.zig",
         "DirectQueueMutation.zig",
         "DirectQueueResponse.zig",
+        "DirectQueueTransferPlan.zig",
         "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
         "DirectRecord.zig",

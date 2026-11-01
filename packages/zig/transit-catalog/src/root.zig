@@ -98,6 +98,7 @@ test {
     _ = NameAssertion;
     _ = DirectNamespace;
     _ = DirectDependency;
+    _ = DirectQueueTransferPlan;
     _ = @import("direct_catalog_test.zig");
     _ = @import("direct_storage_graph_test.zig");
     _ = @import("historical_catalog_test.zig");
@@ -155,6 +156,7 @@ pub const DirectTransactionRequest = @import("DirectTransactionRequest.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");
 pub const DirectTransactionLog = @import("DirectTransactionLog.zig");
 pub const DirectTransactionLogWork = @import("DirectTransactionLogWork.zig");
+pub const DirectQueueTransferPlan = @import("DirectQueueTransferPlan.zig");
 pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
