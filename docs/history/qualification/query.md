@@ -9,6 +9,50 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original workload completion evidence in SQL result codecs — 2026-11-01
+
+Commit `f2b13f29bdfc9391f9c4913b2b4b7d8572197713` moves native selection/position
+shapes into the public protocol and adds workload observation and terminal
+coverage to the shared SQL result model. Its coordinated current-v1 definition is
+`fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98`.
+The [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
+and [session framing](../../../contracts/SQL_SESSION_V1.md#logical-results-and-fetch-acknowledgement)
+own current semantics. Terminal workload metadata is bounded to 16 KiB and remains
+separate from output row count and initial observation metadata.
+
+ReleaseSafe `zig build test --summary all` passes **25/25** in `transit-sql-results`,
+**25/25** in `transit-sql-protocol` and **24/24** in `transit-sql-client`.
+Independent Python frames cover append, filtered Stream consumption and original
+Queue claims with full-width identities. Zig decodes and re-encodes the same
+bytes. Missing coverage, foreign saved bodies, invalid counts and partial
+positions reject; the model checks failed validation leaves progress unchanged.
+Empty claims, early closure, retained completion with undisplayed rows and
+unsolicited workload evidence on ordinary results are also checked.
+
+The catalog's selected workload-result/token disk and signature tests pass
+**7/7** after the shared-type move. The SQL service's `zig build check` passes
+**5/5 compilation steps**; its tests were not executed by that command. Root
+contract checks pass **19/19**, fast checks **60/60**, and documentation checks
+10,069 links across 710 files. Initial fixture generation failed because Python
+`deepcopy` preserved a shared intent object between observation and completion,
+so the foreign-body mutation changed both. Separating those fixture objects
+restored the intended negative control before all reported checks passed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-sql-workload-evidence-results2.log` | `81efc62618c1ae097533aefb67a4ce62c9af4c1d1f4ca7a3742aa3224bcd2a05` |
+| `/var/tmp/transit-m6-sql-workload-evidence-protocol1.log` | `33b63f4b788f7a8fc6a8e74afff112ca46afa4f1fd12cddfe0b10f7f3f2eb375` |
+| `/var/tmp/transit-m6-sql-workload-evidence-client1.log` | `da79f29879f9e17858701a01e8ce24ad93f71fb84864cecdf5f41e309bfdb166` |
+| `/var/tmp/transit-m6-sql-workload-evidence-catalog1.log` | `3f0de794d08ab37e2a6fa14a9d831ad6535188f02d97d02e64fff835f12168f0` |
+| `/var/tmp/transit-m6-sql-workload-evidence-service1.log` | `f2cde85b020be5960a2d8e00c6688dac3ea9c4464b072c1f479cf4895db56057` |
+| `/var/tmp/transit-m6-sql-workload-evidence-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-sql-workload-evidence-fast1.log` | `6213b2796b5cb1d3109222cb6ee92aacc836154d15a733077fd1bdc81158fdf7` |
+
+This qualifies shared model/codec carriage and the existing catalog regression
+schedule. It does not qualify SQL service workload admission, original-result
+opening or projection execution, installed consumers, provider recovery or any
+performance budget. Those service paths are not enabled by these types alone.
+
 ## Original workload projection preparation — 2026-11-01
 
 Commit `cc70915c7309f0176f310cd83bef0f31c594762d` adds Fuze's pure
