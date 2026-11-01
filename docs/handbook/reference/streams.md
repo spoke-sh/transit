@@ -46,8 +46,8 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
 Payload operations use the separate typed calls below. SQL supports
-[declaration and named inspection](sql/streaming.md#stream-and-queue-declarations);
-workload verbs and Station composition remain unavailable. The existing mailbox delivery
+[declarations, inspection, appends and positional consumption](sql/streaming.md#operations-and-sql-coverage).
+Other workload verbs and transactional Station composition remain unavailable. The existing mailbox delivery
 profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
@@ -91,7 +91,8 @@ Known producer fencing/receipt expiry and Queue lease fencing/expiry also return
 a durable `closed` refusal when its record commits. Other errors, absent receipts
 and lost replies remain unresolved; recover the original operation. Stopping a
 local wait is separate from requesting durable cancellation. These are native
-caller operations; SQL workload verbs remain unavailable.
+caller operations. SQL workload recovery uses these same original outcomes;
+the [SQL profile](sql/streaming.md#operations-and-sql-coverage) defines admitted verbs.
 
 ## Queue payloads and leased work
 

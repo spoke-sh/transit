@@ -39,7 +39,8 @@ receives a durable closure that prevents later admission under that identity.
 Mutation and lookup can return `closed` with cancellation or a qualified producer/
 lease refusal. Retryable failures and absent receipts remain unresolved. Closing
 an accepted claim's delivery resources remains the separate `release` mutation.
-SQL workload verbs remain unavailable. The local node can schedule protected
+SQL admits appends and positional consumption through the shared workload owner.
+The local node can schedule protected
 DLQ transfers with an explicitly configured database signer.
 
 `DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
@@ -87,7 +88,7 @@ The complete predicate retains Fuze's eager evaluation for traversed rows.
 LIMIT stays in the logical plan and never becomes an offset span. Contradictory
 metadata selections, named groups and waits are refused by this preparation
 profile until their admission owners are supplied. SQL `CONSUME` admission
-remains unavailable.
+uses this adapter and the same durable workload runtime as append operations.
 
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;
@@ -117,8 +118,8 @@ settlement from the exhausted authenticated cursor and the original group;
 it as a workload intent before dispatch. It cannot derive coverage from a caller's
 numeric offset or result row count. The native owner still authenticates the cursor
 and rechecks current rights/assignment. The SQL service restores frozen projections
-and opens original results through this owner. SQL append admission is
-implemented; the SQL finite-consumption handoff remains unavailable.
+and opens original results through this owner. SQL append and positional
+consumption admission are implemented; SQL group settlement remains unavailable.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

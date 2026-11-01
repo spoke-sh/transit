@@ -8,7 +8,8 @@ bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
 availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
-SQL `PRODUCE`, `CONSUME`, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
+SQL also supports [PRODUCE and positional CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
+Group consumption, WAIT, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
 
 The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
 reopens accepted append and finite consume results from frozen workload intents.
