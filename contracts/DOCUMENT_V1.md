@@ -205,7 +205,11 @@ Replaying either operation returns its own original receipt.
 `DLOG0001` state objects contain the mandatory shared definition, exact target,
 epoch, derived conflict count and a validated `DocumentIndex.Root`. The binary
 prefix includes the shared definition before the canonical JSON descriptor.
-State descriptors are at most 4,096 bytes. The root binds immutable ordered-key
+State descriptors are at most 4,096 bytes. Format dispatch verifies those bounded
+bytes against their accepted digest before deciding whether they own child roots;
+a corrupt marker cannot turn a logical root into an opaque collector leaf.
+`readNextRevision` returns this descriptor for a logical revision, not a materialized
+tree; use pinned path pages to consume values. The root binds immutable ordered-key
 and record-location directories. Record locations identify shared `.tseg`
 key/value rows, validated against the declared object/definition and epoch.
 

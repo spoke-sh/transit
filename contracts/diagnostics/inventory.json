@@ -6397,7 +6397,7 @@
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
-        "InvalidDocumentStorageGraph": 13,
+        "InvalidDocumentStorageGraph": 15,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 47,
         "InvalidQueueDestination": 2,
@@ -6405,6 +6405,7 @@
         "InvalidTransactionActions": 2,
         "LogHistoryUnavailable": 3,
         "MissingDataIndexObject": 1,
+        "MissingDocumentSegment": 1,
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
         "TableSegmentMissing": 1,
@@ -6417,7 +6418,9 @@
           "revisions",
           "replicas",
           "operations",
-          "reads"
+          "reads",
+          "logical_records",
+          "logical_ordered"
         ],
         "LogIndexKind": [
           "pages_only",
@@ -6524,7 +6527,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 491,
+        "try": 502,
         "catch": 1
       },
       "imports": [
@@ -10740,6 +10743,58 @@
         "std"
       ]
     },
+    "packages/zig/transit-document/src/CausalTree.zig": {
+      "errors": {
+        "DocumentConflictCapacity": 1,
+        "DocumentDependencyMissing": 1,
+        "DocumentEvaluationBudget": 1,
+        "DocumentIdentityConflict": 1,
+        "DocumentKeyCollision": 3,
+        "DocumentPathCapacity": 3,
+        "DocumentTypeError": 1,
+        "DocumentWrongDependency": 1,
+        "InvalidLogicalOperation": 1,
+        "InvalidLogicalState": 9
+      },
+      "outcomes": {
+        "CausalTree().<return>.Status": [
+          "value",
+          "null_value",
+          "missing",
+          "type_error",
+          "conflict"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "CausalTree().<return>.active()": "<inferred>",
+        "CausalTree().<return>.applyOperation()": "<inferred>",
+        "CausalTree().<return>.assignment()": "<inferred>",
+        "CausalTree().<return>.assignmentAt()": "<inferred>",
+        "CausalTree().<return>.chunks()": "<inferred>",
+        "CausalTree().<return>.decodeAssignment()": "<inferred>",
+        "CausalTree().<return>.decodeField()": "<inferred>",
+        "CausalTree().<return>.depth()": "<inferred>",
+        "CausalTree().<return>.dotKey()": "<inferred>",
+        "CausalTree().<return>.fieldKey()": "<inferred>",
+        "CausalTree().<return>.get()": "<inferred>",
+        "CausalTree().<return>.lookup()": "<inferred>",
+        "CausalTree().<return>.partKey()": "<inferred>",
+        "CausalTree().<return>.put()": "<inferred>",
+        "CausalTree().<return>.sameChunks()": "<inferred>",
+        "CausalTree().<return>.tick()": "<inferred>",
+        "CausalTree().<return>.valueChunk()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 1
+      },
+      "imports": [
+        "LogicalChange.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document/src/Document.zig": {
       "errors": {
         "DocumentConflictCapacity": 1,
@@ -10813,6 +10868,45 @@
       },
       "imports": [
         "Model.zig",
+        "codec.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/LogicalChange.zig": {
+      "errors": {
+        "InvalidLogicalChange": 3,
+        "InvalidLogicalDot": 1,
+        "InvalidLogicalOperation": 3,
+        "InvalidLogicalValue": 9
+      },
+      "outcomes": {
+        "Kind": [
+          "null_value",
+          "boolean",
+          "signed",
+          "unsigned",
+          "float",
+          "string",
+          "binary",
+          "map"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Decoder.init()": "<inferred>",
+        "Decoder.next()": "<inferred>",
+        "Dot.validate()": "<inferred>",
+        "Header.validate()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Value.validate()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 40,
+        "catch": 0
+      },
+      "imports": [
         "codec.zig",
         "std"
       ]
@@ -11082,7 +11176,9 @@
       },
       "imports": [
         "Bytes.zig",
+        "CausalTree.zig",
         "Document.zig",
+        "LogicalChange.zig",
         "Model.zig",
         "SpanText.zig",
         "SuccinctTree.zig",
@@ -35088,35 +35184,72 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentLogicalState.zig": {
+      "errors": {
+        "DocumentStateObjectMissing": 2,
+        "IncompatibleDefinition": 2,
+        "InvalidLogicalState": 8
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "State.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "isLogical()": "<inferred>",
+        "load()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "DocumentEvidence.zig",
+        "DocumentIndex.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DocumentPartition.zig": {
       "errors": {
         "DocumentAppendUncertain": 2,
         "DocumentCheckpointRequired": 1,
-        "DocumentEpochFenced": 1,
-        "DocumentHistoryUnavailable": 7,
+        "DocumentEpochFenced": 2,
+        "DocumentEvaluationBudget": 2,
+        "DocumentHistoryUnavailable": 8,
         "DocumentInitializationMissing": 1,
-        "DocumentMutationLimitExceeded": 1,
-        "DocumentOperationConflict": 5,
-        "DocumentPartitionConflict": 2,
+        "DocumentLogicalCheckpointUnsupported": 1,
+        "DocumentLogicalEvaluationRequired": 3,
+        "DocumentMutationLimitExceeded": 2,
+        "DocumentOperationConflict": 6,
+        "DocumentPartitionConflict": 3,
+        "DocumentPathCapacity": 3,
         "DocumentPositionExhausted": 1,
-        "DocumentReadConflict": 4,
-        "DocumentReadLimitExceeded": 1,
+        "DocumentReadConflict": 5,
+        "DocumentReadLimitExceeded": 5,
         "DocumentReadMissing": 2,
         "DocumentReadReleased": 1,
         "DocumentRecoveryMissing": 1,
         "DocumentRecoveryRequired": 2,
-        "DocumentReplicaConflict": 1,
+        "DocumentReplicaConflict": 3,
         "DocumentRevisionBeyondCut": 2,
+        "DocumentSingleRevisionRequired": 1,
         "DocumentStateObjectMissing": 1,
+        "IncompatibleDefinition": 1,
         "InvalidDocumentArchive": 2,
         "InvalidDocumentCheckpoint": 2,
-        "InvalidDocumentLineage": 2,
-        "InvalidDocumentMutation": 1,
+        "InvalidDocumentCursor": 3,
+        "InvalidDocumentLineage": 4,
+        "InvalidDocumentMutation": 2,
         "InvalidDocumentPartitionRecord": 3,
         "InvalidDocumentRead": 1,
         "InvalidDocumentRecovery": 2,
         "InvalidDocumentRecoveryBudget": 1,
         "InvalidDocumentStateObject": 4,
+        "InvalidLogicalOperation": 1,
+        "InvalidLogicalState": 4,
         "InvalidWalEpoch": 1,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1
@@ -35124,11 +35257,15 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "acceptCausalAlias()": "<inferred>",
+        "acceptMutation()": "<inferred>",
+        "applyCausal()": "<inferred>",
         "applyMutation()": "<inferred>",
         "archive()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "authorize()": "<inferred>",
         "beginRead()": "<inferred>",
+        "causalCursor()": "<inferred>",
         "checkpointRecovery()": "<inferred>",
         "decodeValue()": "<inferred>",
         "docKey()": "<inferred>",
@@ -35140,31 +35277,38 @@
         "nextPosition()": "<inferred>",
         "open()": "<inferred>",
         "operationKey()": "<inferred>",
+        "pathHash()": "<inferred>",
         "publishCheckpoint()": "<inferred>",
         "publishRecord()": "<inferred>",
+        "readCausalPage()": "<inferred>",
+        "readCausalPageInner()": "<inferred>",
         "readCursor()": "<inferred>",
         "readNextRevision()": "<inferred>",
         "recoverStep()": "<inferred>",
         "releaseRead()": "<inferred>",
         "replicaKey()": "<inferred>",
+        "requireCausalPath()": "<inferred>",
         "requireLivePin()": "<inferred>",
         "requirePartition()": "<inferred>",
         "requireReady()": "<inferred>",
         "requireRecoveryBudget()": "<inferred>",
         "revisionKey()": "<inferred>",
         "selectCheckpoint()": "<inferred>",
+        "signCausal()": "<inferred>",
         "stageBytes()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 190,
-        "catch": 3
+        "try": 247,
+        "catch": 5
       },
       "imports": [
         "DocumentDeclaration.zig",
         "DocumentEvidence.zig",
+        "DocumentIndex.zig",
         "DocumentInitialization.zig",
+        "DocumentLogicalState.zig",
         "DocumentPartitionRecord.zig",
         "DocumentRead.zig",
         "DocumentRecovery.zig",
@@ -35174,6 +35318,7 @@
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
+        "transit_document",
         "transit_protocol"
       ]
     },
@@ -38485,6 +38630,7 @@
         "DocumentEvidence.zig",
         "DocumentIndex.zig",
         "DocumentInitialization.zig",
+        "DocumentLogicalState.zig",
         "DocumentPartition.zig",
         "DocumentPartitionRecord.zig",
         "DocumentRead.zig",
@@ -38550,7 +38696,8 @@
         "TransactionDirectory.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
-        "TreeStore.zig"
+        "TreeStore.zig",
+        "transit_document"
       ]
     },
     "packages/zig/transit-storage/src/transaction_test_support.zig": {

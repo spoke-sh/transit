@@ -50,10 +50,19 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content:
     if (bytes.len != content.bytes or !std.mem.eql(u8, &Hash.hash(bytes), &content.sha256)) return error.InvalidLogicalState;
     return decode(allocator, bytes);
 }
+/// Verify bounded state bytes before format dispatch. A damaged magic cannot
+/// make the collector treat a logical root as an opaque leaf and omit children.
 pub fn isLogical(objects: Objects.ObjectStore, content: d.Content) !bool {
-    if (content.bytes < magic.len) return false;
+    try content.validate();
+    // Every logical descriptor is <= max_bytes; larger opaque state has no
+    // logical child references in this format.
+    if (content.bytes > max_bytes) return false;
     var name: [96]u8 = undefined;
     const key = try std.fmt.bufPrint(&name, "document-states/{x}.data", .{&content.sha256});
-    var prefix: [8]u8 = undefined;
-    return std.mem.eql(u8, try objects.getRange(key, 0, 8, &prefix), magic);
+    const meta = try objects.head(key) orelse return error.DocumentStateObjectMissing;
+    if (meta.size != content.bytes or !std.mem.eql(u8, &meta.sha256, &content.sha256)) return error.InvalidLogicalState;
+    var buffer: [max_bytes]u8 = undefined;
+    const bytes = try objects.getRange(key, 0, @intCast(content.bytes), &buffer);
+    if (bytes.len != content.bytes or !std.mem.eql(u8, &Hash.hash(bytes), &content.sha256)) return error.InvalidLogicalState;
+    return std.mem.startsWith(u8, bytes, magic);
 }

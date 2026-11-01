@@ -31,6 +31,7 @@ pub const Value = struct {
     kind: Kind,
     bytes: []const u8 = &.{},
     pub fn validate(self: Value) !void {
+        if (self.bytes.len > std.math.maxInt(u32)) return error.InvalidLogicalValue;
         switch (self.kind) {
             .null_value, .map => if (self.bytes.len != 0) return error.InvalidLogicalValue,
             .boolean => if (self.bytes.len != 1 or self.bytes[0] > 1) return error.InvalidLogicalValue,
@@ -54,7 +55,7 @@ pub const Operation = struct {
     value: ?Value,
     pub fn validate(self: Operation) !void {
         try self.object.validate(true);
-        if (self.field.len == 0 or !std.unicode.utf8ValidateSlice(self.field) or self.observed.len % 26 != 0 or self.observed.len / 26 > 65535) return error.InvalidLogicalOperation;
+        if (self.field.len == 0 or self.field.len > std.math.maxInt(u32) or !std.unicode.utf8ValidateSlice(self.field) or self.observed.len % 26 != 0 or self.observed.len / 26 > 65535) return error.InvalidLogicalOperation;
         var at: usize = 0;
         while (at < self.observed.len) : (at += 26) {
             try Dot.fromBytes(self.observed[at..][0..26]).validate(false);

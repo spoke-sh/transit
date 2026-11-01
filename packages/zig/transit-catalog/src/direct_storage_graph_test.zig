@@ -382,6 +382,18 @@ test "direct graph retains document partition declarations states payloads evide
             return .{ .writer_epoch = 1, .policy_epoch = 1 };
         }
         fn release(_: *anyopaque) void {}
+        fn walk(owner: *s.DocumentPartition, log: s.TransitLog.Log, frame: s.TransitLog.Frame, workspace: *Workspace) !void {
+            try workspace.enqueue(try Graph.fromFrame(t.allocator, frame));
+            var at: usize = 0;
+            var steps: usize = 0;
+            while (at < workspace.jobs.items.len) : (at += 1) {
+                var work = workspace.jobs.items[at];
+                while (!try Graph.step(t.allocator, &owner.store, log, &work, workspace)) {
+                    steps += 1;
+                    if (steps == 2000) return error.FixtureBudget;
+                }
+            }
+        }
         fn hashBytes(bytes: []const u8) [32]u8 {
             var digest: [32]u8 = undefined;
             std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -503,17 +515,7 @@ test "direct graph retains document partition declarations states payloads evide
 
     var workspace: Workspace = .{};
     defer workspace.deinit();
-    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest_batch.frames[0]));
-    var at: usize = 0;
-    var steps: usize = 0;
-    while (at < workspace.jobs.items.len) {
-        var work = workspace.jobs.items[at];
-        while (!try Graph.step(t.allocator, &owner.store, wal.log(), &work, &workspace)) {
-            steps += 1;
-            if (steps == 2000) return error.FixtureBudget;
-        }
-        at += 1;
-    }
+    try DocFixture.walk(&owner, wal.log(), latest_batch.frames[0], &workspace);
 
     var name: [96]u8 = undefined;
     try t.expect(Graph.collectible(try s.DocumentDeclaration.key(declared.content, &name)));
@@ -539,6 +541,21 @@ test "direct graph retains document partition declarations states payloads evide
     try t.expectEqual(@as(usize, 1), accepted_segments);
     try t.expect(workspace.marks.contains(try s.TreeStore.key(logical_state.index.records.location, &name)));
     try t.expect(workspace.marks.contains(try s.TreeStore.key(logical_state.index.ordered.location, &name)));
+    // The metadata still reports the accepted digest. A damaged format marker
+    // must fail graph traversal, never silently turn the descriptor into a leaf.
+    const logical_key = try std.fmt.bufPrint(&name, "document-states/{x}.data", .{&logical_receipt.state.sha256});
+    var corrupted = false;
+    for (objects.objects.items) |*object| {
+        if (std.mem.eql(u8, object.key, logical_key)) {
+            object.bytes[0] ^= 1;
+            corrupted = true;
+            break;
+        }
+    }
+    try t.expect(corrupted);
+    var corrupt_workspace: Workspace = .{};
+    defer corrupt_workspace.deinit();
+    try t.expectError(error.InvalidLogicalState, DocFixture.walk(&owner, wal.log(), latest_batch.frames[0], &corrupt_workspace));
 }
 
 test "direct graph retains transaction log source payloads after archive trim until exact release" {
