@@ -315,11 +315,13 @@
       "checks": [
         "packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig",
         "packages/zig/transit-fuze/src/german_string_and_codecs_test.zig",
-        "packages/zig/transit-fuze/src/vectorized_search_test.zig"
+        "packages/zig/transit-fuze/src/vectorized_search_test.zig",
+        "packages/zig/transit-fuze/src/query_collation_test.zig"
       ],
-      "backing": "64-byte-padded StringArena, stack/frozen PerfectHash directories, compressed-domain .dictionary/.fsst bitmasks, and 256-doc Block-Max WAND / hybrid search scratch buffers verified under sealed AllocationProbe.",
+      "backing": "Production Batch reserves its bounded aligned backing once; compact string/reset tests seal its actual backing allocator. Shared dictionary/FSST predicate and selected projection tests reuse a warmed arena over a sealed AllocationProbe. Frozen maps and search helpers have separate component controls.",
       "gaps": [
-        "Composed gateway-to-storage OS mappings remain Phase J whole-system qualification."
+        "Search helper allocation controls do not qualify public search SQL, durable indexes or installed hybrid execution.",
+        "Retained relational keys, multi-atom encoded-page reuse and composed gateway-to-storage OS mappings remain separate qualification."
       ]
     },
     {

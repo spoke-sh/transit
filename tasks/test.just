@@ -974,6 +974,8 @@ vortex-profile profile:
 fuze-types:
     python3 -B tests/runner/launch.py tests/query/logical/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
+    zig build test-string-execution
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter=PerfectHash -Dtest-filter=compact -Dtest-filter=FSST -Dtest-filter=compressed -Dtest-filter="query collation" -Dtest-filter="standards ledger" -Dtest-filter="TSeg selected decoding" --summary all
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:

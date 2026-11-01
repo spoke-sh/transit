@@ -192,7 +192,7 @@ test "TSeg filtered groups cannot prune eager source failures or reorder their r
     // INSERT. Its independently supplied footer commits to the exact page.
     const fields = [_]Schema.Column{.{ .id = 1, .name = "v", .type = .int64 }};
     const definition: Schema.Schema = .{ .object = 2, .revision = 1, .next_column = 2, .columns = &fields };
-    const cells = [_]Values.Cell{ .{ .conflict = &.{.{ .counter = 9, .replica = 2, .value = .null }} }, .{ .type_error = .utf8 } };
+    const cells = [_]Values.Cell{ .{ .conflict = &.{ .{ .counter = 9, .replica = 2, .value = .null }, .{ .counter = 10, .replica = 2, .value = .null } } }, .{ .type_error = .utf8 } };
     var buffer: [8192]u8 = undefined;
     const encoded = try Codecs.encodeColumnPage(t.allocator, fields[0], &cells, &buffer);
     var digest: [32]u8 = undefined;
@@ -337,7 +337,7 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
     };
     const definition: Schema.Schema = .{ .object = 2, .revision = 1, .next_column = 3, .columns = &fields };
     const left = [_]Values.Cell{ .{ .value = .{ .atom = .{ .signed = 0 } } }, .{ .type_error = .utf8 } };
-    const right = [_]Values.Cell{ .{ .conflict = &.{.{ .counter = 1, .replica = 2, .value = .null }} }, .{ .type_error = .int64 } };
+    const right = [_]Values.Cell{ .{ .conflict = &.{ .{ .counter = 1, .replica = 2, .value = .null }, .{ .counter = 2, .replica = 2, .value = .null } } }, .{ .type_error = .int64 } };
     var bytes: [8192]u8 = undefined;
     const first = try Codecs.encodeColumnPage(t.allocator, fields[0], &left, &bytes);
     const second = try Codecs.encodeColumnPage(t.allocator, fields[1], &right, bytes[first.len..]);
@@ -877,6 +877,16 @@ test "TSeg selected decoding charges skipped string validation to the shared mem
     defer reader.deinit();
     var encoded = try reader.encodedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768);
     defer encoded.deinit();
+    // Production predicate evaluation streams the large value within 4 KiB.
+    // Selected projection still owns/charges decoded values and validation work.
+    const instructions = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{
+        .column = 0,
+        .predicate = .{ .compare = .{ .op = .gt, .value = .{ .bytes = "m" } } },
+    } }};
+    var decisions = try reader.decisions(t.allocator, input.source(), compressed_schema, 0, .{ .instructions = &instructions }, .{ .decoded_bytes = 4096 });
+    defer decisions.deinit();
+    try t.expect(decisions.rows[0].selected and decisions.rows[1].selected);
+    try t.expect(decisions.allocatedBytes() <= 4096);
     try t.expectError(error.SegmentReadBudgetExceeded, encoded.select(t.allocator, compressed_schema, &.{0}, 4096));
     try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768, 4096));
     var selected = try encoded.select(t.allocator, compressed_schema, &.{0}, 32768);

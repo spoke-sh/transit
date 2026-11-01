@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Independent oracle and contract verifier for Milestone 14:
-16-byte collation-prefixed GermanString vectors, PerfectHash (ComptimeMap and
-FrozenDirectory with 64-byte SIMD padding and 4 KiB page-boundary guard),
-compressed-domain .dictionary / .fsst predicate evaluation and late
-materialization, 256-document Block-Max BM25 / WAND execution (TSS1), and
-single-snapshot hybrid search (RRF and calibrated linear combination).
+"""Static M14 component fixtures and source inventory, not an execution proof.
+
+The runtime string oracle is string_execution.py. Search ranking/fusion vectors
+remain component expectations; this check does not establish SQL or recovery.
 """
 from runner.paths import ROOT
 import argparse
@@ -218,8 +216,8 @@ def verify_zig_and_allocations() -> None:
             "filterSliceMask64",
         ],
         "PhysicalCodecs": [
-            "evaluateCompressedStringPage",
-            "lateMaterializeSelectedGermanStrings",
+            "evaluateColumnPage",
+            "decodeColumnPageSelected",
         ],
         "TSearchSegment": [
             "magic",
@@ -286,7 +284,7 @@ def main() -> None:
         f"Vectorized strings & search: {len(fixtures['norm_dl_vectors'])} norm_dl vectors, "
         f"{len(fixtures['impact_vectors'])} Block-Max Q16 vectors, "
         f"{len(fixtures['german_string_vectors'])} GermanString vectors, and "
-        f"{len(ZIG_FILES)} Zig modules verified"
+        f"{len(ZIG_FILES)} Zig source inventories checked (no runtime execution)"
     )
 
 

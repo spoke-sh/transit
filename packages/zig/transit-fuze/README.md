@@ -35,6 +35,18 @@ TABLE and ADD COLUMN accept the corresponding `COLLATE` clauses; types and
 physical codecs remain independent. ICU, expression overrides and text
 relational joins/group/order are unsupported.
 
+`Batch` retains UTF-8 and binary values in 16-byte `StringVector.Value` lanes.
+Up to 12 original bytes fit inline; longer values carry a cached collation sort
+prefix and a pointer into immutable owner storage. Comparisons use the declared
+collation, while projections preserve spelling and trailing spaces. Owned append
+copies long payloads and conflict alternatives into the bounded batch arena;
+borrowed append requires source payloads to survive until reset/deinit. Views of
+inline bytes also expire at reset. Column arrays, state sidecars and selection
+arrays start at 64-byte boundaries. Reset and evaluation reuse the reservation.
+These are transient implementation details; canonical values and saved plans
+retain their existing definitions. `GermanString` is a separate normalized
+comparison-key helper and is not a lossless projection representation.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies
@@ -42,6 +54,18 @@ footer/page commitments, schema interpretation, counts and coordinates before
 using them. Its primary-key footer is a sorted resident directory, not a paged
 B-tree. The host must verify object identity/range integrity, retain the source
 and check current authorization; the reader supplies none of those authorities.
+
+Encoded predicates use `PhysicalCodecs.evaluateColumnPage`, also used by the
+Table reader. Dictionary execution validates and evaluates each physical entry
+once, then reads cached outcomes by code; collation-equivalent spellings may have
+distinct codes. FSST equality, ordering and prefix predicates stream symbol bytes
+under binary/ASCII case-folding order without allocating decoded strings. They
+still validate every token, decoded length and UTF-8 scalar after a decision is
+known. CP037 and complex patterns use the bounded shared decoder. Selected
+projection uses that same decoder and preserves raw bytes and conflict details;
+unselected corrupt values or details cannot be hidden by filtering. Per-page
+counters distinguish streamed and materialized FSST predicate values. No new
+codec, dictionary format, SQL `IN` syntax or search index lifecycle is introduced.
 
 `TDel.DeletionVector` stores a segment's deleted row offsets in canonical shared
 Roaring containers. A sorted sparse directory selects high-16-bit prefixes;
@@ -120,7 +144,8 @@ the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
 `PhysicalCodecs.evaluateColumnPage` evaluates one `ColumnPredicate` over physical
 values, runs or dictionary codes. Its output owns one byte per row, preserving
 true, false, unknown, type error and conflict separately. RLE runs and dictionary
-entries evaluate once; symbol-table and EBCDIC strings use bounded transient
+entries evaluate once. Binary/ASCII symbol-table comparisons stream validated
+bytes; other symbol-table predicates and EBCDIC strings use bounded transient
 decoding. The caller keeps the typed literal alive during evaluation and owns
 scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared

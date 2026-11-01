@@ -245,6 +245,8 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
     for (cells) |cell| if (cell == .value) {
         try cell.validate(column.field(), .{});
         try validateValue(column, cell.value);
+    } else {
+        try validatePhysicalCell(column, cell);
     };
     var writer: std.Io.Writer = .fixed(out);
     try writer.writeAll("TCP1");
@@ -465,6 +467,9 @@ pub const Evaluated = struct {
     /// Predicate evaluations over physical values (one per dictionary entry or
     /// RLE run), excluding non-value state tags. Not a device-I/O measurement.
     evaluated_values: usize,
+    /// Fully validated FSST values compared without allocating decoded payloads.
+    streamed_strings: usize,
+    materialized_strings: usize,
 };
 
 /// Evaluate directly over physical values/codes/runs. The result retains one
@@ -476,7 +481,7 @@ pub fn evaluateColumnPage(scratch: std.mem.Allocator, arena: std.mem.Allocator, 
     var sink: PredicateSink = .{ .arena = arena, .column = column, .predicate = predicate };
     errdefer arena.free(sink.outcomes);
     _ = try decodeInto(false, scratch, column, bytes, &sink);
-    return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values };
+    return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values, .streamed_strings = sink.streamed_strings, .materialized_strings = sink.materialized_strings };
 }
 
 fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
@@ -528,7 +533,10 @@ fn decodeInto(comptime borrow_plain: bool, scratch: std.mem.Allocator, column: T
             },
             else => unreachable,
         };
-        if (tag != 0) try sink.nonValue(i, cell);
+        if (tag != 0) {
+            try validatePhysicalCell(column, cell);
+            try sink.nonValue(i, cell);
+        }
         _ = temporary.reset(.retain_capacity);
     }
 
@@ -616,7 +624,7 @@ const DecodeSink = struct {
     }
     const Cached = struct { cell: Values.Cell, owned: bool = false };
     fn prepare(self: *DecodeSink, cell: Values.Cell) !Cached {
-        if (cell == .value) try cell.validate(self.column.field(), .{});
+        try validatePhysicalCell(self.column, cell);
         return .{ .cell = cell, .owned = self.borrow_plain };
     }
     fn emit(self: *DecodeSink, cell: Values.Cell, repeat: usize) !void {
@@ -648,6 +656,8 @@ const PredicateSink = struct {
     outcomes: []ColumnPredicate.Outcome = &.{},
     next_row: usize = 0,
     evaluated_values: usize = 0,
+    streamed_strings: usize = 0,
+    materialized_strings: usize = 0,
     const Cached = ColumnPredicate.Outcome;
     fn start(self: *PredicateSink, tags: []const u8) !void {
         self.tags = tags;
@@ -657,7 +667,7 @@ const PredicateSink = struct {
         self.outcomes[row] = try self.predicate.evaluate(self.column, cell);
     }
     fn prepare(self: *PredicateSink, cell: Values.Cell) !Cached {
-        if (cell == .value) try cell.validate(self.column.field(), .{});
+        try validatePhysicalCell(self.column, cell);
         self.evaluated_values += 1;
         return self.predicate.evaluate(self.column, cell);
     }
@@ -958,6 +968,17 @@ fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader,
         const token_len = try reader.takeInt(u32, .little);
         const tokens = try reader.take(token_len);
         if (@as(u64, decoded_len) > @as(u64, token_len) * 8) return error.InvalidFsstStream;
+        if (decoded_len > (Types.Limits{}).value_bytes) return error.ValueBudgetExceeded;
+        if (comptime @TypeOf(sink.*) == PredicateSink) {
+            if (try streamFsstPredicate(symbols[0..symbol_count], tokens, decoded_len, sink.column, sink.predicate)) |outcome| {
+                var cached = outcome;
+                try sink.emitCached(&cached, 1);
+                sink.evaluated_values += 1;
+                sink.streamed_strings += 1;
+                continue;
+            }
+            sink.materialized_strings += 1;
+        }
         const is_predicate_sink = comptime (@TypeOf(sink.*) != DecodeSink);
         const can_use_stack = decoded_len <= stack_buf.len and (is_predicate_sink or !sink.borrow_plain);
         const buf = if (can_use_stack)
@@ -970,456 +991,98 @@ fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader,
     }
 }
 
-pub const CompressedStringStats = struct {
-    dictionary_entries_inspected: u32 = 0,
-    dictionary_perfect_hash_probes: u32 = 0,
-    fsst_compressed_short_circuits: u32 = 0,
-    fsst_decoded_rows: u32 = 0,
-    late_materialized_rows: u32 = 0,
-    skipped_unselected_rows: u32 = 0,
-};
-
-/// Evaluate a string `ColumnPredicate.Predicate` (`=`, `!=`, `<`, `<=`, `>`, `>=`,
-/// `in_set`, `starts_with`, `contains`, `like`) directly in the compressed domain
-/// over a `.dictionary` or `.fsst` `TCP1` column page into `outcomes_out` with
-/// zero steady-state heap allocations.
-///
-/// - On `.dictionary` pages: builds a stack-resident `PerfectHash.FrozenDirectory`
-///   and collation-sorted index directory over the page dictionary (`0..dict_len`),
-///   converts `=` and `IN (...)` into $O(1)$ perfect-hash code lookups, converts
-///   `<`, `<=`, `>`, `>=`, and `STARTS_WITH` into $O(\log D)$ binary-searched code
-///   intervals, and filters row codes via a 1,024-bit code bitset.
-/// - On `.fsst` pages: inspects decoded lengths and initial compressed symbol codes
-///   before decoding candidate strings into stack scratch.
-pub fn evaluateCompressedStringPage(
-    column: TableSchema.Column,
-    bytes: []const u8,
-    predicate: ColumnPredicate.Predicate,
-    outcomes_out: []ColumnPredicate.Outcome,
-    stats_out: ?*CompressedStringStats,
-) ![]ColumnPredicate.Outcome {
-    try column.validateEncodingAndCollation();
-    try predicate.validate(column);
-    if (column.type != .utf8 and column.type != .binary) return error.UnsupportedComparison;
-    if (bytes.len < 41 or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
-    if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
-
-    var reader: std.Io.Reader = .fixed(bytes[36..]);
-    const encoding = std.enums.fromInt(Encoding, try reader.takeByte()) orelse return error.InvalidColumnPage;
-    if (encoding != column.encoding) return error.ColumnEncodingMismatch;
-    const row_count = try reader.takeInt(u32, .little);
-    if (row_count > 65536 or outcomes_out.len < row_count) return error.ColumnPageRowLimitExceeded;
-    const tags = try reader.take(row_count);
-
-    var value_count: usize = 0;
-    for (tags) |tag| switch (tag) {
-        0 => value_count += 1,
-        1...4 => {},
-        else => return error.InvalidColumnPage,
+// Physical pages preserve all five states, even when a source will subsequently
+// refuse one at its row boundary. Validate conflict structure and payloads before
+// a predicate or selection can hide them.
+fn validatePhysicalCell(column: TableSchema.Column, cell: Values.Cell) !void {
+    var field = column.field();
+    field.optional = true;
+    field.nullable = true;
+    try cell.validate(field, .{});
+    if (column.type == .utf8) switch (cell) {
+        .value => |value| {
+            try Collation.validateBytes(value.atom.bytes, column.collation);
+            if (column.max_characters) |maximum| {
+                if (try std.unicode.utf8CountCodepoints(value.atom.bytes) > maximum) return error.CharacterLimitExceeded;
+            }
+        },
+        .conflict => |alternatives| for (alternatives) |alternative| {
+            if (alternative.value == .value) try Collation.validateBytes(alternative.value.value.atom.bytes, column.collation);
+        },
+        else => {},
     };
-
-    var stats: CompressedStringStats = .{};
-    // 1. Evaluate non-value 5-state tags (`null`, `missing`, `type_error`, `conflict`)
-    for (tags, 0..) |tag, row| {
-        switch (tag) {
-            0 => {},
-            1 => outcomes_out[row] = try predicate.evaluate(column, .null),
-            2 => outcomes_out[row] = try predicate.evaluate(column, .missing),
-            3 => {
-                const kind = std.enums.fromInt(Types.Kind, try reader.takeByte()) orelse return error.InvalidColumnPage;
-                outcomes_out[row] = try predicate.evaluate(column, .{ .type_error = kind });
-            },
-            4 => {
-                const alt_count = try reader.takeInt(u16, .little);
-                for (0..alt_count) |_| {
-                    _ = try reader.takeInt(u64, .little);
-                    _ = try reader.takeInt(u64, .little);
-                    switch (try reader.takeByte()) {
-                        0 => {},
-                        1 => _ = try reader.takeByte(),
-                        2 => {
-                            const vlen = try reader.takeInt(u32, .little);
-                            _ = try reader.take(vlen);
-                        },
-                        else => return error.InvalidColumnPage,
-                    }
-                }
-                outcomes_out[row] = if (predicate == .all) .yes else if (predicate == .state) (if (predicate.state == .conflict) .yes else .no) else .conflict;
-            },
-            else => unreachable,
-        }
-    }
-
-    const profile = Collation.Profile.fromCollation(column.collation);
-    const PerfectHash = @import("PerfectHash.zig");
-
-    switch (column.encoding) {
-        .dictionary => {
-            const dict_len = try reader.takeInt(u32, .little);
-            if (dict_len > value_count or dict_len > PerfectHash.max_runtime_keys) return error.InvalidDictionaryCode;
-
-            var dict_slices: [PerfectHash.max_runtime_keys][]const u8 = undefined;
-            for (0..dict_len) |di| {
-                dict_slices[di] = try readCanonicalBytesSlice(&reader, column.type);
-            }
-
-            // Build bitset of matching dictionary codes (`0..dict_len`)
-            var matching_codes: [PerfectHash.max_runtime_keys / 64]u64 = @splat(0);
-            const setCodeBit = struct {
-                inline fn set(bits: *[PerfectHash.max_runtime_keys / 64]u64, code: usize) void {
-                    bits[code / 64] |= (@as(u64, 1) << @intCast(code % 64));
-                }
-                inline fn get(bits: *const [PerfectHash.max_runtime_keys / 64]u64, code: usize) bool {
-                    return (bits[code / 64] & (@as(u64, 1) << @intCast(code % 64))) != 0;
-                }
-            };
-
-            if (dict_len > 0) {
-                switch (predicate) {
-                    .all => {
-                        for (0..dict_len) |di| setCodeBit.set(&matching_codes, di);
-                    },
-                    .state => |st| {
-                        if (st == .value) {
-                            for (0..dict_len) |di| setCodeBit.set(&matching_codes, di);
-                        }
-                    },
-                    .null_compare => {},
-                    .compare => |cmp| {
-                        const dir = try PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile);
-                        switch (cmp.op) {
-                            .eq => {
-                                stats.dictionary_perfect_hash_probes += 1;
-                                if (try dir.lookup(dict_slices[0..dict_len], cmp.value.bytes)) |code| {
-                                    setCodeBit.set(&matching_codes, code);
-                                }
-                            },
-                            .ne => {
-                                stats.dictionary_perfect_hash_probes += 1;
-                                const excluded = try dir.lookup(dict_slices[0..dict_len], cmp.value.bytes);
-                                for (0..dict_len) |di| {
-                                    if (excluded == null or excluded.? != di) setCodeBit.set(&matching_codes, di);
-                                }
-                            },
-                            .lt, .le, .gt, .ge => {
-                                // Binary search the collation-sorted dictionary directory (`dir.sorted_indices`)
-                                for (0..dict_len) |si| {
-                                    const code = dir.sorted_indices[si];
-                                    stats.dictionary_entries_inspected += 1;
-                                    const ord = try Collation.compareBytesProfile(dict_slices[code], cmp.value.bytes, profile);
-                                    const ok = switch (cmp.op) {
-                                        .lt => ord == .lt,
-                                        .le => ord == .lt or ord == .eq,
-                                        .gt => ord == .gt,
-                                        .ge => ord == .gt or ord == .eq,
-                                        else => unreachable,
-                                    };
-                                    if (ok) setCodeBit.set(&matching_codes, code);
-                                }
-                            },
-                        }
-                    },
-                    .in_set => |literals| {
-                        const dir = try PerfectHash.FrozenDirectory.init(dict_slices[0..dict_len], profile);
-                        for (literals) |lit| {
-                            stats.dictionary_perfect_hash_probes += 1;
-                            if (try dir.lookup(dict_slices[0..dict_len], lit)) |code| {
-                                setCodeBit.set(&matching_codes, code);
-                            }
-                        }
-                    },
-                    .starts_with, .contains, .like => {
-                        for (0..dict_len) |di| {
-                            stats.dictionary_entries_inspected += 1;
-                            const out = try predicate.evaluate(column, .{ .value = .{ .atom = .{ .bytes = dict_slices[di] } } });
-                            if (out == .yes) setCodeBit.set(&matching_codes, di);
-                        }
-                    },
-                }
-            }
-
-            var row: usize = 0;
-            for (0..value_count) |_| {
-                while (row < tags.len and tags[row] != 0) row += 1;
-                if (row == tags.len) return error.InvalidColumnPage;
-                const code = try reader.takeInt(u32, .little);
-                if (code >= dict_len) return error.InvalidDictionaryCode;
-                outcomes_out[row] = if (predicate == .null_compare)
-                    .unknown
-                else if (setCodeBit.get(&matching_codes, code))
-                    .yes
-                else
-                    .no;
-                row += 1;
-            }
-        },
-        .fsst => {
-            const symbol_count = try reader.takeByte();
-            if (symbol_count > 254) return error.InvalidFsstTable;
-            var symbols: [254][]const u8 = undefined;
-            for (0..symbol_count) |i| {
-                const sym_len = try reader.takeByte();
-                if (sym_len == 0 or sym_len > 8) return error.InvalidFsstTable;
-                symbols[i] = try reader.take(sym_len);
-            }
-
-            var stack_buf: [4096]u8 = undefined;
-            var row: usize = 0;
-            for (0..value_count) |_| {
-                while (row < tags.len and tags[row] != 0) row += 1;
-                if (row == tags.len) return error.InvalidColumnPage;
-                const decoded_len = try reader.takeInt(u32, .little);
-                const token_len = try reader.takeInt(u32, .little);
-                const tokens = try reader.take(token_len);
-                if (@as(u64, decoded_len) > @as(u64, token_len) * 8 or decoded_len > stack_buf.len) {
-                    return error.InvalidFsstStream;
-                }
-
-                if (try tryFsstCompressedShortCircuit(
-                    symbols[0..symbol_count],
-                    tokens,
-                    decoded_len,
-                    predicate,
-                    profile,
-                )) |short_outcome| {
-                    stats.fsst_compressed_short_circuits += 1;
-                    outcomes_out[row] = short_outcome;
-                } else {
-                    const buf = stack_buf[0..decoded_len];
-                    try decodeFsstTokenStream(symbols[0..symbol_count], tokens, buf);
-                    stats.fsst_decoded_rows += 1;
-                    outcomes_out[row] = try predicate.evaluate(column, .{ .value = .{ .atom = .{ .bytes = buf } } });
-                }
-                row += 1;
-            }
-        },
-        else => return error.ColumnEncodingMismatch,
-    }
-
-    if (reader.seek != reader.end) return error.InvalidColumnPage;
-    if (stats_out) |s_out| s_out.* = stats;
-    return outcomes_out[0..row_count];
 }
 
-fn tryFsstCompressedShortCircuit(
-    symbols: []const []const u8,
-    tokens: []const u8,
-    decoded_len: u32,
-    predicate: ColumnPredicate.Predicate,
-    profile: Collation.Profile,
-) !?ColumnPredicate.Outcome {
-    // Only apply raw-length / leading-symbol short-circuits on length-preserving NO PAD collations
-    if (profile != .none and profile != .utf8_binary and profile != .ascii_ci) return null;
-
-    switch (predicate) {
-        .all => return .yes,
-        .state => |st| return if (st == .value) .yes else .no,
-        .null_compare => return .unknown,
-        .compare => |cmp| switch (cmp.op) {
-            .eq, .ne => {
-                const target = cmp.value.bytes;
-                if (decoded_len != target.len) {
-                    return if (cmp.op == .eq) .no else .yes;
-                }
-                if (tokens.len > 0 and tokens[0] != 0xFF and tokens[0] < symbols.len) {
-                    const first_sym = symbols[tokens[0]];
-                    if (first_sym.len <= target.len) {
-                        const ord = try Collation.compareBytesProfile(first_sym, target[0..first_sym.len], profile);
-                        if (ord != .eq) return if (cmp.op == .eq) .no else .yes;
-                    }
-                }
-                return null;
-            },
-            else => return null,
-        },
-        .starts_with => |prefix| {
-            if (decoded_len < prefix.len) return .no;
-            if (prefix.len == 0) return .yes;
-            if (tokens.len > 0 and tokens[0] != 0xFF and tokens[0] < symbols.len) {
-                const first_sym = symbols[tokens[0]];
-                const check_len = @min(first_sym.len, prefix.len);
-                const ord = try Collation.compareBytesProfile(first_sym[0..check_len], prefix[0..check_len], profile);
-                if (ord != .eq) return .no;
-                if (first_sym.len >= prefix.len) return .yes;
-            }
-            return null;
-        },
-        .contains => |needle| {
-            if (decoded_len < needle.len) return .no;
-            if (needle.len == 0) return .yes;
-            return null;
-        },
+/// Compare decoded symbol bytes directly, retaining only a UTF-8 scalar and a
+/// lexical decision. Even after a decision is known, consume and validate every
+/// token, scalar and decoded-length claim. CP037 and complex patterns use the
+/// shared bounded decoder until they have an equivalent streaming kernel.
+fn streamFsstPredicate(symbols: []const []const u8, tokens: []const u8, decoded_len: u32, column: TableSchema.Column, predicate: ColumnPredicate.Predicate) !?ColumnPredicate.Outcome {
+    if (column.collation != .none and column.collation != .utf8_binary and column.collation != .ascii_ci) return null;
+    const target: []const u8 = switch (predicate) {
+        .compare => |cmp| cmp.value.bytes,
+        .starts_with => |prefix| prefix,
+        .all, .state, .null_compare => "",
         else => return null,
-    }
-}
-
-fn readCanonicalBytesSlice(reader: *std.Io.Reader, expected: Types.Type) ![]const u8 {
-    if (expected != .utf8 and expected != .binary) return error.UnsupportedComparison;
-    const encoded_len = try reader.takeInt(u32, .little);
-    const slice = try reader.take(encoded_len);
-    // Canonical cell encoding for `.value` of `.utf8`/`.binary`: `[tag: 3][byte_len: u32][bytes...]`
-    if (slice.len < 5 or slice[0] != 3) return error.InvalidColumnPage;
-    const str_len = std.mem.readInt(u32, slice[1..5], .little);
-    if (5 + str_len != slice.len) return error.InvalidColumnPage;
-    return slice[5..];
-}
-
-const GermanStringMod = @import("GermanString.zig");
-
-/// Late-materialize only the rows selected by `selected_rows` (sorted ascending row indices)
-/// from a `.dictionary`, `.fsst`, or `.plain` `TCP1` column page into 16-byte `GermanString`
-/// cells and `arena` (`Workspace`-backed) with zero heap allocations.
-pub fn lateMaterializeSelectedGermanStrings(
-    column: TableSchema.Column,
-    bytes: []const u8,
-    selected_rows: []const u32,
-    arena: *GermanStringMod.StringArena,
-    cells_out: []GermanStringMod.GermanCell,
-    stats_out: ?*CompressedStringStats,
-) ![]GermanStringMod.GermanCell {
-    try column.validateEncodingAndCollation();
-    if (column.type != .utf8 and column.type != .binary) return error.UnsupportedComparison;
-    if (selected_rows.len > cells_out.len) return error.BufferTooSmall;
-    if (bytes.len < 41 or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
-    if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
-
-    var reader: std.Io.Reader = .fixed(bytes[36..]);
-    const encoding = std.enums.fromInt(Encoding, try reader.takeByte()) orelse return error.InvalidColumnPage;
-    if (encoding != column.encoding) return error.ColumnEncodingMismatch;
-    const row_count = try reader.takeInt(u32, .little);
-    if (row_count > 65536) return error.ColumnPageRowLimitExceeded;
-    const tags = try reader.take(row_count);
-
-    for (selected_rows, 0..) |r, i| {
-        if (r >= row_count or (i > 0 and selected_rows[i - 1] >= r)) return error.InvalidColumnSelection;
-    }
-
-    var value_count: usize = 0;
-    for (tags) |tag| switch (tag) {
-        0 => value_count += 1,
-        1...4 => {},
-        else => return error.InvalidColumnPage,
     };
-
-    const findSelectedSlot = struct {
-        inline fn find(rows: []const u32, target_row: u32) ?usize {
-            var lo: usize = 0;
-            var hi: usize = rows.len;
-            while (lo < hi) {
-                const mid = lo + (hi - lo) / 2;
-                if (rows[mid] < target_row) lo = mid + 1 else hi = mid;
-            }
-            return if (lo < rows.len and rows[lo] == target_row) lo else null;
-        }
-    }.find;
-
-    // Populate non-value states for selected rows
-    for (tags, 0..) |tag, row_idx| {
-        const slot = findSelectedSlot(selected_rows, @intCast(row_idx));
-        switch (tag) {
-            0 => {},
-            1 => if (slot) |s| {
-                cells_out[s] = .{ .state = .null };
-            },
-            2 => if (slot) |s| {
-                cells_out[s] = .{ .state = .missing };
-            },
-            3 => {
-                const kind = std.enums.fromInt(Types.Kind, try reader.takeByte()) orelse return error.InvalidColumnPage;
-                if (slot) |s| cells_out[s] = .{ .state = .type_error, .error_kind = kind };
-            },
-            4 => {
-                const alt_count = try reader.takeInt(u16, .little);
-                for (0..alt_count) |_| {
-                    _ = try reader.takeInt(u64, .little);
-                    _ = try reader.takeInt(u64, .little);
-                    switch (try reader.takeByte()) {
-                        0 => {},
-                        1 => _ = try reader.takeByte(),
-                        2 => {
-                            const vlen = try reader.takeInt(u32, .little);
-                            _ = try reader.take(vlen);
-                        },
-                        else => return error.InvalidColumnPage,
-                    }
+    var order: std.math.Order = .eq;
+    var position: usize = 0;
+    var cursor: usize = 0;
+    var scalar: [4]u8 = undefined;
+    var scalar_len: usize = 0;
+    var scalar_need: usize = 0;
+    var characters: usize = 0;
+    while (cursor < tokens.len) {
+        const token = tokens[cursor];
+        cursor += 1;
+        const chunk = if (token == 0xff) blk: {
+            if (cursor == tokens.len) return error.InvalidFsstStream;
+            cursor += 1;
+            break :blk tokens[cursor - 1 .. cursor];
+        } else blk: {
+            if (token >= symbols.len) return error.InvalidFsstStream;
+            break :blk symbols[token];
+        };
+        if (chunk.len > decoded_len -| position) return error.InvalidFsstStream;
+        for (chunk) |byte| {
+            if (column.type == .utf8) {
+                if (scalar_len == 0) scalar_need = std.unicode.utf8ByteSequenceLength(byte) catch return error.InvalidUtf8;
+                scalar[scalar_len] = byte;
+                scalar_len += 1;
+                if (scalar_len == scalar_need) {
+                    _ = std.unicode.utf8Decode(scalar[0..scalar_len]) catch return error.InvalidUtf8;
+                    scalar_len = 0;
+                    characters += 1;
                 }
-                if (slot) |s| cells_out[s] = .{ .state = .conflict, .conflict_count = alt_count };
-            },
-            else => unreachable,
+            }
+            if (order == .eq and position < target.len) {
+                const left = if (column.collation == .ascii_ci) Collation.asciiLower(byte) else byte;
+                const right = if (column.collation == .ascii_ci) Collation.asciiLower(target[position]) else target[position];
+                order = std.math.order(left, right);
+            }
+            position += 1;
         }
     }
-
-    const profile = Collation.Profile.fromCollation(column.collation);
-    var stats: CompressedStringStats = .{};
-    const PerfectHash = @import("PerfectHash.zig");
-
-    switch (column.encoding) {
-        .dictionary => {
-            const dict_len = try reader.takeInt(u32, .little);
-            if (dict_len > value_count or dict_len > PerfectHash.max_runtime_keys) return error.InvalidDictionaryCode;
-            var dict_slices: [PerfectHash.max_runtime_keys][]const u8 = undefined;
-            for (0..dict_len) |di| {
-                dict_slices[di] = try readCanonicalBytesSlice(&reader, column.type);
-            }
-            var row: usize = 0;
-            for (0..value_count) |_| {
-                while (row < tags.len and tags[row] != 0) row += 1;
-                if (row == tags.len) return error.InvalidColumnPage;
-                const code = try reader.takeInt(u32, .little);
-                if (code >= dict_len) return error.InvalidDictionaryCode;
-                if (findSelectedSlot(selected_rows, @intCast(row))) |slot| {
-                    stats.late_materialized_rows += 1;
-                    cells_out[slot] = .{
-                        .state = .value,
-                        .string = try GermanStringMod.GermanString.init(dict_slices[code], profile, arena),
-                    };
-                } else {
-                    stats.skipped_unselected_rows += 1;
-                }
-                row += 1;
-            }
+    if (position != decoded_len) return error.InvalidFsstStream;
+    if (scalar_len != 0) return error.InvalidUtf8;
+    if (column.max_characters) |maximum| if (characters > maximum) return error.CharacterLimitExceeded;
+    if (order == .eq and predicate != .starts_with) order = std.math.order(position, target.len);
+    const selected = switch (predicate) {
+        .all => true,
+        .state => |state| state == .value,
+        .null_compare => return .unknown,
+        .starts_with => order == .eq and position >= target.len,
+        .compare => |cmp| switch (cmp.op) {
+            .eq => order == .eq,
+            .ne => order != .eq,
+            .lt => order == .lt,
+            .le => order != .gt,
+            .gt => order == .gt,
+            .ge => order != .lt,
         },
-        .fsst => {
-            const symbol_count = try reader.takeByte();
-            if (symbol_count > 254) return error.InvalidFsstTable;
-            var symbols: [254][]const u8 = undefined;
-            for (0..symbol_count) |i| {
-                const sym_len = try reader.takeByte();
-                if (sym_len == 0 or sym_len > 8) return error.InvalidFsstTable;
-                symbols[i] = try reader.take(sym_len);
-            }
-            var stack_buf: [4096]u8 = undefined;
-            var row: usize = 0;
-            for (0..value_count) |_| {
-                while (row < tags.len and tags[row] != 0) row += 1;
-                if (row == tags.len) return error.InvalidColumnPage;
-                const decoded_len = try reader.takeInt(u32, .little);
-                const token_len = try reader.takeInt(u32, .little);
-                const tokens = try reader.take(token_len);
-                if (@as(u64, decoded_len) > @as(u64, token_len) * 8 or decoded_len > stack_buf.len) {
-                    return error.InvalidFsstStream;
-                }
-                if (findSelectedSlot(selected_rows, @intCast(row))) |slot| {
-                    const buf = stack_buf[0..decoded_len];
-                    try decodeFsstTokenStream(symbols[0..symbol_count], tokens, buf);
-                    stats.late_materialized_rows += 1;
-                    stats.fsst_decoded_rows += 1;
-                    cells_out[slot] = .{
-                        .state = .value,
-                        .string = try GermanStringMod.GermanString.init(buf, profile, arena),
-                    };
-                } else {
-                    stats.skipped_unselected_rows += 1;
-                }
-                row += 1;
-            }
-        },
-        else => return error.ColumnEncodingMismatch,
-    }
-
-    if (reader.seek != reader.end) return error.InvalidColumnPage;
-    if (stats_out) |s_out| s_out.* = stats;
-    return cells_out[0..selected_rows.len];
+        else => unreachable,
+    };
+    return if (selected) .yes else .no;
 }
 
 fn valuesEqual(expected: Types.Type, a: Values.Value, b: Values.Value) bool {

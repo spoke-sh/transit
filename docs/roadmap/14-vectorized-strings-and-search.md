@@ -1,6 +1,6 @@
 # 14. First-class strings, perfect hashing and vectorized search execution
 
-[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-30); [delivered evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#implementation-plan--2026-11-01); [earlier component inventory](#delivered-implementation-evidence--2026-10-30))
 
 Make text representation, string comparison, static/immutable key lookup and
 declarative lexical/structural and hybrid search first-class, cache-resident
@@ -101,8 +101,9 @@ current-authority disclosure checks.
    - **Safe wide SIMD loads:** Guarantee 16–64 bytes of trailing zero-padding on
      `.tseg` page buffers, `Batch` string arenas and `comptime` key literals so
      16-byte `@Vector(16, u8)` loads execute unconditionally on internal buffers;
-     guard external unpadded caller slices against 4 KiB page boundaries
-     (`(addr & 0xfff) <= 4080`) with a scalar fallback.
+     use bounds-safe loads, scalar tails or a copy into padded scratch for
+     external unpadded slices. Staying inside a mapped 4 KiB page does not prove
+     that a load is inside the caller's allocation.
 4. **Separate declarative text search and proximity contracts from swappable `.tseg` index profiles, and qualify vectorized 256-doc Block-Max BM25 first.**
    Define declarative text index and match specifications (`CREATE FULLTEXT INDEX`
    and swappable `USING <profile>` bindings) with versioned analyzer/segmenter
@@ -218,7 +219,465 @@ separate from evidence for Transit's Zig implementations.
   latency, throughput and allocation budgets in the
   [qualification scorecard](42-qualification-and-benchmarks.md).
 
+## Implementation plan — 2026-11-01
+
+### Outcome, source basis and scope
+
+An application should be able to query declared text with its exact collation,
+declare a search index independently of matching/ranking semantics, inspect its
+build and coverage, and obtain an attributable complete result through the
+existing SQL result reader. Changing encoding, selecting an index, flushing,
+compacting or restarting must preserve the logical answer and current access
+checks. Index acceptance, build progress, published coverage and query completion
+are separate observations.
+
+This plan is based on fetched `origin/main` at
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5` on 2026-11-01. It supersedes the
+2026-10-30 sequence for remaining implementation. That proposal and its component
+inventory remain below as historical context. Source inspection establishes the
+gaps here; it is not a new runtime, allocation or performance qualification.
+Milestone 14 remains **In Progress**.
+
+The first implementation increment is rebased onto `origin/main`
+`90b6a0737c606f4b43fb408d698ae9561d10f5fc`. That integration includes M9's
+fair client admission and original direct-KV recovery, the current protocol
+definition cutover, the expanded workload roadmap, and the offline Document
+profile and spatial foundations, and the M8 connection-ingress and M12
+managed-computation increments. Biological, chemical and audio search remain
+later work outside this strings increment. References below use the updated
+numbering; the source audit retains its original basis.
+
+Deliver the first installed profile over one direct Table's retained cut, with
+existing admitted text/binary types and collations. Extend the same owners to
+Document projections and stored vectors only as their contracts become usable.
+Exact lexical execution comes before ANN-backed hybrid execution. This sequence
+does not remove Document, positional/substring, ANN or hybrid work from the
+milestone's scope. Each unsupported profile must remain explicit in capability
+evidence until its own gates pass.
+
+### First production strings increment
+
+The selected PR boundary is the first production strings increment in R0–R3.
+It does not complete Milestone 14 or qualify the later search components.
+
+| Package | Delivered in this increment | Explicit next boundary |
+| --- | --- | --- |
+| R0 | Corrected X004/X005/X007 stage claims; real compiler rejection controls; independent Python-to-Zig string execution with retained corpus/output/provenance | Ranking/fusion correspondence and end-to-end benchmark qualification accompany their production integration |
+| R1 | External SIMD reads bounded by slice length, including exact allocations and protected-page tails; existing SQL/LogDdl maps retained | Constant IN/NOT IN binding follows M12 expression admission; schema/page directories need bound-owner reuse and measured benefit |
+| R2 | Lossless 16-byte Batch string lanes, cached long-string prefixes, aligned arrays, owned/borrowed lifetimes, five-state sidecars and sealed allocation tests across 300 resets | Compact retained relational keys, partitions/spill and M13 page-lease integration remain separate operator work |
+| R3 | Production FSST streaming comparisons/prefixes, shared full validation and late projection; dictionary outcome caching without the prototype's 1,024-entry ceiling or rejection of equivalent spellings | Reuse encoded pages across atoms, additional pattern kernels and format-level packed directories need their own qualification |
+
+The old separate compressed-string evaluator and normalized-key materializer
+are removed. Production reads use `evaluateColumnPage` and
+`decodeColumnPageSelected`; normalized `GermanString` helper keys do not supply
+raw projections. Canonical values, saved plans and TCP1 bytes are unchanged.
+Malformed conflict details are rejected using the existing logical value rules;
+synthetic eager-failure fixtures now contain valid multi-alternative conflicts.
+
+The frozen test scope is UTF-8 values under UTF8_BINARY, ASCII_CI and CP037,
+six comparisons, all five states, dictionary/FSST pages and selected raw output.
+The runtime oracle exercises 222 cases / 4,758 rows. Resource controls cover
+64 KiB Batch reservations with zero backing attempts after warmup, short inline
+payloads without arena growth, and a real TSeg predicate over a 16 KiB value
+within a 4 KiB decoded-work budget. Projection has its own charged decode budget.
+These are deterministic resource/correctness controls, not throughput or latency
+qualification. No new end-to-end performance improvement is claimed.
+
+R4–R9 remain explicitly open: durable search admission/build/publication and
+reopenable postings, exact vectorized lexical/proximity execution, retained-cut
+vector/hybrid composition, installed result delivery and final qualification.
+Their dependencies on M10 type admission, M11 lifecycle, M12 expressions,
+M13 resource control and M27 policy remain the gates described below.
+
+### Source audit: reusable components and missing execution paths
+
+| Area | Reuse at the source basis | Remaining implementation boundary |
+| --- | --- | --- |
+| String representation | [GermanString](../../packages/zig/transit-fuze/src/GermanString.zig) supplies a 16-byte comparison representation, inline collation weights, a padded arena and checked handles. [VectorKernel](../../packages/zig/transit-fuze/src/VectorKernel.zig) uses short-string comparison shortcuts. | `Storage` still has `words`, `values` and `states_only`, with no retained compact string lane. Batch, sorting and join/group state need integration. Normalized inline weights do not preserve original spelling/padding for projection. The actual struct alignment is 4, and handles have an 8-bit generation; neither the old claimed 16-byte alignment nor indefinite stale-handle detection follows from the helper. |
+| Perfect hashing | [PerfectHash](../../packages/zig/transit-fuze/src/PerfectHash.zig) implements closed-set maps, bounded frozen directories and a sorted fallback. SQL reserved words and the new [LogDdl](../../packages/zig/transit-fuze/src/LogDdl.zig) option/unit maps use it. [TableSchema](../../packages/zig/transit-fuze/src/TableSchema.zig) offers a `NameDirectory`. | External short-slice SIMD checks currently rely on page address, not allocation bounds. Audit actual directory consumers, construction cost and duplicate handling. [PerfectHashIn](../../packages/zig/transit-fuze/src/PerfectHashIn.zig) is a separate helper; its presence does not establish production SQL `IN` lowering. |
+| Encoded predicates | [PhysicalCodecs](../../packages/zig/transit-fuze/src/PhysicalCodecs.zig) has compressed-string filtering and selected compact-string materialization, plus 1–8-byte FSST symbols. | The new helpers are exercised by component tests, without calls from `TSegReader`/`BatchExecution`. Dictionary codes remain `u32`; lookup directories are rebuilt in the helper. Integrate through the real reader with shared validation, incoming selections, charged scratch and detached output lifetimes. |
+| Search declarations | [SearchOracle](../../packages/zig/transit-fuze/src/SearchOracle.zig) and [TSearchSegment](../../packages/zig/transit-fuze/src/TSearchSegment.zig) define finite segmentation, scoring and local access-path descriptors. | Their local lifecycle enum and default `.ready` are not catalog acceptance or coverage. [IndexLifecycle](../../contracts/INDEX_LIFECYCLE_V1.md) is an offline contract that currently excludes inverted/vector profiles; installed index operations and search grammar/lowering must be implemented. |
+| Search storage and execution | `TSearchSegment.Segment` builds resident posting/position arrays; [VectorizedSearch](../../packages/zig/transit-fuze/src/VectorizedSearch.zig) filters 256-row windows with block upper bounds and a bounded result array. | `encodeHeaderEnvelope` writes header metadata, not a reopenable posting/position artifact. Postings are unpacked `u32`/`u16` arrays; scoring loops are scalar and top-k replacement scans the result array. This is a useful reference implementation, not the planned packed SIMD MAXSCORE/WAND pipeline or durable index. |
+| Hybrid search | [HybridSearch](../../packages/zig/transit-fuze/src/HybridSearch.zig) combines lexical candidates and exact caller-owned vector bytes using RRF/linear fusion. | Caller-supplied LSN/catalog/epoch fields and a row-count check do not acquire a snapshot, validate both sources or re-read current authority. No segmented ANN path is connected. Truncated candidate fusion must have an explicit candidate-domain contract, not a claim of exact corpus-wide top-k. |
+| Evidence | The [lookup/oracle](../../packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig), [string/codec](../../packages/zig/transit-fuze/src/german_string_and_codecs_test.zig) and [search](../../packages/zig/transit-fuze/src/vectorized_search_test.zig) component suites, [neutral fixtures](../../contracts/sql/vectorized-strings-and-search-fixtures.json) and [Phase H inventory](../../tests/performance/allocations.json) exist. | The [Python check](../../tests/query/logical/vectorized_strings_and_search.py) regenerates fixtures and searches source symbols; it does not compare actual Zig executions to Python. An `executable` allocation inventory entry records a runnable scoped gate, not an executed installed pass. Ledger parse/lower/recover claims need reconciliation with real callers. |
+
+### Recent progress and prerequisite handoffs
+
+Statuses refer to the roadmap at the source basis. Completed milestones supply
+their qualified profiles, not every proposed extension in their older plans.
+
+| Owner and status | Progress to consume | Boundary for this plan |
+| --- | --- | --- |
+| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed | Stable definitions, local WAL/segments, bounded logical results and local Table transactions/common cuts. | Reuse exact row/source identities, pins, transaction decisions, ordered failures and verified result completion. Search does not create a second transaction or result protocol. |
+| [M3](03-live-storage-and-sql-cutover.md), [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Direct database/SQL separation; recent named direct KV, mixed Table/KV/Stream/Queue transactions and installed Stream/Queue declaration work are merged. Shared Roaring containers already serve `.tdel` and `.tack`. | Use the direct owners and shared bitmap package. Do not route indexing through Station turns or wait for the remaining Station/workload-SQL cutover. Stream search still needs a qualified finite source binding. |
+| [M7](07-document-storage-and-station-decoupling.md) — In Progress | Logical tree/span/shredding helpers and private `.tseg` candidates exist. Recent partition work adds bounded WAL recovery and authenticated retained revision reads with cumulative byte/work budgets; it still accepts supplied state bytes. | Integrate logical evaluation, persisted shredded projections and the installed direct lifecycle before treating them as a Document search source. Bind text to exact interpretation/revision/path and five-state provenance. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md), [M9](09-client-foundation-and-language-apis.md) — In Progress | Co-hosted direct execution, resumable wire/session work, bounded client contexts and original SQL submission/recovery are available. | Extend shared typed plans/results once; adapters carry canonical values and diagnostics, never internal string handles. Reuse session cancellation, exact fetch retries and current disclosure checks. |
+| [M10](10-standards-and-catalogs.md) — In Progress | Neutral standards ledger with generated Zig projection; collation, vector-metric and historical-catalog helpers; PAD SPACE/control-order regression work. | The earlier M14 plan's “completed M10” claim is superseded. Stored vector descriptors and broad historical binding remain gates. ICU remains explicitly unsupported. Reuse only admitted schema collations; test other helper profiles without advertising SQL support. |
+| [M11](11-indexing-and-access-paths.md) — Planned | Exact index declarations, generations, source cuts and conditional coverage descriptors exist offline. | Co-deliver the minimum durable lifecycle needed by search. M11 owns generic publication/maintenance/retirement; M14 owns lexical, positional/substring and ANN methods. Do not wait for every ordered/covering/constraint feature or invent a search-only catalog. |
+| [M12](12-sql-and-dataflows.md) — In Progress | Analytical, `PerfectHashIn`, incremental and managed-dataflow components exist; installed composition remains unfinished. | Agree on typed string/match expressions and bind-time constants. Wire finite execution first; maintained search consumes M12's eventual exact commit/catch-up owner, not another polling scheduler. |
+| [M13](13-data-structures-and-performance.md) — In Progress | Issue #194 A–E provides workspaces, slabs, quotas, allocation probes and bounded result/transport ownership. F/G/J still track source, cache, CPU/I/O and composed-process gaps. | H can qualify bounded kernels now. End-to-end zero-allocation and per-morsel CPU/I/O claims wait for those owners; `Budget` currently accounts memory, not a complete CPU/IOPS system. |
+| [M20](20-branches-merges-and-restore.md#local-table-branch-increment) — In Progress | Recent immutable single-Table branches retain exact definition/data pins and original outcomes. | Bind index coverage to branch and source interpretation. Preserve branch-held generations during compaction/retirement. Writable branches, catalog-wide cuts and merge support remain separate gates. |
+
+### Contract and correctness decisions before exposure
+
+1. **Preserve values independently of comparison keys.** A compact comparison
+   header can normalize case, EBCDIC weights or trailing spaces; result values,
+   string functions and Arrow/SDK exports must retain original logical bytes.
+   Specify the raw-value owner alongside the comparison representation. Equality,
+   ordering, hashing, grouping and joins must use the same admitted collation.
+   Prefix inequality may decide order only under its proved profile; a prefix
+   tie needs the full key. Raw byte length is not lexical order or a general
+   collation-equivalence test. Cover embedded NUL/control bytes and PAD SPACE
+   ordering; do not assume zero-fill is a valid pad weight.
+2. **Make padding and lifetimes real.** Reserve, initialize and charge internal
+   padding and 64-byte-aligned vector storage. A 16-byte header need not itself
+   have 16-byte alignment unless the chosen load interface requires it. External
+   slices require bounds-safe loads even inside a mapped page. Define which
+   output can borrow a page/workspace and which must detach; prevent generation
+   wrap or wrong-arena reuse from making old handles valid. A durable pin and a
+   resident buffer lease serve different purposes.
+3. **Bind search meaning before selecting a method.** Define typed segmentation,
+   normalization, stop-word/version commitments, byte/token/span coordinates,
+   repeated query terms, AND/OR/phrase/ordered and unordered proximity, pattern
+   escaping and score parameters. Pin Unicode rules explicitly; a profile name
+   is not evidence of a full Unicode segmentation algorithm. Define admissible
+   non-finite/negative parameters and score accumulation order. Extend the actual
+   [query contract](../../contracts/UNIFIED_QUERY_V1.md),
+   [type contract](../../contracts/FUZE_TYPES_V1.md),
+   [index contract](../../contracts/INDEX_LIFECYCLE_V1.md) and
+   [SQL grammar](../../contracts/sql/README.md); the earlier proposed
+   `FUZE_PLAN_V1.md` is not a file in this baseline. Proposed `CREATE FULLTEXT
+   INDEX`, `MATCH`, `NEAR` and `WITHIN` spellings require grammar and execution
+   decisions; examples in the earlier plan do not make them runnable.
+4. **Make coverage and ranking snapshot-specific.** Bind source object/definition,
+   stable column and row/version identities, branch, analyzer, method generation,
+   complete data/deletion cut, statistics and index-root commitment. A `.ready`
+   flag cannot replace exact coverage, including accepted unflushed WAL rows and
+   transaction-local writes. Select a complete qualified scan when coverage is
+   absent; index-plus-delta requires a proved gap-free composition. Define BM25
+   document count, term frequency and average length over a pinned logical corpus
+   so segment splits/compaction do not change scores. Bounds computed for different
+   statistics cannot be reused without a proof of conservativeness.
+5. **Preserve failure order and disclosure.** Apply current authorization and any
+   qualified security-barrier visibility before observable scores, snippets,
+   counts or errors. Preserve the existing eager row/instruction failure frontier;
+   ordinary relational filters do not automatically suppress errors in another
+   evaluated atom. Rank pruning must not hide an earlier visible failure. Re-read
+   authority through the owner after buffering and before every disclosure,
+   including metadata, empty results and completion. Define permitted ranking
+   statistics under RLS with M27; do not leak hidden corpus facts through scores.
+6. **Distinguish exact and approximate outcomes.** Exact lexical top-k requires
+   sound upper bounds and stable row-identity tie-breaking across segments. Q16
+   saturation must never round an upper bound below a possible score: use a
+   proved admissible range or a conservative overflow representation. Hybrid
+   fusion specifies candidate limits, missing-leg scores, normalization and
+   recall. Finite per-leg overfetch alone cannot establish exact global fused
+   top-k. ANN results must retain their explicit approximation profile.
+7. **Keep one authority and current-v1 definition.** General build operations
+   use catalog admission, original operation identity, fences, dependency edges,
+   progress, conditional publication and retained roots. Incompatible stored,
+   wire or ABI changes replace the shared definition and migrate affected
+   consumers/fixtures together under the [cutover policy](../handbook/reference/versioning.md).
+   Internal optimizations that preserve those definitions need no invented wire
+   format change. No legacy decoder, missing-definition default or automatic
+   data reset is permitted.
+
+### Work packages and delivery order
+
+`R0`–`R9` replace the earlier `P0`–`P8` as the remaining-work sequence. Each row
+is an independently reviewable outcome; dependencies are capability gates, not
+a requirement to complete every upstream milestone first.
+
+| Package | Depends on | Reviewable outcome |
+| --- | --- | --- |
+| R0 | Current source audit | Truthful capability inventory, semantic contracts, independent harness and frozen measurement scope |
+| R1 | R0 | Bounds-safe reusable perfect hashing and production closed-set/constant-set consumers |
+| R2 | R0; M10 admitted collations; M13 leases | Compact string lanes integrated into finite operators with lossless output |
+| R3 | R1–R2 | Real encoded scans and late materialization through the direct Table reader |
+| R4 | R0; M11 shared lifecycle | Accepted search declarations, recoverable builds and exact coverage |
+| R5 | R1, R4 contracts | Reopenable paged search artifacts, maintenance and corpus statistics |
+| R6 | R3–R5; M13 work charging | Exact SIMD lexical/proximity execution through finite SQL |
+| R7 | R6; M10 stored vectors; M11 lifecycle | Exact-vector hybrid composition, then qualified ANN methods |
+| R8 | R4–R7 by admitted profile; M4/M8/M9 | Shared inspection, result delivery and installed caller journeys |
+| R9 | Every claimed profile above | Correspondence, resource/performance evidence and completion review |
+
+R1 and R2 can proceed after R0 while the M11/R4 lifecycle is developed. Deliver
+ordinary string-query improvements through R3 without waiting for search DDL or
+ANN. R8 accompanies each exposed slice; it is not a final adapter rewrite.
+
+#### R0 — Settle semantics, capability evidence and measurement scope
+
+Reconcile `X004-GERMAN-STRING`, `X005-SEARCH-WAND` and `X007-PERFECT-HASH-IN`
+against compiler, binder, runtime, recovery and transport behavior in the neutral
+[standards ledger](../../contracts/sql/standards-ledger.json). Regenerate
+`StandardsLedgerData.zig`; never edit that projection independently. Preserve
+component evidence while adding explicit unavailable/rejected cases for public
+syntax. Agree the decisions above with M10/M11/M12 and record the exact contract
+cutover boundary before persisted descriptors or messages change.
+
+Extend the fixture harness to invoke Zig and compare actual outputs/failures with
+an independent implementation, rather than only regenerating the same fixture.
+Record baseline binaries/revision, datasets, supported query profiles and numeric
+latency/throughput/resource budgets before performance changes. Separate kernel,
+decode, full direct-query and installed result costs; unsupported ClickBench
+syntax remains a recorded coverage gap rather than a skipped success.
+
+**Exit:** positive/negative capability tests reach real owners; scalar string,
+segmentation, ranking and fusion cases are executable across both implementations;
+benchmark manifests name hardware, cache state, sizes and admission budgets.
+
+#### R1 — Bounds-safe lookup and real consumers
+
+Repair external short-slice comparisons first. Retain padded internal fast paths
+only through an API that establishes the allocation bound. Test short allocations,
+zero-length inputs, arbitrary alignments, guard pages and SIMD tails. Qualify
+non-members, long identical prefixes, collation-equivalent duplicates and frozen
+directory fallback. Bound construction by bytes, steps and resident scratch;
+the 1,024-key helper limit must be a bounded artifact limit, not a database-wide
+dictionary or search-vocabulary ceiling.
+
+Reuse the existing SQL/LogDdl maps and measure other closed keyword/option/header
+sets before replacing dispatch. Join M12's `PerfectHashIn` to actual typed
+constant binding, including NULL/NOT IN and five-state behavior. Build immutable
+schema/page directories once per bound owner, with exact identity/lifetime checks.
+If cross-package consumers need a neutral library, extract one real Zig package
+with its own manifest/tests rather than importing sibling source or making wire
+codecs depend on the query engine.
+
+**Exit:** exact lookup equivalence, bounded pathological construction/fallback,
+zero post-warmup backing attempts for probes, and a production caller test for
+each migrated consumer. Record build/code-size cost as well as lookup latency.
+
+#### R2 — First-class string lanes and retained operator state
+
+Integrate compact lanes through `VectorKernel.Storage`/views, `Batch`, comparison
+kernels, sort buffers and relational hash/group keys. Preserve original bytes
+separately where normalized comparison data cannot reconstruct them. Reuse
+`Collation` for equal/order/hash consistency; do not enable ICU or broaden
+schema collation admission as a side effect. Define byte/handle/alignment bounds
+and relocation across batches, retained output, hash partitions and spill.
+
+Use charged workspace/slab reserves, with explicit copying or page leases for
+long strings. Exercise source closure, scratch reset, arena replacement and
+generation rollover while retaining results. Non-value lanes keep canonical
+initialized slots and independent error/conflict evidence. M12 receives these
+keys for its operators only as those operators are integrated.
+
+**Exit:** exact comparisons, grouping, join multiplicity and ordering against
+the scalar path; lossless projection of mixed case, Unicode and padded strings;
+five-state failure attribution; bounded memory and zero steady-state allocations
+in each claimed warm path. Exported values outlive their original source owner
+only through an explicit retained/detached lifetime.
+
+#### R3 — Compressed predicates in the installed scan path
+
+Route compiled supported predicates through `ColumnPredicate`, `PhysicalCodecs`,
+`TSegReader`, `BatchExecution` and the retained direct Table scan. Preserve full
+page integrity/encoding validation, semantic failure order and selected-row
+identity. Reuse a validated encoded page and prepared literal directory across
+atoms instead of rebuilding them per row or per predicate call.
+
+Implement collation-ordered dictionary lookup and bitpacked codes with exact
+equivalence classes: different spellings may compare equal without being the
+same projected value. Prepare matching-code sets once. For FSST, define the
+actual symbol/escape format (the helper currently admits at most 254 symbols),
+prove each compressed shortcut and decode ambiguous candidates in reusable
+scratch. Patterns spanning symbols and multi-byte boundaries require the same
+answer as decoded execution. Carry incoming selection masks, but do not use
+them to suppress required integrity checks or eager semantic failures.
+
+**Exit:** installed finite SELECT exercises the new reader path across plain,
+dictionary and FSST pages, WAL tails and mixed encodings. Empty selections,
+malformed skipped values, retained output, multi-batch results and post-buffer
+revocation match the existing path. Counters demonstrate actual code-domain
+filtering and bounded selected decoding, not just a component function call.
+
+#### R4 — Durable declarations, builds and query eligibility
+
+Extend M11's exact declaration/generation/coverage model for search semantics
+and physical methods; replace the local search lifecycle interpretation with
+that shared owner. Implement typed declare/inspect/build-or-rebuild/retire
+operations through `DirectCatalog`, then lower the agreed SQL forms to them.
+Bind source/column identities and register dependencies before publication.
+Distinguish the accepted DDL outcome from build completion and query eligibility.
+
+Build from a retained exact cut, including committed unflushed rows; persist
+paged progress, consume complete intervening commits and conditionally publish
+validated coverage under a fenced owner. Bound backfill and catch-up work.
+Retain original identity after lost acknowledgements, cancellation or restart.
+When the requested cut cannot be covered, report the reason and use the qualified
+scan (or explicit required-index refusal). Keep M5's conservative read-conflict
+tracking until M11 proves any narrower search predicate tracking.
+
+**Exit:** typed and SQL callers observe the same accepted definition, progress,
+coverage and failure. Disk reopen/lost-reply tests cover each publication boundary,
+schema changes, source DROP/recreation, stale builders, revoked permissions and
+incomplete history. No partially built or merely newer generation is eligible.
+
+#### R5 — Persistent posting, position and substring artifacts
+
+Replace header-only `TSS1` evidence with a complete bounded writer/range reader:
+term directory, postings, optional positions/spans, norms, five-state summaries,
+statistics binding and integrity commitments. Store doc-ID deltas and frequencies
+in measured packed blocks of up to 256 postings. Specify their mapping to
+256-row visibility windows, row groups and 65,536-offset Roaring containers;
+sparse postings need not align one-to-one with windows. Decode across all those
+boundaries, including partial final blocks.
+
+Page vocabularies, directories and build state so corpus growth exceeds the
+current 65,536-document/1,024-term resident helper bounds. Translate local
+offsets into stable source row/version identities. Publish objects before their
+coverage root, preserve old generations for readers/branches, and integrate
+updates, deletes, flush, compaction and collection with the existing storage
+owners. Index creation is derived work; failure cannot lose accepted base data.
+Implement the positional/span and trigram candidate profiles with exact
+verification; do not advertise an enum tag as a working access method.
+
+**Exit:** fresh-process reopen answers from persisted bytes without rebuilding
+an in-memory corpus. Corruption/truncation and foreign definitions reject;
+interrupted staging/publication recovers the original outcome. Compaction and
+changed physical segmentation preserve logical scores, ties, provenance and
+branch-held results. Measure build/write amplification, cold range I/O and
+bounded memory with more data and terms than one resident window can hold.
+
+#### R6 — Exact vectorized search in finite query execution
+
+Bind `MATCH`/proximity/pattern/ranking operations through the actual SQL compiler
+and finite plan, then select complete scan or persisted index access. Establish
+an exhaustive reference result before optimizing. Implement packed SIMD decode,
+candidate-mask intersection, real MAXSCORE essential/nonessential term handling
+and Block-Max WAND advancement, plus a bounded logarithmic top-k heap and
+cross-segment merge. Preserve original query-term order for proximity after any
+cursor reordering; include repeated terms and adversarial frequency ordering.
+
+Prove conservative score bounds at parameter/quantization extremes and equality
+at the top-k threshold. Define accumulation order so SIMD/cursor reordering
+does not silently alter scores or ties. Preserve source/instruction error
+witnesses before skipping candidates. Decode positions only when required and
+meter proximity work, including highly repetitive documents; recursive exhaustive
+position combinations cannot run without a work bound. Apply deterministic work
+charges and host-owned I/O/cancellation checks at morsel boundaries. Use typed
+budget refusal when no qualified spill path exists.
+
+**Exit:** independent exact `(stable row identity, score, order, failure)`
+agreement for AND/OR, phrases and proximity; deletion/filter selectivity sweeps;
+all five states; multiple pages/segments and large vocabularies. Installed SQL
+shows the selected algorithm and measured pruning, with the same answer after
+concurrent commits, flush and compaction at its retained cut.
+
+#### R7 — Hybrid semantics, stored vectors and ANN
+
+First compose lexical search with a qualified exact stored-vector scan. Require
+M10's actual schema/value/storage binding for `VECTOR`, not just `VectorMetric`
+helpers. Obtain one retained source cut through the database owner and bind
+lexical rows, vectors, deletions, statistics and projected payloads to it. For
+multiple sources, use an admitted common transaction cut or explicitly report
+an independent basis; matching integer LSNs do not create atomicity.
+
+Specify deterministic RRF/linear normalization, candidate limits, missing-leg
+scores and ties. Either define fusion over the declared finite candidate domain
+or implement bounds/exhaustive consumption sufficient for exact corpus ranking.
+Then implement and benchmark segmented ANN methods under R4's lifecycle. Select
+the first HNSW/IVF-family profile using declared recall, filter selectivity,
+memory, build and recovery budgets; retain the other planned methods as open
+scope until qualified. Exact scans remain the correctness/recall baseline.
+
+**Exit:** concurrent-write tests prove both legs and late materialization use
+the original cut; current-owner authorization is checked before each result
+batch. ANN tests report recall and approximation metadata, restart/build/drop
+behavior and bounded candidate/state costs. Neither row-count equality nor a
+constant epoch argument can satisfy this gate.
+
+#### R8 — Shared results, inspection and downstream interfaces
+
+Expose selected/fallback access paths, analyzer/collation commitments, coverage,
+exactness, budgets and aggregate counters through shared typed plan/inspection
+results. `EXPLAIN` remains metadata-only; actual blocks decoded/skipped and rows
+materialized are execution observations, never invented planning counts.
+Distinguish rows returned by top-k from total matches unless exhaustive counting
+is explicitly requested and completed. Respect metadata/source rights.
+
+Use [SQL_RESULTS_V1](../../contracts/SQL_RESULTS_V1.md), the shared client and
+existing gateway mappings. Internal string headers and borrowed arena handles
+never cross native/Arrow/language boundaries. Exercise the console and native
+SQL caller first, then each supported PostgreSQL/MySQL/Flight profile; record
+unavailable type/operator mappings explicitly. Board consumes authorized public
+inspection/results without a second catalog or raw storage access.
+
+**Exit:** declare, inspect, query, update, rebuild, retire and recover journeys
+run through real callers. Include empty and multi-batch results, early close,
+lease expiry, exact fetch retry, missing terminal evidence and revocation after
+buffering. Update owning public references/component guides as each behavior
+lands; the roadmap must not become its usage specification.
+
+#### R9 — Correspondence, benchmarks and completion review
+
+Extend M22's [collation proof](../../contracts/sql/CollationOrder.lean) and
+five-state/rewrite correspondence for the admitted compact-key and encoded-filter
+profiles. Add the Block-Max pruning obligation with explicit scoring-domain,
+rounding, tie and coverage assumptions. Connect proofs to actual Zig vectors
+and negative controls; a theorem about an abstract order does not establish
+that a concrete prefix encoder or posting decoder implements it.
+
+Run the qualification matrix below on committed source. Retain raw evidence,
+failed/incomplete attempts, binary/toolchain/fixture hashes, configuration and
+baseline comparisons in [qualification history](../history/qualification/README.md).
+Promote only proven capability states. Completion requires the milestone's
+advertised string, search and hybrid profiles, including resource and installed
+recovery gates; an early exact lexical slice does not close the remaining scope.
+
+### Qualification matrix and measurement gates
+
+These are required future runs, not results of preparing this plan.
+
+| Gate | Required cases and observable evidence |
+| --- | --- |
+| Value and collation correctness | Boundary lengths 0/4/12/13 and long values; identical prefixes; embedded NUL/control bytes; Unicode and EBCDIC; PAD/NO PAD helper cases; unsupported ICU rejection; lossless raw output; compare/hash/group/join agreement and exact failure witnesses. |
+| SIMD and ownership | Exact-size allocations and guard pages, all tail lengths/alignments, padding charged/initialized, stale/wrong-arena handles and rollover, source closure/reset while retaining batches, independent Arrow/output ownership and bounded cleanup after refusal. |
+| Encoded execution | Plain/dictionary/FSST equivalence for admitted comparisons, IN/NOT IN and patterns; duplicate collation keys; patterns across symbols; malformed unselected values; dictionary cardinality and 0.01%–90% selectivity sweeps; production reader counters. |
+| Index lifecycle and storage | Original-operation recovery before/after object staging and coverage publication; stale fence, denied build/inspect/read, committed WAL tail, transaction-local writes, missing history, incompatible definitions, corrupted postings, deletion/compaction races and branch-retained generations. |
+| Exact search and fusion | `k` of 0, 1, 10, 100, 1,000 and admitted boundary; empty/no-match corpora; repeated terms and score ties; Q16 overflow/rounding; 0%–100% deletions; all five states; ordered/unordered proximity; multi-segment global statistics; exact oracle/fusion-domain agreement. |
+| Public completion and authority | Same pinned rows/scores across concurrent mutation and source rename/drop; fresh checks on repeated, empty and terminal batches; early close, transport EOF and cancellation remain incomplete; no SQL restart or snapshot splice. Metadata-only EXPLAIN acquires no data scan or effect. |
+| Memory and work | Sealed probes below each reusable owner, varied data after finite warmup, no allocation/growing-resize/remap attempts on claimed paths; full reserve/padding/stack accounting; large corpus independent of resident state; deterministic budget refusal and cancellation without starvation. M13 F/G/J compose source/cache/host CPU/I/O evidence separately. |
+| Performance and quality | Frozen ClickBench string subset plus IR lexical/proximity/substring and hybrid corpora; warm/cold cache, size/skew/cardinality, filters and tombstones; first result and verified completion, throughput, p50/p95/p99 where sampled, CPU, RSS, decoded bytes, page I/O, build/compaction amplification and ANN recall. Compare identical semantics and durability with predeclared numeric budgets; report regressions and unsupported queries. |
+
+Use the existing owning checks while developing: Fuze package `zig build test`
+(including `perfect_hash_and_oracle_test`, `german_string_and_codecs_test` and
+`vectorized_search_test`), protocol/catalog/storage tests for changed owners,
+`just test::sql`, `just test::sql-sessions`, `just test::direct-catalog-abi`,
+`just test::sql-result-allocations` and `just test::sql-rewrites` as applicable,
+inside `nix develop`. Extend the fixture driver and
+[query benchmark tooling](../../tests/performance/query/README.md) with real
+execution before counting those gates. Before implementation pushes, run affected
+`just ci clean --lane NAME` lanes against committed HEAD; cross-domain cutovers
+require dependent lanes. Final common-revision qualification belongs with M42.
+
+### Upcoming consumers and first changes
+
+| Consumer | Handoff from M14; work that stays with the consumer |
+| --- | --- |
+| [M15](15-data-centric-compilation-and-specialization.md) | Stable compact-key/value ownership, masks, failure frontiers and bounded kernel interfaces. Fusion, AOT, adaptive compilation and executable-code caches stay in M15. Do not freeze the current helper layout as a public ABI before R2. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M18](18-multi-model-and-foreign-relations.md) | Bounded vocabulary lookup, exact span provenance and reusable search methods. Profile/container parsing and multi-model source composition stay with those owners; require M7's qualified Document boundary. |
+| [M17](17-geospatial-and-spatio-temporal-computing.md), [M19](19-game-asset-pipelines-and-simulation-streaming.md) | Reusable bitmap, padded-buffer, bounded vocabulary and late-materialization contracts. Similar 16-byte layouts do not establish spatial comparison, topology, asset interpretation or pruning semantics. |
+| [M22](22-formal-semantics-and-correspondence.md), [M27](27-control-and-policy-plane.md), [M30](30-board-reimplementation.md), [M42](42-qualification-and-benchmarks.md) | Implementation correspondence, current policy/RLS integration, read-only inspection and common-revision scorecards respectively. No component helper certifies installed security or performance. |
+| [M32](32-reactive-context-and-agent-activation.md), [M44](44-declarative-language-context-and-synthesis.md) | Version-bound finite matches, spans and explicit exact/approximate ranking. Continuous activation, broader structural context and speculative synthesis remain later work; they are not prerequisites for finite search. |
+
+Start with three reviewable changes: **(1)** R0 capability corrections and an
+actual Zig-versus-independent oracle harness, including raw-value preservation,
+short-slice bounds, PAD SPACE ordering and score-bound counterexamples;
+**(2)** R1 SIMD safety and measured production lookup adoption;
+**(3)** R2 compact lanes plus an installed lossless string-query regression,
+while settling the shared R4/M11 lifecycle contract. Continue to R3 before
+exposing search DDL. Do not repeat the earlier component-only implementation
+sequence or mark its existence as completion.
+
 ## Implementation plan — 2026-10-30
+
+Historical proposal, superseded by the [2026-11-01 plan](#implementation-plan--2026-11-01).
+Its milestone statuses, proposed layouts, page-boundary SIMD rule, named plan
+contract and implied runtime integrations are not current capability claims.
+The source audit above controls remaining work; the component inventory below
+does not establish that these earlier exit gates passed.
 
 ### Plan basis and starting point
 
@@ -624,6 +1083,13 @@ flowchart TD
 | 10 | Issue #194 Phase H zero-allocation and per-morsel budget enforcement on ClickBench string and IR workloads | `steady_state_allocations == 0` under `transit-memory.AllocationProbe` after warmup across `GermanString` sorts/joins, `.dictionary`/`.fsst` scans, `PerfectHash` probes, Block-Max WAND, and hybrid `RRF`; per-morsel budget exhaustion halts cleanly with `error.QueryMemoryBudgetExceeded` | `tests/performance/allocations.json` + ClickBench/IR benchmark gate (`P8`) |
 
 ### Delivered implementation evidence — 2026-10-30
+
+This preserves the earlier component inventory and its work-package labels.
+Those labels do not establish completed production integration, persisted search
+recovery, independent Zig-versus-Python execution or installed performance. The
+[current source audit](#source-audit-reusable-components-and-missing-execution-paths)
+states the narrower evidence boundaries and remaining work. Preparing this plan
+did not rerun these runtime suites.
 
 | Work package | Delivered implementation & contracts | Executable verification |
 | --- | --- | --- |

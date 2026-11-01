@@ -1,7 +1,6 @@
 //! Pure-Zig `comptime` and segment-sealed perfect hash tables using greedy
 //! association-table construction (`slot = (len + asso[b0 + 256] + asso[b1]) & mask`)
-//! paired with branchless 16-byte `@Vector(16, u8)` SIMD comparisons and
-//! 4 KiB hardware page-boundary guards.
+//! paired with bounds-safe 16-byte `@Vector(16, u8)` SIMD comparisons.
 const std = @import("std");
 const Collation = @import("Collation.zig");
 
@@ -9,8 +8,6 @@ const Collation = @import("Collation.zig");
 /// string arenas, and `Workspace` slabs so 16-byte `@Vector(16, u8)` loads
 /// execute unconditionally without crossing buffer bounds.
 pub const padding_bytes: usize = 64;
-pub const page_size: usize = 4096;
-pub const page_safe_max_offset: usize = page_size - 16;
 
 pub const max_runtime_keys: usize = 1024;
 pub const max_table_slots: usize = 2048;
@@ -104,10 +101,9 @@ pub inline fn simdEql16Padded(
     return (eq_mask & valid_mask) == valid_mask;
 }
 
-/// Branchless 16-byte `@Vector(16, u8)` comparison for external caller slices
-/// that may not have trailing padding. Guards against 4 KiB hardware page
-/// boundaries (`(addr & 0xfff) <= 4080`) and falls back to a safe scalar loop
-/// when the slice lies within 15 bytes of a page end.
+/// Compare external caller slices without reading outside their allocation.
+/// A full-width slice can load directly; a short slice is copied into initialized
+/// stack storage. Page alignment alone never establishes a valid wide load.
 pub inline fn simdEql16PageSafe(
     candidate: []const u8,
     expected_vec: @Vector(16, u8),
@@ -117,18 +113,12 @@ pub inline fn simdEql16PageSafe(
 ) bool {
     if (candidate.len != expected_len) return false;
     if (expected_len == 0) return true;
-    if (!@inComptime()) {
-        const addr = @intFromPtr(candidate.ptr);
-        if ((addr & 0xfff) <= page_safe_max_offset) {
-            return simdEql16Padded(candidate.ptr, candidate.len, expected_vec, expected_len, case_insensitive);
-        }
-    }
-    var diff: u8 = 0;
-    for (candidate, expected_bytes[0..expected_len]) |c, e| {
-        const nc = if (case_insensitive) Collation.asciiLower(c) else c;
-        diff |= nc ^ e;
-    }
-    return diff == 0;
+    std.debug.assert(expected_len <= 16);
+    _ = expected_bytes;
+    if (candidate.len == 16) return simdEql16Padded(candidate.ptr, candidate.len, expected_vec, expected_len, case_insensitive);
+    var padded: [16]u8 = @splat(0);
+    @memcpy(padded[0..candidate.len], candidate);
+    return simdEql16Padded(&padded, candidate.len, expected_vec, expected_len, case_insensitive);
 }
 
 pub inline fn simdAsciiLower16(v: @Vector(16, u8)) @Vector(16, u8) {
@@ -140,8 +130,8 @@ pub inline fn simdAsciiLower16(v: @Vector(16, u8)) @Vector(16, u8) {
     return v + @select(u8, is_upper, delta, zeros);
 }
 
-/// Page-safe arbitrary-length string equality using 16-byte SIMD vector chunks
-/// on internal/page-safe regions and branchless scalar tail comparison near page boundaries.
+/// Arbitrary-length string equality using in-bounds 16-byte vector chunks and
+/// scalar tails. Neither input needs trailing padding.
 pub fn eqlSlicePageSafe(
     candidate: []const u8,
     expected: []const u8,
