@@ -241,7 +241,9 @@ fn stageWorkloads(init: std.process.Init, caller: *gateway.Client, config: Confi
         // Save the exact body before its first accepting token dispatch.
         try support.saveBytes(init, directory, try std.fmt.allocPrint(init.arena.allocator(), "sql-workload-{d}.json", .{index}), frozen.bytes);
         const reference: c.DirectIntent.Reference = .{ .workload = try frozen.stage(table, caller.execution.configuration.account) };
-        binding.* = .{ .key = .{ .definition = native.current_definition, .connection = table.connection, .account = caller.execution.configuration.account, .token = @splat(@intCast(90 + index)) }, .fingerprint = try reference.digest(), .intent = reference, .budget = caller.execution.configuration.budget(try reference.workload.reservationBytes()) };
+        var token: [16]u8 = @splat(0xe0);
+        token[15] = @intCast(index);
+        binding.* = .{ .key = .{ .definition = native.current_definition, .connection = table.connection, .account = caller.execution.configuration.account, .token = token }, .fingerprint = try reference.digest(), .intent = reference, .budget = caller.execution.configuration.budget(try reference.workload.reservationBytes()) };
     }
     try support.save(init, directory, "sql-workload-bindings.json", saved);
     for (saved.bindings) |binding| _ = try c.DirectClientToken.bind(table, binding);
