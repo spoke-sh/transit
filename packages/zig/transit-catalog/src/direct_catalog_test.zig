@@ -408,6 +408,77 @@ test "direct client token lost reply recovers the original intent on disk withou
     try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
 }
 
+test "direct client log token recovers its complete original declaration before admission" {
+    for ([_]c.DirectLog.Kind{ .stream, .queue }) |kind| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{ .exclusive = true };
+        var binding: c.DirectClientToken.Binding = undefined;
+        for (0..3) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            if (restart == 0) {
+                try catalog.initialize(access.policy());
+                const request = try logCreation(kind, 7, 55, "events", 2);
+                var arena = std.heap.ArenaAllocator.init(t.allocator);
+                defer arena.deinit();
+                const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+                var intent = try c.DirectLogIntent.create(t.allocator, connection, try c.DirectLogProtocol.Ddl.encode(arena.allocator(), request));
+                defer intent.deinit();
+                const reference = try intent.reference(@splat(9));
+                binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9), .token = @splat(1) }, .fingerprint = @splat(17), .intent = .{ .log = reference } };
+                try t.expectError(error.DirectRecordMissing, catalog.clientToken(.{ .bind = binding }, access.policy()));
+                try reference.record.requireSame(try c.DirectRecord.store(objects.objectStore(), reference.record.scope, c.DirectLogIntent.format, intent.bytes));
+                var forged = binding;
+                forged.intent.log.namespace = 2;
+                try t.expectError(error.DataIdentityConflict, catalog.clientToken(.{ .bind = forged }, access.policy()));
+                forged = binding;
+                forged.key.account = @splat(10);
+                try t.expectError(error.InvalidClientToken, catalog.clientToken(.{ .bind = forged }, access.policy()));
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.clientToken(.{ .bind = binding }, access.policy()));
+                continue;
+            }
+            access.deny_create = true;
+            try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
+            access.deny_create = false;
+            const receipt = (try catalog.clientToken(.{ .lookup = binding.key }, access.policy())).?;
+            try t.expectEqualDeep(binding, receipt.binding);
+            const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+            if (restart == 1) {
+                try t.expectEqual(.not_observed, try catalog.logOperation(binding.intent.log.binding, .inspect, access.policy()));
+                try t.expectError(error.ClientOperationPending, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+                var losing = binding;
+                losing.intent.log.binding.identity.operation = 56;
+                losing.intent.log.record.content.sha256 = @splat(88);
+                try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = losing }, access.policy())).?);
+                try t.expectError(error.DataIdentityConflict, catalog.admit(try creation(8, 55, "other"), access.policy()));
+                var original = try c.DirectLogIntent.load(t.allocator, objects.objectStore(), receipt.binding.intent.log);
+                defer original.deinit();
+                var scratch = std.heap.ArenaAllocator.init(t.allocator);
+                defer scratch.deinit();
+                const request = try original.parsed.value.work.request(scratch.allocator());
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.admitLog(request, access.policy()));
+                continue;
+            }
+            try t.expect((try catalog.logOperation(binding.intent.log.binding, .inspect, access.policy())).operation.pending());
+            for (0..2) |_| _ = try catalog.logOperation(binding.intent.log.binding, .execute, access.policy());
+            const complete = (try catalog.logOperation(binding.intent.log.binding, .inspect, access.policy())).operation;
+            try t.expectEqual(.complete, complete.phase);
+            try t.expectEqual(@as(u32, 2), complete.initialized);
+            const settled = (try catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy())).state.?;
+            try t.expect(!settled.pending);
+            try t.expectEqualDeep(receipt, settled.receipt);
+            try t.expectEqual(kind, (try catalog.resolveLog(1, try .init("events"), access.policy())).?.kind());
+        }
+    }
+}
+
 test "direct client token reserves DDL identity in its control store" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

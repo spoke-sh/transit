@@ -107,8 +107,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The atomic Queue transfer cutover replaces the shared definition with
-`840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24`.
+The frozen Stream/Queue declaration-intent cutover replaces the shared definition with
+`ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655`.
+Caller-token records now carry an explicit log-declaration reference and its
+account-scoped immutable body. The saved body requires the current definition;
+schema, policy, limits and original operation cannot be reconstructed from a
+current name. Shared statement commands distinguish Stream/Queue declarations,
+and terminal projections verify their original kind and namespace. Older token
+records and result definitions are rejected rather than reinterpreted.
 Log partition records and recovery baselines require explicit logical-change,
 transaction-pin and preparation-reference fields. Immutable transaction sources
 bind the exact old root and original begin identity; earlier log roots cannot

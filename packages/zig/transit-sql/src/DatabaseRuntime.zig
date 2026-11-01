@@ -305,7 +305,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
         return false;
     }
     const absent = switch (observed.value.result) {
-        inline .ddl, .rows, .name_assertion, .namespace_operation => |value| value == .not_observed,
+        inline .ddl, .rows, .name_assertion, .namespace_operation, .log_operation => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
     const response = try if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);

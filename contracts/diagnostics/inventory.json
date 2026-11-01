@@ -4297,7 +4297,7 @@
         "CatalogRegistrationRequired": 11,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 17,
-        "ClientOperationPending": 6,
+        "ClientOperationPending": 8,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
         "ConflictingRetry": 1,
@@ -4640,7 +4640,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1537,
+        "try": 1546,
         "catch": 24
       },
       "imports": [
@@ -5173,7 +5173,7 @@
         "ClientTokenConflict": 1,
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 12,
+        "InvalidClientToken": 13,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
       },
@@ -5316,6 +5316,7 @@
           "transaction_call",
           "external",
           "table",
+          "log",
           "name_assertion",
           "namespace_change"
         ]
@@ -5338,7 +5339,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -5601,6 +5602,38 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectLogIntent.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 3,
+        "CatalogRecordTooLarge": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidLogIntent": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.admit()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "create()": "<inferred>",
+        "load()": "<inferred>",
+        "reference()": "<inferred>",
+        "restore()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -8824,7 +8857,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -8872,6 +8905,7 @@
         "DirectKVResponse.zig",
         "DirectLog.zig",
         "DirectLogClient.zig",
+        "DirectLogIntent.zig",
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
         "DirectNamespace.zig",
@@ -19028,7 +19062,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24\""
+          "@\"ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655\""
         ],
         "Effect.phase": [
           "pending",
@@ -26947,6 +26981,12 @@
           "create_schema",
           "alter_schema",
           "drop_schema",
+          "create_stream",
+          "alter_stream",
+          "drop_stream",
+          "create_queue",
+          "alter_queue",
+          "drop_queue",
           "set",
           "show",
           "discard_all",
@@ -27767,6 +27807,7 @@
     "packages/zig/transit-sql/src/IntentReference.zig": {
       "errors": {
         "ExternalOperationOwnerRequired": 1,
+        "InvalidLogIntent": 1,
         "TransactionOperationRequired": 1
       },
       "outcomes": {},
@@ -28068,7 +28109,7 @@
       "errors": {
         "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 18,
+        "InvalidGatewayTerminal": 20,
         "TransactionOperationRequired": 1
       },
       "outcomes": {
@@ -28076,7 +28117,8 @@
           "ddl",
           "dml",
           "catalog_assertion",
-          "namespace_change"
+          "namespace_change",
+          "log_declaration"
         ],
         "state": [
           "applied",
@@ -28096,7 +28138,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 26,
         "catch": 0
       },
       "imports": [

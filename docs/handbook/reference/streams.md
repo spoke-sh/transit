@@ -22,6 +22,15 @@ that evidence is complete. Save the original request before admission and inspec
 that identity after a lost reply. A pending or cancelled declaration is not a
 published data source.
 
+Database caller tokens can retain the complete declaration before its admission.
+`DirectLogIntent` stages the original schema, policy and operation as an immutable
+account-scoped record; Catalog accepts that reference under the caller's token
+and current declaration rights. After a lost reply, recover the same token and
+resume its recorded declaration. Token acceptance does not publish the object,
+and a pending entry cannot be marked complete before the declaration owner has
+recorded its terminal outcome. See the
+[caller-token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+
 ALTER currently changes retention, operation limits and compatible scheduling
 policy. Schema changes, repartitioning and changes to routing, keys or ordering
 are refused before admission. RENAME preserves identity; DROP hides the name but

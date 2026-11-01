@@ -1845,6 +1845,7 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTarget).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionParticipant).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionTransfer).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidLogIntent).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidTransactionSettlement).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidKVKey).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.KVBuildBudget).code);
