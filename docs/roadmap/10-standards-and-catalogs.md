@@ -32,7 +32,8 @@ the [historical SQL reference](../handbook/reference/sql/as-of.md),
 [catalog definition contract](../../contracts/CATALOG_DEFINITIONS_V1.md).
 
 Integration with current main preserves managed computations, compact string
-execution, gateway startup, Document Profiles and the spatial reference owner.
+execution, gateway startup, logical Document storage and its collection roots,
+Document Profiles and the spatial reference owner.
 Opaque BINARY column metadata uses `transit-spatial.Reference` and its canonical
 `SPR1` envelope; it does not enable spatial SQL. The shared definition and Table
 schema definition change together, and the superseded definitions reject.
