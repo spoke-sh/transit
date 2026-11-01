@@ -10,17 +10,38 @@ const Client = c.DirectKVClient;
 const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
 const payload: [1024]u8 = @splat(0xa5);
 const Pin = struct { definition: p.Growth.Definition, request: @FieldType(K.Request, "pin") };
-fn callerFor(init: std.process.Init, client: c.DirectTableClient) !data.Catalog {
-    return data.Catalog.init(init.gpa, init.io, .{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
+const Caller = struct {
+    context: *data.Context,
+    handle: data.Context.Handle,
+    fn deinit(self: *Caller) void {
+        const allocator = self.context.allocator;
+        self.context.close(.none) catch unreachable;
+        self.context.deinit() catch unreachable;
+        allocator.destroy(self.context);
+    }
+    fn callKV(self: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action) !data.Catalog.KVOutcome {
+        return self.context.callKV(self.handle, output, action);
+    }
+};
+fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
+    const context = try init.gpa.create(data.Context);
+    errdefer init.gpa.destroy(context);
+    context.* = try data.Context.init(init.gpa, init.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
+    errdefer {
+        context.close(.none) catch unreachable;
+        context.deinit() catch unreachable;
+    }
+    const handle = try context.openCatalog(.{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
+    return .{ .context = context, .handle = handle };
 }
-fn call(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Client.Action) !Client.Result {
+fn call(caller: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action) !Client.Result {
     const outcome = try caller.callKV(output, action);
     return switch (outcome.value) {
         .result => |value| value,
         .failure => |failure| failure.cause,
     };
 }
-fn unknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Client.Action, identity: d.Operation) !void {
+fn unknown(caller: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action, identity: d.Operation) !void {
     const outcome = try caller.callKV(output, action);
     try t.expect(outcome.value == .failure);
     try t.expectEqual(error.InvalidTableResponse, outcome.value.failure.cause);
@@ -28,7 +49,7 @@ fn unknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Clie
     try t.expectEqualDeep(identity, outcome.attempt.mutation.?.identity.?);
     try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
 }
-fn finish(caller: *data.Catalog, output: *std.heap.ArenaAllocator, declaration: K.Declaration) !void {
+fn finish(caller: *Caller, output: *std.heap.ArenaAllocator, declaration: K.Declaration) !void {
     _ = try call(caller, output, .{ .declaration = .{ .declaration = declaration, .command = .admit, .steps = 1 } });
     const found = try call(caller, output, .{ .declaration = .{ .declaration = declaration, .command = .execute, .steps = 64 } });
     try t.expect(found.declaration.operation == .committed);
@@ -155,6 +176,11 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, admin: anytyp
     try t.expectEqualDeep(original, (try call(&caller, &output, .{ .mutate = work })).operation.?);
     const after_drop = (try call(&caller, &output, .{ .get = .{ .object = work.binding.target, .key = &.{ 0, 0 }, .source = retained } })).value;
     try t.expectEqualSlices(u8, &payload, after_drop.value.?.value.atom.bytes);
+    caller.context.beginClose();
+    try t.expectError(error.ClientContextClosed, call(&caller, &output, .{ .mutate = work }));
+    // Original outcome observation and explicit cleanup retain control capacity
+    // while closing, without permitting another data mutation.
+    try t.expectEqualDeep(original, (try call(&caller, &output, .{ .operation = work.binding })).operation.?);
     _ = try call(&caller, &output, .{ .release = .{ .object = work.binding.target, .source = retained } });
     try t.expect((try call(&caller, &output, .{ .pin_status = .{ .object = work.binding.target, .owner = retained.owner } })).pin_status.released);
 }

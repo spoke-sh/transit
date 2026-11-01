@@ -259,6 +259,19 @@ pub fn callQueue(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, 
     return borrow.slot.caller.?.callQueue(output, action);
 }
 
+/// Named KV uses the direct owner, including its existing control semantics.
+/// Closing a context does not implicitly release retained KV pins.
+pub fn callKV(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectKVClient.Action) !Catalog.KVOutcome {
+    const lane: Admission.Lane = switch (action) {
+        .declaration => |value| if (value.control()) .control else .data,
+        .operation, .pin_status, .release => .control,
+        else => .data,
+    };
+    const borrow = try self.acquire(handle, lane);
+    defer self.release(borrow);
+    return borrow.slot.caller.?.callKV(output, action);
+}
+
 pub fn beginClose(self: *Self) void {
     self.mutex.lockUncancelable(self.io);
     defer self.mutex.unlock(self.io);
@@ -498,6 +511,7 @@ test "context executes the shared catalog caller and preserves owned results aft
     };
     try t.expectError(error.ClientContextClosed, context.callStream(handle, &output, .{ .observe = partition }));
     try t.expectError(error.ClientContextClosed, context.callQueue(handle, &output, .{ .observe = partition }));
+    try t.expectError(error.ClientContextClosed, context.callKV(handle, &output, .{ .observe = partition.interpretation.object }));
     try context.deinit();
     deinitialized = true;
     try t.expectEqualStrings("18446744073709551615", loaded.value.result.loaded.binding.name_assertion.operation);

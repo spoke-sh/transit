@@ -1,6 +1,6 @@
 # Shared client context
 
-`transit_data_client.Context` composes direct Table, catalog, Stream, Queue and SQL
+`transit_data_client.Context` composes direct Table, KV, catalog, Stream, Queue and SQL
 callers with one explicitly supplied allocator and `std.Io`. Construction and
 opening a Catalog facet validate local configuration and own endpoints/key state;
 they do not contact the authority or start a worker pool. Existing public Catalog
@@ -24,7 +24,7 @@ Closing and reopening a slot invalidates its earlier handle. Handles grant no
 authority and cannot be used after the context's lifetime. Keep the context at
 a stable address from its first open until all users have joined.
 
-Use `call`, `callLog`, `callStream` and `callQueue` with those handles. Each
+Use `call`, `callKV`, `callLog`, `callStream` and `callQueue` with those handles. Each
 delegates to the existing Catalog caller and returns the same arena-owned result
 and mutation-attempt evidence. The output arena must outlive every associated
 borrow. Outputs survive another call, facet close and context destruction.
@@ -44,12 +44,17 @@ The control lane carries Table/log operation inspection and cancellation, Table
 snapshot status and release, log
 pending discovery, Stream/Queue original-operation observation, explicit retained
 read release, Stream offset settlement and Queue lease settlement/renewal.
+KV declaration inspection/cancellation, original-operation observation and pin
+status/release also use control capacity. KV preview, admission, execution,
+mutations, metadata/value reads and new pins use data capacity.
 Other calls, including waits, use data capacity. Control cannot borrow data
 capacity, nor data control capacity. A control call needs an idle facet; a
 separate handle to the same authorized scope allows control progress while
 another handle waits. Sharing a scope does not grant access or allocate native
-principal sequences. Callers still coordinate sequences and persist original
-work through the owning protocol.
+principal sequences. Direct Catalog/KV/log requests use their domain operation
+identities and signed authorization proofs, not native principal sequences.
+Applications composing native commands still coordinate those sequences
+separately and persist original work through the owning protocol.
 
 ## SQL leases
 
