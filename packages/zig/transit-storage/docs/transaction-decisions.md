@@ -41,6 +41,47 @@ earlier roots survive later private inserts. Failed insertion leaves the current
 private root unchanged. Staged orphan objects require an owning retained-graph
 and cleanup policy; this component deletes nothing.
 
+## Private log actions
+
+`LogTransactionActions` stores one partition owner's ordered append, offset,
+ACK and terminal-transfer intents under an exact transaction identity and
+`LogGuard`. An entry retains its statement sequence, ordinal, intent and original
+operation. A second paged index rejects reuse of an operation under another
+entry. Appends to the private directory must advance the statement/ordinal
+order; exact retries can address any existing entry. Entries from the same
+statement bind the same intent. The statement coordinator separately verifies
+complete work across owners; this storage interface does not infer completeness
+from contiguous ordinals.
+
+`putOffset` requires the original Stream cursor, including its read handle and
+authentication bytes. Its coverage and principal must match the offset action.
+Other action kinds require no cursor. Shape checks here do not verify its MAC
+or retained read; those checks belong to the partition owner before preparation.
+An exact retry cannot substitute another cursor or authentication value.
+
+`put` verifies payload bytes against the append's content identity and stores
+them separately from the fixed-size action metadata. Non-append actions carry
+no payload. Entry and cumulative payload quotas are explicit, independent of
+the resident page count. Metadata objects are at most 16 KiB; each payload is
+bounded by the ordinary log batch format. Object publication failure may leave
+staged objects, but it leaves the private directory root unchanged. Both index
+updates must be persisted before that root advances.
+
+`seal` returns an immutable directory commitment. `restore` checks its identity,
+exact guard, count, quotas and root pages. `page` returns at most eight owned
+fixed-size entries. `verify` traverses the complete directory and operation
+index, checking their counts, ordering, final entry and cumulative payload bytes.
+`readPayload` uses caller-owned bounded storage and verifies exact bytes. Provider
+allocations are separate from this owner's fixed buffers and page cache.
+
+These objects are private proposals. Their availability does not establish
+schema-valid payloads, live input leases, valid consumer progress, retention or
+accepted work. Restoring a saved directory cannot release globally consumed
+operation/statement identities. The transaction coordinator must retain the
+root and payload graph, apply current rights and participant guards, prepare
+offset reservations, and record a common decision before exposing output or
+settlement. Log participant preparation and execution remain unavailable.
+
 ## Private Table and KV evaluation
 
 `TableWorkspace` opens an existing retained Table pin with current authorization

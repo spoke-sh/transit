@@ -511,8 +511,14 @@ and the catalog's retained dependency graph.
 - `TransactionDirectory.zig` and `TransactionDecisionLog.zig`: Paged private
   participant/preparation commitments and a fenced original-attempt decision
   journal. Their [integration contract](docs/transaction-decisions.md) requires
-  catalog admission, Table preparation/common-decision visibility and retained
-  graph ownership before runtime use. They expose no installed SQL transaction.
+  catalog admission, preparation/common-decision visibility and retained graph
+  ownership. The catalog composes Table and direct KV participants through these
+  owners; SQL transaction selection remains Table-only.
+- `LogTransactionActions.zig`: Private paged append/settlement intents with
+  separate payload objects, stable statement/ordinal and operation identities,
+  and explicit action/payload quotas. Its
+  [storage interface](docs/transaction-decisions.md#private-log-actions) does not
+  reserve offsets, accept input settlement or enable log transaction execution.
 - `TableWorkspace.zig`: Private typed row and predicate DML over an authorized
   retained Table pin, using the existing Table evaluator and immutable indexes.
   Read-your-writes and private rollback preserve consumed statement identities;
