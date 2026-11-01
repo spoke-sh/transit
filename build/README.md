@@ -23,6 +23,12 @@ gateway and Board entry-point modules. The standalone artifacts and private
 local roles share those modules and package identities. Board assets are linked
 into the executable; the supervisor launches independent role processes from it.
 
+The CLI's streaming executable hash directly links the pinned OpenSSL crypto
+library already used by SQL TLS. Runtime CPU dispatch accelerates full SHA-256
+verification without raising the portable binary's CPU requirement. The CLI
+lifecycle checks include known digest vectors and independent Zig SHA-256
+comparisons across streaming boundaries.
+
 The fixture registry declares shared Zig modules and their direct imports.
 Scenario implementations live under their [test owners](../tests/README.md).
 The registry creates each shared module once, then connects imports so every

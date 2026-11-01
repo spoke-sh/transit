@@ -907,7 +907,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const operation_install = b.addInstallArtifact(operations, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
     b.step("test-operation-fixture", "Build private native operation test helpers").dependOn(&operation_install.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = operation_module })).step);
-    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
+    const lifecycle_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
         .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") },
         .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
         .{ .name = "transit_tls_server", .module = tls_server.module("transit_tls_server") },
@@ -915,7 +915,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
-    } }) }));
+    } });
+    lifecycle_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
+    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = lifecycle_module }));
     faults_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove console recovery and bounded local process mechanics").dependOn(&lifecycle_test.step);
     const diagnostics_test = b.addSystemCommand(&.{ "python3", "-B" });

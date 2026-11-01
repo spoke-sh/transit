@@ -1284,6 +1284,27 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/ArtifactHash.zig": {
+      "errors": {
+        "ArtifactHashFailed": 3,
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "final()": "<inferred>",
+        "init()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "apps/transit-cli/server/AuthorizationProfile.zig": {
       "errors": {},
       "outcomes": {},
@@ -1358,13 +1379,14 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 45,
         "catch": 18
       },
       "imports": [
         "../Diagnostic.zig",
         "../RuntimeRole.zig",
         "../Settings.zig",
+        "ArtifactHash.zig",
         "Files.zig",
         "Hosts.zig",
         "Logging.zig",

@@ -150,6 +150,12 @@ children. Restart requires those same identities. Changing between a built-in
 role and a standalone executable is an incompatible artifact change even when
 the files have identical bytes.
 
+Every start still reads and SHA-256 hashes every executable byte. The streaming
+hash uses the pinned OpenSSL library's runtime CPU dispatch, including in portable
+baseline builds. It retains a 64 KiB read buffer and one hash context; no timestamp,
+size or cached digest substitutes for content verification. Hash failures reject
+the executable through the existing configuration diagnostic.
+
 With no `--config`, the server selects the **first existing** file:
 
 1. `./transit.yaml`
