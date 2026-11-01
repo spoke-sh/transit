@@ -22719,7 +22719,9 @@
         "Catalog": [
           "databases",
           "schemas",
-          "tables"
+          "tables",
+          "streams",
+          "queues"
         ],
         "Relation": [
           "settings",
@@ -27166,7 +27168,7 @@
     },
     "packages/zig/transit-sql-service/src/BatchDisclosure.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "ConfigurationDenied": 1,
         "InvalidReadBatch": 1,
         "TransactionReadChanged": 1
@@ -27174,6 +27176,7 @@
       "outcomes": {
         "Subject": [
           "table",
+          "log",
           "namespace",
           "database"
         ]
@@ -27185,7 +27188,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 7,
         "catch": 0
       },
       "imports": [
@@ -27670,7 +27673,7 @@
         "CatalogDenied": 1,
         "CatalogIdentityConflict": 1,
         "ConfigurationDenied": 1,
-        "ConfigurationReadBudgetExceeded": 1,
+        "ConfigurationReadBudgetExceeded": 2,
         "ConfigurationReloadRejected": 1,
         "ConfigurationServiceRequired": 1,
         "ExpectedGatewayRead": 1,
@@ -27689,7 +27692,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 37,
         "catch": 1
       },
       "imports": [
@@ -37294,7 +37297,7 @@
       "relationalSelection": "( columnReference | COUNT LPAREN ( STAR | columnReference ) RPAREN | SUM LPAREN columnReference RPAREN ) outputAlias ?",
       "relationalTarget": "identifier relationalAlias ?",
       "relationalAlias": "AS identifier | relationalImplicitAlias",
-      "relationalImplicitAlias": "legacyIdentifier | BY",
+      "relationalImplicitAlias": "legacyIdentifier | STREAMS | QUEUES | BY",
       "relationalJoin": "( INNER | LEFT OUTER ? ) ? JOIN relationalTarget ON columnReference EQ columnReference",
       "selectStatement": "SELECT selection FROM identifier sourceAlias ? whereClause ? limitClause ? | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceAlias ? whereClause ? limitClause ? RPAREN AS identifier limitClause ?",
       "sourceAlias": "AS identifier",
@@ -37353,18 +37356,21 @@
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",
       "showStatement": "SHOW ( catalogKind | settingKey | STORAGE FOR identifier | logKind identifier )",
-      "settingKey": "identifier ( DOT identifier ) *",
+      "settingKey": "settingIdentifier ( DOT identifier ) *",
       "sessionSettingStatement": "SET settingKey ( EQ | TO ) ( STRING | INTEGER | DEFAULT ) | RESET settingKey",
       "configurationSelect": "SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN | SELECT projection FROM ( TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS ) LPAREN RPAREN whereClause ? ( ORDER BY identifier ( ASC | DESC ) ? ) ? limitClause ?",
-      "catalogKind": "TABLES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
+      "catalogKind": "TABLES | STREAMS | QUEUES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
       "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
-      "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
+      "identifier": "settingIdentifier | STREAMS | QUEUES",
+      "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
       "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",
+      "STREAMS": "'STREAMS'",
+      "QUEUES": "'QUEUES'",
       "PARTITION": "'PARTITION'",
       "PARTITIONS": "'PARTITIONS'",
       "HASH": "'HASH'",
