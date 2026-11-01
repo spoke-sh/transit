@@ -75,6 +75,12 @@ fn slot(self: Self, name: []const u8) !usize {
 pub fn objectStore(self: *Self) Objects.ObjectStore {
     return .{ .context = self, .vtable = &vtable };
 }
+/// Classification only: presence in this private overlay is never evidence of
+/// provider persistence. Conservatively classify a failed lookup as private.
+pub fn contains(self: *Self, name: []const u8) bool {
+    const at = self.slot(name) catch return true;
+    return self.slots[at] != vacant;
+}
 /// Success stages every private object durably; only the owner's subsequent
 /// fenced WAL publication can accept the derived roots. On failure, retain the
 /// original operation and retry these same immutable objects if needed.

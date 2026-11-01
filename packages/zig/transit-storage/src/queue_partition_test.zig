@@ -241,6 +241,50 @@ test "queue partition resumes accepted timer merges through reply loss retiremen
     try t.expectEqual(p.QueueRead.State.acked, page.rows()[1].lease.state);
 }
 
+test "queue partition replay cannot replace a missing accepted item page with its derivation" {
+    for ([_]usize{ 1, 16 }) |resident_pages| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var declared = try declaration();
+        defer declared.deinit();
+        var policy: Policy = .{};
+        const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+        var configured = options;
+        configured.resident_pages = resident_pages;
+        var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+        defer owner.deinit() catch unreachable;
+        _ = try owner.recoverStep(policy.guard(), 1);
+        var buffer: [8192]u8 = undefined;
+        const first = try request(&declared, 2, &buffer);
+        _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
+        const accepted = owner.owner.root;
+        const missing = accepted.queue.?.items.?;
+        var name: [96]u8 = undefined;
+        const object_key = try s.TreeStore.key(missing.location, &name);
+        const metadata = (try objects.objectStore().head(object_key)).?;
+        const saved = try t.allocator.alloc(u8, @intCast(metadata.size));
+        defer t.allocator.free(saved);
+        _ = try objects.objectStore().getRange(object_key, 0, @intCast(metadata.size), saved);
+        try owner.deinit();
+        try objects.objectStore().delete(object_key);
+        owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+        const puts = objects.puts;
+        try t.expectError(error.MissingDataIndexObject, owner.recoverStep(policy.guard(), 16));
+        try t.expect(!owner.owner.ready);
+        try t.expectEqual(puts, objects.puts);
+        // Restore the same accepted bytes, then prove this same WAL is valid.
+        try owner.deinit();
+        _ = try objects.objectStore().putImmutable(object_key, saved, metadata.sha256);
+        owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+        try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
+        try t.expectEqualDeep(accepted, owner.owner.root);
+    }
+}
+
 test "queue partition publishes payload FIFO and producer outcome together through lost replies and disk restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

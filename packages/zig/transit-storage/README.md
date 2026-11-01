@@ -205,6 +205,14 @@ against the complete object/revision/digest identity, independently of current
 names. Missing, incompatible or invalid destinations stop the mark pass; they
 cannot establish permission to reclaim the source or transfer its payload.
 
+During replay, the bounded index cache distinguishes provider-verified pages
+from newly staged pages, unflushed batches and reads served by the private
+derivation overlay. Each transition discards derived cache entries while keeping
+verified immutable provider pages within the configured page count. Recreating
+an accepted page from WAL does not prove that page is present in storage; missing
+accepted pages still refuse recovery. Cache hits grant no publication or read
+authority, and current guards remain checked at the same recovery boundaries.
+
 `QueuePartition.claim` freezes a bounded original selection from eligible FIFO
 heads, capped by declared and deployment limits and remaining active-lease
 capacity. Exhausted capacity cannot become an accepted empty result. The claim

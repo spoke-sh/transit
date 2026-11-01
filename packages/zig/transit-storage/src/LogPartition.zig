@@ -2215,6 +2215,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const found = try self.tree().get(root, key) orelse return error.InvalidLogHistory;
             if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
         }
+        fn privateIndexObject(raw: *anyopaque, name: []const u8) bool {
+            const overlay: *CandidateObjects = @ptrCast(@alignCast(raw));
+            return overlay.contains(name);
+        }
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             if (record.action == .operation and record.action.operation.outcome == .terminal) return error.InvalidLogPreparation;
             const next = record.root;
@@ -2231,8 +2235,13 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try self.candidate_objects.reset(self.objects);
                 self.objects = self.candidate_objects.objectStore();
                 self.store.store = self.objects;
-                self.store.clearCache();
-                defer self.store.clearCache();
+                self.store.clearDerived();
+                const provenance = self.store.load_provenance;
+                self.store.load_provenance = .{ .context = &self.candidate_objects, .is_private = privateIndexObject };
+                defer {
+                    self.store.clearDerived();
+                    self.store.load_provenance = provenance;
+                }
                 try self.store.begin(self.options.index_work_bytes);
                 defer self.store.end();
                 var expected = switch (record.action) {
