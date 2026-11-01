@@ -64,9 +64,12 @@ visible. Missing completion, telemetry loss, orphaned phases and overlapping
 durations fail the diagnostic sample. Child logs and credentials stay private.
 `--startup-debug` adds bounded child spans for executable validation, installation
 journal checkpoints, native queries/submissions, and worker spawn/registration.
-Count those records to distinguish request count from elapsed operation cost.
-Their times are already included in their parent phase; never add them to its
-duration. Debug runs include instrumentation overhead and are diagnostic controls,
+Authorization actions and SQL enrollment/discovery/activation/host work have
+separate labels. `work_totals` reports each label's attempt/failure count,
+inclusive `duration_ns` and `exclusive_ns` after subtracting immediate children.
+Nested work belongs to its immediate parent, whose inclusive time already
+contains it. The reporter rejects duplicate spans, orphaned/cyclic parents and
+child-duration overflow. Debug runs include instrumentation overhead and are diagnostic controls,
 separate from the info-level latency comparison.
 
 Artifact preparation, the retained-row setup write, verification and shutdown

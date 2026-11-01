@@ -23,7 +23,7 @@ pub fn save(installation: *Installation, path: []const u8, record: anytype) !voi
 pub fn flush(self: *Self, installation: *Installation, path: []const u8, record: anytype) !void {
     const pending = self.pending orelse return;
     try installation.reserveRoot(pending.signed);
-    const receipt = Startup.measure(installation.startup, .native_submit, q.wire.Client.submit, .{ installation.wire, pending.signed }) catch |err| receipt: {
+    const receipt = Startup.measure(installation.startup, Startup.submission(pending.signed.request.command), q.wire.Client.submit, .{ installation.wire, pending.signed }) catch |err| receipt: {
         const cause = installation.wire.last_rejection orelse return err;
         // A negative attempt may follow an earlier accepted request. Resolve
         // the exact receipt before releasing the shared root sequence.

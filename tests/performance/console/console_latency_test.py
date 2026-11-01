@@ -87,6 +87,33 @@ class StartupTimings(unittest.TestCase):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 self.trace(entries)
 
+    def test_nested_sql_work_has_exclusive_costs_and_operation_counts(self):
+        entries = self.entries()
+        entries[:0] = [
+            dict(duration_ns=12, span_id='submit', parent_span_id='enroll',
+                 event=dict(name='server.startup.work', operation='authorization_publish', outcome='ok')),
+            dict(duration_ns=20, span_id='enroll', parent_span_id='p1',
+                 event=dict(name='server.startup.work', operation='sql_enrollment', outcome='ok')),
+        ]
+        result = self.trace(entries)
+        self.assertEqual(result['work_totals']['sql_enrollment'],
+                         dict(count=1, failed=0, duration_ns=20, exclusive_ns=8))
+        self.assertEqual(result['work_totals']['authorization_publish']['exclusive_ns'], 12)
+        self.assertEqual(result['phases'][0]['exclusive_ns'], 10)
+        self.assertEqual(result['attempts'][0]['unattributed_ns'], 10)
+        for invalid in ('cycle', 'orphan', 'duplicate', 'overlap'):
+            damaged = json.loads(json.dumps(entries))
+            if invalid == 'cycle':
+                damaged[1]['parent_span_id'] = 'submit'
+            elif invalid == 'orphan':
+                damaged[1]['parent_span_id'] = 'a'
+            elif invalid == 'duplicate':
+                damaged[0]['span_id'] = 'p1'
+            else:
+                damaged[0]['duration_ns'] = 21
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                self.trace(damaged)
+
 
 class Resources(unittest.TestCase):
     def test_units_and_unrelated_fields(self):
