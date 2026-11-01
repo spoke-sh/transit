@@ -347,12 +347,14 @@ domains, output/error meaning and complete input-transaction boundaries.
 Distinguish linear operators from bilinear joins and nonlinear operators.
 For a bilinear join, with `A` and `B` denoting the old inputs, include all three
 terms `dA join B + A join dB + dA join dB` (including
-[Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `INTERIOR` /
+[Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) and
+[Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md) `INTERIOR` /
 `BOUNDARY` `S2` and `OCT_CELL` covering joins, oriented 2D half-edge `ST_Union`
 ($\partial_2(A \cup B) = \partial_2 A + \partial_2 B$), 3D oriented face
 `ST_3DUnion` ($\partial_3(V_1 \cup V_2) = \partial_3 V_1 + \partial_3 V_2$,
-$\partial_2 \circ \partial_3 = 0$), and Discrete Divergence Theorem linear 3D
-volume/centroid/inertia aggregates).
+$\partial_2 \circ \partial_3 = 0$), Discrete Divergence / Stokes Theorem linear 3D
+volume/centroid/inertia aggregates and 2-cochain interior face-flux cancellation
+($(+\Phi_f) + (-\Phi_f) = 0$) in control-volume conservation views).
 
 Left joins need match-count/zero-crossing reasoning, and grouping/deletion need
 their own state and multiplicity laws. Ordered checked SUM is not automatically
@@ -395,6 +397,10 @@ silently manufacture a value. Distinguish value-domain and byte-format validity.
 If Roaring-style containers are selected, relate array/bitmap/run representations
 to sets and prove conversions and union/intersection/difference laws across
 container combinations, including the nine pairings for three representations.
+For error-bounded scientific float blocks (`.float_zfp` under $\kappa_{\text{numeric}}$),
+prove the pointwise $L_\infty$ reconstruction bound
+($\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$) and exact 0th-coefficient
+block mean preservation.
 Keep algorithm selection with the structure owner. Use independent byte fixtures,
 allocation bounds and fuzzing to cover implementation behavior outside the
 formal encoding functions.
