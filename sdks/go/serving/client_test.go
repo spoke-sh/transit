@@ -9,8 +9,10 @@ import (
 func TestRecoveryMaterialIsRedacted(t *testing.T) {
 	p := &Pending{saved: []byte("private-frozen-command")}
 	for _, format := range []string{"%v", "%+v", "%#v", "%s", "%q"} {
-		if strings.Contains(fmt.Sprintf(format, p), "private-frozen-command") {
-			t.Fatal("recovery material disclosed")
+		for _, value := range []any{p, *p} {
+			if output := fmt.Sprintf(format, value); !strings.Contains(output, "private recovery material") || strings.Contains(output, "private-frozen-command") {
+				t.Fatal("recovery material was not redacted")
+			}
 		}
 	}
 	exported := p.Export()

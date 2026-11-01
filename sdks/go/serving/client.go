@@ -60,8 +60,8 @@ func (p *Pending) Export() []byte {
 	}
 	return bytes.Clone(p.saved)
 }
-func (*Pending) String() string               { return "Serving pending operation (private recovery material)" }
-func (p *Pending) Format(s fmt.State, _ rune) { _, _ = io.WriteString(s, p.String()) }
+func (Pending) String() string               { return "Serving pending operation (private recovery material)" }
+func (p Pending) Format(s fmt.State, _ rune) { _, _ = io.WriteString(s, p.String()) }
 
 type Metadata struct {
 	Identity [32]byte `json:"identity"`
