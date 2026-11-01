@@ -27,13 +27,15 @@ Use `call`, `callLog`, `callStream` and `callQueue` with those handles. Each
 delegates to the existing Catalog caller and returns the same arena-owned result
 and mutation-attempt evidence. The output arena must outlive every associated
 borrow. Outputs survive another call, facet close and context destruction.
-Concurrent calls need separate output arenas or an externally synchronized
-allocator; the context does not serialize output allocation across facets.
+Use a separate output arena for each concurrent call. Shared backing allocators
+must support concurrent access; otherwise serialize the calls. The context does
+not serialize output allocation across facets.
 
 Only one call may borrow each facet. Overlap returns `Busy`; exhausted lanes or
 handle capacity return `ClientCapacityExceeded` before dispatch. There is no
 implicit pending queue, admission wait or fairness guarantee. Different facets
-may run concurrently using the supplied I/O implementation. The host must give
+may run concurrently using the supplied allocator and I/O, which must both
+support concurrent use in that case. The host must give
 that implementation sufficient bounded worker/task capacity; a context creates
 neither threads nor an inline fallback when concurrency is unavailable.
 
