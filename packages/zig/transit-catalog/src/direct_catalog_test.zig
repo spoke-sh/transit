@@ -4482,6 +4482,8 @@ fn logEdit(value: c.DirectLog.Definition, operation: u64, action: @FieldType(c.D
 const TransactionLogFault = struct {
     underlying: s.TransitLog.Log,
     lose_reply: bool = false,
+    refuse_append: bool = false,
+    failed: ?struct { partition: u64, before: u64, accepted: bool } = null,
     fn log(self: *@This()) s.TransitLog.Log {
         return .{ .context = self, .vtable = &.{ .append = append, .read = read, .tail = tail, .trim = trim, .fence = fence } };
     }
@@ -4490,6 +4492,13 @@ const TransactionLogFault = struct {
     }
     fn append(raw: *anyopaque, partition: u64, expected: ?u64, writer: u64, policy: u64, kind: s.TransitLog.FrameKind, bytes: []const u8) !s.TransitLog.AppendReceipt {
         const self = cast(raw);
+        if (self.refuse_append or self.lose_reply) {
+            self.failed = .{ .partition = partition, .before = try self.underlying.tail(partition), .accepted = !self.refuse_append };
+        }
+        if (self.refuse_append) {
+            self.refuse_append = false;
+            return error.InjectedAppendFailure;
+        }
         const result = try self.underlying.append(partition, expected, writer, policy, kind, bytes);
         if (self.lose_reply) {
             self.lose_reply = false;
@@ -4515,6 +4524,18 @@ fn selectTransactionLogs(catalog: *D, access: *Access, mode: p.Transaction.Mode)
     return selectTransactionLogsWithQueue(catalog, access, mode, false);
 }
 fn selectTransactionLogsWithQueue(catalog: *D, access: *Access, mode: p.Transaction.Mode, fifo: bool) !c.DirectClientToken.Receipt {
+    return selectTransactionKinds(catalog, access, mode, fifo, false);
+}
+fn selectTransactionKinds(catalog: *D, access: *Access, mode: p.Transaction.Mode, fifo: bool, include_kv: bool) !c.DirectClientToken.Receipt {
+    if (include_kv) {
+        var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+        var kv = try creation(7, 4, "state");
+        kv.intent.kind = .kv;
+        kv.intent.action.create.schema = (s.KVDeclaration.Spec{ .value_type = .binary, .nullable = false }).schema(7, &kv_columns);
+        kv.binding.intent = try kv.intent.digest(t.allocator);
+        _ = try catalog.admit(kv, access.policy());
+        _ = try catalog.perform(kv.binding, access.policy());
+    }
     const table = try creation(10, 1, "rows");
     _ = try catalog.admit(table, access.policy());
     _ = try catalog.perform(table.binding, access.policy());
@@ -4530,6 +4551,7 @@ fn selectTransactionLogsWithQueue(catalog: *D, access: *Access, mode: p.Transact
     }
     const template = try transactionToken(catalog, 9000, 1, 0);
     const targets = [_]p.Transaction.Target{
+        .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .kind = .kv, .partition = null },
         .{ .object = table.binding.target, .kind = .table, .partition = null },
         .{ .object = .{ .scope = scope, .branch = 1, .object = 11 }, .kind = .stream, .partition = 0 },
         .{ .object = .{ .scope = scope, .branch = 1, .object = 11 }, .kind = .stream, .partition = 1 },
@@ -4541,7 +4563,7 @@ fn selectTransactionLogsWithQueue(catalog: *D, access: *Access, mode: p.Transact
         .operation = template.intent.transaction.begin.identity.begin,
         .namespace = 1,
         .mode = mode,
-        .selection = .{ .explicit_objects = &targets },
+        .selection = .{ .explicit_objects = targets[if (include_kv) 0 else 1..] },
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
     }, access.policy());
@@ -6146,6 +6168,243 @@ test "mixed Table KV transaction preserves private reads rights and one decision
                 }
             }
         }
+    }
+}
+
+const MixedDecisionFixture = struct {
+    receipt: c.DirectClientToken.Receipt = undefined,
+    claim: p.StreamQueue.ClaimReceipt = undefined,
+    stream: p.StreamQueue.Partition = undefined,
+    queue: p.StreamQueue.Partition = undefined,
+    state: c.DirectTransactionWorkspace.Request = undefined,
+    offset: c.DirectTransactionLogWork.Request = undefined,
+    ack: c.DirectTransactionLogWork.Request = undefined,
+    produced: c.DirectTransactionLogWork.Request = undefined,
+    enqueued: c.DirectTransactionLogWork.Request = undefined,
+    const kv: p.DataLifecycle.Object = .{ .scope = scope, .branch = 1, .object = 7 };
+    const group: p.StreamQueue.Group = .{ .id = 7, .generation = 1, .principal = 1 };
+    const value: [512]u8 = @splat(0x9d);
+    fn operation(id: u64) p.DataLifecycle.Operation {
+        return .{ .scope = scope, .principal = 1, .operation = id };
+    }
+    fn prepare(self: *@This(), catalog: *D, access: *Access, clock: *QueueClock) !void {
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        const alloc = scratch.allocator();
+        var stream_cache: ?c.DirectStream.Cached = null;
+        defer if (stream_cache) |*cached| cached.deinit();
+        var queue_cache: ?c.DirectQueue.Cached = null;
+        defer if (queue_cache) |*cached| cached.deinit();
+        self.receipt = try selectTransactionKinds(catalog, access, .serializable, true, true);
+        try t.expectEqual(@as(u64, 5), self.receipt.binding.intent.transaction.begin.objects.count);
+        const key = self.receipt.binding.key;
+        const stream_definition = (try catalog.resolveLog(1, try .init("events"), access.policy())).?;
+        const queue_definition = (try catalog.resolveLog(1, try .init("work"), access.policy())).?;
+        self.stream = .{ .definition = p.Growth.current_definition, .interpretation = stream_definition.stored.declaration.interpretation, .partition = 0 };
+        self.queue = .{ .definition = p.Growth.current_definition, .interpretation = queue_definition.stored.declaration.interpretation, .partition = 0 };
+        var bytes: [8192]u8 = undefined;
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+        const stream_schema = (try logCreation(.stream, 11, 2, "events", 2)).intent.action.create.schema;
+        const queue_schema = (try logCreation(.queue, 12, 3, "work", 1)).intent.action.create.schema;
+        const initial_stream = try s.LogBatch.encode(stream_schema, operation(600), .stream, &.{.{ .cells = &cells }}, &bytes);
+        _ = try streamCall(catalog, access, &stream_cache, .{ .mutate = .{ .work = .{ .append = .{ .target = self.stream, .operation = operation(600), .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(initial_stream) } }, .payload = try c.DirectTableProtocol.Binary.encode(alloc, initial_stream) } }, 256);
+        const cut = (try streamCall(catalog, access, &stream_cache, .{ .observe = self.stream }, 256)).cut;
+        _ = try streamCall(catalog, access, &stream_cache, .{ .mutate = .{ .work = .{ .assign = .{ .operation = operation(601), .cut = cut, .expected = null, .group = group, .next = 0 } }, .payload = null } }, 256);
+        const read = (try streamCall(catalog, access, &stream_cache, .{ .mutate = .{ .work = .{ .consume = .{ .target = self.stream, .operation = operation(602), .group = group, .from = 0, .until = null, .timestamp = null } }, .payload = null } }, 256)).operation.?.consume;
+        const cursor = (try streamCall(catalog, access, &stream_cache, .{ .cursor = .{ .target = self.stream, .read = read.handle() } }, 256)).cursor;
+        const coverage = try streamCall(catalog, access, &stream_cache, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 } } }, 256);
+        defer coverage.deinit(t.allocator);
+        const initial_queue = try s.LogBatch.encode(queue_schema, operation(610), .queue, &.{.{ .cells = &cells }}, &bytes);
+        _ = try queueCall(catalog, access, &queue_cache, clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = self.queue, .operation = operation(610), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(initial_queue) } }, .payload = try c.DirectTableProtocol.Binary.encode(alloc, initial_queue) } }, 256);
+        self.claim = (try queueCall(catalog, access, &queue_cache, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(611), .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+        const claimed = try queueCall(catalog, access, &queue_cache, clock, .{ .page = .{ .cursor = .{ .receipt = self.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+        defer claimed.deinit(t.allocator);
+        _ = try catalog.acquireTransaction(key, access.policy());
+        const metadata = (try c.DirectKV.apply(alloc, alloc, catalog, .{ .observe = kv }, access.policy())).definition;
+        const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = operation(500), .target = kv, .action = .insert, .expected_definition = metadata.interpretation.interpretation, .expected_data = null, .intent = undefined };
+        const mutation = try c.DirectKVClient.prepareMutation(&scratch, binding, .{ .value_type = .binary, .nullable = false }, &.{.{ .put = .{ .key = "state", .value = .{ .value = .{ .atom = .{ .bytes = &value } } } } }});
+        self.state = try catalog.stageTransactionKV(key, (try catalog.inspectTransaction(key, access.policy())).revision, 1, mutation, access.policy());
+        _ = try catalog.executeTransactionStatement(key, self.state, access.policy());
+        _ = try catalog.executeTransactionStatement(key, try workspaceRequest(catalog, access, key, 10, 2, 501), access.policy());
+        self.offset = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 3, .{ .stream_offset = .{ .commit = .{ .operation = operation(603), .group = group, .coverage = coverage.page.cursor.coverage, .expected_next = 0, .next = 1 }, .cursor = coverage.page.cursor } }, null, access.policy());
+        _ = try catalog.executeTransactionLog(key, self.offset, access.policy());
+        self.ack = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 4, .{ .queue_ack = .{ .operation = operation(612), .lease = claimed.page.rows[0].lease.original, .action = .ack } }, null, access.policy());
+        _ = try catalog.executeTransactionLog(key, self.ack, access.policy());
+        const output_cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 77 } } }};
+        const output_stream = try s.LogBatch.encode(stream_schema, operation(604), .stream, &.{.{ .cells = &output_cells }}, &bytes);
+        self.produced = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 5, .{ .append = .{ .target = self.stream, .operation = operation(604), .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(output_stream) } }, output_stream, access.policy());
+        _ = try catalog.executeTransactionLog(key, self.produced, access.policy());
+        const output_queue = try s.LogBatch.encode(queue_schema, operation(613), .queue, &.{.{ .cells = &output_cells }}, &bytes);
+        self.enqueued = try catalog.stageTransactionLog(key, (try catalog.inspectTransaction(key, access.policy())).revision, 6, .{ .append = .{ .target = self.queue, .operation = operation(613), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(output_queue) } }, output_queue, access.policy());
+        _ = try catalog.executeTransactionLog(key, self.enqueued, access.policy());
+        try self.verify(catalog, access, false);
+    }
+    fn verify(self: *const @This(), catalog: *D, access: *Access, committed: bool) !void {
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        const alloc = scratch.allocator();
+        var stream_cache: ?c.DirectStream.Cached = null;
+        defer if (stream_cache) |*cached| cached.deinit();
+        var queue_cache: ?c.DirectQueue.Cached = null;
+        defer if (queue_cache) |*cached| cached.deinit();
+        // Original receipt and payload disclosure require no clock after replay.
+        var clock: QueueClock = .{ .now = null };
+        const state = (try c.DirectKV.apply(alloc, alloc, catalog, .{ .get = .{ .object = kv, .key = try c.DirectTableProtocol.Binary.encode(alloc, "state"), .source = null } }, access.policy())).value;
+        try t.expectEqual(committed, state.encoded != null);
+        if (state.encoded) |encoded| {
+            const decoded = try c.fuze.Types.Codec.decodeBoundInto(alloc, .{ .name = "value", .type = .binary, .nullable = false }, try encoded.decode(alloc, 1024));
+            try t.expectEqualSlices(u8, &value, decoded.value.atom.bytes);
+        }
+        var table = (try resolve(catalog, access, "rows")).?;
+        defer table.deinit();
+        try t.expectEqual(@as(u64, @intFromBool(committed)), table.table.root.live_rows);
+        if (committed) {
+            const guard = try access.dataGuard(alloc, table.properties, 10);
+            var key_buffer: [4096]u8 = undefined;
+            const row_key = try c.fuze.Collation.encodePrimaryKeySortKey(table.table.declaration.schema.schema, &.{.{ .value = .{ .atom = .{ .signed = 501 } } }}, false, &key_buffer);
+            var row = (try table.table.get(t.allocator, row_key, guard)).?;
+            defer row.deinit();
+            try t.expectEqual(@as(i128, 501), row.row().cells[0].value.atom.signed);
+        }
+        try t.expectEqual(@as(u64, @intFromBool(committed)), (try streamCall(catalog, access, &stream_cache, .{ .group = .{ .target = self.stream, .id = group.id } }, 256)).group.?.next);
+        try t.expectEqual(@as(u64, 1 + @as(u64, @intFromBool(committed))), (try streamCall(catalog, access, &stream_cache, .{ .observe = self.stream }, 256)).cut.next);
+        try t.expectEqual(@as(u64, 1 + @as(u64, @intFromBool(committed))), (try queueCall(catalog, access, &queue_cache, &clock, .{ .observe = self.queue }, 256)).cut.next);
+        const page = try queueCall(catalog, access, &queue_cache, &clock, .{ .page = .{ .cursor = .{ .receipt = self.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+        defer page.deinit(t.allocator);
+        try t.expectEqual(@as(p.QueueRead.State, if (committed) .acked else .acquired), page.page.rows[0].lease.state);
+        const encoded = try page.page.rows[0].encoded.decode(alloc, 8192);
+        var original = try c.fuze.TableRow.decode(t.allocator, (try logCreation(.queue, 12, 3, "work", 1)).intent.action.create.schema, encoded);
+        defer original.deinit();
+        try t.expectEqual(@as(i128, 42), original.row().cells[0].value.atom.signed);
+        const produced = (try streamCall(catalog, access, &stream_cache, .{ .operation = .{ .append = self.produced.work.append } }, 256)).operation;
+        const settled_offset = (try streamCall(catalog, access, &stream_cache, .{ .operation = .{ .offset = self.offset.work.stream_offset } }, 256)).operation;
+        const enqueued = (try queueCall(catalog, access, &queue_cache, &clock, .{ .operation = .{ .enqueue = self.enqueued.work.append } }, 256)).operation;
+        const ack = (try queueCall(catalog, access, &queue_cache, &clock, .{ .operation = .{ .settle = self.ack.work.queue_ack } }, 256)).operation;
+        try t.expectEqual(committed, produced != null);
+        try t.expectEqual(committed, settled_offset != null);
+        try t.expectEqual(committed, enqueued != null);
+        try t.expectEqual(committed, ack != null);
+        if (produced) |actual| try t.expectEqualDeep(self.produced.work.append, actual.append.append);
+        if (settled_offset) |actual| try t.expectEqualDeep(self.offset.work.stream_offset.commit, actual.offset.commit);
+        if (enqueued) |actual| try t.expectEqualDeep(self.enqueued.work.append, actual.enqueue.append);
+        if (ack) |actual| try t.expectEqualDeep(self.ack.work.queue_ack, actual.settle.settlement);
+        if (committed) {
+            const read = (try streamCall(catalog, access, &stream_cache, .{ .mutate = .{ .work = .{ .consume = .{ .target = self.stream, .operation = operation(8000), .group = null, .from = 0, .until = 2, .timestamp = null } }, .payload = null } }, 256)).operation.?.consume;
+            const cursor = (try streamCall(catalog, access, &stream_cache, .{ .cursor = .{ .target = self.stream, .read = read.handle() } }, 256)).cursor;
+            const rows = try streamCall(catalog, access, &stream_cache, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } }, 256);
+            defer rows.deinit(t.allocator);
+            try t.expectEqual(@as(usize, 2), rows.page.rows.len);
+            for (rows.page.rows, [_]i128{ 42, 77 }, 0..) |row, expected, index| {
+                try t.expectEqual(@as(u64, @intCast(index)), row.offset);
+                var decoded = try c.fuze.TableRow.decode(t.allocator, (try logCreation(.stream, 11, 2, "events", 2)).intent.action.create.schema, try row.encoded.decode(alloc, 8192));
+                defer decoded.deinit();
+                try t.expectEqual(expected, decoded.row().cells[0].value.atom.signed);
+            }
+            // A fresh authorized claim is used only by the independent oracle,
+            // after the original ACK and enqueue outcomes have been checked.
+            clock.now = .exact(100);
+            const output = (try queueCall(catalog, access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(8001), .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+            try t.expectEqual(@as(u32, 1), output.rows);
+            const payload = try queueCall(catalog, access, &queue_cache, &clock, .{ .page = .{ .cursor = .{ .receipt = output, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+            defer payload.deinit(t.allocator);
+            try t.expectEqual(@as(u64, 1), payload.page.rows[0].lease.original.offset);
+            var decoded = try c.fuze.TableRow.decode(t.allocator, (try logCreation(.queue, 12, 3, "work", 1)).intent.action.create.schema, try payload.page.rows[0].encoded.decode(alloc, 8192));
+            defer decoded.deinit();
+            try t.expectEqual(@as(i128, 77), decoded.row().cells[0].value.atom.signed);
+        }
+    }
+};
+
+test "mixed transaction reopens all state output and settlement owners at every commit append boundary" {
+    return mixedDecisionFaultCases() catch |err| {
+        std.debug.print("mixed append recovery: {s}\n", .{@errorName(err)});
+        return err;
+    };
+}
+fn mixedDecisionFaultCases() !void {
+    for ([_]bool{ true, false }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{ .exclusive = true };
+        var fixture: MixedDecisionFixture = .{};
+        const operation = MixedDecisionFixture.operation(9001);
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            var clock: QueueClock = .{};
+            const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source(), .authority = try s.LogRead.Authority.init(@splat(4)) };
+            catalog.log_environment = &environment;
+            try catalog.initialize(access.policy());
+            try fixture.prepare(&catalog, &access, &clock);
+            if (!commit) {
+                const preparing = try catalog.settleTransaction(fixture.receipt.binding.key, operation, .commit, 2, access.policy());
+                try t.expect(preparing.observation == .preparing);
+            }
+        }
+        var original: ?p.Transaction.Decision = null;
+        var faults: usize = 0;
+        var partitions: std.AutoHashMapUnmanaged(u64, void) = .empty;
+        defer partitions.deinit(t.allocator);
+        for (0..128) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            const key = fixture.receipt.binding.key;
+            const observed = try catalog.inspectTransaction(key, access.policy());
+            if (observed.observation == .decided) {
+                if (original) |decision| try t.expectEqualDeep(decision, observed.observation.decided);
+                original = observed.observation.decided;
+            }
+            var clock: QueueClock = .{ .now = if (original != null) null else .exact(100) };
+            // After a decision, recovery has neither a trusted clock nor the
+            // old cursor signing key. It must resolve that decision, not replay.
+            const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source(), .authority = if (original != null) null else try s.LogRead.Authority.init(@splat(4)) };
+            catalog.log_environment = &environment;
+            var fault: TransactionLogFault = .{ .underlying = wal.log(), .refuse_append = restart % 2 == 0, .lose_reply = restart % 2 != 0 };
+            catalog.store.log = fault.log();
+            catalog.data_log = fault.log();
+            // A later abort cannot replace a committed decision.
+            const command: c.DirectTransactionControl.Command = if (commit and original == null) .commit else .abort;
+            const result = catalog.settleTransaction(key, operation, command, 16, access.policy()) catch |err| {
+                const failure = fault.failed orelse return err;
+                switch (err) {
+                    error.InjectedAppendFailure, error.InjectedReplyLoss, error.LogAppendUncertain => {},
+                    else => return err,
+                }
+                try t.expectEqual(failure.before + @as(u64, @intFromBool(failure.accepted)), try wal.log().tail(failure.partition));
+                try partitions.put(t.allocator, failure.partition, {});
+                faults += 1;
+                continue;
+            };
+            try t.expect(fault.failed == null);
+            try t.expect(result.cleanup_complete);
+            try t.expectEqual(commit, result.observation.decided.outcome == .committed);
+            try t.expectEqualDeep(original.?, result.observation.decided);
+            try t.expect(faults >= 12);
+            try t.expect(partitions.count() >= 7); // Catalog, decision, and five participant logs.
+            try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, key)).?.transactions.count);
+            // Settlement is complete without another append. The following
+            // oracle creates its own read/claim; those are outside the faulted
+            // original transaction and must not consume the next injection.
+            fault.refuse_append = false;
+            fault.lose_reply = false;
+            try fixture.verify(&catalog, &access, commit);
+            try t.expect((try catalog.transactionStatementOutcome(key, fixture.state, access.policy())).? == .provisional);
+            for ([_]c.DirectTransactionLogWork.Request{ fixture.offset, fixture.ack, fixture.produced, fixture.enqueued }) |request|
+                try t.expect((try catalog.transactionLogOutcome(key, request, access.policy())).? == .provisional);
+            const before = catalog.store.root;
+            try t.expectEqualDeep(result, try catalog.settleTransaction(key, operation, .commit, 1, access.policy()));
+            try t.expectEqualDeep(before, catalog.store.root);
+            std.debug.print("mixed {s}: {d} append faults across {d} durable logs, original decision and cleanup recovered\n", .{ if (commit) "commit" else "abort", faults, partitions.count() });
+            break;
+        } else return error.FixtureBudget;
     }
 }
 
