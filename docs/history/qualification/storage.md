@@ -44,6 +44,16 @@ were corrected before executed tests passed. No installed SQL result recovery,
 projection freezing or protocol-adapter completion is claimed by this component
 evidence, and it does not close the common-revision milestone gate.
 
+Follow-up `c1685ec75` adds owned-page cleanup and saved delivery positions for
+service composition, still without a new wire action. The same **5/5** catalog
+selection and **60/60** fast checks pass. Each row kind resumes its original
+second-page position after a fresh open. Injected failure at each of the first
+three output allocations leaks no page storage and leaves its cursor unchanged;
+post-buffer revocation and terminal output also use the leak-checking allocator.
+Append positions seek within the bounded frozen payload, while Stream page
+validation remains with its authenticated native owner. An initial formatter
+rejected the reserved Zig word `resume`; the method is named `seek`.
+
 | Raw local log | SHA-256 |
 | --- | --- |
 | `/var/tmp/transit-m6-workload-result4.log` | `8947300753ab3817f06b63ab6be55aa121ec06975ec940bbd765177f919a9814` |
@@ -51,6 +61,8 @@ evidence, and it does not close the common-revision milestone gate.
 | `/var/tmp/transit-m6-workload-result-fast1.log` | `08f61b2ff5991f24aa332730f02e9f7d27c3b13579bdb9ed57c1dc5c2d4f647b` |
 | `/var/tmp/transit-m6-workload-handoff2.log` | `82d637ee4539c0ac87704393c6d024b5411c89e868466aa04311ba1b9e2cf090` |
 | `/var/tmp/transit-m6-workload-handoff-fast1.log` | `1ea4abc6eed537041106985ee004ca98eddf1231eb4240477e77bc47c96cfcc0` |
+| `/var/tmp/transit-m6-workload-position1.log` | `b8e94c425035fcff18d1345e671e0db39281cb7460b61eee94c8765ef5fc3c3b` |
+| `/var/tmp/transit-m6-workload-position-fast1.log` | `d7d31295cb6c1c30b14fbc3c03b355d3d1be167b94692c4b294687da7844b9f5` |
 
 ## Frozen workload tokens and native terminal settlement — 2026-11-01
 
